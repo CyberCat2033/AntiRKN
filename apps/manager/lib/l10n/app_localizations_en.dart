@@ -798,7 +798,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get inventoryPrivilegesHint =>
-      'UID and sudo availability are observations. Elevation for installation has not been tested.';
+      'UID and sudo availability describe the SSH account. Use the administrative access check to retry restricted reads.';
 
   @override
   String inventoryMiB(String value) {
@@ -879,4 +879,66 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get sshJumpHostChanged =>
       'The jump server’s SSH key has changed. Open that server and verify its new fingerprint before connecting.';
+
+  @override
+  String get privilegesTitle => 'Administrative access';
+
+  @override
+  String get privilegesUnknown =>
+      'Administrative access has not been checked in this session.';
+
+  @override
+  String get privilegesRoot =>
+      'Connected as root. No additional password is needed.';
+
+  @override
+  String get privilegesNoPassword =>
+      'The sudo check succeeded without a password.';
+
+  @override
+  String get privilegesPassword => 'The sudo check succeeded with a password.';
+
+  @override
+  String get privilegesRequired =>
+      'sudo requires a password. Enter it below and retry.';
+
+  @override
+  String get privilegesAuthentication =>
+      'sudo rejected the password. Check it before retrying.';
+
+  @override
+  String get privilegesDenied =>
+      'The server denied this sudo command. The account may lack permission.';
+
+  @override
+  String get privilegesUnavailable => 'sudo is not available on the server.';
+
+  @override
+  String get privilegesTerminal =>
+      'The sudo policy requires an interactive terminal. This mode is not supported yet.';
+
+  @override
+  String get privilegesInvalidPassword =>
+      'Use up to 1024 characters without line breaks or NUL.';
+
+  @override
+  String get privilegesCheck => 'Check access and refresh details';
+
+  @override
+  String get privilegesChecking => 'Checking administrative access…';
+
+  @override
+  String get privilegesSudoPassword => 'Separate sudo password';
+
+  @override
+  String get privilegesSshPasswordHint =>
+      'Leave empty to use the saved SSH password. A separate password is stored encrypted.';
+
+  @override
+  String get privilegesKeyPasswordHint =>
+      'Enter the account password requested by sudo. The private key passphrase is not used. The password is stored encrypted.';
+
+  @override
+  String get privilegesScope =>
+      'This checks the effective UID and retries restricted software reads. Permission is checked for each command; installation requires a separate plan.';
 }

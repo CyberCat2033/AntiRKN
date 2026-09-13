@@ -67,6 +67,18 @@ void main() {
         expect(find.text(c.serverName.text), findsOneWidget);
         expect(find.text('Ubuntu 24.04'), findsOneWidget);
         expect(find.textContaining('SHA256:fixture'), findsNothing);
+        final sudoField = find.byKey(const ValueKey('sudo-password'));
+        expect(sudoField, findsOneWidget);
+        expect(tester.widget<TextField>(sudoField).obscureText, isTrue);
+        final checkAccess = find.byKey(const ValueKey('sudo-check'));
+        await tester.ensureVisible(checkAccess);
+        await tester.pumpAndSettle();
+        await tester.tap(checkAccess);
+        await tester.pumpAndSettle();
+        expect(c.privileges!.status, PrivilegeStatus.sudoWithoutPassword);
+        expect(connector.connection.lastUseSudo, isTrue);
+        expect(tester.takeException(), isNull);
+
         final edit = find.byKey(const ValueKey('ssh-edit'));
         await tester.ensureVisible(edit);
         await tester.pumpAndSettle();

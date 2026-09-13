@@ -800,7 +800,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get inventoryPrivilegesHint =>
-      'UID и наличие sudo — сведения текущего сеанса. Повышение прав для установки не проверялось.';
+      'UID и наличие sudo описывают SSH-учётную запись. Проверка административных прав позволяет повторить недоступные пробы.';
 
   @override
   String inventoryMiB(String value) {
@@ -883,4 +883,65 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get sshJumpHostChanged =>
       'SSH-ключ промежуточного сервера изменился. Откройте его карточку и проверьте новый отпечаток перед подключением.';
+
+  @override
+  String get privilegesTitle => 'Административные права';
+
+  @override
+  String get privilegesUnknown =>
+      'Административные права в этом сеансе ещё не проверены.';
+
+  @override
+  String get privilegesRoot =>
+      'Подключение с правами root. Дополнительный пароль не нужен.';
+
+  @override
+  String get privilegesNoPassword => 'Проверка sudo прошла без пароля.';
+
+  @override
+  String get privilegesPassword => 'Проверка sudo прошла с паролем.';
+
+  @override
+  String get privilegesRequired =>
+      'sudo требует пароль. Введите его ниже и повторите проверку.';
+
+  @override
+  String get privilegesAuthentication =>
+      'sudo отклонил пароль. Проверьте его перед повторной попыткой.';
+
+  @override
+  String get privilegesDenied =>
+      'Сервер запретил эту команду sudo. Возможно, у учётной записи недостаточно прав.';
+
+  @override
+  String get privilegesUnavailable => 'sudo недоступен на сервере.';
+
+  @override
+  String get privilegesTerminal =>
+      'Политика sudo требует интерактивный терминал. Этот режим пока не поддерживается.';
+
+  @override
+  String get privilegesInvalidPassword =>
+      'Допустимо не более 1024 символов, без переносов строк и NUL.';
+
+  @override
+  String get privilegesCheck => 'Проверить права и обновить сведения';
+
+  @override
+  String get privilegesChecking => 'Проверка административных прав…';
+
+  @override
+  String get privilegesSudoPassword => 'Отдельный пароль sudo';
+
+  @override
+  String get privilegesSshPasswordHint =>
+      'Оставьте пустым, чтобы использовать сохранённый SSH-пароль. Отдельный пароль сохраняется зашифрованным.';
+
+  @override
+  String get privilegesKeyPasswordHint =>
+      'Введите пароль учётной записи, который требует sudo. Passphrase приватного ключа не используется. Пароль сохраняется зашифрованным.';
+
+  @override
+  String get privilegesScope =>
+      'Проверяется фактический UID и повторяется чтение недоступных сведений о ПО. Разрешение проверяется для каждой команды; установка требует отдельного плана.';
 }

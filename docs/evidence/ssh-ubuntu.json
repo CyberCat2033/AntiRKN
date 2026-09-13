@@ -33,8 +33,8 @@
       "rules": 5
     },
     "calling_isolate_heartbeat": {
-      "ticks": 150,
-      "max_gap_ms": 17,
+      "ticks": 157,
+      "max_gap_ms": 16,
       "limit_ms": 250
     },
     "linux_agent": {

@@ -28,13 +28,84 @@ Future<ServerSoftwareInventory> read(
   Map<String, String> responses, {
   Set<String> failures = const {},
 }) => ServerInventoryReader((command) async {
-  expect(InventoryProbes.allowedCommands, contains(command));
+  expect(InventoryProbes.isAllowedCommand(command), isTrue);
   final key = command.substring(InventoryProbes.prefix.length);
   if (failures.contains(key)) throw const SshFailure(SshIssue.commandFailed);
-  return responses[key] ?? (throw StateError('Missing fixture command'));
+  return responses[key] ??
+      (key.contains(' exec ')
+          ? '@missing'
+          : throw StateError('Missing fixture command'));
 }).read(CancellationToken());
 
 void main() {
+  test(
+    'container daemon and tools versions are read separately; image tag is not a version',
+    () async {
+      final id = 'c' * 64;
+      final responses = cleanResponses()
+        ..[InventoryProbes.containers] =
+            '${jsonEncode(id)}\t"amnezia-awg2:latest"\t"running"\t"amnezia-awg2"'
+        ..[InventoryProbes.containerVersion(id, 'amneziawg-go')] =
+            'amneziawg-go v3.0.0\n\nUserspace daemon'
+        ..[InventoryProbes.containerVersion(id, 'awg')] =
+            'amneziawg-tools v3.1.20260812 - https://amnezia.org';
+      final awg = (await read(responses)).components.last;
+      expect(awg.installations.map((i) => i.version?.value), [
+        null,
+        '3.0.0',
+        '3.1.20260812',
+      ]);
+      expect(awg.installations[1].identity, endsWith('amneziawg-go'));
+      expect(awg.installations[2].identity, endsWith('awg'));
+      responses[InventoryProbes.containerVersion(id, 'amneziawg-go')] =
+          '@denied';
+      final denied = (await read(responses)).components.last;
+      expect(denied.presence, ComponentPresence.detected);
+      expect(denied.issues, contains(InventoryStatus.denied));
+      expect(denied.installations[2].version!.value, '3.1.20260812');
+    },
+  );
+
+  test('container probes accept only full IDs and known version binaries', () {
+    final id = 'a' * 64;
+    final command =
+        '${InventoryProbes.prefix}${InventoryProbes.containerVersion(id, 'awg')}';
+    expect(InventoryProbes.isAllowedCommand(command), isTrue);
+    expect(InventoryProbes.canElevate(command), isTrue);
+    expect(
+      InventoryProbes.canElevate('${InventoryProbes.prefix}id -u'),
+      isFalse,
+    );
+    expect(
+      InventoryProbes.isAllowedCommand('$command; echo injected'),
+      isFalse,
+    );
+    for (final bad in ['abc', '$id; id', '-$id', '$id\n']) {
+      expect(
+        () => InventoryProbes.containerVersion(bad, 'awg'),
+        throwsArgumentError,
+      );
+    }
+    expect(
+      () => InventoryProbes.containerVersion(id, 'sh'),
+      throwsArgumentError,
+    );
+  });
+
+  test(
+    'stopped containers are detected without starting or executing them',
+    () async {
+      final responses = cleanResponses()
+        ..[InventoryProbes.containers] =
+            '${jsonEncode('d' * 64)}\t"amnezia-awg2"\t"exited"';
+      final result = await ServerInventoryReader((command) async {
+        expect(command, isNot(contains(' exec ')));
+        return responses[command.substring(InventoryProbes.prefix.length)]!;
+      }).read(CancellationToken());
+      expect(result.components.last.installations.single.version, isNull);
+    },
+  );
+
   test(
     'slow inspection survives the old deadline and uses at most three concurrent reads',
     () async {

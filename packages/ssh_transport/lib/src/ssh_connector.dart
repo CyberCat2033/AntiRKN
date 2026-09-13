@@ -11,6 +11,9 @@ import 'linux_agent.dart';
 import 'ubuntu_release.dart';
 import 'server_inventory_reader.dart';
 import 'parallel_reads.dart';
+import 'command_executor.dart';
+import 'privilege_runner.dart';
+import 'inventory_probes.dart';
 
 /// Public API exposes read-only inventory, never a shell or arbitrary command.
 final class DirectSshConnector implements SshConnector {
@@ -310,17 +313,30 @@ final class _Connection implements SshConnection {
   final SSHClient client;
   final SSHSocket socket;
   final Duration commandTimeout;
+  late final _executor = SshCommandExecutor(client, commandTimeout);
   bool _closed = false;
   bool _observing = false;
   @override
   Future<void> get done => client.done;
 
   @override
-  Future<ServerObservation> observe(CancellationToken cancellation) async {
+  Future<ServerObservation> observe(
+    CancellationToken cancellation, {
+    bool useSudo = false,
+    String? sudoPassword,
+  }) async {
     if (_closed) throw const SshFailure(SshIssue.disconnected);
     if (_observing) throw const SshFailure(SshIssue.commandFailed);
     _observing = true;
     try {
+      final privileges = PrivilegeRunner(
+        _executor,
+        cancellation,
+        password: sudoPassword,
+      );
+      if (useSudo && !validSudoPassword(sudoPassword)) {
+        throw const SshFailure(SshIssue.invalidSudoPassword);
+      }
       final osRelease = await _read(
         'cat /etc/os-release',
         cancellation,
@@ -362,14 +378,15 @@ final class _Connection implements SshConnection {
         os: os,
         architecture: architecture,
         network: network,
-        software: await ServerInventoryReader(
-          (command) => _read(
-            command,
-            cancellation,
-            limit: 65536,
-            timeout: commandTimeout,
-          ),
-        ).read(cancellation),
+        software: await ServerInventoryReader((command) async {
+          final raw = await _read(command, cancellation, limit: 65536);
+          if (useSudo &&
+              raw.trim() == '@denied' &&
+              InventoryProbes.canElevate(command)) {
+            return privileges.read(command);
+          }
+          return raw;
+        }).read(cancellation),
       );
     } catch (error) {
       // Failed/cancelled command ends the transport, so retries use a new session.
@@ -382,97 +399,39 @@ final class _Connection implements SshConnection {
     }
   }
 
+  @override
+  Future<PrivilegeCheck> checkPrivileges(
+    CancellationToken cancellation, {
+    String? sudoPassword,
+  }) async {
+    if (_closed) throw const SshFailure(SshIssue.disconnected);
+    try {
+      return await PrivilegeRunner(
+        _executor,
+        cancellation,
+        password: sudoPassword,
+      ).check();
+    } catch (error) {
+      throw cancellation.isCancelled
+          ? const SshFailure(SshIssue.cancelled)
+          : _safeFailure(error);
+    }
+  }
+
   Future<String> _read(
     String command,
     CancellationToken cancellation, {
     int limit = 1024 * 1024,
     Duration? timeout,
   }) async {
-    cancellation.check();
-    SSHSession? session;
-    var acceptingSession = true;
-    StreamSubscription<Uint8List>? out;
-    StreamSubscription<Uint8List>? err;
-    final output = BytesBuilder(copy: false);
-    var errorBytes = 0;
-    final finished = Completer<String>();
-    var streamsEnded = 0;
-    var exitObserved = false;
-    void fail(Object failure) {
-      if (!finished.isCompleted) finished.completeError(failure);
-    }
-
-    void completeIfReady() {
-      if (streamsEnded != 2 || !exitObserved || finished.isCompleted) return;
-      if (session!.exitCode != 0 || session!.exitSignal != null) {
-        fail(const SshFailure(SshIssue.commandFailed));
-      } else {
-        try {
-          finished.complete(utf8.decode(output.takeBytes()));
-        } catch (_) {
-          fail(const SshFailure(SshIssue.invalidInventory));
-        }
-      }
-    }
-
-    void streamEnded() {
-      streamsEnded++;
-      completeIfReady();
-    }
-
-    try {
-      session = await cancellation.bind(
-        client
-            .execute(command)
-            .then((opened) {
-              // A channel opened after timeout/cancellation still needs closing.
-              if (acceptingSession) {
-                session = opened;
-              } else {
-                opened.close();
-              }
-              return opened;
-            })
-            .timeout(timeout ?? commandTimeout),
-      );
-      // Attach error handling before any stream can complete.
-      final result = cancellation.bind(
-        finished.future.timeout(timeout ?? commandTimeout),
-      );
-      unawaited(
-        session!.waitForExit().then((_) {
-          exitObserved = true;
-          completeIfReady();
-        }, onError: (Object _) => fail(const SshFailure(SshIssue.network))),
-      );
-      out = session!.stdout.listen(
-        (chunk) {
-          if (finished.isCompleted) return;
-          if (output.length + chunk.length > limit) {
-            fail(const SshFailure(SshIssue.outputLimit));
-            return;
-          }
-          output.add(chunk);
-        },
-        onError: (Object _) => fail(const SshFailure(SshIssue.network)),
-        onDone: streamEnded,
-      );
-      err = session!.stderr.listen(
-        (chunk) {
-          errorBytes += chunk.length;
-          if (errorBytes > 16384) fail(const SshFailure(SshIssue.outputLimit));
-        },
-        onError: (Object _) => fail(const SshFailure(SshIssue.network)),
-        onDone: streamEnded,
-      );
-      unawaited(session!.stdin.close().catchError((Object _) {}));
-      return await result;
-    } finally {
-      acceptingSession = false;
-      await out?.cancel();
-      await err?.cancel();
-      session?.close();
-    }
+    final result = await _executor.execute(
+      command,
+      cancellation,
+      limit: limit,
+      timeout: timeout,
+    );
+    if (!result.succeeded) throw const SshFailure(SshIssue.commandFailed);
+    return result.output;
   }
 
   @override

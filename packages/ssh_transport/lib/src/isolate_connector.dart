@@ -117,11 +117,32 @@ final class _WorkerConnection implements SshConnection {
   }
 
   @override
-  Future<ServerObservation> observe(CancellationToken cancellation) async {
+  Future<ServerObservation> observe(
+    CancellationToken cancellation, {
+    bool useSudo = false,
+    String? sudoPassword,
+  }) async {
     try {
       cancellation.check();
-      return (await cancellation.bind(request('observe', null)))
+      return (await cancellation.bind(
+            request('observe', (useSudo, sudoPassword)),
+          ))
           as ServerObservation;
+    } catch (_) {
+      close();
+      rethrow;
+    }
+  }
+
+  @override
+  Future<PrivilegeCheck> checkPrivileges(
+    CancellationToken cancellation, {
+    String? sudoPassword,
+  }) async {
+    try {
+      cancellation.check();
+      return (await cancellation.bind(request('privileges', sudoPassword)))
+          as PrivilegeCheck;
     } catch (_) {
       close();
       rethrow;
@@ -219,8 +240,19 @@ void _runWorker((SendPort, Duration, Duration) input) {
             );
             events.send(('result', id, null));
           case 'observe':
-            final observation = await connection!.observe(cancellation);
+            final (useSudo, sudoPassword) = payload as (bool, String?);
+            final observation = await connection!.observe(
+              cancellation,
+              useSudo: useSudo,
+              sudoPassword: sudoPassword,
+            );
             events.send(('result', id, observation));
+          case 'privileges':
+            final result = await connection!.checkPrivileges(
+              cancellation,
+              sudoPassword: payload as String?,
+            );
+            events.send(('result', id, result));
         }
       } catch (error) {
         events.send((

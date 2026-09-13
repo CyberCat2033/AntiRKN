@@ -1,0 +1,214 @@
+Resolving dependencies...
+Downloading packages...
+  _fe_analyzer_shared 93.0.0 (108.0.0 available)
+  analyzer 10.0.1 (14.4.0 available)
+  clock 1.1.2 (1.1.3 available)
+  code_assets 1.2.1 (2.0.0 available)
+  dynamic_color 1.8.1 (2.1.0 available)
+  file_selector_android 0.5.2+6 (0.5.2+11 available)
+  hooks 2.0.2 (2.2.0 available)
+  intl 0.20.2 (0.20.3 available)
+  matcher 0.12.18 (0.12.20 available)
+  material_color_utilities 0.13.0 (0.13.1 available)
+  meta 1.17.0 (1.19.0 available)
+  objective_c 9.5.0 (9.6.0 available)
+  package_config 2.2.0 (3.0.0 available)
+  path_provider 2.1.5 (2.1.6 available)
+  platform 3.1.6 (3.2.0 available)
+  record_use 0.6.0 (1.1.1 available)
+  shared_preferences 2.5.4 (2.5.5 available)
+  shared_preferences_android 2.4.23 (2.4.28 available)
+  sqlite3 2.9.4 (3.6.0 available)
+  sqlite3_flutter_libs 0.5.41 (0.6.0+eol available)
+  stack_trace 1.12.1 (1.12.2 available)
+  test 1.29.0 (1.32.0 available)
+  test_api 0.7.9 (0.7.14 available)
+  test_core 0.6.15 (0.6.20 available)
+  vector_math 2.2.0 (2.4.2 available)
+  yaml 3.1.3 (3.1.4 available)
+  yaml_edit 2.2.3 (2.2.4 available)
+Got dependencies!
+27 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Architecture boundaries, base.yml SHA-256 and 275 RU/EN messages: OK
+Because l10n.yaml exists, the options defined there will be used instead.
+To use the command line arguments, delete the l10n.yaml file in the Flutter project.
+
+
+Formatted 85 files (0 changed) in 0.44 seconds.
+Analyzing AntiRKN...
+No issues found! (ran in 2.4s)
+00:00 +0: loading <workspace>/packages/storage/test/secret_vault_test.dart
+00:00 +0: <workspace>/packages/storage/test/secret_vault_test.dart: version 1 profile without a name restores using the host
+00:00 +1: <workspace>/packages/storage/test/secret_vault_test.dart: master vault survives a new instance and stores only ciphertext on disk
+00:00 +2: <workspace>/packages/storage/test/secret_vault_test.dart: master vault survives a new instance and stores only ciphertext on disk
+00:00 +3: <workspace>/packages/storage/test/workspace_database_test.dart: multiple servers, settings and encrypted template survive reopen; DB/WAL contain no credentials
+00:00 +4: <workspace>/packages/storage/test/workspace_database_test.dart: multiple servers, settings and encrypted template survive reopen; DB/WAL contain no credentials
+00:00 +5: <workspace>/packages/storage/test/workspace_database_test.dart: multiple servers, settings and encrypted template survive reopen; DB/WAL contain no credentials
+00:00 +6: <workspace>/packages/storage/test/workspace_database_test.dart: multiple servers, settings and encrypted template survive reopen; DB/WAL contain no credentials
+00:00 +7: <workspace>/packages/storage/test/workspace_database_test.dart: multiple servers, settings and encrypted template survive reopen; DB/WAL contain no credentials
+00:00 +8: <workspace>/packages/storage/test/secret_vault_test.dart: lock during a pending save never restores decrypted state
+00:00 +9: <workspace>/packages/storage/test/secret_vault_test.dart: lock during a pending save never restores decrypted state
+00:00 +10: <workspace>/packages/storage/test/workspace_database_test.dart: stale writers and deleted records cannot overwrite newer credentials or resurrect a server
+00:00 +11: <workspace>/packages/storage/test/workspace_database_test.dart: stale writers and deleted records cannot overwrite newer credentials or resurrect a server
+00:00 +12: <workspace>/packages/storage/test/workspace_database_test.dart: stale writers and deleted records cannot overwrite newer credentials or resurrect a server
+00:00 +13: <workspace>/packages/storage/test/workspace_database_test.dart: failed transaction keeps old profile and its trusted host key
+00:00 +14: <workspace>/packages/storage/test/workspace_database_test.dart: authentication binds encrypted payload to the server ID and revision
+00:00 +15: <workspace>/packages/storage/test/workspace_database_test.dart: legacy VaultMode.system migration is atomic, repeatable and keeps old encrypted file
+00:00 +16: <workspace>/packages/storage/test/workspace_database_test.dart: legacy VaultMode.masterPassword migration is atomic, repeatable and keeps old encrypted file
+00:01 +17: <workspace>/packages/storage/test/workspace_database_test.dart: migration rollback cannot leave an imported server without its marker
+00:01 +18: <workspace>/packages/storage/test/workspace_database_test.dart: future schema is rejected without changing its version
+00:01 +19: <workspace>/packages/storage/test/workspace_database_test.dart: oversized template does not replace the saved draft
+00:01 +20: All tests passed!
+00:00 +0: loading <workspace>/packages/ssh_transport/test/ssh_connector_test.dart
+00:00 +0: <workspace>/packages/ssh_transport/test/ssh_connector_test.dart: invalid settings reject before transport or host trust callback
+00:00 +1: <workspace>/packages/ssh_transport/test/ssh_connector_test.dart: cancelled handshake closes a real socket without sending password
+00:00 +2: <workspace>/packages/ssh_transport/test/ssh_connector_test.dart: key parse failure exposes only a safe code
+00:00 +3: <workspace>/packages/ssh_transport/test/ssh_connector_test.dart: cancellation observes late failures without leaking uncaught errors
+00:00 +4: <workspace>/packages/ssh_transport/test/ubuntu_release_test.dart: Ubuntu 20.04 is accepted and reports its actual version
+00:00 +5: <workspace>/packages/ssh_transport/test/ubuntu_release_test.dart: Ubuntu 22.04 is accepted and reports its actual version
+00:00 +6: <workspace>/packages/ssh_transport/test/ubuntu_release_test.dart: Ubuntu 24.04 is accepted and reports its actual version
+00:00 +7: <workspace>/packages/ssh_transport/test/ubuntu_release_test.dart: Ubuntu 25.10 is accepted and reports its actual version
+00:00 +8: <workspace>/packages/ssh_transport/test/ubuntu_release_test.dart: Ubuntu 26.04 is accepted and reports its actual version
+00:00 +9: <workspace>/packages/ssh_transport/test/ubuntu_release_test.dart: Ubuntu rolling is accepted and reports its actual version
+00:00 +10: <workspace>/packages/ssh_transport/test/ubuntu_release_test.dart: Ubuntu does not require version metadata
+00:00 +11: <workspace>/packages/ssh_transport/test/ubuntu_release_test.dart: quoted distribution identifiers are accepted
+00:00 +12: <workspace>/packages/ssh_transport/test/ubuntu_release_test.dart: other distributions and ambiguous identifiers are rejected
+00:02 +13: <workspace>/packages/ssh_transport/test/server_inventory_test.dart: container daemon and tools versions are read separately; image tag is not a version
+00:02 +14: <workspace>/packages/ssh_transport/test/server_inventory_test.dart: container probes accept only full IDs and known version binaries
+00:02 +15: <workspace>/packages/ssh_transport/test/server_inventory_test.dart: stopped containers are detected without starting or executing them
+00:02 +16: <workspace>/packages/ssh_transport/test/server_inventory_test.dart: slow inspection survives the old deadline and uses at most three concurrent reads
+00:02 +17: <workspace>/packages/ssh_transport/test/inventory_probe_test.dart: Docker permission fallback is a noninteractive metadata read; denial stays explicit
+00:02 +18: <workspace>/packages/ssh_transport/test/inventory_probe_test.dart: Docker permission fallback is a noninteractive metadata read; denial stays explicit
+00:02 +19: <workspace>/packages/ssh_transport/test/inventory_probe_test.dart: Docker permission fallback is a noninteractive metadata read; denial stays explicit
+00:02 +20: <workspace>/packages/ssh_transport/test/inventory_probe_test.dart: Docker permission fallback is a noninteractive metadata read; denial stays explicit
+00:02 +21: <workspace>/packages/ssh_transport/test/inventory_probe_test.dart: Docker permission fallback is a noninteractive metadata read; denial stays explicit
+00:02 +22: <workspace>/packages/ssh_transport/test/server_inventory_test.dart: failed version retains detected component without guessed version
+00:02 +23: <workspace>/packages/ssh_transport/test/server_inventory_test.dart: timeouts are partial; cancellation and connection loss stop scan
+00:02 +24: <workspace>/packages/ssh_transport/test/ssh_route_test.dart: routes preserve hop order and direct connections
+00:02 +25: <workspace>/packages/ssh_transport/test/ssh_route_test.dart: routes preserve hop order and direct connections
+00:02 +26: <workspace>/packages/ssh_transport/test/ssh_route_test.dart: routes preserve hop order and direct connections
+00:02 +27: <workspace>/packages/ssh_transport/test/server_inventory_test.dart: ports preserve families wildcard scope protocol and numeric order
+00:02 +28: <workspace>/packages/ssh_transport/test/ssh_route_test.dart: missing, self and indirect cycles never fall back to direct
+00:02 +29: <workspace>/packages/ssh_transport/test/ssh_route_test.dart: missing, self and indirect cycles never fall back to direct
+00:02 +30: <workspace>/packages/ssh_transport/test/ssh_route_test.dart: changing the jump changes connection settings
+00:02 +31: All tests passed!
+00:00 +0: loading <workspace>/packages/network_inventory/test/ip_address_test.dart
+00:00 +0: <workspace>/packages/network_inventory/test/ip_address_test.dart: two display classes preserve public versus local and special ranges
+00:00 +1: <workspace>/packages/network_inventory/test/ip_address_test.dart: canonical IPv6 compression, ties and embedded IPv4
+00:00 +2: <workspace>/packages/network_inventory/test/ip_address_test.dart: strict numeric IP boundary rejects ambiguous or decorated values
+00:00 +3: <workspace>/packages/network_inventory/test/ip_address_test.dart: numeric parsing matches the platform parser across seeded addresses
+00:00 +4: <workspace>/packages/network_inventory/test/ip_address_test.dart: special ranges never become public merely because scope is global
+00:00 +5: <workspace>/packages/network_inventory/test/ip_address_test.dart: prefix matching and ordering include family and full address
+00:00 +6: <workspace>/packages/network_inventory/test/inventory_parser_test.dart: one VPS: all assignments, both route families and all rule tables
+00:00 +7: <workspace>/packages/network_inventory/test/inventory_parser_test.dart: subnets, gateways, prefsrc and SSH peer never invent assigned IPs
+00:00 +8: <workspace>/packages/network_inventory/test/inventory_parser_test.dart: IDs survive reordering, IPv6 spelling and interface index changes
+00:00 +9: <workspace>/packages/network_inventory/test/inventory_parser_test.dart: duplicate assignments collapse; contradictory copies reject the snapshot
+00:00 +10: <workspace>/packages/network_inventory/test/inventory_parser_test.dart: point-to-point peer is preserved separately from local address
+00:00 +11: <workspace>/packages/network_inventory/test/address_policy_test.dart: wildcards only appear for listener; local addresses are role-specific
+00:00 +12: <workspace>/packages/network_inventory/test/address_policy_test.dart: wildcards only appear for listener; local addresses are role-specific
+00:00 +13: <workspace>/packages/network_inventory/test/address_policy_test.dart: wildcards only appear for listener; local addresses are role-specific
+00:00 +14: <workspace>/packages/network_inventory/test/address_policy_test.dart: wildcards only appear for listener; local addresses are role-specific
+00:00 +15: <workspace>/packages/network_inventory/test/address_policy_test.dart: wildcards only appear for listener; local addresses are role-specific
+00:00 +16: <workspace>/packages/network_inventory/test/address_policy_test.dart: wildcards only appear for listener; local addresses are role-specific
+00:00 +17: <workspace>/packages/network_inventory/test/address_policy_test.dart: wildcards only appear for listener; local addresses are role-specific
+00:00 +18: <workspace>/packages/network_inventory/test/address_policy_test.dart: wildcards only appear for listener; local addresses are role-specific
+00:00 +19: <workspace>/packages/network_inventory/test/address_policy_test.dart: invalid, temporary, deprecated, down and unscoped addresses explain rejection
+00:00 +20: <workspace>/packages/network_inventory/test/address_policy_test.dart: known tunnel addresses are not automatically offered as public endpoints
+00:00 +21: <workspace>/packages/network_inventory/test/address_policy_test.dart: lifetimes expire at the boundary; missing lifetimes remain unknown
+00:00 +22: <workspace>/packages/network_inventory/test/address_policy_test.dart: previous choice is rejected after removal or expiry; no replacement chosen
+00:00 +23: <workspace>/packages/network_inventory/test/address_policy_test.dart: future observation and protocol capabilities are respected
+00:00 +24: All tests passed!
+00:00 +0: loading <workspace>/packages/profile_compiler/test/compiler_test.dart
+00:00 +0: vless_only: preserves template policy and deterministic output
+00:00 +1: trusttunnel_only: preserves template policy and deterministic output
+00:00 +2: awg_only: preserves template policy and deterministic output
+00:00 +3: mixed_with_ru: preserves template policy and deterministic output
+00:00 +4: mixed_without_ru: preserves template policy and deterministic output
+00:00 +5: without_wg: preserves template policy and deterministic output
+00:00 +6: group preview preserves the actual base.yml filters and order
+00:00 +7: empty RU/WG groups expose fallback and block policy approval
+00:00 +8: only active confirmed accesses of selected user are materialized
+00:00 +9: an existing proxy collection requires an explicit import decision
+00:00 +10: rejects unsafe or ambiguous YAML without leaking excerpts: 9
+00:00 +11: rejects unsafe or ambiguous YAML without leaking excerpts: 10
+00:00 +12: rejects unsafe or ambiguous YAML without leaking excerpts: 13
+00:00 +13: rejects unsafe or ambiguous YAML without leaking excerpts: 10
+00:00 +14: rejects unsafe or ambiguous YAML without leaking excerpts: 17
+00:00 +15: enforces byte and depth limits before materialization
+00:00 +16: detects cycles, unknown rule destinations and provider references
+00:00 +17: complex filters and unresolved providers never claim an exact preview
+00:00 +18: include filter does not remove explicit group references; exclusions do
+00:00 +19: unsupported protocols and invalid VLESS combinations are rejected
+00:00 +20: All tests passed!
+00:00 +0: loading <workspace>/apps/manager/test/widget_test.dart
+00:00 +0: <workspace>/apps/manager/test/widget_test.dart: file selection fills empty editor; cancellation retains imported draft
+00:00 +1: <workspace>/apps/manager/test/widget_test.dart: file selection fills empty editor; cancellation retains imported draft
+00:00 +2: <workspace>/apps/manager/test/widget_test.dart: file selection fills empty editor; cancellation retains imported draft
+00:00 +3: <workspace>/apps/manager/test/widget_test.dart: file selection fills empty editor; cancellation retains imported draft
+00:00 +4: <workspace>/apps/manager/test/widget_test.dart: file selection fills empty editor; cancellation retains imported draft
+00:00 +5: <workspace>/apps/manager/test/widget_test.dart: file selection fills empty editor; cancellation retains imported draft
+00:00 +6: <workspace>/apps/manager/test/widget_test.dart: file selection fills empty editor; cancellation retains imported draft
+00:00 +7: <workspace>/apps/manager/test/widget_test.dart: file selection fills empty editor; cancellation retains imported draft
+00:00 +8: <workspace>/apps/manager/test/widget_test.dart: file selection fills empty editor; cancellation retains imported draft
+00:00 +9: <workspace>/apps/manager/test/widget_test.dart: file selection fills empty editor; cancellation retains imported draft
+00:01 +10: <workspace>/apps/manager/test/network_widget_test.dart: public IPs precede internal IPs without losing categories: en
+00:02 +11: <workspace>/apps/manager/test/network_widget_test.dart: public IPs precede internal IPs without losing categories: en
+00:02 +12: <workspace>/apps/manager/test/network_widget_test.dart: public IPs precede internal IPs without losing categories: en
+00:02 +13: <workspace>/apps/manager/test/network_widget_test.dart: public IPs precede internal IPs without losing categories: en
+00:02 +14: <workspace>/apps/manager/test/network_widget_test.dart: public IPs precede internal IPs without losing categories: en
+00:02 +15: <workspace>/apps/manager/test/network_widget_test.dart: public IPs precede internal IPs without losing categories: en
+00:02 +16: <workspace>/apps/manager/test/network_widget_test.dart: public IPs precede internal IPs without losing categories: en
+00:02 +17: <workspace>/apps/manager/test/network_widget_test.dart: public IPs precede internal IPs without losing categories: en
+00:02 +18: <workspace>/apps/manager/test/network_widget_test.dart: public IPs precede internal IPs without losing categories: en
+00:02 +19: <workspace>/apps/manager/test/network_widget_test.dart: public IPs precede internal IPs without losing categories: en
+00:02 +20: <workspace>/apps/manager/test/network_widget_test.dart: public IPs precede internal IPs without losing categories: en
+00:02 +21: <workspace>/apps/manager/test/network_widget_test.dart: public IPs precede internal IPs without losing categories: en
+00:02 +22: <workspace>/apps/manager/test/network_widget_test.dart: public IPs precede internal IPs without losing categories: en
+00:02 +23: <workspace>/apps/manager/test/network_widget_test.dart: public IPs precede internal IPs without losing categories: en
+00:02 +24: <workspace>/apps/manager/test/network_widget_test.dart: public IPs precede internal IPs without losing categories: en
+00:02 +25: <workspace>/apps/manager/test/network_widget_test.dart: public IPs precede internal IPs without losing categories: en
+00:02 +26: <workspace>/apps/manager/test/network_widget_test.dart: public IPs precede internal IPs without losing categories: en
+00:02 +27: <workspace>/apps/manager/test/network_widget_test.dart: public IPs precede internal IPs without losing categories: en
+00:02 +28: <workspace>/apps/manager/test/network_widget_test.dart: public IPs precede internal IPs without losing categories: en
+00:02 +29: <workspace>/apps/manager/test/network_widget_test.dart: public IPs precede internal IPs without losing categories: en
+00:02 +30: <workspace>/apps/manager/test/network_widget_test.dart: public IPs precede internal IPs without losing categories: en
+00:02 +31: <workspace>/apps/manager/test/network_widget_test.dart: public IPs precede internal IPs without losing categories: en
+00:02 +32: <workspace>/apps/manager/test/network_widget_test.dart: public IPs precede internal IPs without losing categories: en
+00:03 +33: <workspace>/apps/manager/test/network_widget_test.dart: public IPs precede internal IPs without losing categories: en
+00:03 +34: <workspace>/apps/manager/test/network_widget_test.dart: public IPs precede internal IPs without losing categories: en
+00:03 +35: <workspace>/apps/manager/test/network_widget_test.dart: public IPs precede internal IPs without losing categories: en
+00:03 +36: <workspace>/apps/manager/test/network_widget_test.dart: public IPs precede internal IPs without losing categories: en
+00:03 +37: <workspace>/apps/manager/test/network_widget_test.dart: public IPs precede internal IPs without losing categories: en
+00:03 +38: <workspace>/apps/manager/test/ssh_widget_test.dart: SSH form and trust prompt at 390.0, ru, text x2
+00:03 +39: <workspace>/apps/manager/test/ssh_widget_test.dart: SSH form and trust prompt at 390.0, ru, text x2
+00:03 +40: <workspace>/apps/manager/test/ssh_widget_test.dart: SSH form and trust prompt at 390.0, ru, text x2
+00:03 +41: <workspace>/apps/manager/test/ssh_widget_test.dart: SSH form and trust prompt at 390.0, ru, text x2
+00:03 +42: <workspace>/apps/manager/test/ssh_widget_test.dart: SSH form and trust prompt at 390.0, ru, text x2
+00:03 +43: <workspace>/apps/manager/test/ssh_widget_test.dart: SSH form and trust prompt at 390.0, ru, text x2
+00:03 +44: <workspace>/apps/manager/test/ssh_widget_test.dart: SSH form and trust prompt at 390.0, ru, text x2
+00:03 +45: <workspace>/apps/manager/test/ssh_widget_test.dart: SSH form and trust prompt at 390.0, ru, text x2
+00:03 +46: <workspace>/apps/manager/test/ssh_widget_test.dart: SSH form and trust prompt at 390.0, ru, text x2
+00:04 +47: <workspace>/apps/manager/test/ssh_widget_test.dart: SSH form and trust prompt at 390.0, ru, text x2
+00:04 +48: <workspace>/apps/manager/test/ssh_widget_test.dart: SSH form and trust prompt at 390.0, ru, text x2
+00:04 +49: <workspace>/apps/manager/test/ssh_widget_test.dart: SSH form and trust prompt at 390.0, ru, text x2
+00:04 +50: <workspace>/apps/manager/test/ssh_widget_test.dart: SSH form and trust prompt at 390.0, ru, text x2
+00:04 +51: <workspace>/apps/manager/test/ssh_widget_test.dart: SSH form and trust prompt at 390.0, ru, text x2
+00:04 +52: <workspace>/apps/manager/test/ssh_widget_test.dart: SSH form and trust prompt at 390.0, ru, text x2
+00:04 +53: <workspace>/apps/manager/test/ssh_widget_test.dart: SSH form and trust prompt at 390.0, ru, text x2
+00:05 +54: <workspace>/apps/manager/test/ssh_widget_test.dart: SSH form and trust prompt at 390.0, ru, text x2
+00:05 +55: <workspace>/apps/manager/test/ssh_widget_test.dart: SSH form and trust prompt at 390.0, ru, text x2
+00:05 +56: <workspace>/apps/manager/test/ssh_widget_test.dart: SSH form and trust prompt at 390.0, ru, text x2
+00:05 +57: <workspace>/apps/manager/test/server_catalog_test.dart: multiple servers CRUD, restart, reveal password, background and large text: en
+00:05 +58: <workspace>/apps/manager/test/server_catalog_test.dart: multiple servers CRUD, restart, reveal password, background and large text: en
+00:06 +59: <workspace>/apps/manager/test/server_catalog_test.dart: multiple servers CRUD, restart, reveal password, background and large text: en
+00:06 +60: <workspace>/apps/manager/test/server_catalog_test.dart: multiple servers CRUD, restart, reveal password, background and large text: en
+00:06 +61: <workspace>/apps/manager/test/server_catalog_test.dart: multiple servers CRUD, restart, reveal password, background and large text: en
+00:06 +62: <workspace>/apps/manager/test/server_catalog_test.dart: multiple servers CRUD, restart, reveal password, background and large text: en
+00:06 +63: <workspace>/apps/manager/test/server_catalog_test.dart: multiple servers CRUD, restart, reveal password, background and large text: en
+00:06 +64: <workspace>/apps/manager/test/server_catalog_test.dart: multiple servers CRUD, restart, reveal password, background and large text: en
+00:07 +65: <workspace>/apps/manager/test/server_catalog_test.dart: multiple servers CRUD, restart, reveal password, background and large text: en
+00:07 +66: <workspace>/apps/manager/test/server_catalog_test.dart: multiple servers CRUD, restart, reveal password, background and large text: en
+00:09 +67: <workspace>/apps/manager/test/ssh_widget_test.dart: app restores saved connection automatically and remains accessible on background
+00:09 +68: <workspace>/apps/manager/test/server_catalog_test.dart: multiple servers CRUD, restart, reveal password, background and large text: ru
+00:11 +69: All tests passed!

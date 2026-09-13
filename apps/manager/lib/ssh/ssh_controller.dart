@@ -6,7 +6,14 @@ import 'package:flutter/material.dart';
 
 import '../network/network_controller.dart';
 
-enum SshStage { idle, connecting, verifying, reading, connected }
+enum SshStage {
+  idle,
+  connecting,
+  verifying,
+  reading,
+  checkingPrivileges,
+  connected,
+}
 
 final class SshDependencies {
   const SshDependencies({
@@ -34,6 +41,13 @@ class SshController extends ChangeNotifier {
     for (final field in fields) {
       field.addListener(_edited);
     }
+    sudoPassword.addListener(() {
+      if (_lastSudoDraft != sudoPassword.text) {
+        _lastSudoDraft = sudoPassword.text;
+        privileges = null;
+        _notify();
+      }
+    });
     _clock = Timer.periodic(const Duration(seconds: 10), (_) => network.tick());
   }
   final Future<SecretVault> Function() openVault;
@@ -68,6 +82,22 @@ class SshController extends ChangeNotifier {
   final username = TextEditingController(text: 'root');
   final password = TextEditingController();
   final passphrase = TextEditingController();
+  final sudoPassword = TextEditingController();
+  PrivilegeCheck? privileges;
+  String _lastSudoDraft = '';
+  bool get isRoot =>
+      observation?.software?.facts[ServerFact.uid]?.value == '0' ||
+      privileges?.status == PrivilegeStatus.root;
+  bool get canCheckPrivileges =>
+      stage == SshStage.connected && !vaultBusy && !settingsExpanded;
+  String? get _effectiveSudoPassword {
+    if (sudoPassword.text.isNotEmpty) return sudoPassword.text;
+    final profile = _vault?.profile;
+    return profile?.authMethod == SshAuthMethod.password
+        ? profile?.secrets[ServerSecret.sshPassword]
+        : null;
+  }
+
   List<TextEditingController> get fields => [
     serverName,
     host,
@@ -75,6 +105,7 @@ class SshController extends ChangeNotifier {
     username,
     password,
     passphrase,
+    sudoPassword,
   ];
   SecretVault? _vault;
   bool initialised = false;
@@ -117,7 +148,8 @@ class SshController extends ChangeNotifier {
   bool get busy =>
       stage == SshStage.connecting ||
       stage == SshStage.verifying ||
-      stage == SshStage.reading;
+      stage == SshStage.reading ||
+      stage == SshStage.checkingPrivileges;
   bool get editing => unlocked && !busy && !vaultBusy && !picking;
   bool get hasSavedProfile => unlocked && _vault!.profile != null;
   String get displayName =>
@@ -188,6 +220,7 @@ class SshController extends ChangeNotifier {
     username.text = profile?.username ?? 'root';
     password.text = profile?.secrets[ServerSecret.sshPassword] ?? '';
     passphrase.text = profile?.secrets[ServerSecret.keyPassphrase] ?? '';
+    sudoPassword.text = profile?.secrets[ServerSecret.sudoPassword] ?? '';
     _pem = profile?.secrets[ServerSecret.privateKey];
     keyName = profile?.keyName;
     jumpServerId = profile?.jumpServerId;
@@ -296,6 +329,7 @@ class SshController extends ChangeNotifier {
       ...?_vault!.profile?.secrets,
       ServerSecret.sshPassword: password.text,
       ServerSecret.keyPassphrase: passphrase.text,
+      ServerSecret.sudoPassword: sudoPassword.text,
       ServerSecret.privateKey: ?_pem,
     },
   );
@@ -319,6 +353,11 @@ class SshController extends ChangeNotifier {
   Future<bool> _saveDraft() async {
     if (saved) return true;
     final profile = _draft();
+    if (!validSudoPassword(sudoPassword.text)) {
+      error = SshIssue.invalidSudoPassword;
+      _notify();
+      return false;
+    }
     if (!profile.valid) {
       error = SshIssue.invalidSettings;
       _notify();
@@ -514,6 +553,7 @@ class SshController extends ChangeNotifier {
   void _ended(SshConnection connection) {
     if (_disposed || _connection != connection) return;
     _connection = null;
+    privileges = null;
     if (!busy) {
       stage = SshStage.idle;
       error = SshIssue.disconnected;
@@ -525,9 +565,85 @@ class SshController extends ChangeNotifier {
     if (_decision?.isCompleted == false) _decision!.complete(accept);
   }
 
+  Future<void> checkPrivileges() async {
+    final connection = _connection;
+    if (!canCheckPrivileges || connection == null) return;
+    if (!validSudoPassword(_effectiveSudoPassword)) {
+      privileges = const PrivilegeCheck(PrivilegeStatus.invalidPassword);
+      _notify();
+      return;
+    }
+    // Persist the separate password using the same encrypted profile store.
+    // Connection fields are restored in the collapsed card, so this cannot
+    // apply an unsaved address while an old SSH session remains open.
+    final generation = _generation;
+    stage = SshStage.checkingPrivileges;
+    privileges = null;
+    error = null;
+    _notify();
+    if (!await _saveDraft()) {
+      if (!_disposed && generation == _generation) {
+        stage = _connection == connection ? SshStage.connected : SshStage.idle;
+        _notify();
+      }
+      return;
+    }
+    if (_disposed || generation != _generation) return;
+    if (_connection != connection) {
+      stage = SshStage.idle;
+      error = SshIssue.disconnected;
+      _notify();
+      return;
+    }
+    final cancellation = CancellationToken();
+    _cancellation = cancellation;
+    final secret = _effectiveSudoPassword;
+    stage = SshStage.checkingPrivileges;
+    privileges = null;
+    error = null;
+    _notify();
+    try {
+      final checked = await connection.checkPrivileges(
+        cancellation,
+        sudoPassword: isRoot ? null : secret,
+      );
+      if (_disposed || generation != _generation) return;
+      privileges = checked;
+      if (checked.granted) {
+        stage = SshStage.reading;
+        _notify();
+        final next = await connection.observe(
+          cancellation,
+          useSudo: checked.status != PrivilegeStatus.root,
+          sudoPassword: secret,
+        );
+        if (_disposed || generation != _generation) return;
+        observation = next;
+        network.accept(next.network);
+        await _remember(next);
+      }
+      if (!_disposed && generation == _generation) stage = SshStage.connected;
+    } on SshFailure catch (e) {
+      if (!_disposed && generation == _generation) error = e.issue;
+      connection.close();
+      if (_connection == connection) _connection = null;
+      privileges = null;
+    } catch (_) {
+      if (!_disposed && generation == _generation) error = SshIssue.network;
+      connection.close();
+      if (_connection == connection) _connection = null;
+      privileges = null;
+    } finally {
+      if (!_disposed && generation == _generation) {
+        if (_connection == null) stage = SshStage.idle;
+        _notify();
+      }
+    }
+  }
+
   Future<void> refresh() async {
     final connection = _connection;
-    if (busy || connection == null || !unlocked) return;
+    if (busy || vaultBusy || connection == null || !unlocked) return;
     final generation = _generation;
     final cancellation = CancellationToken();
     _cancellation = cancellation;
@@ -535,7 +651,11 @@ class SshController extends ChangeNotifier {
     error = null;
     _notify();
     try {
-      final next = await connection.observe(cancellation);
+      final next = await connection.observe(
+        cancellation,
+        useSudo: privileges?.granted == true && !isRoot,
+        sudoPassword: _effectiveSudoPassword,
+      );
       if (!_disposed &&
           generation == _generation &&
           !cancellation.isCancelled) {
@@ -565,6 +685,7 @@ class SshController extends ChangeNotifier {
     _cancellation?.cancel();
     _connection?.close();
     _connection = null;
+    privileges = null;
     decide(false);
     _decision = null;
     challenge = null;

@@ -140,6 +140,18 @@ void main() {
         await reopened.readDraft(),
         '# private-template-fixture\nproxies: []',
       );
+      expect(
+        (await reopened.openServer(
+          idA,
+        )).profile!.secrets[ServerSecret.sudoPassword],
+        'private-sudo-fixture',
+      );
+      expect(
+        (await reopened.openServer(
+          idA,
+        )).profile!.secrets[ServerSecret.sshPassword],
+        'private-password-fixture',
+      );
       final editing = await reopened.openServer(idA);
       await editing.saveProfile(profile('a.example', name: 'Renamed'));
       expect(

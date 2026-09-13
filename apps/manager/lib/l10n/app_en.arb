@@ -313,7 +313,7 @@
   "inventoryUid": "Effective UID",
   "inventoryTools": "System tools",
   "inventoryToolsEmpty": "None of the checked tools were found",
-  "inventoryPrivilegesHint": "UID and sudo availability are observations. Elevation for installation has not been tested.",
+  "inventoryPrivilegesHint": "UID and sudo availability describe the SSH account. Use the administrative access check to retry restricted reads.",
   "inventoryMiB": "{value} MiB",
   "@inventoryMiB": {
     "placeholders": {
@@ -350,5 +350,22 @@
         "type": "String"
       }
     }
-  }
+  },
+  "privilegesTitle": "Administrative access",
+  "privilegesUnknown": "Administrative access has not been checked in this session.",
+  "privilegesRoot": "Connected as root. No additional password is needed.",
+  "privilegesNoPassword": "The sudo check succeeded without a password.",
+  "privilegesPassword": "The sudo check succeeded with a password.",
+  "privilegesRequired": "sudo requires a password. Enter it below and retry.",
+  "privilegesAuthentication": "sudo rejected the password. Check it before retrying.",
+  "privilegesDenied": "The server denied this sudo command. The account may lack permission.",
+  "privilegesUnavailable": "sudo is not available on the server.",
+  "privilegesTerminal": "The sudo policy requires an interactive terminal. This mode is not supported yet.",
+  "privilegesInvalidPassword": "Use up to 1024 characters without line breaks or NUL.",
+  "privilegesCheck": "Check access and refresh details",
+  "privilegesChecking": "Checking administrative access…",
+  "privilegesSudoPassword": "Separate sudo password",
+  "privilegesSshPasswordHint": "Leave empty to use the saved SSH password. A separate password is stored encrypted.",
+  "privilegesKeyPasswordHint": "Enter the account password requested by sudo. The private key passphrase is not used. The password is stored encrypted.",
+  "privilegesScope": "This checks the effective UID and retries restricted software reads. Permission is checked for each command; installation requires a separate plan."
 }

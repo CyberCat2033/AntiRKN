@@ -123,6 +123,7 @@ class _ServerCatalogState extends State<ServerCatalog> {
                         SshStage.connecting => l.sshConnecting,
                         SshStage.verifying => l.sshTrustTitle,
                         SshStage.reading => l.sshReading,
+                        SshStage.checkingPrivileges => l.privilegesChecking,
                         SshStage.idle => l.sshIdle,
                       },
                     ].join('\n'),

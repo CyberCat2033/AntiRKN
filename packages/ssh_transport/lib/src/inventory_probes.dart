@@ -44,6 +44,8 @@ else printf '@missing\n'; fi''';
     '/usr/local/bin/trusttunnel_endpoint': VpnComponent.trustTunnel,
     '/usr/bin/awg': VpnComponent.amneziaWg,
     '/usr/local/bin/awg': VpnComponent.amneziaWg,
+    '/usr/bin/amneziawg-go': VpnComponent.amneziaWg,
+    '/usr/local/bin/amneziawg-go': VpnComponent.amneziaWg,
   };
 
   static String binaryPresence(String path) {
@@ -70,6 +72,45 @@ else printf '@missing\n'; fi''';
     };
     return 'if [ ! -x $path ]; then printf "@denied\\n"; else $path $flag; fi';
   }
+
+  static const containerBinaries = ['amneziawg-go', 'awg'];
+
+  static String containerVersion(String id, String binary) {
+    if (!RegExp(r'^[a-f0-9]{64}$').hasMatch(id) ||
+        !containerBinaries.contains(binary)) {
+      throw ArgumentError('Unknown container probe');
+    }
+    // Only version flags, no configuration, environment, peer keys or logs.
+    final script =
+        'for p in /usr/bin/$binary /usr/local/bin/$binary; do '
+        'if [ -f "\$p" ]; then '
+        'if [ ! -x "\$p" ]; then printf "@denied\\n"; exit 0; fi; '
+        'exec "\$p" --version; fi; done; printf "@missing\\n"';
+    final read =
+        "docker --host unix:///var/run/docker.sock exec $id /bin/sh -c '$script'";
+    return 'if [ ! -S /var/run/docker.sock ]; then printf "@unavailable\\n"; '
+        'elif ! command -v docker >/dev/null 2>&1; then printf "@denied\\n"; '
+        'elif [ -r /var/run/docker.sock ] && [ -w /var/run/docker.sock ]; then '
+        'DOCKER_CONTEXT= DOCKER_TLS_VERIFY= $read; '
+        'elif command -v sudo >/dev/null 2>&1; then '
+        'sudo -n -- $read 2>/dev/null || printf "@denied\\n"; '
+        'else printf "@denied\\n"; fi';
+  }
+
+  static bool isAllowedCommand(String command) {
+    if (allowedCommands.contains(command)) return true;
+    final id = RegExp(
+      r' exec ([a-f0-9]{64}) /bin/sh -c ',
+    ).firstMatch(command)?[1];
+    return id != null &&
+        containerBinaries.any(
+          (binary) => command == '$prefix${containerVersion(id, binary)}',
+        );
+  }
+
+  static bool canElevate(String command) =>
+      isAllowedCommand(command) &&
+      !facts.values.any((fact) => command == '$prefix$fact');
 
   static String sockets(SocketProtocol protocol, IpFamily family) =>
       'ss -H -n ${protocol == SocketProtocol.tcp ? '-l -t' : '-a -u'} ${family == IpFamily.ipv4 ? '-4' : '-6'}';

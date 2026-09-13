@@ -1,0 +1,40 @@
+{
+  "fixture": "Disposable Ubuntu 24.04; real OpenSSH and sudo/PAM",
+  "image": "ubuntu@sha256:224a1869083a311ef3f13648a154ba79832fbef6364d31493642ca03082da254",
+  "sudo_version": "Sudo version 1.9.15p5",
+  "results": {
+    "root_password": "PASS",
+    "root_key_no_extra_password": "PASS",
+    "sudo_nopasswd": "PASS",
+    "nopasswd_does_not_send_supplied_password": "PASS",
+    "sudo_password_required": "PASS",
+    "sudo_password": "PASS",
+    "sudo_key_and_separate_password": "PASS",
+    "sudo_wrong_password": "PASS",
+    "sudo_denied": "PASS",
+    "sudo_requires_terminal": "PASS",
+    "sudo_invalid_password": "PASS",
+    "sudo_through_jump": "PASS",
+    "restricted_read_testuser": "PASS",
+    "restricted_read_passuser": "PASS",
+    "restricted_read_limiteduser": "PASS",
+    "sudo_unavailable": "PASS",
+    "delayed_sudo": "PASS",
+    "timeout": "PASS",
+    "cancel": "PASS",
+    "disconnect": "PASS"
+  },
+  "read_only_config_hashes_unchanged": true,
+  "only_allowlisted_commands": true,
+  "commands_observed": 248,
+  "docker_versions": {
+    "result": "PASS",
+    "source": "Actual Docker CLI/daemon exec; public synthetic version-only binaries",
+    "versions": {
+      "amneziawg-go": "3.0.0",
+      "awg": "3.1.20260812"
+    },
+    "vpn_runtime_tested": false
+  },
+  "checked_at_utc": "2026-09-13T20:50:33Z"
+}

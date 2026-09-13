@@ -81,8 +81,11 @@ class ServerInventoryPanel extends StatelessWidget {
                             ServiceState.failed => l.inventoryServiceFailed,
                             ServiceState.unknown => l.inventoryStateUnknown,
                           }),
-                        if (installation.source != InstallationSource.systemd &&
-                            installation.source != InstallationSource.docker)
+                        if (installation.version != null ||
+                            (installation.source !=
+                                    InstallationSource.systemd &&
+                                installation.source !=
+                                    InstallationSource.docker))
                           Text(
                             installation.version?.value != null
                                 ? l.inventoryVersion(

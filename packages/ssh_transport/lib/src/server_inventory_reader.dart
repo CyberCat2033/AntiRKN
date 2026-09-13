@@ -49,6 +49,11 @@ final class ServerInventoryReader {
           SshIssue.timeout => InventoryStatus.timeout,
           SshIssue.outputLimit => InventoryStatus.outputLimit,
           SshIssue.invalidInventory => InventoryStatus.invalid,
+          SshIssue.sudoDenied ||
+          SshIssue.sudoPasswordRequired ||
+          SshIssue.sudoAuthenticationFailed ||
+          SshIssue.sudoUnavailable ||
+          SshIssue.sudoTerminalRequired => InventoryStatus.denied,
           _ => null,
         };
         if (status == null) rethrow;
@@ -116,17 +121,45 @@ final class ServerInventoryReader {
         );
       }
       for (final container in containers.value ?? <ContainerObservation>[]) {
-        if (container.component == c) {
+        if (container.component != c) continue;
+        final identity =
+            '${container.image} · ${container.id.substring(0, 12)}';
+        found[c]!.add(
+          ComponentInstallation(
+            source: InstallationSource.docker,
+            identity: identity,
+            state: container.state,
+          ),
+        );
+        if (c != VpnComponent.amneziaWg ||
+            container.state != ServiceState.running) {
+          continue;
+        }
+        for (final binary in InventoryProbes.containerBinaries) {
+          final version = await probe(
+            InventoryProbes.containerVersion(container.id, binary),
+            (s) => s.trim() == '@missing' ? null : parseVersion(s),
+          );
+          if (version.status == InventoryStatus.ok && version.value == null) {
+            continue;
+          }
+          if (version.status != InventoryStatus.ok) {
+            recordIssue(c, version.status, affectsPresence: false);
+          }
           found[c]!.add(
             ComponentInstallation(
               source: InstallationSource.docker,
-              identity: '${container.image} · ${container.id.substring(0, 12)}',
+              identity: '$identity · $binary',
               state: container.state,
+              version: version.value != null
+                  ? InventoryValue.ok(version.value!)
+                  : InventoryValue.failure(version.status),
             ),
           );
         }
       }
     }
+
     final binaryResults = await parallelReads(
       InventoryProbes.binaries.entries,
       (entry) async {
@@ -248,7 +281,7 @@ String parseVersion(String raw) {
   final first = const LineSplitter().convert(raw.trim()).firstOrNull ?? '';
   // Keep just a bounded version token, never a diagnostic line or environment value.
   final match = RegExp(
-    r'^(?:(?:Xray|x-ui|3x-ui|amneziawg-tools|trusttunnel_endpoint|TrustTunnel)\s+)?v?([0-9]+(?:\.[0-9]+){1,3}(?:[-+][a-zA-Z0-9.-]+)?)(?:\s|$)',
+    r'^(?:(?:Xray|x-ui|3x-ui|amneziawg-tools|amneziawg-go|trusttunnel_endpoint|TrustTunnel)\s+)?v?([0-9]+(?:\.[0-9]+){1,3}(?:[-+][a-zA-Z0-9.-]+)?)(?:\s|$)',
   ).firstMatch(first);
   if (match == null || match[1]!.length > 80) {
     throw const FormatException('version');

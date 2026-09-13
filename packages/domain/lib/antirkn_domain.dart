@@ -1,3 +1,4 @@
+export 'src/privileges.dart';
 export 'src/workspace.dart';
 export 'src/network/ip_address.dart';
 export 'src/network/network_inventory.dart';

@@ -1505,7 +1505,7 @@ abstract class AppLocalizations {
   /// No description provided for @inventoryPrivilegesHint.
   ///
   /// In en, this message translates to:
-  /// **'UID and sudo availability are observations. Elevation for installation has not been tested.'**
+  /// **'UID and sudo availability describe the SSH account. Use the administrative access check to retry restricted reads.'**
   String get inventoryPrivilegesHint;
 
   /// No description provided for @inventoryMiB.
@@ -1645,6 +1645,108 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The jump server’s SSH key has changed. Open that server and verify its new fingerprint before connecting.'**
   String get sshJumpHostChanged;
+
+  /// No description provided for @privilegesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Administrative access'**
+  String get privilegesTitle;
+
+  /// No description provided for @privilegesUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Administrative access has not been checked in this session.'**
+  String get privilegesUnknown;
+
+  /// No description provided for @privilegesRoot.
+  ///
+  /// In en, this message translates to:
+  /// **'Connected as root. No additional password is needed.'**
+  String get privilegesRoot;
+
+  /// No description provided for @privilegesNoPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'The sudo check succeeded without a password.'**
+  String get privilegesNoPassword;
+
+  /// No description provided for @privilegesPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'The sudo check succeeded with a password.'**
+  String get privilegesPassword;
+
+  /// No description provided for @privilegesRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'sudo requires a password. Enter it below and retry.'**
+  String get privilegesRequired;
+
+  /// No description provided for @privilegesAuthentication.
+  ///
+  /// In en, this message translates to:
+  /// **'sudo rejected the password. Check it before retrying.'**
+  String get privilegesAuthentication;
+
+  /// No description provided for @privilegesDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'The server denied this sudo command. The account may lack permission.'**
+  String get privilegesDenied;
+
+  /// No description provided for @privilegesUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'sudo is not available on the server.'**
+  String get privilegesUnavailable;
+
+  /// No description provided for @privilegesTerminal.
+  ///
+  /// In en, this message translates to:
+  /// **'The sudo policy requires an interactive terminal. This mode is not supported yet.'**
+  String get privilegesTerminal;
+
+  /// No description provided for @privilegesInvalidPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Use up to 1024 characters without line breaks or NUL.'**
+  String get privilegesInvalidPassword;
+
+  /// No description provided for @privilegesCheck.
+  ///
+  /// In en, this message translates to:
+  /// **'Check access and refresh details'**
+  String get privilegesCheck;
+
+  /// No description provided for @privilegesChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking administrative access…'**
+  String get privilegesChecking;
+
+  /// No description provided for @privilegesSudoPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Separate sudo password'**
+  String get privilegesSudoPassword;
+
+  /// No description provided for @privilegesSshPasswordHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Leave empty to use the saved SSH password. A separate password is stored encrypted.'**
+  String get privilegesSshPasswordHint;
+
+  /// No description provided for @privilegesKeyPasswordHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the account password requested by sudo. The private key passphrase is not used. The password is stored encrypted.'**
+  String get privilegesKeyPasswordHint;
+
+  /// No description provided for @privilegesScope.
+  ///
+  /// In en, this message translates to:
+  /// **'This checks the effective UID and retries restricted software reads. Permission is checked for each command; installation requires a separate plan.'**
+  String get privilegesScope;
 }
 
 class _AppLocalizationsDelegate

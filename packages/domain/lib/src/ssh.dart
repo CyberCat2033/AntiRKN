@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'network/network_inventory.dart';
 import 'server_inventory.dart';
+import 'privileges.dart';
 
 enum SshAuthMethod { password, privateKey, agent }
 
@@ -154,6 +155,12 @@ enum SshIssue {
   agentUnavailable,
   invalidJumpRoute,
   jumpHostKeyChanged,
+  sudoPasswordRequired,
+  sudoAuthenticationFailed,
+  sudoDenied,
+  sudoUnavailable,
+  sudoTerminalRequired,
+  invalidSudoPassword,
 }
 
 final class SshFailure implements Exception {
@@ -257,7 +264,15 @@ final class ServerObservation {
 }
 
 abstract interface class SshConnection {
-  Future<ServerObservation> observe(CancellationToken cancellation);
+  Future<ServerObservation> observe(
+    CancellationToken cancellation, {
+    bool useSudo = false,
+    String? sudoPassword,
+  });
+  Future<PrivilegeCheck> checkPrivileges(
+    CancellationToken cancellation, {
+    String? sudoPassword,
+  });
   Future<void> get done;
   void close();
 }

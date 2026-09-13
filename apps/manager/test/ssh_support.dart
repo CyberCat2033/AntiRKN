@@ -12,6 +12,7 @@ class FakeVault implements SecretVault {
   SshProfile? saved;
   bool failWrite = false;
   int writes = 0;
+  Completer<void>? writeGate;
   @override
   bool get isUnlocked => unlocked;
   @override
@@ -35,6 +36,7 @@ class FakeVault implements SecretVault {
 
   @override
   Future<void> saveProfile(SshProfile? profile) async {
+    await writeGate?.future;
     if (!unlocked) throw const VaultFailure(VaultIssue.locked);
     if (failWrite) throw const VaultFailure(VaultIssue.writeFailed);
     saved = profile;
@@ -57,13 +59,33 @@ class FakeKeyPicker implements PrivateKeyFilePicker {
 
 class FakeConnection implements SshConnection {
   int reads = 0;
+  bool lastUseSudo = false;
+  String? lastSudoPassword;
+  Future<PrivilegeCheck> Function(String?, CancellationToken)? privilegeChecker;
+  @override
+  Future<PrivilegeCheck> checkPrivileges(
+    CancellationToken cancellation, {
+    String? sudoPassword,
+  }) async {
+    lastSudoPassword = sudoPassword;
+    return privilegeChecker == null
+        ? const PrivilegeCheck(PrivilegeStatus.sudoWithoutPassword)
+        : privilegeChecker!(sudoPassword, cancellation);
+  }
+
   bool closed = false;
   final ended = Completer<void>();
   Future<ServerObservation> Function()? reader;
   @override
   Future<void> get done => ended.future;
   @override
-  Future<ServerObservation> observe(CancellationToken cancellation) async {
+  Future<ServerObservation> observe(
+    CancellationToken cancellation, {
+    bool useSudo = false,
+    String? sudoPassword,
+  }) async {
+    lastUseSudo = useSudo;
+    lastSudoPassword = sudoPassword;
     reads++;
     cancellation.check();
     return reader == null

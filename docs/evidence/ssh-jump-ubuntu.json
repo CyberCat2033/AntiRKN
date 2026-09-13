@@ -1,6 +1,6 @@
 {
   "fixture": "Ubuntu 24.04, separate SSH host keys; target listens only on container loopback:22241",
-  "checked_at_utc": "2026-09-13T20:11:14.399536Z",
+  "checked_at_utc": "2026-09-13T20:45:06.801716Z",
   "results": {
     "encrypted_jump_key_target_password": "PASS",
     "separate_fingerprints_before_each_auth": "PASS",

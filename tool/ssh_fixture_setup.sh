@@ -3,7 +3,7 @@
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq openssh-server iproute2 python3-cryptography python3-bcrypt >/dev/null
+apt-get install -y -qq openssh-server iproute2 python3-cryptography python3-bcrypt sudo >/dev/null
 useradd -m -s /bin/bash testuser
 mkdir -p /run/sshd /home/testuser/.ssh /root/.ssh
 python3 - <<'PY'
@@ -96,5 +96,8 @@ ForceCommand /usr/local/bin/antirkn-fixture-audit
 CONF
 /usr/sbin/sshd -f /etc/ssh/sshd_target.conf
 ip address add 192.0.2.41/32 dev lo
+if [ -f /fixture-data/privilege-setup.sh ]; then
+  bash /fixture-data/privilege-setup.sh
+fi
 printf 'ready\n' > /fixture-data/ready
 exec /usr/sbin/sshd -D -e

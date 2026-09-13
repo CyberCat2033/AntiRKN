@@ -266,6 +266,7 @@ class _SshPanelState extends State<SshPanel> {
                         SshStage.connecting => l.sshConnecting,
                         SshStage.verifying => l.sshTrustTitle,
                         SshStage.reading => l.sshReading,
+                        SshStage.checkingPrivileges => l.privilegesChecking,
                         SshStage.connected => l.sshConnected,
                       }),
                     ),
@@ -394,6 +395,55 @@ class _SshPanelState extends State<SshPanel> {
                 ),
               ),
             ),
+            if (!c.settingsExpanded &&
+                (c.stage == SshStage.connected ||
+                    c.stage == SshStage.checkingPrivileges ||
+                    (c.stage == SshStage.reading && c.privileges != null))) ...[
+              const SizedBox(height: AppLayout.gap),
+              SectionCard(
+                title: l.privilegesTitle,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        c.isRoot
+                            ? l.privilegesRoot
+                            : c.privileges == null
+                            ? l.privilegesUnknown
+                            : privilegeStatusLabel(l, c.privileges!.status),
+                      ),
+                    ),
+                    if (!c.isRoot) ...[
+                      const SizedBox(height: AppLayout.gap),
+                      _field(
+                        c.sudoPassword,
+                        l.privilegesSudoPassword,
+                        enabled: c.canCheckPrivileges,
+                        secret: true,
+                        id: 'sudo-password',
+                      ),
+                      Text(
+                        c.authMethod == SshAuthMethod.password
+                            ? l.privilegesSshPasswordHint
+                            : l.privilegesKeyPasswordHint,
+                      ),
+                    ],
+                    const SizedBox(height: AppLayout.gap),
+                    Text(l.privilegesScope),
+                    const SizedBox(height: AppLayout.gap),
+                    FilledButton.tonal(
+                      key: const ValueKey('sudo-check'),
+                      onPressed: c.canCheckPrivileges
+                          ? c.checkPrivileges
+                          : null,
+                      child: Text(l.privilegesCheck),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ],
       );
@@ -430,4 +480,23 @@ String sshIssueLabel(AppLocalizations l, SshIssue issue) => switch (issue) {
   SshIssue.agentUnavailable => l.sshAgentError,
   SshIssue.invalidJumpRoute => l.sshInvalidJump,
   SshIssue.jumpHostKeyChanged => l.sshJumpHostChanged,
+  SshIssue.sudoPasswordRequired => l.privilegesRequired,
+  SshIssue.sudoAuthenticationFailed => l.privilegesAuthentication,
+  SshIssue.sudoDenied => l.privilegesDenied,
+  SshIssue.sudoUnavailable => l.privilegesUnavailable,
+  SshIssue.sudoTerminalRequired => l.privilegesTerminal,
+  SshIssue.invalidSudoPassword => l.privilegesInvalidPassword,
 };
+
+String privilegeStatusLabel(AppLocalizations l, PrivilegeStatus status) =>
+    switch (status) {
+      PrivilegeStatus.root => l.privilegesRoot,
+      PrivilegeStatus.sudoWithoutPassword => l.privilegesNoPassword,
+      PrivilegeStatus.sudoWithPassword => l.privilegesPassword,
+      PrivilegeStatus.passwordRequired => l.privilegesRequired,
+      PrivilegeStatus.authenticationFailed => l.privilegesAuthentication,
+      PrivilegeStatus.denied => l.privilegesDenied,
+      PrivilegeStatus.unavailable => l.privilegesUnavailable,
+      PrivilegeStatus.terminalRequired => l.privilegesTerminal,
+      PrivilegeStatus.invalidPassword => l.privilegesInvalidPassword,
+    };

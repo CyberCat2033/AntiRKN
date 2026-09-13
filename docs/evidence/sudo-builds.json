@@ -1,0 +1,32 @@
+{
+  "linux": {
+    "build": "PASS",
+    "mode": "debug",
+    "architecture": "x64",
+    "artifact": "apps/manager/build/linux/x64/debug/bundle/antirkn_manager",
+    "bytes": 53696,
+    "sha256": "9fffcfee576434e574553b9b3cc8214dffa856e18bc973d1a78545ecfddd3d13",
+    "gui_runtime": "not run in this stage"
+  },
+  "android": {
+    "build": "PASS",
+    "mode": "debug",
+    "architecture": "arm64",
+    "artifact": "apps/manager/build/app/outputs/flutter-apk/app-debug.apk",
+    "bytes": 117989790,
+    "sha256": "62c8ae563c926f426a452a3c6fd142ea6eeb96299ac4409d0fca2b66a5a13e84",
+    "install": {
+      "method": "adb install -r",
+      "result": "PASS",
+      "data_preserved_by_update": true,
+      "device": "OnePlus HD1911"
+    },
+    "functional_runtime": "not yet accepted",
+    "activity_start": {
+      "status": "ok",
+      "state": "HOT",
+      "functional_acceptance": false
+    }
+  },
+  "checked_at_utc": "2026-09-13T20:51:11.370551+00:00"
+}
