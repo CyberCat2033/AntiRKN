@@ -1,0 +1,11 @@
+{
+  "status": "passed",
+  "scope": "local Linux host only; not Ubuntu VPS acceptance",
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.7.0",
+  "addresses": 9,
+  "assignments": 9,
+  "routes": 27,
+  "rules": 13,
+  "capturedAt": "2026-09-12T22:23:13.946539Z",
+  "rawNetworkDataPersisted": false
+}

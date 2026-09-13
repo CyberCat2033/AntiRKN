@@ -1,0 +1,15 @@
+{
+  "tests": {
+    "storage": 8,
+    "ssh_transport": 4,
+    "network_inventory": 23,
+    "profile_compiler": 20,
+    "manager": 36
+  },
+  "total": 91,
+  "format": "PASS",
+  "analyze": "PASS",
+  "architecture": "PASS",
+  "localization_messages": 203,
+  "base_yml_sha256": "f20fc58fce6c4bb1a53d82a2070ad3d4aea2e663d0c1489af23e5b5aa8495ce4"
+}

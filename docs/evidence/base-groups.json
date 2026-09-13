@@ -1,0 +1,334 @@
+{
+  "vless_only": {
+    "sha256": "e5cac86cedd854d5de72f961f0abe75a9571eb6bf1bbe25dd76d94775debc24e",
+    "policyBlocked": true,
+    "groups": {
+      "RemoteBalancer": {
+        "members": [
+          "vless_a_EU"
+        ],
+        "fallback": null,
+        "complete": true
+      },
+      "WG_Auto": {
+        "members": [],
+        "fallback": "COMPATIBLE",
+        "complete": true
+      },
+      "Proxy_Chain": {
+        "members": [
+          "RemoteBalancer",
+          "vless_a_EU"
+        ],
+        "fallback": null,
+        "complete": true
+      },
+      "RuZone": {
+        "members": [],
+        "fallback": "COMPATIBLE",
+        "complete": true
+      },
+      "SmartSelector": {
+        "members": [
+          "Proxy_Chain",
+          "RuZone"
+        ],
+        "fallback": null,
+        "complete": true
+      }
+    },
+    "diagnostics": [
+      {
+        "code": "empty_group_requires_policy",
+        "subject": "WG_Auto"
+      },
+      {
+        "code": "empty_group_requires_policy",
+        "subject": "RuZone"
+      },
+      {
+        "code": "unreferenced_group",
+        "subject": "WG_Auto"
+      }
+    ]
+  },
+  "trusttunnel_only": {
+    "sha256": "a01f090c2e9e59065004df73c829e83f7257eec4954fe71ca49bd0c0dc33106d",
+    "policyBlocked": true,
+    "groups": {
+      "RemoteBalancer": {
+        "members": [
+          "trusttunnel_a_EU"
+        ],
+        "fallback": null,
+        "complete": true
+      },
+      "WG_Auto": {
+        "members": [],
+        "fallback": "COMPATIBLE",
+        "complete": true
+      },
+      "Proxy_Chain": {
+        "members": [
+          "RemoteBalancer",
+          "trusttunnel_a_EU"
+        ],
+        "fallback": null,
+        "complete": true
+      },
+      "RuZone": {
+        "members": [],
+        "fallback": "COMPATIBLE",
+        "complete": true
+      },
+      "SmartSelector": {
+        "members": [
+          "Proxy_Chain",
+          "RuZone"
+        ],
+        "fallback": null,
+        "complete": true
+      }
+    },
+    "diagnostics": [
+      {
+        "code": "empty_group_requires_policy",
+        "subject": "WG_Auto"
+      },
+      {
+        "code": "empty_group_requires_policy",
+        "subject": "RuZone"
+      },
+      {
+        "code": "unreferenced_group",
+        "subject": "WG_Auto"
+      }
+    ]
+  },
+  "awg_only": {
+    "sha256": "f96a8caf750b8519369665f871176e7da5d836596706a9239816e4c50fd9cd5c",
+    "policyBlocked": true,
+    "groups": {
+      "RemoteBalancer": {
+        "members": [],
+        "fallback": "COMPATIBLE",
+        "complete": true
+      },
+      "WG_Auto": {
+        "members": [
+          "WG_a_EU"
+        ],
+        "fallback": null,
+        "complete": true
+      },
+      "Proxy_Chain": {
+        "members": [
+          "RemoteBalancer",
+          "WG_a_EU"
+        ],
+        "fallback": null,
+        "complete": true
+      },
+      "RuZone": {
+        "members": [],
+        "fallback": "COMPATIBLE",
+        "complete": true
+      },
+      "SmartSelector": {
+        "members": [
+          "Proxy_Chain",
+          "RuZone"
+        ],
+        "fallback": null,
+        "complete": true
+      }
+    },
+    "diagnostics": [
+      {
+        "code": "empty_group_requires_policy",
+        "subject": "RemoteBalancer"
+      },
+      {
+        "code": "empty_group_requires_policy",
+        "subject": "RuZone"
+      },
+      {
+        "code": "chain_has_extra_nodes",
+        "subject": "Proxy_Chain"
+      },
+      {
+        "code": "unreferenced_group",
+        "subject": "WG_Auto"
+      }
+    ]
+  },
+  "mixed_with_ru": {
+    "sha256": "84d51aba291b34906ab3e3a16430e6b3618a2102d337e0842fa20c3d11a7e84d",
+    "policyBlocked": false,
+    "groups": {
+      "RemoteBalancer": {
+        "members": [
+          "vless_a_EU"
+        ],
+        "fallback": null,
+        "complete": true
+      },
+      "WG_Auto": {
+        "members": [
+          "WG_c_EU"
+        ],
+        "fallback": null,
+        "complete": true
+      },
+      "Proxy_Chain": {
+        "members": [
+          "RemoteBalancer",
+          "WG_c_EU",
+          "trusttunnel_b_RU",
+          "vless_a_EU"
+        ],
+        "fallback": null,
+        "complete": true
+      },
+      "RuZone": {
+        "members": [
+          "trusttunnel_b_RU"
+        ],
+        "fallback": null,
+        "complete": true
+      },
+      "SmartSelector": {
+        "members": [
+          "Proxy_Chain",
+          "RuZone"
+        ],
+        "fallback": null,
+        "complete": true
+      }
+    },
+    "diagnostics": [
+      {
+        "code": "chain_has_extra_nodes",
+        "subject": "Proxy_Chain"
+      },
+      {
+        "code": "unreferenced_group",
+        "subject": "WG_Auto"
+      }
+    ]
+  },
+  "mixed_without_ru": {
+    "sha256": "44f5898c16ea94685a12724138a07e52f92419d7c0807460ecbe4a206566d6f9",
+    "policyBlocked": true,
+    "groups": {
+      "RemoteBalancer": {
+        "members": [
+          "trusttunnel_b_EU",
+          "vless_a_EU"
+        ],
+        "fallback": null,
+        "complete": true
+      },
+      "WG_Auto": {
+        "members": [
+          "WG_c_EU"
+        ],
+        "fallback": null,
+        "complete": true
+      },
+      "Proxy_Chain": {
+        "members": [
+          "RemoteBalancer",
+          "WG_c_EU",
+          "trusttunnel_b_EU",
+          "vless_a_EU"
+        ],
+        "fallback": null,
+        "complete": true
+      },
+      "RuZone": {
+        "members": [],
+        "fallback": "COMPATIBLE",
+        "complete": true
+      },
+      "SmartSelector": {
+        "members": [
+          "Proxy_Chain",
+          "RuZone"
+        ],
+        "fallback": null,
+        "complete": true
+      }
+    },
+    "diagnostics": [
+      {
+        "code": "empty_group_requires_policy",
+        "subject": "RuZone"
+      },
+      {
+        "code": "chain_has_extra_nodes",
+        "subject": "Proxy_Chain"
+      },
+      {
+        "code": "unreferenced_group",
+        "subject": "WG_Auto"
+      }
+    ]
+  },
+  "without_wg": {
+    "sha256": "c909ba56e99721b76c07421e1977b0816b2cbb62529ab7732d5e2653920b32fe",
+    "policyBlocked": true,
+    "groups": {
+      "RemoteBalancer": {
+        "members": [
+          "vless_a_EU"
+        ],
+        "fallback": null,
+        "complete": true
+      },
+      "WG_Auto": {
+        "members": [],
+        "fallback": "COMPATIBLE",
+        "complete": true
+      },
+      "Proxy_Chain": {
+        "members": [
+          "RemoteBalancer",
+          "trusttunnel_b_RU",
+          "vless_a_EU"
+        ],
+        "fallback": null,
+        "complete": true
+      },
+      "RuZone": {
+        "members": [
+          "trusttunnel_b_RU"
+        ],
+        "fallback": null,
+        "complete": true
+      },
+      "SmartSelector": {
+        "members": [
+          "Proxy_Chain",
+          "RuZone"
+        ],
+        "fallback": null,
+        "complete": true
+      }
+    },
+    "diagnostics": [
+      {
+        "code": "empty_group_requires_policy",
+        "subject": "WG_Auto"
+      },
+      {
+        "code": "chain_has_extra_nodes",
+        "subject": "Proxy_Chain"
+      },
+      {
+        "code": "unreferenced_group",
+        "subject": "WG_Auto"
+      }
+    ]
+  }
+}

@@ -1,0 +1,278 @@
+{
+  "mihomo-release": {
+    "tag": "v1.19.30",
+    "releaseUrl": "https://github.com/MetaCubeX/mihomo/releases/tag/v1.19.30",
+    "publishedAt": "2026-08-16T10:11:34Z",
+    "metadataSha256": "57a5aea3b6ec68ac4c1042535e9d556e426ef133d5f5b50c2914ff68ee1c4f4a",
+    "candidateAssets": [
+      {
+        "name": "mihomo-linux-amd64-compatible-v1.19.30.gz",
+        "browser_download_url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.30/mihomo-linux-amd64-compatible-v1.19.30.gz",
+        "digest": "sha256:db214c7a2517e63c150d123178d16d102e03a241ccdae4e5e07ffbe9cf56c6f9",
+        "size": 18899951
+      },
+      {
+        "name": "mihomo-linux-amd64-v1-go120-v1.19.30.gz",
+        "browser_download_url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.30/mihomo-linux-amd64-v1-go120-v1.19.30.gz",
+        "digest": "sha256:b358eba638b01c1f1841c4d612d4b6da58419bef96055958cf9c3be04f625642",
+        "size": 21495275
+      },
+      {
+        "name": "mihomo-linux-amd64-v1-go123-v1.19.30.gz",
+        "browser_download_url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.30/mihomo-linux-amd64-v1-go123-v1.19.30.gz",
+        "digest": "sha256:4c993d90d9ed4101e99af836d17a56bd3ddd508e90ec83f6d9a3d1833fb63422",
+        "size": 18731778
+      },
+      {
+        "name": "mihomo-linux-amd64-v1-v1.19.30.deb",
+        "browser_download_url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.30/mihomo-linux-amd64-v1-v1.19.30.deb",
+        "digest": "sha256:5ffa2e31f3b54a12a0804162af413fdb1305fd0d0d1286e752096799f372a664",
+        "size": 18779520
+      },
+      {
+        "name": "mihomo-linux-amd64-v1-v1.19.30.gz",
+        "browser_download_url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.30/mihomo-linux-amd64-v1-v1.19.30.gz",
+        "digest": "sha256:cbe553d0319a414bd3a372c5976a252155b2c4882b66bce88a4d6bba9571a553",
+        "size": 18899943
+      },
+      {
+        "name": "mihomo-linux-amd64-v1-v1.19.30.pkg.tar.zst",
+        "browser_download_url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.30/mihomo-linux-amd64-v1-v1.19.30.pkg.tar.zst",
+        "digest": "sha256:34ed63918dbc54e5132dc82735afe7f16f8776a1aeeb404de3a9a5a9c170981a",
+        "size": 18196118
+      },
+      {
+        "name": "mihomo-linux-amd64-v1-v1.19.30.rpm",
+        "browser_download_url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.30/mihomo-linux-amd64-v1-v1.19.30.rpm",
+        "digest": "sha256:d0ca2d511db757742850647b88afce4836bd705c91210b1c84337201776173d2",
+        "size": 18738354
+      },
+      {
+        "name": "mihomo-linux-amd64-v1.19.30.deb",
+        "browser_download_url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.30/mihomo-linux-amd64-v1.19.30.deb",
+        "digest": "sha256:3c7a1936b1ece356845598d809d3929b2a5f46c3dc4deb98ee375db1cfcc2f21",
+        "size": 18744604
+      },
+      {
+        "name": "mihomo-linux-amd64-v1.19.30.gz",
+        "browser_download_url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.30/mihomo-linux-amd64-v1.19.30.gz",
+        "digest": "sha256:cf06ce2c7d1421bdbda14ee4a5b6046672dc35ebf8eecd8e77504ec3c0ed9a84",
+        "size": 18868732
+      },
+      {
+        "name": "mihomo-linux-amd64-v1.19.30.pkg.tar.zst",
+        "browser_download_url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.30/mihomo-linux-amd64-v1.19.30.pkg.tar.zst",
+        "digest": "sha256:acf8418221670c3868648e536187170d7455fe00774caa31ded1b92b702f5225",
+        "size": 18162384
+      },
+      {
+        "name": "mihomo-linux-amd64-v1.19.30.rpm",
+        "browser_download_url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.30/mihomo-linux-amd64-v1.19.30.rpm",
+        "digest": "sha256:f82f68561b8ccc7f4aa9f7bc0053ddced3d663de921c69bbe87331055f2408c1",
+        "size": 18703664
+      },
+      {
+        "name": "mihomo-linux-amd64-v2-go120-v1.19.30.gz",
+        "browser_download_url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.30/mihomo-linux-amd64-v2-go120-v1.19.30.gz",
+        "digest": "sha256:97ebc23b02f1d9b3053600132918d5c53ba0abe282d616c6875d66271b124a4b",
+        "size": 21470602
+      },
+      {
+        "name": "mihomo-linux-amd64-v2-go123-v1.19.30.gz",
+        "browser_download_url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.30/mihomo-linux-amd64-v2-go123-v1.19.30.gz",
+        "digest": "sha256:3b9df99ee6d075f208efdb41f974445d02f2f6a8e339650aac7f599a9d54e430",
+        "size": 18718626
+      },
+      {
+        "name": "mihomo-linux-amd64-v2-v1.19.30.deb",
+        "browser_download_url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.30/mihomo-linux-amd64-v2-v1.19.30.deb",
+        "digest": "sha256:4d1ee942f5b5fe9ea587480127bfdbbf86ebc4e5a286d7e4425ceaee30057964",
+        "size": 18766112
+      },
+      {
+        "name": "mihomo-linux-amd64-v2-v1.19.30.gz",
+        "browser_download_url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.30/mihomo-linux-amd64-v2-v1.19.30.gz",
+        "digest": "sha256:87c345ed9905f607b702c17cc78f086b1db0a62b01e87cf9e245f089a5d2b8f7",
+        "size": 18885933
+      },
+      {
+        "name": "mihomo-linux-amd64-v2-v1.19.30.pkg.tar.zst",
+        "browser_download_url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.30/mihomo-linux-amd64-v2-v1.19.30.pkg.tar.zst",
+        "digest": "sha256:465cb572400a26c91c55fccd75c9f97f2c8b2f4ff8a44d35f9f05a69c46f6476",
+        "size": 18170075
+      },
+      {
+        "name": "mihomo-linux-amd64-v2-v1.19.30.rpm",
+        "browser_download_url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.30/mihomo-linux-amd64-v2-v1.19.30.rpm",
+        "digest": "sha256:2c1ebbe197df301ed482fccc1a40b7c6ff93fdb830cd106c78a47b8143454571",
+        "size": 18723563
+      },
+      {
+        "name": "mihomo-linux-amd64-v3-go120-v1.19.30.gz",
+        "browser_download_url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.30/mihomo-linux-amd64-v3-go120-v1.19.30.gz",
+        "digest": "sha256:64692c0c9c868285df56db7c568c5e254047cee556ea1eba92eebf53e0df714e",
+        "size": 21458893
+      },
+      {
+        "name": "mihomo-linux-amd64-v3-go123-v1.19.30.gz",
+        "browser_download_url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.30/mihomo-linux-amd64-v3-go123-v1.19.30.gz",
+        "digest": "sha256:0597530d2527c444fd412d5e05aff9bfbea62f91f45c3e945f17ec72953e7c89",
+        "size": 18701804
+      },
+      {
+        "name": "mihomo-linux-amd64-v3-v1.19.30.deb",
+        "browser_download_url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.30/mihomo-linux-amd64-v3-v1.19.30.deb",
+        "digest": "sha256:dd1bffce4e89bb7814d865f80542d71f6746f3ff12818a3f4315d6f3ec380b88",
+        "size": 18744608
+      },
+      {
+        "name": "mihomo-linux-amd64-v3-v1.19.30.gz",
+        "browser_download_url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.30/mihomo-linux-amd64-v3-v1.19.30.gz",
+        "digest": "sha256:2c3d87ea31a8b420285fa4c1dedd9fb2356fe289b609edac1c671c00738a1544",
+        "size": 18868736
+      },
+      {
+        "name": "mihomo-linux-amd64-v3-v1.19.30.pkg.tar.zst",
+        "browser_download_url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.30/mihomo-linux-amd64-v3-v1.19.30.pkg.tar.zst",
+        "digest": "sha256:674f441284bdfbc0f3190dea173ccb2df5f1f5b0b07d32117c94204dcf0c81fb",
+        "size": 18162374
+      },
+      {
+        "name": "mihomo-linux-amd64-v3-v1.19.30.rpm",
+        "browser_download_url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.30/mihomo-linux-amd64-v3-v1.19.30.rpm",
+        "digest": "sha256:d4d0cac83eacddeb7aa7121337434fc650a404ab07598d9f3c96face9aa1582d",
+        "size": 18703665
+      }
+    ],
+    "connectionTested": false
+  },
+  "xray-release": {
+    "tag": "v26.3.27",
+    "releaseUrl": "https://github.com/XTLS/Xray-core/releases/tag/v26.3.27",
+    "publishedAt": "2026-03-27T17:51:11Z",
+    "metadataSha256": "1476a97b5851d9e1046faf3ffa068ab2465c918b9ba4bec59749073aefd4bbb2",
+    "candidateAssets": [
+      {
+        "name": "Xray-linux-64.zip",
+        "browser_download_url": "https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-linux-64.zip",
+        "digest": "sha256:23cd9af937744d97776ee35ecad4972cf4b2109d1e0fe6be9930467608f7c8ae",
+        "size": 21136402
+      },
+      {
+        "name": "Xray-linux-64.zip.dgst",
+        "browser_download_url": "https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-linux-64.zip.dgst",
+        "digest": "sha256:052fc1c5c4bd5b44d799f785792a9631bce8da4aa0d385a783e9a711ad352a58",
+        "size": 299
+      },
+      {
+        "name": "Xray-linux-loong64.zip",
+        "browser_download_url": "https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-linux-loong64.zip",
+        "digest": "sha256:4f9c917976d4e454740aa7b4e0ef9c13c950d91152aaa7926aaa652698e6e6c0",
+        "size": 20282863
+      },
+      {
+        "name": "Xray-linux-loong64.zip.dgst",
+        "browser_download_url": "https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-linux-loong64.zip.dgst",
+        "digest": "sha256:82643d2d645dcabb9e3a6780aed0cdcb265364211e47c365480d115e2fa67dd2",
+        "size": 299
+      },
+      {
+        "name": "Xray-linux-mips64.zip",
+        "browser_download_url": "https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-linux-mips64.zip",
+        "digest": "sha256:40432515e6d98033b3934a38dc4f2dac1801e80e3da88c3d230310d17e79dca7",
+        "size": 19149355
+      },
+      {
+        "name": "Xray-linux-mips64.zip.dgst",
+        "browser_download_url": "https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-linux-mips64.zip.dgst",
+        "digest": "sha256:b035ac45a1ac2595d976d268c2a0bc9c035f32b9c8861446ad729e7b7afc2a29",
+        "size": 299
+      },
+      {
+        "name": "Xray-linux-ppc64.zip",
+        "browser_download_url": "https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-linux-ppc64.zip",
+        "digest": "sha256:60be6b12dbfdd7e9ce915165ef337bfcde4cacce26ba2a27d34c4e6470d4ad7b",
+        "size": 19746199
+      },
+      {
+        "name": "Xray-linux-ppc64.zip.dgst",
+        "browser_download_url": "https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-linux-ppc64.zip.dgst",
+        "digest": "sha256:f5567523e8b67cbdc4d4297acc0b56ab4a5997e08f3293a73b54941f97848169",
+        "size": 299
+      },
+      {
+        "name": "Xray-linux-riscv64.zip",
+        "browser_download_url": "https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-linux-riscv64.zip",
+        "digest": "sha256:627ea5870b6fd05d95b7f4ceb5a54d7f2664dd075b30a7ac46ee9a6f9653d6f8",
+        "size": 20199421
+      },
+      {
+        "name": "Xray-linux-riscv64.zip.dgst",
+        "browser_download_url": "https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-linux-riscv64.zip.dgst",
+        "digest": "sha256:79a398c26b9b20c4d1259f32ea2b4932fe5ef900781278652115aeb0961a812f",
+        "size": 299
+      }
+    ],
+    "connectionTested": false
+  },
+  "3xui-release": {
+    "tag": "v3.7.0",
+    "releaseUrl": "https://github.com/MHSanaei/3x-ui/releases/tag/v3.7.0",
+    "publishedAt": "2026-08-24T13:08:28Z",
+    "metadataSha256": "a58b678edc214865790dbceeea3c939a0f7c6e17209ab059f80f4c0b3c3c587e",
+    "candidateAssets": [
+      {
+        "name": "x-ui-linux-amd64.tar.gz",
+        "browser_download_url": "https://github.com/MHSanaei/3x-ui/releases/download/v3.7.0/x-ui-linux-amd64.tar.gz",
+        "digest": "sha256:0f8dd7baef3458f6591574e24814f322cf7f5e1e27f0a594683745e50be84ec5",
+        "size": 80280886
+      }
+    ],
+    "connectionTested": false
+  },
+  "trusttunnel-release": {
+    "tag": "v1.1.0",
+    "releaseUrl": "https://github.com/TrustTunnel/TrustTunnel/releases/tag/v1.1.0",
+    "publishedAt": "2026-09-01T11:56:46Z",
+    "metadataSha256": "6d281b0eacca1f9fa8208be0e1dd642c5de845f793d70d8363fbba248b0ecc33",
+    "candidateAssets": [
+      {
+        "name": "trusttunnel-v1.1.0-linux-x86_64-dbgsym.tar.gz",
+        "browser_download_url": "https://github.com/TrustTunnel/TrustTunnel/releases/download/v1.1.0/trusttunnel-v1.1.0-linux-x86_64-dbgsym.tar.gz",
+        "digest": "sha256:9a59ef5ed967b6141090ef9d932897f3b08814f08cbc0cbfdb6a85404efb08e5",
+        "size": 110016404
+      },
+      {
+        "name": "trusttunnel-v1.1.0-linux-x86_64.tar.gz",
+        "browser_download_url": "https://github.com/TrustTunnel/TrustTunnel/releases/download/v1.1.0/trusttunnel-v1.1.0-linux-x86_64.tar.gz",
+        "digest": "sha256:91c2ea3db7416a01b5258a4c047ec22890490bc55e1b194206031aa75144f0e7",
+        "size": 10608905
+      }
+    ],
+    "connectionTested": false
+  },
+  "scanner": {
+    "repository": "https://github.com/XTLS/RealiTLScanner",
+    "commit": "e5e114747aa8c6dfa4b394a0782f241bf72bdce6",
+    "implemented": false
+  },
+  "localArtifacts": {
+    "dart-sdk.zip": {
+      "sha256": "ca7adaeb1650dd145b9b746c4a9acbd75bee221473d08a719efb9a5289ab1584",
+      "bytes": 229350741
+    },
+    "patched.zip": {
+      "sha256": "4e8c8a648a8842769979075e9b1bb211f82acf04b67fb7570729d0f9e0246630",
+      "bytes": 3948857
+    },
+    "engine.zip": {
+      "sha256": "51721ee4c5536d53e5ef1eb7cfbc2345804d4d99a6b293016568b56dcf01467b",
+      "bytes": 28699372
+    },
+    "mihomo.gz": {
+      "sha256": "db214c7a2517e63c150d123178d16d102e03a241ccdae4e5e07ffbe9cf56c6f9",
+      "bytes": 18899951
+    }
+  },
+  "baseTemplateSha256": "f20fc58fce6c4bb1a53d82a2070ad3d4aea2e663d0c1489af23e5b5aa8495ce4"
+}

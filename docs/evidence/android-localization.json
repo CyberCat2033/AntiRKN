@@ -1,0 +1,14 @@
+{
+  "recordedAt": "2026-09-12T21:31:14.583386+00:00",
+  "device": "OnePlus HD1911",
+  "api": 36,
+  "systemLocale": "en-GB-u-fw-mon-ms-metric-mu-celsius",
+  "installed": true,
+  "coldLaunch": true,
+  "baseTemplateLoaded": true,
+  "automaticEnglish": true,
+  "manualRussian": true,
+  "russianPersistedAfterForceStop": true,
+  "globalSystemLocaleChanged": false,
+  "runtimeScope": "P0 template and localization smoke test; not full platform acceptance"
+}

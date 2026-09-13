@@ -1,0 +1,10 @@
+{
+  "platform": "Linux x86_64, current desktop session",
+  "test": "apps/manager/tool/vault_platform_smoke.dart",
+  "system_keyring": "unavailable",
+  "system_reason": "Secret Service name is not activatable in the current session",
+  "master_password": "PASS",
+  "master_checks": ["native application launch", "encrypted file creation", "credential save", "lock", "new vault instance unlock from file", "credential equality", "plaintext absent from file", "delete saved profile", "temporary test data cleanup"],
+  "windows_runtime": "not tested",
+  "android_runtime": "not tested"
+}

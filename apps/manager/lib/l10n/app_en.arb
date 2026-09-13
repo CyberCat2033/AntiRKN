@@ -1,0 +1,278 @@
+{
+  "@@locale": "en",
+  "appName": "AntiRKN",
+  "overview": "Overview",
+  "templates": "Templates",
+  "settings": "Settings",
+  "workbench": "Base profile check",
+  "prototype": "P0 prototype",
+  "intro": "Check which nodes are selected by your template groups. Editor changes stay in memory until the app is closed.",
+  "source": "Base YAML",
+  "sourceHelp": "Choose a .yml or .yaml file. The app works with an in-memory copy and does not modify the source file.",
+  "preview": "Preview group members",
+  "pending": "Checking…",
+  "stale": "Preview is out of date — run the check",
+  "nodes": "Preview nodes",
+  "sampleNotice": "These are sample node names without credentials. Server connections and publishing are not available here yet.",
+  "mixed": "VLESS + TrustTunnel + AWG",
+  "noRuWg": "Without RU and WG",
+  "nodeName": "Node name",
+  "add": "Add to preview",
+  "remove": "Remove from preview",
+  "groups": "Selected group members",
+  "diagnostics": "Template diagnostics",
+  "noIssues": "No structural issues found",
+  "noMembers": "No nodes selected",
+  "incomplete": "Additional verification is required",
+  "coreNotRun": "Mihomo: core validation has not run",
+  "connectionNotRun": "Network connection has not been tested",
+  "overviewText": "The prototype includes template checks and a sample address inventory for one VPS. SSH management, secret storage and Google Drive sync are planned for subsequent iterations.",
+  "scope": "Ubuntu 24.04 • x86_64\nWindows • Linux • Android\nVLESS / TrustTunnel / AmneziaWG → Mihomo",
+  "theme": "Theme",
+  "system": "System",
+  "light": "Light",
+  "dark": "Dark",
+  "motion": "Animations",
+  "reduced": "Reduced",
+  "off": "Off",
+  "motionHelp": "System animation restrictions take priority. Prototype theme and motion settings last until the app closes.",
+  "invalidName": "Enter a unique, non-empty name",
+  "loadError": "Could not load the base template",
+  "unexpectedError": "Could not check the template. You can try again.",
+  "language": "Interface language",
+  "languageSystem": "Follow system",
+  "languageRussian": "Русский",
+  "languageEnglish": "English",
+  "languageHelp": "Your choice is saved on this device. Other system languages use English.",
+  "localeSaveError": "Could not save the language preference. Please try again.",
+  "localeLoadError": "Could not read the language preference. Following the system language.",
+  "fallback": "Core behavior for an empty group: {value}",
+  "unknownDiagnostic": "Template settings need review ({code}).",
+  "diagnosticEmptyGroupRequiresPolicy": "Empty group: choose a policy before publishing.",
+  "diagnosticChainHasExtraNodes": "Proxy_Chain contains nodes excluded from RemoteBalancer.",
+  "diagnosticUnreferencedGroup": "Other groups and rules do not reference WG_Auto.",
+  "diagnosticBaseContainsProxies": "The template already contains proxies. Choose how to import them first.",
+  "diagnosticInvalidYaml": "Invalid YAML syntax or a duplicate key.",
+  "diagnosticTemplateSizeLimit": "The template exceeds 256 KiB.",
+  "diagnosticTemplateDepthLimit": "YAML nesting exceeds 32 levels.",
+  "diagnosticTemplateNodeLimit": "The template contains too many elements.",
+  "diagnosticYamlAliasNotSupported": "YAML aliases are not supported yet.",
+  "diagnosticYamlExplicitTagNotSupported": "Explicit YAML tags are not supported yet.",
+  "diagnosticMultipleYamlDocuments": "Expected a single YAML document.",
+  "diagnosticUnsupportedFilterPreview": "This regular expression cannot be previewed precisely yet.",
+  "diagnosticProviderSnapshotRequired": "A proxy-provider snapshot is needed to resolve the members.",
+  "diagnosticUnknownProxyReference": "The group references an unknown node or group.",
+  "diagnosticUnknownRuleTarget": "The rule references an unknown node or group.",
+  "diagnosticUnknownRuleProvider": "A rule or DNS setting references an unknown rule-provider.",
+  "diagnosticGroupCycle": "A cycle was found between proxy groups.",
+  "diagnosticDuplicateProxyName": "Node and group names must be unique.",
+  "diagnosticInvalidEmptyFallback": "Invalid empty-fallback value.",
+  "diagnosticUnsupportedRulePreview": "This rule type still requires core validation.",
+  "@fallback": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "@unknownDiagnostic": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "selectTemplate": "Choose YAML file",
+  "importedTemplate": "Loaded into memory: {name}",
+  "templateReadError": "Could not read the YAML file. The current template was kept.",
+  "@importedTemplate": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "server": "Server",
+  "networkTitle": "Server addresses",
+  "networkSampleNotice": "Sample data for one VPS. No SSH connection is made and no server settings are changed.",
+  "networkLoadSample": "Load sample inventory",
+  "networkReloadSample": "Reload sample inventory",
+  "networkLoading": "Loading inventory…",
+  "networkLoadError": "Could not read the inventory. The previous inventory and your choices are kept.",
+  "networkEmpty": "No assigned addresses were found.",
+  "networkNotLoaded": "Load the sample to explore address selection.",
+  "networkListener": "Service listening address",
+  "networkEndpoint": "Client connection address",
+  "networkListenerHelp": "Choose an assigned IP or all interfaces. Protocol support and port conflicts must be checked before applying settings.",
+  "networkEndpointHelp": "Public, stable addresses are suggested. With NAT, the client address can differ from the listening address.",
+  "networkChoose": "Choose an address",
+  "networkClear": "Clear selection",
+  "networkClose": "Close",
+  "networkNoCandidates": "There are no suitable addresses for this role.",
+  "networkWildcard": "All interfaces",
+  "networkAssigned": "Assigned on interface",
+  "networkSampleSource": "Source: sample iproute2 data",
+  "networkObservedSource": "Source: iproute2 observation",
+  "networkNotVerified": "Port use and TCP/UDP reachability have not been checked. Selecting an address does not apply any settings.",
+  "networkObservedAt": "Inventory loaded: {value}",
+  "networkSshPeer": "SSH transport address (separate): {value}",
+  "networkSummary": "{addresses} unique IPs · {routes} routes · {rules} policy rules",
+  "networkAssignments": "Assigned addresses and status",
+  "networkSelectedUnavailable": "Your previous choice is no longer usable. Choose an address again.",
+  "networkCategoryPublic": "Public unicast",
+  "networkCategoryPrivate": "Private",
+  "networkCategoryLoopback": "Loopback",
+  "networkCategoryLinkLocal": "Link-local",
+  "networkCategoryShared": "Shared / CGNAT",
+  "networkCategoryDocumentation": "Documentation range",
+  "networkCategoryMulticast": "Multicast",
+  "networkCategoryUnspecified": "Unspecified",
+  "networkCategorySpecial": "Special-purpose range",
+  "networkHealthReady": "Ready for selection",
+  "networkIssueDown": "Interface is down",
+  "networkIssueUnknown": "State or lifetime is unknown",
+  "networkIssueTentative": "Address validation is pending",
+  "networkIssueDadfailed": "Duplicate address detection failed",
+  "networkIssueExpired": "Address has expired",
+  "networkIssueDeprecated": "Address is deprecated",
+  "networkIssueTemporary": "Temporary address",
+  "networkIssueNotPublic": "Not suggested as a public client address",
+  "networkIssueUnsupported": "Special address is not available for this role",
+  "networkIssueTunnel": "Tunnel interface",
+  "networkIssueScope": "Requires protocol support for an interface zone",
+  "networkIssueUnavailable": "Address is no longer assigned",
+  "networkIssueStale": "Observation time is in the future; refresh the inventory",
+  "networkSecondary": "Secondary address",
+  "networkPrefix": "Prefix: /{value}",
+  "networkLifetime": "Valid / preferred lifetime: {valid} / {preferred}",
+  "networkForever": "Unlimited",
+  "networkUnknown": "Unknown",
+  "networkSeconds": "{value} s",
+  "@networkObservedAt": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "@networkSshPeer": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "@networkSummary": {
+    "placeholders": {
+      "addresses": {
+        "type": "int"
+      },
+      "routes": {
+        "type": "int"
+      },
+      "rules": {
+        "type": "int"
+      }
+    }
+  },
+  "@networkPrefix": {
+    "placeholders": {
+      "value": {
+        "type": "int"
+      }
+    }
+  },
+  "@networkLifetime": {
+    "placeholders": {
+      "valid": {
+        "type": "String"
+      },
+      "preferred": {
+        "type": "String"
+      }
+    }
+  },
+  "@networkSeconds": {
+    "placeholders": {
+      "value": {
+        "type": "int"
+      }
+    }
+  },
+  "networkScopeGlobal": "Global scope",
+  "networkScopeLink": "Link scope",
+  "networkScopeHost": "Host scope",
+  "networkScopeSite": "Site scope",
+  "networkScopeOther": "Other scope",
+  "networkInterfaceUp": "Interface is up",
+  "networkInterfaceStateUnknown": "Operational state is unknown",
+  "sshTitle": "SSH connection",
+  "sshReadOnly": "Connect to an Ubuntu 24.04 x86_64 VPS to read its network information.",
+  "sshHost": "Server address",
+  "sshPort": "SSH port",
+  "sshUser": "SSH user",
+  "sshPassword": "SSH password",
+  "sshAuthPassword": "Password",
+  "sshAuthKey": "Private key",
+  "sshAuthAgent": "Linux SSH-agent",
+  "sshAgentHelp": "Use keys loaded in the local SSH-agent. The private key stays with the agent.",
+  "sshPickKey": "Choose private key",
+  "sshKeyHelp": "Choose the private file, for example id_ed25519, without .pub. An independent copy is saved in the encrypted vault.",
+  "sshNoKey": "No private key selected",
+  "sshPassphrase": "Key passphrase (if encrypted)",
+  "sshSave": "Save connection",
+  "sshSaved": "Connection saved in the encrypted vault.",
+  "sshConnect": "Save and connect",
+  "sshDisconnect": "Disconnect",
+  "sshCancel": "Cancel",
+  "sshRefresh": "Refresh from server",
+  "sshConnecting": "Connecting…",
+  "sshReading": "Reading server information…",
+  "sshConnected": "Connected",
+  "sshIdle": "Disconnected",
+  "sshTrustTitle": "Verify server identity",
+  "sshTrustHelp": "Compare this SHA-256 fingerprint with a trusted source, such as your VPS console. Accepting saves this server identity before authentication.",
+  "sshTrustAccept": "Trust and continue",
+  "sshTrustReject": "Reject",
+  "sshTrustedKey": "Trusted server key",
+  "sshDelete": "Delete saved connection",
+  "sshDeleteHelp": "Delete the saved credentials and trusted server key from this device? Server settings are unaffected.",
+  "sshInvalidSettings": "Check the address, port, user and authentication details.",
+  "sshInvalidKey": "Cannot read or decrypt this private key. Check its format and passphrase. A .pub file cannot be used for login.",
+  "sshAuthenticationError": "Authentication failed. Check the user and credentials.",
+  "sshHostChanged": "The server key differs from the trusted key. Connection blocked. Verify the change through your VPS console.",
+  "sshHostRejected": "Server identity was not accepted.",
+  "sshNetworkError": "Could not reach the SSH server or the connection was lost.",
+  "sshTimeout": "The operation timed out. You can retry.",
+  "sshCancelled": "Operation cancelled.",
+  "sshCommandError": "The server could not provide complete information. The previous inventory is retained.",
+  "sshOutputLimit": "Server output exceeded the allowed size. The previous inventory is retained.",
+  "sshInvalidInventory": "The server returned an invalid inventory. The previous inventory is retained.",
+  "sshUnsupportedOs": "This connection requires Ubuntu 24.04 on x86_64.",
+  "sshDisconnected": "SSH connection closed. Reconnect to refresh the inventory.",
+  "sshTrustSaveError": "Could not save server trust. Authentication was stopped.",
+  "sshAgentError": "Linux SSH-agent is unavailable or has no supported keys. Load your key into the agent or choose a private key file.",
+  "vaultTitle": "Protected storage",
+  "vaultIntro": "Save SSH credentials and server trust encrypted on this device. Choose how to unlock the storage.",
+  "vaultSystem": "Use system storage",
+  "vaultMaster": "Use master password",
+  "vaultMasterHelp": "At least 12 characters. Remember this password: it is not saved and cannot be reset to recover the data. This option also works without a Linux keyring.",
+  "vaultPassword": "Master password",
+  "vaultConfirmation": "Repeat master password",
+  "vaultCreate": "Create encrypted storage",
+  "vaultUnlock": "Unlock",
+  "vaultLock": "Lock storage",
+  "vaultLocked": "Storage is locked. Unlock to use saved connections.",
+  "vaultUnlocked": "Storage unlocked",
+  "vaultAutoLock": "Locks after 5 minutes without activity and when the app goes into the background; SSH connections close.",
+  "vaultWorking": "Opening storage…",
+  "vaultRetry": "Retry",
+  "vaultUnavailable": "System storage is unavailable. Retry after unlocking the OS keyring. When creating a new vault, you can choose a master password.",
+  "vaultMissingKey": "The system encryption key is unavailable. Restore access to the original OS keyring to unlock this vault.",
+  "vaultDamaged": "Incorrect master password or damaged storage. Saved data has been preserved.",
+  "vaultCorrupt": "Storage is damaged or uses an unsupported format. Its file has been preserved.",
+  "vaultWriteFailed": "Could not save. The previous saved version is retained.",
+  "vaultBusy": "Storage is busy or was changed by another app instance. Lock it and unlock again before retrying.",
+  "vaultExists": "Storage already exists. Unlock the existing storage.",
+  "vaultWeakPassword": "Use matching passwords of 12 to 1024 characters."
+}

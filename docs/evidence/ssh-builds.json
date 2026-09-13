@@ -1,0 +1,17 @@
+{
+  "configuration": "debug",
+  "platforms": {
+    "linux_x64": {
+      "path": "apps/manager/build/linux/x64/debug/bundle/antirkn_manager",
+      "bytes": 53488,
+      "sha256": "6579ff5ddfbcc82d1852466370f9d32d5879acc9a31d084766d252a1a6f23ccd",
+      "build": "PASS"
+    },
+    "android_arm64": {
+      "path": "apps/manager/build/app/outputs/flutter-apk/app-debug.apk",
+      "bytes": 117989513,
+      "sha256": "085de3063d730c3d669e62fdaf9156718a92b6bb1e438e2330cc91e9c1f48db4",
+      "build": "PASS"
+    }
+  }
+}

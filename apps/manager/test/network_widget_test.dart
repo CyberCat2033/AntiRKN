@@ -1,0 +1,266 @@
+import 'package:antirkn_domain/antirkn_domain.dart';
+import 'package:antirkn_manager/language_controller.dart';
+import 'package:antirkn_manager/main.dart';
+import 'package:antirkn_manager/network/sample_inventory_reader.dart';
+import 'package:antirkn_manager/network/server_address_picker.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'network_support.dart';
+
+class _LanguageStore implements LanguagePreferenceStore {
+  @override
+  Future<AppLanguage> readLanguage() async => AppLanguage.en;
+  @override
+  Future<void> writeLanguage(AppLanguage language) async {}
+}
+
+void main() {
+  Future<LanguageController> start(
+    WidgetTester tester,
+    TestInventoryReader reader, {
+    Size size = const Size(1200, 1000),
+    String language = 'en',
+  }) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = size;
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final languages = LanguageController(_LanguageStore());
+    await languages.load();
+    if (language == 'ru') await languages.select(AppLanguage.ru);
+    await tester.pumpWidget(
+      AntiRknApp(source: '', languages: languages, networkReader: reader),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(language == 'en' ? 'Server' : 'Сервер'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('load-network-sample')));
+    await tester.pumpAndSettle();
+    return languages;
+  }
+
+  Future<void> open(WidgetTester tester, AddressRole role) async {
+    final button = find.byKey(ValueKey('pick-${role.name}'));
+    final scrollable = find.descendant(
+      of: find.byKey(const PageStorageKey('network-workbench')),
+      matching: find.byType(Scrollable),
+    );
+    tester.state<ScrollableState>(scrollable).position.jumpTo(0);
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(button, 250, scrollable: scrollable);
+    await tester.pumpAndSettle();
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('packaged sample is readable by the application asset loader', (
+    tester,
+  ) async {
+    final inventory = await tester.runAsync(
+      () => const SampleInventoryReader().read(),
+    );
+    expect(inventory!.source, NetworkSource.sample);
+    expect(inventory.addresses, hasLength(14));
+  });
+
+  testWidgets('one shared picker enforces listener and endpoint roles', (
+    tester,
+  ) async {
+    await start(tester, TestInventoryReader(() async => testInventory()));
+    expect(find.byType(ServerAddressPicker), findsNWidgets(2));
+    expect(find.textContaining('Sample data for one VPS'), findsOneWidget);
+    await open(tester, AddressRole.listener);
+    final wildcard = find.widgetWithText(ListTile, '0.0.0.0');
+    expect(tester.widget<ListTile>(wildcard).enabled, isTrue);
+    await tester.tap(wildcard);
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<ServerAddressPicker>(find.byType(ServerAddressPicker).first)
+          .selected!
+          .host,
+      '0.0.0.0',
+    );
+    await open(tester, AddressRole.endpoint);
+    expect(find.widgetWithText(ListTile, '0.0.0.0'), findsNothing);
+    final local = find.widgetWithText(ListTile, '10.10.0.2');
+    expect(tester.widget<ListTile>(local).enabled, isFalse);
+    final public = find.widgetWithText(ListTile, '93.184.215.15');
+    await tester.scrollUntilVisible(
+      public,
+      200,
+      scrollable: find.descendant(
+        of: find.byKey(const ValueKey('address-options-endpoint')),
+        matching: find.byType(Scrollable),
+      ),
+    );
+    await tester.tap(public);
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<ServerAddressPicker>(find.byType(ServerAddressPicker).last)
+          .selected!
+          .host,
+      '93.184.215.15',
+    );
+  });
+
+  testWidgets(
+    'choice survives language, navigation, resize and failed refresh',
+    (tester) async {
+      final reader = TestInventoryReader(() async => testInventory());
+      final languages = await start(tester, reader);
+      await open(tester, AddressRole.listener);
+      await tester.tap(find.widgetWithText(ListTile, '0.0.0.0'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Templates'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('template-editor')),
+        '# draft',
+      );
+      await languages.select(AppLanguage.ru);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Сервер'));
+      await tester.pumpAndSettle();
+      tester.view.physicalSize = const Size(390, 844);
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<ServerAddressPicker>(find.byType(ServerAddressPicker).first)
+            .selected!
+            .host,
+        '0.0.0.0',
+      );
+      reader.callback = () async => throw StateError('test transport failure');
+      final load = find.byKey(const ValueKey('load-network-sample'));
+      await tester.scrollUntilVisible(
+        load,
+        -250,
+        scrollable: find.descendant(
+          of: find.byKey(const PageStorageKey('network-workbench')),
+          matching: find.byType(Scrollable),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(load);
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('Не удалось прочитать каталог.'),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<ServerAddressPicker>(find.byType(ServerAddressPicker).first)
+            .selected!
+            .host,
+        '0.0.0.0',
+      );
+      await tester.tap(find.text('Шаблоны'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('template-editor')))
+            .controller!
+            .text,
+        '# draft',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'empty inventory exposes no endpoint and no invented assignment',
+    (tester) async {
+      final data = {for (final key in networkFixture().keys) key: <dynamic>[]};
+      await start(
+        tester,
+        TestInventoryReader(() async => testInventory(data: data)),
+      );
+      await open(tester, AddressRole.endpoint);
+      expect(
+        find.text('There are no suitable addresses for this role.'),
+        findsOneWidget,
+      );
+      expect(find.byType(ListTile), findsNothing);
+      await tester.tap(find.byTooltip('Close'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'keyboard opens picker, escape dismisses without changing selection',
+    (tester) async {
+      await start(tester, TestInventoryReader(() async => testInventory()));
+      final button = find.byKey(const ValueKey('pick-listener'));
+      await tester.ensureVisible(button);
+      final element = tester.element(button);
+      final focus = Focus.of(element, scopeOk: true);
+      focus.requestFocus();
+      // Tab through actual focus traversal to the listening-address button.
+      for (var i = 0; i < 20; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        if (FocusManager.instance.primaryFocus?.context
+                ?.findAncestorWidgetOfExactType<OutlinedButton>()
+                ?.key ==
+            const ValueKey('pick-listener')) {
+          break;
+        }
+      }
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('address-options-listener')),
+        findsOneWidget,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('address-options-listener')),
+        findsNothing,
+      );
+      expect(
+        tester
+            .widget<ServerAddressPicker>(find.byType(ServerAddressPicker).first)
+            .selected,
+        isNull,
+      );
+    },
+  );
+
+  for (final language in ['en', 'ru']) {
+    testWidgets('large text and adaptive layout with open picker: $language', (
+      tester,
+    ) async {
+      await start(
+        tester,
+        TestInventoryReader(() async => testInventory()),
+        language: language,
+        size: const Size(390, 844),
+      );
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await tester.pumpAndSettle();
+      for (final size in [
+        const Size(390, 844),
+        const Size(700, 900),
+        const Size(1000, 900),
+        const Size(1400, 1000),
+      ]) {
+        tester.view.physicalSize = size;
+        await tester.pumpAndSettle();
+        await open(tester, AddressRole.endpoint);
+        expect(tester.takeException(), isNull);
+        await tester.tap(
+          find.byTooltip(language == 'en' ? 'Close' : 'Закрыть'),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      }
+    });
+  }
+}

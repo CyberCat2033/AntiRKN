@@ -1,0 +1,278 @@
+{
+  "@@locale": "ru",
+  "appName": "AntiRKN",
+  "overview": "Обзор",
+  "templates": "Шаблоны",
+  "settings": "Настройки",
+  "workbench": "Проверка базового профиля",
+  "prototype": "Прототип P0",
+  "intro": "Проверьте, какие узлы попадут в группы вашего шаблона. Изменения редактора остаются в памяти до закрытия приложения.",
+  "source": "Базовый YAML",
+  "sourceHelp": "Выберите .yml или .yaml через файловый диалог. Приложение работает с копией в памяти; исходный файл не изменяется.",
+  "preview": "Проверить состав групп",
+  "pending": "Проверка…",
+  "stale": "Предпросмотр устарел — выполните проверку",
+  "nodes": "Набор для предпросмотра",
+  "sampleNotice": "Это тестовые имена узлов без credentials. Подключения к серверу и публикации здесь ещё нет.",
+  "mixed": "VLESS + TrustTunnel + AWG",
+  "noRuWg": "Без RU и WG",
+  "nodeName": "Имя узла",
+  "add": "Добавить в предпросмотр",
+  "remove": "Убрать из предпросмотра",
+  "groups": "Фактический подбор узлов",
+  "diagnostics": "Диагностика шаблона",
+  "noIssues": "Структурных ошибок не найдено",
+  "noMembers": "Нет подобранных узлов",
+  "incomplete": "Состав требует дополнительной проверки",
+  "coreNotRun": "Mihomo: проверка ядром не выполнена",
+  "connectionNotRun": "Сетевое соединение не проверено",
+  "overviewText": "Прототип включает проверку шаблонов и тестовый каталог адресов одного VPS. Управление по SSH, хранилище секретов и синхронизация Google Drive ожидают следующих итераций.",
+  "scope": "Ubuntu 24.04 • x86_64\nWindows • Linux • Android\nVLESS / TrustTunnel / AmneziaWG → Mihomo",
+  "theme": "Тема",
+  "system": "Системная",
+  "light": "Светлая",
+  "dark": "Тёмная",
+  "motion": "Анимации",
+  "reduced": "Уменьшенные",
+  "off": "Отключены",
+  "motionHelp": "Системное отключение анимаций имеет приоритет. Настройки прототипа действуют до закрытия приложения.",
+  "invalidName": "Введите уникальное непустое имя",
+  "loadError": "Не удалось загрузить базовый шаблон",
+  "unexpectedError": "Не удалось проверить шаблон. Можно повторить проверку.",
+  "language": "Язык интерфейса",
+  "languageSystem": "Как в системе",
+  "languageRussian": "Русский",
+  "languageEnglish": "English",
+  "languageHelp": "Выбор сохраняется на этом устройстве. Для остальных языков системы используется английский.",
+  "localeSaveError": "Не удалось сохранить выбор языка. Повторите попытку.",
+  "localeLoadError": "Не удалось прочитать выбор языка. Используется язык системы.",
+  "fallback": "Поведение ядра при пустой группе: {value}",
+  "unknownDiagnostic": "Параметры шаблона требуют проверки ({code}).",
+  "diagnosticEmptyGroupRequiresPolicy": "Пустая группа: перед публикацией нужно выбрать политику.",
+  "diagnosticChainHasExtraNodes": "Proxy_Chain содержит узлы, исключённые из RemoteBalancer.",
+  "diagnosticUnreferencedGroup": "На WG_Auto не ссылаются другие группы и правила.",
+  "diagnosticBaseContainsProxies": "В шаблоне уже есть прокси. Нужен отдельный выбор способа импорта.",
+  "diagnosticInvalidYaml": "Ошибка синтаксиса YAML или повтор ключа.",
+  "diagnosticTemplateSizeLimit": "Размер шаблона превышает 256 КиБ.",
+  "diagnosticTemplateDepthLimit": "Вложенность YAML превышает 32 уровня.",
+  "diagnosticTemplateNodeLimit": "В шаблоне слишком много элементов.",
+  "diagnosticYamlAliasNotSupported": "Aliases YAML пока не поддерживаются.",
+  "diagnosticYamlExplicitTagNotSupported": "Явные теги YAML пока не поддерживаются.",
+  "diagnosticMultipleYamlDocuments": "Ожидается один YAML-документ.",
+  "diagnosticUnsupportedFilterPreview": "Этот regexp пока нельзя точно вычислить в предпросмотре.",
+  "diagnosticProviderSnapshotRequired": "Для точного состава нужны данные proxy-provider.",
+  "diagnosticUnknownProxyReference": "Группа ссылается на неизвестный узел или группу.",
+  "diagnosticUnknownRuleTarget": "Правило ссылается на неизвестный узел или группу.",
+  "diagnosticUnknownRuleProvider": "Правило или DNS ссылается на неизвестный rule-provider.",
+  "diagnosticGroupCycle": "Обнаружен цикл ссылок между группами.",
+  "diagnosticDuplicateProxyName": "Имя узла или группы должно быть уникальным.",
+  "diagnosticInvalidEmptyFallback": "Неверное значение empty-fallback.",
+  "diagnosticUnsupportedRulePreview": "Этот тип правила пока требует проверки ядром.",
+  "@fallback": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "@unknownDiagnostic": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "selectTemplate": "Выбрать YAML-файл",
+  "importedTemplate": "Загружен в память: {name}",
+  "templateReadError": "Не удалось прочитать YAML-файл. Текущий шаблон сохранён.",
+  "@importedTemplate": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "server": "Сервер",
+  "networkTitle": "Адреса сервера",
+  "networkSampleNotice": "Тестовые данные одного VPS. Подключение по SSH и изменение настроек сервера не выполняются.",
+  "networkLoadSample": "Загрузить пример каталога",
+  "networkReloadSample": "Повторить загрузку примера",
+  "networkLoading": "Загрузка каталога…",
+  "networkLoadError": "Не удалось прочитать каталог. Предыдущие данные и ваш выбор сохранены.",
+  "networkEmpty": "Назначенные адреса не обнаружены.",
+  "networkNotLoaded": "Загрузите пример, чтобы проверить выбор адресов.",
+  "networkListener": "Адрес прослушивания службы",
+  "networkEndpoint": "Адрес подключения клиента",
+  "networkListenerHelp": "Выберите назначенный IP или все интерфейсы. Перед применением нужно проверить поддержку протоколом и конфликты портов.",
+  "networkEndpointHelp": "Предлагаются публичные постоянные адреса. При NAT адрес клиента может отличаться от адреса прослушивания.",
+  "networkChoose": "Выбрать адрес",
+  "networkClear": "Сбросить выбор",
+  "networkClose": "Закрыть",
+  "networkNoCandidates": "Подходящих адресов для этой роли нет.",
+  "networkWildcard": "Все интерфейсы",
+  "networkAssigned": "Назначен интерфейсу",
+  "networkSampleSource": "Источник: тестовые данные iproute2",
+  "networkObservedSource": "Источник: данные iproute2",
+  "networkNotVerified": "Занятость портов и доступность TCP/UDP не проверены. Выбор адреса не применяет настройки.",
+  "networkObservedAt": "Каталог загружен: {value}",
+  "networkSshPeer": "Адрес SSH-соединения (отдельно): {value}",
+  "networkSummary": "Уникальных IP: {addresses} · Маршрутов: {routes} · Правил маршрутизации: {rules}",
+  "networkAssignments": "Назначенные адреса и их состояния",
+  "networkSelectedUnavailable": "Предыдущий выбор больше не подходит. Выберите адрес заново.",
+  "networkCategoryPublic": "Публичный",
+  "networkCategoryPrivate": "Частный",
+  "networkCategoryLoopback": "Петлевой",
+  "networkCategoryLinkLocal": "Локальный для канала",
+  "networkCategoryShared": "Общий диапазон / CGNAT",
+  "networkCategoryDocumentation": "Диапазон для документации",
+  "networkCategoryMulticast": "Групповой",
+  "networkCategoryUnspecified": "Неопределённый",
+  "networkCategorySpecial": "Специальный диапазон",
+  "networkHealthReady": "Пригоден для выбора",
+  "networkIssueDown": "Интерфейс отключён",
+  "networkIssueUnknown": "Состояние или срок действия неизвестны",
+  "networkIssueTentative": "Проверка адреса ещё не завершена",
+  "networkIssueDadfailed": "Обнаружен конфликт адресов",
+  "networkIssueExpired": "Срок действия адреса истёк",
+  "networkIssueDeprecated": "Адрес устаревает",
+  "networkIssueTemporary": "Временный адрес",
+  "networkIssueNotPublic": "Не предлагается как публичный адрес клиента",
+  "networkIssueUnsupported": "Специальный адрес недоступен для этой роли",
+  "networkIssueTunnel": "Туннельный интерфейс",
+  "networkIssueScope": "Нужна поддержка зоны интерфейса в протоколе",
+  "networkIssueUnavailable": "Адрес больше не назначен",
+  "networkIssueStale": "Время наблюдения находится в будущем; обновите каталог",
+  "networkSecondary": "Дополнительный адрес",
+  "networkPrefix": "Префикс: /{value}",
+  "networkLifetime": "Срок действия / предпочтения: {valid} / {preferred}",
+  "networkForever": "Бессрочно",
+  "networkUnknown": "Неизвестно",
+  "networkSeconds": "{value} с",
+  "@networkObservedAt": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "@networkSshPeer": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "@networkSummary": {
+    "placeholders": {
+      "addresses": {
+        "type": "int"
+      },
+      "routes": {
+        "type": "int"
+      },
+      "rules": {
+        "type": "int"
+      }
+    }
+  },
+  "@networkPrefix": {
+    "placeholders": {
+      "value": {
+        "type": "int"
+      }
+    }
+  },
+  "@networkLifetime": {
+    "placeholders": {
+      "valid": {
+        "type": "String"
+      },
+      "preferred": {
+        "type": "String"
+      }
+    }
+  },
+  "@networkSeconds": {
+    "placeholders": {
+      "value": {
+        "type": "int"
+      }
+    }
+  },
+  "networkScopeGlobal": "Глобальная область",
+  "networkScopeLink": "Область канала",
+  "networkScopeHost": "Область узла",
+  "networkScopeSite": "Область площадки",
+  "networkScopeOther": "Другая область",
+  "networkInterfaceUp": "Интерфейс включён",
+  "networkInterfaceStateUnknown": "Рабочее состояние неизвестно",
+  "sshTitle": "SSH-подключение",
+  "sshReadOnly": "Подключитесь к VPS Ubuntu 24.04 x86_64 для чтения сетевых сведений.",
+  "sshHost": "Адрес сервера",
+  "sshPort": "Порт SSH",
+  "sshUser": "Пользователь SSH",
+  "sshPassword": "Пароль SSH",
+  "sshAuthPassword": "Пароль",
+  "sshAuthKey": "Приватный ключ",
+  "sshAuthAgent": "SSH-agent Linux",
+  "sshAgentHelp": "Используются ключи, загруженные в локальный SSH-agent. Приватный ключ остаётся у агента.",
+  "sshPickKey": "Выбрать приватный ключ",
+  "sshKeyHelp": "Выберите приватный файл, например id_ed25519, без .pub. Независимая копия сохраняется в зашифрованном хранилище.",
+  "sshNoKey": "Приватный ключ не выбран",
+  "sshPassphrase": "Passphrase ключа (если зашифрован)",
+  "sshSave": "Сохранить подключение",
+  "sshSaved": "Подключение сохранено в зашифрованном хранилище.",
+  "sshConnect": "Сохранить и подключиться",
+  "sshDisconnect": "Отключиться",
+  "sshCancel": "Отмена",
+  "sshRefresh": "Обновить с сервера",
+  "sshConnecting": "Подключение…",
+  "sshReading": "Чтение сведений сервера…",
+  "sshConnected": "Подключено",
+  "sshIdle": "Отключено",
+  "sshTrustTitle": "Проверьте подлинность сервера",
+  "sshTrustHelp": "Сверьте отпечаток SHA-256 с доверенным источником, например консолью VPS. Подтверждение сохраняет идентичность сервера до аутентификации.",
+  "sshTrustAccept": "Доверять и продолжить",
+  "sshTrustReject": "Отклонить",
+  "sshTrustedKey": "Доверенный ключ сервера",
+  "sshDelete": "Удалить сохранённое подключение",
+  "sshDeleteHelp": "Удалить сохранённые секреты и доверенный ключ сервера с этого устройства? Настройки сервера не изменятся.",
+  "sshInvalidSettings": "Проверьте адрес, порт, пользователя и данные входа.",
+  "sshInvalidKey": "Не удалось прочитать или расшифровать приватный ключ. Проверьте формат и passphrase. Файл .pub не подходит для входа.",
+  "sshAuthenticationError": "Ошибка аутентификации. Проверьте пользователя и данные входа.",
+  "sshHostChanged": "Ключ сервера отличается от доверенного. Подключение заблокировано. Проверьте причину изменения через консоль VPS.",
+  "sshHostRejected": "Подлинность сервера не подтверждена.",
+  "sshNetworkError": "Не удалось связаться с SSH-сервером или соединение потеряно.",
+  "sshTimeout": "Время ожидания истекло. Можно повторить попытку.",
+  "sshCancelled": "Операция отменена.",
+  "sshCommandError": "Сервер не предоставил полные сведения. Предыдущий каталог сохранён.",
+  "sshOutputLimit": "Вывод сервера превысил допустимый размер. Предыдущий каталог сохранён.",
+  "sshInvalidInventory": "Сервер вернул некорректный каталог. Предыдущий каталог сохранён.",
+  "sshUnsupportedOs": "Для этого подключения требуется Ubuntu 24.04 на x86_64.",
+  "sshDisconnected": "SSH-соединение закрыто. Подключитесь повторно для обновления каталога.",
+  "sshTrustSaveError": "Не удалось сохранить доверие к серверу. Аутентификация остановлена.",
+  "sshAgentError": "SSH-agent Linux недоступен или не содержит поддерживаемых ключей. Загрузите ключ в агент либо выберите файл приватного ключа.",
+  "vaultTitle": "Защищённое хранилище",
+  "vaultIntro": "Сохраняйте данные входа SSH и доверие к серверу зашифрованными на этом устройстве. Выберите способ разблокировки.",
+  "vaultSystem": "Использовать хранилище ОС",
+  "vaultMaster": "Использовать мастер-пароль",
+  "vaultMasterHelp": "Не менее 12 символов. Запомните пароль: он не сохраняется, сбросить его для восстановления данных нельзя. Этот вариант работает и без keyring Linux.",
+  "vaultPassword": "Мастер-пароль",
+  "vaultConfirmation": "Повторите мастер-пароль",
+  "vaultCreate": "Создать зашифрованное хранилище",
+  "vaultUnlock": "Разблокировать",
+  "vaultLock": "Заблокировать хранилище",
+  "vaultLocked": "Хранилище заблокировано. Разблокируйте для работы с сохранёнными подключениями.",
+  "vaultUnlocked": "Хранилище разблокировано",
+  "vaultAutoLock": "Блокируется после 5 минут бездействия и при переходе приложения в фон; SSH-соединения закрываются.",
+  "vaultWorking": "Открытие хранилища…",
+  "vaultRetry": "Повторить",
+  "vaultUnavailable": "Системное хранилище недоступно. Разблокируйте keyring ОС и повторите попытку. Для нового хранилища можно выбрать мастер-пароль.",
+  "vaultMissingKey": "Системный ключ шифрования недоступен. Для разблокировки восстановите доступ к исходному keyring ОС.",
+  "vaultDamaged": "Неверный мастер-пароль или повреждённое хранилище. Сохранённые данные не изменены.",
+  "vaultCorrupt": "Хранилище повреждено или имеет неподдерживаемый формат. Его файл сохранён.",
+  "vaultWriteFailed": "Не удалось сохранить. Предыдущая сохранённая версия оставлена.",
+  "vaultBusy": "Хранилище занято или изменено другим экземпляром приложения. Заблокируйте и разблокируйте его перед повторной попыткой.",
+  "vaultExists": "Хранилище уже существует. Разблокируйте существующее.",
+  "vaultWeakPassword": "Введите совпадающие пароли длиной от 12 до 1024 символов."
+}

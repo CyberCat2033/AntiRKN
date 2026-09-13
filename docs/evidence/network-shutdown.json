@@ -1,0 +1,10 @@
+{
+  "requestedAt": "2026-09-12T22:31:56.921389+00:00",
+  "userAuthorized": true,
+  "action": "poweroff",
+  "scheduledFor": "2026-09-12T22:32:56.907120+00:00",
+  "requestExitCode": 0,
+  "status": "scheduled",
+  "scheduledState": "(st) \"poweroff\" 1789252376907120",
+  "scheduleReadbackExitCode": 0
+}

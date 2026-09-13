@@ -1,0 +1,36 @@
+{
+  "recordedAt": "2026-09-12T21:50:41.388462+00:00",
+  "artifacts": [
+    {
+      "path": "apps/manager/build/linux/x64/debug/bundle/antirkn_manager",
+      "sha256": "60ef61754b17744fb9c6e2496663a4246a4de2cdbcd7c792730b2ec6fd76f74d",
+      "bytes": 53272
+    },
+    {
+      "path": "apps/manager/build/app/outputs/flutter-apk/app-debug.apk",
+      "sha256": "2d7876b88b2d4dc05a4ba24487e4b6b53911e5a4e1b1e32fb6dfd54f8fdcaef4",
+      "bytes": 80818278
+    },
+    {
+      "path": "apps/manager/android/gradle/wrapper/gradle-wrapper.jar",
+      "sha256": "7d3a4ac4de1c32b59bc6a4eb8ecb8e612ccd0cf1ae1e99f66902da64df296172",
+      "bytes": 43764
+    }
+  ],
+  "androidRuntimeTested": true,
+  "linuxRuntimeTested": false,
+  "windowsBuildTested": false,
+  "android": {
+    "gradle": "8.14",
+    "java": "17.0.20.1",
+    "agp": "8.11.1",
+    "kotlin": "2.2.20",
+    "ndk": "28.2.13676358"
+  },
+  "runtimeScope": "Android P0 localization and template smoke only; not full platform acceptance",
+  "sdk": "Official Flutter 3.41.2 stable, /opt/flutter; Dart 3.11.0",
+  "buildCommands": [
+    "flutter build apk --debug --target-platform android-arm64 --no-pub",
+    "flutter build linux --debug --no-pub"
+  ]
+}

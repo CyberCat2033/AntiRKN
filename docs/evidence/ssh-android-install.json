@@ -1,0 +1,11 @@
+{
+  "device_model": "OnePlus HD1911",
+  "android_api": 36,
+  "package": "org.antirkn.antirkn_manager",
+  "apk_sha256": "085de3063d730c3d669e62fdaf9156718a92b6bb1e438e2330cc91e9c1f48db4",
+  "install": "PASS",
+  "install_mode": "adb install -r, preserve application data",
+  "launch": "PASS",
+  "process_observed": true,
+  "functional_ssh_key_picker_keystore_runtime": "not exercised on this device"
+}

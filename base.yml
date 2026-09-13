@@ -1,0 +1,277 @@
+# ============================================================
+#  Mihomo / Clash.Meta — System TUN Config (Review Version)
+#  Копия base.yml для проверки исправлений; прокси добавляются отдельно.
+# ============================================================
+
+geodata-mode: false
+geox-url:
+  geoip: ""
+  geosite: ""
+  mmdb: ""
+
+# Порты закрыты для защиты от сканирования извне и утечек
+mixed-port: 0
+redir-port: 0
+tproxy-port: 0
+port: 0
+socks-port: 0
+
+allow-lan: false
+bind-address: "127.0.0.1"
+mode: rule
+log-level: warning
+udp-timeout: 30
+ipv6: false
+
+# Производительность
+unified-delay: true
+tcp-concurrent: false
+keep-alive-interval: 30
+
+# Режим TUN (System Stack)
+tun:
+  enable: true
+  stack: system
+  auto-route: true
+  auto-detect-interface: true
+  dns-hijack:
+    - any:53
+    - tcp://any:53
+  strict-route: true
+  mtu: 1500
+
+profile:
+  store-selected: true
+  store-fake-ip: true
+
+# ============================================================
+#  Hosts
+# ============================================================
+hosts:
+  "dns.google": [8.8.8.8, 8.8.4.4]
+  "cloudflare-dns.com": [1.1.1.1, 1.0.0.1]
+  "common.dot.dns.yandex.net": [77.88.8.8, 77.88.8.1]
+
+# ============================================================
+#  DNS (DoH/DoQ; default-nameserver используется для bootstrap)
+# ============================================================
+dns:
+  enable: true
+  ipv6: false
+  use-system-hosts: false
+  use-hosts: true
+  respect-rules: true
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter-mode: blacklist
+  fake-ip-filter:
+    - "+.lan"
+    - "+.local"
+    - "+.localdomain"
+    - "+.home.arpa"
+    - "+.home"
+    - "+.localhost"
+    - "+.msftconnecttest.com"
+    - "+.msftncsi.com"
+    - "time.*.com"
+    - "time.*.gov"
+    - "time.*.apple.com"
+    - "+.srv.nintendo.net"
+    - "+.stun.playstation.net"
+    - "xbox.*.microsoft.com"
+    - "+.xboxlive.com"
+    - "+.battlenet.com.cn"
+    - "+.battlenet.com"
+    - "+.blzstatic.cn"
+    - "localhost.ptlogin2.qq.com"
+    - "+.market.xiaomi.com"
+
+  default-nameserver:
+    - 1.1.1.1
+    - 8.8.8.8
+    - 77.88.8.8
+    - 9.9.9.9
+
+  proxy-server-nameserver:
+    - https://dns.google/dns-query
+    - https://cloudflare-dns.com/dns-query
+
+  nameserver:
+    - https://dns.google/dns-query
+    - https://cloudflare-dns.com/dns-query
+    - quic://dns.adguard-dns.com:853
+
+  nameserver-policy:
+    "rule-set:geosite-ru":
+      - https://common.dot.dns.yandex.net/dns-query
+
+# ============================================================
+#  Sniffer
+# ============================================================
+sniffer:
+  enable: true
+  force-dns-mapping: true
+  parse-pure-ip: true
+  override-destination: false
+  sniff:
+    HTTP:
+      ports: [80]
+      override-destination: true
+    TLS:
+      ports: [443]
+  skip-domain:
+    - "+.push.apple.com"
+    - "+.apple.com"
+
+# ============================================================
+#  Proxies
+# ============================================================
+proxies:
+
+# ============================================================
+#  Proxy groups
+# ============================================================
+proxy-groups:
+  - name: RemoteBalancer
+    type: load-balance
+    url: "https://www.gstatic.com/generate_204"
+    include-all-proxies: true
+    exclude-type: "WireGuard|Shadowsocks|Http|Direct|Socks5"
+    exclude-filter: "(?i)(Turn|_RU|RU$)"
+    expected-status: 204
+    interval: 180
+    timeout: 3000
+    max-failed-times: 3
+    lazy: true
+    strategy: consistent-hashing
+
+  - name: WG_Auto
+    type: select
+    hidden: true
+    include-all-proxies: true
+    filter: "(?i)WG"
+
+  - name: Proxy_Chain
+    type: fallback
+    proxies:
+      - RemoteBalancer
+    include-all-proxies: true
+    # Резервные узлы соответствуют ограничениям RemoteBalancer.
+    url: "https://www.gstatic.com/generate_204"
+    expected-status: 204
+    interval: 180
+    timeout: 5000
+    lazy: true
+
+  - name: RuZone
+    type: fallback
+    include-all-proxies: true
+    filter: "(?i)_RU"
+    url: "https://www.gstatic.com/generate_204"
+    expected-status: 204
+    interval: 180
+    timeout: 5000
+    lazy: true
+    hidden: true
+
+  - name: SmartSelector
+    type: select
+    proxies:
+      - Proxy_Chain
+      - RuZone
+
+# ============================================================
+#  Rule Providers (Использование легковесных бинарных правил)
+# ============================================================
+rule-providers:
+  geosite-ads:
+    type: http
+    behavior: domain
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/category-ads-all.mrs"
+    path: ./geosite_ads.mrs
+    interval: 86400
+    format: mrs
+  geosite-tiktok:
+    type: http
+    behavior: domain
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/tiktok.mrs"
+    path: ./geosite_tiktok.mrs
+    interval: 86400
+    format: mrs
+  geosite-ru:
+    type: http
+    behavior: domain
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/category-ru.mrs"
+    path: ./geosite_ru.mrs
+    interval: 86400
+    format: mrs
+  geoip-ru:
+    type: http
+    behavior: ipcidr
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/ru.mrs"
+    path: ./geoip_ru.mrs
+    interval: 86400
+    format: mrs
+
+# ============================================================
+#  Rules
+# ============================================================
+rules:
+  # Локальные домены; их DNS-разрешение требует локального DNS/mDNS.
+  - DOMAIN-SUFFIX,local,DIRECT
+  - DOMAIN-SUFFIX,lan,DIRECT
+  - DOMAIN-SUFFIX,localdomain,DIRECT
+  - DOMAIN-SUFFIX,home.arpa,DIRECT
+  - DOMAIN-SUFFIX,home,DIRECT
+  - DOMAIN-SUFFIX,localhost,DIRECT
+  # Локальные подсети без DNS-запросов при проверке правил.
+  - IP-CIDR,127.0.0.0/8,DIRECT,no-resolve
+  - IP-CIDR,192.168.0.0/16,DIRECT,no-resolve
+  - IP-CIDR,10.0.0.0/8,DIRECT,no-resolve
+  - IP-CIDR,172.16.0.0/12,DIRECT,no-resolve
+  - IP-CIDR,169.254.0.0/16,DIRECT,no-resolve
+  - IP-CIDR,224.0.0.0/4,DIRECT,no-resolve
+  - IP-CIDR6,::1/128,DIRECT,no-resolve
+  - IP-CIDR6,fc00::/7,DIRECT,no-resolve
+  - IP-CIDR6,fe80::/10,DIRECT,no-resolve
+  - RULE-SET,geosite-ads,REJECT
+  - RULE-SET,geosite-tiktok,SmartSelector
+  - DOMAIN-KEYWORD,tiktok,SmartSelector
+  - DOMAIN-SUFFIX,byteoversea.com,SmartSelector
+  - DOMAIN-SUFFIX,ibytedtos.com,SmartSelector
+  - DOMAIN-SUFFIX,musical.ly,SmartSelector
+  - DOMAIN-SUFFIX,tiktokcdn.com,SmartSelector
+  - DOMAIN-SUFFIX,tiktokv.com,SmartSelector
+  # Правила для РФ зоны
+  - DOMAIN-SUFFIX,gosuslugi.ru,DIRECT
+  - DOMAIN-SUFFIX,sfr.gov.ru,DIRECT
+  - DOMAIN-SUFFIX,nalog.ru,DIRECT
+  - DOMAIN-SUFFIX,nalog.gov.ru,DIRECT
+  - DOMAIN-SUFFIX,ozon.ru,DIRECT
+  - DOMAIN-SUFFIX,ozon.com,DIRECT
+  - DOMAIN-SUFFIX,wildberries.ru,DIRECT
+  - DOMAIN-SUFFIX,wb.ru,DIRECT
+  - DOMAIN-SUFFIX,avito.ru,DIRECT
+  - DOMAIN-SUFFIX,yandex.ru,DIRECT
+  - DOMAIN-SUFFIX,yandex.net,DIRECT
+  - DOMAIN-SUFFIX,ya.ru,DIRECT
+  - DOMAIN-SUFFIX,vk.com,DIRECT
+  - DOMAIN-SUFFIX,vk.ru,DIRECT
+  - DOMAIN-SUFFIX,vkuserlive.com,DIRECT
+  - DOMAIN-SUFFIX,vkuservideo.net,DIRECT
+  - DOMAIN-SUFFIX,ok.ru,DIRECT
+  - DOMAIN-SUFFIX,mail.ru,DIRECT
+  - DOMAIN-SUFFIX,sberbank.ru,DIRECT
+  - DOMAIN-SUFFIX,tinkoff.ru,DIRECT
+  - DOMAIN-SUFFIX,t-bank.ru,DIRECT
+  - DOMAIN-SUFFIX,vtb.ru,DIRECT
+  - DOMAIN-SUFFIX,alfabank.ru,DIRECT
+  - DOMAIN-SUFFIX,1tv.ru,DIRECT
+  - DOMAIN-SUFFIX,smotrim.ru,DIRECT
+  - DOMAIN-SUFFIX,rt.ru,DIRECT
+  # Общие правила маршрутизации РФ на основе бинарных ruleset
+  - RULE-SET,geosite-ru,DIRECT
+  - IP-CIDR,77.239.122.0/24,DIRECT
+  # Сохраняем DNS-разрешение для определения российских IP.
+  - RULE-SET,geoip-ru,DIRECT
+  - MATCH,SmartSelector

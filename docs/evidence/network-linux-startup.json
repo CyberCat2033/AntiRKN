@@ -1,0 +1,9 @@
+{
+  "recordedAt": "2026-09-12T22:25:56.890288+00:00",
+  "aliveAfterSeconds": 6,
+  "flutterVmServiceStarted": true,
+  "fatalStartupErrorDetected": false,
+  "stoppedBySmokeCheck": true,
+  "scope": "Linux startup only; no full runtime/accessibility acceptance",
+  "status": "passed"
+}

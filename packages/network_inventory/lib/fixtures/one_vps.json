@@ -1,0 +1,279 @@
+{
+  "addresses": [
+    {
+      "ifindex": 1,
+      "ifname": "lo",
+      "flags": [
+        "LOOPBACK",
+        "UP",
+        "LOWER_UP"
+      ],
+      "operstate": "UNKNOWN",
+      "addr_info": [
+        {
+          "family": "inet",
+          "local": "127.0.0.1",
+          "prefixlen": 8,
+          "scope": "host",
+          "valid_life_time": 4294967295,
+          "preferred_life_time": 4294967295
+        },
+        {
+          "family": "inet6",
+          "local": "::1",
+          "prefixlen": 128,
+          "scope": "host",
+          "valid_life_time": 4294967295,
+          "preferred_life_time": 4294967295
+        }
+      ]
+    },
+    {
+      "ifindex": 2,
+      "ifname": "eth0",
+      "flags": [
+        "BROADCAST",
+        "MULTICAST",
+        "UP",
+        "LOWER_UP"
+      ],
+      "operstate": "UP",
+      "addr_info": [
+        {
+          "family": "inet",
+          "local": "93.184.215.14",
+          "prefixlen": 24,
+          "scope": "global",
+          "valid_life_time": 4294967295,
+          "preferred_life_time": 4294967295
+        },
+        {
+          "family": "inet",
+          "local": "93.184.215.15",
+          "prefixlen": 24,
+          "scope": "global",
+          "valid_life_time": 4294967295,
+          "preferred_life_time": 4294967295,
+          "secondary": true
+        },
+        {
+          "family": "inet",
+          "local": "10.10.0.2",
+          "prefixlen": 24,
+          "scope": "global",
+          "valid_life_time": 4294967295,
+          "preferred_life_time": 4294967295
+        },
+        {
+          "family": "inet",
+          "local": "203.0.113.5",
+          "prefixlen": 24,
+          "scope": "global",
+          "valid_life_time": 4294967295,
+          "preferred_life_time": 4294967295
+        },
+        {
+          "family": "inet6",
+          "local": "2a01:4f8:1:2::10",
+          "prefixlen": 64,
+          "scope": "global",
+          "valid_life_time": 4294967295,
+          "preferred_life_time": 4294967295
+        },
+        {
+          "family": "inet6",
+          "local": "2a01:4f8:1:2::11",
+          "prefixlen": 64,
+          "scope": "global",
+          "valid_life_time": 4294967295,
+          "preferred_life_time": 4294967295,
+          "temporary": true
+        },
+        {
+          "family": "inet6",
+          "local": "2a01:4f8:1:2::12",
+          "prefixlen": 64,
+          "scope": "global",
+          "valid_life_time": 4294967295,
+          "preferred_life_time": 4294967295,
+          "tentative": true
+        },
+        {
+          "family": "inet6",
+          "local": "2a01:4f8:1:2::13",
+          "prefixlen": 64,
+          "scope": "global",
+          "valid_life_time": 4294967295,
+          "preferred_life_time": 0,
+          "deprecated": true
+        },
+        {
+          "family": "inet6",
+          "local": "2a01:4f8:1:2::14",
+          "prefixlen": 64,
+          "scope": "global",
+          "valid_life_time": 4294967295,
+          "preferred_life_time": 4294967295,
+          "dadfailed": true
+        },
+        {
+          "family": "inet6",
+          "local": "fe80::10",
+          "prefixlen": 64,
+          "scope": "link",
+          "valid_life_time": 4294967295,
+          "preferred_life_time": 4294967295
+        }
+      ]
+    },
+    {
+      "ifindex": 3,
+      "ifname": "eth1",
+      "flags": [
+        "BROADCAST",
+        "MULTICAST",
+        "UP",
+        "LOWER_UP"
+      ],
+      "operstate": "UP",
+      "addr_info": [
+        {
+          "family": "inet",
+          "local": "93.184.215.14",
+          "prefixlen": 32,
+          "scope": "global",
+          "valid_life_time": 4294967295,
+          "preferred_life_time": 4294967295
+        }
+      ]
+    },
+    {
+      "ifindex": 4,
+      "ifname": "eth2",
+      "flags": [
+        "BROADCAST",
+        "MULTICAST"
+      ],
+      "operstate": "DOWN",
+      "addr_info": [
+        {
+          "family": "inet",
+          "local": "93.184.215.16",
+          "prefixlen": 24,
+          "scope": "global",
+          "valid_life_time": 4294967295,
+          "preferred_life_time": 4294967295
+        }
+      ]
+    },
+    {
+      "ifindex": 5,
+      "ifname": "wg0",
+      "flags": [
+        "POINTOPOINT",
+        "NOARP",
+        "UP",
+        "LOWER_UP"
+      ],
+      "operstate": "UNKNOWN",
+      "addr_info": [
+        {
+          "family": "inet",
+          "local": "10.66.0.1",
+          "prefixlen": 24,
+          "scope": "global",
+          "valid_life_time": 4294967295,
+          "preferred_life_time": 4294967295
+        }
+      ],
+      "linkinfo": {
+        "info_kind": "wireguard"
+      }
+    }
+  ],
+  "routesV4": [
+    {
+      "dst": "default",
+      "gateway": "93.184.215.1",
+      "dev": "eth0",
+      "protocol": "static",
+      "metric": 100,
+      "flags": []
+    },
+    {
+      "dst": "default",
+      "gateway": "10.10.0.1",
+      "dev": "eth0",
+      "table": 100,
+      "metric": 200,
+      "flags": []
+    },
+    {
+      "dst": "93.184.215.0/24",
+      "dev": "eth0",
+      "protocol": "kernel",
+      "scope": "link",
+      "prefsrc": "93.184.215.14",
+      "flags": []
+    },
+    {
+      "type": "local",
+      "dst": "127.0.0.0/8",
+      "dev": "lo",
+      "table": "local",
+      "scope": "host",
+      "flags": []
+    }
+  ],
+  "routesV6": [
+    {
+      "dst": "default",
+      "gateway": "fe80::1",
+      "dev": "eth0",
+      "protocol": "ra",
+      "metric": 1024,
+      "flags": []
+    },
+    {
+      "dst": "2a01:4f8:1:2::/64",
+      "dev": "eth0",
+      "protocol": "kernel",
+      "metric": 256,
+      "flags": []
+    }
+  ],
+  "rulesV4": [
+    {
+      "priority": 0,
+      "src": "all",
+      "table": "local"
+    },
+    {
+      "priority": 100,
+      "src": "10.10.0.0/24",
+      "table": 100
+    },
+    {
+      "priority": 32766,
+      "src": "all",
+      "table": "main"
+    },
+    {
+      "priority": 32767,
+      "src": "all",
+      "table": "default"
+    }
+  ],
+  "rulesV6": [
+    {
+      "priority": 0,
+      "src": "all",
+      "table": "local"
+    },
+    {
+      "priority": 32766,
+      "src": "all",
+      "table": "main"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "recordedAt": "2026-09-12T21:52:21.169929+00:00",
+  "device": "OnePlus HD1911",
+  "api": 36,
+  "installed": true,
+  "initialEditorEmpty": true,
+  "systemPickerOpened": true,
+  "userSelectedRepositoryBase": true,
+  "editorMatchesSource": true,
+  "cancelPreservesDraft": true,
+  "navigationPreservesDraft": true,
+  "coldRestartAfterImportTested": false,
+  "runtimeScope": "P0 Android document import and cancellation smoke; no profile networking"
+}

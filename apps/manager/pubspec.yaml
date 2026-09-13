@@ -1,0 +1,34 @@
+name: antirkn_manager
+description: AntiRKN infrastructure manager — P0 template workbench.
+publish_to: none
+version: 0.1.0+1
+resolution: workspace
+environment:
+  sdk: '>=3.11.0 <4.0.0'
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: 0.20.2
+  antirkn_storage:
+    path: ../../packages/storage
+  antirkn_ssh_transport:
+    path: ../../packages/ssh_transport
+  dynamic_color: 1.8.1
+  antirkn_design_system:
+    path: ../../packages/design_system
+  antirkn_domain:
+    path: ../../packages/domain
+  antirkn_network_inventory:
+    path: ../../packages/network_inventory
+  antirkn_profile_compiler:
+    path: ../../packages/profile_compiler
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+flutter:
+  generate: true
+  uses-material-design: true
+  assets:
+    - packages/antirkn_network_inventory/fixtures/one_vps.json

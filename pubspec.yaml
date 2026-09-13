@@ -1,0 +1,16 @@
+name: antirkn_workspace
+publish_to: none
+environment:
+  sdk: '>=3.11.0 <4.0.0'
+workspace:
+  - apps/manager
+  - packages/storage
+  - packages/ssh_transport
+  - packages/domain
+  - packages/network_inventory
+  - packages/design_system
+  - packages/profile_compiler
+dev_dependencies:
+  antirkn_profile_compiler:
+    path: packages/profile_compiler
+  lints: 6.1.0

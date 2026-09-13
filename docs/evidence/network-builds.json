@@ -1,0 +1,43 @@
+{
+  "recordedAt": "2026-09-12T22:31:11.765313+00:00",
+  "iteration": "P0 single-server address inventory",
+  "sdk": "Official Flutter 3.41.2 / Dart 3.11.0, /opt/flutter",
+  "artifacts": [
+    {
+      "path": "apps/manager/build/linux/x64/debug/bundle/antirkn_manager",
+      "bytes": 53272,
+      "sha256": "60ef61754b17744fb9c6e2496663a4246a4de2cdbcd7c792730b2ec6fd76f74d"
+    },
+    {
+      "path": "apps/manager/build/linux/x64/debug/bundle/data/flutter_assets/kernel_blob.bin",
+      "bytes": 49111744,
+      "sha256": "c32a2097cda79007076ab64dba1ecdc4452bb6005e02bd159a94601307d181e9"
+    },
+    {
+      "path": "apps/manager/build/linux/x64/debug/bundle/data/flutter_assets/packages/antirkn_network_inventory/fixtures/one_vps.json",
+      "bytes": 6072,
+      "sha256": "e855bbab559b6ab48a10caccbdfc1d2ff564a70ae5a689f5f91141d41eafe58d"
+    },
+    {
+      "path": "apps/manager/build/app/outputs/flutter-apk/app-debug.apk",
+      "bytes": 97502923,
+      "sha256": "3612c7bcf916dfe84848ccc89ee2fa308df0b22b701412b47a5aad22db05928a"
+    }
+  ],
+  "androidAbis": [
+    "arm64-v8a",
+    "armeabi-v7a",
+    "x86_64"
+  ],
+  "packagedSampleMatchesSource": true,
+  "androidRuntimeTested": false,
+  "linuxStartupSmokePassed": true,
+  "fullLinuxRuntimeAccepted": false,
+  "windowsBuildTested": false,
+  "testCount": 68,
+  "localizationMessages": 134,
+  "buildCommands": [
+    "flutter build linux --debug --no-pub",
+    "flutter build apk --debug --target-platform android-arm64 --no-pub"
+  ]
+}
