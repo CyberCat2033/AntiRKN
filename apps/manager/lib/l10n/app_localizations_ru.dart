@@ -470,6 +470,26 @@ class AppLocalizationsRu extends AppLocalizations {
   String get sshTitle => 'SSH-подключение';
 
   @override
+  String get sshServerName => 'Имя сервера (необязательно)';
+
+  @override
+  String get sshEdit => 'Изменить подключение';
+
+  @override
+  String get sshEditHelp =>
+      'Переименование сохраняет подключение. Сохранение изменённых параметров SSH завершит сеанс; подключитесь снова, чтобы применить их.';
+
+  @override
+  String get sshOsUnknown => 'Версия ОС появится после подключения';
+
+  @override
+  String get sshReplaceServer => 'Это другой сервер';
+
+  @override
+  String get sshReplaceServerHelp =>
+      'Продолжайте, только если намеренно заменили сервер или изменили его адрес. Сверьте новый отпечаток через консоль VPS. Подтверждение заменит сохранённый доверенный ключ; отказ сохранит прежний. Реквизиты входа останутся.';
+
+  @override
   String get sshReadOnly =>
       'Подключитесь к VPS Ubuntu x86_64 для чтения сетевых сведений.';
 

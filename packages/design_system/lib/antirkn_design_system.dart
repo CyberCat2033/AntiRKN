@@ -25,6 +25,24 @@ abstract final class AppMotion {
   }
 }
 
+/// Applies shared motion policy and skips size animation when it is disabled.
+class AppAnimatedSize extends StatelessWidget {
+  const AppAnimatedSize({required this.child, required this.motion, super.key});
+  final Widget child;
+  final MotionPreference motion;
+
+  @override
+  Widget build(BuildContext context) {
+    final duration = AppMotion.duration(context, motion);
+    if (duration == Duration.zero) return child;
+    return AnimatedSize(
+      duration: duration,
+      alignment: Alignment.topCenter,
+      child: child,
+    );
+  }
+}
+
 abstract final class AppTheme {
   static ThemeData create(Brightness brightness, {ColorScheme? dynamicScheme}) {
     final colors =
@@ -79,9 +97,15 @@ class StatusChip extends StatelessWidget {
 }
 
 class SectionCard extends StatelessWidget {
-  const SectionCard({required this.title, required this.child, super.key});
+  const SectionCard({
+    required this.title,
+    required this.child,
+    this.trailing,
+    super.key,
+  });
   final String title;
   final Widget child;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) => Card.outlined(
@@ -90,7 +114,21 @@ class SectionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(title, style: Theme.of(context).textTheme.titleLarge),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              if (trailing case final action?) ...[
+                const SizedBox(width: AppLayout.smallGap),
+                action,
+              ],
+            ],
+          ),
           const SizedBox(height: AppLayout.gap),
           child,
         ],

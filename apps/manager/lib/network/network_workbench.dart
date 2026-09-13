@@ -33,7 +33,7 @@ class NetworkWorkbench extends StatelessWidget {
         padding: AppLayout.padding,
         children: [
           if (ssh != null) ...[
-            SshPanel(controller: ssh!),
+            SshPanel(controller: ssh!, motion: motion),
             const SizedBox(height: AppLayout.gap),
           ],
           SectionCard(

@@ -20,11 +20,14 @@ final class SshProfile {
     required this.port,
     required this.username,
     required this.authMethod,
+    this.name = '',
     Map<ServerSecret, String> secrets = const {},
     this.keyName,
     this.hostKey,
   }) : secrets = Map.unmodifiable(secrets);
   static const serverId = 'primary-vps';
+  final String name;
+  String get displayName => name.trim().isEmpty ? host : name.trim();
   final String host;
   final int port;
   final String username;
@@ -34,6 +37,8 @@ final class SshProfile {
   final TrustedHostKey? hostKey;
 
   bool get valid =>
+      name.length <= 253 &&
+      !RegExp(r'[\x00-\x1f\x7f]').hasMatch(name) &&
       host.isNotEmpty &&
       host.length <= 253 &&
       !RegExp(r'[\s/\\\x00-\x1f]').hasMatch(host) &&
@@ -48,6 +53,7 @@ final class SshProfile {
               : (secrets[ServerSecret.privateKey]?.isNotEmpty ?? false)));
 
   SshProfile withHostKey(TrustedHostKey value) => SshProfile(
+    name: name,
     host: host,
     port: port,
     username: username,
@@ -56,6 +62,24 @@ final class SshProfile {
     keyName: keyName,
     hostKey: value,
   );
+
+  /// Display metadata and inactive credentials do not affect a live session.
+  bool hasSameConnectionSettings(SshProfile other) =>
+      host == other.host &&
+      port == other.port &&
+      username == other.username &&
+      authMethod == other.authMethod &&
+      switch (authMethod) {
+        SshAuthMethod.agent => true,
+        SshAuthMethod.password =>
+          secrets[ServerSecret.sshPassword] ==
+              other.secrets[ServerSecret.sshPassword],
+        SshAuthMethod.privateKey =>
+          secrets[ServerSecret.privateKey] ==
+                  other.secrets[ServerSecret.privateKey] &&
+              secrets[ServerSecret.keyPassphrase] ==
+                  other.secrets[ServerSecret.keyPassphrase],
+      };
   @override
   String toString() => 'SshProfile(redacted)';
 }

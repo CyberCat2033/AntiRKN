@@ -908,6 +908,42 @@ abstract class AppLocalizations {
   /// **'SSH connection'**
   String get sshTitle;
 
+  /// No description provided for @sshServerName.
+  ///
+  /// In en, this message translates to:
+  /// **'Server name (optional)'**
+  String get sshServerName;
+
+  /// No description provided for @sshEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit connection'**
+  String get sshEdit;
+
+  /// No description provided for @sshEditHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Changing the name keeps the connection open. Saving changed SSH settings disconnects the session; reconnect to apply them.'**
+  String get sshEditHelp;
+
+  /// No description provided for @sshOsUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'OS version will be read on connection'**
+  String get sshOsUnknown;
+
+  /// No description provided for @sshReplaceServer.
+  ///
+  /// In en, this message translates to:
+  /// **'This is a different server'**
+  String get sshReplaceServer;
+
+  /// No description provided for @sshReplaceServerHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue only if you intentionally replaced the server or changed its address. Verify the new fingerprint through its VPS console. Confirming will replace the saved trusted key; rejecting keeps the old key. Your login details are retained.'**
+  String get sshReplaceServerHelp;
+
   /// No description provided for @sshReadOnly.
   ///
   /// In en, this message translates to:

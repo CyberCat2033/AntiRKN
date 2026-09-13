@@ -31,7 +31,11 @@ class SshController extends ChangeNotifier {
     this.idleTimeout = const Duration(minutes: 5),
   }) {
     for (final field in fields) {
-      field.addListener(_edited);
+      field.addListener(
+        field == masterPassword || field == masterConfirmation
+            ? touch
+            : _edited,
+      );
     }
     _clock = Timer.periodic(const Duration(seconds: 10), (_) => network.tick());
   }
@@ -41,6 +45,7 @@ class SshController extends ChangeNotifier {
   final NetworkController network;
   final bool agentAvailable;
   final Duration idleTimeout;
+  final serverName = TextEditingController();
   final host = TextEditingController();
   final port = TextEditingController(text: '22');
   final username = TextEditingController(text: 'root');
@@ -49,6 +54,7 @@ class SshController extends ChangeNotifier {
   final masterPassword = TextEditingController();
   final masterConfirmation = TextEditingController();
   List<TextEditingController> get fields => [
+    serverName,
     host,
     port,
     username,
@@ -63,6 +69,8 @@ class SshController extends ChangeNotifier {
   bool vaultBusy = false;
   bool picking = false;
   bool saved = false;
+  bool settingsExpanded = true;
+  bool replacingServer = false;
   VaultIssue? vaultError;
   SshIssue? error;
   String? keyName;
@@ -83,10 +91,15 @@ class SshController extends ChangeNotifier {
       stage == SshStage.connecting ||
       stage == SshStage.verifying ||
       stage == SshStage.reading;
-  bool get editing =>
-      unlocked && !busy && !vaultBusy && !picking && _connection == null;
+  bool get editing => unlocked && !busy && !vaultBusy && !picking;
+  bool get hasSavedProfile => unlocked && _vault!.profile != null;
+  String get displayName =>
+      unlocked ? _vault!.profile?.displayName ?? host.text : '';
   bool get hasKey => _pem != null;
-  TrustedHostKey? get trustedKey => unlocked ? _vault!.profile?.hostKey : null;
+  TrustedHostKey? get trustedKey =>
+      unlocked && _vault!.profile?.host == host.text.trim()
+      ? _vault!.profile?.hostKey
+      : null;
 
   void _notify() {
     if (!_disposed) notifyListeners();
@@ -173,6 +186,7 @@ class SshController extends ChangeNotifier {
 
   void _restore() {
     final profile = _vault!.profile;
+    serverName.text = profile?.name ?? '';
     host.text = profile?.host ?? '';
     port.text = '${profile?.port ?? 22}';
     username.text = profile?.username ?? 'root';
@@ -184,6 +198,23 @@ class SshController extends ChangeNotifier {
         profile?.authMethod ??
         (agentAvailable ? SshAuthMethod.agent : SshAuthMethod.password);
     saved = profile != null;
+    settingsExpanded = profile == null;
+  }
+
+  void editSettings() {
+    if (!editing) return;
+    settingsExpanded = true;
+    touch();
+    _notify();
+  }
+
+  void cancelEditing() {
+    if (!editing || !hasSavedProfile) return;
+    _restore();
+    error = null;
+    vaultError = null;
+    touch();
+    _notify();
   }
 
   void setAuth(SshAuthMethod method) {
@@ -229,12 +260,13 @@ class SshController extends ChangeNotifier {
   }
 
   SshProfile _draft() => SshProfile(
+    name: serverName.text.trim(),
     host: host.text.trim(),
     port: int.tryParse(port.text) ?? 0,
     username: username.text.trim(),
     authMethod: authMethod,
     keyName: keyName,
-    hostKey: _vault!.profile?.hostKey,
+    hostKey: trustedKey,
     secrets: {
       ...?_vault!.profile?.secrets,
       ServerSecret.sshPassword: password.text,
@@ -245,7 +277,19 @@ class SshController extends ChangeNotifier {
 
   Future<bool> save() async {
     if (!editing) return false;
-    return _saveDraft();
+    final previous = _vault!.profile;
+    error = null;
+    if (!await _saveDraft()) return false;
+    final profile = _vault!.profile!;
+    if (previous != null && !previous.hasSameConnectionSettings(profile)) {
+      disconnect();
+      observation = null;
+      network.clear();
+    }
+    settingsExpanded = false;
+    touch();
+    _notify();
+    return true;
   }
 
   Future<bool> _saveDraft() async {
@@ -278,9 +322,18 @@ class SshController extends ChangeNotifier {
     return false;
   }
 
-  Future<void> connect() async {
-    if (!editing) return;
+  Future<void> connect() => _connect();
+
+  /// An explicit server replacement still requires fingerprint confirmation.
+  Future<void> replaceServer() async {
+    if (error != SshIssue.hostKeyChanged) return;
+    await _connect(replaceServer: true);
+  }
+
+  Future<void> _connect({bool replaceServer = false}) async {
+    if (!editing || _connection != null) return;
     error = null;
+    replacingServer = replaceServer;
     stage = SshStage.connecting;
     final generation = _generation;
     touch();
@@ -288,15 +341,20 @@ class SshController extends ChangeNotifier {
     final cancellation = CancellationToken();
     _cancellation = cancellation;
     try {
+      final previous = _vault!.profile;
       if (!await _saveDraft()) return;
       cancellation.check();
       final profile = _vault!.profile!;
+      if (previous != null && !previous.hasSameConnectionSettings(profile)) {
+        observation = null;
+        network.clear();
+      }
       final connection = await connector.connect(
         profile,
         cancellation: cancellation,
         verifyHostKey: (key) async {
           cancellation.check();
-          if (profile.hostKey != null) {
+          if (profile.hostKey != null && !replaceServer) {
             if (!profile.hostKey!.matches(key)) {
               throw const SshFailure(SshIssue.hostKeyChanged);
             }
@@ -317,6 +375,10 @@ class SshController extends ChangeNotifier {
             throw const SshFailure(SshIssue.trustSaveFailed);
           }
           cancellation.check();
+          if (replaceServer) {
+            observation = null;
+            network.clear();
+          }
           stage = SshStage.connecting;
           _notify();
           return true;
@@ -342,6 +404,7 @@ class SshController extends ChangeNotifier {
       observation = next;
       network.accept(next.network);
       stage = SshStage.connected;
+      settingsExpanded = false;
     } on SshFailure catch (e) {
       if (!_disposed && generation == _generation) {
         error = e.issue;
@@ -356,9 +419,13 @@ class SshController extends ChangeNotifier {
       }
     } finally {
       if (!_disposed && generation == _generation) {
-        if (_connection == null) stage = SshStage.idle;
+        if (_connection == null) {
+          stage = SshStage.idle;
+          settingsExpanded = true;
+        }
         challenge = null;
         _decision = null;
+        replacingServer = false;
         _notify();
       }
     }
@@ -422,13 +489,14 @@ class SshController extends ChangeNotifier {
     decide(false);
     _decision = null;
     challenge = null;
+    replacingServer = false;
     stage = SshStage.idle;
     error = null;
     _notify();
   }
 
   Future<void> deleteProfile() async {
-    if (!editing) return;
+    if (!editing || _connection != null) return;
     vaultBusy = true;
     vaultError = null;
     final generation = _generation;

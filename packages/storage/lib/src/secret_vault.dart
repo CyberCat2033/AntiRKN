@@ -311,6 +311,7 @@ final class EncryptedSecretVault implements SecretVault {
         'server': profile == null
             ? null
             : {
+                if (profile.name.isNotEmpty) 'name': profile.name,
                 'host': profile.host,
                 'port': profile.port,
                 'username': profile.username,
@@ -382,6 +383,7 @@ final class EncryptedSecretVault implements SecretVault {
       if (server == null) return null;
       final hostKey = server['hostKey'] as Map<String, Object?>?;
       final profile = SshProfile(
+        name: server['name'] as String? ?? '',
         host: server['host']! as String,
         port: server['port']! as int,
         username: server['username']! as String,

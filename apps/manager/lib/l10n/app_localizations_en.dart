@@ -470,6 +470,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sshTitle => 'SSH connection';
 
   @override
+  String get sshServerName => 'Server name (optional)';
+
+  @override
+  String get sshEdit => 'Edit connection';
+
+  @override
+  String get sshEditHelp =>
+      'Changing the name keeps the connection open. Saving changed SSH settings disconnects the session; reconnect to apply them.';
+
+  @override
+  String get sshOsUnknown => 'OS version will be read on connection';
+
+  @override
+  String get sshReplaceServer => 'This is a different server';
+
+  @override
+  String get sshReplaceServerHelp =>
+      'Continue only if you intentionally replaced the server or changed its address. Verify the new fingerprint through its VPS console. Confirming will replace the saved trusted key; rejecting keeps the old key. Your login details are retained.';
+
+  @override
   String get sshReadOnly =>
       'Connect to an Ubuntu x86_64 VPS to read its network information.';
 

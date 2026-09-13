@@ -6,8 +6,13 @@ import '../l10n/app_localizations.dart';
 import 'ssh_controller.dart';
 
 class SshPanel extends StatefulWidget {
-  const SshPanel({required this.controller, super.key});
+  const SshPanel({
+    required this.controller,
+    this.motion = MotionPreference.system,
+    super.key,
+  });
   final SshController controller;
+  final MotionPreference motion;
   @override
   State<SshPanel> createState() => _SshPanelState();
 }
@@ -21,6 +26,7 @@ class _SshPanelState extends State<SshPanel> {
     required bool enabled,
     bool secret = false,
     String? id,
+    String? hint,
     TextInputType? type,
   }) => Padding(
     padding: const EdgeInsets.only(bottom: AppLayout.gap),
@@ -34,7 +40,11 @@ class _SshPanelState extends State<SshPanel> {
       enableIMEPersonalizedLearning: false,
       keyboardType: type,
       maxLength: secret ? 1024 : 253,
-      decoration: InputDecoration(labelText: label, counterText: ''),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        counterText: '',
+      ),
     ),
   );
 
@@ -144,184 +154,248 @@ class _SshPanelState extends State<SshPanel> {
           if (c.unlocked) ...[
             const SizedBox(height: AppLayout.gap),
             SectionCard(
-              title: l.sshTitle,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(l.sshReadOnly),
-                  const SizedBox(height: AppLayout.gap),
-                  _field(c.host, l.sshHost, enabled: c.editing, id: 'ssh-host'),
-                  _field(
-                    c.port,
-                    l.sshPort,
-                    enabled: c.editing,
-                    id: 'ssh-port',
-                    type: TextInputType.number,
-                  ),
-                  _field(
-                    c.username,
-                    l.sshUser,
-                    enabled: c.editing,
-                    id: 'ssh-user',
-                  ),
-                  Wrap(
-                    spacing: AppLayout.smallGap,
-                    runSpacing: AppLayout.smallGap,
-                    children: [
-                      for (final method in SshAuthMethod.values)
-                        if (method != SshAuthMethod.agent ||
-                            c.agentAvailable ||
-                            c.authMethod == method)
-                          ChoiceChip(
-                            key: ValueKey('ssh-auth-${method.name}'),
-                            label: Text(switch (method) {
-                              SshAuthMethod.password => l.sshAuthPassword,
-                              SshAuthMethod.privateKey => l.sshAuthKey,
-                              SshAuthMethod.agent => l.sshAuthAgent,
-                            }),
-                            selected: c.authMethod == method,
-                            onSelected: c.editing
-                                ? (_) => c.setAuth(method)
-                                : null,
-                          ),
-                    ],
-                  ),
-                  const SizedBox(height: AppLayout.gap),
-                  if (c.authMethod == SshAuthMethod.password)
-                    _field(
-                      c.password,
-                      l.sshPassword,
-                      enabled: c.editing,
-                      secret: true,
-                      id: 'ssh-password',
+              title: c.settingsExpanded ? l.sshTitle : c.displayName,
+              trailing: c.settingsExpanded
+                  ? null
+                  : IconButton(
+                      key: const ValueKey('ssh-edit'),
+                      tooltip: l.sshEdit,
+                      onPressed: c.editing ? c.editSettings : null,
+                      icon: const Icon(Icons.edit_outlined),
                     ),
-                  if (c.authMethod == SshAuthMethod.privateKey) ...[
-                    Text(c.keyName ?? l.sshNoKey),
-                    Text(l.sshKeyHelp),
-                    Align(
-                      alignment: AlignmentDirectional.centerStart,
-                      child: OutlinedButton.icon(
-                        key: const ValueKey('ssh-pick-key'),
-                        onPressed: c.editing ? c.importKey : null,
-                        icon: const Icon(Icons.file_open_outlined),
-                        label: Text(l.sshPickKey),
+              child: AppAnimatedSize(
+                motion: widget.motion,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (c.settingsExpanded) ...[
+                      Text(l.sshReadOnly),
+                      const SizedBox(height: AppLayout.gap),
+                      _field(
+                        c.serverName,
+                        l.sshServerName,
+                        enabled: c.editing,
+                        id: 'ssh-name',
+                        hint: c.host.text,
                       ),
-                    ),
+                      _field(
+                        c.host,
+                        l.sshHost,
+                        enabled: c.editing,
+                        id: 'ssh-host',
+                      ),
+                      _field(
+                        c.port,
+                        l.sshPort,
+                        enabled: c.editing,
+                        id: 'ssh-port',
+                        type: TextInputType.number,
+                      ),
+                      _field(
+                        c.username,
+                        l.sshUser,
+                        enabled: c.editing,
+                        id: 'ssh-user',
+                      ),
+                      Wrap(
+                        spacing: AppLayout.smallGap,
+                        runSpacing: AppLayout.smallGap,
+                        children: [
+                          for (final method in SshAuthMethod.values)
+                            if (method != SshAuthMethod.agent ||
+                                c.agentAvailable ||
+                                c.authMethod == method)
+                              ChoiceChip(
+                                key: ValueKey('ssh-auth-${method.name}'),
+                                label: Text(switch (method) {
+                                  SshAuthMethod.password => l.sshAuthPassword,
+                                  SshAuthMethod.privateKey => l.sshAuthKey,
+                                  SshAuthMethod.agent => l.sshAuthAgent,
+                                }),
+                                selected: c.authMethod == method,
+                                onSelected: c.editing
+                                    ? (_) => c.setAuth(method)
+                                    : null,
+                              ),
+                        ],
+                      ),
+                      const SizedBox(height: AppLayout.gap),
+                      if (c.authMethod == SshAuthMethod.password)
+                        _field(
+                          c.password,
+                          l.sshPassword,
+                          enabled: c.editing,
+                          secret: true,
+                          id: 'ssh-password',
+                        ),
+                      if (c.authMethod == SshAuthMethod.privateKey) ...[
+                        Text(c.keyName ?? l.sshNoKey),
+                        Text(l.sshKeyHelp),
+                        Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: OutlinedButton.icon(
+                            key: const ValueKey('ssh-pick-key'),
+                            onPressed: c.editing ? c.importKey : null,
+                            icon: const Icon(Icons.file_open_outlined),
+                            label: Text(l.sshPickKey),
+                          ),
+                        ),
+                        const SizedBox(height: AppLayout.gap),
+                        _field(
+                          c.passphrase,
+                          l.sshPassphrase,
+                          enabled: c.editing,
+                          secret: true,
+                          id: 'ssh-passphrase',
+                        ),
+                      ],
+                      if (c.authMethod == SshAuthMethod.agent)
+                        Text(l.sshAgentHelp),
+                      if (c.stage == SshStage.connected) Text(l.sshEditHelp),
+                    ],
+                    if (!c.settingsExpanded)
+                      Text(c.observation?.os ?? l.sshOsUnknown),
+                    if (c.error case final issue?)
+                      Semantics(
+                        liveRegion: true,
+                        child: Text(sshIssueLabel(l, issue)),
+                      ),
+                    if (c.error == SshIssue.hostKeyChanged)
+                      Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: OutlinedButton(
+                          key: const ValueKey('ssh-replace-server'),
+                          onPressed: c.editing ? c.replaceServer : null,
+                          child: Text(l.sshReplaceServer),
+                        ),
+                      ),
+                    if (c.settingsExpanded && c.saved) Text(l.sshSaved),
                     const SizedBox(height: AppLayout.gap),
-                    _field(
-                      c.passphrase,
-                      l.sshPassphrase,
-                      enabled: c.editing,
-                      secret: true,
-                      id: 'ssh-passphrase',
-                    ),
-                  ],
-                  if (c.authMethod == SshAuthMethod.agent) Text(l.sshAgentHelp),
-                  if (c.error case final issue?)
                     Semantics(
                       liveRegion: true,
-                      child: Text(sshIssueLabel(l, issue)),
+                      child: Text(switch (c.stage) {
+                        SshStage.idle => l.sshIdle,
+                        SshStage.connecting => l.sshConnecting,
+                        SshStage.verifying => l.sshTrustTitle,
+                        SshStage.reading => l.sshReading,
+                        SshStage.connected => l.sshConnected,
+                      }),
                     ),
-                  if (c.saved) Text(l.sshSaved),
-                  const SizedBox(height: AppLayout.gap),
-                  Semantics(
-                    liveRegion: true,
-                    child: Text(switch (c.stage) {
-                      SshStage.idle => l.sshIdle,
-                      SshStage.connecting => l.sshConnecting,
-                      SshStage.verifying => l.sshTrustTitle,
-                      SshStage.reading => l.sshReading,
-                      SshStage.connected => l.sshConnected,
-                    }),
-                  ),
-                  if (c.observation case final observation?)
-                    Text('${observation.os} · ${observation.architecture}'),
-                  if (c.challenge case final key?) ...[
+                    if (c.settingsExpanded && c.observation != null) ...[
+                      Text(
+                        '${c.observation!.os} · ${c.observation!.architecture}',
+                      ),
+                    ],
+                    if (c.challenge case final key?) ...[
+                      const SizedBox(height: AppLayout.gap),
+                      if (c.replacingServer) ...[
+                        Text(l.sshReplaceServerHelp),
+                        if (c.trustedKey case final previous?) ...[
+                          Text(l.sshTrustedKey),
+                          SelectableText(
+                            '${previous.algorithm}\n${previous.fingerprint}',
+                          ),
+                        ],
+                      ],
+                      Text(l.sshTrustHelp),
+                      Text('${c.host.text}:${c.port.text}'),
+                      SelectableText('${key.algorithm}\n${key.fingerprint}'),
+                      Wrap(
+                        spacing: AppLayout.smallGap,
+                        children: [
+                          FilledButton(
+                            key: const ValueKey('ssh-trust-accept'),
+                            onPressed: () => c.decide(true),
+                            child: Text(l.sshTrustAccept),
+                          ),
+                          OutlinedButton(
+                            onPressed: () => c.decide(false),
+                            child: Text(l.sshTrustReject),
+                          ),
+                        ],
+                      ),
+                    ] else if (c.settingsExpanded && c.trustedKey != null) ...[
+                      Text(l.sshTrustedKey),
+                      SelectableText(
+                        '${c.trustedKey!.algorithm}\n${c.trustedKey!.fingerprint}',
+                      ),
+                    ],
                     const SizedBox(height: AppLayout.gap),
-                    Text(l.sshTrustHelp),
-                    Text('${c.host.text}:${c.port.text}'),
-                    SelectableText('${key.algorithm}\n${key.fingerprint}'),
                     Wrap(
                       spacing: AppLayout.smallGap,
+                      runSpacing: AppLayout.smallGap,
                       children: [
-                        FilledButton(
-                          key: const ValueKey('ssh-trust-accept'),
-                          onPressed: () => c.decide(true),
-                          child: Text(l.sshTrustAccept),
-                        ),
-                        OutlinedButton(
-                          onPressed: () => c.decide(false),
-                          child: Text(l.sshTrustReject),
-                        ),
+                        if (c.stage == SshStage.connected &&
+                            !c.settingsExpanded) ...[
+                          FilledButton(
+                            onPressed: c.refresh,
+                            child: Text(l.sshRefresh),
+                          ),
+                          OutlinedButton(
+                            onPressed: c.disconnect,
+                            child: Text(l.sshDisconnect),
+                          ),
+                        ] else if (c.busy)
+                          OutlinedButton(
+                            key: const ValueKey('ssh-cancel'),
+                            onPressed: c.disconnect,
+                            child: Text(l.sshCancel),
+                          )
+                        else ...[
+                          if (c.stage != SshStage.connected)
+                            FilledButton(
+                              key: const ValueKey('ssh-connect'),
+                              onPressed: c.editing ? c.connect : null,
+                              child: Text(l.sshConnect),
+                            ),
+                          if (c.settingsExpanded)
+                            OutlinedButton(
+                              key: const ValueKey('ssh-save'),
+                              onPressed: c.editing ? c.save : null,
+                              child: Text(l.sshSave),
+                            ),
+                          if (c.settingsExpanded && c.hasSavedProfile)
+                            TextButton(
+                              key: const ValueKey('ssh-edit-cancel'),
+                              onPressed: c.editing ? c.cancelEditing : null,
+                              child: Text(l.sshCancel),
+                            ),
+                        ],
+                        if (c.settingsExpanded &&
+                            c.editing &&
+                            c.hasSavedProfile &&
+                            c.stage != SshStage.connected)
+                          TextButton(
+                            onPressed: () async {
+                              final accepted = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: Text(l.sshDelete),
+                                  content: Text(l.sshDeleteHelp),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, false),
+                                      child: Text(l.sshCancel),
+                                    ),
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, true),
+                                      child: Text(l.sshDelete),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (accepted == true && c.editing) {
+                                await c.deleteProfile();
+                              }
+                            },
+                            child: Text(l.sshDelete),
+                          ),
                       ],
                     ),
-                  ] else if (c.trustedKey case final key?) ...[
-                    Text(l.sshTrustedKey),
-                    SelectableText('${key.algorithm}\n${key.fingerprint}'),
                   ],
-                  const SizedBox(height: AppLayout.gap),
-                  Wrap(
-                    spacing: AppLayout.smallGap,
-                    runSpacing: AppLayout.smallGap,
-                    children: [
-                      if (c.stage == SshStage.connected) ...[
-                        FilledButton(
-                          onPressed: c.refresh,
-                          child: Text(l.sshRefresh),
-                        ),
-                        OutlinedButton(
-                          onPressed: c.disconnect,
-                          child: Text(l.sshDisconnect),
-                        ),
-                      ] else if (c.busy)
-                        OutlinedButton(
-                          key: const ValueKey('ssh-cancel'),
-                          onPressed: c.disconnect,
-                          child: Text(l.sshCancel),
-                        )
-                      else ...[
-                        FilledButton(
-                          key: const ValueKey('ssh-connect'),
-                          onPressed: c.editing ? c.connect : null,
-                          child: Text(l.sshConnect),
-                        ),
-                        OutlinedButton(
-                          key: const ValueKey('ssh-save'),
-                          onPressed: c.editing ? c.save : null,
-                          child: Text(l.sshSave),
-                        ),
-                      ],
-                      if (c.editing && c.saved)
-                        TextButton(
-                          onPressed: () async {
-                            final accepted = await showDialog<bool>(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: Text(l.sshDelete),
-                                content: Text(l.sshDeleteHelp),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.pop(context, false),
-                                    child: Text(l.sshCancel),
-                                  ),
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.pop(context, true),
-                                    child: Text(l.sshDelete),
-                                  ),
-                                ],
-                              ),
-                            );
-                            if (accepted == true && c.editing) {
-                              await c.deleteProfile();
-                            }
-                          },
-                          child: Text(l.sshDelete),
-                        ),
-                    ],
-                  ),
-                ],
+                ),
               ),
             ),
           ],

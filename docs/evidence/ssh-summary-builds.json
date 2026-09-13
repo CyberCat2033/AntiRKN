@@ -1,0 +1,30 @@
+{
+  "date": "2026-09-13",
+  "stage": "SSH summary card and host key binding on server replacement",
+  "verification": {
+    "result": "PASS",
+    "tests": 111,
+    "ru_en_messages": 209
+  },
+  "artifacts": {
+    "linux_x64_debug": {
+      "path": "apps/manager/build/linux/x64/debug/bundle/antirkn_manager",
+      "sha256": "6579ff5ddfbcc82d1852466370f9d32d5879acc9a31d084766d252a1a6f23ccd",
+      "bytes": 53488,
+      "build": "PASS"
+    },
+    "android_arm64_debug": {
+      "path": "apps/manager/build/app/outputs/flutter-apk/app-debug.apk",
+      "sha256": "9f62e7a4335667f40f76acbdb9ad7e3d6d25255b1b4969a8fb738400ca29ee94",
+      "bytes": 117989513,
+      "build": "PASS"
+    }
+  },
+  "linux_runtime": {
+    "launch": "PASS",
+    "request": "Owner requested launching Linux",
+    "functional_vps_check_by_agent": false
+  },
+  "android_installed_this_stage": false,
+  "windows_checked": false
+}

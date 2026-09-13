@@ -39,6 +39,7 @@ class TestFiles implements VaultFileStore {
 }
 
 final sample = SshProfile(
+  name: 'Мой тестовый VPS',
   host: 'unit-test.example',
   port: 22,
   username: 'test-user',
@@ -58,6 +59,29 @@ Matcher issue(VaultIssue issue) =>
     isA<VaultFailure>().having((e) => e.issue, 'issue', issue);
 
 void main() {
+  test('version 1 profile without a name restores using the host', () async {
+    final files = TestFiles();
+    final keys = TestKeys();
+    final vault = EncryptedSecretVault(files: files, keys: keys);
+    await vault.create(VaultMode.system);
+    await vault.saveProfile(
+      SshProfile(
+        host: sample.host,
+        port: sample.port,
+        username: sample.username,
+        authMethod: sample.authMethod,
+        secrets: sample.secrets,
+      ),
+    );
+    vault.lock();
+    final restored = EncryptedSecretVault(files: files, keys: keys);
+    await restored.unlock();
+    expect(restored.profile!.name, isEmpty);
+    expect(restored.profile!.displayName, sample.host);
+    expect(restored.profile!.secrets, sample.secrets);
+    restored.lock();
+  });
+
   test(
     'master vault survives a new instance and stores only ciphertext on disk',
     () async {
@@ -76,6 +100,7 @@ void main() {
       for (final secret in [
         password,
         sample.host,
+        sample.name,
         sample.username,
         ...sample.secrets.values,
       ]) {
@@ -94,6 +119,7 @@ void main() {
       expect(second.isUnlocked, isFalse);
       await second.unlock(password: password);
       expect(second.profile!.secrets, sample.secrets);
+      expect(second.profile!.name, sample.name);
       expect(second.profile!.hostKey!.fingerprint, sample.hostKey!.fingerprint);
       await second.saveProfile(null);
       second.lock();

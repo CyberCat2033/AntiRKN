@@ -30,15 +30,18 @@ void main() {
         final connector = FakeConnector();
         final c = controller(vault, connector);
         await prepare(c);
+        c.serverName.text =
+            'Мой сервер / My server — длинное имя для узкого окна';
         await tester.pumpWidget(
           MaterialApp(
             locale: Locale(language),
             supportedLocales: AppLocalizations.supportedLocales,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             builder: (context, child) => MediaQuery(
-              data: MediaQuery.of(
-                context,
-              ).copyWith(textScaler: const TextScaler.linear(2)),
+              data: MediaQuery.of(context).copyWith(
+                textScaler: const TextScaler.linear(2),
+                disableAnimations: width == 1400,
+              ),
               child: child!,
             ),
             home: Scaffold(
@@ -59,6 +62,58 @@ void main() {
         await tester.pumpAndSettle();
         await work;
         expect(c.stage, SshStage.connected);
+        expect(find.byKey(const ValueKey('ssh-host')), findsNothing);
+        expect(find.byKey(const ValueKey('ssh-password')), findsNothing);
+        expect(find.text(c.serverName.text), findsOneWidget);
+        expect(find.text('Ubuntu 24.04'), findsOneWidget);
+        expect(find.textContaining('SHA256:fixture'), findsNothing);
+        final edit = find.byKey(const ValueKey('ssh-edit'));
+        await tester.ensureVisible(edit);
+        await tester.pumpAndSettle();
+        await tester.tap(edit);
+        await tester.pumpAndSettle();
+        final name = find.byKey(const ValueKey('ssh-name'));
+        await tester.ensureVisible(name);
+        await tester.pumpAndSettle();
+        await tester.enterText(name, 'VPS 2');
+        await tester.pumpAndSettle();
+        final save = find.byKey(const ValueKey('ssh-save'));
+        await tester.ensureVisible(save);
+        await tester.pumpAndSettle();
+        await tester.tap(save);
+        await tester.pumpAndSettle();
+        expect(find.text('VPS 2'), findsOneWidget);
+        expect(find.byKey(const ValueKey('ssh-host')), findsNothing);
+        expect(connector.connection.closed, isFalse);
+        await c.refresh();
+        await tester.pumpAndSettle();
+        expect(find.byKey(const ValueKey('ssh-host')), findsNothing);
+        c.disconnect();
+        await tester.pumpAndSettle();
+        expect(find.byKey(const ValueKey('ssh-host')), findsNothing);
+        expect(find.byKey(const ValueKey('ssh-connect')), findsOneWidget);
+        connector.key = const TrustedHostKey('ssh-ed25519', 'SHA256:second');
+        connector.connection = FakeConnection();
+        await c.connect();
+        await tester.pumpAndSettle();
+        expect(c.error, SshIssue.hostKeyChanged);
+        final replace = find.byKey(const ValueKey('ssh-replace-server'));
+        await tester.ensureVisible(replace);
+        await tester.pumpAndSettle();
+        await tester.tap(replace);
+        await tester.pumpAndSettle();
+        expect(c.stage, SshStage.verifying);
+        expect(find.textContaining('SHA256:fixture'), findsOneWidget);
+        expect(find.textContaining('SHA256:second'), findsOneWidget);
+        expect(connector.authentications, 1);
+        await tester.ensureVisible(accept);
+        await tester.pumpAndSettle();
+        await tester.tap(accept);
+        await tester.pumpAndSettle();
+        expect(c.stage, SshStage.connected);
+        expect(connector.authentications, 2);
+        expect(find.text('VPS 2'), findsOneWidget);
+        expect(find.byKey(const ValueKey('ssh-host')), findsNothing);
         expect(tester.takeException(), isNull);
         c.lock();
         await tester.pumpAndSettle();
@@ -110,6 +165,7 @@ void main() {
       }
 
       await enter('ssh-host', 'fixture.example');
+      await enter('ssh-name', 'Домашний VPS');
       await enter('ssh-user', 'testuser');
       await enter('ssh-password', 'fixture-password-only');
       final save = find.byKey(const ValueKey('ssh-save'));
@@ -120,13 +176,8 @@ void main() {
       expect(vault.saved!.host, 'fixture.example');
       await languages.select(AppLanguage.ru);
       await tester.pumpAndSettle();
-      expect(
-        tester
-            .widget<TextField>(find.byKey(const ValueKey('ssh-host')))
-            .controller!
-            .text,
-        'fixture.example',
-      );
+      expect(find.text('Домашний VPS'), findsOneWidget);
+      expect(find.byKey(const ValueKey('ssh-host')), findsNothing);
       for (final state in [
         AppLifecycleState.inactive,
         AppLifecycleState.hidden,
@@ -136,13 +187,7 @@ void main() {
       }
       await tester.pumpAndSettle();
       expect(vault.unlocked, isFalse);
-      expect(
-        tester
-            .widget<TextField>(find.byKey(const ValueKey('ssh-password')))
-            .controller!
-            .text,
-        isEmpty,
-      );
+      expect(find.byKey(const ValueKey('ssh-password')), findsNothing);
       for (final state in [
         AppLifecycleState.hidden,
         AppLifecycleState.inactive,
@@ -155,6 +200,13 @@ void main() {
       await tester.pumpWidget(const SizedBox());
       await languages.select(AppLanguage.en);
       await launch();
+      expect(find.text('Домашний VPS'), findsOneWidget);
+      expect(find.byKey(const ValueKey('ssh-host')), findsNothing);
+      final edit = find.byKey(const ValueKey('ssh-edit'));
+      await tester.ensureVisible(edit);
+      await tester.pumpAndSettle();
+      await tester.tap(edit);
+      await tester.pumpAndSettle();
       expect(
         tester
             .widget<TextField>(find.byKey(const ValueKey('ssh-host')))
@@ -169,6 +221,25 @@ void main() {
             .text,
         'fixture-password-only',
       );
+      await enter('ssh-name', 'Черновик');
+      await languages.select(AppLanguage.ru);
+      tester.view.physicalSize = const Size(390, 1000);
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('ssh-name')))
+            .controller!
+            .text,
+        'Черновик',
+      );
+      final cancel = find.byKey(const ValueKey('ssh-edit-cancel'));
+      await tester.ensureVisible(cancel);
+      await tester.pumpAndSettle();
+      await tester.tap(cancel);
+      await tester.pumpAndSettle();
+      expect(find.text('Домашний VPS'), findsOneWidget);
+      expect(find.byKey(const ValueKey('ssh-password')), findsNothing);
+      expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
       languages.dispose();
     },
