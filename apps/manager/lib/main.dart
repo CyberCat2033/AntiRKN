@@ -14,23 +14,87 @@ import 'network/network_workbench.dart';
 import 'network/sample_inventory_reader.dart';
 import 'template_controller.dart';
 import 'ssh/ssh_controller.dart';
+import 'ssh/server_catalog.dart';
+import 'ssh/server_catalog_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final languages = LanguageController(LocalLanguagePreferenceStore());
-  await languages.load();
-  runApp(
-    AntiRknApp(
-      source: '',
-      languages: languages,
-      pickTemplate: SystemTemplateFilePicker().pick,
-      ssh: SshDependencies(
-        openVault: openLocalSecretVault,
-        connector: const DartSshConnector(),
-        picker: SystemPrivateKeyFilePicker(),
-        agentAvailable: linuxSshAgentAvailable,
-      ),
-    ),
+  runApp(const WorkspaceLauncher());
+}
+
+class WorkspaceLauncher extends StatefulWidget {
+  const WorkspaceLauncher({super.key});
+  @override
+  State<WorkspaceLauncher> createState() => _WorkspaceLauncherState();
+}
+
+class _WorkspaceLauncherState extends State<WorkspaceLauncher> {
+  late Future<Widget> _app = _load();
+  Future<Widget> _load() async {
+    final database = await openLocalWorkspace();
+    try {
+      final languages = LanguageController(database);
+      await languages.load();
+      final source = await database.readDraft() ?? '';
+      final theme = await database.readSetting('theme');
+      final motion = await database.readSetting('motion');
+      return AntiRknApp(
+        source: source,
+        languages: languages,
+        settings: database,
+        drafts: database,
+        servers: database,
+        initialTheme:
+            ThemeMode.values.where((e) => e.name == theme).firstOrNull ??
+            ThemeMode.system,
+        initialMotion:
+            MotionPreference.values
+                .where((e) => e.name == motion)
+                .firstOrNull ??
+            MotionPreference.system,
+        pickTemplate: SystemTemplateFilePicker().pick,
+        ssh: SshDependencies(
+          openVault: openLocalSecretVault,
+          connector: const DartSshConnector(),
+          picker: SystemPrivateKeyFilePicker(),
+          agentAvailable: linuxSshAgentAvailable,
+        ),
+      );
+    } catch (_) {
+      await database.close();
+      rethrow;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<Widget>(
+    future: _app,
+    builder: (context, snapshot) =>
+        snapshot.data ??
+        MaterialApp(
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: snapshot.hasError
+                    ? Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(AppLocalizations.of(context).databaseOpenError),
+                          FilledButton(
+                            onPressed: () => setState(() => _app = _load()),
+                            child: Text(
+                              AppLocalizations.of(context).vaultRetry,
+                            ),
+                          ),
+                        ],
+                      )
+                    : const CircularProgressIndicator(),
+              ),
+            ),
+          ),
+        ),
   );
 }
 
@@ -42,6 +106,11 @@ class AntiRknApp extends StatefulWidget {
     this.previewTemplate = previewInBackground,
     this.networkReader = const SampleInventoryReader(),
     this.ssh,
+    this.servers,
+    this.settings,
+    this.drafts,
+    this.initialTheme = ThemeMode.system,
+    this.initialMotion = MotionPreference.system,
     super.key,
   });
   final String? source;
@@ -49,14 +118,37 @@ class AntiRknApp extends StatefulWidget {
   final LanguageController languages;
   final PreviewTemplate previewTemplate;
   final NetworkInventoryReader networkReader;
+  final ServerRepository? servers;
+  final SettingsStore? settings;
+  final TemplateDraftStore? drafts;
+  final ThemeMode initialTheme;
+  final MotionPreference initialMotion;
   final SshDependencies? ssh;
   @override
   State<AntiRknApp> createState() => _AntiRknAppState();
 }
 
 class _AntiRknAppState extends State<AntiRknApp> {
-  ThemeMode _theme = ThemeMode.system;
-  MotionPreference _motion = MotionPreference.system;
+  late ThemeMode _theme = widget.initialTheme;
+  late MotionPreference _motion = widget.initialMotion;
+  bool _settingsError = false;
+  Future<void> _saveSetting(
+    String key,
+    String value,
+    VoidCallback apply,
+  ) async {
+    try {
+      await widget.settings?.writeSetting(key, value);
+      if (mounted) {
+        setState(() {
+          apply();
+          _settingsError = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _settingsError = true);
+    }
+  }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -99,10 +191,15 @@ class _AntiRknAppState extends State<AntiRknApp> {
                 previewTemplate: widget.previewTemplate,
                 networkReader: widget.networkReader,
                 ssh: widget.ssh,
+                servers: widget.servers,
+                drafts: widget.drafts,
+                settingsError: _settingsError,
                 theme: _theme,
                 motion: _motion,
-                onTheme: (value) => setState(() => _theme = value),
-                onMotion: (value) => setState(() => _motion = value),
+                onTheme: (value) =>
+                    _saveSetting('theme', value.name, () => _theme = value),
+                onMotion: (value) =>
+                    _saveSetting('motion', value.name, () => _motion = value),
               ),
       ),
     ),
@@ -117,6 +214,9 @@ class ManagerShell extends StatefulWidget {
     required this.previewTemplate,
     required this.networkReader,
     this.ssh,
+    this.servers,
+    this.drafts,
+    this.settingsError = false,
     required this.theme,
     required this.motion,
     required this.onTheme,
@@ -128,6 +228,9 @@ class ManagerShell extends StatefulWidget {
   final Future<ImportedTemplate?> Function()? pickTemplate;
   final PreviewTemplate previewTemplate;
   final NetworkInventoryReader networkReader;
+  final ServerRepository? servers;
+  final TemplateDraftStore? drafts;
+  final bool settingsError;
   final SshDependencies? ssh;
   final ThemeMode theme;
   final MotionPreference motion;
@@ -144,6 +247,7 @@ class _ManagerShellState extends State<ManagerShell>
   late final TemplateController _controller;
   late final NetworkController _networkController;
   SshController? _sshController;
+  ServerCatalogController? _catalog;
   static const _icons = [
     Icons.space_dashboard_outlined,
     Icons.data_object,
@@ -157,16 +261,28 @@ class _ManagerShellState extends State<ManagerShell>
     _networkController = NetworkController(reader: widget.networkReader);
     if (widget.ssh case final ssh?) {
       WidgetsBinding.instance.addObserver(this);
-      _sshController = SshController(
-        openVault: ssh.openVault,
-        connector: ssh.connector,
-        picker: ssh.picker,
-        agentAvailable: ssh.agentAvailable,
-        network: _networkController,
-      )..initialise();
+      if (widget.servers case final repository?) {
+        _index = 2;
+        _catalog = ServerCatalogController(
+          repository: repository,
+          connector: ssh.connector,
+          picker: ssh.picker,
+          reader: widget.networkReader,
+          agentAvailable: ssh.agentAvailable,
+        )..load();
+      } else {
+        _sshController = SshController(
+          openVault: ssh.openVault,
+          connector: ssh.connector,
+          picker: ssh.picker,
+          agentAvailable: ssh.agentAvailable,
+          network: _networkController,
+        )..initialise();
+      }
     }
     _controller = TemplateController(
       source: widget.source,
+      draftStore: widget.drafts,
       pickTemplate: widget.pickTemplate,
       previewTemplate: widget.previewTemplate,
     );
@@ -176,6 +292,7 @@ class _ManagerShellState extends State<ManagerShell>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _catalog?.dispose();
     _sshController?.dispose();
     _controller.dispose();
     _networkController.dispose();
@@ -187,12 +304,6 @@ class _ManagerShellState extends State<ManagerShell>
     if (state == AppLifecycleState.resumed) {
       _networkController.tick();
       if (!(_sshController?.unlocked ?? true)) _sshController?.initialise();
-    }
-    if ((state == AppLifecycleState.paused ||
-            state == AppLifecycleState.hidden ||
-            state == AppLifecycleState.detached) &&
-        !(_sshController?.picking ?? false)) {
-      _sshController?.lock();
     }
   }
 
@@ -208,23 +319,41 @@ class _ManagerShellState extends State<ManagerShell>
         appBar: AppBar(
           title: Text(AppLocalizations.of(context).appName),
           actions: [
-            Padding(
-              padding: EdgeInsets.only(right: AppLayout.gap),
-              child:
-                  constraints.maxWidth < AppLayout.compact ||
-                      MediaQuery.textScalerOf(context).scale(14) > 20
-                  ? Tooltip(
-                      message: AppLocalizations.of(context).prototype,
-                      child: Semantics(
-                        label: AppLocalizations.of(context).prototype,
-                        child: Icon(Icons.science_outlined),
+            if (_index == 2 && _catalog != null)
+              ListenableBuilder(
+                listenable: _catalog!,
+                builder: (context, _) => _catalog!.selectedId != null
+                    ? const SizedBox.shrink()
+                    : IconButton(
+                        key: const ValueKey('server-add'),
+                        tooltip: l.addServer,
+                        onPressed:
+                            _catalog!.loading ||
+                                (_catalog!.selected?.vaultBusy ?? false) ||
+                                (_catalog!.selected?.picking ?? false)
+                            ? null
+                            : _catalog!.add,
+                        icon: const Icon(Icons.add),
                       ),
-                    )
-                  : StatusChip(
-                      label: AppLocalizations.of(context).prototype,
-                      icon: Icons.science_outlined,
-                    ),
-            ),
+              ),
+            if (_index != 2 || _catalog == null)
+              Padding(
+                padding: EdgeInsets.only(right: AppLayout.gap),
+                child:
+                    constraints.maxWidth < AppLayout.compact ||
+                        MediaQuery.textScalerOf(context).scale(14) > 20
+                    ? Tooltip(
+                        message: AppLocalizations.of(context).prototype,
+                        child: Semantics(
+                          label: AppLocalizations.of(context).prototype,
+                          child: Icon(Icons.science_outlined),
+                        ),
+                      )
+                    : StatusChip(
+                        label: AppLocalizations.of(context).prototype,
+                        icon: Icons.science_outlined,
+                      ),
+              ),
           ],
         ),
         bottomNavigationBar: rail
@@ -242,8 +371,6 @@ class _ManagerShellState extends State<ManagerShell>
                 ],
               ),
         body: Listener(
-          onPointerDown: (_) => _sshController?.touch(),
-          onPointerSignal: (_) => _sshController?.touch(),
           child: SafeArea(
             child: Row(
               children: [
@@ -289,14 +416,21 @@ class _ManagerShellState extends State<ManagerShell>
                         controller: _controller,
                         motion: widget.motion,
                       ),
-                      NetworkWorkbench(
-                        controller: _networkController,
-                        motion: widget.motion,
-                        ssh: _sshController,
-                      ),
+                      if (_catalog != null)
+                        ServerCatalog(
+                          controller: _catalog!,
+                          motion: widget.motion,
+                        )
+                      else
+                        NetworkWorkbench(
+                          controller: _networkController,
+                          motion: widget.motion,
+                          ssh: _sshController,
+                        ),
                       ListView(
                         padding: AppLayout.padding,
                         children: [
+                          if (widget.settingsError) Text(l.settingsSaveError),
                           SectionCard(
                             title: l.language,
                             child: Column(
@@ -450,6 +584,7 @@ class _TemplateWorkbenchState extends State<TemplateWorkbench> {
     listenable: widget.controller,
     builder: (context, _) {
       final controller = widget.controller;
+      final l = AppLocalizations.of(context);
       if (_source.text != controller.source) {
         _source.value = TextEditingValue(
           text: controller.source,
@@ -500,6 +635,20 @@ class _TemplateWorkbenchState extends State<TemplateWorkbench> {
                           context,
                         ).importedTemplate(controller.importedName!),
                       ),
+                    if (controller.draftStore != null) ...[
+                      Text(
+                        controller.draftSaveFailed
+                            ? l.draftSaveError
+                            : controller.savingDraft
+                            ? l.draftSaving
+                            : l.draftSaved,
+                      ),
+                      if (controller.draftSaveFailed)
+                        OutlinedButton(
+                          onPressed: controller.persistDraft,
+                          child: Text(l.vaultRetry),
+                        ),
+                    ],
                     if (controller.importError != null)
                       Text(
                         controller.importError == 'template_size_limit'

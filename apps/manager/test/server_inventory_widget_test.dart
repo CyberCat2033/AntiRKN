@@ -133,7 +133,8 @@ void main() {
             expect(tester.takeException(), isNull);
           }
           expect(find.text(l.inventoryVersion('3.7.0')), findsOneWidget);
-          expect(find.text(l.inventoryStopped), findsOneWidget);
+          expect(find.text(l.inventoryStopped), findsNothing);
+          expect(find.text(l.inventoryVersionUnknown), findsNothing);
           expect(find.textContaining(l.inventoryDenied), findsOneWidget);
           final ports = find.byKey(const PageStorageKey('inventory-ports'));
           await tester.ensureVisible(ports);

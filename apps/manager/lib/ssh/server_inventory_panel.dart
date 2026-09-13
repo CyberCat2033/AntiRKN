@@ -70,21 +70,28 @@ class ServerInventoryPanel extends StatelessWidget {
                             InstallationSource.kernel => l.inventoryKernelModule,
                           }} · ${installation.identity}',
                         ),
-                        if (installation.source == InstallationSource.systemd ||
-                            installation.source == InstallationSource.docker)
+                        if (current &&
+                            (installation.source ==
+                                    InstallationSource.systemd ||
+                                installation.source ==
+                                    InstallationSource.docker))
                           Text(switch (installation.state) {
                             ServiceState.running => l.inventoryRunning,
                             ServiceState.stopped => l.inventoryStopped,
                             ServiceState.failed => l.inventoryServiceFailed,
                             ServiceState.unknown => l.inventoryStateUnknown,
                           }),
-                        Text(
-                          installation.version?.value != null
-                              ? l.inventoryVersion(installation.version!.value!)
-                              : installation.version == null
-                              ? l.inventoryVersionUnknown
-                              : '${l.inventoryVersionUnknown}: ${inventoryStatusLabel(l, installation.version!.status)}',
-                        ),
+                        if (installation.source != InstallationSource.systemd &&
+                            installation.source != InstallationSource.docker)
+                          Text(
+                            installation.version?.value != null
+                                ? l.inventoryVersion(
+                                    installation.version!.value!,
+                                  )
+                                : installation.version == null
+                                ? l.inventoryVersionUnknown
+                                : '${l.inventoryVersionUnknown}: ${inventoryStatusLabel(l, installation.version!.status)}',
+                          ),
                       ],
                     ),
                   ),

@@ -68,7 +68,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('import-template')));
       await tester.pumpAndSettle();
       expect(tester.widget<TextField>(editor).controller!.text, source);
-      expect(find.text('Loaded into memory: chosen.yml'), findsOneWidget);
+      expect(find.text('Imported: chosen.yml'), findsOneWidget);
       await tester.enterText(editor, 'proxies: []\n# draft');
       selected = null;
       await tester.ensureVisible(find.byKey(const ValueKey('import-template')));

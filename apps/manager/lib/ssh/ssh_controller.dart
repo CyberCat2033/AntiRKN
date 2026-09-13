@@ -27,15 +27,11 @@ class SshController extends ChangeNotifier {
     required this.connector,
     required this.picker,
     required this.network,
+    this.serverId = SshProfile.serverId,
     this.agentAvailable = false,
-    this.idleTimeout = const Duration(minutes: 5),
   }) {
     for (final field in fields) {
-      field.addListener(
-        field == masterPassword || field == masterConfirmation
-            ? touch
-            : _edited,
-      );
+      field.addListener(_edited);
     }
     _clock = Timer.periodic(const Duration(seconds: 10), (_) => network.tick());
   }
@@ -43,16 +39,14 @@ class SshController extends ChangeNotifier {
   final SshConnector connector;
   final PrivateKeyFilePicker picker;
   final NetworkController network;
+  final String serverId;
   final bool agentAvailable;
-  final Duration idleTimeout;
   final serverName = TextEditingController();
   final host = TextEditingController();
   final port = TextEditingController(text: '22');
   final username = TextEditingController(text: 'root');
   final password = TextEditingController();
   final passphrase = TextEditingController();
-  final masterPassword = TextEditingController();
-  final masterConfirmation = TextEditingController();
   List<TextEditingController> get fields => [
     serverName,
     host,
@@ -60,15 +54,26 @@ class SshController extends ChangeNotifier {
     username,
     password,
     passphrase,
-    masterPassword,
-    masterConfirmation,
   ];
   SecretVault? _vault;
-  VaultMode? mode;
   bool initialised = false;
   bool vaultBusy = false;
   bool picking = false;
-  bool saved = false;
+  bool get saved {
+    final profile = unlocked ? _vault!.profile : null;
+    if (profile == null) return false;
+    final draft = _draft();
+    return profile.name == draft.name &&
+        profile.host == draft.host &&
+        profile.port == draft.port &&
+        profile.username == draft.username &&
+        profile.authMethod == draft.authMethod &&
+        profile.keyName == draft.keyName &&
+        ServerSecret.values.every(
+          (key) => (profile.secrets[key] ?? '') == (draft.secrets[key] ?? ''),
+        );
+  }
+
   bool settingsExpanded = true;
   bool replacingServer = false;
   VaultIssue? vaultError;
@@ -82,7 +87,7 @@ class SshController extends ChangeNotifier {
   Completer<bool>? _decision;
   SshConnection? _connection;
   CancellationToken? _cancellation;
-  Timer? _idle;
+  CancellationToken? _keyImport;
   Timer? _clock;
   int _generation = 0;
   bool _disposed = false;
@@ -96,6 +101,10 @@ class SshController extends ChangeNotifier {
   String get displayName =>
       unlocked ? _vault!.profile?.displayName ?? host.text : '';
   bool get hasKey => _pem != null;
+  ServerInfo? get lastInfo => unlocked ? _vault!.profile?.lastInfo : null;
+  String? get os => observation?.os ?? lastInfo?.os;
+  ServerSoftwareInventory? get software =>
+      observation?.software ?? lastInfo?.software;
   TrustedHostKey? get trustedKey =>
       unlocked && _vault!.profile?.host == host.text.trim()
       ? _vault!.profile?.hostKey
@@ -106,15 +115,7 @@ class SshController extends ChangeNotifier {
   }
 
   void _edited() {
-    saved = false;
-    touch();
     _notify();
-  }
-
-  void touch() {
-    if (_disposed || !unlocked) return;
-    _idle?.cancel();
-    _idle = Timer(idleTimeout, lock);
   }
 
   Future<void> initialise() async {
@@ -130,55 +131,27 @@ class SshController extends ChangeNotifier {
         return;
       }
       _vault = vault;
-      mode = await vault.inspect();
-      if (!_disposed && generation == _generation) initialised = true;
+      final mode = await vault.inspect();
+      if (!_disposed && generation == _generation) {
+        if (!vault.isUnlocked) {
+          if (mode == null) {
+            await vault.create(VaultMode.system);
+          } else {
+            await vault.unlock();
+          }
+        }
+        if (_disposed || generation != _generation) {
+          vault.lock();
+          return;
+        }
+        _restore();
+        initialised = true;
+      }
     } on VaultFailure catch (e) {
       if (!_disposed) vaultError = e.issue;
     } catch (_) {
       if (!_disposed) vaultError = VaultIssue.unavailable;
     } finally {
-      vaultBusy = false;
-      _notify();
-    }
-  }
-
-  Future<void> open({VaultMode? createMode}) async {
-    if (!initialised || vaultBusy || _disposed) return;
-    vaultBusy = true;
-    vaultError = null;
-    final generation = _generation;
-    _notify();
-    final secret = masterPassword.text;
-    try {
-      if (createMode == VaultMode.masterPassword &&
-          secret != masterConfirmation.text) {
-        throw const VaultFailure(VaultIssue.weakPassword);
-      }
-      if (createMode == null) {
-        await _vault!.unlock(password: secret);
-      } else {
-        await _vault!.create(createMode, password: secret);
-      }
-      if (_disposed || generation != _generation) {
-        _vault!.lock();
-        return;
-      }
-      mode = await _vault!.inspect();
-      if (_disposed || generation != _generation) {
-        _vault!.lock();
-        return;
-      }
-      _restore();
-      touch();
-    } on VaultFailure catch (e) {
-      if (!_disposed) vaultError = e.issue;
-    } catch (_) {
-      if (!_disposed) vaultError = VaultIssue.unavailable;
-    } finally {
-      if (!_disposed) {
-        masterPassword.clear();
-        masterConfirmation.clear();
-      }
       vaultBusy = false;
       _notify();
     }
@@ -197,14 +170,12 @@ class SshController extends ChangeNotifier {
     authMethod =
         profile?.authMethod ??
         (agentAvailable ? SshAuthMethod.agent : SshAuthMethod.password);
-    saved = profile != null;
     settingsExpanded = profile == null;
   }
 
   void editSettings() {
     if (!editing) return;
     settingsExpanded = true;
-    touch();
     _notify();
   }
 
@@ -213,15 +184,12 @@ class SshController extends ChangeNotifier {
     _restore();
     error = null;
     vaultError = null;
-    touch();
     _notify();
   }
 
   void setAuth(SshAuthMethod method) {
     if (!editing) return;
     authMethod = method;
-    saved = false;
-    touch();
     _notify();
   }
 
@@ -230,10 +198,18 @@ class SshController extends ChangeNotifier {
     picking = true;
     error = null;
     final generation = _generation;
+    final cancellation = CancellationToken();
+    _keyImport = cancellation;
     _notify();
     ImportedPrivateKey? imported;
     try {
-      imported = await picker.pick();
+      final selection = picker.pick();
+      unawaited(
+        selection.then((late) {
+          if (cancellation.isCancelled) late?.dispose();
+        }, onError: (Object _) {}),
+      );
+      imported = await cancellation.bind(selection);
       if (_disposed || generation != _generation || imported == null) return;
       final pem = utf8.decode(imported.bytes);
       if (imported.name.toLowerCase().endsWith('.pub') ||
@@ -248,18 +224,35 @@ class SshController extends ChangeNotifier {
       keyName = imported.name;
       passphrase.clear();
       authMethod = SshAuthMethod.privateKey;
-      saved = false;
-      touch();
     } catch (_) {
-      if (!_disposed && generation == _generation) error = SshIssue.invalidKey;
+      if (!_disposed &&
+          generation == _generation &&
+          !cancellation.isCancelled) {
+        error = SshIssue.invalidKey;
+      }
     } finally {
-      imported?.dispose();
-      picking = false;
-      _notify();
+      try {
+        imported?.dispose();
+      } finally {
+        if (_keyImport == cancellation) {
+          _keyImport = null;
+          picking = false;
+        }
+        _notify();
+      }
     }
   }
 
+  void cancelKeyImport() {
+    _keyImport?.cancel();
+    _keyImport = null;
+    picking = false;
+    unawaited(picker.cancel().catchError((Object _) {}));
+    _notify();
+  }
+
   SshProfile _draft() => SshProfile(
+    id: serverId,
     name: serverName.text.trim(),
     host: host.text.trim(),
     port: int.tryParse(port.text) ?? 0,
@@ -267,6 +260,7 @@ class SshController extends ChangeNotifier {
     authMethod: authMethod,
     keyName: keyName,
     hostKey: trustedKey,
+    lastInfo: _vault!.profile?.host == host.text.trim() ? lastInfo : null,
     secrets: {
       ...?_vault!.profile?.secrets,
       ServerSecret.sshPassword: password.text,
@@ -287,12 +281,12 @@ class SshController extends ChangeNotifier {
       network.clear();
     }
     settingsExpanded = false;
-    touch();
     _notify();
     return true;
   }
 
   Future<bool> _saveDraft() async {
+    if (saved) return true;
     final profile = _draft();
     if (!profile.valid) {
       error = SshIssue.invalidSettings;
@@ -301,13 +295,11 @@ class SshController extends ChangeNotifier {
     }
     vaultBusy = true;
     vaultError = null;
-    saved = false;
     _notify();
     final generation = _generation;
     try {
       await _vault!.saveProfile(profile);
       if (_disposed || generation != _generation) return false;
-      saved = true;
       return true;
     } on VaultFailure catch (e) {
       if (!_disposed && generation == _generation) vaultError = e.issue;
@@ -336,7 +328,6 @@ class SshController extends ChangeNotifier {
     replacingServer = replaceServer;
     stage = SshStage.connecting;
     final generation = _generation;
-    touch();
     _notify();
     final cancellation = CancellationToken();
     _cancellation = cancellation;
@@ -405,6 +396,7 @@ class SshController extends ChangeNotifier {
       network.accept(next.network);
       stage = SshStage.connected;
       settingsExpanded = false;
+      await _remember(next);
     } on SshFailure catch (e) {
       if (!_disposed && generation == _generation) {
         error = e.issue;
@@ -442,7 +434,6 @@ class SshController extends ChangeNotifier {
   }
 
   void decide(bool accept) {
-    touch();
     if (_decision?.isCompleted == false) _decision!.complete(accept);
   }
 
@@ -454,7 +445,6 @@ class SshController extends ChangeNotifier {
     _cancellation = cancellation;
     stage = SshStage.reading;
     error = null;
-    touch();
     _notify();
     try {
       final next = await connection.observe(cancellation);
@@ -464,6 +454,7 @@ class SshController extends ChangeNotifier {
         observation = next;
         network.accept(next.network);
         stage = SshStage.connected;
+        await _remember(next);
       }
     } on SshFailure catch (e) {
       if (!_disposed && generation == _generation) error = e.issue;
@@ -495,6 +486,32 @@ class SshController extends ChangeNotifier {
     _notify();
   }
 
+  Future<void> _remember(ServerObservation next) async {
+    final profile = _vault!.profile;
+    if (profile == null) return;
+    vaultBusy = true;
+    _notify();
+    try {
+      await _vault!.saveProfile(
+        profile.withInfo(
+          ServerInfo(
+            os: next.os,
+            architecture: next.architecture,
+            observedAt: next.network.observedAt,
+            software: next.software,
+          ),
+        ),
+      );
+    } on VaultFailure catch (e) {
+      if (!_disposed) vaultError = e.issue;
+    } catch (_) {
+      if (!_disposed) vaultError = VaultIssue.writeFailed;
+    } finally {
+      vaultBusy = false;
+      _notify();
+    }
+  }
+
   Future<void> deleteProfile() async {
     if (!editing || _connection != null) return;
     vaultBusy = true;
@@ -517,12 +534,11 @@ class SshController extends ChangeNotifier {
   }
 
   void lock() {
+    if (picking) cancelKeyImport();
     disconnect();
     _vault?.lock();
-    _idle?.cancel();
     _pem = null;
     keyName = null;
-    saved = false;
     observation = null;
     for (final field in fields) {
       field.clear();

@@ -47,6 +47,9 @@ with tempfile.TemporaryDirectory(prefix='antirkn-inventory-') as directory:
             time.sleep(0.1)
         mapping = run(['docker', 'port', name, '22/tcp'], capture_output=True, text=True).stdout.strip()
         (fixture / 'port').write_text(mapping.rsplit(':', 1)[1])
+        # Exercise the same worker transport with passwords, encrypted keys,
+        # a separate SSH-agent, trust rejection, cancellation and UI heartbeat.
+        run([sys.executable, str(root / 'tool/run_ssh_fixture_tests.py'), str(fixture)])
         def check(phase):
             outcome = subprocess.run(['dart', 'run', 'tool/test_inventory_ubuntu.dart', str(fixture), phase],
                           cwd=root / 'packages/ssh_transport', capture_output=True, text=True)

@@ -127,7 +127,7 @@ void main() {
   }
 
   testWidgets(
-    'app restores saved connection after restart and locks on background',
+    'app restores saved connection automatically and remains accessible on background',
     (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(1000, 1200);
@@ -150,9 +150,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Server'));
-        await tester.pumpAndSettle();
-        await tester.tap(find.byKey(const ValueKey('vault-open')));
+        await tester.tap(find.text('Servers'));
         await tester.pumpAndSettle();
       }
 
@@ -186,7 +184,7 @@ void main() {
         tester.binding.handleAppLifecycleStateChanged(state);
       }
       await tester.pumpAndSettle();
-      expect(vault.unlocked, isFalse);
+      expect(vault.unlocked, isTrue);
       expect(find.byKey(const ValueKey('ssh-password')), findsNothing);
       for (final state in [
         AppLifecycleState.hidden,

@@ -4,6 +4,8 @@ import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'profile_codec.dart';
+
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -308,23 +310,7 @@ final class EncryptedSecretVault implements SecretVault {
     final plaintext = utf8.encode(
       jsonEncode({
         'version': 1,
-        'server': profile == null
-            ? null
-            : {
-                if (profile.name.isNotEmpty) 'name': profile.name,
-                'host': profile.host,
-                'port': profile.port,
-                'username': profile.username,
-                'authMethod': profile.authMethod.name,
-                'keyName': profile.keyName,
-                'secrets': profile.secrets.map((k, v) => MapEntry(k.name, v)),
-                'hostKey': profile.hostKey == null
-                    ? null
-                    : {
-                        'algorithm': profile.hostKey!.algorithm,
-                        'fingerprint': profile.hostKey!.fingerprint,
-                      },
-              },
+        'server': profile == null ? null : encodeProfile(profile),
       }),
     );
     try {
@@ -381,28 +367,7 @@ final class EncryptedSecretVault implements SecretVault {
       if (data['version'] != 1) throw const FormatException();
       final server = data['server'] as Map<String, Object?>?;
       if (server == null) return null;
-      final hostKey = server['hostKey'] as Map<String, Object?>?;
-      final profile = SshProfile(
-        name: server['name'] as String? ?? '',
-        host: server['host']! as String,
-        port: server['port']! as int,
-        username: server['username']! as String,
-        authMethod: SshAuthMethod.values.byName(
-          server['authMethod']! as String,
-        ),
-        keyName: server['keyName'] as String?,
-        hostKey: hostKey == null
-            ? null
-            : TrustedHostKey(
-                hostKey['algorithm']! as String,
-                hostKey['fingerprint']! as String,
-              ),
-        secrets: (server['secrets']! as Map<String, Object?>).map(
-          (k, v) => MapEntry(ServerSecret.values.byName(k), v! as String),
-        ),
-      );
-      if (!profile.valid) throw const FormatException();
-      return profile;
+      return decodeProfile(server);
     } catch (_) {
       throw const VaultFailure(VaultIssue.corrupt);
     }

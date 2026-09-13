@@ -23,6 +23,9 @@ if mode == 'timeout' and command.endswith('uname -r'):
     # Longer than the adapter deadline; no server configuration is changed.
     import time
     time.sleep(6)
+if mode == 'slow' and command.endswith('uname -r'):
+    import time
+    time.sleep(5.5)
 if mode == 'large' and command.endswith('uname -r'):
     sys.stdout.write('x' * 70000)
     sys.exit(0)

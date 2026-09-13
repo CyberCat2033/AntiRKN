@@ -22,11 +22,14 @@ final class SshProfile {
     required this.username,
     required this.authMethod,
     this.name = '',
+    this.id = serverId,
     Map<ServerSecret, String> secrets = const {},
     this.keyName,
     this.hostKey,
+    this.lastInfo,
   }) : secrets = Map.unmodifiable(secrets);
   static const serverId = 'primary-vps';
+  final String id;
   final String name;
   String get displayName => name.trim().isEmpty ? host : name.trim();
   final String host;
@@ -36,6 +39,7 @@ final class SshProfile {
   final Map<ServerSecret, String> secrets;
   final String? keyName;
   final TrustedHostKey? hostKey;
+  final ServerInfo? lastInfo;
 
   bool get valid =>
       name.length <= 253 &&
@@ -54,6 +58,7 @@ final class SshProfile {
               : (secrets[ServerSecret.privateKey]?.isNotEmpty ?? false)));
 
   SshProfile withHostKey(TrustedHostKey value) => SshProfile(
+    id: id,
     name: name,
     host: host,
     port: port,
@@ -62,6 +67,20 @@ final class SshProfile {
     secrets: secrets,
     keyName: keyName,
     hostKey: value,
+    lastInfo: hostKey == null || hostKey!.matches(value) ? lastInfo : null,
+  );
+
+  SshProfile withInfo(ServerInfo value) => SshProfile(
+    id: id,
+    name: name,
+    host: host,
+    port: port,
+    username: username,
+    authMethod: authMethod,
+    secrets: secrets,
+    keyName: keyName,
+    hostKey: hostKey,
+    lastInfo: value,
   );
 
   /// Display metadata and inactive credentials do not affect a live session.
@@ -94,7 +113,10 @@ final class TrustedHostKey {
 }
 
 final class ImportedPrivateKey {
-  ImportedPrivateKey({required this.name, required this.bytes});
+  // Platform channels may return an unmodifiable typed-data view. Own a
+  // writable copy so cleanup cannot throw and leave the importer busy forever.
+  ImportedPrivateKey({required this.name, required Uint8List bytes})
+    : bytes = Uint8List.fromList(bytes);
   final String name;
   final Uint8List bytes;
   void dispose() => bytes.fillRange(0, bytes.length, 0);
@@ -104,6 +126,7 @@ final class ImportedPrivateKey {
 
 abstract interface class PrivateKeyFilePicker {
   Future<ImportedPrivateKey?> pick();
+  Future<void> cancel();
 }
 
 enum SshIssue {

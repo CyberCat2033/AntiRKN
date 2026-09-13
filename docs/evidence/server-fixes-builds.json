@@ -1,0 +1,16 @@
+{
+  "android_arm64_debug": {
+    "built": true,
+    "apk_sha256": "897a16abf938c351597b0bdde3b6f57081cf87587eac9d65e58c9620e69c44ca",
+    "installed_with_adb_replace": true,
+    "cold_launch_status": "ok",
+    "functional_picker_runtime": "PASS reported by owner after testing installed update",
+    "packaged_kernel_includes_immutable_buffer_fix_and_parallel_reads": true
+  },
+  "linux_x64_debug": {
+    "built": true,
+    "binary_sha256": "9fffcfee576434e574553b9b3cc8214dffa856e18bc973d1a78545ecfddd3d13",
+    "gui_runtime": "not run"
+  },
+  "windows": "not built or run"
+}

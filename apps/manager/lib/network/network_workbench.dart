@@ -6,7 +6,6 @@ import 'package:intl/intl.dart';
 import '../l10n/app_localizations.dart';
 import 'network_controller.dart';
 import 'network_strings.dart';
-import 'server_address_picker.dart';
 import '../ssh/ssh_controller.dart';
 import '../ssh/ssh_panel.dart';
 import '../ssh/server_inventory_panel.dart';
@@ -36,7 +35,7 @@ class NetworkWorkbench extends StatelessWidget {
           if (ssh != null) ...[
             SshPanel(controller: ssh!, motion: motion),
             const SizedBox(height: AppLayout.gap),
-            if (ssh!.observation?.software case final software?) ...[
+            if (ssh!.software case final software?) ...[
               ServerInventoryPanel(
                 inventory: software,
                 current: ssh!.stage == SshStage.connected,
@@ -45,77 +44,69 @@ class NetworkWorkbench extends StatelessWidget {
               const SizedBox(height: AppLayout.gap),
             ],
           ],
-          SectionCard(
-            title: l.networkTitle,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (ssh == null) Text(l.networkSampleNotice),
-                const SizedBox(height: AppLayout.gap),
-                if (ssh == null)
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: FilledButton(
-                      key: const ValueKey('load-network-sample'),
-                      onPressed: controller.loading ? null : controller.load,
-                      child: Text(
-                        controller.loading
-                            ? l.networkLoading
-                            : inventory == null
-                            ? l.networkLoadSample
-                            : l.networkReloadSample,
+          if (ssh == null || inventory != null)
+            SectionCard(
+              title: l.networkTitle,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (ssh == null) Text(l.networkSampleNotice),
+                  const SizedBox(height: AppLayout.gap),
+                  if (ssh == null)
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: FilledButton(
+                        key: const ValueKey('load-network-sample'),
+                        onPressed: controller.loading ? null : controller.load,
+                        child: Text(
+                          controller.loading
+                              ? l.networkLoading
+                              : inventory == null
+                              ? l.networkLoadSample
+                              : l.networkReloadSample,
+                        ),
                       ),
                     ),
-                  ),
-                if (controller.failed) ...[
-                  const SizedBox(height: AppLayout.smallGap),
-                  Semantics(liveRegion: true, child: Text(l.networkLoadError)),
-                ],
-                if (inventory == null) ...[
-                  const SizedBox(height: AppLayout.gap),
-                  Text(l.networkNotLoaded),
-                ] else ...[
-                  const SizedBox(height: AppLayout.gap),
-                  Text(
-                    inventory.source == NetworkSource.sample
-                        ? l.networkSampleSource
-                        : l.networkObservedSource,
-                  ),
-                  Text(
-                    l.networkObservedAt(
-                      DateFormat.yMd(
-                        l.localeName,
-                      ).add_Hms().format(inventory.observedAt.toLocal()),
+                  if (controller.failed) ...[
+                    const SizedBox(height: AppLayout.smallGap),
+                    Semantics(
+                      liveRegion: true,
+                      child: Text(l.networkLoadError),
                     ),
-                  ),
-                  Text(
-                    l.networkSummary(
-                      inventory.addresses.length,
-                      inventory.routes.length,
-                      inventory.rules.length,
+                  ],
+                  if (inventory == null) ...[
+                    const SizedBox(height: AppLayout.gap),
+                    Text(l.networkNotLoaded),
+                  ] else ...[
+                    const SizedBox(height: AppLayout.gap),
+                    Text(
+                      inventory.source == NetworkSource.sample
+                          ? l.networkSampleSource
+                          : l.networkObservedSource,
                     ),
-                  ),
-                  if (inventory.sshPeer case final peer?)
-                    Text(l.networkSshPeer(peer.canonical)),
-                  const SizedBox(height: AppLayout.smallGap),
-                  Text(l.networkNotVerified),
+                    Text(
+                      l.networkObservedAt(
+                        DateFormat.yMd(
+                          l.localeName,
+                        ).add_Hms().format(inventory.observedAt.toLocal()),
+                      ),
+                    ),
+                    Text(
+                      l.networkSummary(
+                        inventory.addresses.length,
+                        inventory.routes.length,
+                        inventory.rules.length,
+                      ),
+                    ),
+                    if (inventory.sshPeer case final peer?)
+                      Text(l.networkSshPeer(peer.canonical)),
+                    const SizedBox(height: AppLayout.smallGap),
+                    Text(l.networkNotVerified),
+                  ],
                 ],
-              ],
-            ),
-          ),
-          if (inventory != null) ...[
-            for (final role in AddressRole.values) ...[
-              const SizedBox(height: AppLayout.gap),
-              ServerAddressPicker(
-                role: role,
-                choices: controller.choices(role),
-                selected: controller.selected(role),
-                selectionIssue: controller.selectionIssue(role),
-                enabled: !controller.loading,
-                onSelected: (choice) => controller.select(role, choice),
-                motion: motion,
               ),
-            ],
+            ),
+          if (inventory != null) ...[
             const SizedBox(height: AppLayout.gap),
             SectionCard(
               title: l.networkAssignments,

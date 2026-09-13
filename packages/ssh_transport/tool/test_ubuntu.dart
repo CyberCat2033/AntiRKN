@@ -22,6 +22,10 @@ Future<void> main(List<String> args) async {
   ).readAsString()).trim();
   final audit = File('${directory.path}/commands');
   final failure = File('${directory.path}/failure');
+  final portFile = File('${directory.path}/port');
+  final port = await portFile.exists()
+      ? int.parse(await portFile.readAsString())
+      : 22240;
   await failure.writeAsString('');
   final results = <String, Object?>{};
   final connector = const DartSshConnector(
@@ -35,7 +39,7 @@ Future<void> main(List<String> args) async {
     TrustedHostKey? trust,
   }) async => SshProfile(
     host: '127.0.0.1',
-    port: 22240,
+    port: port,
     username: username,
     authMethod: agent
         ? SshAuthMethod.agent
@@ -118,10 +122,34 @@ Future<void> main(List<String> args) async {
     'root_encrypted_ed25519',
     await profile('root', key: 'encrypted_ed25519'),
   );
-  await success(
-    'user_encrypted_rsa',
-    await profile('testuser', key: 'encrypted_rsa'),
-  );
+  final heartbeat = Stopwatch()..start();
+  var previousTick = 0, maxGap = 0, ticks = 0;
+  void tick() {
+    final now = heartbeat.elapsedMilliseconds;
+    final gap = now - previousTick;
+    if (gap > maxGap) maxGap = gap;
+    previousTick = now;
+    ticks++;
+  }
+
+  final timer = Timer.periodic(const Duration(milliseconds: 16), (_) => tick());
+  try {
+    await success(
+      'user_encrypted_rsa',
+      await profile('testuser', key: 'encrypted_rsa'),
+    );
+    tick();
+  } finally {
+    timer.cancel();
+  }
+  if (ticks < 2 || maxGap > 250) {
+    throw StateError('SSH blocked the calling isolate');
+  }
+  results['calling_isolate_heartbeat'] = {
+    'ticks': ticks,
+    'max_gap_ms': maxGap,
+    'limit_ms': 250,
+  };
   if (linuxSshAgentAvailable) {
     await success('linux_agent', await profile('testuser', agent: true));
   }

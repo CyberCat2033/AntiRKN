@@ -24,17 +24,22 @@ Future<void> main(List<String> args) async {
   for (final username in ['testuser', 'root']) {
     await mode.writeAsString('');
     final token = CancellationToken();
-    final connection = await const DartSshConnector().connect(
-      SshProfile(
-        host: '127.0.0.1',
-        port: port,
-        username: username,
-        authMethod: SshAuthMethod.password,
-        secrets: {ServerSecret.sshPassword: credentials['password'] as String},
-      ),
-      verifyHostKey: (key) async => key.fingerprint == fingerprint,
-      cancellation: token,
-    );
+    final connection =
+        await const DartSshConnector(
+          commandTimeout: Duration(seconds: 4),
+        ).connect(
+          SshProfile(
+            host: '127.0.0.1',
+            port: port,
+            username: username,
+            authMethod: SshAuthMethod.password,
+            secrets: {
+              ServerSecret.sshPassword: credentials['password'] as String,
+            },
+          ),
+          verifyHostKey: (key) async => key.fingerprint == fingerprint,
+          cancellation: token,
+        );
     unawaited(connection.done.catchError((Object _) {}));
     try {
       var snapshot = await connection.observe(token);
@@ -200,6 +205,33 @@ Future<void> main(List<String> args) async {
       }
     } finally {
       connection.close();
+    }
+  }
+  if (installed) {
+    await mode.writeAsString('slow');
+    final cancellation = CancellationToken();
+    final connection = await const DartSshConnector().connect(
+      SshProfile(
+        host: '127.0.0.1',
+        port: port,
+        username: 'root',
+        authMethod: SshAuthMethod.password,
+        secrets: {ServerSecret.sshPassword: credentials['password'] as String},
+      ),
+      verifyHostKey: (key) async => key.fingerprint == fingerprint,
+      cancellation: cancellation,
+    );
+    try {
+      final snapshot = await connection.observe(cancellation);
+      check(
+        snapshot.software!.facts[ServerFact.kernel]!.status ==
+            InventoryStatus.ok,
+        'slow_response_lost',
+      );
+      results['response_delayed_5500ms'] = 'PASS';
+    } finally {
+      connection.close();
+      await mode.writeAsString('');
     }
   }
   stdout.writeln(jsonEncode(results));

@@ -10,12 +10,13 @@ import 'package:dartssh2/dartssh2.dart';
 import 'linux_agent.dart';
 import 'ubuntu_release.dart';
 import 'server_inventory_reader.dart';
+import 'parallel_reads.dart';
 
 /// Public API exposes read-only inventory, never a shell or arbitrary command.
-final class DartSshConnector implements SshConnector {
-  const DartSshConnector({
-    this.connectTimeout = const Duration(seconds: 20),
-    this.commandTimeout = const Duration(seconds: 20),
+final class DirectSshConnector implements SshConnector {
+  const DirectSshConnector({
+    this.connectTimeout = const Duration(seconds: 60),
+    this.commandTimeout = const Duration(seconds: 60),
   });
   final Duration connectTimeout;
   final Duration commandTimeout;
@@ -111,7 +112,12 @@ final class DartSshConnector implements SshConnector {
       // Authenticated sessions do not need to retain parsed private keys.
       identities.clear();
       password[0] = null;
-      final connection = _Connection(client, transportSocket, commandTimeout);
+      final connection = _Connection(
+        client,
+        transportSocket,
+        commandTimeout,
+        profile.id,
+      );
       handedOff = true;
       return connection;
     } catch (error) {
@@ -206,7 +212,8 @@ final class _NativeSocket implements SSHSocket {
 }
 
 final class _Connection implements SshConnection {
-  _Connection(this.client, this.socket, this.commandTimeout);
+  _Connection(this.client, this.socket, this.commandTimeout, this.serverId);
+  final String serverId;
   final SSHClient client;
   final _NativeSocket socket;
   final Duration commandTimeout;
@@ -236,10 +243,15 @@ final class _Connection implements SshConnection {
         throw const SshFailure(SshIssue.unsupportedOs);
       }
       final observedAt = DateTime.now().toUtc();
-      final outputs = <InventoryDocument, String>{};
-      for (final entry in IpCommandOutputs.commands.entries) {
-        outputs[entry.key] = await _read(entry.value.join(' '), cancellation);
-      }
+      final outputs = Map.fromEntries(
+        await parallelReads(
+          IpCommandOutputs.commands.entries,
+          (entry) async => MapEntry(
+            entry.key,
+            await _read(entry.value.join(' '), cancellation),
+          ),
+        ),
+      );
       final network = const IpInventoryParser().parse(
         outputs: IpCommandOutputs(
           addresses: outputs[InventoryDocument.addresses]!,
@@ -248,7 +260,7 @@ final class _Connection implements SshConnection {
           rulesV4: outputs[InventoryDocument.rulesV4]!,
           rulesV6: outputs[InventoryDocument.rulesV6]!,
         ),
-        serverId: SshProfile.serverId,
+        serverId: serverId,
         observedAt: observedAt,
         source: NetworkSource.iproute2,
         sshPeer: IpAddress.parse(socket.socket.remoteAddress.address),
@@ -262,7 +274,7 @@ final class _Connection implements SshConnection {
             command,
             cancellation,
             limit: 65536,
-            timeout: const Duration(seconds: 4),
+            timeout: commandTimeout,
           ),
         ).read(cancellation),
       );

@@ -17,3 +17,8 @@ artifacts/
 *.key
 id_rsa*
 id_ed25519*
+*.sqlite*
+*.db
+*.db-shm
+*.db-wal
+device-key.json

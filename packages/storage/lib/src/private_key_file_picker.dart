@@ -7,6 +7,15 @@ import 'package:flutter/services.dart';
 final class SystemPrivateKeyFilePicker implements PrivateKeyFilePicker {
   static const maxBytes = 256 * 1024;
   @override
+  Future<void> cancel() async {
+    if (Platform.isAndroid) {
+      await const MethodChannel(
+        'org.antirkn/template_picker',
+      ).invokeMethod<void>('cancelKey');
+    }
+  }
+
+  @override
   Future<ImportedPrivateKey?> pick() async {
     try {
       if (Platform.isAndroid) {
@@ -42,7 +51,7 @@ final class SystemPrivateKeyFilePicker implements PrivateKeyFilePicker {
         }
         return ImportedPrivateKey(
           name: file.name,
-          bytes: Uint8List.fromList(buffer.sublist(0, length)),
+          bytes: Uint8List.sublistView(buffer, 0, length),
         );
       } finally {
         buffer.fillRange(0, buffer.length, 0);

@@ -51,6 +51,8 @@ class FakeKeyPicker implements PrivateKeyFilePicker {
   Future<ImportedPrivateKey?> Function() callback = () async => null;
   @override
   Future<ImportedPrivateKey?> pick() => callback();
+  @override
+  Future<void> cancel() async {}
 }
 
 class FakeConnection implements SshConnection {
@@ -105,7 +107,6 @@ SshController controller(
   FakeVault vault,
   FakeConnector connector, {
   FakeKeyPicker? picker,
-  Duration? idleTimeout,
 }) => SshController(
   openVault: () async => vault,
   connector: connector,
@@ -113,12 +114,10 @@ SshController controller(
   network: NetworkController(
     reader: TestInventoryReader(() async => testInventory()),
   ),
-  idleTimeout: idleTimeout ?? const Duration(minutes: 5),
 );
 
 Future<void> prepare(SshController c) async {
   await c.initialise();
-  await c.open(createMode: VaultMode.system);
   c.host.text = 'fixture.example';
   c.port.text = '22';
   c.username.text = 'root';

@@ -5,11 +5,84 @@ import 'dart:typed_data';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_manager/ssh/ssh_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/widgets.dart';
 
 import 'ssh_support.dart';
 import 'network_support.dart';
 
 void main() {
+  test(
+    'unchanged profile stays saved after focus, edits reverted, and connect',
+    () async {
+      final vault = FakeVault();
+      final connector = FakeConnector();
+      final c = controller(vault, connector);
+      addTearDown(c.dispose);
+      addTearDown(c.network.dispose);
+      await prepare(c);
+      await c.save();
+      c.editSettings();
+      c.host.selection = const TextSelection.collapsed(offset: 2);
+      expect(c.saved, isTrue);
+      c.serverName.text = 'changed';
+      expect(c.saved, isFalse);
+      c.serverName.clear();
+      expect(c.saved, isTrue);
+      final writes = vault.writes;
+      await c.save();
+      expect(vault.writes, writes);
+      vault.saved = vault.saved!.withHostKey(connector.key);
+      final work = c.connect();
+      await Future<void>.delayed(Duration.zero);
+      await work;
+      // Only the new observation is written, not another unchanged SSH draft.
+      expect(vault.writes, writes + 1);
+      expect(c.saved, isTrue);
+      expect(c.lastInfo!.os, 'Ubuntu 24.04');
+      c.disconnect();
+      c.lock();
+      await c.initialise();
+      expect(c.os, 'Ubuntu 24.04');
+      c.editSettings();
+      c.host.text = 'another.example';
+      await c.save();
+      expect(c.lastInfo, isNull);
+    },
+  );
+
+  test(
+    'stuck key import can be cancelled and late result cannot overwrite a retry',
+    () async {
+      final picker = FakeKeyPicker();
+      final pending = Completer<ImportedPrivateKey?>();
+      picker.callback = () => pending.future;
+      final c = controller(FakeVault(), FakeConnector(), picker: picker);
+      addTearDown(c.dispose);
+      addTearDown(c.network.dispose);
+      await prepare(c);
+      final work = c.importKey();
+      expect(c.editing, isFalse);
+      c.cancelKeyImport();
+      await work;
+      expect(c.editing, isTrue);
+      picker.callback = () async => ImportedPrivateKey(
+        name: 'new-key',
+        bytes: Uint8List.fromList(
+          utf8.encode(
+            '-----BEGIN OPENSSH PRIVATE KEY-----\nfixture\n-----END OPENSSH PRIVATE KEY-----',
+          ),
+        ),
+      );
+      await c.importKey();
+      final old = Uint8List.fromList([1, 2, 3]);
+      final oldKey = ImportedPrivateKey(name: 'old-key', bytes: old);
+      pending.complete(oldKey);
+      await Future<void>.delayed(Duration.zero);
+      expect(oldKey.bytes, [0, 0, 0]);
+      expect(c.keyName, 'new-key');
+      expect(c.editing, isTrue);
+    },
+  );
   test(
     'software refresh replaces partial snapshot, failed refresh preserves it, lock clears it',
     () async {
@@ -80,7 +153,7 @@ void main() {
           expect(await c.save(), isTrue);
           expect(vault.saved!.hostKey, isNull);
           c.lock();
-          await c.open();
+          await c.initialise();
         }
         connector.key = const TrustedHostKey('ssh-ed25519', 'SHA256:second');
         connector.connection = FakeConnection();
@@ -200,7 +273,7 @@ void main() {
       expect(c.network.inventory, same(inventory));
       c.lock();
       expect(c.serverName.text, isEmpty);
-      await c.open();
+      await c.initialise();
       expect(c.serverName.text, 'Личный VPS');
       expect(c.settingsExpanded, isFalse);
       expect(c.saved, isTrue);
@@ -341,7 +414,7 @@ void main() {
       expect(c.password.text, isEmpty);
       expect(c.passphrase.text, isEmpty);
       expect(c.network.inventory, isNull);
-      await c.open();
+      await c.initialise();
       expect(c.password.text, 'fixture-password-only');
     },
   );
@@ -360,11 +433,17 @@ void main() {
           '-----BEGIN OPENSSH PRIVATE KEY-----\nfixture\n-----END OPENSSH PRIVATE KEY-----',
         ),
       );
-      picker.callback = () async =>
-          ImportedPrivateKey(name: 'id_ed25519', bytes: bytes);
+      final imported = ImportedPrivateKey(
+        name: 'id_ed25519',
+        bytes: bytes.asUnmodifiableView(),
+      );
+      picker.callback = () async => imported;
       await c.importKey();
       expect(c.keyName, 'id_ed25519');
-      expect(bytes.every((b) => b == 0), isTrue);
+      expect(imported.bytes.every((b) => b == 0), isTrue);
+      expect(c.picking, isFalse);
+      expect(c.editing, isTrue);
+      expect(c.error, isNull);
       picker.callback = () async => null;
       await c.importKey();
       expect(c.keyName, 'id_ed25519');
@@ -382,7 +461,7 @@ void main() {
       );
       c.lock();
       expect(c.hasKey, isFalse);
-      await c.open();
+      await c.initialise();
       expect(c.keyName, 'id_ed25519');
     },
   );
@@ -400,24 +479,25 @@ void main() {
       final work = c.importKey();
       c.lock();
       final bytes = Uint8List.fromList([1, 2, 3]);
-      pending.complete(ImportedPrivateKey(name: 'private', bytes: bytes));
+      final imported = ImportedPrivateKey(
+        name: 'private',
+        bytes: bytes.asUnmodifiableView(),
+      );
+      pending.complete(imported);
       await work;
+      await Future<void>.delayed(Duration.zero);
       expect(c.hasKey, isFalse);
       expect(c.unlocked, isFalse);
-      expect(bytes, [0, 0, 0]);
+      expect(imported.bytes, [0, 0, 0]);
     },
   );
 
   test(
-    'failed refresh retains inventory and selection; idle timeout closes SSH',
+    'failed refresh retains inventory, selection and accessible credentials',
     () async {
       final connector = FakeConnector();
       final vault = FakeVault();
-      final c = controller(
-        vault,
-        connector,
-        idleTimeout: const Duration(milliseconds: 120),
-      );
+      final c = controller(vault, connector);
       addTearDown(c.dispose);
       addTearDown(c.network.dispose);
       await prepare(c);
@@ -437,10 +517,9 @@ void main() {
       expect(c.network.inventory, same(inventory));
       expect(c.network.selected(AddressRole.listener), same(choice));
       expect(c.error, SshIssue.commandFailed);
-      await Future<void>.delayed(const Duration(milliseconds: 160));
-      expect(c.unlocked, isFalse);
+      expect(c.unlocked, isTrue);
       expect(connector.connection.closed, isTrue);
-      expect(c.password.text, isEmpty);
+      expect(c.password.text, 'fixture-password-only');
     },
   );
 }

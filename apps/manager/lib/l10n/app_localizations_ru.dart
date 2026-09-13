@@ -27,15 +27,14 @@ class AppLocalizationsRu extends AppLocalizations {
   String get prototype => 'Прототип P0';
 
   @override
-  String get intro =>
-      'Проверьте, какие узлы попадут в группы вашего шаблона. Изменения редактора остаются в памяти до закрытия приложения.';
+  String get intro => 'Проверьте, какие узлы попадут в группы вашего шаблона.';
 
   @override
   String get source => 'Базовый YAML';
 
   @override
   String get sourceHelp =>
-      'Выберите .yml или .yaml через файловый диалог. Приложение работает с копией в памяти; исходный файл не изменяется.';
+      'Выберите .yml или .yaml. Приложение сохраняет собственную копию на устройстве; исходный файл не изменяется.';
 
   @override
   String get preview => 'Проверить состав групп';
@@ -91,7 +90,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get overviewText =>
-      'Прототип включает проверку шаблонов и тестовый каталог адресов одного VPS. Управление по SSH, хранилище секретов и синхронизация Google Drive ожидают следующих итераций.';
+      'Управляйте сохранёнными серверами по SSH, просматривайте их ПО и IP-адреса, редактируйте шаблоны. Установка ПО, настройки протоколов и синхронизация Google Drive запланированы на следующие стадии.';
 
   @override
   String get scope =>
@@ -248,7 +247,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String importedTemplate(String name) {
-    return 'Загружен в память: $name';
+    return 'Импортирован: $name';
   }
 
   @override
@@ -256,7 +255,7 @@ class AppLocalizationsRu extends AppLocalizations {
       'Не удалось прочитать YAML-файл. Текущий шаблон сохранён.';
 
   @override
-  String get server => 'Сервер';
+  String get server => 'Серверы';
 
   @override
   String get networkTitle => 'Адреса сервера';
@@ -535,10 +534,13 @@ class AppLocalizationsRu extends AppLocalizations {
   String get sshSave => 'Сохранить подключение';
 
   @override
-  String get sshSaved => 'Подключение сохранено в зашифрованном хранилище.';
+  String get sshSaved => 'Подключение сохранено на устройстве.';
 
   @override
-  String get sshConnect => 'Сохранить и подключиться';
+  String get sshConnect => 'Подключиться';
+
+  @override
+  String get sshSaveAndConnect => 'Сохранить и подключиться';
 
   @override
   String get sshDisconnect => 'Отключиться';
@@ -582,7 +584,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get sshDeleteHelp =>
-      'Удалить сохранённые секреты и доверенный ключ сервера с этого устройства? Настройки сервера не изменятся.';
+      'Удалить этот сервер и данные подключения с устройства? Данные на VPS не изменятся.';
 
   @override
   String get sshInvalidSettings =>
@@ -642,61 +644,22 @@ class AppLocalizationsRu extends AppLocalizations {
       'SSH-agent Linux недоступен или не содержит поддерживаемых ключей. Загрузите ключ в агент либо выберите файл приватного ключа.';
 
   @override
-  String get vaultTitle => 'Защищённое хранилище';
-
-  @override
-  String get vaultIntro =>
-      'Сохраняйте данные входа SSH и доверие к серверу зашифрованными на этом устройстве. Выберите способ разблокировки.';
-
-  @override
-  String get vaultSystem => 'Использовать хранилище ОС';
-
-  @override
-  String get vaultMaster => 'Использовать мастер-пароль';
-
-  @override
-  String get vaultMasterHelp =>
-      'Не менее 12 символов. Запомните пароль: он не сохраняется, сбросить его для восстановления данных нельзя. Этот вариант работает и без keyring Linux.';
-
-  @override
   String get vaultPassword => 'Мастер-пароль';
 
   @override
-  String get vaultConfirmation => 'Повторите мастер-пароль';
-
-  @override
-  String get vaultCreate => 'Создать зашифрованное хранилище';
-
-  @override
-  String get vaultUnlock => 'Разблокировать';
-
-  @override
-  String get vaultLock => 'Заблокировать хранилище';
-
-  @override
   String get vaultLocked =>
-      'Хранилище заблокировано. Разблокируйте для работы с сохранёнными подключениями.';
-
-  @override
-  String get vaultUnlocked => 'Хранилище разблокировано';
-
-  @override
-  String get vaultAutoLock =>
-      'Блокируется после 5 минут бездействия и при переходе приложения в фон; SSH-соединения закрываются.';
-
-  @override
-  String get vaultWorking => 'Открытие хранилища…';
+      'Данные подключения недоступны. Откройте сервер заново.';
 
   @override
   String get vaultRetry => 'Повторить';
 
   @override
   String get vaultUnavailable =>
-      'Системное хранилище недоступно. Разблокируйте keyring ОС и повторите попытку. Для нового хранилища можно выбрать мастер-пароль.';
+      'Не удалось открыть сохранённые подключения. Повторите попытку.';
 
   @override
   String get vaultMissingKey =>
-      'Системный ключ шифрования недоступен. Для разблокировки восстановите доступ к исходному keyring ОС.';
+      'Ключ шифрования устройства недоступен. Сохранённые данные оставлены на месте.';
 
   @override
   String get vaultDamaged =>
@@ -708,15 +671,14 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get vaultWriteFailed =>
-      'Не удалось сохранить. Предыдущая сохранённая версия оставлена.';
+      'Не удалось сохранить подключение. Предыдущие данные сохранены.';
 
   @override
   String get vaultBusy =>
-      'Хранилище занято или изменено другим экземпляром приложения. Заблокируйте и разблокируйте его перед повторной попыткой.';
+      'Подключение изменено в другом экземпляре приложения. Откройте его заново перед редактированием.';
 
   @override
-  String get vaultExists =>
-      'Хранилище уже существует. Разблокируйте существующее.';
+  String get vaultExists => 'Данные уже существуют. Откройте сервер заново.';
 
   @override
   String get vaultWeakPassword =>
@@ -854,4 +816,45 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get inventoryNoPorts => 'Сокеты не обнаружены';
+
+  @override
+  String get addServer => 'Добавить сервер';
+
+  @override
+  String get noServers => 'Серверов пока нет';
+
+  @override
+  String get noServersHelp =>
+      'Нажмите + в правом верхнем углу, чтобы добавить сервер.';
+
+  @override
+  String get showPassword => 'Показать пароль';
+
+  @override
+  String get hidePassword => 'Скрыть пароль';
+
+  @override
+  String get migrateConnection => 'Перенести сохранённое подключение';
+
+  @override
+  String get migrateConnectionHelp =>
+      'Введите прежний мастер-пароль один раз для переноса сохранённого подключения. После переноса оно будет открываться автоматически.';
+
+  @override
+  String get databaseOpenError =>
+      'Не удалось открыть локальную БД. Сохранённые данные оставлены на месте.';
+
+  @override
+  String get settingsSaveError =>
+      'Не удалось сохранить настройку. Повторите выбор.';
+
+  @override
+  String get draftSaveError =>
+      'Не удалось сохранить шаблон на устройстве. Повторите сохранение до закрытия приложения.';
+
+  @override
+  String get draftSaving => 'Сохранение шаблона…';
+
+  @override
+  String get draftSaved => 'Шаблон сохранён на устройстве';
 }

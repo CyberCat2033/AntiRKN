@@ -137,7 +137,7 @@ abstract class AppLocalizations {
   /// No description provided for @intro.
   ///
   /// In en, this message translates to:
-  /// **'Check which nodes are selected by your template groups. Editor changes stay in memory until the app is closed.'**
+  /// **'Check which nodes are selected by your template groups.'**
   String get intro;
 
   /// No description provided for @source.
@@ -149,7 +149,7 @@ abstract class AppLocalizations {
   /// No description provided for @sourceHelp.
   ///
   /// In en, this message translates to:
-  /// **'Choose a .yml or .yaml file. The app works with an in-memory copy and does not modify the source file.'**
+  /// **'Choose a .yml or .yaml file. The app saves its own copy on this device; the source file is not modified.'**
   String get sourceHelp;
 
   /// No description provided for @preview.
@@ -257,7 +257,7 @@ abstract class AppLocalizations {
   /// No description provided for @overviewText.
   ///
   /// In en, this message translates to:
-  /// **'The prototype includes template checks and a sample address inventory for one VPS. SSH management, secret storage and Google Drive sync are planned for subsequent iterations.'**
+  /// **'Manage saved servers over SSH, inspect their software and IP addresses, and edit templates. Server installation, protocol configuration and Google Drive sync are planned for later stages.'**
   String get overviewText;
 
   /// No description provided for @scope.
@@ -515,7 +515,7 @@ abstract class AppLocalizations {
   /// No description provided for @importedTemplate.
   ///
   /// In en, this message translates to:
-  /// **'Loaded into memory: {name}'**
+  /// **'Imported: {name}'**
   String importedTemplate(String name);
 
   /// No description provided for @templateReadError.
@@ -527,7 +527,7 @@ abstract class AppLocalizations {
   /// No description provided for @server.
   ///
   /// In en, this message translates to:
-  /// **'Server'**
+  /// **'Servers'**
   String get server;
 
   /// No description provided for @networkTitle.
@@ -1031,14 +1031,20 @@ abstract class AppLocalizations {
   /// No description provided for @sshSaved.
   ///
   /// In en, this message translates to:
-  /// **'Connection saved in the encrypted vault.'**
+  /// **'Connection saved on this device.'**
   String get sshSaved;
 
   /// No description provided for @sshConnect.
   ///
   /// In en, this message translates to:
-  /// **'Save and connect'**
+  /// **'Connect'**
   String get sshConnect;
+
+  /// No description provided for @sshSaveAndConnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Save and connect'**
+  String get sshSaveAndConnect;
 
   /// No description provided for @sshDisconnect.
   ///
@@ -1121,7 +1127,7 @@ abstract class AppLocalizations {
   /// No description provided for @sshDeleteHelp.
   ///
   /// In en, this message translates to:
-  /// **'Delete the saved credentials and trusted server key from this device? Server settings are unaffected.'**
+  /// **'Delete this saved server and its credentials from this device? Nothing on the VPS will be changed.'**
   String get sshDeleteHelp;
 
   /// No description provided for @sshInvalidSettings.
@@ -1214,89 +1220,17 @@ abstract class AppLocalizations {
   /// **'Linux SSH-agent is unavailable or has no supported keys. Load your key into the agent or choose a private key file.'**
   String get sshAgentError;
 
-  /// No description provided for @vaultTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Protected storage'**
-  String get vaultTitle;
-
-  /// No description provided for @vaultIntro.
-  ///
-  /// In en, this message translates to:
-  /// **'Save SSH credentials and server trust encrypted on this device. Choose how to unlock the storage.'**
-  String get vaultIntro;
-
-  /// No description provided for @vaultSystem.
-  ///
-  /// In en, this message translates to:
-  /// **'Use system storage'**
-  String get vaultSystem;
-
-  /// No description provided for @vaultMaster.
-  ///
-  /// In en, this message translates to:
-  /// **'Use master password'**
-  String get vaultMaster;
-
-  /// No description provided for @vaultMasterHelp.
-  ///
-  /// In en, this message translates to:
-  /// **'At least 12 characters. Remember this password: it is not saved and cannot be reset to recover the data. This option also works without a Linux keyring.'**
-  String get vaultMasterHelp;
-
   /// No description provided for @vaultPassword.
   ///
   /// In en, this message translates to:
   /// **'Master password'**
   String get vaultPassword;
 
-  /// No description provided for @vaultConfirmation.
-  ///
-  /// In en, this message translates to:
-  /// **'Repeat master password'**
-  String get vaultConfirmation;
-
-  /// No description provided for @vaultCreate.
-  ///
-  /// In en, this message translates to:
-  /// **'Create encrypted storage'**
-  String get vaultCreate;
-
-  /// No description provided for @vaultUnlock.
-  ///
-  /// In en, this message translates to:
-  /// **'Unlock'**
-  String get vaultUnlock;
-
-  /// No description provided for @vaultLock.
-  ///
-  /// In en, this message translates to:
-  /// **'Lock storage'**
-  String get vaultLock;
-
   /// No description provided for @vaultLocked.
   ///
   /// In en, this message translates to:
-  /// **'Storage is locked. Unlock to use saved connections.'**
+  /// **'Connection data is unavailable. Reopen the server.'**
   String get vaultLocked;
-
-  /// No description provided for @vaultUnlocked.
-  ///
-  /// In en, this message translates to:
-  /// **'Storage unlocked'**
-  String get vaultUnlocked;
-
-  /// No description provided for @vaultAutoLock.
-  ///
-  /// In en, this message translates to:
-  /// **'Locks after 5 minutes without activity and when the app goes into the background; SSH connections close.'**
-  String get vaultAutoLock;
-
-  /// No description provided for @vaultWorking.
-  ///
-  /// In en, this message translates to:
-  /// **'Opening storage…'**
-  String get vaultWorking;
 
   /// No description provided for @vaultRetry.
   ///
@@ -1307,13 +1241,13 @@ abstract class AppLocalizations {
   /// No description provided for @vaultUnavailable.
   ///
   /// In en, this message translates to:
-  /// **'System storage is unavailable. Retry after unlocking the OS keyring. When creating a new vault, you can choose a master password.'**
+  /// **'Unable to open saved connections. Retry.'**
   String get vaultUnavailable;
 
   /// No description provided for @vaultMissingKey.
   ///
   /// In en, this message translates to:
-  /// **'The system encryption key is unavailable. Restore access to the original OS keyring to unlock this vault.'**
+  /// **'The device encryption key is unavailable. Saved data has been kept.'**
   String get vaultMissingKey;
 
   /// No description provided for @vaultDamaged.
@@ -1331,19 +1265,19 @@ abstract class AppLocalizations {
   /// No description provided for @vaultWriteFailed.
   ///
   /// In en, this message translates to:
-  /// **'Could not save. The previous saved version is retained.'**
+  /// **'Unable to save the connection. Previous data has been kept.'**
   String get vaultWriteFailed;
 
   /// No description provided for @vaultBusy.
   ///
   /// In en, this message translates to:
-  /// **'Storage is busy or was changed by another app instance. Lock it and unlock again before retrying.'**
+  /// **'This connection was changed in another app instance. Reopen it before editing.'**
   String get vaultBusy;
 
   /// No description provided for @vaultExists.
   ///
   /// In en, this message translates to:
-  /// **'Storage already exists. Unlock the existing storage.'**
+  /// **'Saved data already exists. Reopen the server.'**
   String get vaultExists;
 
   /// No description provided for @vaultWeakPassword.
@@ -1597,6 +1531,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No sockets were found'**
   String get inventoryNoPorts;
+
+  /// No description provided for @addServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Add server'**
+  String get addServer;
+
+  /// No description provided for @noServers.
+  ///
+  /// In en, this message translates to:
+  /// **'No servers yet'**
+  String get noServers;
+
+  /// No description provided for @noServersHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Use + in the top right to add a server.'**
+  String get noServersHelp;
+
+  /// No description provided for @showPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Show password'**
+  String get showPassword;
+
+  /// No description provided for @hidePassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide password'**
+  String get hidePassword;
+
+  /// No description provided for @migrateConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Transfer saved connection'**
+  String get migrateConnection;
+
+  /// No description provided for @migrateConnectionHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter your old master password once to transfer the saved connection. It will open automatically afterwards.'**
+  String get migrateConnectionHelp;
+
+  /// No description provided for @databaseOpenError.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to open the local database. Your saved data has been kept.'**
+  String get databaseOpenError;
+
+  /// No description provided for @settingsSaveError.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to save the setting. Try again.'**
+  String get settingsSaveError;
+
+  /// No description provided for @draftSaveError.
+  ///
+  /// In en, this message translates to:
+  /// **'Template could not be saved on this device. Retry before closing the app.'**
+  String get draftSaveError;
+
+  /// No description provided for @draftSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving template…'**
+  String get draftSaving;
+
+  /// No description provided for @draftSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Template saved on this device'**
+  String get draftSaved;
 }
 
 class _AppLocalizationsDelegate

@@ -1,7 +1,10 @@
+import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_manager/language_controller.dart';
 import 'package:antirkn_manager/main.dart';
 import 'package:antirkn_manager/network/sample_inventory_reader.dart';
+import 'package:antirkn_manager/network/network_controller.dart';
+import 'package:antirkn_manager/l10n/app_localizations.dart';
 import 'package:antirkn_manager/network/server_address_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -34,11 +37,55 @@ void main() {
       AntiRknApp(source: '', languages: languages, networkReader: reader),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text(language == 'en' ? 'Server' : 'Сервер'));
+    await tester.tap(find.text(language == 'en' ? 'Servers' : 'Серверы'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('load-network-sample')));
     await tester.pumpAndSettle();
     return languages;
+  }
+
+  Future<void> startPickers(
+    WidgetTester tester, {
+    String language = 'en',
+    Size size = const Size(1200, 1000),
+  }) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = size;
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final c = NetworkController(
+      reader: TestInventoryReader(() async => testInventory()),
+    );
+    await c.load();
+    addTearDown(c.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: Locale(language),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        home: Scaffold(
+          body: ListenableBuilder(
+            listenable: c,
+            builder: (context, _) => ListView(
+              key: const PageStorageKey('network-workbench'),
+              children: [
+                for (final role in AddressRole.values)
+                  ServerAddressPicker(
+                    motion: MotionPreference.system,
+                    role: role,
+                    choices: c.choices(role),
+                    selected: c.selected(role),
+                    selectionIssue: c.selectionIssue(role),
+                    enabled: true,
+                    onSelected: (choice) => c.select(role, choice),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
   }
 
   Future<void> open(WidgetTester tester, AddressRole role) async {
@@ -122,9 +169,8 @@ void main() {
   testWidgets('one shared picker enforces listener and endpoint roles', (
     tester,
   ) async {
-    await start(tester, TestInventoryReader(() async => testInventory()));
+    await startPickers(tester);
     expect(find.byType(ServerAddressPicker), findsNWidgets(2));
-    expect(find.textContaining('Sample data for one VPS'), findsOneWidget);
     await open(tester, AddressRole.listener);
     final wildcard = await option(tester, AddressRole.listener, '0.0.0.0');
     expect(tester.widget<ListTile>(wildcard).enabled, isTrue);
@@ -161,94 +207,25 @@ void main() {
     );
   });
 
-  testWidgets(
-    'choice survives language, navigation, resize and failed refresh',
-    (tester) async {
-      final reader = TestInventoryReader(() async => testInventory());
-      final languages = await start(tester, reader);
-      await open(tester, AddressRole.listener);
-      await tester.tap(await option(tester, AddressRole.listener, '0.0.0.0'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Templates'));
-      await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byKey(const ValueKey('template-editor')),
-        '# draft',
-      );
-      await languages.select(AppLanguage.ru);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Сервер'));
-      await tester.pumpAndSettle();
-      tester.view.physicalSize = const Size(390, 844);
-      await tester.pumpAndSettle();
-      expect(
-        tester
-            .widget<ServerAddressPicker>(find.byType(ServerAddressPicker).first)
-            .selected!
-            .host,
-        '0.0.0.0',
-      );
-      reader.callback = () async => throw StateError('test transport failure');
-      final load = find.byKey(const ValueKey('load-network-sample'));
-      await tester.scrollUntilVisible(
-        load,
-        -250,
-        scrollable: find.descendant(
-          of: find.byKey(const PageStorageKey('network-workbench')),
-          matching: find.byType(Scrollable),
-        ),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(load);
-      await tester.pumpAndSettle();
-      expect(
-        find.textContaining('Не удалось прочитать каталог.'),
-        findsOneWidget,
-      );
-      expect(
-        tester
-            .widget<ServerAddressPicker>(find.byType(ServerAddressPicker).first)
-            .selected!
-            .host,
-        '0.0.0.0',
-      );
-      await tester.tap(find.text('Шаблоны'));
-      await tester.pumpAndSettle();
-      expect(
-        tester
-            .widget<TextField>(find.byKey(const ValueKey('template-editor')))
-            .controller!
-            .text,
-        '# draft',
-      );
-      expect(tester.takeException(), isNull);
-    },
-  );
-
-  testWidgets(
-    'empty inventory exposes no endpoint and no invented assignment',
-    (tester) async {
-      final data = {for (final key in networkFixture().keys) key: <dynamic>[]};
-      await start(
-        tester,
-        TestInventoryReader(() async => testInventory(data: data)),
-      );
-      await open(tester, AddressRole.endpoint);
-      expect(
-        find.text('There are no suitable addresses for this role.'),
-        findsOneWidget,
-      );
-      expect(find.byType(ListTile), findsNothing);
-      await tester.tap(find.byTooltip('Close'));
-      await tester.pumpAndSettle();
-      expect(tester.takeException(), isNull);
-    },
-  );
+  testWidgets('server inventory has no protocol address controls', (
+    tester,
+  ) async {
+    final languages = await start(
+      tester,
+      TestInventoryReader(() async => testInventory()),
+    );
+    expect(find.byType(ServerAddressPicker), findsNothing);
+    await languages.select(AppLanguage.ru);
+    tester.view.physicalSize = const Size(390, 844);
+    await tester.pumpAndSettle();
+    expect(find.byType(ServerAddressPicker), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'keyboard opens picker, escape dismisses without changing selection',
     (tester) async {
-      await start(tester, TestInventoryReader(() async => testInventory()));
+      await startPickers(tester);
       final button = find.byKey(const ValueKey('pick-listener'));
       await tester.ensureVisible(button);
       final element = tester.element(button);
@@ -290,9 +267,8 @@ void main() {
     testWidgets('large text and adaptive layout with open picker: $language', (
       tester,
     ) async {
-      await start(
+      await startPickers(
         tester,
-        TestInventoryReader(() async => testInventory()),
         language: language,
         size: const Size(390, 844),
       );

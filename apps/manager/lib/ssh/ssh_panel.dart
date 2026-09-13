@@ -1,6 +1,7 @@
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../l10n/app_localizations.dart';
 import 'ssh_controller.dart';
@@ -18,7 +19,7 @@ class SshPanel extends StatefulWidget {
 }
 
 class _SshPanelState extends State<SshPanel> {
-  VaultMode _creationMode = VaultMode.system;
+  final _visibleSecrets = <String>{};
 
   Widget _field(
     TextEditingController controller,
@@ -34,7 +35,7 @@ class _SshPanelState extends State<SshPanel> {
       key: ValueKey(id ?? label),
       controller: controller,
       enabled: enabled,
-      obscureText: secret,
+      obscureText: secret && !_visibleSecrets.contains(id ?? label),
       autocorrect: false,
       enableSuggestions: false,
       enableIMEPersonalizedLearning: false,
@@ -44,6 +45,24 @@ class _SshPanelState extends State<SshPanel> {
         labelText: label,
         hintText: hint,
         counterText: '',
+        suffixIcon: secret
+            ? IconButton(
+                key: ValueKey('show-${id ?? label}'),
+                tooltip: _visibleSecrets.contains(id ?? label)
+                    ? AppLocalizations.of(context).hidePassword
+                    : AppLocalizations.of(context).showPassword,
+                onPressed: () => setState(() {
+                  if (!_visibleSecrets.add(id ?? label)) {
+                    _visibleSecrets.remove(id ?? label);
+                  }
+                }),
+                icon: Icon(
+                  _visibleSecrets.contains(id ?? label)
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                ),
+              )
+            : null,
       ),
     ),
   );
@@ -57,100 +76,11 @@ class _SshPanelState extends State<SshPanel> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SectionCard(
-            title: l.vaultTitle,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (c.vaultBusy) Text(l.vaultWorking),
-                if (c.vaultError case final issue?)
-                  Semantics(
-                    liveRegion: true,
-                    child: Text(vaultIssueLabel(l, issue)),
-                  ),
-                if (!c.initialised)
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: OutlinedButton(
-                      onPressed: c.vaultBusy ? null : c.initialise,
-                      child: Text(l.vaultRetry),
-                    ),
-                  )
-                else if (!c.unlocked) ...[
-                  Text(c.mode == null ? l.vaultIntro : l.vaultLocked),
-                  const SizedBox(height: AppLayout.gap),
-                  if (c.mode == null)
-                    Wrap(
-                      spacing: AppLayout.smallGap,
-                      runSpacing: AppLayout.smallGap,
-                      children: [
-                        for (final mode in VaultMode.values)
-                          ChoiceChip(
-                            key: ValueKey('vault-mode-${mode.name}'),
-                            label: Text(
-                              mode == VaultMode.system
-                                  ? l.vaultSystem
-                                  : l.vaultMaster,
-                            ),
-                            selected: _creationMode == mode,
-                            onSelected: c.vaultBusy
-                                ? null
-                                : (_) => setState(() => _creationMode = mode),
-                          ),
-                      ],
-                    ),
-                  if ((c.mode ?? _creationMode) ==
-                      VaultMode.masterPassword) ...[
-                    const SizedBox(height: AppLayout.gap),
-                    _field(
-                      c.masterPassword,
-                      l.vaultPassword,
-                      enabled: !c.vaultBusy,
-                      secret: true,
-                      id: 'vault-password',
-                    ),
-                    if (c.mode == null) ...[
-                      _field(
-                        c.masterConfirmation,
-                        l.vaultConfirmation,
-                        enabled: !c.vaultBusy,
-                        secret: true,
-                        id: 'vault-confirmation',
-                      ),
-                      Text(l.vaultMasterHelp),
-                    ],
-                  ],
-                  const SizedBox(height: AppLayout.gap),
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: FilledButton(
-                      key: const ValueKey('vault-open'),
-                      onPressed: c.vaultBusy
-                          ? null
-                          : () => c.open(
-                              createMode: c.mode == null ? _creationMode : null,
-                            ),
-                      child: Text(
-                        c.mode == null ? l.vaultCreate : l.vaultUnlock,
-                      ),
-                    ),
-                  ),
-                ] else ...[
-                  Text(l.vaultUnlocked),
-                  Text(l.vaultAutoLock),
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: OutlinedButton.icon(
-                      key: const ValueKey('vault-lock'),
-                      onPressed: c.lock,
-                      icon: const Icon(Icons.lock_outline),
-                      label: Text(l.vaultLock),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
+          if (c.vaultBusy) const LinearProgressIndicator(),
+          if (c.vaultError case final issue?)
+            Semantics(liveRegion: true, child: Text(vaultIssueLabel(l, issue))),
+          if (!c.initialised && !c.vaultBusy)
+            OutlinedButton(onPressed: c.initialise, child: Text(l.vaultRetry)),
           if (c.unlocked) ...[
             const SizedBox(height: AppLayout.gap),
             SectionCard(
@@ -231,6 +161,14 @@ class _SshPanelState extends State<SshPanel> {
                       if (c.authMethod == SshAuthMethod.privateKey) ...[
                         Text(c.keyName ?? l.sshNoKey),
                         Text(l.sshKeyHelp),
+                        if (c.picking) ...[
+                          const LinearProgressIndicator(),
+                          TextButton(
+                            key: const ValueKey('ssh-pick-cancel'),
+                            onPressed: c.cancelKeyImport,
+                            child: Text(l.sshCancel),
+                          ),
+                        ],
                         Align(
                           alignment: AlignmentDirectional.centerStart,
                           child: OutlinedButton.icon(
@@ -253,8 +191,15 @@ class _SshPanelState extends State<SshPanel> {
                         Text(l.sshAgentHelp),
                       if (c.stage == SshStage.connected) Text(l.sshEditHelp),
                     ],
-                    if (!c.settingsExpanded)
-                      Text(c.observation?.os ?? l.sshOsUnknown),
+                    if (!c.settingsExpanded) Text(c.os ?? l.sshOsUnknown),
+                    if (c.stage != SshStage.connected && c.lastInfo != null)
+                      Text(
+                        l.networkObservedAt(
+                          DateFormat.yMd(
+                            l.localeName,
+                          ).add_Hm().format(c.lastInfo!.observedAt.toLocal()),
+                        ),
+                      ),
                     if (c.error case final issue?)
                       Semantics(
                         liveRegion: true,
@@ -271,6 +216,8 @@ class _SshPanelState extends State<SshPanel> {
                       ),
                     if (c.settingsExpanded && c.saved) Text(l.sshSaved),
                     const SizedBox(height: AppLayout.gap),
+                    if (c.busy && c.stage != SshStage.verifying)
+                      const LinearProgressIndicator(),
                     Semantics(
                       liveRegion: true,
                       child: Text(switch (c.stage) {
@@ -346,12 +293,14 @@ class _SshPanelState extends State<SshPanel> {
                             FilledButton(
                               key: const ValueKey('ssh-connect'),
                               onPressed: c.editing ? c.connect : null,
-                              child: Text(l.sshConnect),
+                              child: Text(
+                                c.saved ? l.sshConnect : l.sshSaveAndConnect,
+                              ),
                             ),
                           if (c.settingsExpanded)
                             OutlinedButton(
                               key: const ValueKey('ssh-save'),
-                              onPressed: c.editing ? c.save : null,
+                              onPressed: c.editing && !c.saved ? c.save : null,
                               child: Text(l.sshSave),
                             ),
                           if (c.settingsExpanded && c.hasSavedProfile)
@@ -366,6 +315,7 @@ class _SshPanelState extends State<SshPanel> {
                             c.hasSavedProfile &&
                             c.stage != SshStage.connected)
                           TextButton(
+                            key: const ValueKey('ssh-delete'),
                             onPressed: () async {
                               final accepted = await showDialog<bool>(
                                 context: context,
@@ -379,6 +329,7 @@ class _SshPanelState extends State<SshPanel> {
                                       child: Text(l.sshCancel),
                                     ),
                                     TextButton(
+                                      key: const ValueKey('ssh-delete-confirm'),
                                       onPressed: () =>
                                           Navigator.pop(context, true),
                                       child: Text(l.sshDelete),

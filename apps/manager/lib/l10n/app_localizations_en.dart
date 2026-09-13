@@ -27,15 +27,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get prototype => 'P0 prototype';
 
   @override
-  String get intro =>
-      'Check which nodes are selected by your template groups. Editor changes stay in memory until the app is closed.';
+  String get intro => 'Check which nodes are selected by your template groups.';
 
   @override
   String get source => 'Base YAML';
 
   @override
   String get sourceHelp =>
-      'Choose a .yml or .yaml file. The app works with an in-memory copy and does not modify the source file.';
+      'Choose a .yml or .yaml file. The app saves its own copy on this device; the source file is not modified.';
 
   @override
   String get preview => 'Preview group members';
@@ -91,7 +90,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get overviewText =>
-      'The prototype includes template checks and a sample address inventory for one VPS. SSH management, secret storage and Google Drive sync are planned for subsequent iterations.';
+      'Manage saved servers over SSH, inspect their software and IP addresses, and edit templates. Server installation, protocol configuration and Google Drive sync are planned for later stages.';
 
   @override
   String get scope =>
@@ -246,7 +245,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String importedTemplate(String name) {
-    return 'Loaded into memory: $name';
+    return 'Imported: $name';
   }
 
   @override
@@ -254,7 +253,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Could not read the YAML file. The current template was kept.';
 
   @override
-  String get server => 'Server';
+  String get server => 'Servers';
 
   @override
   String get networkTitle => 'Server addresses';
@@ -535,10 +534,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sshSave => 'Save connection';
 
   @override
-  String get sshSaved => 'Connection saved in the encrypted vault.';
+  String get sshSaved => 'Connection saved on this device.';
 
   @override
-  String get sshConnect => 'Save and connect';
+  String get sshConnect => 'Connect';
+
+  @override
+  String get sshSaveAndConnect => 'Save and connect';
 
   @override
   String get sshDisconnect => 'Disconnect';
@@ -582,7 +584,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sshDeleteHelp =>
-      'Delete the saved credentials and trusted server key from this device? Server settings are unaffected.';
+      'Delete this saved server and its credentials from this device? Nothing on the VPS will be changed.';
 
   @override
   String get sshInvalidSettings =>
@@ -641,61 +643,21 @@ class AppLocalizationsEn extends AppLocalizations {
       'Linux SSH-agent is unavailable or has no supported keys. Load your key into the agent or choose a private key file.';
 
   @override
-  String get vaultTitle => 'Protected storage';
-
-  @override
-  String get vaultIntro =>
-      'Save SSH credentials and server trust encrypted on this device. Choose how to unlock the storage.';
-
-  @override
-  String get vaultSystem => 'Use system storage';
-
-  @override
-  String get vaultMaster => 'Use master password';
-
-  @override
-  String get vaultMasterHelp =>
-      'At least 12 characters. Remember this password: it is not saved and cannot be reset to recover the data. This option also works without a Linux keyring.';
-
-  @override
   String get vaultPassword => 'Master password';
 
   @override
-  String get vaultConfirmation => 'Repeat master password';
-
-  @override
-  String get vaultCreate => 'Create encrypted storage';
-
-  @override
-  String get vaultUnlock => 'Unlock';
-
-  @override
-  String get vaultLock => 'Lock storage';
-
-  @override
   String get vaultLocked =>
-      'Storage is locked. Unlock to use saved connections.';
-
-  @override
-  String get vaultUnlocked => 'Storage unlocked';
-
-  @override
-  String get vaultAutoLock =>
-      'Locks after 5 minutes without activity and when the app goes into the background; SSH connections close.';
-
-  @override
-  String get vaultWorking => 'Opening storage…';
+      'Connection data is unavailable. Reopen the server.';
 
   @override
   String get vaultRetry => 'Retry';
 
   @override
-  String get vaultUnavailable =>
-      'System storage is unavailable. Retry after unlocking the OS keyring. When creating a new vault, you can choose a master password.';
+  String get vaultUnavailable => 'Unable to open saved connections. Retry.';
 
   @override
   String get vaultMissingKey =>
-      'The system encryption key is unavailable. Restore access to the original OS keyring to unlock this vault.';
+      'The device encryption key is unavailable. Saved data has been kept.';
 
   @override
   String get vaultDamaged =>
@@ -707,15 +669,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get vaultWriteFailed =>
-      'Could not save. The previous saved version is retained.';
+      'Unable to save the connection. Previous data has been kept.';
 
   @override
   String get vaultBusy =>
-      'Storage is busy or was changed by another app instance. Lock it and unlock again before retrying.';
+      'This connection was changed in another app instance. Reopen it before editing.';
 
   @override
-  String get vaultExists =>
-      'Storage already exists. Unlock the existing storage.';
+  String get vaultExists => 'Saved data already exists. Reopen the server.';
 
   @override
   String get vaultWeakPassword =>
@@ -853,4 +814,43 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get inventoryNoPorts => 'No sockets were found';
+
+  @override
+  String get addServer => 'Add server';
+
+  @override
+  String get noServers => 'No servers yet';
+
+  @override
+  String get noServersHelp => 'Use + in the top right to add a server.';
+
+  @override
+  String get showPassword => 'Show password';
+
+  @override
+  String get hidePassword => 'Hide password';
+
+  @override
+  String get migrateConnection => 'Transfer saved connection';
+
+  @override
+  String get migrateConnectionHelp =>
+      'Enter your old master password once to transfer the saved connection. It will open automatically afterwards.';
+
+  @override
+  String get databaseOpenError =>
+      'Unable to open the local database. Your saved data has been kept.';
+
+  @override
+  String get settingsSaveError => 'Unable to save the setting. Try again.';
+
+  @override
+  String get draftSaveError =>
+      'Template could not be saved on this device. Retry before closing the app.';
+
+  @override
+  String get draftSaving => 'Saving template…';
+
+  @override
+  String get draftSaved => 'Template saved on this device';
 }

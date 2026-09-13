@@ -32,6 +32,11 @@
       "routes": 9,
       "rules": 5
     },
+    "calling_isolate_heartbeat": {
+      "ticks": 150,
+      "max_gap_ms": 17,
+      "limit_ms": 250
+    },
     "linux_agent": {
       "status": "PASS",
       "addresses": 4,
@@ -49,11 +54,5 @@
     "inventory_stall": "PASS",
     "cancel_inventory": "PASS",
     "only_read_commands": "PASS"
-  },
-  "versions": {
-    "openssh_server": "1:9.6p1-3ubuntu13.19",
-    "iproute2": "6.1.0-1ubuntu6.4",
-    "dartssh2": "4.1.0",
-    "fixture_python_cryptography": "41.0.7-4ubuntu0.4"
   }
 }

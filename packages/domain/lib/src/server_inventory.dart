@@ -1,5 +1,19 @@
 import 'network/ip_address.dart';
 
+/// Last successful inspection, retained offline without implying a live session.
+final class ServerInfo {
+  const ServerInfo({
+    required this.os,
+    required this.architecture,
+    required this.observedAt,
+    this.software,
+  });
+  final String os;
+  final String architecture;
+  final DateTime observedAt;
+  final ServerSoftwareInventory? software;
+}
+
 enum InventoryStatus {
   ok,
   unavailable,

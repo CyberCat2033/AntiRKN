@@ -30,7 +30,7 @@ allowed = {
     'network_inventory': {'antirkn_domain'},
     'profile_compiler': {'antirkn_domain', 'crypto', 'yaml', 'yaml_edit'},
     'design_system': {'flutter'},
-    'storage': {'antirkn_domain', 'shared_preferences', 'file_selector', 'flutter', 'cryptography', 'flutter_secure_storage', 'path_provider'},
+    'storage': {'antirkn_domain', 'shared_preferences', 'file_selector', 'flutter', 'cryptography', 'flutter_secure_storage', 'path_provider', 'sqlite3', 'sqlite3_flutter_libs'},
     'ssh_transport': {'antirkn_domain', 'antirkn_network_inventory', 'dartssh2'},
 }
 for package, dependencies in allowed.items():

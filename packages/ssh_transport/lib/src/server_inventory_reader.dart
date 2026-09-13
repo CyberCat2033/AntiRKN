@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:antirkn_domain/antirkn_domain.dart';
 
 import 'inventory_probes.dart';
+import 'parallel_reads.dart';
 
 /// All output is reduced to typed observations; stderr/configs/env are never kept.
 final class ServerInventoryReader {
@@ -25,7 +26,7 @@ final class ServerInventoryReader {
     ) async {
       cancellation.check();
       if ((elapsed?.call() ?? stopwatch.elapsed) >=
-          const Duration(seconds: 45)) {
+          const Duration(minutes: 5)) {
         return const InventoryValue.failure(InventoryStatus.timeout);
       }
       try {
@@ -59,13 +60,15 @@ final class ServerInventoryReader {
       }
     }
 
-    final facts = <ServerFact, InventoryValue<String>>{};
-    for (final entry in InventoryProbes.facts.entries) {
-      facts[entry.key] = await probe(
-        entry.value,
-        (raw) => parseFact(entry.key, raw),
-      );
-    }
+    final facts = Map.fromEntries(
+      await parallelReads(
+        InventoryProbes.facts.entries,
+        (entry) async => MapEntry(
+          entry.key,
+          await probe(entry.value, (raw) => parseFact(entry.key, raw)),
+        ),
+      ),
+    );
     final units = await probe(
       InventoryProbes.services,
       (s) => parseUnits(s, live: true),
@@ -124,23 +127,29 @@ final class ServerInventoryReader {
         }
       }
     }
-    for (final entry in InventoryProbes.binaries.entries) {
-      final presence = await probe(InventoryProbes.binaryPresence(entry.key), (
-        s,
-      ) {
-        if (!const {'@present', '@missing'}.contains(s.trim())) {
-          throw const FormatException('binary_presence');
-        }
-        return s.trim() == '@present';
-      });
+    final binaryResults = await parallelReads(
+      InventoryProbes.binaries.entries,
+      (entry) async {
+        final presence = await probe(
+          InventoryProbes.binaryPresence(entry.key),
+          (s) {
+            if (!const {'@present', '@missing'}.contains(s.trim())) {
+              throw const FormatException('binary_presence');
+            }
+            return s.trim() == '@present';
+          },
+        );
+        final version = presence.value == true
+            ? await probe(InventoryProbes.version(entry.key), parseVersion)
+            : null;
+        return (entry, presence, version);
+      },
+    );
+    for (final (entry, presence, version) in binaryResults) {
       if (presence.status != InventoryStatus.ok) {
         recordIssue(entry.value, presence.status);
       }
-      if (presence.value == true) {
-        final version = await probe(
-          InventoryProbes.version(entry.key),
-          parseVersion,
-        );
+      if (version != null) {
         if (version.status != InventoryStatus.ok) {
           recordIssue(entry.value, version.status, affectsPresence: false);
         }
@@ -167,21 +176,23 @@ final class ServerInventoryReader {
         ),
       );
     }
-    final sockets = <SocketInventory>[];
-    for (final protocol in SocketProtocol.values) {
-      for (final family in IpFamily.values) {
-        sockets.add(
-          SocketInventory(
-            protocol: protocol,
-            family: family,
-            result: await probe(
-              InventoryProbes.sockets(protocol, family),
-              (s) => parseSockets(s, protocol, family),
-            ),
+    final sockets = await parallelReads(
+      [
+        for (final protocol in SocketProtocol.values)
+          for (final family in IpFamily.values) (protocol, family),
+      ],
+      (pair) async {
+        final (protocol, family) = pair;
+        return SocketInventory(
+          protocol: protocol,
+          family: family,
+          result: await probe(
+            InventoryProbes.sockets(protocol, family),
+            (s) => parseSockets(s, protocol, family),
           ),
         );
-      }
-    }
+      },
+    );
     cancellation.check();
     return ServerSoftwareInventory(
       observedAt: started.toUtc(),
@@ -300,7 +311,9 @@ List<ContainerObservation> parseContainers(String raw) {
   for (final line in const LineSplitter().convert(raw)) {
     if (line.isEmpty) continue;
     final fields = line.split('\t');
-    if (fields.length != 3) throw const FormatException('container');
+    if (fields.length != 3 && fields.length != 4) {
+      throw const FormatException('container');
+    }
     final decoded = fields.map(jsonDecode).toList();
     if (decoded.any((v) => v is! String)) {
       throw const FormatException('container_fields');
@@ -308,9 +321,12 @@ List<ContainerObservation> parseContainers(String raw) {
     final id = decoded[0] as String,
         image = decoded[1] as String,
         state = decoded[2] as String;
+    final name = decoded.length == 4 ? decoded[3] as String : '';
     if (!RegExp(r'^[a-f0-9]{64}$').hasMatch(id) ||
         image.length > 256 ||
-        !RegExp(r'^[a-zA-Z0-9_./:@-]+$').hasMatch(image)) {
+        !RegExp(r'^[a-zA-Z0-9_./:@-]+$').hasMatch(image) ||
+        (name.isNotEmpty &&
+            !RegExp(r'^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,255}$').hasMatch(name))) {
       throw const FormatException('container_identity');
     }
     // Image family is an observation only: do not claim API/runtime compatibility.
@@ -322,15 +338,26 @@ List<ContainerObservation> parseContainers(String raw) {
         .split(':')
         .first
         .toLowerCase();
-    final component = switch (repository) {
-      '3x-ui' => VpnComponent.panel,
-      'xray' || 'xray-core' => VpnComponent.xray,
-      'trusttunnel' ||
-      'trusttunnel_endpoint' ||
-      'trusttunnel-endpoint' => VpnComponent.trustTunnel,
-      'amnezia-awg' || 'amneziawg' || 'amnezia-wg' => VpnComponent.amneziaWg,
-      _ => null,
-    };
+    // Official AmneziaWG 3.x still uses amnezia-awg2. A numeric
+    // suffix identifies the family only, never the protocol version.
+    final awgName = RegExp(r'^amnezia-awg(?:[1-9][0-9]*)?$');
+    final component =
+        awgName.hasMatch(repository) ||
+            awgName.hasMatch(name) ||
+            repository == 'amneziawg-go'
+        ? VpnComponent.amneziaWg
+        : switch (repository) {
+            '3x-ui' => VpnComponent.panel,
+            'xray' || 'xray-core' => VpnComponent.xray,
+            'trusttunnel' ||
+            'trusttunnel_endpoint' ||
+            'trusttunnel-endpoint' => VpnComponent.trustTunnel,
+            'amnezia-awg' ||
+            'amnezia-awg2' ||
+            'amneziawg' ||
+            'amnezia-wg' => VpnComponent.amneziaWg,
+            _ => null,
+          };
     if (component != null) {
       result.add(
         ContainerObservation(component, id, image, switch (state) {

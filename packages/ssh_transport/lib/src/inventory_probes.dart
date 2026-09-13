@@ -25,9 +25,12 @@ abstract final class InventoryProbes {
       'if ! command -v systemctl >/dev/null 2>&1; then printf "@unavailable\\n"; else systemctl list-unit-files --type=service --no-legend --no-pager --full; fi';
   static const containers =
       r'''if [ ! -S /var/run/docker.sock ]; then printf '@unavailable\n';
-elif [ ! -r /var/run/docker.sock ] || [ ! -w /var/run/docker.sock ]; then printf '@denied\n';
 elif ! command -v docker >/dev/null 2>&1; then printf '@denied\n';
-else DOCKER_CONTEXT= DOCKER_TLS_VERIFY= docker --host unix:///var/run/docker.sock ps --all --no-trunc --format '{{json .ID}}\t{{json .Image}}\t{{json .State}}'; fi''';
+elif [ -r /var/run/docker.sock ] && [ -w /var/run/docker.sock ]; then
+DOCKER_CONTEXT= DOCKER_TLS_VERIFY= docker --host unix:///var/run/docker.sock ps --all --no-trunc --format '{{json .ID}}\t{{json .Image}}\t{{json .State}}\t{{json .Names}}';
+elif command -v sudo >/dev/null 2>&1; then
+sudo -n -- docker --host unix:///var/run/docker.sock ps --all --no-trunc --format '{{json .ID}}\t{{json .Image}}\t{{json .State}}\t{{json .Names}}' 2>/dev/null || printf '@denied\n';
+else printf '@denied\n'; fi''';
   static const module = r'''if [ -d /sys/module/amneziawg ]; then
 if [ -r /sys/module/amneziawg/version ]; then cat /sys/module/amneziawg/version; else printf '@present\n'; fi
 else printf '@missing\n'; fi''';

@@ -35,6 +35,57 @@ Future<ServerSoftwareInventory> read(
 }).read(CancellationToken());
 
 void main() {
+  test(
+    'slow inspection survives the old deadline and uses at most three concurrent reads',
+    () async {
+      final responses = cleanResponses();
+      var active = 0, peak = 0;
+      final result = await ServerInventoryReader((command) async {
+        active++;
+        if (active > peak) peak = active;
+        await Future<void>.delayed(const Duration(milliseconds: 2));
+        active--;
+        return responses[command.substring(InventoryProbes.prefix.length)]!;
+      }, elapsed: () => const Duration(minutes: 2)).read(CancellationToken());
+      expect(
+        result.facts.values.every((v) => v.status == InventoryStatus.ok),
+        isTrue,
+      );
+      expect(
+        result.sockets.every((s) => s.result.status == InventoryStatus.ok),
+        isTrue,
+      );
+      expect(peak, 3);
+    },
+  );
+  test(
+    'official AWG 1/2/3 family is detected by image or container name without guessing version',
+    () async {
+      for (final image in [
+        'amnezia-awg:latest',
+        'amnezia-awg2:latest',
+        'amnezia-awg3:latest',
+        'amneziavpn/amneziawg-go:latest',
+        'sha256:${'b' * 64}',
+      ]) {
+        final responses = cleanResponses()
+          ..[InventoryProbes.containers] =
+              '${jsonEncode('a' * 64)}\t${jsonEncode(image)}\t"running"\t"amnezia-awg2"\n';
+        final result = await read(responses);
+        final awg = result.components.last;
+        expect(awg.presence, ComponentPresence.detected);
+        expect(awg.installations.single.version, isNull);
+        expect(awg.installations.single.state, ServiceState.running);
+      }
+      expect(parseVersion('amneziawg-tools v3.1.20260812'), '3.1.20260812');
+      expect(
+        parseContainers(
+          '${jsonEncode('a' * 64)}\t"alpine:latest"\t"running"\t"unrelated"',
+        ),
+        isEmpty,
+      );
+    },
+  );
   test('clean host absence is successful, not a failed check', () async {
     final result = await read(cleanResponses());
     expect(
@@ -164,7 +215,7 @@ void main() {
       final reader = ServerInventoryReader(
         (_) async {
           calls++;
-          time = time.add(const Duration(seconds: 46));
+          time = time.add(const Duration(minutes: 6));
           return 'x' * 65537;
         },
         clock: () => time,

@@ -12,6 +12,38 @@ void main() {
   ) async => const ProfileCompiler().preview(template: text, proxies: nodes);
 
   test(
+    'latest draft persists across a new controller; save errors retain draft and retry works',
+    () async {
+      final store = _Drafts();
+      final c = TemplateController(
+        source: '',
+        previewTemplate: preview,
+        draftStore: store,
+      );
+      c.edit('first');
+      c.edit('latest');
+      await c.persistDraft();
+      expect(await store.readDraft(), 'latest');
+      store.fail = true;
+      c.edit('retry me');
+      await c.persistDraft();
+      expect(c.draftSaveFailed, isTrue);
+      expect(c.source, 'retry me');
+      expect(await store.readDraft(), 'latest');
+      store.fail = false;
+      await c.persistDraft();
+      expect(c.draftSaveFailed, isFalse);
+      c.dispose();
+      final reopened = TemplateController(
+        source: (await store.readDraft())!,
+        previewTemplate: preview,
+      );
+      expect(reopened.source, 'retry me');
+      reopened.dispose();
+    },
+  );
+
+  test(
     'cancel and read failures retain edited source and previous preview',
     () async {
       Object? failure;
@@ -108,4 +140,16 @@ void main() {
       expect(controller.source, 'original');
     },
   );
+}
+
+class _Drafts implements TemplateDraftStore {
+  String? text;
+  bool fail = false;
+  @override
+  Future<String?> readDraft() async => text;
+  @override
+  Future<void> writeDraft(String source) async {
+    if (fail) throw StateError('fixture');
+    text = source;
+  }
 }

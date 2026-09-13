@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:antirkn_profile_compiler/antirkn_profile_compiler.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/foundation.dart';
@@ -18,7 +20,13 @@ class TemplateController extends ChangeNotifier {
     required this.source,
     required this.previewTemplate,
     this.pickTemplate,
+    this.draftStore,
   });
+  final TemplateDraftStore? draftStore;
+  bool savingDraft = false;
+  bool draftSaveFailed = false;
+  int _draftRevision = 0;
+  Future<void> _draftWrites = Future.value();
   final PreviewTemplate previewTemplate;
   final Future<ImportedTemplate?> Function()? pickTemplate;
   String source;
@@ -42,6 +50,7 @@ class TemplateController extends ChangeNotifier {
 
   void edit(String value) {
     source = value;
+    persistDraft();
     _changed();
   }
 
@@ -56,6 +65,7 @@ class TemplateController extends ChangeNotifier {
       // The selected content becomes an independent in-memory editor draft.
       source = imported.source;
       importedName = imported.name;
+      persistDraft();
       _changed();
       await refresh();
     } on FormatException catch (e) {
@@ -72,6 +82,28 @@ class TemplateController extends ChangeNotifier {
         notifyListeners();
       }
     }
+  }
+
+  Future<void> persistDraft() {
+    final store = draftStore;
+    if (store == null) return Future.value();
+    final text = source;
+    final revision = ++_draftRevision;
+    savingDraft = true;
+    draftSaveFailed = false;
+    if (!_disposed) notifyListeners();
+    _draftWrites = _draftWrites.then((_) async {
+      if (revision != _draftRevision) return;
+      try {
+        await store.writeDraft(text);
+      } catch (_) {
+        if (revision == _draftRevision) draftSaveFailed = true;
+      } finally {
+        if (revision == _draftRevision) savingDraft = false;
+        if (!_disposed) notifyListeners();
+      }
+    });
+    return _draftWrites;
   }
 
   void selectNodes(List<ProxyDescriptor> value) {
