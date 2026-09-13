@@ -324,7 +324,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get networkNotVerified =>
-      'Port use and TCP/UDP reachability have not been checked. Selecting an address does not apply any settings.';
+      'External TCP/UDP reachability has not been checked. Selecting an address does not apply any settings.';
 
   @override
   String networkObservedAt(String value) {
@@ -720,4 +720,137 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get vaultWeakPassword =>
       'Use matching passwords of 12 to 1024 characters.';
+
+  @override
+  String get networkExternal => 'External addresses';
+
+  @override
+  String get networkInternal => 'Internal addresses';
+
+  @override
+  String get networkExternalEmpty =>
+      'No public addresses were found on the interfaces.';
+
+  @override
+  String get networkInternalEmpty => 'No internal addresses were found.';
+
+  @override
+  String get networkClassHint =>
+      'External means public unicast; internal includes local and special ranges. This does not prove Internet reachability.';
+
+  @override
+  String get inventoryTitle => 'VPS software and resources';
+
+  @override
+  String get inventoryScope =>
+      'Checks cover standard binary paths, systemd units and recognized images in local Docker. Custom paths, renamed images and rootless Docker may require a separate check. Detection does not confirm protocol compatibility.';
+
+  @override
+  String get inventoryStale =>
+      'Previous observation. Refresh after connecting to get current data.';
+
+  @override
+  String get inventoryDetected => 'Detected';
+
+  @override
+  String get inventoryAbsent => 'Not found in checked locations';
+
+  @override
+  String get inventoryUnknown => 'Could not determine presence';
+
+  @override
+  String get inventoryPartial => 'Some checks were incomplete';
+
+  @override
+  String get inventoryUnavailable => 'Unavailable on this system';
+
+  @override
+  String get inventoryDenied => 'Insufficient access';
+
+  @override
+  String get inventoryFailed => 'Could not check';
+
+  @override
+  String get inventoryTimeout => 'Check timed out';
+
+  @override
+  String get inventoryInvalid => 'Unrecognized response';
+
+  @override
+  String get inventoryOutputLimit => 'Response exceeded the limit';
+
+  @override
+  String get inventoryOk => 'Checked';
+
+  @override
+  String get inventoryVersionUnknown => 'Version unknown';
+
+  @override
+  String inventoryVersion(String value) {
+    return 'Version: $value';
+  }
+
+  @override
+  String get inventoryBinary => 'Program file';
+
+  @override
+  String get inventoryKernelModule => 'Loaded kernel module';
+
+  @override
+  String get inventoryRunning => 'Active';
+
+  @override
+  String get inventoryStopped => 'Inactive';
+
+  @override
+  String get inventoryServiceFailed => 'Failed';
+
+  @override
+  String get inventoryStateUnknown => 'Runtime state unknown';
+
+  @override
+  String get inventoryKernel => 'Kernel';
+
+  @override
+  String get inventoryInit => 'PID 1';
+
+  @override
+  String get inventoryCpu => 'Online CPUs';
+
+  @override
+  String get inventoryMemory => 'Total RAM';
+
+  @override
+  String get inventoryAvailableMemory => 'Available RAM';
+
+  @override
+  String get inventoryDisk => 'Free space on /';
+
+  @override
+  String get inventoryUid => 'Effective UID';
+
+  @override
+  String get inventoryTools => 'System tools';
+
+  @override
+  String get inventoryToolsEmpty => 'None of the checked tools were found';
+
+  @override
+  String get inventoryPrivilegesHint =>
+      'UID and sudo availability are observations. Elevation for installation has not been tested.';
+
+  @override
+  String inventoryMiB(String value) {
+    return '$value MiB';
+  }
+
+  @override
+  String get inventoryPorts => 'Occupied ports';
+
+  @override
+  String get inventoryPortsHint =>
+      'TCP listeners and bound UDP sockets in the SSH network namespace. External reachability, firewall and dual-stack conflicts are not tested.';
+
+  @override
+  String get inventoryNoPorts => 'No sockets were found';
 }

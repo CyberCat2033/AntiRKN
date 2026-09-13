@@ -1,0 +1,28 @@
+{
+  "date": "2026-09-13",
+  "stage": "Read-only VPS software inventory and external/internal IP groups",
+  "verification": {
+    "result": "PASS",
+    "tests": 128,
+    "ru_en_messages": 250
+  },
+  "artifacts": {
+    "linux_x64_debug": {
+      "path": "apps/manager/build/linux/x64/debug/bundle/antirkn_manager",
+      "bytes": 53488,
+      "sha256": "6579ff5ddfbcc82d1852466370f9d32d5879acc9a31d084766d252a1a6f23ccd",
+      "build": "PASS",
+      "bundle_manifest_sha256": "40a491253778a8f817d1593a7c8fe5dad02b64b0d679344de6be32a0471f734c"
+    },
+    "android_arm64_debug": {
+      "path": "apps/manager/build/app/outputs/flutter-apk/app-debug.apk",
+      "bytes": 117989513,
+      "sha256": "e4aeabf0ed7c2655e6e388ef88595f9590400a1563a71f9742376d14453d02c0",
+      "build": "PASS"
+    }
+  },
+  "linux_launched_this_stage": false,
+  "android_installed_this_stage": false,
+  "windows_checked": false,
+  "owner_instruction": "Do not launch Linux; phone disconnected; power off after checks, report and commit"
+}

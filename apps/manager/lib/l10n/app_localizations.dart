@@ -653,7 +653,7 @@ abstract class AppLocalizations {
   /// No description provided for @networkNotVerified.
   ///
   /// In en, this message translates to:
-  /// **'Port use and TCP/UDP reachability have not been checked. Selecting an address does not apply any settings.'**
+  /// **'External TCP/UDP reachability has not been checked. Selecting an address does not apply any settings.'**
   String get networkNotVerified;
 
   /// No description provided for @networkObservedAt.
@@ -1351,6 +1351,252 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Use matching passwords of 12 to 1024 characters.'**
   String get vaultWeakPassword;
+
+  /// No description provided for @networkExternal.
+  ///
+  /// In en, this message translates to:
+  /// **'External addresses'**
+  String get networkExternal;
+
+  /// No description provided for @networkInternal.
+  ///
+  /// In en, this message translates to:
+  /// **'Internal addresses'**
+  String get networkInternal;
+
+  /// No description provided for @networkExternalEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No public addresses were found on the interfaces.'**
+  String get networkExternalEmpty;
+
+  /// No description provided for @networkInternalEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No internal addresses were found.'**
+  String get networkInternalEmpty;
+
+  /// No description provided for @networkClassHint.
+  ///
+  /// In en, this message translates to:
+  /// **'External means public unicast; internal includes local and special ranges. This does not prove Internet reachability.'**
+  String get networkClassHint;
+
+  /// No description provided for @inventoryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'VPS software and resources'**
+  String get inventoryTitle;
+
+  /// No description provided for @inventoryScope.
+  ///
+  /// In en, this message translates to:
+  /// **'Checks cover standard binary paths, systemd units and recognized images in local Docker. Custom paths, renamed images and rootless Docker may require a separate check. Detection does not confirm protocol compatibility.'**
+  String get inventoryScope;
+
+  /// No description provided for @inventoryStale.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous observation. Refresh after connecting to get current data.'**
+  String get inventoryStale;
+
+  /// No description provided for @inventoryDetected.
+  ///
+  /// In en, this message translates to:
+  /// **'Detected'**
+  String get inventoryDetected;
+
+  /// No description provided for @inventoryAbsent.
+  ///
+  /// In en, this message translates to:
+  /// **'Not found in checked locations'**
+  String get inventoryAbsent;
+
+  /// No description provided for @inventoryUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not determine presence'**
+  String get inventoryUnknown;
+
+  /// No description provided for @inventoryPartial.
+  ///
+  /// In en, this message translates to:
+  /// **'Some checks were incomplete'**
+  String get inventoryPartial;
+
+  /// No description provided for @inventoryUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable on this system'**
+  String get inventoryUnavailable;
+
+  /// No description provided for @inventoryDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'Insufficient access'**
+  String get inventoryDenied;
+
+  /// No description provided for @inventoryFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not check'**
+  String get inventoryFailed;
+
+  /// No description provided for @inventoryTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'Check timed out'**
+  String get inventoryTimeout;
+
+  /// No description provided for @inventoryInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Unrecognized response'**
+  String get inventoryInvalid;
+
+  /// No description provided for @inventoryOutputLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'Response exceeded the limit'**
+  String get inventoryOutputLimit;
+
+  /// No description provided for @inventoryOk.
+  ///
+  /// In en, this message translates to:
+  /// **'Checked'**
+  String get inventoryOk;
+
+  /// No description provided for @inventoryVersionUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Version unknown'**
+  String get inventoryVersionUnknown;
+
+  /// No description provided for @inventoryVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Version: {value}'**
+  String inventoryVersion(String value);
+
+  /// No description provided for @inventoryBinary.
+  ///
+  /// In en, this message translates to:
+  /// **'Program file'**
+  String get inventoryBinary;
+
+  /// No description provided for @inventoryKernelModule.
+  ///
+  /// In en, this message translates to:
+  /// **'Loaded kernel module'**
+  String get inventoryKernelModule;
+
+  /// No description provided for @inventoryRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Active'**
+  String get inventoryRunning;
+
+  /// No description provided for @inventoryStopped.
+  ///
+  /// In en, this message translates to:
+  /// **'Inactive'**
+  String get inventoryStopped;
+
+  /// No description provided for @inventoryServiceFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed'**
+  String get inventoryServiceFailed;
+
+  /// No description provided for @inventoryStateUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Runtime state unknown'**
+  String get inventoryStateUnknown;
+
+  /// No description provided for @inventoryKernel.
+  ///
+  /// In en, this message translates to:
+  /// **'Kernel'**
+  String get inventoryKernel;
+
+  /// No description provided for @inventoryInit.
+  ///
+  /// In en, this message translates to:
+  /// **'PID 1'**
+  String get inventoryInit;
+
+  /// No description provided for @inventoryCpu.
+  ///
+  /// In en, this message translates to:
+  /// **'Online CPUs'**
+  String get inventoryCpu;
+
+  /// No description provided for @inventoryMemory.
+  ///
+  /// In en, this message translates to:
+  /// **'Total RAM'**
+  String get inventoryMemory;
+
+  /// No description provided for @inventoryAvailableMemory.
+  ///
+  /// In en, this message translates to:
+  /// **'Available RAM'**
+  String get inventoryAvailableMemory;
+
+  /// No description provided for @inventoryDisk.
+  ///
+  /// In en, this message translates to:
+  /// **'Free space on /'**
+  String get inventoryDisk;
+
+  /// No description provided for @inventoryUid.
+  ///
+  /// In en, this message translates to:
+  /// **'Effective UID'**
+  String get inventoryUid;
+
+  /// No description provided for @inventoryTools.
+  ///
+  /// In en, this message translates to:
+  /// **'System tools'**
+  String get inventoryTools;
+
+  /// No description provided for @inventoryToolsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'None of the checked tools were found'**
+  String get inventoryToolsEmpty;
+
+  /// No description provided for @inventoryPrivilegesHint.
+  ///
+  /// In en, this message translates to:
+  /// **'UID and sudo availability are observations. Elevation for installation has not been tested.'**
+  String get inventoryPrivilegesHint;
+
+  /// No description provided for @inventoryMiB.
+  ///
+  /// In en, this message translates to:
+  /// **'{value} MiB'**
+  String inventoryMiB(String value);
+
+  /// No description provided for @inventoryPorts.
+  ///
+  /// In en, this message translates to:
+  /// **'Occupied ports'**
+  String get inventoryPorts;
+
+  /// No description provided for @inventoryPortsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'TCP listeners and bound UDP sockets in the SSH network namespace. External reachability, firewall and dual-stack conflicts are not tested.'**
+  String get inventoryPortsHint;
+
+  /// No description provided for @inventoryNoPorts.
+  ///
+  /// In en, this message translates to:
+  /// **'No sockets were found'**
+  String get inventoryNoPorts;
 }
 
 class _AppLocalizationsDelegate

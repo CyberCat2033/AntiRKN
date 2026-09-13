@@ -1,0 +1,40 @@
+{
+  "fixture": "Disposable Ubuntu 24.04; actual SSH, OS tools and sockets; no systemd PID 1 or Docker daemon inside",
+  "image": "ubuntu@sha256:224a1869083a311ef3f13648a154ba79832fbef6364d31493642ca03082da254",
+  "clean": {
+    "testuser": {
+      "status": "PASS",
+      "socket_count": 7
+    },
+    "root": {
+      "status": "PASS",
+      "socket_count": 7
+    }
+  },
+  "partial_installation": {
+    "testuser": {
+      "status": "PASS",
+      "socket_count": 7
+    },
+    "root": {
+      "status": "PASS",
+      "socket_count": 7
+    },
+    "disk-failure": "PASS",
+    "timeout": "PASS",
+    "large": "PASS",
+    "docker-denied": "PASS",
+    "refresh_same_ssh_session": "PASS",
+    "cancel_inventory": "PASS"
+  },
+  "fixture_config_hashes_unchanged": true,
+  "only_allowlisted_read_commands": true,
+  "inventory_command_count": 243,
+  "docker_metadata": {
+    "result": "PASS",
+    "source": "actual local Docker CLI/daemon; disposable unstarted Ubuntu image with AWG test tag",
+    "image_tag_is_not_binary_version": true,
+    "created_container_detected_as_inactive": true
+  },
+  "checked_at_utc": "2026-09-13T13:26:28Z"
+}

@@ -1,5 +1,7 @@
 enum IpFamily { ipv4, ipv6 }
 
+enum AddressClass { external, internal }
+
 enum IpCategory {
   publicUnicast,
   private,
@@ -18,6 +20,9 @@ final class IpAddress implements Comparable<IpAddress> {
 
   final IpFamily family;
   final List<int> bytes;
+  AddressClass get addressClass => category == IpCategory.publicUnicast
+      ? AddressClass.external
+      : AddressClass.internal;
 
   static IpAddress? tryParse(String value) {
     if (value.isEmpty || value.length > 45) return null;

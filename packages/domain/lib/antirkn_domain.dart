@@ -3,6 +3,7 @@ export 'src/network/network_inventory.dart';
 export 'src/network/address_selection.dart';
 export 'src/ssh.dart';
 export 'src/vault.dart';
+export 'src/server_inventory.dart';
 
 /// Identifies an already provisioned access. Compiling never creates credentials.
 final class AccessIdentity {

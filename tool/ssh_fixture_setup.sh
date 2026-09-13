@@ -50,7 +50,11 @@ cat > /usr/local/bin/antirkn-fixture-audit <<'AUDIT'
 set -euo pipefail
 case "$SSH_ORIGINAL_COMMAND" in
   'cat /etc/os-release'|'uname -m'|'ip -j -details address show'|'ip -j -4 route show table all'|'ip -j -6 route show table all'|'ip -j -4 rule show'|'ip -j -6 rule show') ;;
-  *) exit 125 ;;
+  *)
+    if [ -f /fixture-data/inventory_audit.py ]; then
+      exec python3 /fixture-data/inventory_audit.py
+    fi
+    exit 125 ;;
 esac
 printf '%s\n' "$SSH_ORIGINAL_COMMAND" >> /fixture-data/commands
 mode=''

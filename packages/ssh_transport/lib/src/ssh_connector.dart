@@ -9,6 +9,7 @@ import 'package:antirkn_network_inventory/antirkn_network_inventory.dart';
 import 'package:dartssh2/dartssh2.dart';
 import 'linux_agent.dart';
 import 'ubuntu_release.dart';
+import 'server_inventory_reader.dart';
 
 /// Public API exposes read-only inventory, never a shell or arbitrary command.
 final class DartSshConnector implements SshConnector {
@@ -256,6 +257,14 @@ final class _Connection implements SshConnection {
         os: os,
         architecture: architecture,
         network: network,
+        software: await ServerInventoryReader(
+          (command) => _read(
+            command,
+            cancellation,
+            limit: 65536,
+            timeout: const Duration(seconds: 4),
+          ),
+        ).read(cancellation),
       );
     } catch (error) {
       // Failed/cancelled command ends the transport, so retries use a new session.
@@ -272,9 +281,11 @@ final class _Connection implements SshConnection {
     String command,
     CancellationToken cancellation, {
     int limit = 1024 * 1024,
+    Duration? timeout,
   }) async {
     cancellation.check();
     SSHSession? session;
+    var acceptingSession = true;
     StreamSubscription<Uint8List>? out;
     StreamSubscription<Uint8List>? err;
     final output = BytesBuilder(copy: false);
@@ -288,7 +299,7 @@ final class _Connection implements SshConnection {
 
     void completeIfReady() {
       if (streamsEnded != 2 || !exitObserved || finished.isCompleted) return;
-      if (session!.exitCode != 0 || session.exitSignal != null) {
+      if (session!.exitCode != 0 || session!.exitSignal != null) {
         fail(const SshFailure(SshIssue.commandFailed));
       } else {
         try {
@@ -306,17 +317,30 @@ final class _Connection implements SshConnection {
 
     try {
       session = await cancellation.bind(
-        client.execute(command).timeout(commandTimeout),
+        client
+            .execute(command)
+            .then((opened) {
+              // A channel opened after timeout/cancellation still needs closing.
+              if (acceptingSession) {
+                session = opened;
+              } else {
+                opened.close();
+              }
+              return opened;
+            })
+            .timeout(timeout ?? commandTimeout),
       );
       // Attach error handling before any stream can complete.
-      final result = cancellation.bind(finished.future.timeout(commandTimeout));
+      final result = cancellation.bind(
+        finished.future.timeout(timeout ?? commandTimeout),
+      );
       unawaited(
         session!.waitForExit().then((_) {
           exitObserved = true;
           completeIfReady();
         }, onError: (Object _) => fail(const SshFailure(SshIssue.network))),
       );
-      out = session.stdout.listen(
+      out = session!.stdout.listen(
         (chunk) {
           if (finished.isCompleted) return;
           if (output.length + chunk.length > limit) {
@@ -328,7 +352,7 @@ final class _Connection implements SshConnection {
         onError: (Object _) => fail(const SshFailure(SshIssue.network)),
         onDone: streamEnded,
       );
-      err = session.stderr.listen(
+      err = session!.stderr.listen(
         (chunk) {
           errorBytes += chunk.length;
           if (errorBytes > 16384) fail(const SshFailure(SshIssue.outputLimit));
@@ -336,9 +360,10 @@ final class _Connection implements SshConnection {
         onError: (Object _) => fail(const SshFailure(SshIssue.network)),
         onDone: streamEnded,
       );
-      unawaited(session.stdin.close().catchError((Object _) {}));
+      unawaited(session!.stdin.close().catchError((Object _) {}));
       return await result;
     } finally {
+      acceptingSession = false;
       await out?.cancel();
       await err?.cancel();
       session?.close();

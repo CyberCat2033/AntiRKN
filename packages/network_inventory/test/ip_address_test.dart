@@ -5,6 +5,31 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'two display classes preserve public versus local and special ranges',
+    () {
+      for (final ip in ['8.8.8.8', '2606:4700:4700::1111']) {
+        expect(IpAddress.parse(ip).addressClass, AddressClass.external);
+      }
+      for (final ip in [
+        '10.0.0.1',
+        '127.0.0.1',
+        '169.254.1.2',
+        '100.64.0.1',
+        '192.0.2.1',
+        '0.0.0.0',
+        '224.0.0.1',
+        '::1',
+        'fe80::1',
+        'fd00::1',
+        '2001:db8::1',
+        '::',
+      ]) {
+        expect(IpAddress.parse(ip).addressClass, AddressClass.internal);
+      }
+    },
+  );
+
   test('canonical IPv6 compression, ties and embedded IPv4', () {
     for (final entry in {
       '0:0:0:0:0:0:0:0': '::',

@@ -121,6 +121,7 @@ final class ServerAddress {
   final String namespace;
   final IpAddress address;
   final List<AddressAssignment> assignments;
+  AddressClass get addressClass => address.addressClass;
   String get id =>
       jsonEncode([serverId, namespace, address.family.name, address.canonical]);
 }

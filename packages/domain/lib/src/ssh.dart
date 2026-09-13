@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'network/network_inventory.dart';
+import 'server_inventory.dart';
 
 enum SshAuthMethod { password, privateKey, agent }
 
@@ -192,10 +193,12 @@ final class ServerObservation {
     required this.os,
     required this.architecture,
     required this.network,
+    this.software,
   });
   final String os;
   final String architecture;
   final ServerNetworkInventory network;
+  final ServerSoftwareInventory? software;
 }
 
 abstract interface class SshConnection {

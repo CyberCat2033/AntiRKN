@@ -92,6 +92,13 @@ class ServerAddressPicker extends StatelessWidget {
       ),
       builder: (context) {
         final l = AppLocalizations.of(context);
+        final rows = <Object>[
+          for (final group in AddressClass.values)
+            if (choices.any((c) => c.address.addressClass == group)) ...[
+              group,
+              ...choices.where((c) => c.address.addressClass == group),
+            ],
+        ];
         return FractionallySizedBox(
           heightFactor: 0.85,
           child: Column(
@@ -123,9 +130,21 @@ class ServerAddressPicker extends StatelessWidget {
               Expanded(
                 child: ListView.builder(
                   key: ValueKey('address-options-${role.name}'),
-                  itemCount: choices.length,
+                  itemCount: rows.length,
                   itemBuilder: (context, index) {
-                    final choice = choices[index];
+                    final row = rows[index];
+                    if (row is AddressClass) {
+                      return Padding(
+                        padding: AppLayout.padding,
+                        child: Text(
+                          row == AddressClass.external
+                              ? l.networkExternal
+                              : l.networkInternal,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      );
+                    }
+                    final choice = row as AddressChoice;
                     return ListTile(
                       key: ValueKey('option-${choice.id}'),
                       enabled: choice.enabled,

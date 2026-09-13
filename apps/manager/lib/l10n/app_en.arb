@@ -113,7 +113,7 @@
   "networkAssigned": "Assigned on interface",
   "networkSampleSource": "Source: sample iproute2 data",
   "networkObservedSource": "Source: iproute2 observation",
-  "networkNotVerified": "Port use and TCP/UDP reachability have not been checked. Selecting an address does not apply any settings.",
+  "networkNotVerified": "External TCP/UDP reachability has not been checked. Selecting an address does not apply any settings.",
   "networkObservedAt": "Inventory loaded: {value}",
   "networkSshPeer": "SSH transport address (separate): {value}",
   "networkSummary": "{addresses} unique IPs · {routes} routes · {rules} policy rules",
@@ -280,5 +280,60 @@
   "vaultWriteFailed": "Could not save. The previous saved version is retained.",
   "vaultBusy": "Storage is busy or was changed by another app instance. Lock it and unlock again before retrying.",
   "vaultExists": "Storage already exists. Unlock the existing storage.",
-  "vaultWeakPassword": "Use matching passwords of 12 to 1024 characters."
+  "vaultWeakPassword": "Use matching passwords of 12 to 1024 characters.",
+  "networkExternal": "External addresses",
+  "networkInternal": "Internal addresses",
+  "networkExternalEmpty": "No public addresses were found on the interfaces.",
+  "networkInternalEmpty": "No internal addresses were found.",
+  "networkClassHint": "External means public unicast; internal includes local and special ranges. This does not prove Internet reachability.",
+  "inventoryTitle": "VPS software and resources",
+  "inventoryScope": "Checks cover standard binary paths, systemd units and recognized images in local Docker. Custom paths, renamed images and rootless Docker may require a separate check. Detection does not confirm protocol compatibility.",
+  "inventoryStale": "Previous observation. Refresh after connecting to get current data.",
+  "inventoryDetected": "Detected",
+  "inventoryAbsent": "Not found in checked locations",
+  "inventoryUnknown": "Could not determine presence",
+  "inventoryPartial": "Some checks were incomplete",
+  "inventoryUnavailable": "Unavailable on this system",
+  "inventoryDenied": "Insufficient access",
+  "inventoryFailed": "Could not check",
+  "inventoryTimeout": "Check timed out",
+  "inventoryInvalid": "Unrecognized response",
+  "inventoryOutputLimit": "Response exceeded the limit",
+  "inventoryOk": "Checked",
+  "inventoryVersionUnknown": "Version unknown",
+  "inventoryVersion": "Version: {value}",
+  "@inventoryVersion": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "inventoryBinary": "Program file",
+  "inventoryKernelModule": "Loaded kernel module",
+  "inventoryRunning": "Active",
+  "inventoryStopped": "Inactive",
+  "inventoryServiceFailed": "Failed",
+  "inventoryStateUnknown": "Runtime state unknown",
+  "inventoryKernel": "Kernel",
+  "inventoryInit": "PID 1",
+  "inventoryCpu": "Online CPUs",
+  "inventoryMemory": "Total RAM",
+  "inventoryAvailableMemory": "Available RAM",
+  "inventoryDisk": "Free space on /",
+  "inventoryUid": "Effective UID",
+  "inventoryTools": "System tools",
+  "inventoryToolsEmpty": "None of the checked tools were found",
+  "inventoryPrivilegesHint": "UID and sudo availability are observations. Elevation for installation has not been tested.",
+  "inventoryMiB": "{value} MiB",
+  "@inventoryMiB": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "inventoryPorts": "Occupied ports",
+  "inventoryPortsHint": "TCP listeners and bound UDP sockets in the SSH network namespace. External reachability, firewall and dual-stack conflicts are not tested.",
+  "inventoryNoPorts": "No sockets were found"
 }

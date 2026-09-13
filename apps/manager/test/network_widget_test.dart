@@ -55,6 +55,60 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Future<Finder> option(
+    WidgetTester tester,
+    AddressRole role,
+    String host,
+  ) async {
+    final list = find.descendant(
+      of: find.byKey(ValueKey('address-options-${role.name}')),
+      matching: find.byType(Scrollable),
+    );
+    tester.state<ScrollableState>(list).position.jumpTo(0);
+    await tester.pumpAndSettle();
+    final tile = find.widgetWithText(ListTile, host);
+    await tester.scrollUntilVisible(tile, 200, scrollable: list);
+    await tester.pumpAndSettle();
+    return tile;
+  }
+
+  for (final language in ['en', 'ru']) {
+    testWidgets(
+      'public IPs precede internal IPs without losing categories: $language',
+      (tester) async {
+        await start(
+          tester,
+          TestInventoryReader(() async => testInventory()),
+          language: language,
+        );
+        final external = find.byKey(const ValueKey('addresses-external'));
+        final internal = find.byKey(const ValueKey('addresses-internal'));
+        await tester.scrollUntilVisible(
+          external,
+          350,
+          scrollable: find.descendant(
+            of: find.byKey(const PageStorageKey('network-workbench')),
+            matching: find.byType(Scrollable),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          tester.getTopLeft(external).dy,
+          lessThan(tester.getTopLeft(internal).dy),
+        );
+        expect(
+          tester.getTopLeft(find.text('93.184.215.15').last).dy,
+          lessThan(tester.getTopLeft(internal).dy),
+        );
+        expect(
+          tester.getTopLeft(find.text('10.10.0.2').last).dy,
+          greaterThan(tester.getTopLeft(internal).dy),
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets('packaged sample is readable by the application asset loader', (
     tester,
   ) async {
@@ -72,7 +126,7 @@ void main() {
     expect(find.byType(ServerAddressPicker), findsNWidgets(2));
     expect(find.textContaining('Sample data for one VPS'), findsOneWidget);
     await open(tester, AddressRole.listener);
-    final wildcard = find.widgetWithText(ListTile, '0.0.0.0');
+    final wildcard = await option(tester, AddressRole.listener, '0.0.0.0');
     expect(tester.widget<ListTile>(wildcard).enabled, isTrue);
     await tester.tap(wildcard);
     await tester.pumpAndSettle();
@@ -85,9 +139,9 @@ void main() {
     );
     await open(tester, AddressRole.endpoint);
     expect(find.widgetWithText(ListTile, '0.0.0.0'), findsNothing);
-    final local = find.widgetWithText(ListTile, '10.10.0.2');
+    final local = await option(tester, AddressRole.endpoint, '10.10.0.2');
     expect(tester.widget<ListTile>(local).enabled, isFalse);
-    final public = find.widgetWithText(ListTile, '93.184.215.15');
+    final public = await option(tester, AddressRole.endpoint, '93.184.215.15');
     await tester.scrollUntilVisible(
       public,
       200,
@@ -113,7 +167,7 @@ void main() {
       final reader = TestInventoryReader(() async => testInventory());
       final languages = await start(tester, reader);
       await open(tester, AddressRole.listener);
-      await tester.tap(find.widgetWithText(ListTile, '0.0.0.0'));
+      await tester.tap(await option(tester, AddressRole.listener, '0.0.0.0'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Templates'));
       await tester.pumpAndSettle();

@@ -325,7 +325,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get networkNotVerified =>
-      'Занятость портов и доступность TCP/UDP не проверены. Выбор адреса не применяет настройки.';
+      'Внешняя доступность TCP/UDP не проверена. Выбор адреса не применяет настройки.';
 
   @override
   String networkObservedAt(String value) {
@@ -721,4 +721,137 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get vaultWeakPassword =>
       'Введите совпадающие пароли длиной от 12 до 1024 символов.';
+
+  @override
+  String get networkExternal => 'Внешние адреса';
+
+  @override
+  String get networkInternal => 'Внутренние адреса';
+
+  @override
+  String get networkExternalEmpty =>
+      'Публичные адреса на интерфейсах не обнаружены.';
+
+  @override
+  String get networkInternalEmpty => 'Внутренние адреса не обнаружены.';
+
+  @override
+  String get networkClassHint =>
+      'Внешние — публичные unicast-адреса; внутренние включают локальные и специальные диапазоны. Это не подтверждает доступность из интернета.';
+
+  @override
+  String get inventoryTitle => 'ПО и ресурсы VPS';
+
+  @override
+  String get inventoryScope =>
+      'Проверяются стандартные пути программ, службы systemd и известные образы локального Docker. Нестандартные пути, переименованные образы и rootless Docker могут потребовать отдельной проверки. Обнаружение не подтверждает совместимость протокола.';
+
+  @override
+  String get inventoryStale =>
+      'Предыдущий снимок. Для актуальных данных обновите сведения после подключения.';
+
+  @override
+  String get inventoryDetected => 'Обнаружен';
+
+  @override
+  String get inventoryAbsent => 'Не обнаружен в проверенных местах';
+
+  @override
+  String get inventoryUnknown => 'Не удалось определить наличие';
+
+  @override
+  String get inventoryPartial => 'Часть проверок не выполнена';
+
+  @override
+  String get inventoryUnavailable => 'Недоступно в этой системе';
+
+  @override
+  String get inventoryDenied => 'Недостаточно прав';
+
+  @override
+  String get inventoryFailed => 'Не удалось проверить';
+
+  @override
+  String get inventoryTimeout => 'Время проверки истекло';
+
+  @override
+  String get inventoryInvalid => 'Нераспознанный ответ';
+
+  @override
+  String get inventoryOutputLimit => 'Ответ превысил ограничение';
+
+  @override
+  String get inventoryOk => 'Проверено';
+
+  @override
+  String get inventoryVersionUnknown => 'Версия неизвестна';
+
+  @override
+  String inventoryVersion(String value) {
+    return 'Версия: $value';
+  }
+
+  @override
+  String get inventoryBinary => 'Файл программы';
+
+  @override
+  String get inventoryKernelModule => 'Загруженный модуль ядра';
+
+  @override
+  String get inventoryRunning => 'Активен';
+
+  @override
+  String get inventoryStopped => 'Неактивен';
+
+  @override
+  String get inventoryServiceFailed => 'Ошибка службы';
+
+  @override
+  String get inventoryStateUnknown => 'Состояние выполнения неизвестно';
+
+  @override
+  String get inventoryKernel => 'Ядро';
+
+  @override
+  String get inventoryInit => 'Процесс PID 1';
+
+  @override
+  String get inventoryCpu => 'Активные CPU';
+
+  @override
+  String get inventoryMemory => 'Всего RAM';
+
+  @override
+  String get inventoryAvailableMemory => 'Доступно RAM';
+
+  @override
+  String get inventoryDisk => 'Свободно на /';
+
+  @override
+  String get inventoryUid => 'Эффективный UID';
+
+  @override
+  String get inventoryTools => 'Системные инструменты';
+
+  @override
+  String get inventoryToolsEmpty => 'Проверяемые инструменты не обнаружены';
+
+  @override
+  String get inventoryPrivilegesHint =>
+      'UID и наличие sudo — сведения текущего сеанса. Повышение прав для установки не проверялось.';
+
+  @override
+  String inventoryMiB(String value) {
+    return '$value МиБ';
+  }
+
+  @override
+  String get inventoryPorts => 'Занятые порты';
+
+  @override
+  String get inventoryPortsHint =>
+      'TCP-listener и привязанные UDP-сокеты в сетевом пространстве SSH-сеанса. Внешняя доступность, firewall и конфликты dual-stack не проверяются.';
+
+  @override
+  String get inventoryNoPorts => 'Сокеты не обнаружены';
 }

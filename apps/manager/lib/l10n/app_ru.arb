@@ -113,7 +113,7 @@
   "networkAssigned": "Назначен интерфейсу",
   "networkSampleSource": "Источник: тестовые данные iproute2",
   "networkObservedSource": "Источник: данные iproute2",
-  "networkNotVerified": "Занятость портов и доступность TCP/UDP не проверены. Выбор адреса не применяет настройки.",
+  "networkNotVerified": "Внешняя доступность TCP/UDP не проверена. Выбор адреса не применяет настройки.",
   "networkObservedAt": "Каталог загружен: {value}",
   "networkSshPeer": "Адрес SSH-соединения (отдельно): {value}",
   "networkSummary": "Уникальных IP: {addresses} · Маршрутов: {routes} · Правил маршрутизации: {rules}",
@@ -280,5 +280,60 @@
   "vaultWriteFailed": "Не удалось сохранить. Предыдущая сохранённая версия оставлена.",
   "vaultBusy": "Хранилище занято или изменено другим экземпляром приложения. Заблокируйте и разблокируйте его перед повторной попыткой.",
   "vaultExists": "Хранилище уже существует. Разблокируйте существующее.",
-  "vaultWeakPassword": "Введите совпадающие пароли длиной от 12 до 1024 символов."
+  "vaultWeakPassword": "Введите совпадающие пароли длиной от 12 до 1024 символов.",
+  "networkExternal": "Внешние адреса",
+  "networkInternal": "Внутренние адреса",
+  "networkExternalEmpty": "Публичные адреса на интерфейсах не обнаружены.",
+  "networkInternalEmpty": "Внутренние адреса не обнаружены.",
+  "networkClassHint": "Внешние — публичные unicast-адреса; внутренние включают локальные и специальные диапазоны. Это не подтверждает доступность из интернета.",
+  "inventoryTitle": "ПО и ресурсы VPS",
+  "inventoryScope": "Проверяются стандартные пути программ, службы systemd и известные образы локального Docker. Нестандартные пути, переименованные образы и rootless Docker могут потребовать отдельной проверки. Обнаружение не подтверждает совместимость протокола.",
+  "inventoryStale": "Предыдущий снимок. Для актуальных данных обновите сведения после подключения.",
+  "inventoryDetected": "Обнаружен",
+  "inventoryAbsent": "Не обнаружен в проверенных местах",
+  "inventoryUnknown": "Не удалось определить наличие",
+  "inventoryPartial": "Часть проверок не выполнена",
+  "inventoryUnavailable": "Недоступно в этой системе",
+  "inventoryDenied": "Недостаточно прав",
+  "inventoryFailed": "Не удалось проверить",
+  "inventoryTimeout": "Время проверки истекло",
+  "inventoryInvalid": "Нераспознанный ответ",
+  "inventoryOutputLimit": "Ответ превысил ограничение",
+  "inventoryOk": "Проверено",
+  "inventoryVersionUnknown": "Версия неизвестна",
+  "inventoryVersion": "Версия: {value}",
+  "@inventoryVersion": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "inventoryBinary": "Файл программы",
+  "inventoryKernelModule": "Загруженный модуль ядра",
+  "inventoryRunning": "Активен",
+  "inventoryStopped": "Неактивен",
+  "inventoryServiceFailed": "Ошибка службы",
+  "inventoryStateUnknown": "Состояние выполнения неизвестно",
+  "inventoryKernel": "Ядро",
+  "inventoryInit": "Процесс PID 1",
+  "inventoryCpu": "Активные CPU",
+  "inventoryMemory": "Всего RAM",
+  "inventoryAvailableMemory": "Доступно RAM",
+  "inventoryDisk": "Свободно на /",
+  "inventoryUid": "Эффективный UID",
+  "inventoryTools": "Системные инструменты",
+  "inventoryToolsEmpty": "Проверяемые инструменты не обнаружены",
+  "inventoryPrivilegesHint": "UID и наличие sudo — сведения текущего сеанса. Повышение прав для установки не проверялось.",
+  "inventoryMiB": "{value} МиБ",
+  "@inventoryMiB": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "inventoryPorts": "Занятые порты",
+  "inventoryPortsHint": "TCP-listener и привязанные UDP-сокеты в сетевом пространстве SSH-сеанса. Внешняя доступность, firewall и конфликты dual-stack не проверяются.",
+  "inventoryNoPorts": "Сокеты не обнаружены"
 }

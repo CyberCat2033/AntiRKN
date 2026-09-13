@@ -1,0 +1,17 @@
+{
+  "purpose": "Read-only version flag reference sources, not installed server artifacts",
+  "sources": [
+    {
+      "url": "https://raw.githubusercontent.com/MHSanaei/3x-ui/v3.7.0/main.go",
+      "sha256": "c0a64d16794d9fd41396fa29e15c516112f85266c51d24a01daeaa63f79991b1"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/TrustTunnel/TrustTunnel/v1.1.0/endpoint/src/main.rs",
+      "sha256": "1bf81bf57068770af67136826ae28c1129c1c9a918650c392894eb02f5144458"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/amnezia-vpn/amneziawg-tools/5e882890fbca2316f8ca40e992789d24f67f0118/src/wg.c",
+      "sha256": "5624f068c750e37eb244b1839be84c8c7c2d6f3d3140aceb3de1d9749e066ed0"
+    }
+  ]
+}

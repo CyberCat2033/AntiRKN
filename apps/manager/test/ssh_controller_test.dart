@@ -7,8 +7,57 @@ import 'package:antirkn_manager/ssh/ssh_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'ssh_support.dart';
+import 'network_support.dart';
 
 void main() {
+  test(
+    'software refresh replaces partial snapshot, failed refresh preserves it, lock clears it',
+    () async {
+      final vault = FakeVault(), connector = FakeConnector();
+      final c = controller(vault, connector);
+      addTearDown(c.dispose);
+      addTearDown(c.network.dispose);
+      await prepare(c);
+      ServerObservation snapshot(InventoryStatus status) => ServerObservation(
+        os: 'Ubuntu 24.04',
+        architecture: 'x86_64',
+        network: testInventory(),
+        software: ServerSoftwareInventory(
+          observedAt: DateTime.utc(2026),
+          facts: {
+            ServerFact.freeDiskKiB: status == InventoryStatus.ok
+                ? const InventoryValue.ok('1234')
+                : InventoryValue.failure(status),
+          },
+          components: [],
+          sockets: [],
+        ),
+      );
+      connector.connection.reader = () async =>
+          snapshot(InventoryStatus.denied);
+      final work = c.connect();
+      await Future<void>.delayed(Duration.zero);
+      c.decide(true);
+      await work;
+      expect(c.stage, SshStage.connected);
+      expect(
+        c.observation!.software!.facts[ServerFact.freeDiskKiB]!.status,
+        InventoryStatus.denied,
+      );
+      connector.connection.reader = () async => snapshot(InventoryStatus.ok);
+      await c.refresh();
+      final previous = c.observation;
+      expect(previous!.software!.facts[ServerFact.freeDiskKiB]!.value, '1234');
+      connector.connection.reader = () async =>
+          throw const SshFailure(SshIssue.network);
+      await c.refresh();
+      expect(c.observation, same(previous));
+      c.lock();
+      expect(c.observation, isNull);
+      expect(c.network.inventory, isNull);
+    },
+  );
+
   for (final saveFirst in [false, true]) {
     test(
       'changing host requests its own key (save first: $saveFirst)',
