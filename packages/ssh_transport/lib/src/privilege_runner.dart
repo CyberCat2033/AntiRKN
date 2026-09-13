@@ -13,6 +13,7 @@ final class PrivilegeRunner {
   final String? password;
   Future<void> _tail = Future.value();
   SshFailure? _failure;
+  SshIssue? get failure => _failure?.issue;
 
   Future<PrivilegeCheck> check() async {
     if (!validSudoPassword(password)) {

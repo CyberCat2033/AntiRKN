@@ -58,6 +58,8 @@ class FakeKeyPicker implements PrivateKeyFilePicker {
 }
 
 class FakeConnection implements SshConnection {
+  @override
+  RunnerTransport? runner;
   int reads = 0;
   bool lastUseSudo = false;
   String? lastSudoPassword;

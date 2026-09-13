@@ -8,6 +8,7 @@ import 'network_controller.dart';
 import 'network_strings.dart';
 import '../ssh/ssh_controller.dart';
 import '../ssh/ssh_panel.dart';
+import '../runner/runner_panel.dart';
 import '../ssh/server_inventory_panel.dart';
 
 class NetworkWorkbench extends StatelessWidget {
@@ -35,6 +36,10 @@ class NetworkWorkbench extends StatelessWidget {
           if (ssh != null) ...[
             SshPanel(controller: ssh!, motion: motion),
             const SizedBox(height: AppLayout.gap),
+            if (ssh!.hasSavedProfile) ...[
+              RunnerPanel(controller: ssh!.runner, motion: motion),
+              const SizedBox(height: AppLayout.gap),
+            ],
             if (ssh!.software case final software?) ...[
               ServerInventoryPanel(
                 inventory: software,

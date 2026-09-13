@@ -13,9 +13,10 @@ import 'server_inventory_reader.dart';
 import 'parallel_reads.dart';
 import 'command_executor.dart';
 import 'privilege_runner.dart';
+import 'runner_transport.dart';
 import 'inventory_probes.dart';
 
-/// Public API exposes read-only inventory, never a shell or arbitrary command.
+/// Public API exposes inventory and typed runner operations, never a shell.
 final class DirectSshConnector implements SshConnector {
   const DirectSshConnector({
     this.connectTimeout = const Duration(seconds: 60),
@@ -314,6 +315,8 @@ final class _Connection implements SshConnection {
   final SSHSocket socket;
   final Duration commandTimeout;
   late final _executor = SshCommandExecutor(client, commandTimeout);
+  @override
+  late final RunnerTransport runner = SshRunnerTransport(_executor);
   bool _closed = false;
   bool _observing = false;
   @override
@@ -374,19 +377,21 @@ final class _Connection implements SshConnection {
         source: NetworkSource.iproute2,
         sshPeer: peer,
       );
+      final software = await ServerInventoryReader((command) async {
+        final raw = await _read(command, cancellation, limit: 65536);
+        if (useSudo &&
+            raw.trim() == '@denied' &&
+            InventoryProbes.canElevate(command)) {
+          return privileges.read(command);
+        }
+        return raw;
+      }).read(cancellation);
       return ServerObservation(
         os: os,
         architecture: architecture,
         network: network,
-        software: await ServerInventoryReader((command) async {
-          final raw = await _read(command, cancellation, limit: 65536);
-          if (useSudo &&
-              raw.trim() == '@denied' &&
-              InventoryProbes.canElevate(command)) {
-            return privileges.read(command);
-          }
-          return raw;
-        }).read(cancellation),
+        software: software,
+        privilegeIssue: privileges.failure,
       );
     } catch (error) {
       // Failed/cancelled command ends the transport, so retries use a new session.

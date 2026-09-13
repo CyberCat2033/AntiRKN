@@ -24,6 +24,48 @@ void main() {
   });
 
   test(
+    'connect checks SSH password before any prompt; refresh reveals failures',
+    () async {
+      expect(c.privileges!.granted, isTrue);
+      expect(connector.connection.lastSudoPassword, c.password.text);
+      expect(c.showPrivilegePrompt, isFalse);
+      var attempts = 0;
+      connector.connection.privilegeChecker = (_, _) async {
+        attempts++;
+        return const PrivilegeCheck(PrivilegeStatus.authenticationFailed);
+      };
+      await c.refresh();
+      expect(c.showPrivilegePrompt, isTrue);
+      await c.refresh();
+      expect(attempts, 1); // No background retry of a rejected credential.
+      c.sudoPassword.text = 'new-fixture-password';
+      expect(c.showPrivilegePrompt, isTrue);
+      connector.connection.privilegeChecker = (_, _) async =>
+          const PrivilegeCheck(PrivilegeStatus.sudoWithPassword);
+      await c.checkPrivileges();
+      expect(c.showPrivilegePrompt, isFalse);
+      expect(c.stage, SshStage.connected);
+      connector.connection.privilegeChecker = (_, _) async =>
+          const PrivilegeCheck(PrivilegeStatus.authenticationFailed);
+      await c.refresh();
+      expect(c.showPrivilegePrompt, isTrue);
+    },
+  );
+
+  test('failure of a later protected probe reopens the prompt', () async {
+    connector.connection.reader = () async => ServerObservation(
+      os: c.observation!.os,
+      architecture: c.observation!.architecture,
+      network: c.observation!.network,
+      privilegeIssue: SshIssue.sudoAuthenticationFailed,
+    );
+    await c.refresh();
+    expect(c.showPrivilegePrompt, isTrue);
+    expect(c.privileges!.status, PrivilegeStatus.authenticationFailed);
+    expect(c.stage, SshStage.connected);
+  });
+
+  test(
     'connection loss during password save cannot leave the UI busy',
     () async {
       c.sudoPassword.text = 'new-fixture-password';

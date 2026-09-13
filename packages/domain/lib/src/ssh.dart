@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'runner.dart';
 
 import 'network/network_inventory.dart';
 import 'server_inventory.dart';
@@ -256,14 +257,17 @@ final class ServerObservation {
     required this.architecture,
     required this.network,
     this.software,
+    this.privilegeIssue,
   });
   final String os;
   final String architecture;
   final ServerNetworkInventory network;
   final ServerSoftwareInventory? software;
+  final SshIssue? privilegeIssue;
 }
 
 abstract interface class SshConnection {
+  RunnerTransport? get runner;
   Future<ServerObservation> observe(
     CancellationToken cancellation, {
     bool useSudo = false,

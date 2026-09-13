@@ -22,3 +22,6 @@ id_ed25519*
 *.db-shm
 *.db-wal
 device-key.json
+
+__pycache__/
+*.pyc

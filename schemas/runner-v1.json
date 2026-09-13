@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "request": {
+    "type": "object",
+    "required": ["version", "action"],
+    "properties": {
+      "version": {"type": "integer", "enum": [1]},
+      "action": {"type": "string", "enum": ["list", "status", "submit", "cancel"]},
+      "id": {"type": "string", "pattern": "^[a-f0-9]{32}$"},
+      "kind": {"type": "string", "enum": ["diagnostic"]},
+      "count": {"type": "integer", "minimum": 1, "maximum": 60},
+      "interval": {"type": "integer", "minimum": 1, "maximum": 5},
+      "cursor": {"type": "integer", "minimum": 0, "maximum": 2147483647}
+    },
+    "actions": {
+      "list": ["version", "action"],
+      "status": ["version", "action", "id", "cursor"],
+      "submit": ["version", "action", "id", "kind", "count", "interval"],
+      "cancel": ["version", "action", "id"]
+    }
+  },
+  "states": ["planned", "running", "succeeded", "failed", "partially_applied", "cancelled", "needs_attention"],
+  "terminal": ["succeeded", "failed", "partially_applied", "cancelled", "needs_attention"],
+  "events": ["planned", "running", "sample", "recovered", "cancel_requested", "cancelled", "succeeded", "failed"],
+  "codes": ["ok", "busy", "conflict", "missing", "invalid", "incompatible", "capacity", "failed"],
+  "maxRequestBytes": 4096,
+  "maxEvents": 256,
+  "maxJobs": 1000,
+  "pageSize": 100
+}

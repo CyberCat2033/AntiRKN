@@ -1,0 +1,36 @@
+{
+  "checked_at_utc": "2026-09-13T21:22:50.977825Z",
+  "fixture": "Disposable QEMU/KVM Ubuntu 24.04.5 x86_64; real systemd, OpenSSH and sudo",
+  "image_sha256": "612b2c0cc1bc413a6cb8c38fd611794caf0f2b436c50013d8b3794db12ad7354",
+  "runner_release": "2e9584b0e470e98be42cdeefde6863921bdfa286d0a59bd6519cf2479fe9cd42",
+  "results": {
+    "read_only_inspect_missing": true,
+    "no_bootstrap_before_plan": true,
+    "install_root_verified_worker": true,
+    "repeat_install_preserves_worker": true,
+    "stale_plan_rejected": true,
+    "unprivileged_inspection": true,
+    "ssh_password_sudo": true,
+    "sudo_password_then_rpc_stdin": true,
+    "wrong_sudo_no_rpc_payload": true,
+    "sudo_failure_preserves_ssh": true,
+    "nopasswd_rpc": true,
+    "disconnect_reconnect_missing_events": true,
+    "real_diagnostic_completed": true,
+    "same_id_no_second_execution": true,
+    "changed_request_same_id_rejected": true,
+    "two_connections_exclusive_job": true,
+    "cancel_at_checkpoint": true,
+    "worker_crash_checkpoint_recovery": true,
+    "vm_reboot_ssh_restored": true,
+    "systemd_boot_job_recovery": true,
+    "private_server_journal": true
+  },
+  "runtime_versions": [
+    "openssh-server 1:9.6p1-3ubuntu13.19",
+    "python3 3.12.3-0ubuntu2.1",
+    "sudo 1.9.15p5-3ubuntu5.24.04.2",
+    "systemd 255.4-1ubuntu8.17",
+    "3.45.1"
+  ]
+}

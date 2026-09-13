@@ -1,0 +1,16 @@
+{
+  "checked_at_utc": "2026-09-13T21:34:07.207291Z",
+  "runner_release": "2e9584b0e470e98be42cdeefde6863921bdfa286d0a59bd6519cf2479fe9cd42",
+  "results": {
+    "password_sudo_installer_stdin": true,
+    "installer_wrong_password_single_attempt": true,
+    "other_distribution_precondition": true,
+    "server_rechecks_os_before_mutation": true,
+    "guard_rejection_preserves_configs": true,
+    "external_unit_change_detected": true,
+    "external_unit_not_overwritten": true,
+    "fixture_state_restored": true,
+    "cancel_before_send": true,
+    "cancelled_request_has_no_server_effect": true
+  }
+}

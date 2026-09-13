@@ -396,6 +396,7 @@ class _SshPanelState extends State<SshPanel> {
               ),
             ),
             if (!c.settingsExpanded &&
+                c.showPrivilegePrompt &&
                 (c.stage == SshStage.connected ||
                     c.stage == SshStage.checkingPrivileges ||
                     (c.stage == SshStage.reading && c.privileges != null))) ...[

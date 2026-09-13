@@ -1,0 +1,133 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:antirkn_domain/antirkn_domain.dart';
+import 'command_executor.dart';
+import 'privilege_runner.dart';
+import 'runner_bundle.g.dart';
+
+/// Only the bundled installer and schema-validated RPC reach this adapter.
+final class SshRunnerTransport implements RunnerTransport {
+  const SshRunnerTransport(this.executor);
+  final SshCommandExecutor executor;
+  @override
+  String get bundledRelease => runnerRelease;
+  static String quote(String text) => "'${text.replaceAll("'", "'\\''")}'";
+  static String python(String source) =>
+      '/usr/bin/python3 -I -c ${quote(source)}';
+
+  @override
+  Future<RunnerInstallation> inspect(CancellationToken cancellation) async {
+    final result = await executor.execute(
+      python('$runnerInspector\nprint(json.dumps(inspect_runner()))'),
+      cancellation,
+      limit: 8192,
+    );
+    if (!result.succeeded) throw const RunnerFailure(RunnerIssue.prerequisites);
+    try {
+      return RunnerInstallation.fromJson(decodeRunnerObject(result.output));
+    } catch (_) {
+      throw const RunnerFailure(RunnerIssue.invalidResponse);
+    }
+  }
+
+  @override
+  Future<RunnerInstallation> install(
+    RunnerInstallation plan,
+    CancellationToken cancellation, {
+    String? sudoPassword,
+  }) async {
+    if (!plan.supported) throw const RunnerFailure(RunnerIssue.prerequisites);
+    if (plan.state == 'conflict') {
+      throw const RunnerFailure(RunnerIssue.conflict);
+    }
+    if (plan.release != null && plan.release != bundledRelease) {
+      throw const RunnerFailure(RunnerIssue.incompatible);
+    }
+    final result = await _privileged(
+      python(runnerInstaller),
+      jsonEncode({
+        'fingerprint': plan.fingerprint,
+        'bundle': jsonDecode(runnerBundle),
+      }),
+      cancellation,
+      sudoPassword: sudoPassword,
+      timeout: const Duration(minutes: 2),
+    );
+    if (!result.succeeded) throw const RunnerFailure(RunnerIssue.installFailed);
+    try {
+      final installed = RunnerInstallation.fromJson(
+        decodeRunnerObject(result.output),
+      );
+      if (installed.release != bundledRelease || !installed.active) {
+        throw const FormatException('install_not_confirmed');
+      }
+      return installed;
+    } catch (_) {
+      throw const RunnerFailure(RunnerIssue.installFailed);
+    }
+  }
+
+  @override
+  Future<RunnerResponse> request(
+    RunnerRequest request,
+    CancellationToken cancellation, {
+    String? sudoPassword,
+  }) async {
+    validateRunnerRequest(request.json);
+    final result = await _privileged(
+      '/usr/bin/python3 -I /usr/local/lib/antirkn-runner/v1/runner.py rpc',
+      jsonEncode(request.json),
+      cancellation,
+      sudoPassword: sudoPassword,
+    );
+    try {
+      return RunnerResponse.fromJson(decodeRunnerObject(result.output));
+    } catch (_) {
+      throw const RunnerFailure(RunnerIssue.invalidResponse);
+    }
+  }
+
+  Future<RemoteCommandResult> _privileged(
+    String command,
+    String input,
+    CancellationToken cancellation, {
+    String? sudoPassword,
+    Duration? timeout,
+  }) async {
+    final uid = await executor.execute('id -u', cancellation, limit: 128);
+    if (!uid.succeeded || !RegExp(r'^[0-9]+$').hasMatch(uid.output.trim())) {
+      throw const SshFailure(SshIssue.commandFailed);
+    }
+    final root = uid.output.trim() == '0';
+    if (!root && !validSudoPassword(sudoPassword)) {
+      throw const SshFailure(SshIssue.invalidSudoPassword);
+    }
+    final secret = !root && sudoPassword?.isNotEmpty == true
+        ? sudoPassword
+        : null;
+    final result = await executor.execute(
+      root
+          ? command
+          : PrivilegeRunner.command(command, withPassword: secret != null),
+      cancellation,
+      sudoPassword: secret,
+      input: Uint8List.fromList(utf8.encode(input)),
+      inputPrompt: '__ANTIRKN_RUNNER_INPUT__',
+      timeout: timeout,
+      limit: 512 * 1024,
+    );
+    if (!result.succeeded && !result.inputSent) {
+      if (root) throw const RunnerFailure(RunnerIssue.unavailable);
+      throw SshFailure(switch (sudoFailureStatus(result)) {
+        PrivilegeStatus.passwordRequired => SshIssue.sudoPasswordRequired,
+        PrivilegeStatus.authenticationFailed =>
+          SshIssue.sudoAuthenticationFailed,
+        PrivilegeStatus.terminalRequired => SshIssue.sudoTerminalRequired,
+        PrivilegeStatus.unavailable => SshIssue.sudoUnavailable,
+        _ => SshIssue.sudoDenied,
+      });
+    }
+    return result;
+  }
+}

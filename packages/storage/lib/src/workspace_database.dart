@@ -103,6 +103,7 @@ Future<SecretKeyData> _deviceKey(Directory directory) async {
 final class WorkspaceDatabase
     implements
         ServerRepository,
+        RunnerJournalStore,
         SettingsStore,
         TemplateDraftStore,
         LanguagePreferenceStore {
@@ -305,38 +306,44 @@ final class WorkspaceDatabase
       writeSetting('language', language.name);
 
   @override
-  Future<String?> readDraft() => _serial(() async {
-    final rows = _db.select(
-      "SELECT * FROM documents WHERE id = 'template-draft'",
-    );
+  Future<String?> readDraft() => _readDocument('template-draft');
+  @override
+  Future<void> writeDraft(String source) =>
+      _writeDocument('template-draft', source);
+  @override
+  Future<String?> readRunnerJournal(String serverId) =>
+      _readDocument('runner/$serverId');
+  @override
+  Future<void> writeRunnerJournal(String serverId, String source) =>
+      _writeDocument('runner/$serverId', source);
+
+  Future<String?> _readDocument(String id) => _serial(() async {
+    final rows = _db.select('SELECT * FROM documents WHERE id=?', [id]);
     if (rows.isEmpty) return null;
     return _decrypt(
-      'template-draft',
+      id,
       rows.single['revision'] as int,
       rows.single['payload'] as Uint8List,
     );
   });
-  @override
-  Future<void> writeDraft(String source) => _serial(() async {
+  Future<void> _writeDocument(String id, String source) => _serial(() async {
     if (utf8.encode(source).length > 256 * 1024) {
       throw const VaultFailure(VaultIssue.writeFailed);
     }
-    final rows = _db.select(
-      "SELECT revision FROM documents WHERE id = 'template-draft'",
-    );
+    final rows = _db.select('SELECT revision FROM documents WHERE id=?', [id]);
     final expected = rows.isEmpty ? 0 : rows.single['revision'] as int;
     final revision = expected + 1;
-    final payload = await _encrypt('template-draft', revision, source);
+    final payload = await _encrypt(id, revision, source);
     _transaction(() {
-      final current = _db.select(
-        "SELECT revision FROM documents WHERE id = 'template-draft'",
-      );
+      final current = _db.select('SELECT revision FROM documents WHERE id=?', [
+        id,
+      ]);
       if ((current.isEmpty ? 0 : current.single['revision']) != expected) {
         throw const VaultFailure(VaultIssue.busy);
       }
       _db.execute(
-        "INSERT INTO documents VALUES ('template-draft', ?, ?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload, revision=excluded.revision",
-        [payload, revision],
+        'INSERT INTO documents VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload, revision=excluded.revision',
+        [id, payload, revision],
       );
     });
   });

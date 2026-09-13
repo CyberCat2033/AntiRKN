@@ -5,6 +5,7 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
 
 import '../network/network_controller.dart';
+import '../runner/runner_controller.dart';
 
 enum SshStage {
   idle,
@@ -38,6 +39,25 @@ class SshController extends ChangeNotifier {
     this.agentAvailable = false,
     this.repository,
   }) {
+    runner = RunnerController(
+      serverId: serverId,
+      store: repository is RunnerJournalStore
+          ? repository as RunnerJournalStore
+          : null,
+      transport: () =>
+          stage == SshStage.connected &&
+              !settingsExpanded &&
+              !vaultBusy &&
+              !needsPrivilegeInput
+          ? _connection?.runner
+          : null,
+      identity: () => unlocked && _vault!.profile?.hostKey != null
+          ? '${_vault!.profile!.host}|${_vault!.profile!.hostKey!.fingerprint}'
+          : null,
+      password: () => isRoot ? null : _effectiveSudoPassword,
+      accessFailure: recordPrivilegeFailure,
+    );
+    runner.addListener(_notify);
     for (final field in fields) {
       field.addListener(_edited);
     }
@@ -56,6 +76,7 @@ class SshController extends ChangeNotifier {
   final NetworkController network;
   final String serverId;
   final ServerRepository? repository;
+  late final RunnerController runner;
   List<SavedServer> jumpCandidates = [];
   String? jumpServerId;
   SshProfile? verifyingProfile;
@@ -84,12 +105,54 @@ class SshController extends ChangeNotifier {
   final passphrase = TextEditingController();
   final sudoPassword = TextEditingController();
   PrivilegeCheck? privileges;
+  bool needsPrivilegeInput = false;
+  bool get showPrivilegePrompt => needsPrivilegeInput && !isRoot;
+
+  void _acceptPrivileges(PrivilegeCheck checked) {
+    privileges = checked;
+    needsPrivilegeInput = !checked.granted;
+    _notify();
+  }
+
+  void recordPrivilegeFailure(SshIssue issue) {
+    final status = switch (issue) {
+      SshIssue.sudoPasswordRequired => PrivilegeStatus.passwordRequired,
+      SshIssue.sudoAuthenticationFailed => PrivilegeStatus.authenticationFailed,
+      SshIssue.sudoDenied => PrivilegeStatus.denied,
+      SshIssue.sudoUnavailable => PrivilegeStatus.unavailable,
+      SshIssue.sudoTerminalRequired => PrivilegeStatus.terminalRequired,
+      SshIssue.invalidSudoPassword => PrivilegeStatus.invalidPassword,
+      _ => null,
+    };
+    if (status != null) _acceptPrivileges(PrivilegeCheck(status));
+  }
+
+  Future<void> _automaticPrivileges(
+    SshConnection connection,
+    CancellationToken cancellation,
+  ) async {
+    // A rejected credential is retried only after the user submits the form.
+    if (needsPrivilegeInput) return;
+    stage = SshStage.checkingPrivileges;
+    _notify();
+    final checked = await connection.checkPrivileges(
+      cancellation,
+      sudoPassword: isRoot ? null : _effectiveSudoPassword,
+    );
+    cancellation.check();
+    if (_disposed || _connection != connection) return;
+    _acceptPrivileges(checked);
+  }
+
   String _lastSudoDraft = '';
   bool get isRoot =>
       observation?.software?.facts[ServerFact.uid]?.value == '0' ||
       privileges?.status == PrivilegeStatus.root;
   bool get canCheckPrivileges =>
-      stage == SshStage.connected && !vaultBusy && !settingsExpanded;
+      stage == SshStage.connected &&
+      !runner.busy &&
+      !vaultBusy &&
+      !settingsExpanded;
   String? get _effectiveSudoPassword {
     if (sudoPassword.text.isNotEmpty) return sudoPassword.text;
     final profile = _vault?.profile;
@@ -150,7 +213,8 @@ class SshController extends ChangeNotifier {
       stage == SshStage.verifying ||
       stage == SshStage.reading ||
       stage == SshStage.checkingPrivileges;
-  bool get editing => unlocked && !busy && !vaultBusy && !picking;
+  bool get editing =>
+      unlocked && !busy && !runner.busy && !vaultBusy && !picking;
   bool get hasSavedProfile => unlocked && _vault!.profile != null;
   String get displayName =>
       unlocked ? _vault!.profile?.displayName ?? host.text : '';
@@ -199,6 +263,7 @@ class SshController extends ChangeNotifier {
           return;
         }
         _restore();
+        await runner.restoreLocal();
         jumpCandidates = await repository?.listServers() ?? [];
         initialised = true;
       }
@@ -466,17 +531,24 @@ class SshController extends ChangeNotifier {
           onError: (Object _) => _ended(connection),
         ),
       );
+      await _automaticPrivileges(connection, cancellation);
       stage = SshStage.reading;
       _notify();
-      final next = await connection.observe(cancellation);
+      final next = await connection.observe(
+        cancellation,
+        useSudo: privileges?.granted == true && !isRoot,
+        sudoPassword: _effectiveSudoPassword,
+      );
       if (_disposed || generation != _generation || cancellation.isCancelled) {
         return;
       }
       observation = next;
+      if (next.privilegeIssue case final issue?) recordPrivilegeFailure(issue);
       network.accept(next.network);
       stage = SshStage.connected;
       settingsExpanded = false;
       await _remember(next);
+      runner.connectionReady();
     } on SshFailure catch (e) {
       if (!_disposed && generation == _generation) {
         error = e.issue;
@@ -553,6 +625,7 @@ class SshController extends ChangeNotifier {
   void _ended(SshConnection connection) {
     if (_disposed || _connection != connection) return;
     _connection = null;
+    runner.disconnected();
     privileges = null;
     if (!busy) {
       stage = SshStage.idle;
@@ -569,7 +642,7 @@ class SshController extends ChangeNotifier {
     final connection = _connection;
     if (!canCheckPrivileges || connection == null) return;
     if (!validSudoPassword(_effectiveSudoPassword)) {
-      privileges = const PrivilegeCheck(PrivilegeStatus.invalidPassword);
+      _acceptPrivileges(const PrivilegeCheck(PrivilegeStatus.invalidPassword));
       _notify();
       return;
     }
@@ -608,7 +681,7 @@ class SshController extends ChangeNotifier {
         sudoPassword: isRoot ? null : secret,
       );
       if (_disposed || generation != _generation) return;
-      privileges = checked;
+      _acceptPrivileges(checked);
       if (checked.granted) {
         stage = SshStage.reading;
         _notify();
@@ -619,10 +692,16 @@ class SshController extends ChangeNotifier {
         );
         if (_disposed || generation != _generation) return;
         observation = next;
+        if (next.privilegeIssue case final issue?) {
+          recordPrivilegeFailure(issue);
+        }
         network.accept(next.network);
         await _remember(next);
       }
-      if (!_disposed && generation == _generation) stage = SshStage.connected;
+      if (!_disposed && generation == _generation) {
+        stage = SshStage.connected;
+        runner.connectionReady();
+      }
     } on SshFailure catch (e) {
       if (!_disposed && generation == _generation) error = e.issue;
       connection.close();
@@ -643,7 +722,9 @@ class SshController extends ChangeNotifier {
 
   Future<void> refresh() async {
     final connection = _connection;
-    if (busy || vaultBusy || connection == null || !unlocked) return;
+    if (busy || runner.busy || vaultBusy || connection == null || !unlocked) {
+      return;
+    }
     final generation = _generation;
     final cancellation = CancellationToken();
     _cancellation = cancellation;
@@ -651,6 +732,9 @@ class SshController extends ChangeNotifier {
     error = null;
     _notify();
     try {
+      await _automaticPrivileges(connection, cancellation);
+      stage = SshStage.reading;
+      _notify();
       final next = await connection.observe(
         cancellation,
         useSudo: privileges?.granted == true && !isRoot,
@@ -660,9 +744,13 @@ class SshController extends ChangeNotifier {
           generation == _generation &&
           !cancellation.isCancelled) {
         observation = next;
+        if (next.privilegeIssue case final issue?) {
+          recordPrivilegeFailure(issue);
+        }
         network.accept(next.network);
         stage = SshStage.connected;
         await _remember(next);
+        runner.connectionReady();
       }
     } on SshFailure catch (e) {
       if (!_disposed && generation == _generation) error = e.issue;
@@ -681,11 +769,13 @@ class SshController extends ChangeNotifier {
   }
 
   void disconnect() {
+    runner.disconnected();
     _generation++;
     _cancellation?.cancel();
     _connection?.close();
     _connection = null;
     privileges = null;
+    needsPrivilegeInput = false;
     decide(false);
     _decision = null;
     challenge = null;
@@ -759,6 +849,8 @@ class SshController extends ChangeNotifier {
 
   @override
   void dispose() {
+    runner.removeListener(_notify);
+    runner.dispose();
     _disposed = true;
     lock();
     _clock?.cancel();

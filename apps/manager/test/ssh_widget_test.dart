@@ -68,6 +68,12 @@ void main() {
         expect(find.text('Ubuntu 24.04'), findsOneWidget);
         expect(find.textContaining('SHA256:fixture'), findsNothing);
         final sudoField = find.byKey(const ValueKey('sudo-password'));
+        expect(sudoField, findsNothing);
+        expect(c.privileges!.granted, isTrue);
+        connector.connection.privilegeChecker = (_, _) async =>
+            const PrivilegeCheck(PrivilegeStatus.authenticationFailed);
+        await c.refresh();
+        await tester.pumpAndSettle();
         expect(sudoField, findsOneWidget);
         expect(tester.widget<TextField>(sudoField).obscureText, isTrue);
         final checkAccess = find.byKey(const ValueKey('sudo-check'));
@@ -75,6 +81,13 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(checkAccess);
         await tester.pumpAndSettle();
+        expect(sudoField, findsOneWidget);
+        connector.connection.privilegeChecker = (_, _) async =>
+            const PrivilegeCheck(PrivilegeStatus.sudoWithoutPassword);
+        await tester.tap(checkAccess);
+        await tester.pumpAndSettle();
+        expect(sudoField, findsNothing);
+        expect(find.byKey(const ValueKey('sudo-check')), findsNothing);
         expect(c.privileges!.status, PrivilegeStatus.sudoWithoutPassword);
         expect(connector.connection.lastUseSudo, isTrue);
         expect(tester.takeException(), isNull);

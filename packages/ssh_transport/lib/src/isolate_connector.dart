@@ -4,6 +4,7 @@ import 'dart:isolate';
 import 'package:antirkn_domain/antirkn_domain.dart';
 
 import 'ssh_connector.dart';
+import 'runner_bundle.g.dart';
 
 /// The socket, handshake, signing, rekeying and inventory stay off the UI isolate.
 /// Only typed observations and host-key decisions cross this boundary.
@@ -37,7 +38,7 @@ final class DartSshConnector implements SshConnector {
         onExit: bridge.events.sendPort,
       );
       await cancellation.bind(bridge.ready.future.timeout(connectTimeout));
-      await cancellation.bind(bridge.request('connect', (profile, jumpHosts)));
+      await cancellation.bind(bridge._request('connect', (profile, jumpHosts)));
       cancellation.check();
       bridge.verifier = null;
       bridge.jumpVerifier = null;
@@ -49,7 +50,44 @@ final class DartSshConnector implements SshConnector {
   }
 }
 
-final class _WorkerConnection implements SshConnection {
+final class _WorkerConnection implements SshConnection, RunnerTransport {
+  @override
+  RunnerTransport get runner => this;
+  @override
+  String get bundledRelease => runnerRelease;
+  @override
+  Future<RunnerInstallation> inspect(CancellationToken cancellation) async {
+    cancellation.check();
+    return (await cancellation.bind(_request('runnerInspect', null)))
+        as RunnerInstallation;
+  }
+
+  @override
+  Future<RunnerInstallation> install(
+    RunnerInstallation plan,
+    CancellationToken cancellation, {
+    String? sudoPassword,
+  }) async {
+    cancellation.check();
+    return (await cancellation.bind(
+          _request('runnerInstall', (plan, sudoPassword)),
+        ))
+        as RunnerInstallation;
+  }
+
+  @override
+  Future<RunnerResponse> request(
+    RunnerRequest value,
+    CancellationToken cancellation, {
+    String? sudoPassword,
+  }) async {
+    cancellation.check();
+    return (await cancellation.bind(
+          _request('runnerRequest', (value, sudoPassword)),
+        ))
+        as RunnerResponse;
+  }
+
   _WorkerConnection(this.verifier, this.jumpVerifier) {
     events.listen(_receive);
     // Startup can fail before connect begins waiting for ready.
@@ -74,6 +112,9 @@ final class _WorkerConnection implements SshConnection {
         if (!ready.isCompleted) ready.complete();
       case ('result', final int id, final Object? value):
         pending.remove(id)?.complete(value);
+        if (connectionEnded && pending.isEmpty) close();
+      case ('runnerFailure', final int id, final RunnerIssue issue):
+        pending.remove(id)?.completeError(RunnerFailure(issue));
         if (connectionEnded && pending.isEmpty) close();
       case ('failure', final int id, final SshIssue issue):
         pending.remove(id)?.completeError(SshFailure(issue));
@@ -107,7 +148,7 @@ final class _WorkerConnection implements SshConnection {
     }
   }
 
-  Future<Object?> request(String operation, Object? payload) {
+  Future<Object?> _request(String operation, Object? payload) {
     if (closed) throw const SshFailure(SshIssue.disconnected);
     final id = sequence++;
     final response = Completer<Object?>();
@@ -125,7 +166,7 @@ final class _WorkerConnection implements SshConnection {
     try {
       cancellation.check();
       return (await cancellation.bind(
-            request('observe', (useSudo, sudoPassword)),
+            _request('observe', (useSudo, sudoPassword)),
           ))
           as ServerObservation;
     } catch (_) {
@@ -141,7 +182,7 @@ final class _WorkerConnection implements SshConnection {
   }) async {
     try {
       cancellation.check();
-      return (await cancellation.bind(request('privileges', sudoPassword)))
+      return (await cancellation.bind(_request('privileges', sudoPassword)))
           as PrivilegeCheck;
     } catch (_) {
       close();
@@ -247,6 +288,34 @@ void _runWorker((SendPort, Duration, Duration) input) {
               sudoPassword: sudoPassword,
             );
             events.send(('result', id, observation));
+          case 'runnerInspect':
+            events.send((
+              'result',
+              id,
+              await connection!.runner!.inspect(cancellation),
+            ));
+          case 'runnerInstall':
+            final (plan, secret) = payload as (RunnerInstallation, String?);
+            events.send((
+              'result',
+              id,
+              await connection!.runner!.install(
+                plan,
+                cancellation,
+                sudoPassword: secret,
+              ),
+            ));
+          case 'runnerRequest':
+            final (request, secret) = payload as (RunnerRequest, String?);
+            events.send((
+              'result',
+              id,
+              await connection!.runner!.request(
+                request,
+                cancellation,
+                sudoPassword: secret,
+              ),
+            ));
           case 'privileges':
             final result = await connection!.checkPrivileges(
               cancellation,
@@ -255,11 +324,15 @@ void _runWorker((SendPort, Duration, Duration) input) {
             events.send(('result', id, result));
         }
       } catch (error) {
-        events.send((
-          'failure',
-          id,
-          error is SshFailure ? error.issue : SshIssue.network,
-        ));
+        events.send(
+          error is RunnerFailure
+              ? ('runnerFailure', id, error.issue)
+              : (
+                  'failure',
+                  id,
+                  error is SshFailure ? error.issue : SshIssue.network,
+                ),
+        );
       }
     }
   });

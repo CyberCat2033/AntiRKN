@@ -922,7 +922,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Use up to 1024 characters without line breaks or NUL.';
 
   @override
-  String get privilegesCheck => 'Check access and refresh details';
+  String get privilegesCheck => 'Confirm password';
 
   @override
   String get privilegesChecking => 'Checking administrative access…';
@@ -940,5 +940,132 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get privilegesScope =>
-      'This checks the effective UID and retries restricted software reads. Permission is checked for each command; installation requires a separate plan.';
+      'Enter the sudo password to continue. It will be saved encrypted on confirmation.';
+
+  @override
+  String get runnerTitle => 'Server jobs';
+
+  @override
+  String get runnerHelp =>
+      'A server check reads uptime and available disk space 10 times, at two-second intervals. Its progress is saved on the server.';
+
+  @override
+  String get runnerPrepare => 'Set up server jobs';
+
+  @override
+  String get runnerStart => 'Run server check';
+
+  @override
+  String get runnerPlanTitle => 'Server change plan';
+
+  @override
+  String get runnerPlanBody =>
+      'Install the bundled job executor, create its private journal directory, and enable its systemd service at startup. If this exact version is already installed, start the service. Requires existing Python 3.8+ with SQLite and systemd 235+. No packages will be updated.';
+
+  @override
+  String get runnerPlanRelease => 'Bundle SHA-256';
+
+  @override
+  String get runnerApply => 'Apply plan';
+
+  @override
+  String get runnerNotNow => 'Not now';
+
+  @override
+  String get runnerPending =>
+      'The submission is saved locally; its server result needs checking.';
+
+  @override
+  String get runnerRetry => 'Check and retry this request';
+
+  @override
+  String get runnerConnectionLost =>
+      'Connection lost. The server job may still be running. Reconnect to retrieve its result.';
+
+  @override
+  String get runnerNotRunning =>
+      'The worker has not confirmed that it is running. Refresh its status or apply the setup plan.';
+
+  @override
+  String get runnerCancelRequested =>
+      'Cancellation requested; waiting for a safe stopping point.';
+
+  @override
+  String get runnerCancel => 'Cancel server job';
+
+  @override
+  String get runnerEventsTruncated =>
+      'Older events have been rotated on the server. The current checkpoint is available.';
+
+  @override
+  String get runnerJournal => 'Job events';
+
+  @override
+  String get runnerHistory => 'Recent jobs';
+
+  @override
+  String get runnerPrerequisites =>
+      'This runner requires Ubuntu x86_64, a running systemd 235+, and Python 3.8+ with SQLite. No changes were applied.';
+
+  @override
+  String get runnerConflict =>
+      'The server state conflicts with this plan or request. Refresh the details before continuing.';
+
+  @override
+  String get runnerIncompatible =>
+      'The installed runner version is incompatible with this build.';
+
+  @override
+  String get runnerInstallFailed =>
+      'Setup could not be confirmed. Some changes may have been applied. Refresh the server state before retrying.';
+
+  @override
+  String get runnerInvalidResponse =>
+      'The runner returned an invalid response. Check the saved result before retrying.';
+
+  @override
+  String get runnerUnavailable =>
+      'The job service is unavailable. Check the SSH connection and administrative access.';
+
+  @override
+  String get runnerStorage =>
+      'The local job journal could not be saved or restored. Check local storage before retrying.';
+
+  @override
+  String get runnerBusy =>
+      'Another server job is active. Wait for it to finish.';
+
+  @override
+  String get runnerMissing => 'This request has not been found on the server.';
+
+  @override
+  String get runnerCapacity =>
+      'The server job journal has reached its capacity.';
+
+  @override
+  String get runnerPlanned => 'Queued';
+
+  @override
+  String get runnerRunning => 'Running';
+
+  @override
+  String get runnerSucceeded => 'Completed';
+
+  @override
+  String get runnerCancelled => 'Cancelled';
+
+  @override
+  String get runnerFailed => 'Failed';
+
+  @override
+  String get runnerPartial => 'Partially applied';
+
+  @override
+  String get runnerAttention => 'Needs attention';
+
+  @override
+  String get runnerSample => 'Server check passed';
+
+  @override
+  String get runnerRecovered => 'Resumed from a saved checkpoint';
 }

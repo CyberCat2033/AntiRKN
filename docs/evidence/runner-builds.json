@@ -1,0 +1,20 @@
+{
+  "checked_at_utc": "2026-09-13T21:35:39.101026+00:00",
+  "artifacts": {
+    "linux_debug": {
+      "path": "apps/manager/build/linux/x64/debug/bundle/antirkn_manager",
+      "sha256": "9fffcfee576434e574553b9b3cc8214dffa856e18bc973d1a78545ecfddd3d13",
+      "build": "PASS"
+    },
+    "android_arm64_debug": {
+      "path": "apps/manager/build/app/outputs/flutter-apk/app-debug.apk",
+      "sha256": "88f970e5e146f578e998e9fe6476805d128dac3fc35feacf75b9673e27295d60",
+      "build": "PASS"
+    }
+  },
+  "runtime": {
+    "linux_gui": "not_run",
+    "android": "phone_disconnected_by_owner; no install or runtime checks",
+    "windows": "build_and_runtime_not_run"
+  }
+}

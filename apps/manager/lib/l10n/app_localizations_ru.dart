@@ -925,7 +925,7 @@ class AppLocalizationsRu extends AppLocalizations {
       'Допустимо не более 1024 символов, без переносов строк и NUL.';
 
   @override
-  String get privilegesCheck => 'Проверить права и обновить сведения';
+  String get privilegesCheck => 'Подтвердить пароль';
 
   @override
   String get privilegesChecking => 'Проверка административных прав…';
@@ -943,5 +943,132 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get privilegesScope =>
-      'Проверяется фактический UID и повторяется чтение недоступных сведений о ПО. Разрешение проверяется для каждой команды; установка требует отдельного плана.';
+      'Введите пароль sudo для продолжения. При подтверждении он будет сохранён зашифрованным.';
+
+  @override
+  String get runnerTitle => 'Серверные задания';
+
+  @override
+  String get runnerHelp =>
+      'Проверка сервера считывает время работы и свободное место 10 раз с интервалом две секунды. Прогресс сохраняется на сервере.';
+
+  @override
+  String get runnerPrepare => 'Настроить серверные задания';
+
+  @override
+  String get runnerStart => 'Запустить проверку сервера';
+
+  @override
+  String get runnerPlanTitle => 'План изменений сервера';
+
+  @override
+  String get runnerPlanBody =>
+      'Установить встроенный исполнитель заданий, создать закрытый каталог журнала и включить службу systemd с автозапуском. Если эта версия уже установлена, запустить службу. Нужны установленные Python 3.8+ с SQLite и systemd 235+. Обновление пакетов не требуется.';
+
+  @override
+  String get runnerPlanRelease => 'SHA-256 сборки';
+
+  @override
+  String get runnerApply => 'Применить план';
+
+  @override
+  String get runnerNotNow => 'Не сейчас';
+
+  @override
+  String get runnerPending =>
+      'Запрос сохранён локально; результат на сервере требует проверки.';
+
+  @override
+  String get runnerRetry => 'Проверить и повторить этот запрос';
+
+  @override
+  String get runnerConnectionLost =>
+      'Связь потеряна. Задание на сервере может продолжать работу. Подключитесь для получения результата.';
+
+  @override
+  String get runnerNotRunning =>
+      'Исполнитель не подтвердил работу. Обновите сведения или примените план настройки.';
+
+  @override
+  String get runnerCancelRequested =>
+      'Отмена запрошена; ожидается безопасная точка остановки.';
+
+  @override
+  String get runnerCancel => 'Отменить серверное задание';
+
+  @override
+  String get runnerEventsTruncated =>
+      'Старые события удалены при ротации на сервере. Текущая контрольная точка доступна.';
+
+  @override
+  String get runnerJournal => 'События задания';
+
+  @override
+  String get runnerHistory => 'Последние задания';
+
+  @override
+  String get runnerPrerequisites =>
+      'Этому исполнителю нужны Ubuntu x86_64, работающий systemd 235+ и Python 3.8+ с SQLite. Изменения не применялись.';
+
+  @override
+  String get runnerConflict =>
+      'Состояние сервера не соответствует плану или запросу. Обновите сведения перед продолжением.';
+
+  @override
+  String get runnerIncompatible =>
+      'Установленная версия исполнителя несовместима с этой сборкой.';
+
+  @override
+  String get runnerInstallFailed =>
+      'Настройка не подтверждена. Часть изменений могла примениться. Обновите сведения перед повтором.';
+
+  @override
+  String get runnerInvalidResponse =>
+      'Исполнитель вернул некорректный ответ. Проверьте сохранённый результат перед повтором.';
+
+  @override
+  String get runnerUnavailable =>
+      'Сервис заданий недоступен. Проверьте SSH-подключение и административный доступ.';
+
+  @override
+  String get runnerStorage =>
+      'Не удалось сохранить или восстановить локальный журнал заданий. Проверьте хранилище перед повтором.';
+
+  @override
+  String get runnerBusy =>
+      'На сервере уже выполняется задание. Дождитесь его завершения.';
+
+  @override
+  String get runnerMissing => 'Этот запрос не найден на сервере.';
+
+  @override
+  String get runnerCapacity =>
+      'Журнал серверных заданий достиг предельного размера.';
+
+  @override
+  String get runnerPlanned => 'В очереди';
+
+  @override
+  String get runnerRunning => 'Выполняется';
+
+  @override
+  String get runnerSucceeded => 'Завершено';
+
+  @override
+  String get runnerCancelled => 'Отменено';
+
+  @override
+  String get runnerFailed => 'Ошибка';
+
+  @override
+  String get runnerPartial => 'Применено частично';
+
+  @override
+  String get runnerAttention => 'Требуется проверка';
+
+  @override
+  String get runnerSample => 'Проверка сервера пройдена';
+
+  @override
+  String get runnerRecovered => 'Продолжено с сохранённой контрольной точки';
 }

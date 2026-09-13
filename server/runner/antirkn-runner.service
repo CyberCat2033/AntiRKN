@@ -1,0 +1,29 @@
+[Unit]
+Description=AntiRKN durable server jobs
+After=local-fs.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -I /usr/local/lib/antirkn-runner/v1/runner.py daemon
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=10
+StateDirectory=antirkn-runner
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateNetwork=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ReadWritePaths=/var/lib/antirkn-runner
+StandardOutput=null
+StandardError=null
+
+[Install]
+WantedBy=multi-user.target

@@ -74,6 +74,26 @@ void main() {
   });
 
   test(
+    'runner request and cursor survive restart encrypted and isolated by server',
+    () async {
+      final db = open();
+      const source = '{"pending":"private-runner-fixture","cursor":12}';
+      await db.writeRunnerJournal('one', source);
+      await db.writeRunnerJournal('two', '{"cursor":3}');
+      await db.close();
+      expect(
+        String.fromCharCodes(await File(path).readAsBytes()),
+        isNot(contains('private-runner-fixture')),
+      );
+      final reopened = open();
+      expect(await reopened.readRunnerJournal('one'), source);
+      expect(await reopened.readRunnerJournal('two'), '{"cursor":3}');
+      expect(await reopened.readRunnerJournal('absent'), isNull);
+      expect(await reopened.readDraft(), isNull);
+    },
+  );
+
+  test(
     'jump reference survives restart and deletion without losing the route',
     () async {
       final db = open();

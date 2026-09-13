@@ -14,12 +14,14 @@ final class RemoteCommandResult {
     this.exitCode,
     this.signalled,
     this.passwordSent,
+    this.inputSent,
   );
   final String output;
   final String error;
   final int? exitCode;
   final bool signalled;
   final bool passwordSent;
+  final bool inputSent;
   bool get succeeded => exitCode == 0 && !signalled;
   @override
   String toString() => 'RemoteCommandResult(redacted)';
@@ -35,6 +37,8 @@ final class SshCommandExecutor {
     int limit = 1024 * 1024,
     Duration? timeout,
     String? sudoPassword,
+    Uint8List? input,
+    String? inputPrompt,
   }) async {
     cancellation.check();
     SSHSession? session;
@@ -44,6 +48,14 @@ final class SshCommandExecutor {
     final output = BytesBuilder(copy: false);
     final errors = BytesBuilder(copy: false);
     var passwordSent = false;
+    var inputSent = false;
+    var inputClosed = false;
+    void closeInput() {
+      if (inputClosed) return;
+      inputClosed = true;
+      unawaited(session!.stdin.close().catchError((Object _) {}));
+    }
+
     final finished = Completer<RemoteCommandResult>();
     var streamsEnded = 0;
     var exitObserved = false;
@@ -61,6 +73,7 @@ final class SshCommandExecutor {
             session!.exitCode,
             session!.exitSignal != null,
             passwordSent,
+            inputSent,
           ),
         );
       } catch (_) {
@@ -129,7 +142,34 @@ final class SshCommandExecutor {
             passwordSent = true;
             try {
               session!.stdin.add(utf8.encode('$sudoPassword\n'));
-              unawaited(session!.stdin.close().catchError((Object _) {}));
+              if (input == null) {
+                closeInput();
+              }
+            } catch (_) {
+              fail(const SshFailure(SshIssue.disconnected));
+            }
+          }
+          final stderrText = utf8.decode(
+            errors.toBytes(),
+            allowMalformed: true,
+          );
+          if (passwordSent && sudoPrompt.allMatches(stderrText).length > 1) {
+            // One password attempt only. EOF terminates sudo's second prompt.
+            closeInput();
+          }
+          final prompt = inputPrompt;
+          if (!inputSent &&
+              !inputClosed &&
+              input != null &&
+              prompt != null &&
+              !cancellation.isCancelled &&
+              RegExp(
+                '(?:^|\\n)${RegExp.escape(prompt)}\\r?\\n',
+              ).hasMatch(stderrText.replaceAll(sudoPrompt, ''))) {
+            inputSent = true;
+            try {
+              session!.stdin.add(input);
+              closeInput();
             } catch (_) {
               fail(const SshFailure(SshIssue.disconnected));
             }
@@ -138,8 +178,8 @@ final class SshCommandExecutor {
         onError: (Object _) => fail(const SshFailure(SshIssue.network)),
         onDone: streamEnded,
       );
-      if (sudoPassword == null) {
-        unawaited(session!.stdin.close().catchError((Object _) {}));
+      if (sudoPassword == null && input == null) {
+        closeInput();
       }
       return await result;
     } finally {

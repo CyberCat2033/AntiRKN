@@ -1715,7 +1715,7 @@ abstract class AppLocalizations {
   /// No description provided for @privilegesCheck.
   ///
   /// In en, this message translates to:
-  /// **'Check access and refresh details'**
+  /// **'Confirm password'**
   String get privilegesCheck;
 
   /// No description provided for @privilegesChecking.
@@ -1745,8 +1745,230 @@ abstract class AppLocalizations {
   /// No description provided for @privilegesScope.
   ///
   /// In en, this message translates to:
-  /// **'This checks the effective UID and retries restricted software reads. Permission is checked for each command; installation requires a separate plan.'**
+  /// **'Enter the sudo password to continue. It will be saved encrypted on confirmation.'**
   String get privilegesScope;
+
+  /// No description provided for @runnerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Server jobs'**
+  String get runnerTitle;
+
+  /// No description provided for @runnerHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'A server check reads uptime and available disk space 10 times, at two-second intervals. Its progress is saved on the server.'**
+  String get runnerHelp;
+
+  /// No description provided for @runnerPrepare.
+  ///
+  /// In en, this message translates to:
+  /// **'Set up server jobs'**
+  String get runnerPrepare;
+
+  /// No description provided for @runnerStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Run server check'**
+  String get runnerStart;
+
+  /// No description provided for @runnerPlanTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Server change plan'**
+  String get runnerPlanTitle;
+
+  /// No description provided for @runnerPlanBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Install the bundled job executor, create its private journal directory, and enable its systemd service at startup. If this exact version is already installed, start the service. Requires existing Python 3.8+ with SQLite and systemd 235+. No packages will be updated.'**
+  String get runnerPlanBody;
+
+  /// No description provided for @runnerPlanRelease.
+  ///
+  /// In en, this message translates to:
+  /// **'Bundle SHA-256'**
+  String get runnerPlanRelease;
+
+  /// No description provided for @runnerApply.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply plan'**
+  String get runnerApply;
+
+  /// No description provided for @runnerNotNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Not now'**
+  String get runnerNotNow;
+
+  /// No description provided for @runnerPending.
+  ///
+  /// In en, this message translates to:
+  /// **'The submission is saved locally; its server result needs checking.'**
+  String get runnerPending;
+
+  /// No description provided for @runnerRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Check and retry this request'**
+  String get runnerRetry;
+
+  /// No description provided for @runnerConnectionLost.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection lost. The server job may still be running. Reconnect to retrieve its result.'**
+  String get runnerConnectionLost;
+
+  /// No description provided for @runnerNotRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'The worker has not confirmed that it is running. Refresh its status or apply the setup plan.'**
+  String get runnerNotRunning;
+
+  /// No description provided for @runnerCancelRequested.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancellation requested; waiting for a safe stopping point.'**
+  String get runnerCancelRequested;
+
+  /// No description provided for @runnerCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel server job'**
+  String get runnerCancel;
+
+  /// No description provided for @runnerEventsTruncated.
+  ///
+  /// In en, this message translates to:
+  /// **'Older events have been rotated on the server. The current checkpoint is available.'**
+  String get runnerEventsTruncated;
+
+  /// No description provided for @runnerJournal.
+  ///
+  /// In en, this message translates to:
+  /// **'Job events'**
+  String get runnerJournal;
+
+  /// No description provided for @runnerHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent jobs'**
+  String get runnerHistory;
+
+  /// No description provided for @runnerPrerequisites.
+  ///
+  /// In en, this message translates to:
+  /// **'This runner requires Ubuntu x86_64, a running systemd 235+, and Python 3.8+ with SQLite. No changes were applied.'**
+  String get runnerPrerequisites;
+
+  /// No description provided for @runnerConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'The server state conflicts with this plan or request. Refresh the details before continuing.'**
+  String get runnerConflict;
+
+  /// No description provided for @runnerIncompatible.
+  ///
+  /// In en, this message translates to:
+  /// **'The installed runner version is incompatible with this build.'**
+  String get runnerIncompatible;
+
+  /// No description provided for @runnerInstallFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Setup could not be confirmed. Some changes may have been applied. Refresh the server state before retrying.'**
+  String get runnerInstallFailed;
+
+  /// No description provided for @runnerInvalidResponse.
+  ///
+  /// In en, this message translates to:
+  /// **'The runner returned an invalid response. Check the saved result before retrying.'**
+  String get runnerInvalidResponse;
+
+  /// No description provided for @runnerUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The job service is unavailable. Check the SSH connection and administrative access.'**
+  String get runnerUnavailable;
+
+  /// No description provided for @runnerStorage.
+  ///
+  /// In en, this message translates to:
+  /// **'The local job journal could not be saved or restored. Check local storage before retrying.'**
+  String get runnerStorage;
+
+  /// No description provided for @runnerBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'Another server job is active. Wait for it to finish.'**
+  String get runnerBusy;
+
+  /// No description provided for @runnerMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'This request has not been found on the server.'**
+  String get runnerMissing;
+
+  /// No description provided for @runnerCapacity.
+  ///
+  /// In en, this message translates to:
+  /// **'The server job journal has reached its capacity.'**
+  String get runnerCapacity;
+
+  /// No description provided for @runnerPlanned.
+  ///
+  /// In en, this message translates to:
+  /// **'Queued'**
+  String get runnerPlanned;
+
+  /// No description provided for @runnerRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Running'**
+  String get runnerRunning;
+
+  /// No description provided for @runnerSucceeded.
+  ///
+  /// In en, this message translates to:
+  /// **'Completed'**
+  String get runnerSucceeded;
+
+  /// No description provided for @runnerCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancelled'**
+  String get runnerCancelled;
+
+  /// No description provided for @runnerFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed'**
+  String get runnerFailed;
+
+  /// No description provided for @runnerPartial.
+  ///
+  /// In en, this message translates to:
+  /// **'Partially applied'**
+  String get runnerPartial;
+
+  /// No description provided for @runnerAttention.
+  ///
+  /// In en, this message translates to:
+  /// **'Needs attention'**
+  String get runnerAttention;
+
+  /// No description provided for @runnerSample.
+  ///
+  /// In en, this message translates to:
+  /// **'Server check passed'**
+  String get runnerSample;
+
+  /// No description provided for @runnerRecovered.
+  ///
+  /// In en, this message translates to:
+  /// **'Resumed from a saved checkpoint'**
+  String get runnerRecovered;
 }
 
 class _AppLocalizationsDelegate
