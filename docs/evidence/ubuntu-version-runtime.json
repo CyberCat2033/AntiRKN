@@ -1,0 +1,18 @@
+{
+  "date": "2026-09-13",
+  "linux": {
+    "startup": "PASS",
+    "process_running_after_startup": true,
+    "left_open": true,
+    "launch": "systemd user service"
+  },
+  "android": {
+    "device_model": "OnePlus HD1911",
+    "install": "PASS",
+    "install_mode": "adb install -r",
+    "data_cleared": false,
+    "activity_start": "PASS",
+    "process_running": true
+  },
+  "scope": "Build, installation and startup only; no user vault unlock or live user VPS connection."
+}

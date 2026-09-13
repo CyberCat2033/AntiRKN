@@ -1,0 +1,34 @@
+{
+  "date": "2026-09-13",
+  "command": "bash tool/verify.sh",
+  "result": "PASS",
+  "tests": {
+    "storage": 8,
+    "ssh_transport": 13,
+    "network_inventory": 23,
+    "profile_compiler": 20,
+    "manager": 36,
+    "total": 100
+  },
+  "checks": [
+    "format",
+    "analyze",
+    "architecture",
+    "203 RU/EN messages",
+    "base.yml SHA-256"
+  ],
+  "regression": {
+    "new_tests": 9,
+    "accepted_version_metadata": [
+      "20.04",
+      "22.04",
+      "24.04",
+      "25.10",
+      "26.04",
+      "rolling"
+    ],
+    "missing_version_accepted": true,
+    "other_distributions_rejected": true
+  },
+  "scope": "Unit/widget tests; live SSH sessions on these Ubuntu releases were not run in this correction."
+}

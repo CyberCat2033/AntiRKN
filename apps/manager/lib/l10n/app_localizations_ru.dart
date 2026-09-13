@@ -95,7 +95,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get scope =>
-      'Ubuntu 24.04 • x86_64\nWindows • Linux • Android\nVLESS / TrustTunnel / AmneziaWG → Mihomo';
+      'Ubuntu • x86_64\nWindows • Linux • Android\nVLESS / TrustTunnel / AmneziaWG → Mihomo';
 
   @override
   String get theme => 'Тема';
@@ -471,7 +471,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get sshReadOnly =>
-      'Подключитесь к VPS Ubuntu 24.04 x86_64 для чтения сетевых сведений.';
+      'Подключитесь к VPS Ubuntu x86_64 для чтения сетевых сведений.';
 
   @override
   String get sshHost => 'Адрес сервера';
@@ -607,7 +607,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get sshUnsupportedOs =>
-      'Для этого подключения требуется Ubuntu 24.04 на x86_64.';
+      'Для этого подключения требуется Ubuntu на x86_64.';
 
   @override
   String get sshDisconnected =>

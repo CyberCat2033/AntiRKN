@@ -263,7 +263,7 @@ abstract class AppLocalizations {
   /// No description provided for @scope.
   ///
   /// In en, this message translates to:
-  /// **'Ubuntu 24.04 • x86_64\nWindows • Linux • Android\nVLESS / TrustTunnel / AmneziaWG → Mihomo'**
+  /// **'Ubuntu • x86_64\nWindows • Linux • Android\nVLESS / TrustTunnel / AmneziaWG → Mihomo'**
   String get scope;
 
   /// No description provided for @theme.
@@ -911,7 +911,7 @@ abstract class AppLocalizations {
   /// No description provided for @sshReadOnly.
   ///
   /// In en, this message translates to:
-  /// **'Connect to an Ubuntu 24.04 x86_64 VPS to read its network information.'**
+  /// **'Connect to an Ubuntu x86_64 VPS to read its network information.'**
   String get sshReadOnly;
 
   /// No description provided for @sshHost.
@@ -1157,7 +1157,7 @@ abstract class AppLocalizations {
   /// No description provided for @sshUnsupportedOs.
   ///
   /// In en, this message translates to:
-  /// **'This connection requires Ubuntu 24.04 on x86_64.'**
+  /// **'This connection requires Ubuntu on x86_64.'**
   String get sshUnsupportedOs;
 
   /// No description provided for @sshDisconnected.

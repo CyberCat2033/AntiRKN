@@ -95,7 +95,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get scope =>
-      'Ubuntu 24.04 • x86_64\nWindows • Linux • Android\nVLESS / TrustTunnel / AmneziaWG → Mihomo';
+      'Ubuntu • x86_64\nWindows • Linux • Android\nVLESS / TrustTunnel / AmneziaWG → Mihomo';
 
   @override
   String get theme => 'Theme';
@@ -471,7 +471,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sshReadOnly =>
-      'Connect to an Ubuntu 24.04 x86_64 VPS to read its network information.';
+      'Connect to an Ubuntu x86_64 VPS to read its network information.';
 
   @override
   String get sshHost => 'Server address';
@@ -606,8 +606,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'The server returned an invalid inventory. The previous inventory is retained.';
 
   @override
-  String get sshUnsupportedOs =>
-      'This connection requires Ubuntu 24.04 on x86_64.';
+  String get sshUnsupportedOs => 'This connection requires Ubuntu on x86_64.';
 
   @override
   String get sshDisconnected =>

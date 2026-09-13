@@ -8,6 +8,7 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_network_inventory/antirkn_network_inventory.dart';
 import 'package:dartssh2/dartssh2.dart';
 import 'linux_agent.dart';
+import 'ubuntu_release.dart';
 
 /// Public API exposes read-only inventory, never a shell or arbitrary command.
 final class DartSshConnector implements SshConnector {
@@ -224,26 +225,13 @@ final class _Connection implements SshConnection {
         cancellation,
         limit: 16384,
       );
-      final values = <String, String>{};
-      for (final line in const LineSplitter().convert(osRelease)) {
-        final match = RegExp(
-          r'^([A-Z_]+)=(?:"([^"\r\n]*)"|([A-Za-z0-9_.-]+))$',
-        ).firstMatch(line);
-        if (match != null) {
-          if (values.containsKey(match[1])) {
-            throw const SshFailure(SshIssue.unsupportedOs);
-          }
-          values[match[1]!] = match[2] ?? match[3]!;
-        }
-      }
+      final os = ubuntuNameFromOsRelease(osRelease);
       final architecture = (await _read(
         'uname -m',
         cancellation,
         limit: 1024,
       )).trim();
-      if (values['ID'] != 'ubuntu' ||
-          values['VERSION_ID'] != '24.04' ||
-          architecture != 'x86_64') {
+      if (architecture != 'x86_64') {
         throw const SshFailure(SshIssue.unsupportedOs);
       }
       final observedAt = DateTime.now().toUtc();
@@ -265,7 +253,7 @@ final class _Connection implements SshConnection {
         sshPeer: IpAddress.parse(socket.socket.remoteAddress.address),
       );
       return ServerObservation(
-        os: 'Ubuntu 24.04',
+        os: os,
         architecture: architecture,
         network: network,
       );

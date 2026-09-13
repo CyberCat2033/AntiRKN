@@ -1,0 +1,18 @@
+{
+  "date": "2026-09-13",
+  "configuration": "debug",
+  "platforms": {
+    "linux_x64_kernel": {
+      "path": "apps/manager/build/linux/x64/debug/bundle/data/flutter_assets/kernel_blob.bin",
+      "bytes": 79269424,
+      "sha256": "17aaa085ca35738c11f767fa6c35f0646725a402d5739ff25d2fd24ebafcc971",
+      "build": "PASS"
+    },
+    "android_arm64_apk": {
+      "path": "apps/manager/build/app/outputs/flutter-apk/app-debug.apk",
+      "bytes": 117989513,
+      "sha256": "e252646a6574c89e1f5103a1ba7bc9769cd64343c0e797339920c7bab0b145f4",
+      "build": "PASS"
+    }
+  }
+}

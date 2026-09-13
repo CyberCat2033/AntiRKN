@@ -1,0 +1,148 @@
+Resolving dependencies...
+Downloading packages...
+  _fe_analyzer_shared 93.0.0 (108.0.0 available)
+  analyzer 10.0.1 (14.4.0 available)
+  clock 1.1.2 (1.1.3 available)
+  code_assets 1.2.1 (2.0.0 available)
+  dynamic_color 1.8.1 (2.1.0 available)
+  file_selector_android 0.5.2+6 (0.5.2+11 available)
+  hooks 2.0.2 (2.2.0 available)
+  intl 0.20.2 (0.20.3 available)
+  matcher 0.12.18 (0.12.20 available)
+  material_color_utilities 0.13.0 (0.13.1 available)
+  meta 1.17.0 (1.19.0 available)
+  objective_c 9.5.0 (9.6.0 available)
+  package_config 2.2.0 (3.0.0 available)
+  path_provider 2.1.5 (2.1.6 available)
+  platform 3.1.6 (3.2.0 available)
+  record_use 0.6.0 (1.1.1 available)
+  shared_preferences 2.5.4 (2.5.5 available)
+  shared_preferences_android 2.4.23 (2.4.28 available)
+  stack_trace 1.12.1 (1.12.2 available)
+  test 1.29.0 (1.32.0 available)
+  test_api 0.7.9 (0.7.14 available)
+  test_core 0.6.15 (0.6.20 available)
+  vector_math 2.2.0 (2.4.2 available)
+  yaml 3.1.3 (3.1.4 available)
+  yaml_edit 2.2.3 (2.2.4 available)
+Got dependencies!
+25 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Architecture boundaries, base.yml SHA-256 and 203 RU/EN messages: OK
+Because l10n.yaml exists, the options defined there will be used instead.
+To use the command line arguments, delete the l10n.yaml file in the Flutter project.
+
+
+Formatted 56 files (0 changed) in 0.32 seconds.
+Analyzing AntiRKN...
+No issues found! (ran in 2.2s)
+00:00 +0: loading /home/cybercat/AntiRKN/packages/storage/test/secret_vault_test.dart
+00:00 +0: master vault survives a new instance and stores only ciphertext on disk
+00:00 +1: system vault separates OS key from encrypted profile and restores secrets
+00:00 +2: ciphertext, nonce and authenticated metadata tampering fail closed
+00:00 +3: failed persistence keeps last committed credentials and allows retry
+00:00 +4: concurrent app instances cannot silently overwrite newer server trust
+00:00 +5: lock during a pending save never restores decrypted state
+00:00 +6: unavailable keyring cannot create plaintext or overwrite an existing file
+00:00 +7: master password requirements are enforced before creating a file
+00:00 +8: All tests passed!
+00:00 +0: loading /home/cybercat/AntiRKN/packages/ssh_transport/test/ssh_connector_test.dart
+00:00 +0: /home/cybercat/AntiRKN/packages/ssh_transport/test/ssh_connector_test.dart: invalid settings reject before transport or host trust callback
+00:00 +1: /home/cybercat/AntiRKN/packages/ssh_transport/test/ssh_connector_test.dart: cancelled handshake closes a real socket without sending password
+00:00 +2: /home/cybercat/AntiRKN/packages/ssh_transport/test/ssh_connector_test.dart: key parse failure exposes only a safe code
+00:00 +3: /home/cybercat/AntiRKN/packages/ssh_transport/test/ssh_connector_test.dart: cancellation observes late failures without leaking uncaught errors
+00:00 +4: /home/cybercat/AntiRKN/packages/ssh_transport/test/ubuntu_release_test.dart: Ubuntu 20.04 is accepted and reports its actual version
+00:00 +5: /home/cybercat/AntiRKN/packages/ssh_transport/test/ubuntu_release_test.dart: Ubuntu 22.04 is accepted and reports its actual version
+00:00 +6: /home/cybercat/AntiRKN/packages/ssh_transport/test/ubuntu_release_test.dart: Ubuntu 24.04 is accepted and reports its actual version
+00:00 +7: /home/cybercat/AntiRKN/packages/ssh_transport/test/ubuntu_release_test.dart: Ubuntu 25.10 is accepted and reports its actual version
+00:00 +8: /home/cybercat/AntiRKN/packages/ssh_transport/test/ubuntu_release_test.dart: Ubuntu 26.04 is accepted and reports its actual version
+00:00 +9: /home/cybercat/AntiRKN/packages/ssh_transport/test/ubuntu_release_test.dart: Ubuntu rolling is accepted and reports its actual version
+00:00 +10: /home/cybercat/AntiRKN/packages/ssh_transport/test/ubuntu_release_test.dart: Ubuntu does not require version metadata
+00:00 +11: /home/cybercat/AntiRKN/packages/ssh_transport/test/ubuntu_release_test.dart: quoted distribution identifiers are accepted
+00:00 +12: /home/cybercat/AntiRKN/packages/ssh_transport/test/ubuntu_release_test.dart: other distributions and ambiguous identifiers are rejected
+00:00 +13: All tests passed!
+00:00 +0: loading /home/cybercat/AntiRKN/packages/network_inventory/test/ip_address_test.dart
+00:00 +0: /home/cybercat/AntiRKN/packages/network_inventory/test/ip_address_test.dart: canonical IPv6 compression, ties and embedded IPv4
+00:00 +1: /home/cybercat/AntiRKN/packages/network_inventory/test/ip_address_test.dart: strict numeric IP boundary rejects ambiguous or decorated values
+00:00 +2: /home/cybercat/AntiRKN/packages/network_inventory/test/ip_address_test.dart: numeric parsing matches the platform parser across seeded addresses
+00:00 +3: /home/cybercat/AntiRKN/packages/network_inventory/test/ip_address_test.dart: special ranges never become public merely because scope is global
+00:00 +4: /home/cybercat/AntiRKN/packages/network_inventory/test/ip_address_test.dart: prefix matching and ordering include family and full address
+00:00 +5: /home/cybercat/AntiRKN/packages/network_inventory/test/inventory_parser_test.dart: one VPS: all assignments, both route families and all rule tables
+00:00 +6: /home/cybercat/AntiRKN/packages/network_inventory/test/inventory_parser_test.dart: subnets, gateways, prefsrc and SSH peer never invent assigned IPs
+00:00 +7: /home/cybercat/AntiRKN/packages/network_inventory/test/inventory_parser_test.dart: IDs survive reordering, IPv6 spelling and interface index changes
+00:00 +8: /home/cybercat/AntiRKN/packages/network_inventory/test/inventory_parser_test.dart: duplicate assignments collapse; contradictory copies reject the snapshot
+00:00 +9: /home/cybercat/AntiRKN/packages/network_inventory/test/address_policy_test.dart: wildcards only appear for listener; local addresses are role-specific
+00:00 +10: /home/cybercat/AntiRKN/packages/network_inventory/test/address_policy_test.dart: wildcards only appear for listener; local addresses are role-specific
+00:00 +11: /home/cybercat/AntiRKN/packages/network_inventory/test/address_policy_test.dart: wildcards only appear for listener; local addresses are role-specific
+00:00 +12: /home/cybercat/AntiRKN/packages/network_inventory/test/address_policy_test.dart: wildcards only appear for listener; local addresses are role-specific
+00:00 +13: /home/cybercat/AntiRKN/packages/network_inventory/test/address_policy_test.dart: wildcards only appear for listener; local addresses are role-specific
+00:00 +14: /home/cybercat/AntiRKN/packages/network_inventory/test/address_policy_test.dart: wildcards only appear for listener; local addresses are role-specific
+00:00 +15: /home/cybercat/AntiRKN/packages/network_inventory/test/address_policy_test.dart: wildcards only appear for listener; local addresses are role-specific
+00:00 +16: /home/cybercat/AntiRKN/packages/network_inventory/test/address_policy_test.dart: wildcards only appear for listener; local addresses are role-specific
+00:00 +17: /home/cybercat/AntiRKN/packages/network_inventory/test/address_policy_test.dart: wildcards only appear for listener; local addresses are role-specific
+00:00 +18: /home/cybercat/AntiRKN/packages/network_inventory/test/address_policy_test.dart: invalid, temporary, deprecated, down and unscoped addresses explain rejection
+00:00 +19: /home/cybercat/AntiRKN/packages/network_inventory/test/address_policy_test.dart: known tunnel addresses are not automatically offered as public endpoints
+00:00 +20: /home/cybercat/AntiRKN/packages/network_inventory/test/address_policy_test.dart: lifetimes expire at the boundary; missing lifetimes remain unknown
+00:00 +21: /home/cybercat/AntiRKN/packages/network_inventory/test/address_policy_test.dart: previous choice is rejected after removal or expiry; no replacement chosen
+00:00 +22: /home/cybercat/AntiRKN/packages/network_inventory/test/address_policy_test.dart: future observation and protocol capabilities are respected
+00:00 +23: All tests passed!
+00:00 +0: loading /home/cybercat/AntiRKN/packages/profile_compiler/test/compiler_test.dart
+00:00 +0: vless_only: preserves template policy and deterministic output
+00:00 +1: trusttunnel_only: preserves template policy and deterministic output
+00:00 +2: awg_only: preserves template policy and deterministic output
+00:00 +3: mixed_with_ru: preserves template policy and deterministic output
+00:00 +4: mixed_without_ru: preserves template policy and deterministic output
+00:00 +5: without_wg: preserves template policy and deterministic output
+00:00 +6: group preview preserves the actual base.yml filters and order
+00:00 +7: empty RU/WG groups expose fallback and block policy approval
+00:00 +8: only active confirmed accesses of selected user are materialized
+00:00 +9: an existing proxy collection requires an explicit import decision
+00:00 +10: rejects unsafe or ambiguous YAML without leaking excerpts: 9
+00:00 +11: rejects unsafe or ambiguous YAML without leaking excerpts: 10
+00:00 +12: rejects unsafe or ambiguous YAML without leaking excerpts: 13
+00:00 +13: rejects unsafe or ambiguous YAML without leaking excerpts: 10
+00:00 +14: rejects unsafe or ambiguous YAML without leaking excerpts: 17
+00:00 +15: enforces byte and depth limits before materialization
+00:00 +16: detects cycles, unknown rule destinations and provider references
+00:00 +17: complex filters and unresolved providers never claim an exact preview
+00:00 +18: include filter does not remove explicit group references; exclusions do
+00:00 +19: unsupported protocols and invalid VLESS combinations are rejected
+00:00 +20: All tests passed!
+00:00 +0: loading /home/cybercat/AntiRKN/apps/manager/test/widget_test.dart
+00:00 +0: /home/cybercat/AntiRKN/apps/manager/test/widget_test.dart: file selection fills empty editor; cancellation retains imported draft
+00:00 +1: /home/cybercat/AntiRKN/apps/manager/test/widget_test.dart: file selection fills empty editor; cancellation retains imported draft
+00:00 +2: /home/cybercat/AntiRKN/apps/manager/test/widget_test.dart: file selection fills empty editor; cancellation retains imported draft
+00:00 +3: /home/cybercat/AntiRKN/apps/manager/test/widget_test.dart: file selection fills empty editor; cancellation retains imported draft
+00:00 +4: /home/cybercat/AntiRKN/apps/manager/test/widget_test.dart: file selection fills empty editor; cancellation retains imported draft
+00:00 +5: /home/cybercat/AntiRKN/apps/manager/test/widget_test.dart: file selection fills empty editor; cancellation retains imported draft
+00:00 +6: /home/cybercat/AntiRKN/apps/manager/test/widget_test.dart: file selection fills empty editor; cancellation retains imported draft
+00:00 +7: /home/cybercat/AntiRKN/apps/manager/test/widget_test.dart: file selection fills empty editor; cancellation retains imported draft
+00:00 +8: /home/cybercat/AntiRKN/apps/manager/test/widget_test.dart: file selection fills empty editor; cancellation retains imported draft
+00:01 +9: /home/cybercat/AntiRKN/apps/manager/test/widget_test.dart: file selection fills empty editor; cancellation retains imported draft
+00:01 +10: /home/cybercat/AntiRKN/apps/manager/test/widget_test.dart: file selection fills empty editor; cancellation retains imported draft
+00:01 +11: /home/cybercat/AntiRKN/apps/manager/test/widget_test.dart: file selection fills empty editor; cancellation retains imported draft
+00:01 +12: /home/cybercat/AntiRKN/apps/manager/test/widget_test.dart: file selection fills empty editor; cancellation retains imported draft
+00:01 +13: /home/cybercat/AntiRKN/apps/manager/test/widget_test.dart: file selection fills empty editor; cancellation retains imported draft
+00:01 +14: /home/cybercat/AntiRKN/apps/manager/test/widget_test.dart: file selection fills empty editor; cancellation retains imported draft
+00:01 +15: /home/cybercat/AntiRKN/apps/manager/test/widget_test.dart: file selection fills empty editor; cancellation retains imported draft
+00:01 +16: /home/cybercat/AntiRKN/apps/manager/test/network_widget_test.dart: one shared picker enforces listener and endpoint roles
+00:02 +17: /home/cybercat/AntiRKN/apps/manager/test/network_widget_test.dart: one shared picker enforces listener and endpoint roles
+00:02 +18: /home/cybercat/AntiRKN/apps/manager/test/network_widget_test.dart: one shared picker enforces listener and endpoint roles
+00:02 +19: /home/cybercat/AntiRKN/apps/manager/test/network_widget_test.dart: one shared picker enforces listener and endpoint roles
+00:02 +20: /home/cybercat/AntiRKN/apps/manager/test/network_widget_test.dart: one shared picker enforces listener and endpoint roles
+00:03 +21: /home/cybercat/AntiRKN/apps/manager/test/ssh_widget_test.dart: SSH form and trust prompt at 390.0, ru, text x2
+00:03 +22: /home/cybercat/AntiRKN/apps/manager/test/ssh_widget_test.dart: SSH form and trust prompt at 390.0, ru, text x2
+00:04 +23: /home/cybercat/AntiRKN/apps/manager/test/network_widget_test.dart: choice survives language, navigation, resize and failed refresh
+00:04 +24: /home/cybercat/AntiRKN/apps/manager/test/network_widget_test.dart: choice survives language, navigation, resize and failed refresh
+00:04 +25: /home/cybercat/AntiRKN/apps/manager/test/network_widget_test.dart: choice survives language, navigation, resize and failed refresh
+00:04 +26: /home/cybercat/AntiRKN/apps/manager/test/network_widget_test.dart: choice survives language, navigation, resize and failed refresh
+00:04 +27: /home/cybercat/AntiRKN/apps/manager/test/network_widget_test.dart: choice survives language, navigation, resize and failed refresh
+00:05 +28: /home/cybercat/AntiRKN/apps/manager/test/network_widget_test.dart: choice survives language, navigation, resize and failed refresh
+00:05 +29: /home/cybercat/AntiRKN/apps/manager/test/ssh_widget_test.dart: app restores saved connection after restart and locks on background
+00:05 +30: /home/cybercat/AntiRKN/apps/manager/test/ssh_widget_test.dart: app restores saved connection after restart and locks on background
+00:05 +31: /home/cybercat/AntiRKN/apps/manager/test/ssh_widget_test.dart: app restores saved connection after restart and locks on background
+00:05 +32: /home/cybercat/AntiRKN/apps/manager/test/ssh_widget_test.dart: app restores saved connection after restart and locks on background
+00:06 +33: /home/cybercat/AntiRKN/apps/manager/test/ssh_widget_test.dart: app restores saved connection after restart and locks on background
+00:06 +34: /home/cybercat/AntiRKN/apps/manager/test/network_widget_test.dart: large text and adaptive layout with open picker: en
+00:07 +35: /home/cybercat/AntiRKN/apps/manager/test/network_widget_test.dart: large text and adaptive layout with open picker: ru
+00:08 +36: All tests passed!
