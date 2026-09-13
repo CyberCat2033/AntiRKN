@@ -87,13 +87,26 @@ class FakeConnector implements SshConnector {
   FakeConnection connection = FakeConnection();
   int authentications = 0;
   int calls = 0;
+  final jumpKeys = <String, TrustedHostKey>{};
+  List<SshProfile> lastJumps = [];
   @override
   Future<SshConnection> connect(
     SshProfile profile, {
     required Future<bool> Function(TrustedHostKey) verifyHostKey,
     required CancellationToken cancellation,
+    List<SshProfile> jumpHosts = const [],
+    Future<bool> Function(SshProfile, TrustedHostKey)? verifyJumpHostKey,
   }) async {
     calls++;
+    lastJumps = jumpHosts;
+    for (final jump in jumpHosts) {
+      if (!await verifyJumpHostKey!(jump, jumpKeys[jump.id] ?? key)) {
+        throw const SshFailure(SshIssue.hostKeyRejected);
+      }
+    }
+    if (profile.hostKey != null && !profile.hostKey!.matches(key)) {
+      throw const SshFailure(SshIssue.hostKeyChanged);
+    }
     if (!await cancellation.bind(verifyHostKey(key))) {
       throw const SshFailure(SshIssue.hostKeyRejected);
     }
@@ -107,8 +120,13 @@ SshController controller(
   FakeVault vault,
   FakeConnector connector, {
   FakeKeyPicker? picker,
+  ServerRepository? repository,
+  String serverId = SshProfile.serverId,
 }) => SshController(
-  openVault: () async => vault,
+  serverId: serverId,
+  repository: repository,
+  openVault: () async =>
+      repository == null ? vault : repository.openServer(serverId),
   connector: connector,
   picker: picker ?? FakeKeyPicker(),
   network: NetworkController(

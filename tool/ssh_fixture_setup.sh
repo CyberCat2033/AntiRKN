@@ -78,6 +78,23 @@ touch /fixture-data/commands
 chmod 711 /fixture-data
 chmod 666 /fixture-data/commands
 ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub -E sha256 | awk '{print $2}' > /fixture-data/host-fingerprint
+# A second server has its own host key and is reachable only inside this
+# container, through direct-tcpip on the first SSH connection.
+ssh-keygen -q -t ed25519 -N '' -f /etc/ssh/jump_target_key
+ssh-keygen -lf /etc/ssh/jump_target_key.pub -E sha256 | awk '{print $2}' > /fixture-data/target-fingerprint
+cat > /etc/ssh/sshd_target.conf <<'CONF'
+Port 22241
+ListenAddress 127.0.0.1
+HostKey /etc/ssh/jump_target_key
+PidFile /run/sshd_target.pid
+PasswordAuthentication yes
+PermitRootLogin yes
+KbdInteractiveAuthentication no
+UsePAM no
+AllowUsers testuser root
+ForceCommand /usr/local/bin/antirkn-fixture-audit
+CONF
+/usr/sbin/sshd -f /etc/ssh/sshd_target.conf
 ip address add 192.0.2.41/32 dev lo
 printf 'ready\n' > /fixture-data/ready
 exec /usr/sbin/sshd -D -e

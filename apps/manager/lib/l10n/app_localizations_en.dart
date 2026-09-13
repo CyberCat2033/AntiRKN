@@ -853,4 +853,30 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get draftSaved => 'Template saved on this device';
+
+  @override
+  String get sshJump => 'Jump SSH';
+
+  @override
+  String get sshDirect => 'Direct connection';
+
+  @override
+  String get sshJumpMissing => 'Server unavailable';
+
+  @override
+  String get sshJumpHelp =>
+      'Connect through another saved server. Each server uses its own login and SSH key.';
+
+  @override
+  String sshVia(String server) {
+    return 'Via $server';
+  }
+
+  @override
+  String get sshInvalidJump =>
+      'The SSH route is invalid: a server is missing or the route contains a cycle. Edit the jump selection.';
+
+  @override
+  String get sshJumpHostChanged =>
+      'The jump server’s SSH key has changed. Open that server and verify its new fingerprint before connecting.';
 }

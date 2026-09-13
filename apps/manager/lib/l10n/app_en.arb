@@ -336,5 +336,19 @@
   "settingsSaveError": "Unable to save the setting. Try again.",
   "draftSaveError": "Template could not be saved on this device. Retry before closing the app.",
   "draftSaving": "Saving template…",
-  "draftSaved": "Template saved on this device"
+  "draftSaved": "Template saved on this device",
+  "sshJump": "Jump SSH",
+  "sshDirect": "Direct connection",
+  "sshJumpMissing": "Server unavailable",
+  "sshJumpHelp": "Connect through another saved server. Each server uses its own login and SSH key.",
+  "sshVia": "Via {server}",
+  "sshInvalidJump": "The SSH route is invalid: a server is missing or the route contains a cycle. Edit the jump selection.",
+  "sshJumpHostChanged": "The jump server’s SSH key has changed. Open that server and verify its new fingerprint before connecting.",
+  "@sshVia": {
+    "placeholders": {
+      "server": {
+        "type": "String"
+      }
+    }
+  }
 }

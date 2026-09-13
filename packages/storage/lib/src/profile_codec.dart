@@ -9,6 +9,7 @@ Map<String, Object?> encodeProfile(SshProfile profile) => {
   'username': profile.username,
   'authMethod': profile.authMethod.name,
   'keyName': profile.keyName,
+  'jumpServerId': profile.jumpServerId,
   'lastInfo': profile.lastInfo == null
       ? null
       : encodeServerInfo(profile.lastInfo!),
@@ -31,6 +32,7 @@ SshProfile decodeProfile(Map<String, Object?> server) {
     username: server['username']! as String,
     authMethod: SshAuthMethod.values.byName(server['authMethod']! as String),
     keyName: server['keyName'] as String?,
+    jumpServerId: server['jumpServerId'] as String?,
     lastInfo: server['lastInfo'] == null
         ? null
         : decodeServerInfo(server['lastInfo'] as Map<String, Object?>),

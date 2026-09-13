@@ -54,6 +54,109 @@ class _Handle extends FakeVault {
 }
 
 void main() {
+  SshProfile profile(String id, {String? jump, TrustedHostKey? key}) =>
+      SshProfile(
+        id: id,
+        name: 'VPS $id',
+        host: '$id.example',
+        port: 22,
+        username: 'test',
+        authMethod: SshAuthMethod.password,
+        jumpServerId: jump,
+        hostKey: key,
+        secrets: const {ServerSecret.sshPassword: 'test-only'},
+      );
+  for (final outcome in ['accept', 'reject', 'cancel']) {
+    test('jump and target trust are saved separately: $outcome', () async {
+      final repo = _Repository();
+      repo.servers.addAll({'a': profile('a'), 'b': profile('b', jump: 'a')});
+      final connector = FakeConnector();
+      const jumpKey = TrustedHostKey('ssh-ed25519', 'SHA256:jump');
+      connector.jumpKeys['a'] = jumpKey;
+      final c = controller(
+        FakeVault(),
+        connector,
+        repository: repo,
+        serverId: 'b',
+      );
+      addTearDown(c.dispose);
+      addTearDown(c.network.dispose);
+      await c.initialise();
+      expect(c.showJumpPicker, isTrue);
+      expect(c.jumpOptions.map((s) => s.id), ['a']);
+      expect(c.saved, isTrue);
+      final work = c.connect();
+      await Future<void>.delayed(Duration.zero);
+      expect(c.verifyingProfile!.id, 'a');
+      expect(c.challenge, same(jumpKey));
+      expect(connector.authentications, 0);
+      if (outcome == 'cancel') {
+        c.disconnect();
+      } else {
+        c.decide(outcome == 'accept');
+      }
+      await Future<void>.delayed(Duration.zero);
+      if (outcome == 'accept') {
+        expect(repo.servers['a']!.hostKey, same(jumpKey));
+        expect(repo.servers['b']!.hostKey, isNull);
+        expect(c.verifyingProfile!.id, 'b');
+        expect(connector.lastJumps.single.id, 'a');
+        c.decide(true);
+      }
+      await work;
+      if (outcome == 'accept') {
+        expect(c.stage, SshStage.connected);
+        expect(repo.servers['b']!.hostKey, same(connector.key));
+        expect(repo.servers['b']!.jumpServerId, 'a');
+        c.disconnect();
+        c.editSettings();
+        c.setJump(null);
+        expect(c.saved, isFalse);
+        c.cancelEditing();
+        expect(c.jumpServerId, 'a');
+      } else {
+        expect(repo.servers['a']!.hostKey, isNull);
+        expect(repo.servers['b']!.hostKey, isNull);
+        expect(connector.authentications, 0);
+        expect(c.editing, isTrue);
+      }
+    });
+  }
+  test(
+    'deleted or cyclic jump stops before connector; changed jump key identifies the intermediary',
+    () async {
+      final repo = _Repository();
+      final connector = FakeConnector();
+      final c = controller(
+        FakeVault(),
+        connector,
+        repository: repo,
+        serverId: 'b',
+      );
+      addTearDown(c.dispose);
+      addTearDown(c.network.dispose);
+      repo.servers['b'] = profile('b', jump: 'a');
+      await c.initialise();
+      await c.connect();
+      expect(c.error, SshIssue.invalidJumpRoute);
+      expect(connector.calls, 0);
+      repo.servers['a'] = profile('a', jump: 'b');
+      await c.connect();
+      expect(c.error, SshIssue.invalidJumpRoute);
+      expect(connector.calls, 0);
+      repo.servers['a'] = profile(
+        'a',
+        key: const TrustedHostKey('ssh-ed25519', 'SHA256:old'),
+      );
+      await c.connect();
+      expect(c.error, SshIssue.jumpHostKeyChanged);
+      expect(connector.authentications, 0);
+      expect(repo.servers['a']!.hostKey!.fingerprint, 'SHA256:old');
+      await c.replaceServer();
+      expect(connector.calls, 1);
+    },
+  );
+
   for (final language in ['en', 'ru']) {
     testWidgets(
       'multiple servers CRUD, restart, reveal password, background and large text: $language',
@@ -119,11 +222,17 @@ void main() {
                 .text,
             isEmpty,
           );
+          expect(find.byKey(const ValueKey('ssh-jump')), findsNothing);
           await enter('ssh-name', 'VPS $letter');
           await enter('ssh-host', '${letter.toLowerCase()}.example');
           await enter('ssh-password', 'fixture-password-$letter');
           await tap('ssh-save');
           expect(find.text('VPS $letter'), findsOneWidget);
+          await tap('ssh-edit');
+          expect(
+            find.byKey(const ValueKey('ssh-jump')),
+            letter == 'B' ? findsOneWidget : findsNothing,
+          );
           await tap('server-list-back');
         }
         expect(repository.servers, hasLength(2));
@@ -140,6 +249,25 @@ void main() {
           find.text(language == 'en' ? 'Connect' : 'Подключиться'),
           findsOneWidget,
         );
+        await tap('ssh-edit');
+        expect(find.byKey(const ValueKey('ssh-jump')), findsOneWidget);
+        await tap('ssh-jump');
+        await tester.tap(find.text('VPS B').last);
+        await tester.pumpAndSettle();
+        await tap('ssh-save');
+        expect(repository.servers[firstId]!.jumpServerId, secondId);
+        await tap('ssh-edit');
+        await tap('ssh-jump');
+        await tester.tap(
+          find
+              .text(
+                language == 'en' ? 'Direct connection' : 'Прямое подключение',
+              )
+              .last,
+        );
+        await tester.pumpAndSettle();
+        await tap('ssh-save');
+        expect(repository.servers[firstId]!.jumpServerId, isNull);
         await tap('ssh-edit');
         await tap('show-ssh-password');
         final field = tester.widget<TextField>(

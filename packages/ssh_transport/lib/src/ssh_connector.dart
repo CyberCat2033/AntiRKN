@@ -26,6 +26,85 @@ final class DirectSshConnector implements SshConnector {
     SshProfile profile, {
     required Future<bool> Function(TrustedHostKey) verifyHostKey,
     required CancellationToken cancellation,
+    List<SshProfile> jumpHosts = const [],
+    Future<bool> Function(SshProfile, TrustedHostKey)? verifyJumpHostKey,
+  }) async {
+    final route = resolveSshRoute(profile, jumpHosts);
+    if (route.length != jumpHosts.length + 1 ||
+        List.generate(
+          jumpHosts.length,
+          (i) => route[i].id != jumpHosts[i].id,
+        ).any((different) => different)) {
+      throw const SshFailure(SshIssue.invalidJumpRoute);
+    }
+    if (jumpHosts.isNotEmpty &&
+        (verifyJumpHostKey == null ||
+            {profile.id, ...jumpHosts.map((p) => p.id)}.length !=
+                jumpHosts.length + 1)) {
+      throw const SshFailure(SshIssue.invalidJumpRoute);
+    }
+    final hops = <_Connection>[];
+    SSHSocket? forwarded;
+    try {
+      for (var index = 0; index < jumpHosts.length; index++) {
+        final jump = jumpHosts[index];
+        late final _Connection hop;
+        try {
+          hop = await _connectOne(
+            jump,
+            verifyHostKey: (key) => verifyJumpHostKey!(jump, key),
+            cancellation: cancellation,
+            forwarded: forwarded,
+          );
+        } on SshFailure catch (error) {
+          if (error.issue == SshIssue.hostKeyChanged) {
+            throw const SshFailure(SshIssue.jumpHostKeyChanged);
+          }
+          rethrow;
+        }
+        hops.add(hop);
+        final next = index + 1 < jumpHosts.length
+            ? jumpHosts[index + 1]
+            : profile;
+        var accepting = true;
+        try {
+          forwarded = await cancellation.bind(
+            hop.client
+                .forwardLocal(next.host, next.port)
+                .then((channel) {
+                  if (!accepting) channel.destroy();
+                  return channel;
+                })
+                .timeout(connectTimeout),
+          );
+        } finally {
+          accepting = false;
+        }
+      }
+      final target = await _connectOne(
+        profile,
+        verifyHostKey: verifyHostKey,
+        cancellation: cancellation,
+        forwarded: forwarded,
+      );
+      target.hops.addAll(hops);
+      return target;
+    } catch (error) {
+      forwarded?.destroy();
+      for (final hop in hops.reversed) {
+        hop.close();
+      }
+      throw cancellation.isCancelled
+          ? const SshFailure(SshIssue.cancelled)
+          : _safeFailure(error);
+    }
+  }
+
+  Future<_Connection> _connectOne(
+    SshProfile profile, {
+    required Future<bool> Function(TrustedHostKey) verifyHostKey,
+    required CancellationToken cancellation,
+    SSHSocket? forwarded,
   }) async {
     if (!profile.valid) throw const SshFailure(SshIssue.invalidSettings);
     Socket? socket;
@@ -56,26 +135,28 @@ final class DirectSshConnector implements SshConnector {
       if (profile.authMethod == SshAuthMethod.agent) {
         identities.addAll(await linuxAgentIdentities(cancellation));
       }
-      final starting = Socket.startConnect(profile.host, profile.port);
-      unawaited(
-        starting.then((lateTask) {
-          if (finished) lateTask.cancel();
-        }, onError: (Object _) {}),
-      );
-      final connectingTask = await cancellation.bind(
-        starting.timeout(connectTimeout),
-      );
-      task = connectingTask;
-      unawaited(
-        connectingTask.socket.then((lateSocket) {
-          if (finished && !handedOff) lateSocket.destroy();
-        }, onError: (Object _) {}),
-      );
-      socket = await cancellation.bind(
-        connectingTask.socket.timeout(connectTimeout),
-      );
+      if (forwarded == null) {
+        final starting = Socket.startConnect(profile.host, profile.port);
+        unawaited(
+          starting.then((lateTask) {
+            if (finished) lateTask.cancel();
+          }, onError: (Object _) {}),
+        );
+        final connectingTask = await cancellation.bind(
+          starting.timeout(connectTimeout),
+        );
+        task = connectingTask;
+        unawaited(
+          connectingTask.socket.then((lateSocket) {
+            if (finished && !handedOff) lateSocket.destroy();
+          }, onError: (Object _) {}),
+        );
+        socket = await cancellation.bind(
+          connectingTask.socket.timeout(connectTimeout),
+        );
+      }
       cancellation.check();
-      final transportSocket = _NativeSocket(socket!);
+      final transportSocket = forwarded ?? _NativeSocket(socket!);
       client = SSHClient(
         transportSocket,
         username: profile.username,
@@ -117,6 +198,9 @@ final class DirectSshConnector implements SshConnector {
         transportSocket,
         commandTimeout,
         profile.id,
+        socket == null
+            ? IpAddress.tryParse(profile.host)
+            : IpAddress.parse(socket.remoteAddress.address),
       );
       handedOff = true;
       return connection;
@@ -130,6 +214,7 @@ final class DirectSshConnector implements SshConnector {
       if (!handedOff) {
         task?.cancel();
         socket?.destroy();
+        forwarded?.destroy();
         if (client != null) unawaited(client.close().catchError((Object _) {}));
       }
       identities.clear();
@@ -212,10 +297,18 @@ final class _NativeSocket implements SSHSocket {
 }
 
 final class _Connection implements SshConnection {
-  _Connection(this.client, this.socket, this.commandTimeout, this.serverId);
+  _Connection(
+    this.client,
+    this.socket,
+    this.commandTimeout,
+    this.serverId,
+    this.peer,
+  );
+  final IpAddress? peer;
+  final hops = <_Connection>[];
   final String serverId;
   final SSHClient client;
-  final _NativeSocket socket;
+  final SSHSocket socket;
   final Duration commandTimeout;
   bool _closed = false;
   bool _observing = false;
@@ -263,7 +356,7 @@ final class _Connection implements SshConnection {
         serverId: serverId,
         observedAt: observedAt,
         source: NetworkSource.iproute2,
-        sshPeer: IpAddress.parse(socket.socket.remoteAddress.address),
+        sshPeer: peer,
       );
       return ServerObservation(
         os: os,
@@ -387,6 +480,10 @@ final class _Connection implements SshConnection {
     if (_closed) return;
     _closed = true;
     socket.destroy();
+    for (final hop in hops.reversed) {
+      hop.close();
+    }
+    hops.clear();
     unawaited(client.close().catchError((Object _) {}));
   }
 }

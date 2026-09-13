@@ -1,0 +1,21 @@
+{
+  "fixture": "Ubuntu 24.04, separate SSH host keys; target listens only on container loopback:22241",
+  "checked_at_utc": "2026-09-13T20:11:14.399536Z",
+  "results": {
+    "encrypted_jump_key_target_password": "PASS",
+    "separate_fingerprints_before_each_auth": "PASS",
+    "target_dns_resolved_by_jump_without_false_peer_ip": "PASS",
+    "cancel_slow_inventory_through_jump": "PASS",
+    "changed_jump_key_stops_before_target": "PASS",
+    "changed_target_key_stops_before_auth": "PASS",
+    "rejected_jump_fingerprint": "PASS",
+    "rejected_target_fingerprint": "PASS",
+    "wrong_target_password": "PASS",
+    "unreachable_target_no_direct_fallback": "PASS",
+    "missing_route_no_direct_fallback": "PASS",
+    "cancel_target_trust": "PASS",
+    "encrypted_keys_on_both_hops": "PASS",
+    "two_intermediaries_in_saved_route_order": "PASS",
+    "reconnect_and_independent_jump_session": "PASS"
+  }
+}

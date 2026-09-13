@@ -1,0 +1,15 @@
+{
+  "android_arm64_debug": {
+    "built": true,
+    "apk_sha256": "dc4520def9108613d95e65eb72327cc971ad75060510ba4f037249a612da8429",
+    "installed_with_adb_replace": true,
+    "launch": "Activity Manager status ok",
+    "jump_runtime_on_phone": "not run; actual SSH jump verified on disposable Ubuntu fixture"
+  },
+  "linux_x64_debug": {
+    "built": true,
+    "binary_sha256": "9fffcfee576434e574553b9b3cc8214dffa856e18bc973d1a78545ecfddd3d13",
+    "gui_runtime": "not run"
+  },
+  "windows": "not built or run"
+}

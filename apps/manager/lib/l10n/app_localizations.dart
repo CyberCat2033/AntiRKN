@@ -1603,6 +1603,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Template saved on this device'**
   String get draftSaved;
+
+  /// No description provided for @sshJump.
+  ///
+  /// In en, this message translates to:
+  /// **'Jump SSH'**
+  String get sshJump;
+
+  /// No description provided for @sshDirect.
+  ///
+  /// In en, this message translates to:
+  /// **'Direct connection'**
+  String get sshDirect;
+
+  /// No description provided for @sshJumpMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Server unavailable'**
+  String get sshJumpMissing;
+
+  /// No description provided for @sshJumpHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect through another saved server. Each server uses its own login and SSH key.'**
+  String get sshJumpHelp;
+
+  /// No description provided for @sshVia.
+  ///
+  /// In en, this message translates to:
+  /// **'Via {server}'**
+  String sshVia(String server);
+
+  /// No description provided for @sshInvalidJump.
+  ///
+  /// In en, this message translates to:
+  /// **'The SSH route is invalid: a server is missing or the route contains a cycle. Edit the jump selection.'**
+  String get sshInvalidJump;
+
+  /// No description provided for @sshJumpHostChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'The jump server’s SSH key has changed. Open that server and verify its new fingerprint before connecting.'**
+  String get sshJumpHostChanged;
 }
 
 class _AppLocalizationsDelegate

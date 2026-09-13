@@ -29,6 +29,7 @@ class SshController extends ChangeNotifier {
     required this.network,
     this.serverId = SshProfile.serverId,
     this.agentAvailable = false,
+    this.repository,
   }) {
     for (final field in fields) {
       field.addListener(_edited);
@@ -40,6 +41,26 @@ class SshController extends ChangeNotifier {
   final PrivateKeyFilePicker picker;
   final NetworkController network;
   final String serverId;
+  final ServerRepository? repository;
+  List<SavedServer> jumpCandidates = [];
+  String? jumpServerId;
+  SshProfile? verifyingProfile;
+  List<SavedServer> get jumpOptions =>
+      jumpCandidates.where((s) => s.id != serverId).toList();
+  bool get showJumpPicker =>
+      jumpCandidates.length > 1 ||
+      (hasSavedProfile && jumpOptions.isNotEmpty) ||
+      jumpServerId != null;
+  String? get jumpName => jumpCandidates
+      .where((s) => s.id == jumpServerId)
+      .firstOrNull
+      ?.profile
+      .displayName;
+  void updateJumpCandidates(List<SavedServer> servers) {
+    jumpCandidates = servers;
+    _notify();
+  }
+
   final bool agentAvailable;
   final serverName = TextEditingController();
   final host = TextEditingController();
@@ -69,6 +90,7 @@ class SshController extends ChangeNotifier {
         profile.username == draft.username &&
         profile.authMethod == draft.authMethod &&
         profile.keyName == draft.keyName &&
+        profile.jumpServerId == draft.jumpServerId &&
         ServerSecret.values.every(
           (key) => (profile.secrets[key] ?? '') == (draft.secrets[key] ?? ''),
         );
@@ -145,6 +167,7 @@ class SshController extends ChangeNotifier {
           return;
         }
         _restore();
+        jumpCandidates = await repository?.listServers() ?? [];
         initialised = true;
       }
     } on VaultFailure catch (e) {
@@ -167,6 +190,7 @@ class SshController extends ChangeNotifier {
     passphrase.text = profile?.secrets[ServerSecret.keyPassphrase] ?? '';
     _pem = profile?.secrets[ServerSecret.privateKey];
     keyName = profile?.keyName;
+    jumpServerId = profile?.jumpServerId;
     authMethod =
         profile?.authMethod ??
         (agentAvailable ? SshAuthMethod.agent : SshAuthMethod.password);
@@ -190,6 +214,12 @@ class SshController extends ChangeNotifier {
   void setAuth(SshAuthMethod method) {
     if (!editing) return;
     authMethod = method;
+    _notify();
+  }
+
+  void setJump(String? id) {
+    if (!editing) return;
+    jumpServerId = id;
     _notify();
   }
 
@@ -259,6 +289,7 @@ class SshController extends ChangeNotifier {
     username: username.text.trim(),
     authMethod: authMethod,
     keyName: keyName,
+    jumpServerId: jumpServerId,
     hostKey: trustedKey,
     lastInfo: _vault!.profile?.host == host.text.trim() ? lastInfo : null,
     secrets: {
@@ -298,9 +329,13 @@ class SshController extends ChangeNotifier {
     _notify();
     final generation = _generation;
     try {
+      jumpCandidates = await repository?.listServers() ?? [];
+      resolveSshRoute(profile, jumpCandidates.map((s) => s.profile));
       await _vault!.saveProfile(profile);
       if (_disposed || generation != _generation) return false;
       return true;
+    } on SshFailure catch (e) {
+      if (!_disposed && generation == _generation) error = e.issue;
     } on VaultFailure catch (e) {
       if (!_disposed && generation == _generation) vaultError = e.issue;
     } catch (_) {
@@ -331,49 +366,55 @@ class SshController extends ChangeNotifier {
     _notify();
     final cancellation = CancellationToken();
     _cancellation = cancellation;
+    final jumpVaults = <String, SecretVault>{};
     try {
       final previous = _vault!.profile;
       if (!await _saveDraft()) return;
       cancellation.check();
       final profile = _vault!.profile!;
+      jumpCandidates = await repository?.listServers() ?? [];
+      final route = resolveSshRoute(
+        profile,
+        jumpCandidates.map((s) => s.profile),
+      );
+      final jumps = <SshProfile>[];
+      for (final jump in route.take(route.length - 1)) {
+        final vault = await repository!.openServer(jump.id);
+        jumpVaults[jump.id] = vault;
+        if (!vault.isUnlocked) await vault.unlock();
+        if (vault.profile == null) {
+          throw const SshFailure(SshIssue.invalidJumpRoute);
+        }
+        final current = vault.profile!;
+        if (current.id != jump.id ||
+            current.jumpServerId != jump.jumpServerId) {
+          throw const SshFailure(SshIssue.invalidJumpRoute);
+        }
+        jumps.add(current);
+      }
+      cancellation.check();
       if (previous != null && !previous.hasSameConnectionSettings(profile)) {
         observation = null;
         network.clear();
       }
       final connection = await connector.connect(
-        profile,
+        replaceServer ? profile.withHostKey(null) : profile,
         cancellation: cancellation,
-        verifyHostKey: (key) async {
-          cancellation.check();
-          if (profile.hostKey != null && !replaceServer) {
-            if (!profile.hostKey!.matches(key)) {
-              throw const SshFailure(SshIssue.hostKeyChanged);
-            }
-            return true;
-          }
-          stage = SshStage.verifying;
-          challenge = key;
-          _decision = Completer<bool>();
-          _notify();
-          final accepted = await cancellation.bind(_decision!.future);
-          cancellation.check();
-          challenge = null;
-          _decision = null;
-          if (!accepted) return false;
-          try {
-            await _vault!.saveProfile(profile.withHostKey(key));
-          } catch (_) {
-            throw const SshFailure(SshIssue.trustSaveFailed);
-          }
-          cancellation.check();
-          if (replaceServer) {
-            observation = null;
-            network.clear();
-          }
-          stage = SshStage.connecting;
-          _notify();
-          return true;
-        },
+        jumpHosts: jumps,
+        verifyJumpHostKey: (jump, key) => _verifyKey(
+          jump,
+          key,
+          jumpVaults[jump.id]!,
+          cancellation,
+          isJump: true,
+        ),
+        verifyHostKey: (key) => _verifyKey(
+          profile,
+          key,
+          _vault!,
+          cancellation,
+          replaceServer: replaceServer,
+        ),
       );
       if (_disposed || generation != _generation || cancellation.isCancelled) {
         connection.close();
@@ -410,17 +451,64 @@ class SshController extends ChangeNotifier {
         _connection = null;
       }
     } finally {
+      for (final vault in jumpVaults.values) {
+        vault.lock();
+      }
       if (!_disposed && generation == _generation) {
         if (_connection == null) {
           stage = SshStage.idle;
           settingsExpanded = true;
         }
         challenge = null;
+        verifyingProfile = null;
         _decision = null;
         replacingServer = false;
         _notify();
       }
     }
+  }
+
+  Future<bool> _verifyKey(
+    SshProfile profile,
+    TrustedHostKey key,
+    SecretVault vault,
+    CancellationToken cancellation, {
+    bool replaceServer = false,
+    bool isJump = false,
+  }) async {
+    cancellation.check();
+    if (profile.hostKey != null && !replaceServer) {
+      if (!profile.hostKey!.matches(key)) {
+        throw SshFailure(
+          isJump ? SshIssue.jumpHostKeyChanged : SshIssue.hostKeyChanged,
+        );
+      }
+      return true;
+    }
+    stage = SshStage.verifying;
+    verifyingProfile = profile;
+    challenge = key;
+    _decision = Completer<bool>();
+    _notify();
+    final accepted = await cancellation.bind(_decision!.future);
+    cancellation.check();
+    challenge = null;
+    verifyingProfile = null;
+    _decision = null;
+    if (!accepted) return false;
+    try {
+      await vault.saveProfile(profile.withHostKey(key));
+    } catch (_) {
+      throw const SshFailure(SshIssue.trustSaveFailed);
+    }
+    cancellation.check();
+    if (replaceServer) {
+      observation = null;
+      network.clear();
+    }
+    stage = SshStage.connecting;
+    _notify();
+    return true;
   }
 
   void _ended(SshConnection connection) {
@@ -480,6 +568,7 @@ class SshController extends ChangeNotifier {
     decide(false);
     _decision = null;
     challenge = null;
+    verifyingProfile = null;
     replacingServer = false;
     stage = SshStage.idle;
     error = null;

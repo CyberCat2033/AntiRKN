@@ -32,11 +32,12 @@ class _Keys implements VaultKeyStore {
   }
 }
 
-SshProfile profile(String host, {String name = ''}) => SshProfile(
+SshProfile profile(String host, {String name = '', String? jump}) => SshProfile(
   host: host,
   port: 22,
   username: 'private-login-fixture',
   name: name,
+  jumpServerId: jump,
   authMethod: SshAuthMethod.password,
   hostKey: TrustedHostKey('ssh-ed25519', 'SHA256:$host'),
   secrets: const {
@@ -71,6 +72,32 @@ void main() {
     databases.clear();
     await directory.delete(recursive: true);
   });
+
+  test(
+    'jump reference survives restart and deletion without losing the route',
+    () async {
+      final db = open();
+      final a = db.newServerId(), b = db.newServerId();
+      await (await db.openServer(a)).saveProfile(profile('jump.example'));
+      await (await db.openServer(
+        b,
+      )).saveProfile(profile('target.example', jump: a));
+      final restarted = open();
+      final target = (await restarted.openServer(b)).profile!;
+      expect(target.jumpServerId, a);
+      expect(
+        resolveSshRoute(
+          target,
+          (await restarted.listServers()).map((s) => s.profile),
+        ).map((s) => s.id),
+        [a, b],
+      );
+      await (await restarted.openServer(a)).saveProfile(null);
+      final dangling = (await open().openServer(b)).profile!;
+      expect(dangling.jumpServerId, a);
+      expect(() => resolveSshRoute(dangling, []), throwsA(isA<SshFailure>()));
+    },
+  );
 
   test(
     'multiple servers, settings and encrypted template survive reopen; DB/WAL contain no credentials',

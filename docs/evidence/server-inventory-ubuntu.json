@@ -4,21 +4,21 @@
   "clean": {
     "testuser": {
       "status": "PASS",
-      "socket_count": 7
+      "socket_count": 8
     },
     "root": {
       "status": "PASS",
-      "socket_count": 7
+      "socket_count": 8
     }
   },
   "partial_installation": {
     "testuser": {
       "status": "PASS",
-      "socket_count": 7
+      "socket_count": 8
     },
     "root": {
       "status": "PASS",
-      "socket_count": 7
+      "socket_count": 8
     },
     "disk-failure": "PASS",
     "timeout": "PASS",
@@ -30,12 +30,12 @@
   },
   "fixture_config_hashes_unchanged": true,
   "only_allowlisted_read_commands": true,
-  "inventory_command_count": 418,
+  "inventory_command_count": 514,
   "docker_metadata": {
     "result": "PASS",
     "source": "actual local Docker CLI/daemon; disposable unstarted Ubuntu image with AWG test tag",
     "image_tag_is_not_binary_version": true,
     "created_container_detected_as_inactive": true
   },
-  "checked_at_utc": "2026-09-13T19:53:43Z"
+  "checked_at_utc": "2026-09-13T20:11:49Z"
 }

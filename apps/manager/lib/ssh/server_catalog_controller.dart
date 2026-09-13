@@ -42,7 +42,12 @@ class ServerCatalogController extends ChangeNotifier {
         }
       }
       final next = await repository.listServers();
-      if (!_disposed) servers = next;
+      if (!_disposed) {
+        servers = next;
+        for (final session in _sessions.values) {
+          session.updateJumpCandidates(next);
+        }
+      }
     } on VaultFailure catch (e) {
       error = e.issue;
     } catch (_) {
@@ -70,6 +75,7 @@ class ServerCatalogController extends ChangeNotifier {
     }
     if (!_sessions.containsKey(id)) {
       final c = SshController(
+        repository: repository,
         serverId: id,
         openVault: () => repository.openServer(id),
         connector: connector,

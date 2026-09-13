@@ -20,10 +20,15 @@ final class DartSshConnector implements SshConnector {
     SshProfile profile, {
     required Future<bool> Function(TrustedHostKey) verifyHostKey,
     required CancellationToken cancellation,
+    List<SshProfile> jumpHosts = const [],
+    Future<bool> Function(SshProfile, TrustedHostKey)? verifyJumpHostKey,
   }) async {
     cancellation.check();
     if (!profile.valid) throw const SshFailure(SshIssue.invalidSettings);
-    final bridge = _WorkerConnection(verifyHostKey);
+    if (jumpHosts.isNotEmpty && verifyJumpHostKey == null) {
+      throw const SshFailure(SshIssue.invalidJumpRoute);
+    }
+    final bridge = _WorkerConnection(verifyHostKey, verifyJumpHostKey);
     try {
       bridge.worker = await Isolate.spawn(
         _runWorker,
@@ -32,9 +37,10 @@ final class DartSshConnector implements SshConnector {
         onExit: bridge.events.sendPort,
       );
       await cancellation.bind(bridge.ready.future.timeout(connectTimeout));
-      await cancellation.bind(bridge.request('connect', profile));
+      await cancellation.bind(bridge.request('connect', (profile, jumpHosts)));
       cancellation.check();
       bridge.verifier = null;
+      bridge.jumpVerifier = null;
       return bridge;
     } catch (_) {
       bridge.close();
@@ -44,7 +50,7 @@ final class DartSshConnector implements SshConnector {
 }
 
 final class _WorkerConnection implements SshConnection {
-  _WorkerConnection(this.verifier) {
+  _WorkerConnection(this.verifier, this.jumpVerifier) {
     events.listen(_receive);
     // Startup can fail before connect begins waiting for ready.
     unawaited(ready.future.then((_) {}, onError: (Object _) {}));
@@ -54,6 +60,7 @@ final class _WorkerConnection implements SshConnection {
   final ended = Completer<void>();
   final pending = <int, Completer<Object?>>{};
   Future<bool> Function(TrustedHostKey)? verifier;
+  Future<bool> Function(SshProfile, TrustedHostKey)? jumpVerifier;
   Isolate? worker;
   SendPort? commands;
   int sequence = 0;
@@ -76,15 +83,19 @@ final class _WorkerConnection implements SshConnection {
         if (pending.isEmpty) close();
       case ('verify', final TrustedHostKey key):
         unawaited(_verify(key));
+      case ('verifyJump', final SshProfile profile, final TrustedHostKey key):
+        unawaited(_verify(key, jump: profile));
       default:
         // Includes unexpected worker errors/exits; no raw exception escapes.
         close();
     }
   }
 
-  Future<void> _verify(TrustedHostKey key) async {
+  Future<void> _verify(TrustedHostKey key, {SshProfile? jump}) async {
     try {
-      final accepted = await verifier!(key);
+      final accepted = jump == null
+          ? await verifier!(key)
+          : await jumpVerifier!(jump, key);
       if (!closed) commands!.send(('decision', accepted));
     } catch (error) {
       if (!closed) {
@@ -125,6 +136,7 @@ final class _WorkerConnection implements SshConnection {
     if (closed) return;
     closed = true;
     verifier = null;
+    jumpVerifier = null;
     commands?.send(('close',));
     // A worker doing CPU-heavy crypto must also be interruptible.
     final running = worker;
@@ -177,22 +189,27 @@ void _runWorker((SendPort, Duration, Duration) input) {
       try {
         switch (operation) {
           case 'connect':
+            final (profile, jumps) = payload as (SshProfile, List<SshProfile>);
+            Future<bool> verify(Object event) async {
+              decision = Completer<bool>();
+              events.send(event);
+              try {
+                return await cancellation.bind(decision!.future);
+              } finally {
+                decision = null;
+              }
+            }
             connection =
                 await DirectSshConnector(
                   connectTimeout: connectTimeout,
                   commandTimeout: commandTimeout,
                 ).connect(
-                  payload as SshProfile,
+                  profile,
                   cancellation: cancellation,
-                  verifyHostKey: (key) async {
-                    decision = Completer<bool>();
-                    events.send(('verify', key));
-                    try {
-                      return await cancellation.bind(decision!.future);
-                    } finally {
-                      decision = null;
-                    }
-                  },
+                  jumpHosts: jumps,
+                  verifyJumpHostKey: (jump, key) =>
+                      verify(('verifyJump', jump, key)),
+                  verifyHostKey: (key) => verify(('verify', key)),
                 );
             unawaited(
               connection!.done.then(

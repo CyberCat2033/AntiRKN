@@ -127,6 +127,45 @@ class _SshPanelState extends State<SshPanel> {
                         enabled: c.editing,
                         id: 'ssh-user',
                       ),
+                      if (c.showJumpPicker) ...[
+                        InputDecorator(
+                          decoration: InputDecoration(labelText: l.sshJump),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              key: const ValueKey('ssh-jump'),
+                              value: c.jumpServerId ?? '',
+                              isExpanded: true,
+                              items: [
+                                DropdownMenuItem(
+                                  value: '',
+                                  child: Text(l.sshDirect),
+                                ),
+                                for (final server in c.jumpOptions)
+                                  DropdownMenuItem(
+                                    value: server.id,
+                                    child: Text(
+                                      server.profile.displayName,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                if (c.jumpServerId != null &&
+                                    !c.jumpOptions.any(
+                                      (s) => s.id == c.jumpServerId,
+                                    ))
+                                  DropdownMenuItem(
+                                    value: c.jumpServerId,
+                                    child: Text(l.sshJumpMissing),
+                                  ),
+                              ],
+                              onChanged: c.editing
+                                  ? (id) => c.setJump(id == '' ? null : id)
+                                  : null,
+                            ),
+                          ),
+                        ),
+                        Text(l.sshJumpHelp),
+                        const SizedBox(height: AppLayout.gap),
+                      ],
                       Wrap(
                         spacing: AppLayout.smallGap,
                         runSpacing: AppLayout.smallGap,
@@ -200,6 +239,8 @@ class _SshPanelState extends State<SshPanel> {
                           ).add_Hm().format(c.lastInfo!.observedAt.toLocal()),
                         ),
                       ),
+                    if (c.jumpServerId != null)
+                      Text(l.sshVia(c.jumpName ?? l.sshJumpMissing)),
                     if (c.error case final issue?)
                       Semantics(
                         liveRegion: true,
@@ -235,7 +276,8 @@ class _SshPanelState extends State<SshPanel> {
                     ],
                     if (c.challenge case final key?) ...[
                       const SizedBox(height: AppLayout.gap),
-                      if (c.replacingServer) ...[
+                      if (c.replacingServer &&
+                          c.verifyingProfile?.id == c.serverId) ...[
                         Text(l.sshReplaceServerHelp),
                         if (c.trustedKey case final previous?) ...[
                           Text(l.sshTrustedKey),
@@ -245,7 +287,10 @@ class _SshPanelState extends State<SshPanel> {
                         ],
                       ],
                       Text(l.sshTrustHelp),
-                      Text('${c.host.text}:${c.port.text}'),
+                      Text(c.verifyingProfile?.displayName ?? c.displayName),
+                      Text(
+                        '${c.verifyingProfile?.host ?? c.host.text}:${c.verifyingProfile?.port ?? c.port.text}',
+                      ),
                       SelectableText('${key.algorithm}\n${key.fingerprint}'),
                       Wrap(
                         spacing: AppLayout.smallGap,
@@ -383,4 +428,6 @@ String sshIssueLabel(AppLocalizations l, SshIssue issue) => switch (issue) {
   SshIssue.disconnected => l.sshDisconnected,
   SshIssue.trustSaveFailed => l.sshTrustSaveError,
   SshIssue.agentUnavailable => l.sshAgentError,
+  SshIssue.invalidJumpRoute => l.sshInvalidJump,
+  SshIssue.jumpHostKeyChanged => l.sshJumpHostChanged,
 };

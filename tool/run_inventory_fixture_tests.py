@@ -50,6 +50,13 @@ with tempfile.TemporaryDirectory(prefix='antirkn-inventory-') as directory:
         # Exercise the same worker transport with passwords, encrypted keys,
         # a separate SSH-agent, trust rejection, cancellation and UI heartbeat.
         run([sys.executable, str(root / 'tool/run_ssh_fixture_tests.py'), str(fixture)])
+        jump_result = subprocess.run(['dart', 'run', 'tool/test_jump_ubuntu.dart', str(fixture)],
+                          cwd=root / 'packages/ssh_transport', capture_output=True, text=True)
+        if jump_result.returncode:
+            sys.stderr.write(jump_result.stderr)
+            raise RuntimeError('SSH jump fixture failed')
+        (root / 'docs/evidence/ssh-jump-ubuntu.json').write_text(jump_result.stdout)
+        print('Ubuntu SSH jump: nested transport and separate trust PASS', flush=True)
         def check(phase):
             outcome = subprocess.run(['dart', 'run', 'tool/test_inventory_ubuntu.dart', str(fixture), phase],
                           cwd=root / 'packages/ssh_transport', capture_output=True, text=True)

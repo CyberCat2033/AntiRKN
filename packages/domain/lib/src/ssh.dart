@@ -27,6 +27,7 @@ final class SshProfile {
     this.keyName,
     this.hostKey,
     this.lastInfo,
+    this.jumpServerId,
   }) : secrets = Map.unmodifiable(secrets);
   static const serverId = 'primary-vps';
   final String id;
@@ -40,6 +41,7 @@ final class SshProfile {
   final String? keyName;
   final TrustedHostKey? hostKey;
   final ServerInfo? lastInfo;
+  final String? jumpServerId;
 
   bool get valid =>
       name.length <= 253 &&
@@ -57,7 +59,7 @@ final class SshProfile {
               ? (secrets[ServerSecret.sshPassword]?.isNotEmpty ?? false)
               : (secrets[ServerSecret.privateKey]?.isNotEmpty ?? false)));
 
-  SshProfile withHostKey(TrustedHostKey value) => SshProfile(
+  SshProfile withHostKey(TrustedHostKey? value) => SshProfile(
     id: id,
     name: name,
     host: host,
@@ -67,7 +69,10 @@ final class SshProfile {
     secrets: secrets,
     keyName: keyName,
     hostKey: value,
-    lastInfo: hostKey == null || hostKey!.matches(value) ? lastInfo : null,
+    lastInfo: value != null && (hostKey == null || hostKey!.matches(value))
+        ? lastInfo
+        : null,
+    jumpServerId: jumpServerId,
   );
 
   SshProfile withInfo(ServerInfo value) => SshProfile(
@@ -81,6 +86,7 @@ final class SshProfile {
     keyName: keyName,
     hostKey: hostKey,
     lastInfo: value,
+    jumpServerId: jumpServerId,
   );
 
   /// Display metadata and inactive credentials do not affect a live session.
@@ -89,6 +95,7 @@ final class SshProfile {
       port == other.port &&
       username == other.username &&
       authMethod == other.authMethod &&
+      jumpServerId == other.jumpServerId &&
       switch (authMethod) {
         SshAuthMethod.agent => true,
         SshAuthMethod.password =>
@@ -145,6 +152,8 @@ enum SshIssue {
   disconnected,
   trustSaveFailed,
   agentUnavailable,
+  invalidJumpRoute,
+  jumpHostKeyChanged,
 }
 
 final class SshFailure implements Exception {
@@ -208,7 +217,30 @@ abstract interface class SshConnector {
     SshProfile profile, {
     required Future<bool> Function(TrustedHostKey) verifyHostKey,
     required CancellationToken cancellation,
+    List<SshProfile> jumpHosts = const [],
+    Future<bool> Function(SshProfile, TrustedHostKey)? verifyJumpHostKey,
   });
+}
+
+/// Resolve saved references before any connection. Never fall back to direct
+/// SSH when a configured intermediary is missing or cyclic.
+List<SshProfile> resolveSshRoute(
+  SshProfile target,
+  Iterable<SshProfile> servers,
+) {
+  final catalog = {for (final profile in servers) profile.id: profile};
+  final route = <SshProfile>[target];
+  final visited = {target.id};
+  var next = target.jumpServerId;
+  while (next != null) {
+    final profile = catalog[next];
+    if (profile == null || !profile.valid || !visited.add(next)) {
+      throw const SshFailure(SshIssue.invalidJumpRoute);
+    }
+    route.insert(0, profile);
+    next = profile.jumpServerId;
+  }
+  return List.unmodifiable(route);
 }
 
 final class ServerObservation {

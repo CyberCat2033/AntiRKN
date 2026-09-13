@@ -857,4 +857,30 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get draftSaved => 'Шаблон сохранён на устройстве';
+
+  @override
+  String get sshJump => 'Jump SSH';
+
+  @override
+  String get sshDirect => 'Прямое подключение';
+
+  @override
+  String get sshJumpMissing => 'Сервер недоступен';
+
+  @override
+  String get sshJumpHelp =>
+      'Подключение через другой сохранённый сервер. Для каждого сервера используются его логин и SSH-ключ.';
+
+  @override
+  String sshVia(String server) {
+    return 'Через $server';
+  }
+
+  @override
+  String get sshInvalidJump =>
+      'Некорректный SSH-маршрут: сервер отсутствует или образовался цикл. Измените выбор jump-сервера.';
+
+  @override
+  String get sshJumpHostChanged =>
+      'SSH-ключ промежуточного сервера изменился. Откройте его карточку и проверьте новый отпечаток перед подключением.';
 }
