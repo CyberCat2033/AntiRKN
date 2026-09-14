@@ -2215,6 +2215,390 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Edit'**
   String get componentsEditPlan;
+
+  /// No description provided for @vpnUsers.
+  ///
+  /// In en, this message translates to:
+  /// **'Clients'**
+  String get vpnUsers;
+
+  /// No description provided for @vpnUsersHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Create each client once. AntiRKN prepares personal access to every configured managed inbound on every server.'**
+  String get vpnUsersHelp;
+
+  /// No description provided for @vpnAddUser.
+  ///
+  /// In en, this message translates to:
+  /// **'Add client'**
+  String get vpnAddUser;
+
+  /// No description provided for @vpnNoUsers.
+  ///
+  /// In en, this message translates to:
+  /// **'No clients yet'**
+  String get vpnNoUsers;
+
+  /// No description provided for @vpnLogin.
+  ///
+  /// In en, this message translates to:
+  /// **'Client login'**
+  String get vpnLogin;
+
+  /// No description provided for @vpnName.
+  ///
+  /// In en, this message translates to:
+  /// **'Display name'**
+  String get vpnName;
+
+  /// No description provided for @vpnEnabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Enabled'**
+  String get vpnEnabled;
+
+  /// No description provided for @vpnDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled'**
+  String get vpnDisabled;
+
+  /// No description provided for @vpnSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save and prepare access plan'**
+  String get vpnSave;
+
+  /// No description provided for @vpnInbounds.
+  ///
+  /// In en, this message translates to:
+  /// **'VLESS inbounds'**
+  String get vpnInbounds;
+
+  /// No description provided for @vpnAddInbound.
+  ///
+  /// In en, this message translates to:
+  /// **'Add inbound'**
+  String get vpnAddInbound;
+
+  /// No description provided for @vpnInboundHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure shared server settings here. Each client automatically receives personal access to every enabled inbound.'**
+  String get vpnInboundHelp;
+
+  /// No description provided for @vpnNoInbounds.
+  ///
+  /// In en, this message translates to:
+  /// **'No managed inbounds on this server'**
+  String get vpnNoInbounds;
+
+  /// No description provided for @vpnTransport.
+  ///
+  /// In en, this message translates to:
+  /// **'Transport'**
+  String get vpnTransport;
+
+  /// No description provided for @vpnSecurity.
+  ///
+  /// In en, this message translates to:
+  /// **'Security'**
+  String get vpnSecurity;
+
+  /// No description provided for @vpnListen.
+  ///
+  /// In en, this message translates to:
+  /// **'Listen address'**
+  String get vpnListen;
+
+  /// No description provided for @vpnPort.
+  ///
+  /// In en, this message translates to:
+  /// **'Listen port'**
+  String get vpnPort;
+
+  /// No description provided for @vpnEndpoint.
+  ///
+  /// In en, this message translates to:
+  /// **'Client address (IP or domain)'**
+  String get vpnEndpoint;
+
+  /// No description provided for @vpnExternalPort.
+  ///
+  /// In en, this message translates to:
+  /// **'Client port'**
+  String get vpnExternalPort;
+
+  /// No description provided for @vpnSni.
+  ///
+  /// In en, this message translates to:
+  /// **'Server name (SNI)'**
+  String get vpnSni;
+
+  /// No description provided for @vpnTarget.
+  ///
+  /// In en, this message translates to:
+  /// **'REALITY target (host:port)'**
+  String get vpnTarget;
+
+  /// No description provided for @vpnPath.
+  ///
+  /// In en, this message translates to:
+  /// **'XHTTP path'**
+  String get vpnPath;
+
+  /// No description provided for @vpnHost.
+  ///
+  /// In en, this message translates to:
+  /// **'XHTTP Host (optional)'**
+  String get vpnHost;
+
+  /// No description provided for @vpnMode.
+  ///
+  /// In en, this message translates to:
+  /// **'XHTTP mode'**
+  String get vpnMode;
+
+  /// No description provided for @vpnCertificate.
+  ///
+  /// In en, this message translates to:
+  /// **'Certificate chain file on server'**
+  String get vpnCertificate;
+
+  /// No description provided for @vpnCertificateKey.
+  ///
+  /// In en, this message translates to:
+  /// **'Certificate private key file on server'**
+  String get vpnCertificateKey;
+
+  /// No description provided for @vpnTlsHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Use an existing certificate for the SNI domain. Certificate issuance and renewal are separate tasks.'**
+  String get vpnTlsHelp;
+
+  /// No description provided for @vpnRegion.
+  ///
+  /// In en, this message translates to:
+  /// **'Add the explicit RU tag for template filters'**
+  String get vpnRegion;
+
+  /// No description provided for @vpnDeleteInbound.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete inbound and its client access'**
+  String get vpnDeleteInbound;
+
+  /// No description provided for @vpnDeleteHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'The next plan will remove this inbound for all clients.'**
+  String get vpnDeleteHelp;
+
+  /// No description provided for @vpnPlan.
+  ///
+  /// In en, this message translates to:
+  /// **'Client access plan'**
+  String get vpnPlan;
+
+  /// No description provided for @vpnPlanHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply the listed inbounds and personal access through 3x-ui. A private configuration backup is saved on each server. Xray restarts at completion; connections may briefly pause. Existing clients keep their credentials.'**
+  String get vpnPlanHelp;
+
+  /// No description provided for @vpnPrepare.
+  ///
+  /// In en, this message translates to:
+  /// **'Prepare access plan'**
+  String get vpnPrepare;
+
+  /// No description provided for @vpnApply.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply plan to all listed servers'**
+  String get vpnApply;
+
+  /// No description provided for @vpnOfflinePlan.
+  ///
+  /// In en, this message translates to:
+  /// **'Server offline. The approved changes will run after reconnection and precondition checks.'**
+  String get vpnOfflinePlan;
+
+  /// No description provided for @vpnPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Access changes are pending on one or more servers. A complete current profile is not ready yet.'**
+  String get vpnPending;
+
+  /// No description provided for @vpnProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Personal Mihomo profile'**
+  String get vpnProfile;
+
+  /// No description provided for @vpnShowProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Show profile and client credentials'**
+  String get vpnShowProfile;
+
+  /// No description provided for @vpnSaveProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Save YAML'**
+  String get vpnSaveProfile;
+
+  /// No description provided for @vpnCopyProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy YAML'**
+  String get vpnCopyProfile;
+
+  /// No description provided for @vpnProfileSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile saved'**
+  String get vpnProfileSaved;
+
+  /// No description provided for @vpnProfileValidation.
+  ///
+  /// In en, this message translates to:
+  /// **'Structural validation only in this screen. Core and network tests for the presets are documented separately.'**
+  String get vpnProfileValidation;
+
+  /// No description provided for @vpnLastProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'The previous valid revision is retained. Fix the template or complete pending access changes before export.'**
+  String get vpnLastProfile;
+
+  /// No description provided for @vpnInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Check names, addresses, ports and the selected transport/security combination.'**
+  String get vpnInvalid;
+
+  /// No description provided for @vpnDuplicate.
+  ///
+  /// In en, this message translates to:
+  /// **'Client logins and resource identifiers must be unique.'**
+  String get vpnDuplicate;
+
+  /// No description provided for @vpnConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'Server configuration has changed. Refresh and review the conflict before applying again.'**
+  String get vpnConflict;
+
+  /// No description provided for @vpnConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect to this server in the Servers section. Pending access changes are retained.'**
+  String get vpnConnection;
+
+  /// No description provided for @vpnPanelRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect to the server, install or update the runner and verify the managed 3x-ui panel first.'**
+  String get vpnPanelRequired;
+
+  /// No description provided for @vpnStorage.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save the encrypted client database. Retry after resolving the storage error.'**
+  String get vpnStorage;
+
+  /// No description provided for @vpnStorageConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'Another application instance changed the client database. Reload before editing.'**
+  String get vpnStorageConflict;
+
+  /// No description provided for @vpnIdentity.
+  ///
+  /// In en, this message translates to:
+  /// **'This saved server now has a different address or SSH identity. Its previous access bindings require review.'**
+  String get vpnIdentity;
+
+  /// No description provided for @vpnFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The operation was not confirmed. Refresh the server status or retry the saved operation.'**
+  String get vpnFailed;
+
+  /// No description provided for @vpnPortBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'The listen address or port is unavailable or conflicts with another inbound.'**
+  String get vpnPortBusy;
+
+  /// No description provided for @vpnPartial.
+  ///
+  /// In en, this message translates to:
+  /// **'Some changes may already be applied. Review the saved job and resume it when ready.'**
+  String get vpnPartial;
+
+  /// No description provided for @vpnApplying.
+  ///
+  /// In en, this message translates to:
+  /// **'Applying client access'**
+  String get vpnApplying;
+
+  /// No description provided for @vpnChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Verifying the applied configuration'**
+  String get vpnChecking;
+
+  /// No description provided for @vpnPrepareStep.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking preconditions and saving the backup'**
+  String get vpnPrepareStep;
+
+  /// No description provided for @vpnEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit'**
+  String get vpnEdit;
+
+  /// No description provided for @vpnRefreshProfiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Rebuild profiles'**
+  String get vpnRefreshProfiles;
+
+  /// No description provided for @vpnSnapshot.
+  ///
+  /// In en, this message translates to:
+  /// **'Last observation'**
+  String get vpnSnapshot;
+
+  /// No description provided for @vpnChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'Changes awaiting approval'**
+  String get vpnChanged;
+
+  /// No description provided for @vpnEmptyTemplate.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a base YAML in Templates first.'**
+  String get vpnEmptyTemplate;
+
+  /// No description provided for @vpnNoAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'No active inbounds are configured for this client yet.'**
+  String get vpnNoAccess;
+
+  /// No description provided for @vpnRealityCompatibility.
+  ///
+  /// In en, this message translates to:
+  /// **'REALITY uses minClientVer=1.8.2 for Mihomo compatibility. Xray warns of increased detection risk when lowering this threshold. Compatibility tests do not establish resistance to blocking.'**
+  String get vpnRealityCompatibility;
 }
 
 class _AppLocalizationsDelegate

@@ -1,0 +1,33 @@
+{
+  "dartFlutterTests": 211,
+  "pythonTests": 28,
+  "analyze": "PASS",
+  "architecture": "PASS",
+  "generatedContracts": "PASS",
+  "localizationMessagesPerLocale": 417,
+  "baseYamlHash": "unchanged",
+  "builds": {
+    "apps/manager/build/linux/x64/debug/bundle/antirkn_manager": {
+      "sha256": "9fffcfee576434e574553b9b3cc8214dffa856e18bc973d1a78545ecfddd3d13",
+      "bytes": 53696
+    },
+    "apps/manager/build/linux/x64/debug/bundle/data/flutter_assets/kernel_blob.bin": {
+      "sha256": "605a56fbb635383861f5217c95d7c5a620e1836b42bb3e799c0d30e983d4e349",
+      "bytes": 81052816
+    },
+    "apps/manager/build/app/outputs/flutter-apk/app-debug.apk": {
+      "sha256": "2c1000069684ddb0766b34ed1b33d58319ce0d8a27959d1e3da29d6ffc679727",
+      "bytes": 117989790
+    }
+  },
+  "notChecked": [
+    "Android runtime and ACTION_CREATE_DOCUMENT: phone disconnected per owner",
+    "Windows build/runtime",
+    "Full Linux GUI workflow and accessibility acceptance",
+    "Live public VPS and resistance to blocking",
+    "Large fleet/load and every supported Ubuntu version"
+  ],
+  "runnerRelease": "e674eaf3d977199b263ce967993a62a93c4d590ddb45b41a45bf256b12054441",
+  "linuxContainsFinalRunner": true,
+  "androidContainsFinalRunner": true
+}

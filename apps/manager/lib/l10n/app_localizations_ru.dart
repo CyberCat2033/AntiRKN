@@ -1213,4 +1213,221 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get componentsEditPlan => 'Изменить';
+
+  @override
+  String get vpnUsers => 'Клиенты';
+
+  @override
+  String get vpnUsersHelp =>
+      'Создайте клиента один раз. AntiRKN подготовит ему персональные доступы ко всем настроенным управляемым inbounds на всех серверах.';
+
+  @override
+  String get vpnAddUser => 'Добавить клиента';
+
+  @override
+  String get vpnNoUsers => 'Клиентов пока нет';
+
+  @override
+  String get vpnLogin => 'Логин клиента';
+
+  @override
+  String get vpnName => 'Отображаемое имя';
+
+  @override
+  String get vpnEnabled => 'Включён';
+
+  @override
+  String get vpnDisabled => 'Отключён';
+
+  @override
+  String get vpnSave => 'Сохранить и подготовить план доступов';
+
+  @override
+  String get vpnInbounds => 'VLESS inbounds';
+
+  @override
+  String get vpnAddInbound => 'Добавить inbound';
+
+  @override
+  String get vpnInboundHelp =>
+      'Здесь задаются общие настройки сервера. Каждый клиент автоматически получает персональный доступ к каждому включённому inbound.';
+
+  @override
+  String get vpnNoInbounds => 'На этом сервере пока нет управляемых inbounds';
+
+  @override
+  String get vpnTransport => 'Транспорт';
+
+  @override
+  String get vpnSecurity => 'Защита';
+
+  @override
+  String get vpnListen => 'Адрес прослушивания';
+
+  @override
+  String get vpnPort => 'Порт прослушивания';
+
+  @override
+  String get vpnEndpoint => 'Адрес для клиента (IP или домен)';
+
+  @override
+  String get vpnExternalPort => 'Порт для клиента';
+
+  @override
+  String get vpnSni => 'Имя сервера (SNI)';
+
+  @override
+  String get vpnTarget => 'REALITY target (хост:порт)';
+
+  @override
+  String get vpnPath => 'Путь XHTTP';
+
+  @override
+  String get vpnHost => 'Host XHTTP (необязательно)';
+
+  @override
+  String get vpnMode => 'Режим XHTTP';
+
+  @override
+  String get vpnCertificate => 'Файл цепочки сертификата на сервере';
+
+  @override
+  String get vpnCertificateKey =>
+      'Файл приватного ключа сертификата на сервере';
+
+  @override
+  String get vpnTlsHelp =>
+      'Используйте существующий сертификат для домена SNI. Выпуск и продление сертификатов — отдельные задачи.';
+
+  @override
+  String get vpnRegion => 'Добавить явную метку RU для фильтров шаблона';
+
+  @override
+  String get vpnDeleteInbound => 'Удалить inbound и его клиентские доступы';
+
+  @override
+  String get vpnDeleteHelp =>
+      'Следующий план удалит этот inbound для всех клиентов.';
+
+  @override
+  String get vpnPlan => 'План клиентских доступов';
+
+  @override
+  String get vpnPlanHelp =>
+      'Применить перечисленные inbounds и персональные доступы через 3x-ui. На каждом сервере сохраняется закрытая резервная копия конфигурации. В конце Xray перезапускается; соединения могут ненадолго прерваться. Реквизиты существующих клиентов сохраняются.';
+
+  @override
+  String get vpnPrepare => 'Подготовить план доступов';
+
+  @override
+  String get vpnApply => 'Применить план на всех указанных серверах';
+
+  @override
+  String get vpnOfflinePlan =>
+      'Сервер недоступен. Подтверждённые изменения выполнятся после подключения и проверки предусловий.';
+
+  @override
+  String get vpnPending =>
+      'Изменения доступов ожидают выполнения на одном или нескольких серверах. Полный актуальный профиль пока не готов.';
+
+  @override
+  String get vpnProfile => 'Персональный профиль Mihomo';
+
+  @override
+  String get vpnShowProfile => 'Показать профиль и реквизиты клиента';
+
+  @override
+  String get vpnSaveProfile => 'Сохранить YAML';
+
+  @override
+  String get vpnCopyProfile => 'Копировать YAML';
+
+  @override
+  String get vpnProfileSaved => 'Профиль сохранён';
+
+  @override
+  String get vpnProfileValidation =>
+      'На этом экране выполнена структурная проверка. Проверки пресетов ядром и сетевые испытания описаны отдельно.';
+
+  @override
+  String get vpnLastProfile =>
+      'Предыдущая корректная ревизия сохранена. Перед экспортом исправьте шаблон или завершите ожидающие изменения доступов.';
+
+  @override
+  String get vpnInvalid =>
+      'Проверьте имена, адреса, порты и выбранное сочетание транспорта и защиты.';
+
+  @override
+  String get vpnDuplicate =>
+      'Логины клиентов и идентификаторы ресурсов должны быть уникальными.';
+
+  @override
+  String get vpnConflict =>
+      'Конфигурация сервера изменилась. Обновите сведения и разберите конфликт перед повторным применением.';
+
+  @override
+  String get vpnConnection =>
+      'Подключитесь к этому серверу в разделе серверов. Ожидающие изменения доступов сохранены.';
+
+  @override
+  String get vpnPanelRequired =>
+      'Сначала подключитесь к серверу, установите или обновите runner и проверьте управляемую панель 3x-ui.';
+
+  @override
+  String get vpnStorage =>
+      'Не удалось сохранить зашифрованную базу клиентов. Устраните ошибку хранилища и повторите.';
+
+  @override
+  String get vpnStorageConflict =>
+      'Другой экземпляр приложения изменил базу клиентов. Загрузите её заново перед редактированием.';
+
+  @override
+  String get vpnIdentity =>
+      'Адрес или SSH-идентичность сохранённого сервера изменились. Прежние привязки доступов требуют проверки.';
+
+  @override
+  String get vpnFailed =>
+      'Операция не подтверждена. Обновите состояние сервера или повторите сохранённую операцию.';
+
+  @override
+  String get vpnPortBusy =>
+      'Адрес или порт прослушивания недоступен либо конфликтует с другим inbound.';
+
+  @override
+  String get vpnPartial =>
+      'Часть изменений могла примениться. Проверьте сохранённое задание и продолжите его, когда будете готовы.';
+
+  @override
+  String get vpnApplying => 'Применение клиентских доступов';
+
+  @override
+  String get vpnChecking => 'Проверка применённой конфигурации';
+
+  @override
+  String get vpnPrepareStep =>
+      'Проверка предусловий и сохранение резервной копии';
+
+  @override
+  String get vpnEdit => 'Изменить';
+
+  @override
+  String get vpnRefreshProfiles => 'Пересобрать профили';
+
+  @override
+  String get vpnSnapshot => 'Последняя проверка';
+
+  @override
+  String get vpnChanged => 'Изменения ожидают подтверждения';
+
+  @override
+  String get vpnEmptyTemplate =>
+      'Сначала выберите базовый YAML в разделе шаблонов.';
+
+  @override
+  String get vpnNoAccess =>
+      'Для этого клиента пока нет настроенных активных inbounds.';
+
+  @override
+  String get vpnRealityCompatibility =>
+      'Для Mihomo REALITY использует minClientVer=1.8.2. Xray предупреждает о повышенном риске обнаружения при снижении этого порога. Совместимость проверяется отдельно от устойчивости к блокировкам.';
 }

@@ -24,6 +24,7 @@ class ServerCatalogController extends ChangeNotifier {
   VaultIssue? error;
   bool _disposed = false;
   SshController? get selected => _sessions[selectedId];
+  SshController? sessionFor(String id) => _sessions[id];
   bool get needsLegacyPassword => repository.needsLegacyPassword;
 
   Future<void> load({String? password}) async {

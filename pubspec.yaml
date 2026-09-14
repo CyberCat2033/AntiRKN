@@ -11,6 +11,8 @@ workspace:
   - packages/design_system
   - packages/profile_compiler
 dev_dependencies:
+  antirkn_domain:
+    path: packages/domain
   antirkn_profile_compiler:
     path: packages/profile_compiler
   lints: 6.1.0

@@ -17,9 +17,9 @@
 | Каталог одного VPS | Парсер формата iproute2 v6.1.0; локальный smoke на iproute2 7.2.0 / Arch Linux | 23 теста IP/парсера/политики, 5 контроллера, 7 widget/asset tests; реальный локальный вывод 9 IP / 27 routes / 13 rules | SSH-сбор на Ubuntu 24.04, NAT/ручной endpoint, порты, TCP/UDP, протокольные адаптеры |
 | SSH одного VPS | dartssh2 4.1.0; Ubuntu OpenSSH 9.6p1-3ubuntu13.19, iproute2 6.1.0-1ubuntu6.4 | Изолированный Ubuntu 24.04 контейнер: root/user, password, OpenSSH Ed25519/RSA, encrypted keys, отказ trust/auth, отмена/timeout/output/OS; каталог с secondary IPv4; отдельный Linux SSH-agent; после уточнения владельца допуск любой версии Ubuntu покрыт 9 регрессионными тестами | Реальный VPS/VM, SSH runtime Windows/Android, sudo/hardening/runner, SFTP/forwarding |
 | Постоянный vault | cryptography 2.9.0, flutter_secure_storage 11.1.1, Linux plugin 3.0.3, Windows plugin 4.2.2; hashes в pubspec.lock | AEAD/Argon2id, файл/new instance, неверный пароль/повреждение, CAS/ошибка записи, авто-lock; native Linux мастер-пароль PASS | Secret Service текущей сессии недоступна; native OS keyring success, Windows и Android runtime ещё не доказаны; backup/recovery/sync |
-| Mihomo | [v1.19.30](https://github.com/MetaCubeX/mihomo/releases/tag/v1.19.30), linux-amd64-compatible | Версия бинарника, SHA-256 архива совпал с GitHub digest, шесть config tests успешны | TCP/UDP, точное runtime-поведение групп с внешними providers, Android validator |
-| Xray | 26.7.28 из закреплённого архива 3x-ui 3.7.0; прежний отдельный кандидат 26.3.27 не используется установщиком | Ubuntu VM: установка, версия бинарника, running/version через API панели | VLESS RAW Vision/XHTTP, TCP/UDP Mihomo |
-| 3x-ui | [v3.7.0](https://github.com/MHSanaei/3x-ui/releases/tag/v3.7.0), hashes в `schemas/panel-release.json` | Первоначальная установка, изолированный bootstrap, закрытый listener, credentials/settings через API, чтение API через SSH direct-tcpip | CRUD VPN-пользователей/inbounds, обновление существующей панели, конфликты её рабочих конфигураций |
+| Mihomo | [v1.19.30](https://github.com/MetaCubeX/mihomo/releases/tag/v1.19.30), linux-amd64-compatible | Версия/hash, config tests и реальные VLESS RAW/XHTTP TCP/UDP на двух Ubuntu VM | Runtime внешних providers, Android validator, устойчивость к блокировкам |
+| Xray | 26.7.28 из закреплённого архива 3x-ui 3.7.0; прежний отдельный кандидат 26.3.27 не используется установщиком | Ubuntu VM: установка, API, несколько VLESS RAW Vision/XHTTP, TCP/UDP Mihomo | Публичные VPS/блокировки, иные платформы и версии |
+| 3x-ui | [v3.7.0](https://github.com/MHSanaei/3x-ui/releases/tag/v3.7.0), hashes в `schemas/panel-release.json` | Установка, закрытый listener, API/SSH, управляемые VLESS-инбаунды и клиенты, обнаружение конфликтов и восстановление | Обновление самой панели, импорт чужих установок, прочие протоколы |
 | TrustTunnel | [v1.1.0](https://github.com/TrustTunnel/TrustTunnel/releases/tag/v1.1.0), кандидат | Mihomo принимает fixture узла trusttunnel | Endpoint, credentials reload, TCP/UDP/QUIC, ACME и renewal |
 | AmneziaWG | Поколение сервера ещё не выбрано | Mihomo принимает fixture с jc/jmin/jmax/s1/s2/h1–h4 | Соответствие конкретному серверному release, kernel/userspace, handshake/UDP |
 | RealiTLScanner | [commit e5e114747aa8c6dfa4b394a0782f241bf72bdce6](https://github.com/XTLS/RealiTLScanner/commit/e5e114747aa8c6dfa4b394a0782f241bf72bdce6) | Зафиксирована ссылка upstream для следующего прототипа | Реализация, лицензия включаемых файлов, FFI/упаковка/отмена/три ОС |
@@ -37,9 +37,9 @@ Mihomo archive SHA-256: `db214c7a2517e63c150d123178d16d102e03a241ccdae4e5e07ffbe
 
 | Пресет | Настройка сервера | Экспорт/разбор Mihomo | TCP | UDP |
 | --- | --- | --- | --- | --- |
-| VLESS RAW/TCP REALITY Vision | Не испытана | Публичный fixture принят v1.19.30 | Не испытан | Не испытан |
-| VLESS XHTTP REALITY | Не испытана | Только структурное ограничение входа; fixture/test ядром ещё нет | Не испытан | Не испытан |
-| VLESS XHTTP TLS | Не испытана | Только структурное ограничение входа; fixture/test ядром ещё нет | Не испытан | Не испытан |
+| VLESS RAW/TCP REALITY Vision | 3x-ui 3.7.0 / Xray 26.7.28, два сервера | Production-компилятор + Mihomo 1.19.30 config-test | PASS | PASS |
+| VLESS XHTTP REALITY | auto / stream-one, два сервера | Production-компилятор + Mihomo 1.19.30 config-test | PASS | PASS |
+| VLESS XHTTP TLS | auto / packet-up / stream-up / stream-one, два сервера | Production-компилятор + Mihomo 1.19.30 config-test | PASS | PASS |
 | TrustTunnel | Не испытана | Публичный fixture принят v1.19.30 | Не испытан | Не испытан |
 | AWG | Не выбрано поколение | Публичный fixture принят v1.19.30; не означает поддержки версии сервера | Не испытан | Не испытан |
 
@@ -80,3 +80,11 @@ Android использует Gradle 8.14, Java 17.0.20.1, AGP 8.11.1, Kotlin 2.2
 Контракт v1 и hashes встроенной сборки — [runner-ubuntu.json](evidence/runner-ubuntu.json). На Ubuntu 24.04.5 x86_64 в полноценной QEMU/KVM VM проверены настоящие systemd, SSH, sudo, сохранение задания при обрыве связи, crash/reboot recovery и конкурентная регистрация. Образ [Ubuntu 20260911](https://cloud-images.ubuntu.com/noble/20260911/noble-server-cloudimg-amd64.img), SHA-256 `612b2c0cc1bc413a6cb8c38fd611794caf0f2b436c50013d8b3794db12ad7354`.
 
 Это подтверждение инфраструктуры `diagnostic`, а не VPN-протоколов/установщиков. Другие версии Ubuntu/Python/systemd, полный runtime GUI и синхронизация устройств этой стадией не приняты; см. [ADR 0009](adr/0009-durable-runner-and-automatic-sudo.md).
+
+## Дополнение: VLESS и XHTTP (2026-09-14)
+
+[VM 1](evidence/vless-ubuntu.json), [VM 2](evidence/vless-ubuntu-server2.json), [Dart SSH root/sudo](evidence/vless-ssh-api.json), [отказы/reboot](evidence/vless-failures-ubuntu.json). Mihomo binary SHA-256: `8ad44e28fe72be4640254b96741b677f4074991b99186cc4486a1c28ded02b1a`. Каждый сервер имеет два клиента и пять инбаундов; экспорт проверяется production-компилятором, затем настоящим Mihomo. TCP/UDP направлены на изолированные echo endpoints; TLS использует отдельный тестовый CA без skip-cert-verify. Тестовое разрешение private IP в routing/freedom finalRules применяется только на fixture через API панели.
+
+В [Xray 26.7.28](https://github.com/XTLS/Xray-core/blob/v26.7.28/infra/conf/transport_security.go) минимальная версия REALITY по умолчанию — 26.3.27. [Mihomo 1.19.30](https://github.com/MetaCubeX/mihomo/blob/v1.19.30/component/tls/reality.go) сообщает в handshake 1.8.2. Адаптер явно ставит minClientVer=1.8.2; upstream предупреждает о повышенном риске обнаружения при снижении порога, GUI показывает это в плане. Устойчивость к блокировкам не проверена. XHTTP REALITY packet-up/stream-up не включены в редактор; XHTTP flow не задаётся.
+
+API и параметры проверены по исходникам закреплённых releases и настоящим бинарникам; [документация Mihomo VLESS](https://wiki.metacubex.one/en/config/proxies/vless/), [транспорт](https://wiki.metacubex.one/en/config/proxies/transport/), [Xray XHTTP](https://xtls.github.io/en/config/transports/splithttp.html) использованы для сверки, а не как замена runtime-тестам. GUI пока выполняет структурную проверку YAML; Mihomo config-test не встроен на устройства. [Архитектура и границы стадии](adr/0011-clients-vless-inbounds.md).

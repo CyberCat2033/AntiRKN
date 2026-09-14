@@ -1,4 +1,4 @@
-# Shared read-only preflight; PREDECESSOR is injected by the bundle generator.
+# Shared read-only preflight; known predecessor manifests are bundled.
 import hashlib
 import json
 import os
@@ -11,20 +11,23 @@ import sys
 
 BASE = Path('/usr/local/lib/antirkn-runner')
 UNIT = Path('/etc/systemd/system/antirkn-runner.service')
-PROGRAMS = ('runner.py', 'contract.py', 'panel.py', 'panel_api.py', 'panel_release.py')
+PROGRAMS = ('runner.py', 'contract.py', 'panel.py', 'panel_api.py', 'panel_release.py', 'vless.py', 'vless_contract.py')
 
 
 def inspect_runner():
     hashes, unsafe = {}, False
+    names_by_version = {'v1': ('runner.py', 'contract.py'),
+        'v2': ('runner.py', 'contract.py', 'panel.py', 'panel_api.py', 'panel_release.py'), 'v3': PROGRAMS}
+    directories = {BASE} | {BASE / version for version in names_by_version}
     paths = [BASE, UNIT]
-    for folder, names in [('v1', ('runner.py', 'contract.py')), ('v2', PROGRAMS)]:
-        paths += [BASE / folder, BASE / folder / 'manifest.json']
-        paths += [BASE / folder / name for name in names]
+    for version, names in names_by_version.items():
+        paths += [BASE / version, BASE / version / 'manifest.json']
+        paths += [BASE / version / name for name in names]
     for path in paths:
         try:
             meta = path.lstat()
             safe = meta.st_uid == 0 and not meta.st_mode & 0o022 and not stat.S_ISLNK(meta.st_mode)
-            if path in (BASE, BASE / 'v1', BASE / 'v2'):
+            if path in directories:
                 safe = safe and stat.S_ISDIR(meta.st_mode)
                 content = b'directory'
             else:
@@ -38,48 +41,41 @@ def inspect_runner():
             unsafe = True
             hashes[str(path)] = 'unreadable'
     release, state, upgradable = None, 'missing', False
-    old = None
     try:
-        if hashes[str(BASE / 'v1')]:
-            old = json.loads((BASE / 'v1/manifest.json').read_text())
-            if old != PREDECESSOR:
-                raise ValueError()
-            for name in ('runner.py', 'contract.py'):
-                if hashes[str(BASE / 'v1' / name)] != old['hashes'][name]:
-                    raise ValueError()
-        if hashes[str(BASE / 'v2')]:
-            manifest = json.loads((BASE / 'v2/manifest.json').read_text())
-            if set(manifest) != {'release', 'hashes'} or set(manifest['hashes']) != set(PROGRAMS) | {'antirkn-runner.service'}:
-                raise ValueError()
+        predecessors = []
+        for version, expected in [('v1', PREDECESSOR), ('v2', PREDECESSOR_V2)]:
+            if hashes[str(BASE / version)]:
+                manifest = json.loads((BASE / version / 'manifest.json').read_text())
+                if manifest != expected: raise ValueError()
+                for name in names_by_version[version]:
+                    if hashes[str(BASE / version / name)] != expected['hashes'][name]: raise ValueError()
+                predecessors.append(manifest)
+        unit_hash = hashes[str(UNIT)]
+        if hashes[str(BASE / 'v3')]:
+            manifest = json.loads((BASE / 'v3/manifest.json').read_text())
+            if set(manifest) != {'release','hashes'} or set(manifest['hashes']) != set(PROGRAMS) | {'antirkn-runner.service'}: raise ValueError()
             for name in PROGRAMS:
-                if hashes[str(BASE / 'v2' / name)] != manifest['hashes'][name]:
-                    raise ValueError()
+                if hashes[str(BASE / 'v3' / name)] != manifest['hashes'][name]: raise ValueError()
             expected = hashlib.sha256(json.dumps(manifest['hashes'], sort_keys=True).encode()).hexdigest()
-            if manifest['release'] != expected:
-                raise ValueError()
+            if manifest['release'] != expected: raise ValueError()
             release = expected
-            unit_hash = hashes[str(UNIT)]
             if unit_hash == manifest['hashes']['antirkn-runner.service']:
                 state = 'installed'
-            elif unit_hash is None or (old and unit_hash == old['hashes']['antirkn-runner.service']):
+            elif unit_hash is None or any(unit_hash == old['hashes']['antirkn-runner.service'] for old in predecessors):
                 state = 'partial'
-            else:
-                raise ValueError()
-        elif old and hashes[str(UNIT)] == old['hashes']['antirkn-runner.service']:
-            release, state, upgradable = old['release'], 'installed', True
-        elif any(hashes.values()):
-            raise ValueError()
+            else: raise ValueError()
+        elif predecessors and unit_hash == predecessors[-1]['hashes']['antirkn-runner.service']:
+            release, state, upgradable = predecessors[-1]['release'], 'installed', True
+        elif any(hashes.values()): raise ValueError()
     except (ValueError, KeyError, TypeError, OSError):
         unsafe = True
     if unsafe:
         state, upgradable = 'conflict', False
-    distro = dict(line.split('=', 1) for line in Path('/etc/os-release').read_text().splitlines() if '=' in line)
+    distro = dict(line.split('=',1) for line in Path('/etc/os-release').read_text().splitlines() if '=' in line)
     systemd = Path('/run/systemd/system').is_dir()
     if systemd:
-        version_text = subprocess.check_output(['/usr/bin/systemctl', '--version'], timeout=10, text=True)
+        version_text = subprocess.check_output(['/usr/bin/systemctl','--version'],timeout=10,text=True)
         systemd = int(version_text.splitlines()[0].split()[1]) >= 235
-    supported = distro.get('ID', '').strip('"') == 'ubuntu' and platform.machine() == 'x86_64' and sys.version_info >= (3, 8) and systemd
-    active = subprocess.run(['/usr/bin/systemctl', 'is-active', '--quiet', 'antirkn-runner.service'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10).returncode == 0 if systemd else False
-    fingerprint = hashlib.sha256(json.dumps(hashes, sort_keys=True).encode()).hexdigest()
-    return dict(supported=supported, state=state, release=release,
-                fingerprint=fingerprint, active=active, upgradable=upgradable)
+    supported = distro.get('ID','').strip('"') == 'ubuntu' and platform.machine() == 'x86_64' and sys.version_info >= (3,8) and systemd
+    active = subprocess.run(['/usr/bin/systemctl','is-active','--quiet','antirkn-runner.service'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=10).returncode == 0 if systemd else False
+    return dict(supported=supported,state=state,release=release,fingerprint=hashlib.sha256(json.dumps(hashes,sort_keys=True).encode()).hexdigest(),active=active,upgradable=upgradable)

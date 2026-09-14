@@ -1,0 +1,11 @@
+{
+  "release": "b283a413a98fff5e53573f3820fb96127f9aae9d55324c26c4ab194aa233cc32",
+  "hashes": {
+    "antirkn-runner.service": "68ca5069c2eee031e22c284f6e576eaceceb68d5899e91c8707ac62a2f67760a",
+    "contract.py": "eb6da221eda0876017c82d71e7dcd9ac5301a67c14128683648d79d1b4bd5ddc",
+    "panel.py": "a7180a0a28c361f92e0ab4b5f12a830716bc3f58390c12bcd047a44896fdde61",
+    "panel_api.py": "6c78bd883bd080e8c935308d7d86a603ef0b60a7e4ba27f20208f03fd235ca95",
+    "panel_release.py": "f651e6bfa37513e94fe9bfb6827b890abcb9c13f6b60ec5f8f3748d9da0be81f",
+    "runner.py": "56f8ba6991d3738e1d3cbe4da1d4cf1b6d3cbd861b76c73898dbae7c944b2ca5"
+  }
+}

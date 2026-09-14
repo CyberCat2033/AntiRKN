@@ -82,7 +82,7 @@ final class SshRunnerTransport implements RunnerTransport {
     final result = await _privileged(
       action == 'panel_plan'
           ? python(runnerPanelInspector)
-          : '/usr/bin/python3 -I /usr/local/lib/antirkn-runner/v2/runner.py rpc',
+          : '/usr/bin/python3 -I /usr/local/lib/antirkn-runner/v3/runner.py rpc',
       jsonEncode(
         action == 'panel_verify'
             ? {...request.json, 'action': 'panel_access'}
@@ -135,7 +135,7 @@ final class SshRunnerTransport implements RunnerTransport {
       input: Uint8List.fromList(utf8.encode(input)),
       inputPrompt: '__ANTIRKN_RUNNER_INPUT__',
       timeout: timeout,
-      limit: 512 * 1024,
+      limit: 4 * 1024 * 1024,
     );
     if (!result.succeeded && !result.inputSent) {
       if (root) throw const RunnerFailure(RunnerIssue.unavailable);

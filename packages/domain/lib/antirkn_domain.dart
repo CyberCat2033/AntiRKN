@@ -1,4 +1,5 @@
 export 'src/runner.dart';
+export 'src/vpn.dart';
 export 'src/privileges.dart';
 export 'src/workspace.dart';
 export 'src/network/ip_address.dart';

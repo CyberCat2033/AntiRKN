@@ -6,15 +6,19 @@ import '../network/network_workbench.dart';
 import 'server_catalog_controller.dart';
 import 'ssh_controller.dart';
 import 'ssh_panel.dart';
+import '../vpn/vpn_controller.dart';
+import '../vpn/inbounds_panel.dart';
 
 class ServerCatalog extends StatefulWidget {
   const ServerCatalog({
     required this.controller,
     required this.motion,
+    this.vpn,
     super.key,
   });
   final ServerCatalogController controller;
   final MotionPreference motion;
+  final VpnController? vpn;
   @override
   State<ServerCatalog> createState() => _ServerCatalogState();
 }
@@ -58,6 +62,21 @@ class _ServerCatalogState extends State<ServerCatalog> {
                   controller: session.network,
                   ssh: session,
                   motion: widget.motion,
+                  protocols: widget.vpn == null
+                      ? null
+                      : InboundsPanel(
+                          controller: widget.vpn!,
+                          serverId: c.selectedId!,
+                          serverName: (id) =>
+                              c.servers
+                                  .where((s) => s.id == id)
+                                  .firstOrNull
+                                  ?.profile
+                                  .displayName ??
+                              id,
+                          network: session.network,
+                          motion: widget.motion,
+                        ),
                 ),
               ),
             ],

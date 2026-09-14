@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Known v1 -> v2 upgrade and interrupted-bootstrap repair on a disposable VM."""
+"""Known v1/v2 -> v3 upgrade and interrupted-bootstrap repair on a disposable VM."""
 import json
+import os
 import re
 import subprocess
 import time
@@ -13,12 +14,14 @@ def main():
         if not value: raise AssertionError(name)
         results[name] = True
         print('PASS', name, flush=True)
-    # HEAD is the shipped predecessor until the agreed stage is committed.
-    source = subprocess.check_output(['git', 'show', '9f7c846:packages/ssh_transport/lib/src/runner_bundle.g.dart'], cwd=ROOT, text=True)
+    version = os.environ.get('ANTIRKN_PREDECESSOR', 'v2')
+    commit = {'v1':'9f7c846', 'v2':'5f057bc'}[version]
+    source = subprocess.check_output(['git', 'show', commit + ':packages/ssh_transport/lib/src/runner_bundle.g.dart'], cwd=ROOT, text=True)
     old = {name: re.search(r'const ' + name + r" =\s*r'''(.*?)''';", source, re.S).group(1)
            for name in ('runnerBundle', 'runnerInspector', 'runnerInstaller')}
     new = bundle_strings()
-    remote('systemctl stop antirkn-runner')
+    material_before = remote('sha256sum /etc/antirkn-runner/panel.key', check=False).stdout
+    remote('systemctl stop antirkn-runner', check=False)
     remote('systemctl disable antirkn-runner', check=False)
     remote('rm -rf /usr/local/lib/antirkn-runner /var/lib/antirkn-runner /etc/systemd/system/antirkn-runner.service')
     remote('systemctl daemon-reload')
@@ -29,7 +32,7 @@ def main():
             json.dumps(dict(fingerprint=preview['fingerprint'],bundle=json.loads(sources['runnerBundle']))).encode(),check=check)
     check(json.loads(install(old, inspect(old)).stdout)['active'], 'previous_release_installed')
     req = dict(version=1, action='submit', id='f' * 32, kind='diagnostic', count=1, interval=1)
-    remote('/usr/bin/python3 -I /usr/local/lib/antirkn-runner/v1/runner.py rpc', json.dumps(req).encode())
+    remote('/usr/bin/python3 -I /usr/local/lib/antirkn-runner/' + version + '/runner.py rpc', json.dumps(req).encode())
     time.sleep(2)
     preview = inspect(new)
     check(preview['upgradable'], 'known_predecessor_recognized')
@@ -49,7 +52,9 @@ def main():
     pid = remote('systemctl show antirkn-runner -p MainPID --value').stdout
     check(json.loads(install(new, inspect(new)).stdout)['active'], 'repeat_install_confirmed')
     check(pid == remote('systemctl show antirkn-runner -p MainPID --value').stdout, 'repeat_does_not_restart_worker')
-    (ROOT / 'docs/evidence/panel-runner-upgrade.json').write_text(json.dumps({'results':results},indent=2)+'\n')
+    if material_before:
+        check(material_before == remote('sha256sum /etc/antirkn-runner/panel.key').stdout, 'panel_root_material_preserved')
+    (ROOT / ('docs/evidence/vless-runner-upgrade-' + version + '.json')).write_text(json.dumps({'from':version,'to':'v3','release':json.loads(new['runnerBundle'])['release'],'results':results},indent=2)+'\n')
 
 
 if __name__ == '__main__': main()

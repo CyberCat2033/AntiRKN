@@ -16,6 +16,8 @@ import 'template_controller.dart';
 import 'ssh/ssh_controller.dart';
 import 'ssh/server_catalog.dart';
 import 'ssh/server_catalog_controller.dart';
+import 'vpn/vpn_controller.dart';
+import 'vpn/users_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -248,11 +250,13 @@ class _ManagerShellState extends State<ManagerShell>
   late final NetworkController _networkController;
   SshController? _sshController;
   ServerCatalogController? _catalog;
+  VpnController? _vpn;
   static const _icons = [
     Icons.space_dashboard_outlined,
     Icons.data_object,
     Icons.dns_outlined,
     Icons.tune,
+    Icons.people_outline,
   ];
 
   @override
@@ -287,12 +291,40 @@ class _ManagerShellState extends State<ManagerShell>
       previewTemplate: widget.previewTemplate,
     );
     if (widget.source.trim().isNotEmpty) _controller.refresh();
+    if (widget.servers is VpnRepository) {
+      _vpn = VpnController(
+        repository: widget.servers as VpnRepository,
+        template: () => _controller.source,
+        remote: (id) {
+          final runner = _catalog?.sessionFor(id)?.runner;
+          final transport = runner?.transport();
+          final access = runner?.panelAccess;
+          final identity = runner?.identity();
+          if (runner == null ||
+              runner.busy ||
+              !runner.installed ||
+              transport == null ||
+              access == null ||
+              identity == null) {
+            return null;
+          }
+          return VpnRemote(
+            transport: transport,
+            panelId: access.id,
+            identity: identity,
+            password: runner.password(),
+            onSshFailure: runner.accessFailure,
+          );
+        },
+      )..load();
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _catalog?.dispose();
+    _vpn?.dispose();
     _sshController?.dispose();
     _controller.dispose();
     _networkController.dispose();
@@ -311,7 +343,13 @@ class _ManagerShellState extends State<ManagerShell>
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final l = AppLocalizations.of(context);
-      final labels = [l.overview, l.templates, l.server, l.settings];
+      final labels = [
+        l.overview,
+        l.templates,
+        l.server,
+        l.settings,
+        if (_vpn != null) l.vpnUsers,
+      ];
       final rail =
           constraints.maxWidth >= AppLayout.compact &&
           constraints.maxHeight >= 400;
@@ -420,6 +458,7 @@ class _ManagerShellState extends State<ManagerShell>
                         ServerCatalog(
                           controller: _catalog!,
                           motion: widget.motion,
+                          vpn: _vpn,
                         )
                       else
                         NetworkWorkbench(
@@ -535,6 +574,19 @@ class _ManagerShellState extends State<ManagerShell>
                           ),
                         ],
                       ),
+                      if (_vpn != null)
+                        UsersPage(
+                          controller: _vpn!,
+                          serverName: (id) =>
+                              _catalog?.servers
+                                  .where((s) => s.id == id)
+                                  .firstOrNull
+                                  ?.profile
+                                  .displayName ??
+                              id,
+                          exporter: SystemProfileExporter(),
+                          motion: widget.motion,
+                        ),
                     ],
                   ),
                 ),

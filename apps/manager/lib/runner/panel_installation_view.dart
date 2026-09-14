@@ -143,7 +143,7 @@ class _PanelInstallationViewState extends State<PanelInstallationView> {
                       Text(l.runnerPlanRelease),
                       Text(c.bundledRelease ?? ''),
                       const Text(
-                        '/usr/local/lib/antirkn-runner/v2/\n/var/lib/antirkn-runner/\n/etc/antirkn-runner/\n/etc/systemd/system/antirkn-runner.service',
+                        '/usr/local/lib/antirkn-runner/v3/\n/var/lib/antirkn-runner/\n/etc/antirkn-runner/\n/etc/systemd/system/antirkn-runner.service',
                       ),
                       Text(
                         'SHA-256 · ${(plan.bytes / (1024 * 1024)).toStringAsFixed(1)} MiB',

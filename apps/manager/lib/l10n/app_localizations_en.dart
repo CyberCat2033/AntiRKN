@@ -1210,4 +1210,218 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get componentsEditPlan => 'Edit';
+
+  @override
+  String get vpnUsers => 'Clients';
+
+  @override
+  String get vpnUsersHelp =>
+      'Create each client once. AntiRKN prepares personal access to every configured managed inbound on every server.';
+
+  @override
+  String get vpnAddUser => 'Add client';
+
+  @override
+  String get vpnNoUsers => 'No clients yet';
+
+  @override
+  String get vpnLogin => 'Client login';
+
+  @override
+  String get vpnName => 'Display name';
+
+  @override
+  String get vpnEnabled => 'Enabled';
+
+  @override
+  String get vpnDisabled => 'Disabled';
+
+  @override
+  String get vpnSave => 'Save and prepare access plan';
+
+  @override
+  String get vpnInbounds => 'VLESS inbounds';
+
+  @override
+  String get vpnAddInbound => 'Add inbound';
+
+  @override
+  String get vpnInboundHelp =>
+      'Configure shared server settings here. Each client automatically receives personal access to every enabled inbound.';
+
+  @override
+  String get vpnNoInbounds => 'No managed inbounds on this server';
+
+  @override
+  String get vpnTransport => 'Transport';
+
+  @override
+  String get vpnSecurity => 'Security';
+
+  @override
+  String get vpnListen => 'Listen address';
+
+  @override
+  String get vpnPort => 'Listen port';
+
+  @override
+  String get vpnEndpoint => 'Client address (IP or domain)';
+
+  @override
+  String get vpnExternalPort => 'Client port';
+
+  @override
+  String get vpnSni => 'Server name (SNI)';
+
+  @override
+  String get vpnTarget => 'REALITY target (host:port)';
+
+  @override
+  String get vpnPath => 'XHTTP path';
+
+  @override
+  String get vpnHost => 'XHTTP Host (optional)';
+
+  @override
+  String get vpnMode => 'XHTTP mode';
+
+  @override
+  String get vpnCertificate => 'Certificate chain file on server';
+
+  @override
+  String get vpnCertificateKey => 'Certificate private key file on server';
+
+  @override
+  String get vpnTlsHelp =>
+      'Use an existing certificate for the SNI domain. Certificate issuance and renewal are separate tasks.';
+
+  @override
+  String get vpnRegion => 'Add the explicit RU tag for template filters';
+
+  @override
+  String get vpnDeleteInbound => 'Delete inbound and its client access';
+
+  @override
+  String get vpnDeleteHelp =>
+      'The next plan will remove this inbound for all clients.';
+
+  @override
+  String get vpnPlan => 'Client access plan';
+
+  @override
+  String get vpnPlanHelp =>
+      'Apply the listed inbounds and personal access through 3x-ui. A private configuration backup is saved on each server. Xray restarts at completion; connections may briefly pause. Existing clients keep their credentials.';
+
+  @override
+  String get vpnPrepare => 'Prepare access plan';
+
+  @override
+  String get vpnApply => 'Apply plan to all listed servers';
+
+  @override
+  String get vpnOfflinePlan =>
+      'Server offline. The approved changes will run after reconnection and precondition checks.';
+
+  @override
+  String get vpnPending =>
+      'Access changes are pending on one or more servers. A complete current profile is not ready yet.';
+
+  @override
+  String get vpnProfile => 'Personal Mihomo profile';
+
+  @override
+  String get vpnShowProfile => 'Show profile and client credentials';
+
+  @override
+  String get vpnSaveProfile => 'Save YAML';
+
+  @override
+  String get vpnCopyProfile => 'Copy YAML';
+
+  @override
+  String get vpnProfileSaved => 'Profile saved';
+
+  @override
+  String get vpnProfileValidation =>
+      'Structural validation only in this screen. Core and network tests for the presets are documented separately.';
+
+  @override
+  String get vpnLastProfile =>
+      'The previous valid revision is retained. Fix the template or complete pending access changes before export.';
+
+  @override
+  String get vpnInvalid =>
+      'Check names, addresses, ports and the selected transport/security combination.';
+
+  @override
+  String get vpnDuplicate =>
+      'Client logins and resource identifiers must be unique.';
+
+  @override
+  String get vpnConflict =>
+      'Server configuration has changed. Refresh and review the conflict before applying again.';
+
+  @override
+  String get vpnConnection =>
+      'Connect to this server in the Servers section. Pending access changes are retained.';
+
+  @override
+  String get vpnPanelRequired =>
+      'Connect to the server, install or update the runner and verify the managed 3x-ui panel first.';
+
+  @override
+  String get vpnStorage =>
+      'Could not save the encrypted client database. Retry after resolving the storage error.';
+
+  @override
+  String get vpnStorageConflict =>
+      'Another application instance changed the client database. Reload before editing.';
+
+  @override
+  String get vpnIdentity =>
+      'This saved server now has a different address or SSH identity. Its previous access bindings require review.';
+
+  @override
+  String get vpnFailed =>
+      'The operation was not confirmed. Refresh the server status or retry the saved operation.';
+
+  @override
+  String get vpnPortBusy =>
+      'The listen address or port is unavailable or conflicts with another inbound.';
+
+  @override
+  String get vpnPartial =>
+      'Some changes may already be applied. Review the saved job and resume it when ready.';
+
+  @override
+  String get vpnApplying => 'Applying client access';
+
+  @override
+  String get vpnChecking => 'Verifying the applied configuration';
+
+  @override
+  String get vpnPrepareStep => 'Checking preconditions and saving the backup';
+
+  @override
+  String get vpnEdit => 'Edit';
+
+  @override
+  String get vpnRefreshProfiles => 'Rebuild profiles';
+
+  @override
+  String get vpnSnapshot => 'Last observation';
+
+  @override
+  String get vpnChanged => 'Changes awaiting approval';
+
+  @override
+  String get vpnEmptyTemplate => 'Choose a base YAML in Templates first.';
+
+  @override
+  String get vpnNoAccess =>
+      'No active inbounds are configured for this client yet.';
+
+  @override
+  String get vpnRealityCompatibility =>
+      'REALITY uses minClientVer=1.8.2 for Mihomo compatibility. Xray warns of increased detection risk when lowering this threshold. Compatibility tests do not establish resistance to blocking.';
 }

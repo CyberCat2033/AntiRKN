@@ -24,8 +24,8 @@ class PanelApi:
         req = urllib.request.Request(self.base + path, headers=headers,
             data=json.dumps(data).encode() if data is not None else None)
         with self.client.open(req, timeout=20) as response:
-            raw = response.read(524289)
-        if len(raw) > 524288:
+            raw = response.read(4194305)
+        if len(raw) > 4194304:
             raise ValueError('panel_api_failed')
         result = json.loads(raw)
         if result.get('success') is not True:

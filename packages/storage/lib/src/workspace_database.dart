@@ -104,6 +104,7 @@ final class WorkspaceDatabase
     implements
         ServerRepository,
         RunnerJournalStore,
+        VpnRepository,
         SettingsStore,
         TemplateDraftStore,
         LanguagePreferenceStore {
@@ -307,6 +308,49 @@ final class WorkspaceDatabase
 
   @override
   Future<String?> readDraft() => _readDocument('template-draft');
+  @override
+  Future<VpnStoredDocument> readVpn() => _serial(() async {
+    final rows = _db.select('SELECT * FROM documents WHERE id=?', [
+      'vpn-workspace-v1',
+    ]);
+    if (rows.isEmpty) return const VpnStoredDocument(null, 0);
+    final row = rows.single;
+    return VpnStoredDocument(
+      await _decrypt(
+        'vpn-workspace-v1',
+        row['revision'] as int,
+        row['payload'] as Uint8List,
+      ),
+      row['revision'] as int,
+    );
+  });
+  @override
+  Future<int> writeVpn(
+    String source, {
+    required int expectedRevision,
+  }) => _serial(() async {
+    if (utf8.encode(source).length > 8 * 1024 * 1024) {
+      throw const VaultFailure(VaultIssue.writeFailed);
+    }
+    VpnWorkspace.decode(source);
+    const id = 'vpn-workspace-v1';
+    final revision = expectedRevision + 1;
+    final payload = await _encrypt(id, revision, source);
+    return _transaction(() {
+      final current = _db.select('SELECT revision FROM documents WHERE id=?', [
+        id,
+      ]);
+      if ((current.isEmpty ? 0 : current.single['revision']) !=
+          expectedRevision) {
+        throw const VaultFailure(VaultIssue.busy);
+      }
+      _db.execute(
+        'INSERT INTO documents VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload, revision=excluded.revision',
+        [id, payload, revision],
+      );
+      return revision;
+    });
+  });
   @override
   Future<void> writeDraft(String source) =>
       _writeDocument('template-draft', source);

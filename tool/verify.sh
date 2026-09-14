@@ -3,13 +3,14 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 flutter pub get --enforce-lockfile
 python3 tool/check_workspace.py
+python3 tool/generate_vless.py --check
 python3 tool/generate_runner.py --check
 python3 -m unittest discover -s tests/runner -v
 (
   cd apps/manager
   flutter gen-l10n
 )
-dart format --output=none --set-exit-if-changed apps packages tool/compile_fixtures.dart
+dart format --output=none --set-exit-if-changed apps packages tool/compile_fixtures.dart tool/compile_vless_fixture.dart
 flutter analyze --no-pub
 (
   cd packages/storage

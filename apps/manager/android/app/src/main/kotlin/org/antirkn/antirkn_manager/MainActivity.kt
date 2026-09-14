@@ -18,6 +18,7 @@ class MainActivity : FlutterActivity() {
     private val reader = Executors.newSingleThreadExecutor()
     private var pending: MethodChannel.Result? = null
     private var pickingKey = false
+    private var exporting: ByteArray? = null
     private val handler = Handler(Looper.getMainLooper())
     private var requestId = 7142
     private var readTask: Future<*>? = null
@@ -31,19 +32,26 @@ class MainActivity : FlutterActivity() {
                 if (call.method == "cancelKey") {
                     if (pickingKey) finishPick(requestId)
                     result.success(null)
-                } else if (call.method != "pick" && call.method != "pickKey") {
+                } else if (call.method != "pick" && call.method != "pickKey" && call.method != "saveProfile") {
                     result.notImplemented()
                 } else if (pending != null) {
                     result.error("picker_busy", null, null)
                 } else {
                     pending = result
                     pickingKey = call.method == "pickKey"
+                    val save = call.method == "saveProfile"
+                    exporting = if (save) call.argument<ByteArray>("bytes") else null
+                    if (save && (exporting == null || exporting!!.size > 4 * 1024 * 1024)) {
+                        finishPick(requestId, error = "template_size_limit")
+                        return@setMethodCallHandler
+                    }
                     requestId = if (requestId == 65534) 7142 else requestId + 1
                     // Providers report YAML as application/yaml, text/plain or octet-stream.
                     // Validate the returned display name before reading any content.
-                    val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                    val intent = Intent(if (save) Intent.ACTION_CREATE_DOCUMENT else Intent.ACTION_OPEN_DOCUMENT).apply {
                         addCategory(Intent.CATEGORY_OPENABLE)
-                        type = "*/*"
+                        type = if (save) "application/yaml" else "*/*"
+                        if (save) putExtra(Intent.EXTRA_TITLE, call.argument<String>("name"))
                     }
                     try {
                         startActivityForResult(intent, requestId)
@@ -70,12 +78,24 @@ class MainActivity : FlutterActivity() {
         // Only the provider read is timed: browsing the system picker may take
         // as long as the user needs. Stale callbacks cannot finish a new request.
         val isKey = pickingKey
+        val outputBytes = exporting?.copyOf()
         val signal = CancellationSignal()
         readSignal = signal
         deadline = Runnable { finishPick(requestCode, error = "template_read_error") }
         handler.postDelayed(deadline!!, 20_000)
         readTask = reader.submit {
             try {
+                if (outputBytes != null) {
+                    contentResolver.openAssetFileDescriptor(uri, "wt", signal)?.use { descriptor ->
+                        descriptor.createOutputStream().use { output ->
+                            signal.throwIfCanceled()
+                            output.write(outputBytes)
+                            output.flush()
+                        }
+                    } ?: throw IllegalStateException()
+                    runOnUiThread { finishPick(requestCode, true) }
+                    return@submit
+                }
                 val name = contentResolver.query(
                     uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null, signal
                 )?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
@@ -110,6 +130,8 @@ class MainActivity : FlutterActivity() {
                 }
             } catch (_: Exception) {
                 runOnUiThread { finishPick(requestCode, error = "template_read_error") }
+            } finally {
+                outputBytes?.fill(0)
             }
         }
     }
@@ -119,6 +141,8 @@ class MainActivity : FlutterActivity() {
         val result = pending ?: return
         pending = null
         pickingKey = false
+        exporting?.fill(0)
+        exporting = null
         deadline?.let(handler::removeCallbacks)
         deadline = null
         readSignal?.cancel()

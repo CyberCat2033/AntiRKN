@@ -41,7 +41,7 @@ def main():
         remote('systemctl daemon-reload')
     def tick_source(req, extra=''):
         return f"""import sys,json,os
-sys.path.insert(0,'/usr/local/lib/antirkn-runner/v2')
+sys.path.insert(0,'/usr/local/lib/antirkn-runner/v3')
 from runner import Store
 from panel import PanelInstaller
 s=Store('/var/lib/antirkn-runner')

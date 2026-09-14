@@ -23,7 +23,9 @@
           "panel_plan",
           "panel_access",
           "panel_verify",
-          "resume"
+          "resume",
+          "vless_plan",
+          "vless_state"
         ]
       },
       "id": {
@@ -34,7 +36,8 @@
         "type": "string",
         "enum": [
           "diagnostic",
-          "panel_install"
+          "panel_install",
+          "vless_apply"
         ]
       },
       "count": {
@@ -60,6 +63,10 @@
       "fingerprint": {
         "type": "string",
         "pattern": "^[a-f0-9]{64}$"
+      },
+      "payload": {
+        "type": "string",
+        "maxLength": 262144
       }
     },
     "actions": {
@@ -105,6 +112,17 @@
         "version",
         "action",
         "id"
+      ],
+      "vless_plan": [
+        "version",
+        "action",
+        "id",
+        "payload"
+      ],
+      "vless_state": [
+        "version",
+        "action",
+        "id"
       ]
     },
     "submissions": {
@@ -124,6 +142,16 @@
         "count",
         "interval",
         "port",
+        "fingerprint"
+      ],
+      "vless_apply": [
+        "version",
+        "action",
+        "id",
+        "kind",
+        "count",
+        "interval",
+        "payload",
         "fingerprint"
       ]
     },
@@ -178,7 +206,15 @@
     "panel_extracting",
     "panel_configuring",
     "panel_starting",
-    "panel_checking"
+    "panel_checking",
+    "vless_preparing",
+    "vless_applying",
+    "vless_checking",
+    "vless_conflict",
+    "vless_port_busy",
+    "vless_invalid",
+    "vless_partial",
+    "vless_api_failed"
   ],
   "codes": [
     "ok",
@@ -188,9 +224,13 @@
     "invalid",
     "incompatible",
     "capacity",
-    "failed"
+    "failed",
+    "vless_conflict",
+    "vless_port_busy",
+    "vless_invalid",
+    "vless_api_failed"
   ],
-  "maxRequestBytes": 4096,
+  "maxRequestBytes": 524288,
   "maxEvents": 256,
   "maxJobs": 1000,
   "pageSize": 100

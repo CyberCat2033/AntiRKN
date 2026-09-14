@@ -1,0 +1,16 @@
+{
+  "results": {
+    "preflight_before_failure": true,
+    "foreign_edit_blocks_plan": true,
+    "stale_plan_has_zero_effects": true,
+    "drift_never_reported_confirmed": true,
+    "crash_between_effect_and_checkpoint": true,
+    "checkpoint_not_falsely_advanced": true,
+    "cancel_preserves_uncertain_effect_without_rollback": true,
+    "explicit_resume_same_operation": true,
+    "restart_reconciles_uncertain_effect": true,
+    "no_duplicate_inbounds_after_recovery": true,
+    "revocation_completed_after_recovery": true,
+    "reboot_preserves_registry_and_personal_credentials": true
+  }
+}

@@ -14,6 +14,7 @@ import subprocess
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from contract import SCHEMA, validate_request
 from panel import PanelInstaller, PanelError, access_for
+from vless import VlessApply, VlessError, parse_payload, plan as vless_plan, state as vless_state
 
 STATE = Path('/var/lib/antirkn-runner')
 INPUT_PROMPT = '__ANTIRKN_RUNNER_INPUT__'
@@ -45,6 +46,7 @@ class Store:
             self.db.execute('CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, request TEXT NOT NULL, status TEXT NOT NULL, checkpoint INTEGER NOT NULL, sequence INTEGER NOT NULL, cancel INTEGER NOT NULL, created REAL NOT NULL)')
             self.db.execute('CREATE TABLE IF NOT EXISTS events (id TEXT NOT NULL, sequence INTEGER NOT NULL, event TEXT NOT NULL, PRIMARY KEY(id,sequence))')
             self.db.execute('CREATE TABLE IF NOT EXISTS health (id INTEGER PRIMARY KEY, heartbeat REAL NOT NULL)')
+            self.db.execute('CREATE TABLE IF NOT EXISTS vless_resources (id TEXT PRIMARY KEY, data TEXT NOT NULL)')
             self.db.execute('PRAGMA user_version=1')
 
     def close(self):
@@ -70,6 +72,14 @@ class Store:
     def request(self, request):
         req = validate_request(request)
         action = req['action']
+        if action == 'vless_plan':
+            return {**self.response('ok'), 'vlessPlan': vless_plan(self, req)}
+        if action == 'vless_state':
+            return {**self.response('ok'), 'vlessState': vless_state(self, req['id'])}
+        if action == 'submit' and req['kind'] == 'vless_apply':
+            payload = parse_payload(req['payload'])
+            if req['count'] != len(payload['resources']) + 2 or req['interval'] != 1:
+                raise VlessError()
         if action == 'panel_access':
             row = self.db.execute("SELECT * FROM jobs WHERE id=? AND status='succeeded'", (req['id'],)).fetchone()
             if row is None:
@@ -107,7 +117,7 @@ class Store:
                 code = 'missing'
             elif action == 'resume':
                 original = json.loads(row['request'])
-                if original['kind'] != 'panel_install' or row['status'] not in ('failed', 'partially_applied'):
+                if original['kind'] not in ('panel_install', 'vless_apply') or row['status'] not in ('failed', 'partially_applied'):
                     code = 'conflict'
                 elif self.db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running')").fetchone():
                     code = 'busy'
@@ -136,8 +146,8 @@ class Store:
             self.db.execute('INSERT OR REPLACE INTO health VALUES (1,?)', (time.time(),))
 
     def recover(self):
-        # Only this read-only, checkpointed task is resumable. Future effectful
-        # task kinds must define recovery before being admitted by the schema.
+        # Every admitted task defines recovery. Effectful steps verify owned
+        # state before repeating a possibly completed API operation.
         with self.db:
             for row in self.db.execute("SELECT * FROM jobs WHERE status='running'").fetchall():
                 self.event(row['id'], 'recovered', row['checkpoint'], json.loads(row['request'])['count'])
@@ -157,6 +167,28 @@ class Store:
             if row['status'] == 'planned':
                 self.db.execute("UPDATE jobs SET status='running' WHERE id=?", (job_id,))
                 self.event(job_id, 'running', row['checkpoint'], req['count'])
+        if req['kind'] == 'vless_apply':
+            try:
+                if row['cancel']:
+                    # After preflight, an API effect may already have happened
+                    # without its checkpoint (lost reply or database failure).
+                    status = 'partially_applied' if row['checkpoint'] > 0 else 'cancelled'
+                    code = 'vless_partial' if status == 'partially_applied' else 'cancelled'
+                else:
+                    VlessApply(self, req).step(row['checkpoint'])
+                    if row['checkpoint'] + 1 < req['count']:
+                        return 0.1
+                    status, code = 'succeeded', 'succeeded'
+            except (VlessError, PanelError, OSError, ValueError, TypeError, KeyError, AttributeError, subprocess.SubprocessError):
+                # Upstream errors can contain credentials; never persist text.
+                error = sys.exc_info()[1]
+                code = error.code if isinstance(error, VlessError) else 'vless_api_failed'
+                status = 'partially_applied' if row['checkpoint'] > 0 else 'failed'
+            with self.db:
+                progress = self.db.execute('SELECT checkpoint FROM jobs WHERE id=?', (job_id,)).fetchone()[0]
+                self.db.execute('UPDATE jobs SET status=? WHERE id=?', (status, job_id))
+                self.event(job_id, code, progress, req['count'])
+            return 0.1
         if req['kind'] == 'panel_install':
             installer = PanelInstaller(self, req)
             try:
@@ -264,7 +296,7 @@ def main():
 if __name__ == '__main__':
     try:
         main()
-    except (ValueError, OSError, sqlite3.Error) as error:
-        code = str(error) if str(error) in SCHEMA['codes'] else 'failed'
+    except (ValueError, TypeError, KeyError, AttributeError, OSError, sqlite3.Error, VlessError, PanelError, subprocess.SubprocessError) as error:
+        code = error.code if isinstance(error, VlessError) else str(error) if str(error) in SCHEMA['codes'] else 'failed'
         print(json.dumps(dict(version=SCHEMA['version'], code=code, alive=False, jobs=[])), flush=True)
         sys.exit(1)

@@ -1,0 +1,8 @@
+{
+  "aliveAfterSeconds": 8,
+  "flutterVmServiceStarted": true,
+  "fatalStartupErrorDetected": false,
+  "isolatedTestStorage": true,
+  "stoppedBySmokeCheck": true,
+  "scope": "Linux startup only; widget tests cover RU/EN forms, not full GUI acceptance"
+}

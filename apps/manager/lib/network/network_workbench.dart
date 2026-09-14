@@ -16,11 +16,13 @@ class NetworkWorkbench extends StatelessWidget {
     required this.controller,
     required this.motion,
     this.ssh,
+    this.protocols,
     super.key,
   });
   final NetworkController controller;
   final MotionPreference motion;
   final SshController? ssh;
+  final Widget? protocols;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -39,6 +41,10 @@ class NetworkWorkbench extends StatelessWidget {
             if (ssh!.hasSavedProfile) ...[
               RunnerPanel(controller: ssh!.runner, motion: motion),
               const SizedBox(height: AppLayout.gap),
+              if (protocols != null) ...[
+                protocols!,
+                const SizedBox(height: AppLayout.gap),
+              ],
             ],
             if (ssh!.software case final software?) ...[
               ServerInventoryPanel(

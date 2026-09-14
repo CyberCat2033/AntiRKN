@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Integration checks on the disposable local Ubuntu VM; no owner VPS access."""
 import json
+import os
 from pathlib import Path
 import re
 import shlex
@@ -32,8 +33,8 @@ def bundle_strings():
 
 
 def rpc(request):
-    result = remote('/usr/bin/python3 -I /usr/local/lib/antirkn-runner/v2/runner.py rpc',
-                    json.dumps(request).encode())
+    result = remote('/usr/bin/python3 -I /usr/local/lib/antirkn-runner/v3/runner.py rpc',
+                    json.dumps(request).encode(), check=False)
     return json.loads(result.stdout)
 
 
@@ -61,6 +62,14 @@ def main():
     installed = json.loads(python(sources['runnerInstaller'], json.dumps(dict(fingerprint=plan['fingerprint'], bundle=json.loads(sources['runnerBundle']))).encode()).stdout)
     check(installed['active'], 'runner_install')
     job_id = '10000000000000000000000000000001'
+    archive = os.environ.get('ANTIRKN_PANEL_ARCHIVE')
+    if archive:
+        # Test-only offline cache. The installer still validates the pinned
+        # archive checksum before extracting any bytes.
+        directory = '/var/lib/antirkn-runner/panel-' + job_id
+        remote('mkdir -m 700 -p ' + directory)
+        with open(archive, 'rb') as stream:
+            subprocess.run(ssh_command() + ['umask 077; cat > ' + directory + '/release.tar.gz'], stdin=stream, check=True)
     request = dict(version=1, action='submit', id=job_id, kind='panel_install', count=6, interval=1,
                    port=2053, fingerprint=preview['fingerprint'])
     check(rpc(request)['code'] == 'ok', 'panel_submit')

@@ -88,7 +88,7 @@ class RunnerPanel extends StatelessWidget {
                 Text(l.runnerPlanBody),
                 const SizedBox(height: AppLayout.smallGap),
                 const SelectableText(
-                  '/usr/local/lib/antirkn-runner/v2/\n/etc/systemd/system/antirkn-runner.service\n/var/lib/antirkn-runner/',
+                  '/usr/local/lib/antirkn-runner/v3/\n/etc/systemd/system/antirkn-runner.service\n/var/lib/antirkn-runner/',
                 ),
                 Text(l.runnerPlanRelease),
                 SelectableText(c.bundledRelease ?? ''),
@@ -213,6 +213,14 @@ String runnerStateLabel(AppLocalizations l, String state) => switch (state) {
   _ => l.runnerAttention,
 };
 String runnerEventLabel(AppLocalizations l, String code) => switch (code) {
+  'vless_preparing' => l.vpnPrepareStep,
+  'vless_applying' => l.vpnApplying,
+  'vless_checking' => l.vpnChecking,
+  'vless_conflict' => l.vpnConflict,
+  'vless_port_busy' => l.vpnPortBusy,
+  'vless_partial' => l.vpnPartial,
+  'vless_invalid' => l.vpnInvalid,
+  'vless_api_failed' => l.vpnFailed,
   'panel_downloading' => l.componentsDownloading,
   'panel_extracting' => l.componentsExtracting,
   'panel_configuring' => l.componentsConfiguring,

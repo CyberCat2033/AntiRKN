@@ -1,0 +1,21 @@
+{
+  "results": {
+    "server1_root_bundled_release": true,
+    "server1_root_confirmed_accesses": true,
+    "server1_root_plan_through_ssh": true,
+    "server1_root_typed_remote_rejection": true,
+    "server1_antirkn_bundled_release": true,
+    "server1_antirkn_confirmed_accesses": true,
+    "server1_antirkn_plan_through_ssh": true,
+    "server1_antirkn_typed_remote_rejection": true,
+    "server2_root_bundled_release": true,
+    "server2_root_confirmed_accesses": true,
+    "server2_root_plan_through_ssh": true,
+    "server2_root_typed_remote_rejection": true,
+    "server2_antirkn_bundled_release": true,
+    "server2_antirkn_confirmed_accesses": true,
+    "server2_antirkn_plan_through_ssh": true,
+    "server2_antirkn_typed_remote_rejection": true,
+    "two_servers_distinct_personal_credentials": true
+  }
+}

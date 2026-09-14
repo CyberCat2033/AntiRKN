@@ -28,6 +28,34 @@ final class RunnerRequest {
   }
   factory RunnerRequest.list() =>
       RunnerRequest.fromJson({'version': 1, 'action': 'list'});
+  factory RunnerRequest.vlessPlan(
+    String panelId,
+    Map<String, Object?> payload,
+  ) => RunnerRequest.fromJson({
+    'version': 1,
+    'action': 'vless_plan',
+    'id': panelId,
+    'payload': jsonEncode(payload),
+  });
+  factory RunnerRequest.vlessState(String panelId) => RunnerRequest.fromJson({
+    'version': 1,
+    'action': 'vless_state',
+    'id': panelId,
+  });
+  factory RunnerRequest.vlessApply(
+    String id,
+    Map<String, Object?> payload,
+    String fingerprint,
+  ) => RunnerRequest.fromJson({
+    'version': 1,
+    'action': 'submit',
+    'id': id,
+    'kind': 'vless_apply',
+    'count': (payload['resources'] as List).length + 2,
+    'interval': 1,
+    'payload': jsonEncode(payload),
+    'fingerprint': fingerprint,
+  });
   factory RunnerRequest.status(String id, int cursor) => RunnerRequest.fromJson(
     {'version': 1, 'action': 'status', 'id': id, 'cursor': cursor},
   );
@@ -121,7 +149,7 @@ final class RunnerJob {
         ),
       ) {
     RunnerRequest.diagnostic(id, count: count, interval: interval);
-    if (!const {'diagnostic', 'panel_install'}.contains(kind) ||
+    if (!const {'diagnostic', 'panel_install', 'vless_apply'}.contains(kind) ||
         (kind == 'panel_install' && (count != 6 || interval != 1)) ||
         !(runnerSchema['states'] as List).contains(status) ||
         checkpoint < 0 ||
@@ -192,6 +220,16 @@ final class RunnerResponse {
               Map<String, dynamic>.from(value['panelAccess'] as Map),
             ),
       panelVerified = value['panelVerified'] == true,
+      vlessPlan = value['vlessPlan'] == null
+          ? null
+          : Map<String, dynamic>.unmodifiable(value['vlessPlan'] as Map),
+      vlessState = value['vlessState'] == null
+          ? null
+          : List<Map<String, dynamic>>.unmodifiable(
+              (value['vlessState'] as List).map(
+                (e) => Map<String, dynamic>.from(e as Map),
+              ),
+            ),
       alive = value['alive'] as bool,
       jobs = List.unmodifiable(
         (value['jobs'] as List).map(
@@ -208,6 +246,8 @@ final class RunnerResponse {
   final PanelPlan? panelPlan;
   final PanelAccess? panelAccess;
   final bool panelVerified;
+  final Map<String, dynamic>? vlessPlan;
+  final List<Map<String, dynamic>>? vlessState;
   final bool alive;
   final List<RunnerJob> jobs;
 }
