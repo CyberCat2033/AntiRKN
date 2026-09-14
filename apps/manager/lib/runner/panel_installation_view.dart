@@ -5,8 +5,13 @@ import '../l10n/app_localizations.dart';
 import 'runner_controller.dart';
 
 class PanelInstallationView extends StatefulWidget {
-  const PanelInstallationView({required this.controller, super.key});
+  const PanelInstallationView({
+    required this.controller,
+    this.motion = MotionPreference.system,
+    super.key,
+  });
   final RunnerController controller;
+  final MotionPreference motion;
   @override
   State<PanelInstallationView> createState() => _PanelInstallationViewState();
 }
@@ -19,6 +24,9 @@ class _PanelInstallationViewState extends State<PanelInstallationView> {
     final l = AppLocalizations.of(context);
     final plan = c.panelPlan;
     final access = c.panelAccess;
+    final installing =
+        c.selected?.kind == 'panel_install' && !c.selected!.terminal;
+    final duration = AppMotion.duration(context, widget.motion);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -48,20 +56,20 @@ class _PanelInstallationViewState extends State<PanelInstallationView> {
             ),
           ],
         ],
-        OutlinedButton.icon(
-          key: const ValueKey('components-choose'),
-          onPressed: c.connected && !c.busy && c.pending == null
-              ? c.chooseComponents
-              : null,
-          icon: const Icon(Icons.add_box_outlined),
-          label: Text(l.componentsInstall),
-        ),
-        if (c.choosingPanel) ...[
+        if (!c.choosingPanel && !installing)
+          OutlinedButton.icon(
+            key: const ValueKey('components-choose'),
+            onPressed: c.connected && !c.busy && c.pending == null
+                ? c.chooseComponents
+                : null,
+            icon: const Icon(Icons.add_box_outlined),
+            label: Text(l.componentsInstall),
+          ),
+        if (c.choosingPanel && plan?.canApply != true) ...[
           CheckboxListTile(
             key: const ValueKey('components-xray'),
             contentPadding: EdgeInsets.zero,
             title: const Text('3x-ui / Xray'),
-            subtitle: Text(l.componentsSelectionHelp),
             value: c.panelSelected,
             onChanged: c.busy ? null : (v) => c.selectPanel(v ?? false),
           ),
@@ -110,25 +118,61 @@ class _PanelInstallationViewState extends State<PanelInstallationView> {
           if (!plan.supported) Text(l.componentsPrerequisites),
           if (!plan.portAvailable) Text(l.componentsPortBusy),
           if (plan.canApply) ...[
-            Text(l.componentsPlanBody),
-            Text(l.componentsDependencies),
-            SelectableText(
-              '127.0.0.1:${plan.port}\n/usr/local/x-ui/\n/etc/x-ui/\n/etc/systemd/system/x-ui.service',
+            Text(l.componentsPlanSummary),
+            Text('${l.componentsPort}: 127.0.0.1:${plan.port}'),
+            Text(l.componentsRunnerSummary),
+            ExpansionTile(
+              key: PageStorageKey('panel-plan-details-${c.serverId}'),
+              expansionAnimationStyle: AnimationStyle(
+                duration: duration,
+                reverseDuration: duration,
+              ),
+              tilePadding: EdgeInsets.zero,
+              title: Text(l.componentsDetails),
+              children: [
+                SelectionArea(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(l.componentsPlanBody),
+                      Text(l.componentsDependencies),
+                      const Text(
+                        '/usr/local/x-ui/\n/etc/x-ui/\n/etc/systemd/system/x-ui.service',
+                      ),
+                      Text(l.componentsRunnerDependency),
+                      Text(l.runnerPlanRelease),
+                      Text(c.bundledRelease ?? ''),
+                      const Text(
+                        '/usr/local/lib/antirkn-runner/v2/\n/var/lib/antirkn-runner/\n/etc/antirkn-runner/\n/etc/systemd/system/antirkn-runner.service',
+                      ),
+                      Text(
+                        'SHA-256 · ${(plan.bytes / (1024 * 1024)).toStringAsFixed(1)} MiB',
+                      ),
+                      Text(plan.sha256),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            Text(l.componentsRunnerDependency),
-            Text(l.runnerPlanRelease),
-            SelectableText(c.bundledRelease ?? ''),
-            SelectableText(
-              '/usr/local/lib/antirkn-runner/v2/\n/var/lib/antirkn-runner/\n/etc/antirkn-runner/',
-            ),
-            Text(
-              'SHA-256 · ${(plan.bytes / (1024 * 1024)).toStringAsFixed(1)} MiB',
-            ),
-            SelectableText(plan.sha256),
-            FilledButton(
-              key: const ValueKey('components-apply'),
-              onPressed: c.canApplyPanel ? c.applyPanel : null,
-              child: Text(l.runnerApply),
+            Wrap(
+              spacing: AppLayout.smallGap,
+              children: [
+                FilledButton(
+                  key: const ValueKey('components-apply'),
+                  onPressed: c.canApplyPanel ? c.applyPanel : null,
+                  child: Text(l.runnerApply),
+                ),
+                TextButton(
+                  onPressed: c.busy
+                      ? null
+                      : () => c.selectPanel(c.panelSelected),
+                  child: Text(l.componentsEditPlan),
+                ),
+                TextButton(
+                  onPressed: c.busy ? null : c.dismissComponents,
+                  child: Text(l.runnerNotNow),
+                ),
+              ],
             ),
           ],
         ],

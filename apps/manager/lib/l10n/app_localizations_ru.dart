@@ -1143,7 +1143,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get componentsVerifyApi => 'Проверить API через SSH';
 
   @override
-  String get componentsJob => 'Установка 3x-ui / Xray';
+  String get componentsJob => '3x-ui / Xray';
 
   @override
   String get componentsDownloaded => 'Архив загружен и проверен';
@@ -1199,4 +1199,18 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get componentsChecking => 'Проверка состояния и API';
+
+  @override
+  String get componentsPlanSummary =>
+      'Установить панель и Xray с автозапуском. Доступ к панели — через SSH.';
+
+  @override
+  String get componentsRunnerSummary =>
+      'Также будет настроен сервис серверных заданий.';
+
+  @override
+  String get componentsDetails => 'Подробности';
+
+  @override
+  String get componentsEditPlan => 'Изменить';
 }

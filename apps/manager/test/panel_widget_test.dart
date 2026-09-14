@@ -40,6 +40,7 @@ void main() {
               ),
               home: Scaffold(
                 body: SingleChildScrollView(
+                  key: const PageStorageKey('network-workbench'),
                   child: RunnerPanel(
                     controller: c,
                     motion: MotionPreference.system,
@@ -49,6 +50,10 @@ void main() {
             ),
           );
           await tester.pumpAndSettle();
+          final l = AppLocalizations.of(
+            tester.element(find.byType(RunnerPanel)),
+          );
+          expect(find.text(l.runnerHelp), findsNothing);
           final choose = find.byKey(const ValueKey('components-choose'));
           await tester.ensureVisible(choose);
           await tester.tap(choose);
@@ -64,6 +69,37 @@ void main() {
           await tester.pumpAndSettle();
           expect(remote.installs, 0);
           expect(remote.submissions, 0);
+          expect(find.byKey(const ValueKey('components-port')), findsNothing);
+          expect(find.text(l.componentsPlanSummary), findsOneWidget);
+          expect(find.text(l.componentsRunnerSummary), findsOneWidget);
+          expect(find.text(l.componentsPlanBody), findsNothing);
+          expect(find.text('d' * 64), findsNothing);
+          final details = find.text(l.componentsDetails);
+          await tester.ensureVisible(details);
+          await tester.pumpAndSettle();
+          await tester.tap(details);
+          await tester.pumpAndSettle();
+          expect(find.text(l.componentsPlanBody), findsOneWidget);
+          expect(find.text('d' * 64), findsOneWidget);
+          expect(remote.installs, 0);
+          expect(remote.submissions, 0);
+          await tester.ensureVisible(details);
+          await tester.pumpAndSettle();
+          await tester.tap(details);
+          await tester.pumpAndSettle();
+          // Editing returns to the same selection and port without a mutation.
+          final edit = find.text(l.componentsEditPlan);
+          await tester.ensureVisible(edit);
+          await tester.pumpAndSettle();
+          await tester.tap(edit);
+          await tester.pumpAndSettle();
+          expect(c.panelSelected, isTrue);
+          expect(c.panelPort, 2053);
+          expect(find.byKey(const ValueKey('components-port')), findsOneWidget);
+          await tester.ensureVisible(prepare);
+          await tester.pumpAndSettle();
+          await tester.tap(prepare);
+          await tester.pumpAndSettle();
           final apply = find.byKey(const ValueKey('components-apply'));
           await tester.ensureVisible(apply);
           await tester.pumpAndSettle();
@@ -72,6 +108,9 @@ void main() {
           expect(remote.installs, 1);
           expect(remote.submissions, 1);
           expect(c.selected!.kind, 'panel_install');
+          expect(find.byKey(const ValueKey('runner-start')), findsNothing);
+          expect(find.byKey(const ValueKey('components-choose')), findsNothing);
+          expect(find.text(l.componentsPlanBody), findsNothing);
           expect(tester.takeException(), isNull);
           await tester.pumpWidget(const SizedBox.shrink());
           c.dispose();

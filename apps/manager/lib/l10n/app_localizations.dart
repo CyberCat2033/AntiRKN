@@ -2093,7 +2093,7 @@ abstract class AppLocalizations {
   /// No description provided for @componentsJob.
   ///
   /// In en, this message translates to:
-  /// **'Installing 3x-ui / Xray'**
+  /// **'3x-ui / Xray'**
   String get componentsJob;
 
   /// No description provided for @componentsDownloaded.
@@ -2191,6 +2191,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Checking state and API'**
   String get componentsChecking;
+
+  /// No description provided for @componentsPlanSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Install the panel and Xray with automatic startup. Panel access is through SSH.'**
+  String get componentsPlanSummary;
+
+  /// No description provided for @componentsRunnerSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'The server job service will also be set up.'**
+  String get componentsRunnerSummary;
+
+  /// No description provided for @componentsDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Details'**
+  String get componentsDetails;
+
+  /// No description provided for @componentsEditPlan.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit'**
+  String get componentsEditPlan;
 }
 
 class _AppLocalizationsDelegate

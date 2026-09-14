@@ -1,0 +1,47 @@
+{
+  "date": "2026-09-14",
+  "scope": "Runner PageStorage crash and compact 3x-ui installation UI",
+  "regression": {
+    "beforeFix": "Reproduced: type 'double' is not a subtype of type 'bool?' in type cast",
+    "afterFix": "PASS: late job after scrolling, history, job switch and restoration after navigation",
+    "compactPlan": "PASS: RU/EN at 390/1400 with text x2, details disclosure, edit and explicit apply"
+  },
+  "verification": {
+    "command": "bash tool/verify.sh",
+    "result": "PASS",
+    "dartFlutterTests": 197,
+    "pythonTests": 19,
+    "analyze": "PASS",
+    "format": "PASS",
+    "architecture": "PASS",
+    "runnerGeneration": "PASS",
+    "baseYamlHash": "unchanged",
+    "localizationMessagesPerLocale": 353
+  },
+  "debugBuilds": {
+    "apps/manager/build/linux/x64/debug/bundle/antirkn_manager": {
+      "sha256": "9fffcfee576434e574553b9b3cc8214dffa856e18bc973d1a78545ecfddd3d13",
+      "bytes": 53696
+    },
+    "apps/manager/build/linux/x64/debug/bundle/data/flutter_assets/kernel_blob.bin": {
+      "sha256": "7045bee23b527466c11ee195aeff271e4b3df725400c53a7b2e725c6572efd9b",
+      "bytes": 80751632
+    },
+    "apps/manager/build/app/outputs/flutter-apk/app-debug.apk": {
+      "sha256": "b84f1cbfed8964b125b9e59cc7232d19e836035bd60d93b5ea34d8dbb65305a1",
+      "bytes": 117989790
+    }
+  },
+  "android": {
+    "device": "OnePlus HD1911",
+    "api": 36,
+    "install": "PASS: adb install -r (no uninstall or data clear)",
+    "launch": "PASS: am start -W returned Status: ok; application process confirmed"
+  },
+  "notChecked": [
+    "Fresh real-server 3x-ui installation with this UI",
+    "Full Android installation workflow",
+    "Windows build/runtime",
+    "Linux GUI runtime of this build"
+  ]
+}

@@ -425,7 +425,7 @@
   "componentsShowPassword": "Показать пароль",
   "componentsVerified": "API проверен через SSH: {time}",
   "componentsVerifyApi": "Проверить API через SSH",
-  "componentsJob": "Установка 3x-ui / Xray",
+  "componentsJob": "3x-ui / Xray",
   "componentsDownloaded": "Архив загружен и проверен",
   "componentsExtracted": "Файлы установлены",
   "componentsConfigured": "Закрытая панель настроена, реквизиты созданы",
@@ -448,5 +448,9 @@
   "componentsExtracting": "Распаковка и проверка файлов",
   "componentsConfiguring": "Настройка панели в изолированной сети",
   "componentsStarting": "Запуск службы",
-  "componentsChecking": "Проверка состояния и API"
+  "componentsChecking": "Проверка состояния и API",
+  "componentsPlanSummary": "Установить панель и Xray с автозапуском. Доступ к панели — через SSH.",
+  "componentsRunnerSummary": "Также будет настроен сервис серверных заданий.",
+  "componentsDetails": "Подробности",
+  "componentsEditPlan": "Изменить"
 }

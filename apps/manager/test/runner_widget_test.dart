@@ -40,6 +40,7 @@ void main() {
               ),
               home: Scaffold(
                 body: SingleChildScrollView(
+                  key: const PageStorageKey('network-workbench'),
                   child: RunnerPanel(
                     controller: c,
                     motion: MotionPreference.system,

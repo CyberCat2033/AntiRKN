@@ -425,7 +425,7 @@
   "componentsShowPassword": "Show password",
   "componentsVerified": "API verified through SSH: {time}",
   "componentsVerifyApi": "Verify API through SSH",
-  "componentsJob": "Installing 3x-ui / Xray",
+  "componentsJob": "3x-ui / Xray",
   "componentsDownloaded": "Archive downloaded and verified",
   "componentsExtracted": "Files installed",
   "componentsConfigured": "Private panel configured and credentials created",
@@ -448,5 +448,9 @@
   "componentsExtracting": "Extracting and verifying files",
   "componentsConfiguring": "Configuring panel in isolated network",
   "componentsStarting": "Starting service",
-  "componentsChecking": "Checking state and API"
+  "componentsChecking": "Checking state and API",
+  "componentsPlanSummary": "Install the panel and Xray with automatic startup. Panel access is through SSH.",
+  "componentsRunnerSummary": "The server job service will also be set up.",
+  "componentsDetails": "Details",
+  "componentsEditPlan": "Edit"
 }

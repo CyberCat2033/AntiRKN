@@ -21,6 +21,17 @@ class RunnerPanel extends StatelessWidget {
       final c = controller;
       final l = AppLocalizations.of(context);
       final job = c.selected;
+      final installing = job?.kind == 'panel_install' && !job!.terminal;
+      final panelFlow = c.choosingPanel || installing;
+      final duration = AppMotion.duration(context, motion);
+      final animation = AnimationStyle(
+        duration: duration,
+        reverseDuration: duration,
+      );
+      final stateLabel = job == null ? null : runnerStateLabel(l, job.status);
+      final eventLabel = job?.events.isNotEmpty == true
+          ? runnerEventLabel(l, job!.events.last.code)
+          : null;
       return SectionCard(
         title: l.runnerTitle,
         child: AppAnimatedSize(
@@ -28,8 +39,7 @@ class RunnerPanel extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(l.runnerHelp),
-              if (c.busy) const LinearProgressIndicator(),
+              if (c.busy && !installing) const LinearProgressIndicator(),
               if (c.error case final issue?)
                 Semantics(
                   liveRegion: true,
@@ -41,7 +51,7 @@ class RunnerPanel extends StatelessWidget {
                   !c.connected && job != null && !job.terminal)
                 Text(l.runnerConnectionLost),
               const SizedBox(height: AppLayout.gap),
-              PanelInstallationView(controller: c),
+              PanelInstallationView(controller: c, motion: motion),
               const SizedBox(height: AppLayout.gap),
               Wrap(
                 spacing: AppLayout.smallGap,
@@ -52,7 +62,8 @@ class RunnerPanel extends StatelessWidget {
                     onPressed: c.connected && !c.busy ? c.refresh : null,
                     child: Text(l.sshRefresh),
                   ),
-                  if (!c.installed || c.installation?.active == false)
+                  if (!panelFlow &&
+                      (!c.installed || c.installation?.active == false))
                     FilledButton.tonal(
                       key: const ValueKey('runner-prepare'),
                       onPressed: c.connected && !c.busy
@@ -60,7 +71,7 @@ class RunnerPanel extends StatelessWidget {
                           : null,
                       child: Text(l.runnerPrepare),
                     ),
-                  if (c.installed)
+                  if (c.installed && !panelFlow)
                     FilledButton(
                       key: const ValueKey('runner-start'),
                       onPressed: c.canStart ? c.startDiagnostic : null,
@@ -108,14 +119,17 @@ class RunnerPanel extends StatelessWidget {
               if (job != null) ...[
                 const SizedBox(height: AppLayout.gap),
                 if (job.kind == 'panel_install') Text(l.componentsJob),
-                if (job.kind == 'panel_install' && job.events.isNotEmpty)
-                  Text(runnerEventLabel(l, job.events.last.code)),
                 Semantics(
                   liveRegion: true,
                   child: Text(
-                    '${runnerStateLabel(l, job.status)} · ${job.checkpoint}/${job.count}',
+                    '${installing ? eventLabel ?? stateLabel : stateLabel} · ${job.checkpoint}/${job.count}',
                   ),
                 ),
+                if (job.kind == 'panel_install' &&
+                    job.terminal &&
+                    eventLabel != null &&
+                    eventLabel != stateLabel)
+                  Text(eventLabel),
                 LinearProgressIndicator(value: job.checkpoint / job.count),
                 if (job.cancelRequested && !job.terminal)
                   Text(l.runnerCancelRequested),
@@ -129,6 +143,8 @@ class RunnerPanel extends StatelessWidget {
                   ),
                 if (c.eventsTruncated) Text(l.runnerEventsTruncated),
                 ExpansionTile(
+                  key: PageStorageKey('runner-journal-${c.serverId}-${job.id}'),
+                  expansionAnimationStyle: animation,
                   title: Text(l.runnerJournal),
                   children: [
                     for (final event in job.events)
@@ -144,6 +160,8 @@ class RunnerPanel extends StatelessWidget {
               ],
               if (c.jobs.length > 1)
                 ExpansionTile(
+                  key: PageStorageKey('runner-history-${c.serverId}'),
+                  expansionAnimationStyle: animation,
                   title: Text(l.runnerHistory),
                   children: [
                     for (final previous in c.jobs)
