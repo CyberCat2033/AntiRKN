@@ -18,6 +18,7 @@ from observed_inbounds import ObservedInboundEdit, snapshot as inbound_snapshot,
 from apt import AptJob, AptError, plan as apt_plan
 from contract import SCHEMA, validate_request
 from panel import PanelInstaller, PanelError, access_for, install_cli
+from panel_update import PanelUpdate, plan as panel_update_plan
 from vless import VlessApply, VlessError, parse_payload, plan as vless_plan, state as vless_state, panel_for
 
 STATE = Path('/var/lib/antirkn-runner')
@@ -76,6 +77,8 @@ class Store:
     def request(self, request):
         req = validate_request(request)
         action = req['action']
+        if action == 'panel_update_plan':
+            return {**self.response('ok'), 'panelUpdatePlan': panel_update_plan(self, req['id'])}
         if action == 'panel_connect':
             return {**self.response('ok'), 'panelAccess': connect_existing(req['payload']), 'panelVerified': True}
         if action == 'inbound_read':
@@ -146,7 +149,7 @@ class Store:
                 code = 'missing'
             elif action == 'resume':
                 original = json.loads(row['request'])
-                if original['kind'] not in ('panel_install', 'vless_apply', 'component_install', 'inbound_update') or row['status'] not in ('failed', 'partially_applied'):
+                if original['kind'] not in ('panel_install', 'panel_update', 'vless_apply', 'component_install', 'inbound_update') or row['status'] not in ('failed', 'partially_applied'):
                     code = 'conflict'
                 elif self.db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running')").fetchone():
                     code = 'busy'
@@ -258,8 +261,8 @@ class Store:
                 self.db.execute('UPDATE jobs SET status=? WHERE id=?', (status, job_id))
                 self.event(job_id, code, progress, req['count'])
             return 0.1
-        if req['kind'] == 'panel_install':
-            installer = PanelInstaller(self, req)
+        if req['kind'] in ('panel_install', 'panel_update'):
+            installer = (PanelUpdate if req['kind'] == 'panel_update' else PanelInstaller)(self, req)
             try:
                 if row['cancel']:
                     status = installer.abort()

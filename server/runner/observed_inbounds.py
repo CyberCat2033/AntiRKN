@@ -72,6 +72,10 @@ def wanted(row, patch):
         if any(k in patch['streamSettings'] and patch['streamSettings'][k] != stream.get(k)
                for k in ('network', 'security')): raise VlessError()
         result['streamSettings'] = canonical(merge_patch(stream, patch['streamSettings']))
+    stream = object_field(result['streamSettings'])
+    if stream.get('security') == 'reality':
+        stream.setdefault('realitySettings', {})['minClientVer'] = '0.0.0'
+        result['streamSettings'] = canonical(stream)
     return result
 
 

@@ -1,0 +1,29 @@
+{
+  "results": {
+    "upgraded_pair_preview": true,
+    "upgraded_pair_submit": true,
+    "upgraded_pair_succeeded": true,
+    "upgraded_pair_replay_no_effect": true,
+    "upgraded_pair_readback": true,
+    "raw_reality_auto_core_config": true,
+    "raw_reality_auto_tcp": true,
+    "raw_reality_auto_udp": true,
+    "xhttp_reality_auto_core_config": true,
+    "xhttp_reality_auto_tcp": true,
+    "xhttp_reality_auto_udp": true,
+    "xhttp_tls_packet-up_core_config": true,
+    "xhttp_tls_packet-up_tcp": true,
+    "xhttp_tls_packet-up_udp": true,
+    "xhttp_tls_stream-up_core_config": true,
+    "xhttp_tls_stream-up_tcp": true,
+    "xhttp_tls_stream-up_udp": true,
+    "xhttp_tls_stream-one_core_config": true,
+    "xhttp_tls_stream-one_tcp": true,
+    "xhttp_tls_stream-one_udp": true
+  },
+  "mihomo": "1.19.30",
+  "panel": "3.8.0",
+  "xray": "26.7.28",
+  "compiler": "production",
+  "transport": "SSH tunnel to isolated Ubuntu; controlled TLS and TCP/UDP destinations"
+}

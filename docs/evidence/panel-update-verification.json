@@ -1,0 +1,22 @@
+{
+  "date": "2026-09-15",
+  "runner": "v9",
+  "runnerRelease": "64fbd46a01c7ac252be615b99382f469b4fbc4ccc54ad85ee58caa921d66c5a5",
+  "tests": {
+    "managerFlutter": 140,
+    "sshTransport": 36,
+    "pythonRunner": 63,
+    "pageStorageAfterScroll": "RU/EN, 390 px, text x2: PASS"
+  },
+  "checks": {
+    "analyze": "PASS",
+    "generatedRunner": "PASS",
+    "architectureAndBaseYaml": "PASS",
+    "diffCheck": "PASS"
+  },
+  "builds": {
+    "apps/manager/build/linux/x64/debug/bundle/antirkn_manager": "9fffcfee576434e574553b9b3cc8214dffa856e18bc973d1a78545ecfddd3d13",
+    "apps/manager/build/app/outputs/flutter-apk/app-debug.apk": "11a3fdbc49627c907cc047cf73c379babf17faaf21fdb4ac5c67135b08ba5174"
+  },
+  "androidDeviceUsed": false
+}

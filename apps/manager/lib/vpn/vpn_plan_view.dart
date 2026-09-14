@@ -33,12 +33,6 @@ class VpnPlanView extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(l.vpnPlanHelp),
-                if (c.plans.any(
-                  (p) => (p.payload['resources'] as List).any(
-                    (r) => r['security'] == 'reality' && r['enabled'] == true,
-                  ),
-                ))
-                  Text(l.vpnRealityCompatibility),
                 for (final p in c.plans)
                   Padding(
                     padding: const EdgeInsets.only(top: AppLayout.gap),

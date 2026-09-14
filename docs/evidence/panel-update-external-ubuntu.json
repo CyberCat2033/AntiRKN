@@ -1,0 +1,31 @@
+{
+  "results": {
+    "old_v7_started": true,
+    "v7_predecessor_verified": true,
+    "v7_to_v8_upgrade": true,
+    "panel_install_accepted": true,
+    "old_panel_installed": true,
+    "standard_panel_connected": true,
+    "update_preview": true,
+    "pinned_pair": true,
+    "preview_does_not_update": true,
+    "cancel_before_update": true,
+    "stale_plan_rejected": true,
+    "update_accepted": true,
+    "interrupted_update_is_partial": true,
+    "switch_checkpoint_retained": true,
+    "resume_same_job": true,
+    "upgrade_resumed_and_verified": true,
+    "repeat_no_second_update": true,
+    "credentials_and_address_preserved": true,
+    "actual_versions_refreshed": true,
+    "discovery_after_upgrade": true,
+    "access_after_reboot": true,
+    "no_repeat_or_downgrade": true,
+    "database_backup_retained": true,
+    "no_password_in_events": true
+  },
+  "panel": "3.7.0 -> 3.8.0",
+  "xray": "26.7.28 -> 26.9.9; mechanism tested, REALITY compatibility rejected",
+  "runner": "v7 -> intermediate v8"
+}

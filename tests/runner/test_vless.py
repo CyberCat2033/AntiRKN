@@ -50,6 +50,12 @@ class VlessTests(unittest.TestCase):
             self.store.tick()
             if self.job(req)['status'] in ('succeeded','failed','partially_applied','cancelled'):break
         return self.job(req)
+    def test_reality_client_version_is_zero_without_form_input(self):
+        from vless import wanted_inbound
+        p = payload()
+        wanted = wanted_inbound(p, p['resources'][0])
+        self.assertEqual(json.loads(wanted['streamSettings'])['realitySettings']['minClientVer'], '0.0.0')
+
     def test_two_inbounds_have_distinct_stable_personal_credentials(self):
         req=self.submit();self.assertEqual(self.finish(req)['status'],'succeeded')
         self.assertTrue(all(r['sniffing']['enabled'] for r in self.api.rows))

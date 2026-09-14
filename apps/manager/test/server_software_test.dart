@@ -162,15 +162,8 @@ void main() {
           expect(find.text('Recent jobs'), findsNothing);
           expect(find.textContaining('3.8.0'), findsOneWidget);
           expect(find.textContaining('26.8.0'), findsOneWidget);
-          final access = find.byKey(const ValueKey('panel-access'));
-          await tester.ensureVisible(access);
-          await tester.tap(access);
-          await tester.pumpAndSettle();
-          expect(find.byType(TextFormField), findsOneWidget);
-          final field = tester.widget<TextFormField>(
-            find.byType(TextFormField),
-          );
-          expect(field.initialValue, 'A' * 43);
+          expect(find.byKey(const ValueKey('panel-access')), findsNothing);
+          expect(find.text('A' * 43), findsNothing);
           expect(tester.takeException(), isNull);
           await tester.pumpWidget(const SizedBox.shrink());
           c.dispose();
@@ -256,11 +249,11 @@ void main() {
       expect(find.text('Panel username'), findsOneWidget);
       expect(find.text('SSH user'), findsNothing);
       await tester.enterText(
-        find.byKey(const ValueKey('observed-username')),
+        find.byKey(const ValueKey('panel-login-username')),
         'panel-admin',
       );
       await tester.enterText(
-        find.byKey(const ValueKey('observed-password')),
+        find.byKey(const ValueKey('panel-login-password')),
         'panel-password',
       );
       await tester.tap(find.text('Connect'));
@@ -268,7 +261,9 @@ void main() {
       expect(find.textContaining('3x-ui rejected'), findsOneWidget);
       expect(
         tester
-            .widget<TextField>(find.byKey(const ValueKey('observed-password')))
+            .widget<TextField>(
+              find.byKey(const ValueKey('panel-login-password')),
+            )
             .controller!
             .text,
         'panel-password',

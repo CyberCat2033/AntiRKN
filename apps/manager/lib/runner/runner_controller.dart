@@ -52,6 +52,8 @@ class RunnerController extends ChangeNotifier {
   RunnerInstallation? installPlan;
   RunnerInstallation? panelRunnerPlan;
   PanelPlan? panelPlan;
+  PanelUpdatePlan? panelUpdatePlan;
+  bool panelLoginRequired = false;
   ComponentPlan? componentPlan;
   RunnerInstallation? componentRunnerPlan;
 
@@ -133,6 +135,7 @@ class RunnerController extends ChangeNotifier {
     busy = false;
     installPlan = null;
     panelPlan = null;
+    panelUpdatePlan = null;
     componentPlan = null;
     componentRunnerPlan = null;
     panelRunnerPlan = null;
@@ -152,6 +155,7 @@ class RunnerController extends ChangeNotifier {
     if (_loaded && current != _identity) {
       resumePlan = null;
       panelPlan = null;
+      panelUpdatePlan = null;
       componentPlan = null;
       componentRunnerPlan = null;
       panelRunnerPlan = null;
@@ -321,6 +325,7 @@ class RunnerController extends ChangeNotifier {
         throw const RunnerFailure(RunnerIssue.invalidResponse);
       }
       panelAccess = response.panelAccess;
+      panelLoginRequired = false;
       panelVerifiedAt = DateTime.now();
       await _save();
       success = true;
@@ -487,6 +492,7 @@ class RunnerController extends ChangeNotifier {
     choosingPanel = true;
     panelSelected = false;
     panelPlan = null;
+    panelUpdatePlan = null;
     componentPlan = null;
     componentRunnerPlan = null;
     _notify();
@@ -496,6 +502,7 @@ class RunnerController extends ChangeNotifier {
     if (busy) return;
     panelSelected = value;
     panelPlan = null;
+    panelUpdatePlan = null;
     componentPlan = null;
     componentRunnerPlan = null;
     _notify();
@@ -506,6 +513,7 @@ class RunnerController extends ChangeNotifier {
     final port = int.tryParse(value);
     panelPort = port != null && port >= 1024 && port <= 65535 ? port : null;
     panelPlan = null;
+    panelUpdatePlan = null;
     componentPlan = null;
     componentRunnerPlan = null;
     _notify();
@@ -515,6 +523,7 @@ class RunnerController extends ChangeNotifier {
     if (busy) return;
     choosingPanel = false;
     panelPlan = null;
+    panelUpdatePlan = null;
     componentPlan = null;
     componentRunnerPlan = null;
     panelRunnerPlan = null;
@@ -556,6 +565,7 @@ class RunnerController extends ChangeNotifier {
   Future<void> prepareApt({required bool upgrade}) {
     if (!canPlan) return Future.value();
     panelPlan = null;
+    panelUpdatePlan = null;
     componentPlan = null;
     aptPlan = null;
     choosingAptUpdate = !upgrade;
@@ -663,6 +673,7 @@ class RunnerController extends ChangeNotifier {
       if (current.panelPlan?.fingerprint != plan.fingerprint ||
           current.panelPlan?.canApply != true) {
         panelPlan = null;
+        panelUpdatePlan = null;
         componentPlan = null;
         componentRunnerPlan = null;
         throw const RunnerFailure(RunnerIssue.conflict);
@@ -685,6 +696,7 @@ class RunnerController extends ChangeNotifier {
       token.check();
       choosingPanel = false;
       panelPlan = null;
+      panelUpdatePlan = null;
       componentPlan = null;
       componentRunnerPlan = null;
       panelRunnerPlan = null;
@@ -692,9 +704,70 @@ class RunnerController extends ChangeNotifier {
     });
   }
 
+  Future<void> preparePanelUpdate() async {
+    if (!canPlan || !installed || panelAccess == null || panelLoginRequired) {
+      return;
+    }
+    await _run((remote, token) async {
+      panelPlan = null;
+      componentPlan = null;
+      aptPlan = null;
+      choosingAptUpdate = false;
+      panelUpdatePlan = null;
+      final response = await remote.request(
+        RunnerRequest.panelUpdatePlan(panelAccess!.id),
+        token,
+        sudoPassword: password(),
+      );
+      token.check();
+      responseCode = response.code;
+      if (response.code != 'ok' || response.panelUpdatePlan == null) {
+        if (response.code == 'panel_auth_failed') panelLoginRequired = true;
+        throw const RunnerFailure(RunnerIssue.invalidResponse);
+      }
+      panelUpdatePlan = response.panelUpdatePlan;
+    });
+  }
+
+  void dismissPanelUpdate() {
+    if (busy) return;
+    panelUpdatePlan = null;
+    _notify();
+  }
+
+  Future<void> applyPanelUpdate() async {
+    final plan = panelUpdatePlan;
+    if (!canStart || plan?.canApply != true) return;
+    await _run((remote, token) async {
+      final current = await remote.request(
+        RunnerRequest.panelUpdatePlan(plan!.panelId),
+        token,
+        sudoPassword: password(),
+      );
+      token.check();
+      if (current.panelUpdatePlan?.fingerprint != plan.fingerprint ||
+          current.panelUpdatePlan?.canApply != true) {
+        panelUpdatePlan = null;
+        throw const RunnerFailure(RunnerIssue.conflict);
+      }
+      final random = Random.secure();
+      final id = List.generate(
+        16,
+        (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+      ).join();
+      pending = RunnerRequest.panelUpdate(id, plan);
+      selected = null;
+      cursor = 0;
+      await _save();
+      await _submit(remote, token);
+      panelUpdatePlan = null;
+    });
+  }
+
   Future<void> prepareComponent(String component) =>
       _run((remote, token) async {
         panelPlan = null;
+        panelUpdatePlan = null;
         aptPlan = null;
         choosingAptUpdate = false;
         componentPlan = null;
@@ -792,6 +865,7 @@ class RunnerController extends ChangeNotifier {
     if (busy ||
         !const {
           'panel_install',
+          'panel_update',
           'component_install',
           'inbound_update',
         }.contains(selected?.kind) ||
@@ -835,10 +909,17 @@ class RunnerController extends ChangeNotifier {
       sudoPassword: password(),
     );
     token.check();
+    responseCode = result.code;
+    if (result.code == 'panel_auth_failed') {
+      panelLoginRequired = true;
+      panelVerifiedAt = null;
+      return;
+    }
     if (!result.panelVerified || result.panelAccess?.id != id) {
       throw const RunnerFailure(RunnerIssue.invalidResponse);
     }
     panelAccess = result.panelAccess;
+    panelLoginRequired = false;
     panelVerifiedAt = DateTime.now();
     await _save();
   }
@@ -955,6 +1036,7 @@ class RunnerController extends ChangeNotifier {
     if (job.status == 'succeeded' &&
         const {
           'panel_install',
+          'panel_update',
           'component_install',
           'apt_upgrade',
           'inbound_update',
@@ -967,6 +1049,11 @@ class RunnerController extends ChangeNotifier {
     if (pending?.id == id) pending = null;
     jobs = [selected!, ...jobs.where((j) => j.id != id)];
     await _save();
+    if (job.kind == 'panel_update' &&
+        job.status == 'succeeded' &&
+        panelAccess != null) {
+      await _verifyPanel(remote, token, panelAccess!.id);
+    }
     if (job.kind == 'panel_install' &&
         job.status == 'succeeded' &&
         panelAccess?.id != id) {

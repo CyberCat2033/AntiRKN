@@ -27,6 +27,23 @@ final class RunnerRequest {
     : json = Map.unmodifiable(value) {
     validateRunnerRequest(value);
   }
+  factory RunnerRequest.panelUpdatePlan(String panelId) =>
+      RunnerRequest.fromJson({
+        'version': 1,
+        'action': 'panel_update_plan',
+        'id': panelId,
+      });
+  factory RunnerRequest.panelUpdate(String id, PanelUpdatePlan plan) =>
+      RunnerRequest.fromJson({
+        'version': 1,
+        'action': 'submit',
+        'id': id,
+        'kind': 'panel_update',
+        'count': 6,
+        'interval': 1,
+        'panelId': plan.panelId,
+        'fingerprint': plan.fingerprint,
+      });
   factory RunnerRequest.componentPlan(String component) =>
       RunnerRequest.fromJson({
         'version': 1,
@@ -194,6 +211,7 @@ final class RunnerJob {
     if (!const {
           'diagnostic',
           'panel_install',
+          'panel_update',
           'vless_apply',
           'component_install',
           'inbound_update',
@@ -259,6 +277,11 @@ final class RunnerJob {
 final class RunnerResponse {
   RunnerResponse.fromJson(Map<String, dynamic> value)
     : code = value['code'] as String,
+      panelUpdatePlan = value['panelUpdatePlan'] == null
+          ? null
+          : PanelUpdatePlan.fromJson(
+              Map<String, dynamic>.from(value['panelUpdatePlan'] as Map),
+            ),
       panelPlan = value['panelPlan'] == null
           ? null
           : PanelPlan.fromJson(
@@ -313,6 +336,7 @@ final class RunnerResponse {
     }
   }
   final String code;
+  final PanelUpdatePlan? panelUpdatePlan;
   final Map<String, dynamic>? inboundSnapshot, inboundPlan;
   final Map<String, dynamic>? aptPlan;
   final PanelPlan? panelPlan;
@@ -325,6 +349,47 @@ final class RunnerResponse {
   final List<Map<String, dynamic>>? vlessState;
   final bool alive;
   final List<RunnerJob> jobs;
+}
+
+final class PanelUpdatePlan {
+  PanelUpdatePlan.fromJson(Map<String, dynamic> json)
+    : panelId = json['panelId'] as String,
+      state = json['state'] as String,
+      supported = json['supported'] as bool,
+      fingerprint = json['fingerprint'] as String,
+      installedPanelVersion = json['installedPanelVersion'] as String?,
+      installedXrayVersion = json['installedXrayVersion'] as String?,
+      panelVersion = json['panelVersion'] as String,
+      xrayVersion = json['xrayVersion'] as String,
+      coreUrl = json['coreUrl'] as String,
+      coreSha256 = json['coreSha256'] as String,
+      url = json['url'] as String,
+      sha256 = json['sha256'] as String,
+      bytes = json['bytes'] as int,
+      paths = List<String>.from(json['paths'] as List),
+      backupRoot = json['backupRoot'] as String {
+    RunnerRequest.panelUpdatePlan(panelId);
+    if (!const {'update', 'current', 'incompatible'}.contains(state) ||
+        !RegExp(r'^[a-f0-9]{64}$').hasMatch(fingerprint) ||
+        !RegExp(r'^[a-f0-9]{64}$').hasMatch(sha256) ||
+        bytes < 1) {
+      throw const FormatException('panel_update_plan');
+    }
+  }
+  final String panelId,
+      state,
+      fingerprint,
+      panelVersion,
+      xrayVersion,
+      url,
+      sha256,
+      backupRoot;
+  final String coreUrl, coreSha256;
+  final String? installedPanelVersion, installedXrayVersion;
+  final bool supported;
+  final int bytes;
+  final List<String> paths;
+  bool get canApply => supported && state == 'update';
 }
 
 final class RunnerInstallation {

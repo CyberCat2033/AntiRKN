@@ -1428,10 +1428,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'Для этого клиента пока нет настроенных активных inbounds.';
 
   @override
-  String get vpnRealityCompatibility =>
-      'Для Mihomo REALITY использует minClientVer=1.8.2. Xray предупреждает о повышенном риске обнаружения при снижении этого порога. Совместимость проверяется отдельно от устойчивости к блокировкам.';
-
-  @override
   String get protocolSoftware => 'Обновления протоколов';
 
   @override
@@ -1771,4 +1767,36 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get observedTransportJson => 'Настройки транспорта (JSON)';
+
+  @override
+  String get panelUpdateSummary =>
+      'Сохраним настройки и клиентов, создадим резервную копию и обновим 3x-ui вместе с Xray. Во время перезапуска VPN-соединения ненадолго прервутся.';
+
+  @override
+  String get panelUpdateRecovery =>
+      'При ошибке резервная копия остаётся на сервере. Продолжение проверит уже заменённые файлы. Автоматический откат базы не выполняется.';
+
+  @override
+  String get panelUpdateCompatibility =>
+      'Обновление доступно для проверенных версий стандартной установки 3x-ui с systemd и SQLite. Более новые ядра Xray не понижаются.';
+
+  @override
+  String get panelUpdatePreparing => 'Проверка установленной панели';
+
+  @override
+  String get panelUpdateBackup => 'Сохранение резервной копии и проверка Xray';
+
+  @override
+  String get panelUpdateSwitching => 'Обновление 3x-ui и Xray, перезапуск';
+
+  @override
+  String get panelLoginOnce =>
+      'Войдите в 3x-ui. Логин и пароль сохранятся для следующих подключений.';
+
+  @override
+  String get panelLoginRequiredFields => 'Введите логин и пароль панели.';
+
+  @override
+  String get panelUpdateCoreCompatibility =>
+      'Xray 26.9.8/26.9.9 несовместим с REALITY-профилями проверенного Mihomo. Используем совместимое ядро 26.7.28; если оно уже установлено, его версия сохранится.';
 }

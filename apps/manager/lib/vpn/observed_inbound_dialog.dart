@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../runner/runner_controller.dart';
 import '../runner/runner_panel.dart';
+import '../runner/panel_login_view.dart';
 import 'xhttp_options_editor.dart';
 
 class ObservedInboundDialog extends StatefulWidget {
@@ -29,8 +30,9 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
   Map<String, Object?> stream = {};
   bool loading = true, failed = false, invalid = false, enabled = true;
   bool streamInvalid = false;
-  bool passwordVisible = false;
-  bool get needsAccess => widget.controller.panelAccess?.port != widget.port;
+  bool get needsAccess =>
+      widget.controller.panelAccess?.port != widget.port ||
+      widget.controller.panelLoginRequired;
   TextEditingController fieldController(String key, [String initial = '']) =>
       fields.putIfAbsent(key, () => TextEditingController(text: initial));
   @override
@@ -63,28 +65,6 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
     });
   }
 
-  Future<void> connect() async {
-    setState(() {
-      loading = true;
-      failed = false;
-    });
-    final ok = await widget.controller.connectPanel(
-      widget.port,
-      fieldController('username').text,
-      fieldController('password').text,
-    );
-    if (!mounted) return;
-    if (ok) {
-      fieldController('password').clear();
-      await load();
-    } else {
-      setState(() {
-        loading = false;
-        failed = true;
-      });
-    }
-  }
-
   @override
   void dispose() {
     for (final f in fields.values) {
@@ -97,7 +77,6 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
     String key,
     String label, {
     String initial = '',
-    bool secret = false,
     ValueChanged<String>? onChanged,
     bool number = false,
   }) => Padding(
@@ -105,28 +84,13 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
     child: TextField(
       key: ValueKey('observed-$key'),
       controller: fieldController(key, initial),
-      obscureText: secret && !passwordVisible,
       autocorrect: false,
       enableSuggestions: false,
       keyboardType: number ? TextInputType.number : TextInputType.text,
       minLines: 1,
       maxLines: key == 'sni' ? null : 1,
       onChanged: onChanged,
-      decoration: InputDecoration(
-        labelText: label,
-        suffixIcon: secret
-            ? IconButton(
-                tooltip: passwordVisible
-                    ? AppLocalizations.of(context).hidePassword
-                    : AppLocalizations.of(context).showPassword,
-                onPressed: () =>
-                    setState(() => passwordVisible = !passwordVisible),
-                icon: Icon(
-                  passwordVisible ? Icons.visibility_off : Icons.visibility,
-                ),
-              )
-            : null,
-      ),
+      decoration: InputDecoration(labelText: label),
     ),
   );
   Future<void> prepare() async {
@@ -202,9 +166,14 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
                       : l.vpnFailed,
                 ),
               if (needsAccess) ...[
-                Text(l.panelConnectHelp),
-                input('username', l.panelUsername),
-                input('password', l.componentsPassword, secret: true),
+                PanelLoginView(
+                  controller: c,
+                  port: widget.port,
+                  onConnected: () {
+                    setState(() => loading = true);
+                    load();
+                  },
+                ),
               ] else if (snapshot != null && plan == null) ...[
                 input('remark', l.vpnName),
                 Text(
@@ -385,40 +354,33 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
             onPressed: loading ? null : () => setState(() => plan = null),
             child: Text(l.vpnEdit),
           ),
-        FilledButton(
-          key: const ValueKey('observed-save'),
-          onPressed: loading
-              ? null
-              : needsAccess
-              ? connect
-              : snapshot == null
-              ? null
-              : plan == null
-              ? prepare
-              : () async {
-                  setState(() => loading = true);
-                  final ok = await c.applyInbound(
-                    payload!,
-                    plan!['fingerprint'] as String,
-                  );
-                  if (!context.mounted) return;
-                  if (ok) {
-                    Navigator.pop(context);
-                  } else {
-                    setState(() {
-                      loading = false;
-                      failed = true;
-                    });
-                  }
-                },
-          child: Text(
-            needsAccess
-                ? l.sshConnect
+        if (!needsAccess)
+          FilledButton(
+            key: const ValueKey('observed-save'),
+            onPressed: loading
+                ? null
+                : snapshot == null
+                ? null
                 : plan == null
-                ? l.componentsPrepare
-                : l.runnerApply,
+                ? prepare
+                : () async {
+                    setState(() => loading = true);
+                    final ok = await c.applyInbound(
+                      payload!,
+                      plan!['fingerprint'] as String,
+                    );
+                    if (!context.mounted) return;
+                    if (ok) {
+                      Navigator.pop(context);
+                    } else {
+                      setState(() {
+                        loading = false;
+                        failed = true;
+                      });
+                    }
+                  },
+            child: Text(plan == null ? l.componentsPrepare : l.runnerApply),
           ),
-        ),
       ],
     );
   }

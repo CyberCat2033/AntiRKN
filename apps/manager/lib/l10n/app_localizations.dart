@@ -2594,12 +2594,6 @@ abstract class AppLocalizations {
   /// **'No active inbounds are configured for this client yet.'**
   String get vpnNoAccess;
 
-  /// No description provided for @vpnRealityCompatibility.
-  ///
-  /// In en, this message translates to:
-  /// **'REALITY uses minClientVer=1.8.2 for Mihomo compatibility. Xray warns of increased detection risk when lowering this threshold. Compatibility tests do not establish resistance to blocking.'**
-  String get vpnRealityCompatibility;
-
   /// No description provided for @protocolSoftware.
   ///
   /// In en, this message translates to:
@@ -3175,6 +3169,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Transport settings (JSON)'**
   String get observedTransportJson;
+
+  /// No description provided for @panelUpdateSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Save settings and clients, create a backup, and update 3x-ui together with Xray. VPN connections will briefly stop during the restart.'**
+  String get panelUpdateSummary;
+
+  /// No description provided for @panelUpdateRecovery.
+  ///
+  /// In en, this message translates to:
+  /// **'On failure, the backup remains on the server. Resume checks files already replaced. The database is not rolled back automatically.'**
+  String get panelUpdateRecovery;
+
+  /// No description provided for @panelUpdateCompatibility.
+  ///
+  /// In en, this message translates to:
+  /// **'Updates require verified versions of a standard 3x-ui installation with systemd and SQLite. Newer Xray cores are never downgraded.'**
+  String get panelUpdateCompatibility;
+
+  /// No description provided for @panelUpdatePreparing.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking the installed panel'**
+  String get panelUpdatePreparing;
+
+  /// No description provided for @panelUpdateBackup.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving a backup and validating Xray'**
+  String get panelUpdateBackup;
+
+  /// No description provided for @panelUpdateSwitching.
+  ///
+  /// In en, this message translates to:
+  /// **'Updating 3x-ui and Xray, restarting'**
+  String get panelUpdateSwitching;
+
+  /// No description provided for @panelLoginOnce.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to 3x-ui. Your credentials will be saved for future connections.'**
+  String get panelLoginOnce;
+
+  /// No description provided for @panelLoginRequiredFields.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the panel username and password.'**
+  String get panelLoginRequiredFields;
+
+  /// No description provided for @panelUpdateCoreCompatibility.
+  ///
+  /// In en, this message translates to:
+  /// **'Xray 26.9.8/26.9.9 is incompatible with the verified Mihomo REALITY profiles. This plan uses compatible core 26.7.28; if already installed, its version stays the same.'**
+  String get panelUpdateCoreCompatibility;
 }
 
 class _AppLocalizationsDelegate

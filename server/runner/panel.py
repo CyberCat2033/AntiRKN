@@ -171,8 +171,15 @@ def access_for(job_id, port):
         import re
         if not re.fullmatch(r'/[A-Za-z0-9_-]{24}/', base_path):
             raise PanelError('panel_conflict')
-    return dict(id=job_id, port=port, basePath=base_path, username='antirkn', password=password,
-                panelVersion=RELEASE['panelVersion'], xrayVersion=RELEASE['xrayVersion'])
+    versions = {k: RELEASE[k] for k in ('panelVersion', 'xrayVersion')}
+    version_file = DATABASE / '.antirkn-versions'
+    if version_file.exists():
+        safe_file(version_file, 1024)
+        recorded = json.loads(version_file.read_text())
+        if recorded.get('id') != job_id:
+            raise PanelError('panel_conflict')
+        versions = {k: recorded[k] for k in versions}
+    return dict(id=job_id, port=port, basePath=base_path, username='antirkn', password=password, **versions)
 
 
 
@@ -225,6 +232,7 @@ def unit_source(private=False):
 
 
 class PanelInstaller:
+    release = RELEASE
     def __init__(self, store, request):
         self.store, self.request = store, request
         self.directory = store.directory / ('panel-' + request['id'])
@@ -269,15 +277,16 @@ class PanelInstaller:
                     raise PanelError('panel_conflict')
 
     def download(self):
+        release = self.release
         archive = self.directory / 'release.tar.gz'
-        if archive.is_file() and digest(archive) == RELEASE['sha256']:
+        if archive.is_file() and digest(archive) == release['sha256']:
             return archive
         temp = self.directory / 'download.tmp'
         client = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         total = 0
         deadline = time.monotonic() + 900
         try:
-            with client.open(RELEASE['url'], timeout=30) as response, temp.open('wb') as output:
+            with client.open(release['url'], timeout=30) as response, temp.open('wb') as output:
                 if not response.geturl().startswith('https://'):
                     raise PanelError('panel_download_failed')
                 while True:
@@ -288,19 +297,22 @@ class PanelInstaller:
                     if not data:
                         break
                     total += len(data)
-                    if total > RELEASE['bytes'] or time.monotonic() > deadline:
+                    if total > release['bytes'] or time.monotonic() > deadline:
                         raise PanelError('panel_download_failed')
                     output.write(data)
                 output.flush()
                 os.fsync(output.fileno())
         except (OSError, ValueError) as error:
             raise PanelError('panel_download_failed') from error
-        if total != RELEASE['bytes'] or digest(temp) != RELEASE['sha256']:
+        if total != release['bytes'] or digest(temp) != release['sha256']:
             raise PanelError('panel_checksum_failed')
         os.replace(str(temp), str(archive))
         return archive
 
-    def extract(self, archive):
+    def unpack(self, archive):
+        release = self.release
+        if digest(archive) != release['sha256']:
+            raise PanelError('panel_checksum_failed')
         target = self.directory / 'extracted'
         target.mkdir(mode=0o700, exist_ok=True)
         with tarfile.open(str(archive), 'r:gz') as bundle:
@@ -310,7 +322,7 @@ class PanelInstaller:
                 if name.is_absolute() or '..' in name.parts or not (entry.isfile() or entry.isdir()):
                     raise PanelError('panel_checksum_failed')
                 relative = str(name)[5:] if str(name).startswith('x-ui/') else ''
-                if relative not in RELEASE['files']:
+                if relative not in release['files']:
                     continue
                 if relative in seen or entry.size > 200 * 1024 * 1024:
                     raise PanelError('panel_checksum_failed')
@@ -323,12 +335,16 @@ class PanelInstaller:
                 with bundle.extractfile(entry) as src, path.open('wb') as dst:
                     shutil.copyfileobj(src, dst)
                     dst.flush(); os.fsync(dst.fileno())
-                if digest(path) != RELEASE['files'][relative]:
+                if digest(path) != release['files'][relative]:
                     raise PanelError('panel_checksum_failed')
                 path.chmod(0o755 if relative in ('x-ui', 'x-ui.sh', 'bin/xray-linux-amd64') else 0o644)
                 self.pulse()
-            if seen != set(RELEASE['files']):
+            if seen != set(release['files']):
                 raise PanelError('panel_checksum_failed')
+        return target
+
+    def extract(self, archive):
+        target = self.unpack(archive)
         # Only after a complete verified extraction do we reserve the destinations.
         if not self.owns():
             current = panel_plan(self.request['port'])

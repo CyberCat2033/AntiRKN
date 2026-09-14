@@ -104,7 +104,7 @@ def client_id(workspace, resource, user):
     return str(uuid.UUID(bytes=secret('client/' + workspace + '/' + resource + '/' + user)[:16], version=4))
 
 
-def panel_for(store, panel_id):
+def access_for_panel(store, panel_id):
     row = store.db.execute("SELECT request FROM jobs WHERE id=? AND status='succeeded'", (panel_id,)).fetchone()
     if row is None:
         from panel_discovery import external_access
@@ -115,6 +115,11 @@ def panel_for(store, panel_id):
         if req.get('kind') != 'panel_install': raise VlessError('vless_conflict')
         PanelInstaller(store, req).assert_owned()
         access = access_for(panel_id, req['port'])
+    return access
+
+
+def panel_for(store, panel_id):
+    access = access_for_panel(store, panel_id)
     api = PanelApi(access['port'], access.get('basePath', '/'), tls=access.get('tls', False),
         certificate=access.get('certificate'), host=access.get('host', '127.0.0.1'))
     api.login(access['username'], access['password'])
@@ -173,10 +178,8 @@ def wanted_inbound(payload, r, current=None):
     stream = dict(network='tcp' if r['transport'] == 'raw' else 'xhttp', security=r['security'])
     if r['security'] == 'reality':
         stream['realitySettings'] = dict(show=False, target=r['target'], xver=0,
-            # Mihomo 1.19.30 identifies its REALITY handshake as 1.8.2.
-            # Xray 26.7.28 defaults to 26.3.27 and otherwise rejects it.
-            # This compatibility tradeoff is shown in the approval plan.
-            minClientVer='1.8.2',
+            # Owner policy: never gate REALITY clients by their reported version.
+            minClientVer='0.0.0',
             serverNames=[r['sni']], privateKey=keys['privateKey'], shortIds=keys.get('shortIds', [keys['shortId']]),
             settings=dict(publicKey=keys['publicKey'], fingerprint=r.get('fingerprint', 'chrome'), serverName=r['sni'], spiderX='/'))
     else:

@@ -50,6 +50,7 @@ class ObservedTests(unittest.TestCase):
         self.assertEqual(self.api.row['customPanelField'], 'keep')
         stream = json.loads(self.api.row['streamSettings'])
         self.assertEqual(stream['realitySettings']['privateKey'], 'private-existing-key')
+        self.assertEqual(stream['realitySettings']['minClientVer'], '0.0.0')
         self.assertEqual(stream['xhttpSettings']['extraUnknown'], 'keep')
         self.assertEqual(stream['xhttpSettings']['path'], '/new')
         self.assertEqual(self.store.db.execute('SELECT count(*) FROM vless_resources').fetchone()[0], 0)

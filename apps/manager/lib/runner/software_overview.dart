@@ -5,6 +5,8 @@ import '../l10n/app_localizations.dart';
 import 'component_installation_view.dart';
 import 'component_updates_controller.dart';
 import 'panel_installation_view.dart';
+import 'panel_update_view.dart';
+import 'panel_login_view.dart';
 import 'runner_controller.dart';
 
 class SoftwareOverview extends StatelessWidget {
@@ -44,7 +46,7 @@ class SoftwareOverview extends StatelessWidget {
                       version;
                 }
               }
-              if (versions.isEmpty && c.panelAccess != null) {
+              if (c.panelAccess != null) {
                 if (component == VpnComponent.panel) {
                   versions[key] = c.panelAccess!.panelVersion;
                 }
@@ -72,6 +74,14 @@ class SoftwareOverview extends StatelessWidget {
                         ) ==
                         true,
               );
+              final coreCanUpdate =
+                  component == VpnComponent.panel &&
+                  c.panelAccess != null &&
+                  componentIsNewer(
+                        verifiedComponentVersions['xray']!,
+                        c.panelAccess!.xrayVersion,
+                      ) ==
+                      true;
               final name = component == VpnComponent.amneziaWg
                   ? 'AmneziaWG'
                   : componentName(key);
@@ -118,11 +128,20 @@ class SoftwareOverview extends StatelessWidget {
                                   : l.softwareInspect,
                             ),
                           ),
-                        if (component == VpnComponent.panel && c.panelDetected)
-                          TextButton(
-                            key: const ValueKey('panel-access'),
-                            onPressed: () => showPanelAccess(context, c),
-                            child: Text(l.softwarePanelAccess),
+                        if (component == VpnComponent.panel &&
+                            c.panelDetected &&
+                            c.panelUpdatePlan == null &&
+                            (changes.isNotEmpty || canUpdate || coreCanUpdate))
+                          OutlinedButton(
+                            key: const ValueKey('panel-update'),
+                            onPressed:
+                                c.canPlan &&
+                                    c.installed &&
+                                    c.panelAccess != null &&
+                                    !c.panelLoginRequired
+                                ? c.preparePanelUpdate
+                                : null,
+                            child: Text(l.softwareUpdate),
                           ),
                         if (component == VpnComponent.trustTunnel ||
                             component == VpnComponent.amneziaWg)
@@ -151,7 +170,7 @@ class SoftwareOverview extends StatelessWidget {
                                 content: Text(
                                   component == VpnComponent.panel ||
                                           component == VpnComponent.xray
-                                      ? l.panelUpdateManual
+                                      ? l.panelUpdateCompatibility
                                       : l.componentUpdateUnverified,
                                 ),
                                 actions: [
@@ -166,8 +185,18 @@ class SoftwareOverview extends StatelessWidget {
                           ),
                       ],
                     ),
-                    if (component == VpnComponent.panel)
+                    if (component == VpnComponent.panel) ...[
+                      for (final panel in c.panels)
+                        if (panel['source'] == 'systemd' &&
+                            (c.panelAccess?.port != panel['port'] ||
+                                c.panelLoginRequired))
+                          PanelLoginView(
+                            controller: c,
+                            port: panel['port'] as int,
+                          ),
                       PanelInstallationView(controller: c, motion: motion),
+                      PanelUpdateView(controller: c),
+                    ],
                     if (c.componentPlan?.component == key)
                       ComponentInstallationView(controller: c),
                   ],

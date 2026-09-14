@@ -33,7 +33,8 @@
           "apt_plan",
           "inbound_read",
           "inbound_plan",
-          "panel_connect"
+          "panel_connect",
+          "panel_update_plan"
         ]
       },
       "id": {
@@ -49,7 +50,8 @@
           "component_install",
           "apt_update",
           "apt_upgrade",
-          "inbound_update"
+          "inbound_update",
+          "panel_update"
         ]
       },
       "count": {
@@ -96,6 +98,10 @@
         "type": "string",
         "maxLength": 253,
         "pattern": "^[A-Za-z0-9._-]*$"
+      },
+      "panelId": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{32}$"
       }
     },
     "actions": {
@@ -193,6 +199,11 @@
         "version",
         "action",
         "payload"
+      ],
+      "panel_update_plan": [
+        "version",
+        "action",
+        "id"
       ]
     },
     "submissions": {
@@ -260,6 +271,16 @@
         "interval",
         "payload",
         "fingerprint"
+      ],
+      "panel_update": [
+        "version",
+        "action",
+        "id",
+        "kind",
+        "count",
+        "interval",
+        "panelId",
+        "fingerprint"
       ]
     },
     "kindConstants": {
@@ -281,6 +302,10 @@
       },
       "inbound_update": {
         "count": 3,
+        "interval": 1
+      },
+      "panel_update": {
+        "count": 6,
         "interval": 1
       }
     }
@@ -359,7 +384,11 @@
     "apt_failed",
     "apt_conflict",
     "apt_interrupted",
-    "apt_prerequisites"
+    "apt_prerequisites",
+    "panel_update_preparing",
+    "panel_update_backup",
+    "panel_update_switching",
+    "panel_update_incompatible"
   ],
   "codes": [
     "ok",

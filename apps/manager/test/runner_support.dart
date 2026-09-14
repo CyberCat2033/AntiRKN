@@ -60,6 +60,8 @@ class FakeRunnerTransport implements RunnerTransport {
   Map<String, dynamic>? discovery;
   Map<String, dynamic>? recoveredAccess;
   String panelState = 'missing';
+  String panelUpdateState = 'update';
+  String panelVerifyCode = 'ok';
   String panelFingerprint = 'c' * 64;
   bool panelPortAvailable = true;
   bool panelSupported = true;
@@ -98,6 +100,26 @@ class FakeRunnerTransport implements RunnerTransport {
     var jobs = <RunnerJob>[];
     final extra = <String, Object?>{};
     switch (request.json['action']) {
+      case 'panel_update_plan':
+        extra['panelUpdatePlan'] = {
+          'panelId': request.id,
+          'state': panelUpdateState,
+          'supported': panelSupported,
+          'fingerprint': panelFingerprint,
+          'installedPanelVersion': '3.7.0',
+          'installedXrayVersion': '26.7.28',
+          'panelVersion': '3.8.0',
+          'xrayVersion': '26.7.28',
+          'url':
+              'https://github.com/MHSanaei/3x-ui/releases/download/v3.8.0/x-ui-linux-amd64.tar.gz',
+          'sha256': 'd' * 64,
+          'bytes': 82291492,
+          'paths': ['/usr/local/x-ui/x-ui'],
+          'backupRoot': '/var/lib/antirkn-runner',
+          'coreUrl':
+              'https://github.com/MHSanaei/3x-ui/releases/download/v3.7.0/x-ui-linux-amd64.tar.gz',
+          'coreSha256': 'e' * 64,
+        };
       case 'apt_plan':
         extra['aptPlan'] = {
           'packages': [
@@ -137,6 +159,7 @@ class FakeRunnerTransport implements RunnerTransport {
           'prerequisites': <String>[],
         };
       case 'panel_verify':
+        code = panelVerifyCode;
         panelChecks++;
         extra['panelVerified'] = true;
         extra['panelAccess'] = {

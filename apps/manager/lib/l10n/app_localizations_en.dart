@@ -1422,10 +1422,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'No active inbounds are configured for this client yet.';
 
   @override
-  String get vpnRealityCompatibility =>
-      'REALITY uses minClientVer=1.8.2 for Mihomo compatibility. Xray warns of increased detection risk when lowering this threshold. Compatibility tests do not establish resistance to blocking.';
-
-  @override
   String get protocolSoftware => 'Protocol updates';
 
   @override
@@ -1764,4 +1760,37 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get observedTransportJson => 'Transport settings (JSON)';
+
+  @override
+  String get panelUpdateSummary =>
+      'Save settings and clients, create a backup, and update 3x-ui together with Xray. VPN connections will briefly stop during the restart.';
+
+  @override
+  String get panelUpdateRecovery =>
+      'On failure, the backup remains on the server. Resume checks files already replaced. The database is not rolled back automatically.';
+
+  @override
+  String get panelUpdateCompatibility =>
+      'Updates require verified versions of a standard 3x-ui installation with systemd and SQLite. Newer Xray cores are never downgraded.';
+
+  @override
+  String get panelUpdatePreparing => 'Checking the installed panel';
+
+  @override
+  String get panelUpdateBackup => 'Saving a backup and validating Xray';
+
+  @override
+  String get panelUpdateSwitching => 'Updating 3x-ui and Xray, restarting';
+
+  @override
+  String get panelLoginOnce =>
+      'Sign in to 3x-ui. Your credentials will be saved for future connections.';
+
+  @override
+  String get panelLoginRequiredFields =>
+      'Enter the panel username and password.';
+
+  @override
+  String get panelUpdateCoreCompatibility =>
+      'Xray 26.9.8/26.9.9 is incompatible with the verified Mihomo REALITY profiles. This plan uses compatible core 26.7.28; if already installed, its version stays the same.';
 }

@@ -92,7 +92,7 @@ class _PanelInstallationViewState extends State<PanelInstallationView> {
                       Text(l.runnerPlanRelease),
                       Text(c.bundledRelease ?? ''),
                       const Text(
-                        '/usr/local/lib/antirkn-runner/v7/\n/var/lib/antirkn-runner/\n/etc/antirkn-runner/\n/etc/systemd/system/antirkn-runner.service',
+                        '/usr/local/lib/antirkn-runner/v9/\n/var/lib/antirkn-runner/\n/etc/antirkn-runner/\n/etc/systemd/system/antirkn-runner.service',
                       ),
                       Text(
                         'SHA-256 · ${(plan.bytes / (1024 * 1024)).toStringAsFixed(1)} MiB',
@@ -119,92 +119,6 @@ class _PanelInstallationViewState extends State<PanelInstallationView> {
             ),
           ],
         ],
-      ],
-    );
-  }
-}
-
-Future<void> showPanelAccess(BuildContext context, RunnerController c) =>
-    showDialog<void>(
-      context: context,
-      builder: (context) => _PanelAccessDialog(controller: c),
-    );
-
-class _PanelAccessDialog extends StatefulWidget {
-  const _PanelAccessDialog({required this.controller});
-  final RunnerController controller;
-  @override
-  State<_PanelAccessDialog> createState() => _PanelAccessDialogState();
-}
-
-class _PanelAccessDialogState extends State<_PanelAccessDialog> {
-  bool revealed = false;
-  @override
-  Widget build(BuildContext context) {
-    final c = widget.controller,
-        l = AppLocalizations.of(context),
-        access = c.panelAccess;
-    return AlertDialog(
-      title: Text(l.componentsPanelAccess),
-      content: SizedBox(
-        width: 500,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (access != null) ...[
-                SelectableText(
-                  '${access.tls ? 'https' : 'http'}://127.0.0.1:${access.port}${access.basePath}',
-                ),
-                SelectableText(access.username),
-                Text(l.componentsAccessHelp),
-                const SizedBox(height: AppLayout.gap),
-                TextFormField(
-                  key: ValueKey('panel-secret-${access.id}-$revealed'),
-                  initialValue: access.password,
-                  readOnly: true,
-                  obscureText: !revealed,
-                  decoration: InputDecoration(
-                    labelText: l.componentsPassword,
-                    suffixIcon: IconButton(
-                      tooltip: revealed
-                          ? l.componentsHidePassword
-                          : l.componentsShowPassword,
-                      onPressed: () => setState(() => revealed = !revealed),
-                      icon: Icon(
-                        revealed ? Icons.visibility_off : Icons.visibility,
-                      ),
-                    ),
-                  ),
-                ),
-              ] else ...[
-                for (final panel in c.panels)
-                  SelectableText(
-                    '${panel['tls'] == true ? 'https' : 'http'}://${panel['listen']}:${panel['port']}${panel['basePath']}',
-                  ),
-                Text(l.panelObservedHelp),
-              ],
-              if (c.panelDiscovery?['cliAvailable'] == false &&
-                  c.panels.any((p) => p['source'] == 'systemd'))
-                TextButton(
-                  onPressed: c.canPlan
-                      ? () async {
-                          await c.installPanelCli();
-                          if (context.mounted) Navigator.pop(context);
-                        }
-                      : null,
-                  child: Text(l.panelCliInstall),
-                ),
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(l.networkClose),
-        ),
       ],
     );
   }
