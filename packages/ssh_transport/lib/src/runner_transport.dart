@@ -5,6 +5,7 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'command_executor.dart';
 import 'privilege_runner.dart';
 import 'runner_bundle.g.dart';
+import 'panel_api.dart';
 
 /// Only the bundled installer and schema-validated RPC reach this adapter.
 final class SshRunnerTransport implements RunnerTransport {
@@ -41,7 +42,9 @@ final class SshRunnerTransport implements RunnerTransport {
     if (plan.state == 'conflict') {
       throw const RunnerFailure(RunnerIssue.conflict);
     }
-    if (plan.release != null && plan.release != bundledRelease) {
+    if (plan.release != null &&
+        plan.release != bundledRelease &&
+        !plan.upgradable) {
       throw const RunnerFailure(RunnerIssue.incompatible);
     }
     final result = await _privileged(
@@ -52,7 +55,7 @@ final class SshRunnerTransport implements RunnerTransport {
       }),
       cancellation,
       sudoPassword: sudoPassword,
-      timeout: const Duration(minutes: 2),
+      timeout: const Duration(minutes: 4),
     );
     if (!result.succeeded) throw const RunnerFailure(RunnerIssue.installFailed);
     try {
@@ -75,14 +78,31 @@ final class SshRunnerTransport implements RunnerTransport {
     String? sudoPassword,
   }) async {
     validateRunnerRequest(request.json);
+    final action = request.json['action'];
     final result = await _privileged(
-      '/usr/bin/python3 -I /usr/local/lib/antirkn-runner/v1/runner.py rpc',
-      jsonEncode(request.json),
+      action == 'panel_plan'
+          ? python(runnerPanelInspector)
+          : '/usr/bin/python3 -I /usr/local/lib/antirkn-runner/v2/runner.py rpc',
+      jsonEncode(
+        action == 'panel_verify'
+            ? {...request.json, 'action': 'panel_access'}
+            : request.json,
+      ),
       cancellation,
       sudoPassword: sudoPassword,
     );
     try {
-      return RunnerResponse.fromJson(decodeRunnerObject(result.output));
+      final json = decodeRunnerObject(result.output);
+      final response = RunnerResponse.fromJson(json);
+      if (action == 'panel_verify' && response.code == 'ok') {
+        final access = response.panelAccess;
+        if (access == null || access.id != request.id) {
+          throw const FormatException('panel_access');
+        }
+        await SshPanelApi(executor.client, access, cancellation).verify();
+        return RunnerResponse.fromJson({...json, 'panelVerified': true});
+      }
+      return response;
     } catch (_) {
       throw const RunnerFailure(RunnerIssue.invalidResponse);
     }

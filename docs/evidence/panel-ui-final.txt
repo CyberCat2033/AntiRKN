@@ -1,0 +1,10 @@
+00:00 +0: loading /home/cybercat/AntiRKN/apps/manager/test/runner_widget_test.dart
+00:00 +0: /home/cybercat/AntiRKN/apps/manager/test/runner_widget_test.dart: runner approval, progress and events ru 390.0 text x2
+00:01 +1: /home/cybercat/AntiRKN/apps/manager/test/panel_widget_test.dart: component plan requires selection and explicit apply ru 390.0 text x2
+00:01 +2: /home/cybercat/AntiRKN/apps/manager/test/panel_widget_test.dart: component plan requires selection and explicit apply ru 390.0 text x2
+00:01 +3: /home/cybercat/AntiRKN/apps/manager/test/panel_widget_test.dart: component plan requires selection and explicit apply ru 390.0 text x2
+00:01 +4: /home/cybercat/AntiRKN/apps/manager/test/runner_widget_test.dart: runner approval, progress and events en 1400.0 text x2
+00:01 +5: /home/cybercat/AntiRKN/apps/manager/test/panel_widget_test.dart: component plan requires selection and explicit apply ru 1400.0 text x2
+00:01 +6: /home/cybercat/AntiRKN/apps/manager/test/panel_widget_test.dart: component plan requires selection and explicit apply en 390.0 text x2
+00:02 +7: /home/cybercat/AntiRKN/apps/manager/test/panel_widget_test.dart: component plan requires selection and explicit apply en 1400.0 text x2
+00:02 +8: All tests passed!

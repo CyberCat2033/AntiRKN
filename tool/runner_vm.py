@@ -13,7 +13,7 @@ import threading
 import time
 import urllib.request
 
-DIRECTORY = Path('/tmp/antirkn-runner-vm')
+DIRECTORY = Path(os.environ.get('ANTIRKN_VM_DIRECTORY', '/tmp/antirkn-runner-vm'))
 IMAGE_URL = 'https://cloud-images.ubuntu.com/noble/20260911/noble-server-cloudimg-amd64.img'
 IMAGE_SHA256 = '612b2c0cc1bc413a6cb8c38fd611794caf0f2b436c50013d8b3794db12ad7354'
 
@@ -68,7 +68,7 @@ def prepare():
     (DIRECTORY / 'port').write_text(str(port))
     host_public = (DIRECTORY / 'host.pub').read_text().split()
     (DIRECTORY / 'known_hosts').write_text(f'[127.0.0.1]:{port} {host_public[0]} {host_public[1]}\n')
-    command = ['qemu-system-x86_64', '-enable-kvm', '-m', '1536', '-smp', '2', '-display', 'none',
+    command = ['qemu-system-x86_64', '-accel', 'kvm' if Path('/dev/kvm').exists() else 'tcg', '-m', '1536', '-smp', '2', '-display', 'none',
                '-drive', f'file={DIRECTORY / "disk.qcow2"},if=virtio,format=qcow2',
                '-nic', f'user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:{port}-:22',
                '-smbios', f'type=1,serial=ds=nocloud;s=http://10.0.2.2:{server.server_port}/',
@@ -77,7 +77,7 @@ def prepare():
     (DIRECTORY / 'pid').write_text(str(vm.pid))
     print('Ubuntu QEMU fixture starting (image hash verified).', flush=True)
     try:
-        deadline = time.monotonic() + 180
+        deadline = time.monotonic() + 600
         while time.monotonic() < deadline:
             if vm.poll() is not None:
                 raise RuntimeError('QEMU exited')

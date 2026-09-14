@@ -950,7 +950,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get runnerHelp =>
-      'Проверка сервера считывает время работы и свободное место 10 раз с интервалом две секунды. Прогресс сохраняется на сервере.';
+      'Установка и проверочные задания выполняются на сервере. Их прогресс сохраняется после закрытия приложения и обрыва SSH.';
 
   @override
   String get runnerPrepare => 'Настроить серверные задания';
@@ -963,7 +963,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get runnerPlanBody =>
-      'Установить встроенный исполнитель заданий, создать закрытый каталог журнала и включить службу systemd с автозапуском. Если эта версия уже установлена, запустить службу. Нужны установленные Python 3.8+ с SQLite и systemd 235+. Обновление пакетов не требуется.';
+      'Установить или восстановить встроенный исполнитель; известная предыдущая версия будет обновлена с сохранением журнала. Включить службу systemd с автозапуском и закрытый каталог заданий. Исполнителю нужны доступ к сети и запись в /usr/local и /etc для подтверждённых установок. Нужны Python 3.8+ с SQLite и systemd 235+. Обновление пакетов в этот план не входит.';
 
   @override
   String get runnerPlanRelease => 'SHA-256 сборки';
@@ -1071,4 +1071,132 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get runnerRecovered => 'Продолжено с сохранённой контрольной точки';
+
+  @override
+  String get componentsInstall => 'Установить компоненты';
+
+  @override
+  String get componentsSelectionHelp =>
+      'Установка отсутствующей панели и её Xray. TrustTunnel и AmneziaWG появятся в следующих стадиях.';
+
+  @override
+  String get componentsPort => 'Локальный порт панели';
+
+  @override
+  String get componentsPortHelp => 'Доступ только через SSH; это не порт VPN.';
+
+  @override
+  String get componentsPortInvalid => 'Введите порт от 1024 до 65535.';
+
+  @override
+  String get componentsPrepare => 'Подготовить план';
+
+  @override
+  String get componentsPlan => 'План установки 3x-ui / Xray';
+
+  @override
+  String get componentsExisting =>
+      'Обнаружена существующая установка или не удалось исключить её наличие. Автоматическая переустановка недоступна; конфигурация сохранена.';
+
+  @override
+  String get componentsPrerequisites =>
+      'Нужны Ubuntu x86_64, Python 3.8+ с SQLite, systemd 235+, nsenter, ca-certificates и 600 МиБ свободного места. Недостающие зависимости нужно подготовить отдельно.';
+
+  @override
+  String get componentsPortBusy =>
+      'Порт панели занят. Выберите другой и подготовьте новый план.';
+
+  @override
+  String get componentsPlanBody =>
+      'Будет загружен и проверен закреплённый архив, создана новая конфигурация и служба с автозапуском. Первоначальная настройка выполняется в изолированной сети; затем панель слушает только 127.0.0.1. Реквизиты создаются один раз, сервис подписок отключается.';
+
+  @override
+  String get componentsDependencies =>
+      'Архив содержит Xray и геоданные. Обновление пакетов APT в этот план не входит.';
+
+  @override
+  String get componentsRunnerDependency =>
+      'Исполнитель заданий будет установлен, восстановлен или обновлён с известной предыдущей версии. Ему потребуется доступ к сети и каталогам установки. Журнал заданий сохраняется.';
+
+  @override
+  String get componentsPanelAccess => 'Доступ к установленной панели';
+
+  @override
+  String get componentsAccessHelp =>
+      'Реквизиты сохранены зашифрованными. Адрес доступен на сервере через SSH-туннель.';
+
+  @override
+  String get componentsPassword => 'Пароль панели';
+
+  @override
+  String get componentsHidePassword => 'Скрыть пароль';
+
+  @override
+  String get componentsShowPassword => 'Показать пароль';
+
+  @override
+  String componentsVerified(String time) {
+    return 'API проверен через SSH: $time';
+  }
+
+  @override
+  String get componentsVerifyApi => 'Проверить API через SSH';
+
+  @override
+  String get componentsJob => 'Установка 3x-ui / Xray';
+
+  @override
+  String get componentsDownloaded => 'Архив загружен и проверен';
+
+  @override
+  String get componentsExtracted => 'Файлы установлены';
+
+  @override
+  String get componentsConfigured =>
+      'Закрытая панель настроена, реквизиты созданы';
+
+  @override
+  String get componentsStarted => 'Служба запущена';
+
+  @override
+  String get componentsChecked =>
+      'Версии, настройки и API проверены на сервере';
+
+  @override
+  String get componentsDownloadFailed =>
+      'Ошибка загрузки архива. Установка не завершена.';
+
+  @override
+  String get componentsChecksumFailed =>
+      'Контрольная сумма не совпадает. Архив не будет исполнен.';
+
+  @override
+  String get componentsApiFailed =>
+      'Не удалось подтвердить работу панели. Проверьте журнал и состояние службы.';
+
+  @override
+  String get componentsPartial =>
+      'Операция остановлена после применения части изменений. Созданные файлы сохранены; это не откат установки.';
+
+  @override
+  String get componentsResume => 'Продолжить установку';
+
+  @override
+  String get componentsResumePlan =>
+      'Будет продолжено то же задание с сохранённого этапа. Проверенные файлы повторно используются, реквизиты сохраняются. Перед изменениями проверяется принадлежность ресурсов; конфликт останавливает продолжение.';
+
+  @override
+  String get componentsDownloading => 'Загрузка архива';
+
+  @override
+  String get componentsExtracting => 'Распаковка и проверка файлов';
+
+  @override
+  String get componentsConfiguring => 'Настройка панели в изолированной сети';
+
+  @override
+  String get componentsStarting => 'Запуск службы';
+
+  @override
+  String get componentsChecking => 'Проверка состояния и API';
 }

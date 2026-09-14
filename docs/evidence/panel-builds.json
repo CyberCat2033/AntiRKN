@@ -1,0 +1,13 @@
+{
+  "type": "debug",
+  "artifacts": {
+    "apps/manager/build/linux/x64/debug/bundle/antirkn_manager": {
+      "sha256": "9fffcfee576434e574553b9b3cc8214dffa856e18bc973d1a78545ecfddd3d13",
+      "bytes": 53696
+    },
+    "apps/manager/build/app/outputs/flutter-apk/app-debug.apk": {
+      "sha256": "6d48e43b6c8a19d1096097926316c48f614636262320db97ca75db4a4593c33b",
+      "bytes": 117989790
+    }
+  }
+}

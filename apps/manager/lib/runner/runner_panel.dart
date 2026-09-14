@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../l10n/app_localizations.dart';
 import 'runner_controller.dart';
+import 'panel_installation_view.dart';
 
 class RunnerPanel extends StatelessWidget {
   const RunnerPanel({
@@ -40,6 +41,8 @@ class RunnerPanel extends StatelessWidget {
                   !c.connected && job != null && !job.terminal)
                 Text(l.runnerConnectionLost),
               const SizedBox(height: AppLayout.gap),
+              PanelInstallationView(controller: c),
+              const SizedBox(height: AppLayout.gap),
               Wrap(
                 spacing: AppLayout.smallGap,
                 runSpacing: AppLayout.smallGap,
@@ -74,7 +77,7 @@ class RunnerPanel extends StatelessWidget {
                 Text(l.runnerPlanBody),
                 const SizedBox(height: AppLayout.smallGap),
                 const SelectableText(
-                  '/usr/local/lib/antirkn-runner/v1/\n/etc/systemd/system/antirkn-runner.service\n/var/lib/antirkn-runner/',
+                  '/usr/local/lib/antirkn-runner/v2/\n/etc/systemd/system/antirkn-runner.service\n/var/lib/antirkn-runner/',
                 ),
                 Text(l.runnerPlanRelease),
                 SelectableText(c.bundledRelease ?? ''),
@@ -104,6 +107,9 @@ class RunnerPanel extends StatelessWidget {
               if (c.installed && !c.alive) Text(l.runnerNotRunning),
               if (job != null) ...[
                 const SizedBox(height: AppLayout.gap),
+                if (job.kind == 'panel_install') Text(l.componentsJob),
+                if (job.kind == 'panel_install' && job.events.isNotEmpty)
+                  Text(runnerEventLabel(l, job.events.last.code)),
                 Semantics(
                   liveRegion: true,
                   child: Text(
@@ -189,6 +195,24 @@ String runnerStateLabel(AppLocalizations l, String state) => switch (state) {
   _ => l.runnerAttention,
 };
 String runnerEventLabel(AppLocalizations l, String code) => switch (code) {
+  'panel_downloading' => l.componentsDownloading,
+  'panel_extracting' => l.componentsExtracting,
+  'panel_configuring' => l.componentsConfiguring,
+  'panel_starting' => l.componentsStarting,
+  'panel_checking' => l.componentsChecking,
+  'panel_download' => l.componentsDownloaded,
+  'panel_extract' => l.componentsExtracted,
+  'panel_configure' => l.componentsConfigured,
+  'panel_start' => l.componentsStarted,
+  'panel_check' => l.componentsChecked,
+  'panel_existing' => l.componentsExisting,
+  'panel_prerequisites' || 'panel_disk_full' => l.componentsPrerequisites,
+  'panel_port_busy' => l.componentsPortBusy,
+  'panel_conflict' => l.runnerConflict,
+  'panel_download_failed' => l.componentsDownloadFailed,
+  'panel_checksum_failed' => l.componentsChecksumFailed,
+  'panel_api_failed' => l.componentsApiFailed,
+  'panel_partial' || 'panel_cancelled_partial' => l.componentsPartial,
   'sample' => l.runnerSample,
   'recovered' => l.runnerRecovered,
   'cancel_requested' => l.runnerCancelRequested,

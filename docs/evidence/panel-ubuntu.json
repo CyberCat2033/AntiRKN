@@ -1,0 +1,18 @@
+{
+  "results": {
+    "ubuntu_prerequisites": true,
+    "panel_read_only_preview": true,
+    "preview_has_no_mutations": true,
+    "runner_install": true,
+    "panel_submit": true,
+    "panel_installed": true,
+    "repeat_same_id_no_effect": true,
+    "stable_private_credentials": true,
+    "credential_repeat_stable": true,
+    "only_loopback_panel_no_subscription": true,
+    "existing_installation_preserved": true
+  },
+  "panelVersion": "3.7.0",
+  "xrayVersion": "26.7.28",
+  "os": "Ubuntu 24.04.5 LTS"
+}

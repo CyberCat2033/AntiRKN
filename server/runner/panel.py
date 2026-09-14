@@ -1,0 +1,422 @@
+"""Owned, checkpointed installation of the pinned 3x-ui distribution.
+
+No API/DB editing of pre-existing panels and no remote install script execution.
+"""
+import base64
+import hashlib
+import hmac
+import json
+import os
+from pathlib import Path, PurePosixPath
+import platform
+import secrets
+import shutil
+import socket
+import stat
+import subprocess
+import sys
+import tarfile
+import time
+import urllib.request
+
+from panel_release import RELEASE
+
+PANEL = Path('/usr/local/x-ui')
+DATABASE = Path('/etc/x-ui')
+UNIT = Path('/etc/systemd/system/x-ui.service')
+BOOT_UNIT = Path('/etc/systemd/system/antirkn-x-ui-bootstrap.service')
+KEY = Path('/etc/antirkn-runner/panel.key')
+STEPS = 6
+
+
+class PanelError(Exception):
+    def __init__(self, code):
+        self.code = code
+
+
+def digest(path):
+    value = hashlib.sha256()
+    with path.open('rb') as stream:
+        for data in iter(lambda: stream.read(1048576), b''):
+            value.update(data)
+    return value.hexdigest()
+
+
+def safe_file(path, max_size=1048576):
+    meta = path.lstat()
+    if (meta.st_uid != 0 or meta.st_mode & 0o022 or not stat.S_ISREG(meta.st_mode)
+            or meta.st_size > max_size):
+        raise PanelError('panel_conflict')
+
+
+def atomic_file(path, data, mode=0o600):
+    temp = path.with_name('.' + path.name + '.antirkn-tmp')
+    # All parents are root-owned and never supplied by the RPC caller.
+    fd = os.open(str(temp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, mode)
+    with os.fdopen(fd, 'wb') as stream:
+        stream.write(data)
+        stream.flush()
+        os.fsync(stream.fileno())
+    temp.chmod(mode)
+    os.replace(str(temp), str(path))
+    fd = os.open(str(path.parent), os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def command(argv, timeout=30, input_data=None):
+    result = subprocess.run(argv, input=input_data, stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL, timeout=timeout, env={
+            'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8',
+            'XUI_DB_FOLDER': str(DATABASE), 'XUI_BIN_FOLDER': str(PANEL / 'bin'),
+            'XUI_LOG_FOLDER': str(DATABASE / 'logs'), 'XUI_ENABLE_FAIL2BAN': 'false'})
+    if result.returncode != 0:
+        raise PanelError('panel_api_failed')
+    return result.stdout
+
+
+def systemctl(*args):
+    return command(['/usr/bin/systemctl', *args])
+
+
+def port_free(port):
+    try:
+        with socket.socket() as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind(('127.0.0.1', port))
+        return True
+    except OSError:
+        return False
+
+
+def prerequisites():
+    missing = []
+    distro = dict(line.split('=', 1) for line in Path('/etc/os-release').read_text().splitlines() if '=' in line)
+    if distro.get('ID', '').strip('"') != 'ubuntu' or platform.machine() != 'x86_64':
+        missing.append('ubuntu_x64')
+    if sys.version_info < (3, 8) or not Path('/run/systemd/system').is_dir():
+        missing.append('python_systemd')
+    for path in ('/usr/bin/nsenter', '/usr/bin/systemctl'):
+        if not Path(path).is_file():
+            missing.append('util_linux_systemd')
+    if not Path('/etc/ssl/certs/ca-certificates.crt').is_file():
+        missing.append('ca_certificates')
+    if shutil.disk_usage('/usr/local').free < 600 * 1024 * 1024:
+        missing.append('disk_space')
+    return sorted(set(missing))
+
+
+def panel_plan(port):
+    paths = [PANEL, DATABASE, UNIT, BOOT_UNIT,
+        Path('/usr/bin/x-ui'), Path('/usr/local/bin/x-ui'),
+        Path('/lib/systemd/system/x-ui.service'), Path('/usr/bin/xray'),
+        Path('/usr/local/bin/xray'), Path('/etc/xray'), Path('/usr/local/etc/xray'),
+        Path('/etc/systemd/system/xray.service'), Path('/lib/systemd/system/xray.service')]
+    snapshot = {}
+    for path in paths:
+        try:
+            st = path.lstat()
+            snapshot[str(path)] = [st.st_mode, st.st_uid, st.st_ino, st.st_mtime_ns]
+        except FileNotFoundError:
+            snapshot[str(path)] = None
+    # A normal, stopped Docker installation is also pre-existing software.
+    docker = shutil.which('docker')
+    containers = []
+    if docker:
+        try:
+            raw = command([docker, 'ps', '-a', '--format', '{{.Image}} {{.Names}}'], timeout=15).decode()
+            containers = sorted(line for line in raw.splitlines()
+                if any(value in line.lower() for value in ('3x-ui', '3xui', 'x-ui', 'xray')))
+        except (PanelError, subprocess.SubprocessError):
+            containers = ['unknown']
+    snapshot['containers'] = containers
+    missing = prerequisites()
+    available = port_free(port)
+    snapshot.update(port=port, available=available, prerequisites=missing,
+                    release=RELEASE['sha256'])
+    state = 'missing'
+    if any(snapshot[str(p)] for p in paths) or containers:
+        state = 'existing'
+    fingerprint = hashlib.sha256(json.dumps(snapshot, sort_keys=True).encode()).hexdigest()
+    return dict(state=state, supported=not missing, prerequisites=missing,
+        port=port, portAvailable=available, fingerprint=fingerprint,
+        panelVersion=RELEASE['panelVersion'], xrayVersion=RELEASE['xrayVersion'],
+        sha256=RELEASE['sha256'], url=RELEASE['url'], bytes=RELEASE['bytes'])
+
+
+def access_for(job_id, port):
+    # Only a random root key is stored; job/event records never contain passwords.
+    safe_file(KEY, 32)
+    key = KEY.read_bytes()
+    if len(key) != 32:
+        raise PanelError('panel_conflict')
+    password = base64.urlsafe_b64encode(hmac.new(key,
+        ('3x-ui/admin/' + job_id).encode(), hashlib.sha256).digest()).decode().rstrip('=')
+    return dict(id=job_id, port=port, username='antirkn', password=password,
+                panelVersion=RELEASE['panelVersion'], xrayVersion=RELEASE['xrayVersion'])
+
+
+def unit_source(private=False):
+    return ('[Unit]\nDescription=AntiRKN managed 3x-ui\nAfter=network.target\n'
+        '[Service]\nType=simple\nWorkingDirectory=/usr/local/x-ui\n'
+        'ExecStart=/usr/local/x-ui/x-ui\nRestart=on-failure\nRestartSec=3\n'
+        'UMask=0077\nEnvironment=XUI_DB_FOLDER=/etc/x-ui\n'
+        'Environment=XUI_BIN_FOLDER=/usr/local/x-ui/bin\n'
+        'Environment=XUI_LOG_FOLDER=/etc/x-ui/logs\n'
+        'Environment=XUI_ENABLE_FAIL2BAN=false\n'
+        'StandardOutput=null\nStandardError=null\n'
+        + ('PrivateNetwork=yes\n' if private else '')
+        + '[Install]\nWantedBy=multi-user.target\n').encode()
+
+
+class PanelInstaller:
+    def __init__(self, store, request):
+        self.store, self.request = store, request
+        self.directory = store.directory / ('panel-' + request['id'])
+        self.ownership = self.directory / 'ownership.json'
+
+    def pulse(self):
+        self.store.heartbeat()
+
+    def cancelled(self):
+        return bool(self.store.db.execute('SELECT cancel FROM jobs WHERE id=?',
+            (self.request['id'],)).fetchone()[0])
+
+    def owns(self):
+        if not self.ownership.is_file():
+            return False
+        safe_file(self.ownership)
+        record = json.loads(self.ownership.read_text())
+        return record == dict(id=self.request['id'], fingerprint=self.request['fingerprint'])
+
+    def checkpoint(self, number, code):
+        with self.store.db:
+            self.store.db.execute('UPDATE jobs SET checkpoint=? WHERE id=?', (number, self.request['id']))
+            self.store.event(self.request['id'], code, number, STEPS)
+
+    def assert_owned(self):
+        if not self.owns():
+            raise PanelError('panel_conflict')
+        # A fresh installation only: changes by an administrator block resume.
+        for path in (PANEL, DATABASE):
+            if path.exists():
+                st = path.lstat()
+                if not stat.S_ISDIR(st.st_mode) or st.st_uid != 0 or st.st_mode & 0o022:
+                    raise PanelError('panel_conflict')
+                marker = path / '.antirkn-owner'
+                safe_file(marker, 32)
+                if marker.read_text() != self.request['id']:
+                    raise PanelError('panel_conflict')
+        for path, private in ((UNIT, False), (BOOT_UNIT, True)):
+            if path.exists() or path.is_symlink():
+                safe_file(path)
+                if path.read_bytes() != unit_source(private):
+                    raise PanelError('panel_conflict')
+
+    def download(self):
+        archive = self.directory / 'release.tar.gz'
+        if archive.is_file() and digest(archive) == RELEASE['sha256']:
+            return archive
+        temp = self.directory / 'download.tmp'
+        client = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        total = 0
+        deadline = time.monotonic() + 900
+        try:
+            with client.open(RELEASE['url'], timeout=30) as response, temp.open('wb') as output:
+                if not response.geturl().startswith('https://'):
+                    raise PanelError('panel_download_failed')
+                while True:
+                    self.pulse()
+                    if self.cancelled():
+                        raise PanelError('cancelled')
+                    data = response.read(262144)
+                    if not data:
+                        break
+                    total += len(data)
+                    if total > RELEASE['bytes'] or time.monotonic() > deadline:
+                        raise PanelError('panel_download_failed')
+                    output.write(data)
+                output.flush()
+                os.fsync(output.fileno())
+        except (OSError, ValueError) as error:
+            raise PanelError('panel_download_failed') from error
+        if total != RELEASE['bytes'] or digest(temp) != RELEASE['sha256']:
+            raise PanelError('panel_checksum_failed')
+        os.replace(str(temp), str(archive))
+        return archive
+
+    def extract(self, archive):
+        target = self.directory / 'extracted'
+        target.mkdir(mode=0o700, exist_ok=True)
+        with tarfile.open(str(archive), 'r:gz') as bundle:
+            seen, expanded = set(), 0
+            for entry in bundle.getmembers():
+                name = PurePosixPath(entry.name)
+                if name.is_absolute() or '..' in name.parts or not (entry.isfile() or entry.isdir()):
+                    raise PanelError('panel_checksum_failed')
+                relative = str(name)[5:] if str(name).startswith('x-ui/') else ''
+                if relative not in RELEASE['files']:
+                    continue
+                if relative in seen or entry.size > 200 * 1024 * 1024:
+                    raise PanelError('panel_checksum_failed')
+                seen.add(relative)
+                expanded += entry.size
+                if expanded > 500 * 1024 * 1024:
+                    raise PanelError('panel_checksum_failed')
+                path = target / relative
+                path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+                with bundle.extractfile(entry) as src, path.open('wb') as dst:
+                    shutil.copyfileobj(src, dst)
+                    dst.flush(); os.fsync(dst.fileno())
+                if digest(path) != RELEASE['files'][relative]:
+                    raise PanelError('panel_checksum_failed')
+                path.chmod(0o755 if relative in ('x-ui', 'bin/xray-linux-amd64') else 0o644)
+                self.pulse()
+            if seen != set(RELEASE['files']):
+                raise PanelError('panel_checksum_failed')
+        # Only after a complete verified extraction do we reserve the destinations.
+        if not self.owns():
+            current = panel_plan(self.request['port'])
+            if current['fingerprint'] != self.request['fingerprint']:
+                raise PanelError('panel_conflict')
+            atomic_file(self.ownership, json.dumps(dict(id=self.request['id'],
+                fingerprint=self.request['fingerprint'])).encode())
+        self.assert_owned()
+        if not PANEL.exists():
+            # Atomic rename on the same filesystem: staging lives under /usr/local.
+            staging = PANEL.with_name('.x-ui-antirkn-' + self.request['id'])
+            if staging.exists():
+                shutil.rmtree(str(staging))
+            shutil.copytree(str(target), str(staging))
+            atomic_file(staging / '.antirkn-owner', self.request['id'].encode())
+            staging.chmod(0o755)
+            (staging / 'bin').chmod(0o755)
+            os.rename(str(staging), str(PANEL))
+        for name, expected in RELEASE['files'].items():
+            path = PANEL / name
+            safe_file(path, 200 * 1024 * 1024)
+            if digest(path) != expected:
+                raise PanelError('panel_conflict')
+        if not DATABASE.exists():
+            staging_db = DATABASE.with_name('.x-ui-antirkn-' + self.request['id'])
+            staging_db.mkdir(mode=0o700, exist_ok=True)
+            atomic_file(staging_db / '.antirkn-owner', self.request['id'].encode())
+            os.rename(str(staging_db), str(DATABASE))
+        if not KEY.exists():
+            KEY.parent.mkdir(mode=0o700, exist_ok=True)
+            meta = KEY.parent.lstat()
+            if not stat.S_ISDIR(meta.st_mode) or meta.st_uid != 0 or meta.st_mode & 0o077:
+                raise PanelError('panel_conflict')
+            atomic_file(KEY, secrets.token_bytes(32))
+
+    def configure(self):
+        self.assert_owned()
+        command([str(PANEL / 'x-ui'), 'setting', '-listenIP', '127.0.0.1',
+                 '-port', str(self.request['port']), '-webBasePath', '/'], timeout=90)
+        atomic_file(BOOT_UNIT, unit_source(True), 0o644)
+        systemctl('daemon-reload')
+        systemctl('start', BOOT_UNIT.name)
+        access = access_for(self.request['id'], self.request['port'])
+        helper = Path(__file__).with_name('panel_api.py')
+        deadline = time.monotonic() + 120
+        while time.monotonic() < deadline:
+            self.pulse()
+            pid = systemctl('show', '-p', 'MainPID', '--value', BOOT_UNIT.name).decode().strip()
+            if pid.isdecimal() and int(pid) > 1:
+                try:
+                    command(['/usr/bin/nsenter', '--target', pid, '--net',
+                             '/usr/bin/python3', '-I', str(helper)], timeout=60,
+                            input_data=json.dumps(access).encode())
+                    break
+                except (PanelError, subprocess.SubprocessError):
+                    pass
+            time.sleep(1)
+        else:
+            raise PanelError('panel_api_failed')
+        systemctl('stop', BOOT_UNIT.name)
+
+    def start(self):
+        self.assert_owned()
+        if not UNIT.exists():
+            if not port_free(self.request['port']):
+                raise PanelError('panel_port_busy')
+            atomic_file(UNIT, unit_source(False), 0o644)
+        systemctl('daemon-reload')
+        systemctl('enable', '--now', UNIT.name)
+
+    def verify(self):
+        from panel_api import PanelApi
+        self.assert_owned()
+        access = access_for(self.request['id'], self.request['port'])
+        deadline = time.monotonic() + 90
+        while time.monotonic() < deadline:
+            self.pulse()
+            try:
+                api = PanelApi(access['port'])
+                api.login(access['username'], access['password'])
+                settings = api.call('/panel/api/setting/all', {})
+                inbounds = api.call('/panel/api/inbounds/list')
+                status = api.call('/panel/api/server/status')
+                if (settings.get('webListen') != '127.0.0.1'
+                        or settings.get('webPort') != access['port']
+                        or settings.get('subEnable') is not False
+                        or inbounds != []):
+                    raise PanelError('panel_conflict')
+                if (status.get('xray', {}).get('state') != 'running'
+                        or status.get('xray', {}).get('version') != RELEASE['xrayVersion']
+                        or status.get('panelVersion') != RELEASE['panelVersion']):
+                    raise ValueError('panel_api_failed')
+                if command([str(PANEL / 'x-ui'), '-v']).decode().strip() != RELEASE['panelVersion']:
+                    raise PanelError('panel_conflict')
+                version = command([str(PANEL / 'bin/xray-linux-amd64'), 'version']).decode()
+                if not version.startswith('Xray ' + RELEASE['xrayVersion'] + ' '):
+                    raise PanelError('panel_conflict')
+                systemctl('is-active', '--quiet', UNIT.name)
+                return
+            except (OSError, ValueError, subprocess.SubprocessError):
+                time.sleep(1)
+        raise PanelError('panel_api_failed')
+
+    def step(self, checkpoint):
+        if prerequisites():
+            raise PanelError('panel_prerequisites')
+        if checkpoint > 0:
+            with self.store.db:
+                self.store.event(self.request['id'], ['running', 'panel_downloading',
+                    'panel_extracting', 'panel_configuring', 'panel_starting',
+                    'panel_checking'][checkpoint], checkpoint, STEPS)
+        if checkpoint == 0:
+            current = panel_plan(self.request['port'])
+            if not current['supported']:
+                raise PanelError('panel_prerequisites')
+            if current['state'] != 'missing':
+                raise PanelError('panel_existing')
+            if not current['portAvailable']:
+                raise PanelError('panel_port_busy')
+            if current['fingerprint'] != self.request['fingerprint']:
+                raise PanelError('panel_conflict')
+            self.directory.mkdir(mode=0o700, exist_ok=True)
+        elif checkpoint == 1:
+            self.download()
+        elif checkpoint == 2:
+            self.extract(self.directory / 'release.tar.gz')
+        elif checkpoint == 3:
+            self.configure()
+        elif checkpoint == 4:
+            self.start()
+        elif checkpoint == 5:
+            self.verify()
+        self.checkpoint(checkpoint + 1, ['running', 'panel_download', 'panel_extract',
+            'panel_configure', 'panel_start', 'panel_check'][checkpoint])
+
+    def abort(self):
+        # The durable result retains applied files. Never claim cancellation undid them.
+        if self.owns():
+            try:
+                systemctl('stop', BOOT_UNIT.name)
+            except (PanelError, OSError, subprocess.SubprocessError):
+                pass
+            return 'partially_applied'
+        return 'cancelled'

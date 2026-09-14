@@ -947,7 +947,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get runnerHelp =>
-      'A server check reads uptime and available disk space 10 times, at two-second intervals. Its progress is saved on the server.';
+      'Installation and diagnostic jobs run on the server. Progress is retained after the app closes or SSH disconnects.';
 
   @override
   String get runnerPrepare => 'Set up server jobs';
@@ -960,7 +960,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get runnerPlanBody =>
-      'Install the bundled job executor, create its private journal directory, and enable its systemd service at startup. If this exact version is already installed, start the service. Requires existing Python 3.8+ with SQLite and systemd 235+. No packages will be updated.';
+      'Install or repair the bundled executor; the known previous release will be upgraded while retaining the journal. Enable the systemd service at startup and create a private job directory. The executor needs network access and write access to /usr/local and /etc for approved installations. Requires Python 3.8+ with SQLite and systemd 235+. Package upgrades are not part of this plan.';
 
   @override
   String get runnerPlanRelease => 'Bundle SHA-256';
@@ -1068,4 +1068,132 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get runnerRecovered => 'Resumed from a saved checkpoint';
+
+  @override
+  String get componentsInstall => 'Install components';
+
+  @override
+  String get componentsSelectionHelp =>
+      'Install a missing panel and its Xray. TrustTunnel and AmneziaWG installers will follow.';
+
+  @override
+  String get componentsPort => 'Panel local port';
+
+  @override
+  String get componentsPortHelp => 'SSH access only; this is not a VPN port.';
+
+  @override
+  String get componentsPortInvalid => 'Enter a port between 1024 and 65535.';
+
+  @override
+  String get componentsPrepare => 'Prepare plan';
+
+  @override
+  String get componentsPlan => '3x-ui / Xray installation plan';
+
+  @override
+  String get componentsExisting =>
+      'An existing installation was found or could not be ruled out. Automatic reinstallation is unavailable; its configuration is preserved.';
+
+  @override
+  String get componentsPrerequisites =>
+      'Requires Ubuntu x86_64, Python 3.8+ with SQLite, systemd 235+, nsenter, ca-certificates and 600 MiB free space. Missing prerequisites need separate preparation.';
+
+  @override
+  String get componentsPortBusy =>
+      'Panel port is occupied. Choose another port and prepare a new plan.';
+
+  @override
+  String get componentsPlanBody =>
+      'The pinned archive will be downloaded and verified, then a new configuration and service with automatic startup will be created. Initial setup runs in an isolated network; the panel then listens only on 127.0.0.1. Credentials are created once and the subscription service is disabled.';
+
+  @override
+  String get componentsDependencies =>
+      'The archive includes Xray and geodata. This plan does not update APT packages.';
+
+  @override
+  String get componentsRunnerDependency =>
+      'The job runner will be installed, repaired or upgraded from the known previous release. It requires network access and write access to installation directories. Job history is retained.';
+
+  @override
+  String get componentsPanelAccess => 'Installed panel access';
+
+  @override
+  String get componentsAccessHelp =>
+      'Credentials are stored encrypted. The address is reachable on the server through an SSH tunnel.';
+
+  @override
+  String get componentsPassword => 'Panel password';
+
+  @override
+  String get componentsHidePassword => 'Hide password';
+
+  @override
+  String get componentsShowPassword => 'Show password';
+
+  @override
+  String componentsVerified(String time) {
+    return 'API verified through SSH: $time';
+  }
+
+  @override
+  String get componentsVerifyApi => 'Verify API through SSH';
+
+  @override
+  String get componentsJob => 'Installing 3x-ui / Xray';
+
+  @override
+  String get componentsDownloaded => 'Archive downloaded and verified';
+
+  @override
+  String get componentsExtracted => 'Files installed';
+
+  @override
+  String get componentsConfigured =>
+      'Private panel configured and credentials created';
+
+  @override
+  String get componentsStarted => 'Service started';
+
+  @override
+  String get componentsChecked =>
+      'Versions, settings and API verified on the server';
+
+  @override
+  String get componentsDownloadFailed =>
+      'Archive download failed. Installation is incomplete.';
+
+  @override
+  String get componentsChecksumFailed =>
+      'Checksum mismatch. The archive will not be executed.';
+
+  @override
+  String get componentsApiFailed =>
+      'Panel operation could not be verified. Check the journal and service state.';
+
+  @override
+  String get componentsPartial =>
+      'The operation stopped after applying some changes. Created files are retained; the installation has not been rolled back.';
+
+  @override
+  String get componentsResume => 'Resume installation';
+
+  @override
+  String get componentsResumePlan =>
+      'The same job will resume from its saved step. Verified files are reused and credentials are retained. Resource ownership is checked before changes; a conflict stops the operation.';
+
+  @override
+  String get componentsDownloading => 'Downloading archive';
+
+  @override
+  String get componentsExtracting => 'Extracting and verifying files';
+
+  @override
+  String get componentsConfiguring => 'Configuring panel in isolated network';
+
+  @override
+  String get componentsStarting => 'Starting service';
+
+  @override
+  String get componentsChecking => 'Checking state and API';
 }

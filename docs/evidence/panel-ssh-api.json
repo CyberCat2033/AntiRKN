@@ -1,0 +1,12 @@
+{
+  "results": {
+    "root_runner_release": true,
+    "root_api_through_direct_tcpip": true,
+    "root_stable_credentials": true,
+    "root_cancel_before_request": true,
+    "antirkn_runner_release": true,
+    "antirkn_api_through_direct_tcpip": true,
+    "antirkn_stable_credentials": true,
+    "antirkn_cancel_before_request": true
+  }
+}

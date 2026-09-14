@@ -7,14 +7,17 @@ RunnerJob runnerJob(
   String status = 'running',
   int progress = 1,
   int sequence = 2,
+  String kind = 'diagnostic',
+  int count = 10,
+  int interval = 2,
   List<Map<String, Object?>>? events,
 }) => RunnerJob.fromJson({
   'id': id,
-  'kind': 'diagnostic',
+  'kind': kind,
   'status': status,
   'checkpoint': progress,
-  'count': 10,
-  'interval': 2,
+  'count': count,
+  'interval': interval,
   'sequence': sequence,
   'cancelRequested': status == 'cancelled',
   'events':
@@ -25,7 +28,7 @@ RunnerJob runnerJob(
           'timestamp': 1789340000,
           'code': status == 'running' ? 'sample' : status,
           'progress': progress,
-          'total': 10,
+          'total': count,
         },
       ],
 });
@@ -54,6 +57,11 @@ class FakeRunnerTransport implements RunnerTransport {
   int cancellations = 0;
   Completer<void>? submitGate;
   RunnerJob? job;
+  String panelState = 'missing';
+  String panelFingerprint = 'c' * 64;
+  bool panelPortAvailable = true;
+  bool panelSupported = true;
+  int panelChecks = 0;
   final requests = <RunnerRequest>[];
   @override
   String get bundledRelease => 'a' * 64;
@@ -86,7 +94,32 @@ class FakeRunnerTransport implements RunnerTransport {
     requests.add(request);
     var code = 'ok';
     var jobs = <RunnerJob>[];
+    final extra = <String, Object?>{};
     switch (request.json['action']) {
+      case 'panel_plan':
+        extra['panelPlan'] = {
+          'state': panelState,
+          'supported': panelSupported,
+          'portAvailable': panelPortAvailable,
+          'port': request.json['port'],
+          'fingerprint': panelFingerprint,
+          'panelVersion': '3.7.0',
+          'xrayVersion': '26.7.28',
+          'sha256': 'd' * 64,
+          'bytes': 80280886,
+          'prerequisites': <String>[],
+        };
+      case 'panel_verify':
+        panelChecks++;
+        extra['panelVerified'] = true;
+        extra['panelAccess'] = {
+          'id': request.id,
+          'port': 2053,
+          'username': 'antirkn',
+          'password': 'A' * 43,
+          'panelVersion': '3.7.0',
+          'xrayVersion': '26.7.28',
+        };
       case 'submit':
         submissions++;
         if (store.value == null ||
@@ -94,7 +127,12 @@ class FakeRunnerTransport implements RunnerTransport {
           submitWithoutPersistence = true;
         }
         await submitGate?.future;
-        job ??= runnerJob(request.id!);
+        job ??= runnerJob(
+          request.id!,
+          kind: request.json['kind'] as String,
+          count: request.json['count'] as int,
+          interval: request.json['interval'] as int,
+        );
         if (loseSubmitResponse) throw const SshFailure(SshIssue.disconnected);
         jobs = [job!];
       case 'list':
@@ -121,6 +159,7 @@ class FakeRunnerTransport implements RunnerTransport {
       'code': code,
       'alive': installed,
       'jobs': jobs.map((j) => j.toJson()).toList(),
+      ...extra,
     });
   }
 }

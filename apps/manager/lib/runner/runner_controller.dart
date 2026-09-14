@@ -45,6 +45,14 @@ class RunnerController extends ChangeNotifier {
   String? responseCode;
   RunnerInstallation? installation;
   RunnerInstallation? installPlan;
+  RunnerInstallation? panelRunnerPlan;
+  PanelPlan? panelPlan;
+  PanelAccess? panelAccess;
+  DateTime? panelVerifiedAt;
+  bool choosingPanel = false;
+  bool panelSelected = false;
+  String? resumePlan;
+  int? panelPort = 2053;
   List<RunnerJob> jobs = [];
   RunnerJob? selected;
   RunnerRequest? pending;
@@ -60,7 +68,8 @@ class RunnerController extends ChangeNotifier {
       !busy &&
       installation?.supported == true &&
       installation?.state != 'conflict' &&
-      (installation?.release == null ||
+      (installation?.upgradable == true ||
+          installation?.release == null ||
           installation?.release == transport()?.bundledRelease);
   bool get canStart =>
       installed &&
@@ -95,6 +104,10 @@ class RunnerController extends ChangeNotifier {
     _token = null;
     busy = false;
     installPlan = null;
+    panelPlan = null;
+    panelRunnerPlan = null;
+    choosingPanel = false;
+    resumePlan = null;
     connectionLost = selected?.terminal == false || pending != null;
     _notify();
   }
@@ -103,17 +116,33 @@ class RunnerController extends ChangeNotifier {
     final current = identity();
     if (current == null) throw const RunnerFailure(RunnerIssue.unavailable);
     if (_loaded && current == _identity) return;
+    if (_loaded && current != _identity) {
+      resumePlan = null;
+      panelPlan = null;
+      panelRunnerPlan = null;
+      installPlan = null;
+      choosingPanel = false;
+      panelSelected = false;
+    }
     final raw = await store?.readRunnerJournal(serverId);
     selected = null;
     jobs = [];
     pending = null;
     cursor = 0;
     installation = null;
+    panelAccess = null;
+    panelVerifiedAt = null;
     _identity = current;
     if (raw != null) {
       final json = decodeRunnerObject(raw);
       if (json['version'] != 1) throw const RunnerFailure(RunnerIssue.storage);
       if (json['identity'] == current) {
+        if (json['panelAccess'] case final Map access) {
+          panelAccess = PanelAccess.fromJson(Map<String, dynamic>.from(access));
+          panelVerifiedAt = DateTime.tryParse(
+            json['panelVerifiedAt'] as String? ?? '',
+          );
+        }
         if (json['selected'] case final Map job) {
           selected = RunnerJob.fromJson(Map<String, dynamic>.from(job));
         }
@@ -139,6 +168,8 @@ class RunnerController extends ChangeNotifier {
         'pending': pending?.json,
         'selected': selected?.toJson(),
         'cursor': cursor,
+        'panelAccess': panelAccess?.toJson(),
+        'panelVerifiedAt': panelVerifiedAt?.toUtc().toIso8601String(),
       }),
     );
   }
@@ -189,6 +220,7 @@ class RunnerController extends ChangeNotifier {
     }
     if (installation!.release != null &&
         installation!.release != remote.bundledRelease) {
+      if (installation!.upgradable) return;
       throw const RunnerFailure(RunnerIssue.incompatible);
     }
     if (installation!.state != 'installed') return;
@@ -213,7 +245,9 @@ class RunnerController extends ChangeNotifier {
     if (next.state == 'conflict') {
       throw const RunnerFailure(RunnerIssue.conflict);
     }
-    if (next.release != null && next.release != remote.bundledRelease) {
+    if (next.release != null &&
+        next.release != remote.bundledRelease &&
+        !next.upgradable) {
       throw const RunnerFailure(RunnerIssue.incompatible);
     }
     installPlan = next;
@@ -222,6 +256,179 @@ class RunnerController extends ChangeNotifier {
     if (busy) return;
     installPlan = null;
     _notify();
+  }
+
+  void chooseComponents() {
+    if (busy) return;
+    choosingPanel = true;
+    panelSelected = false;
+    panelPlan = null;
+    _notify();
+  }
+
+  void selectPanel(bool value) {
+    if (busy) return;
+    panelSelected = value;
+    panelPlan = null;
+    _notify();
+  }
+
+  void changePanelPort(String value) {
+    if (busy) return;
+    final port = int.tryParse(value);
+    panelPort = port != null && port >= 1024 && port <= 65535 ? port : null;
+    panelPlan = null;
+    _notify();
+  }
+
+  void dismissComponents() {
+    if (busy) return;
+    choosingPanel = false;
+    panelPlan = null;
+    panelRunnerPlan = null;
+    _notify();
+  }
+
+  Future<void> preparePanel() {
+    if (!panelSelected || panelPort == null || pending != null) {
+      return Future.value();
+    }
+    return _run((remote, token) async {
+      final runnerPlan = await remote.inspect(token);
+      token.check();
+      installation = runnerPlan;
+      if (!runnerPlan.supported) {
+        throw const RunnerFailure(RunnerIssue.prerequisites);
+      }
+      if (runnerPlan.state == 'conflict') {
+        throw const RunnerFailure(RunnerIssue.conflict);
+      }
+      if (runnerPlan.release != null &&
+          runnerPlan.release != remote.bundledRelease &&
+          !runnerPlan.upgradable) {
+        throw const RunnerFailure(RunnerIssue.incompatible);
+      }
+      final result = await remote.request(
+        RunnerRequest.panelPlan(panelPort!),
+        token,
+        sudoPassword: password(),
+      );
+      token.check();
+      panelPlan = result.panelPlan;
+      panelRunnerPlan = runnerPlan;
+      if (panelPlan == null) {
+        throw const RunnerFailure(RunnerIssue.invalidResponse);
+      }
+    });
+  }
+
+  bool get canApplyPanel =>
+      connected &&
+      !busy &&
+      pending == null &&
+      panelSelected &&
+      panelPlan?.canApply == true &&
+      panelRunnerPlan != null &&
+      !jobs.any((job) => !job.terminal);
+
+  Future<void> applyPanel() {
+    if (!canApplyPanel) return Future.value();
+    final plan = panelPlan!;
+    final runnerPlan = panelRunnerPlan!;
+    return _run((remote, token) async {
+      // Revalidate component snapshot before even preparing its runner dependency.
+      final current = await remote.request(
+        RunnerRequest.panelPlan(plan.port),
+        token,
+        sudoPassword: password(),
+      );
+      token.check();
+      if (current.panelPlan?.fingerprint != plan.fingerprint ||
+          current.panelPlan?.canApply != true) {
+        panelPlan = null;
+        throw const RunnerFailure(RunnerIssue.conflict);
+      }
+      installation = await remote.install(
+        runnerPlan,
+        token,
+        sudoPassword: password(),
+      );
+      token.check();
+      final random = Random.secure();
+      final id = List.generate(
+        16,
+        (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+      ).join();
+      pending = RunnerRequest.panelInstall(id, plan);
+      selected = null;
+      cursor = 0;
+      await _save();
+      token.check();
+      choosingPanel = false;
+      panelPlan = null;
+      panelRunnerPlan = null;
+      await _submit(remote, token);
+    });
+  }
+
+  Future<void> verifyPanel() => _run((remote, token) async {
+    final id =
+        selected?.kind == 'panel_install' && selected?.status == 'succeeded'
+        ? selected!.id
+        : panelAccess?.id;
+    if (id == null) return;
+    await _verifyPanel(remote, token, id);
+  });
+
+  void prepareResume() {
+    if (busy ||
+        selected?.kind != 'panel_install' ||
+        !const {'failed', 'partially_applied'}.contains(selected?.status)) {
+      return;
+    }
+    resumePlan = selected!.id;
+    _notify();
+  }
+
+  void dismissResume() {
+    if (busy) return;
+    resumePlan = null;
+    _notify();
+  }
+
+  Future<void> applyResume() {
+    final id = resumePlan;
+    if (id == null) return Future.value();
+    return _run((remote, token) async {
+      final response = await remote.request(
+        RunnerRequest.resume(id),
+        token,
+        sudoPassword: password(),
+      );
+      responseCode = response.code;
+      token.check();
+      resumePlan = null;
+      await _readJob(remote, token, id);
+    });
+  }
+
+  Future<void> _verifyPanel(
+    RunnerTransport remote,
+    CancellationToken token,
+    String id,
+  ) async {
+    final result = await remote.request(
+      RunnerRequest.panelVerify(id),
+      token,
+      sudoPassword: password(),
+    );
+    token.check();
+    if (!result.panelVerified || result.panelAccess?.id != id) {
+      throw const RunnerFailure(RunnerIssue.invalidResponse);
+    }
+    panelAccess = result.panelAccess;
+    panelVerifiedAt = DateTime.now();
+    await _save();
   }
 
   Future<void> applyInstall() {
@@ -338,6 +545,11 @@ class RunnerController extends ChangeNotifier {
     if (pending?.id == id) pending = null;
     jobs = [selected!, ...jobs.where((j) => j.id != id)];
     await _save();
+    if (job.kind == 'panel_install' &&
+        job.status == 'succeeded' &&
+        panelAccess?.id != id) {
+      await _verifyPanel(remote, token, id);
+    }
   }
 
   Future<void> cancelJob() {

@@ -1757,7 +1757,7 @@ abstract class AppLocalizations {
   /// No description provided for @runnerHelp.
   ///
   /// In en, this message translates to:
-  /// **'A server check reads uptime and available disk space 10 times, at two-second intervals. Its progress is saved on the server.'**
+  /// **'Installation and diagnostic jobs run on the server. Progress is retained after the app closes or SSH disconnects.'**
   String get runnerHelp;
 
   /// No description provided for @runnerPrepare.
@@ -1781,7 +1781,7 @@ abstract class AppLocalizations {
   /// No description provided for @runnerPlanBody.
   ///
   /// In en, this message translates to:
-  /// **'Install the bundled job executor, create its private journal directory, and enable its systemd service at startup. If this exact version is already installed, start the service. Requires existing Python 3.8+ with SQLite and systemd 235+. No packages will be updated.'**
+  /// **'Install or repair the bundled executor; the known previous release will be upgraded while retaining the journal. Enable the systemd service at startup and create a private job directory. The executor needs network access and write access to /usr/local and /etc for approved installations. Requires Python 3.8+ with SQLite and systemd 235+. Package upgrades are not part of this plan.'**
   String get runnerPlanBody;
 
   /// No description provided for @runnerPlanRelease.
@@ -1969,6 +1969,228 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Resumed from a saved checkpoint'**
   String get runnerRecovered;
+
+  /// No description provided for @componentsInstall.
+  ///
+  /// In en, this message translates to:
+  /// **'Install components'**
+  String get componentsInstall;
+
+  /// No description provided for @componentsSelectionHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Install a missing panel and its Xray. TrustTunnel and AmneziaWG installers will follow.'**
+  String get componentsSelectionHelp;
+
+  /// No description provided for @componentsPort.
+  ///
+  /// In en, this message translates to:
+  /// **'Panel local port'**
+  String get componentsPort;
+
+  /// No description provided for @componentsPortHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'SSH access only; this is not a VPN port.'**
+  String get componentsPortHelp;
+
+  /// No description provided for @componentsPortInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a port between 1024 and 65535.'**
+  String get componentsPortInvalid;
+
+  /// No description provided for @componentsPrepare.
+  ///
+  /// In en, this message translates to:
+  /// **'Prepare plan'**
+  String get componentsPrepare;
+
+  /// No description provided for @componentsPlan.
+  ///
+  /// In en, this message translates to:
+  /// **'3x-ui / Xray installation plan'**
+  String get componentsPlan;
+
+  /// No description provided for @componentsExisting.
+  ///
+  /// In en, this message translates to:
+  /// **'An existing installation was found or could not be ruled out. Automatic reinstallation is unavailable; its configuration is preserved.'**
+  String get componentsExisting;
+
+  /// No description provided for @componentsPrerequisites.
+  ///
+  /// In en, this message translates to:
+  /// **'Requires Ubuntu x86_64, Python 3.8+ with SQLite, systemd 235+, nsenter, ca-certificates and 600 MiB free space. Missing prerequisites need separate preparation.'**
+  String get componentsPrerequisites;
+
+  /// No description provided for @componentsPortBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'Panel port is occupied. Choose another port and prepare a new plan.'**
+  String get componentsPortBusy;
+
+  /// No description provided for @componentsPlanBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The pinned archive will be downloaded and verified, then a new configuration and service with automatic startup will be created. Initial setup runs in an isolated network; the panel then listens only on 127.0.0.1. Credentials are created once and the subscription service is disabled.'**
+  String get componentsPlanBody;
+
+  /// No description provided for @componentsDependencies.
+  ///
+  /// In en, this message translates to:
+  /// **'The archive includes Xray and geodata. This plan does not update APT packages.'**
+  String get componentsDependencies;
+
+  /// No description provided for @componentsRunnerDependency.
+  ///
+  /// In en, this message translates to:
+  /// **'The job runner will be installed, repaired or upgraded from the known previous release. It requires network access and write access to installation directories. Job history is retained.'**
+  String get componentsRunnerDependency;
+
+  /// No description provided for @componentsPanelAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Installed panel access'**
+  String get componentsPanelAccess;
+
+  /// No description provided for @componentsAccessHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Credentials are stored encrypted. The address is reachable on the server through an SSH tunnel.'**
+  String get componentsAccessHelp;
+
+  /// No description provided for @componentsPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Panel password'**
+  String get componentsPassword;
+
+  /// No description provided for @componentsHidePassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide password'**
+  String get componentsHidePassword;
+
+  /// No description provided for @componentsShowPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Show password'**
+  String get componentsShowPassword;
+
+  /// No description provided for @componentsVerified.
+  ///
+  /// In en, this message translates to:
+  /// **'API verified through SSH: {time}'**
+  String componentsVerified(String time);
+
+  /// No description provided for @componentsVerifyApi.
+  ///
+  /// In en, this message translates to:
+  /// **'Verify API through SSH'**
+  String get componentsVerifyApi;
+
+  /// No description provided for @componentsJob.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing 3x-ui / Xray'**
+  String get componentsJob;
+
+  /// No description provided for @componentsDownloaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Archive downloaded and verified'**
+  String get componentsDownloaded;
+
+  /// No description provided for @componentsExtracted.
+  ///
+  /// In en, this message translates to:
+  /// **'Files installed'**
+  String get componentsExtracted;
+
+  /// No description provided for @componentsConfigured.
+  ///
+  /// In en, this message translates to:
+  /// **'Private panel configured and credentials created'**
+  String get componentsConfigured;
+
+  /// No description provided for @componentsStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'Service started'**
+  String get componentsStarted;
+
+  /// No description provided for @componentsChecked.
+  ///
+  /// In en, this message translates to:
+  /// **'Versions, settings and API verified on the server'**
+  String get componentsChecked;
+
+  /// No description provided for @componentsDownloadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Archive download failed. Installation is incomplete.'**
+  String get componentsDownloadFailed;
+
+  /// No description provided for @componentsChecksumFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Checksum mismatch. The archive will not be executed.'**
+  String get componentsChecksumFailed;
+
+  /// No description provided for @componentsApiFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Panel operation could not be verified. Check the journal and service state.'**
+  String get componentsApiFailed;
+
+  /// No description provided for @componentsPartial.
+  ///
+  /// In en, this message translates to:
+  /// **'The operation stopped after applying some changes. Created files are retained; the installation has not been rolled back.'**
+  String get componentsPartial;
+
+  /// No description provided for @componentsResume.
+  ///
+  /// In en, this message translates to:
+  /// **'Resume installation'**
+  String get componentsResume;
+
+  /// No description provided for @componentsResumePlan.
+  ///
+  /// In en, this message translates to:
+  /// **'The same job will resume from its saved step. Verified files are reused and credentials are retained. Resource ownership is checked before changes; a conflict stops the operation.'**
+  String get componentsResumePlan;
+
+  /// No description provided for @componentsDownloading.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading archive'**
+  String get componentsDownloading;
+
+  /// No description provided for @componentsExtracting.
+  ///
+  /// In en, this message translates to:
+  /// **'Extracting and verifying files'**
+  String get componentsExtracting;
+
+  /// No description provided for @componentsConfiguring.
+  ///
+  /// In en, this message translates to:
+  /// **'Configuring panel in isolated network'**
+  String get componentsConfiguring;
+
+  /// No description provided for @componentsStarting.
+  ///
+  /// In en, this message translates to:
+  /// **'Starting service'**
+  String get componentsStarting;
+
+  /// No description provided for @componentsChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking state and API'**
+  String get componentsChecking;
 }
 
 class _AppLocalizationsDelegate

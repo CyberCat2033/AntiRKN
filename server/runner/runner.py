@@ -8,9 +8,12 @@ import signal
 import sqlite3
 import sys
 import time
+import threading
+import subprocess
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from contract import SCHEMA, validate_request
+from panel import PanelInstaller, PanelError, access_for
 
 STATE = Path('/var/lib/antirkn-runner')
 INPUT_PROMPT = '__ANTIRKN_RUNNER_INPUT__'
@@ -57,7 +60,7 @@ class Store:
     def job(self, row, cursor=0):
         req = json.loads(row['request'])
         events = [json.loads(r[0]) for r in self.db.execute('SELECT event FROM events WHERE id=? AND sequence>? ORDER BY sequence', (row['id'], cursor))]
-        return dict(id=row['id'], kind='diagnostic', count=req['count'], interval=req['interval'], status=row['status'], checkpoint=row['checkpoint'], sequence=row['sequence'], cancelRequested=bool(row['cancel']), events=events)
+        return dict(id=row['id'], kind=req['kind'], count=req['count'], interval=req['interval'], status=row['status'], checkpoint=row['checkpoint'], sequence=row['sequence'], cancelRequested=bool(row['cancel']), events=events)
 
     def response(self, code, jobs=None):
         row = self.db.execute('SELECT heartbeat FROM health WHERE id=1').fetchone()
@@ -67,6 +70,20 @@ class Store:
     def request(self, request):
         req = validate_request(request)
         action = req['action']
+        if action == 'panel_access':
+            row = self.db.execute("SELECT * FROM jobs WHERE id=? AND status='succeeded'", (req['id'],)).fetchone()
+            if row is None:
+                return self.response('missing')
+            original = json.loads(row['request'])
+            if original['kind'] != 'panel_install' or not PanelInstaller(self, original).owns():
+                return self.response('conflict')
+            try:
+                PanelInstaller(self, original).assert_owned()
+            except (PanelError, OSError):
+                return self.response('conflict')
+            return {**self.response('ok'), 'panelAccess': access_for(req['id'], original['port'])}
+        if action in ('panel_plan', 'panel_verify'):
+            raise ValueError('invalid')  # Device-side operations, never arbitrary worker commands.
         if action == 'list':
             rows = self.db.execute('SELECT * FROM jobs ORDER BY created DESC LIMIT ?', (SCHEMA['pageSize'],)).fetchall()
             return self.response('ok', [self.job(row, row['sequence']) for row in rows])
@@ -88,6 +105,17 @@ class Store:
                     code = 'ok'
             elif row is None:
                 code = 'missing'
+            elif action == 'resume':
+                original = json.loads(row['request'])
+                if original['kind'] != 'panel_install' or row['status'] not in ('failed', 'partially_applied'):
+                    code = 'conflict'
+                elif self.db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running')").fetchone():
+                    code = 'busy'
+                else:
+                    self.db.execute("UPDATE jobs SET status='running', cancel=0 WHERE id=?", (req['id'],))
+                    self.event(req['id'], 'recovered', row['checkpoint'], original['count'])
+                    row = self.db.execute('SELECT * FROM jobs WHERE id=?', (req['id'],)).fetchone()
+                    code = 'ok'
             elif action == 'cancel' and row['status'] not in SCHEMA['terminal']:
                 if not row['cancel']:
                     self.db.execute('UPDATE jobs SET cancel=1 WHERE id=?', (req['id'],))
@@ -122,13 +150,36 @@ class Store:
         req = validate_request(json.loads(row['request']))
         job_id = row['id']
         with self.db:
-            if row['cancel']:
+            if row['cancel'] and req['kind'] == 'diagnostic':
                 self.db.execute("UPDATE jobs SET status='cancelled' WHERE id=?", (job_id,))
                 self.event(job_id, 'cancelled', row['checkpoint'], req['count'])
                 return 0.1
             if row['status'] == 'planned':
                 self.db.execute("UPDATE jobs SET status='running' WHERE id=?", (job_id,))
                 self.event(job_id, 'running', row['checkpoint'], req['count'])
+        if req['kind'] == 'panel_install':
+            installer = PanelInstaller(self, req)
+            try:
+                if row['cancel']:
+                    status = installer.abort()
+                    code = 'panel_cancelled_partial' if status == 'partially_applied' else 'cancelled'
+                else:
+                    installer.step(row['checkpoint'])
+                    if row['checkpoint'] + 1 < req['count']:
+                        return 0.1
+                    status, code = 'succeeded', 'succeeded'
+            except (PanelError, OSError, ValueError, subprocess.SubprocessError) as error:
+                code = error.code if isinstance(error, PanelError) else 'panel_partial'
+                status = installer.abort()
+                if code != 'cancelled' and status == 'cancelled':
+                    status = 'failed'
+                if code == 'cancelled' and status == 'partially_applied':
+                    code = 'panel_cancelled_partial'
+            with self.db:
+                progress = self.db.execute('SELECT checkpoint FROM jobs WHERE id=?', (job_id,)).fetchone()[0]
+                self.db.execute('UPDATE jobs SET status=? WHERE id=?', (status, job_id))
+                self.event(job_id, code, progress, req['count'])
+            return 0.1
         # Real, bounded probes. No configs, environment, logins or keys are read.
         try:
             uptime = float(Path('/proc/uptime').read_text().split()[0])
@@ -157,6 +208,16 @@ def daemon(directory=STATE):
     with (directory / 'worker.lock').open('a') as lock:
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         store = Store(directory)
+        heartbeat_stop = threading.Event()
+        def heartbeat_loop():
+            health_store = Store(directory)
+            try:
+                while not heartbeat_stop.wait(3):
+                    health_store.heartbeat()
+            finally:
+                health_store.close()
+        heartbeat_thread = threading.Thread(target=heartbeat_loop, daemon=True)
+        heartbeat_thread.start()
         stopping = False
         def stop(_signal, _frame):
             nonlocal stopping
@@ -171,6 +232,8 @@ def daemon(directory=STATE):
                 while not stopping and time.monotonic() < deadline:
                     time.sleep(min(0.1, max(0, deadline - time.monotonic())))
         finally:
+            heartbeat_stop.set()
+            heartbeat_thread.join(timeout=6)
             store.close()
 
 
@@ -188,11 +251,14 @@ def main():
     if len(raw) > SCHEMA['maxRequestBytes']:
         raise ValueError('invalid')
     req = validate_request(strict_json(raw))
+    lock = os.open('/usr/local/lib', os.O_RDONLY | os.O_DIRECTORY)
+    fcntl.flock(lock, fcntl.LOCK_SH | fcntl.LOCK_NB)
     store = Store(STATE)
     try:
         print(json.dumps(store.request(req)), flush=True)
     finally:
         store.close()
+        os.close(lock)
 
 
 if __name__ == '__main__':

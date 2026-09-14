@@ -3,17 +3,26 @@ import 'dart:convert';
 
 final Map<String, dynamic> runnerSchema =
     jsonDecode(
-          r'''{"codes":["ok","busy","conflict","missing","invalid","incompatible","capacity","failed"],"events":["planned","running","sample","recovered","cancel_requested","cancelled","succeeded","failed"],"maxEvents":256,"maxJobs":1000,"maxRequestBytes":4096,"pageSize":100,"request":{"actions":{"cancel":["version","action","id"],"list":["version","action"],"status":["version","action","id","cursor"],"submit":["version","action","id","kind","count","interval"]},"properties":{"action":{"enum":["list","status","submit","cancel"],"type":"string"},"count":{"maximum":60,"minimum":1,"type":"integer"},"cursor":{"maximum":2147483647,"minimum":0,"type":"integer"},"id":{"pattern":"^[a-f0-9]{32}$","type":"string"},"interval":{"maximum":5,"minimum":1,"type":"integer"},"kind":{"enum":["diagnostic"],"type":"string"},"version":{"enum":[1],"type":"integer"}},"required":["version","action"],"type":"object"},"states":["planned","running","succeeded","failed","partially_applied","cancelled","needs_attention"],"terminal":["succeeded","failed","partially_applied","cancelled","needs_attention"],"version":1}''',
+          r'''{"codes":["ok","busy","conflict","missing","invalid","incompatible","capacity","failed"],"events":["planned","running","sample","recovered","cancel_requested","cancelled","succeeded","failed","panel_download","panel_extract","panel_configure","panel_start","panel_check","panel_existing","panel_prerequisites","panel_port_busy","panel_conflict","panel_download_failed","panel_checksum_failed","panel_api_failed","panel_disk_full","panel_partial","panel_cancelled_partial","panel_downloading","panel_extracting","panel_configuring","panel_starting","panel_checking"],"maxEvents":256,"maxJobs":1000,"maxRequestBytes":4096,"pageSize":100,"request":{"actions":{"cancel":["version","action","id"],"list":["version","action"],"panel_access":["version","action","id"],"panel_plan":["version","action","port"],"panel_verify":["version","action","id"],"resume":["version","action","id"],"status":["version","action","id","cursor"],"submit":["version","action","id","kind","count","interval"]},"kindConstants":{"panel_install":{"count":6,"interval":1}},"properties":{"action":{"enum":["list","status","submit","cancel","panel_plan","panel_access","panel_verify","resume"],"type":"string"},"count":{"maximum":60,"minimum":1,"type":"integer"},"cursor":{"maximum":2147483647,"minimum":0,"type":"integer"},"fingerprint":{"pattern":"^[a-f0-9]{64}$","type":"string"},"id":{"pattern":"^[a-f0-9]{32}$","type":"string"},"interval":{"maximum":5,"minimum":1,"type":"integer"},"kind":{"enum":["diagnostic","panel_install"],"type":"string"},"port":{"maximum":65535,"minimum":1024,"type":"integer"},"version":{"enum":[1],"type":"integer"}},"required":["version","action"],"submissions":{"diagnostic":["version","action","id","kind","count","interval"],"panel_install":["version","action","id","kind","count","interval","port","fingerprint"]},"type":"object"},"states":["planned","running","succeeded","failed","partially_applied","cancelled","needs_attention"],"terminal":["succeeded","failed","partially_applied","cancelled","needs_attention"],"version":1}''',
         )
         as Map<String, dynamic>;
 void validateRunnerRequest(Map<String, Object?> value) {
   final spec = runnerSchema['request'] as Map;
-  final fields = (spec['actions'] as Map)[value['action']] as List?;
+  final fields =
+      (value['action'] == 'submit'
+              ? (spec['submissions'] as Map)[value['kind']]
+              : (spec['actions'] as Map)[value['action']])
+          as List?;
   if (value['version'] != runnerSchema['version'] ||
       fields == null ||
       value.length != fields.length ||
       !fields.every(value.containsKey)) {
     throw const FormatException('invalid_runner_request');
+  }
+  final constants = (spec['kindConstants'] as Map)[value['kind']] as Map?;
+  if (constants != null &&
+      !constants.entries.every((e) => value[e.key] == e.value)) {
+    throw const FormatException('invalid_runner_constants');
   }
   for (final entry in value.entries) {
     final rule = (spec['properties'] as Map)[entry.key] as Map;

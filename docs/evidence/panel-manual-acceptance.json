@@ -1,0 +1,12 @@
+{
+  "manualVm": {
+    "os": "Ubuntu 24.04",
+    "cleanWithoutPanelAndRunner": true,
+    "purpose": "owner GUI acceptance"
+  },
+  "linuxApp": {
+    "started": true,
+    "isolatedTestStorage": true
+  },
+  "ownerFunctionalAcceptance": "pending"
+}

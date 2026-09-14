@@ -33,6 +33,29 @@ final class RunnerRequest {
   );
   factory RunnerRequest.cancel(String id) =>
       RunnerRequest.fromJson({'version': 1, 'action': 'cancel', 'id': id});
+  factory RunnerRequest.resume(String id) =>
+      RunnerRequest.fromJson({'version': 1, 'action': 'resume', 'id': id});
+  factory RunnerRequest.panelPlan(int port) => RunnerRequest.fromJson({
+    'version': 1,
+    'action': 'panel_plan',
+    'port': port,
+  });
+  factory RunnerRequest.panelVerify(String id) => RunnerRequest.fromJson({
+    'version': 1,
+    'action': 'panel_verify',
+    'id': id,
+  });
+  factory RunnerRequest.panelInstall(String id, PanelPlan plan) =>
+      RunnerRequest.fromJson({
+        'version': 1,
+        'action': 'submit',
+        'id': id,
+        'kind': 'panel_install',
+        'count': 6,
+        'interval': 1,
+        'port': plan.port,
+        'fingerprint': plan.fingerprint,
+      });
   factory RunnerRequest.diagnostic(
     String id, {
     int count = 10,
@@ -85,6 +108,7 @@ final class RunnerEvent {
 final class RunnerJob {
   RunnerJob.fromJson(Map<String, dynamic> json)
     : id = json['id'] as String,
+      kind = json['kind'] as String,
       status = json['status'] as String,
       checkpoint = json['checkpoint'] as int,
       count = json['count'] as int,
@@ -97,7 +121,9 @@ final class RunnerJob {
         ),
       ) {
     RunnerRequest.diagnostic(id, count: count, interval: interval);
-    if (!(runnerSchema['states'] as List).contains(status) ||
+    if (!const {'diagnostic', 'panel_install'}.contains(kind) ||
+        (kind == 'panel_install' && (count != 6 || interval != 1)) ||
+        !(runnerSchema['states'] as List).contains(status) ||
         checkpoint < 0 ||
         checkpoint > count ||
         sequence < 1 ||
@@ -115,6 +141,7 @@ final class RunnerJob {
     }
   }
   final String id;
+  final String kind;
   final String status;
   final int checkpoint;
   final int count;
@@ -125,7 +152,7 @@ final class RunnerJob {
   bool get terminal => (runnerSchema['terminal'] as List).contains(status);
   Map<String, Object?> toJson() => {
     'id': id,
-    'kind': 'diagnostic',
+    'kind': kind,
     'status': status,
     'checkpoint': checkpoint,
     'count': count,
@@ -154,6 +181,17 @@ final class RunnerJob {
 final class RunnerResponse {
   RunnerResponse.fromJson(Map<String, dynamic> value)
     : code = value['code'] as String,
+      panelPlan = value['panelPlan'] == null
+          ? null
+          : PanelPlan.fromJson(
+              Map<String, dynamic>.from(value['panelPlan'] as Map),
+            ),
+      panelAccess = value['panelAccess'] == null
+          ? null
+          : PanelAccess.fromJson(
+              Map<String, dynamic>.from(value['panelAccess'] as Map),
+            ),
+      panelVerified = value['panelVerified'] == true,
       alive = value['alive'] as bool,
       jobs = List.unmodifiable(
         (value['jobs'] as List).map(
@@ -167,6 +205,9 @@ final class RunnerResponse {
     }
   }
   final String code;
+  final PanelPlan? panelPlan;
+  final PanelAccess? panelAccess;
+  final bool panelVerified;
   final bool alive;
   final List<RunnerJob> jobs;
 }
@@ -177,8 +218,14 @@ final class RunnerInstallation {
       state = value['state'] as String,
       release = value['release'] as String?,
       fingerprint = value['fingerprint'] as String,
+      upgradable = value['upgradable'] == true,
       active = value['active'] as bool {
-    if (!const {'missing', 'installed', 'conflict'}.contains(state) ||
+    if (!const {
+          'missing',
+          'installed',
+          'partial',
+          'conflict',
+        }.contains(state) ||
         !RegExp(r'^[a-f0-9]{64}$').hasMatch(fingerprint) ||
         (release != null && !RegExp(r'^[a-f0-9]{64}$').hasMatch(release!))) {
       throw const FormatException('runner_installation');
@@ -189,6 +236,63 @@ final class RunnerInstallation {
   final String? release;
   final String fingerprint;
   final bool active;
+  final bool upgradable;
+}
+
+final class PanelPlan {
+  PanelPlan.fromJson(Map<String, dynamic> json)
+    : state = json['state'] as String,
+      supported = json['supported'] as bool,
+      portAvailable = json['portAvailable'] as bool,
+      port = json['port'] as int,
+      fingerprint = json['fingerprint'] as String,
+      panelVersion = json['panelVersion'] as String,
+      xrayVersion = json['xrayVersion'] as String,
+      sha256 = json['sha256'] as String,
+      bytes = json['bytes'] as int,
+      prerequisites = List<String>.from(json['prerequisites'] as List) {
+    RunnerRequest.panelPlan(port);
+    if (!const {'missing', 'existing'}.contains(state) ||
+        !RegExp(r'^[a-f0-9]{64}$').hasMatch(fingerprint) ||
+        !RegExp(r'^[a-f0-9]{64}$').hasMatch(sha256) ||
+        bytes < 1) {
+      throw const FormatException('panel_plan');
+    }
+  }
+  final String state, fingerprint, panelVersion, xrayVersion, sha256;
+  final bool supported, portAvailable;
+  final int port, bytes;
+  final List<String> prerequisites;
+  bool get canApply => state == 'missing' && supported && portAvailable;
+}
+
+final class PanelAccess {
+  PanelAccess.fromJson(Map<String, dynamic> json)
+    : id = json['id'] as String,
+      port = json['port'] as int,
+      username = json['username'] as String,
+      password = json['password'] as String,
+      panelVersion = json['panelVersion'] as String,
+      xrayVersion = json['xrayVersion'] as String {
+    RunnerRequest.panelVerify(id);
+    RunnerRequest.panelPlan(port);
+    if (username != 'antirkn' ||
+        !RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(password)) {
+      throw const FormatException('panel_access');
+    }
+  }
+  final String id, username, password, panelVersion, xrayVersion;
+  final int port;
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'port': port,
+    'username': username,
+    'password': password,
+    'panelVersion': panelVersion,
+    'xrayVersion': xrayVersion,
+  };
+  @override
+  String toString() => 'PanelAccess(redacted)';
 }
 
 abstract interface class RunnerTransport {

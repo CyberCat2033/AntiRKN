@@ -2,27 +2,194 @@
   "version": 1,
   "request": {
     "type": "object",
-    "required": ["version", "action"],
+    "required": [
+      "version",
+      "action"
+    ],
     "properties": {
-      "version": {"type": "integer", "enum": [1]},
-      "action": {"type": "string", "enum": ["list", "status", "submit", "cancel"]},
-      "id": {"type": "string", "pattern": "^[a-f0-9]{32}$"},
-      "kind": {"type": "string", "enum": ["diagnostic"]},
-      "count": {"type": "integer", "minimum": 1, "maximum": 60},
-      "interval": {"type": "integer", "minimum": 1, "maximum": 5},
-      "cursor": {"type": "integer", "minimum": 0, "maximum": 2147483647}
+      "version": {
+        "type": "integer",
+        "enum": [
+          1
+        ]
+      },
+      "action": {
+        "type": "string",
+        "enum": [
+          "list",
+          "status",
+          "submit",
+          "cancel",
+          "panel_plan",
+          "panel_access",
+          "panel_verify",
+          "resume"
+        ]
+      },
+      "id": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{32}$"
+      },
+      "kind": {
+        "type": "string",
+        "enum": [
+          "diagnostic",
+          "panel_install"
+        ]
+      },
+      "count": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 60
+      },
+      "interval": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 5
+      },
+      "cursor": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 2147483647
+      },
+      "port": {
+        "type": "integer",
+        "minimum": 1024,
+        "maximum": 65535
+      },
+      "fingerprint": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
+      }
     },
     "actions": {
-      "list": ["version", "action"],
-      "status": ["version", "action", "id", "cursor"],
-      "submit": ["version", "action", "id", "kind", "count", "interval"],
-      "cancel": ["version", "action", "id"]
+      "list": [
+        "version",
+        "action"
+      ],
+      "status": [
+        "version",
+        "action",
+        "id",
+        "cursor"
+      ],
+      "submit": [
+        "version",
+        "action",
+        "id",
+        "kind",
+        "count",
+        "interval"
+      ],
+      "cancel": [
+        "version",
+        "action",
+        "id"
+      ],
+      "panel_plan": [
+        "version",
+        "action",
+        "port"
+      ],
+      "panel_access": [
+        "version",
+        "action",
+        "id"
+      ],
+      "panel_verify": [
+        "version",
+        "action",
+        "id"
+      ],
+      "resume": [
+        "version",
+        "action",
+        "id"
+      ]
+    },
+    "submissions": {
+      "diagnostic": [
+        "version",
+        "action",
+        "id",
+        "kind",
+        "count",
+        "interval"
+      ],
+      "panel_install": [
+        "version",
+        "action",
+        "id",
+        "kind",
+        "count",
+        "interval",
+        "port",
+        "fingerprint"
+      ]
+    },
+    "kindConstants": {
+      "panel_install": {
+        "count": 6,
+        "interval": 1
+      }
     }
   },
-  "states": ["planned", "running", "succeeded", "failed", "partially_applied", "cancelled", "needs_attention"],
-  "terminal": ["succeeded", "failed", "partially_applied", "cancelled", "needs_attention"],
-  "events": ["planned", "running", "sample", "recovered", "cancel_requested", "cancelled", "succeeded", "failed"],
-  "codes": ["ok", "busy", "conflict", "missing", "invalid", "incompatible", "capacity", "failed"],
+  "states": [
+    "planned",
+    "running",
+    "succeeded",
+    "failed",
+    "partially_applied",
+    "cancelled",
+    "needs_attention"
+  ],
+  "terminal": [
+    "succeeded",
+    "failed",
+    "partially_applied",
+    "cancelled",
+    "needs_attention"
+  ],
+  "events": [
+    "planned",
+    "running",
+    "sample",
+    "recovered",
+    "cancel_requested",
+    "cancelled",
+    "succeeded",
+    "failed",
+    "panel_download",
+    "panel_extract",
+    "panel_configure",
+    "panel_start",
+    "panel_check",
+    "panel_existing",
+    "panel_prerequisites",
+    "panel_port_busy",
+    "panel_conflict",
+    "panel_download_failed",
+    "panel_checksum_failed",
+    "panel_api_failed",
+    "panel_disk_full",
+    "panel_partial",
+    "panel_cancelled_partial",
+    "panel_downloading",
+    "panel_extracting",
+    "panel_configuring",
+    "panel_starting",
+    "panel_checking"
+  ],
+  "codes": [
+    "ok",
+    "busy",
+    "conflict",
+    "missing",
+    "invalid",
+    "incompatible",
+    "capacity",
+    "failed"
+  ],
   "maxRequestBytes": 4096,
   "maxEvents": 256,
   "maxJobs": 1000,

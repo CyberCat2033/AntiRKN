@@ -1,0 +1,26 @@
+{
+  "complete": true,
+  "results": {
+    "admit_28": true,
+    "stale_plan_rejected": true,
+    "stale_no_panel_effect": true,
+    "occupied_port_preview": true,
+    "admit_29": true,
+    "occupied_port_apply_refused": true,
+    "admit_30": true,
+    "cancel_before_effect": true,
+    "cancel_no_files": true,
+    "admit_31": true,
+    "download_network_failure": true,
+    "resume_same_failed_job": true,
+    "verified_download_checkpoint": true,
+    "crash_between_effect_and_checkpoint": true,
+    "reboot_reconciles_applied_files": true,
+    "reboot_no_second_job": true,
+    "admit_32": true,
+    "cancel_after_files_reports_partial": true,
+    "partial_files_not_reinstalled": true,
+    "explicit_resume_partial": true,
+    "partial_resume_completes": true
+  }
+}
