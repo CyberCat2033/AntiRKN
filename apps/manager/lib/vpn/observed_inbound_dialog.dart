@@ -108,7 +108,9 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
       obscureText: secret && !passwordVisible,
       autocorrect: false,
       enableSuggestions: false,
-      keyboardType: number ? TextInputType.number : null,
+      keyboardType: number ? TextInputType.number : TextInputType.text,
+      minLines: 1,
+      maxLines: key == 'sni' ? null : 1,
       onChanged: onChanged,
       decoration: InputDecoration(
         labelText: label,

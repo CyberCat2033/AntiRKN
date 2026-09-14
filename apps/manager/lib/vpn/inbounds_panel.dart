@@ -295,7 +295,9 @@ class _InboundFormState extends State<InboundForm> {
           automaticPort = value == fields['port']!.text;
         }
       },
-      keyboardType: number ? TextInputType.number : null,
+      keyboardType: number ? TextInputType.number : TextInputType.text,
+      minLines: 1,
+      maxLines: key == 'sni' ? null : 1,
       autocorrect: false,
       enableSuggestions: false,
       decoration: InputDecoration(labelText: label),
