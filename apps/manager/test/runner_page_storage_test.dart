@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'runner_support.dart';
 
 void main() {
-  testWidgets('late jobs and history preserve scroll and expansion state', (
+  testWidgets('late jobs keep scroll and do not restore removed history UI', (
     tester,
   ) async {
     WidgetController.hitTestWarningShouldBeFatal = true;
@@ -64,11 +64,8 @@ void main() {
     await c.refresh();
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
-    expect(find.text('Cancelled · 4/10'), findsOneWidget);
-    await tester.ensureVisible(find.text('Job events'));
-    await tester.tap(find.text('Job events'));
-    await tester.pumpAndSettle();
-    expect(find.text('Cancelled'), findsOneWidget);
+    expect(find.text('Job events'), findsNothing);
+    expect(find.text('Recent jobs'), findsNothing);
 
     // A second job creates the history tile after scrolling as well.
     remote.job = null;
@@ -83,39 +80,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     expect(find.text('Server check passed'), findsNothing);
-    final journal = find.text('Job events');
-    final history = find.text('Recent jobs');
-    await tester.ensureVisible(journal);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Job events'));
-    await tester.pumpAndSettle();
-    expect(find.text('Server check passed'), findsOneWidget);
-    expect(find.text('4/10 · aaaaaaaa'), findsNothing);
-
-    // Leaving and returning recreates both tiles and the scroll position.
     final offset = scroll.offset;
     await show(visible: false);
     await show();
     expect(tester.takeException(), isNull);
     expect(scroll.offset, offset);
-    expect(find.text('Server check passed'), findsOneWidget);
-    expect(find.text('4/10 · aaaaaaaa'), findsNothing);
-    await tester.ensureVisible(history);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Recent jobs'));
-    await tester.pumpAndSettle();
-    expect(find.text('4/10 · aaaaaaaa'), findsOneWidget);
-
-    // Collapsing the journal does not collapse the history on recreation.
-    await tester.ensureVisible(journal);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Job events'));
-    await tester.pumpAndSettle();
-    await show(visible: false);
-    await show();
-    expect(tester.takeException(), isNull);
-    expect(find.text('Server check passed'), findsNothing);
-    expect(find.text('4/10 · aaaaaaaa'), findsOneWidget);
+    expect(find.text('Job events'), findsNothing);
+    expect(find.text('Recent jobs'), findsNothing);
+    expect(find.text('Completed · 10/10'), findsNothing);
     await show(visible: false);
     c.dispose();
   });

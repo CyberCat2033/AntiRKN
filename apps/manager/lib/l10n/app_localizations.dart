@@ -2965,6 +2965,216 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Names from the certificate — select an SNI, then scan again'**
   String get realityCertificateNames;
+
+  /// No description provided for @softwareTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Server components'**
+  String get softwareTitle;
+
+  /// No description provided for @softwareInstall.
+  ///
+  /// In en, this message translates to:
+  /// **'Install'**
+  String get softwareInstall;
+
+  /// No description provided for @softwareInspect.
+  ///
+  /// In en, this message translates to:
+  /// **'Inspect installation'**
+  String get softwareInspect;
+
+  /// No description provided for @softwareUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'Update'**
+  String get softwareUpdate;
+
+  /// No description provided for @softwareUpdateAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Update available'**
+  String get softwareUpdateAvailable;
+
+  /// No description provided for @softwarePanelAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Panel access'**
+  String get softwarePanelAccess;
+
+  /// No description provided for @panelAutomaticAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'A free port and random panel path are assigned automatically.'**
+  String get panelAutomaticAddress;
+
+  /// No description provided for @panelUpdateManual.
+  ///
+  /// In en, this message translates to:
+  /// **'A new version is available. Applying 3x-ui/Xray updates in the app is not supported yet; use the x-ui command on the server.'**
+  String get panelUpdateManual;
+
+  /// No description provided for @aptTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Ubuntu updates'**
+  String get aptTitle;
+
+  /// No description provided for @aptUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh APT indexes'**
+  String get aptUpdate;
+
+  /// No description provided for @aptUpgrade.
+  ///
+  /// In en, this message translates to:
+  /// **'Upgrade packages'**
+  String get aptUpgrade;
+
+  /// No description provided for @aptUpdatePlan.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh available package lists (apt update). Installed packages will stay as they are.'**
+  String get aptUpdatePlan;
+
+  /// No description provided for @aptUpgradePlan.
+  ///
+  /// In en, this message translates to:
+  /// **'Upgrade the listed packages using the current APT indexes. Keep local configuration files. No packages are removed; new dependencies and reboot are separate actions. Services may restart.'**
+  String get aptUpgradePlan;
+
+  /// No description provided for @aptCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'No upgrades in the current indexes. Refresh APT indexes to check again.'**
+  String get aptCurrent;
+
+  /// No description provided for @aptPackageCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Packages to upgrade: {count}'**
+  String aptPackageCount(int count);
+
+  /// No description provided for @aptReboot.
+  ///
+  /// In en, this message translates to:
+  /// **'The server requires a reboot. Restart it when convenient.'**
+  String get aptReboot;
+
+  /// No description provided for @aptUpdating.
+  ///
+  /// In en, this message translates to:
+  /// **'Refreshing APT indexes…'**
+  String get aptUpdating;
+
+  /// No description provided for @aptUpgrading.
+  ///
+  /// In en, this message translates to:
+  /// **'Upgrading Ubuntu packages…'**
+  String get aptUpgrading;
+
+  /// No description provided for @aptRunningHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'The job continues after the app closes. Cancellation waits for the current APT command to finish.'**
+  String get aptRunningHelp;
+
+  /// No description provided for @aptFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'APT did not complete the command. Check repositories, disk space and package manager locks, then prepare a new plan.'**
+  String get aptFailed;
+
+  /// No description provided for @aptConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'The package state changed. Prepare a new upgrade plan.'**
+  String get aptConflict;
+
+  /// No description provided for @aptInterrupted.
+  ///
+  /// In en, this message translates to:
+  /// **'The upgrade may be partially applied. Check APT on the server before preparing a new plan; an interrupted command is not repeated automatically.'**
+  String get aptInterrupted;
+
+  /// No description provided for @serverDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Server and network details'**
+  String get serverDetails;
+
+  /// No description provided for @panelConnectTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect existing panel'**
+  String get panelConnectTitle;
+
+  /// No description provided for @panelAuthFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'3x-ui rejected the panel username or password. Check the panel account; SSH credentials are separate.'**
+  String get panelAuthFailed;
+
+  /// No description provided for @panelUnreachable.
+  ///
+  /// In en, this message translates to:
+  /// **'The runner could not reach the panel API. Check that x-ui is running and that its listening address and HTTPS certificate are valid.'**
+  String get panelUnreachable;
+
+  /// No description provided for @panelConnectUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not identify a unique systemd panel at this port. Docker API connections are not supported yet.'**
+  String get panelConnectUnsupported;
+
+  /// No description provided for @panelLoginLimited.
+  ///
+  /// In en, this message translates to:
+  /// **'3x-ui temporarily blocked login attempts. Wait before trying again.'**
+  String get panelLoginLimited;
+
+  /// No description provided for @panelUsername.
+  ///
+  /// In en, this message translates to:
+  /// **'Panel username'**
+  String get panelUsername;
+
+  /// No description provided for @panelConnectHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the 3x-ui administrator account to view and edit through its API. Access will be saved for future connections.'**
+  String get panelConnectHelp;
+
+  /// No description provided for @observedClientsKept.
+  ///
+  /// In en, this message translates to:
+  /// **'Existing clients and settings outside this plan are preserved.'**
+  String get observedClientsKept;
+
+  /// No description provided for @observedFullConfig.
+  ///
+  /// In en, this message translates to:
+  /// **'Full configuration'**
+  String get observedFullConfig;
+
+  /// No description provided for @observedEditPlan.
+  ///
+  /// In en, this message translates to:
+  /// **'Save changes to the existing inbound and restart Xray. Active connections may be interrupted.'**
+  String get observedEditPlan;
+
+  /// No description provided for @componentUpdateUnverified.
+  ///
+  /// In en, this message translates to:
+  /// **'This release is not yet included in the app’s verified versions. The installed version is retained.'**
+  String get componentUpdateUnverified;
+
+  /// No description provided for @observedTransportJson.
+  ///
+  /// In en, this message translates to:
+  /// **'Transport settings (JSON)'**
+  String get observedTransportJson;
 }
 
 class _AppLocalizationsDelegate

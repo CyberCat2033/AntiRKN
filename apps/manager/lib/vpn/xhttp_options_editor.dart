@@ -19,10 +19,7 @@ class XhttpOptionsEditor extends StatefulWidget {
 }
 
 class _XhttpOptionsEditorState extends State<XhttpOptionsEditor> {
-  late final values = <String, Object?>{
-    ...widget.initial,
-    'xmux': Map<String, Object?>.from(widget.initial['xmux'] as Map? ?? {}),
-  };
+  late final values = xhttpFormDefaults(widget.initial);
   final fields = <String, TextEditingController>{};
   void changed() {
     final result = Map<String, Object?>.from(values);
@@ -51,9 +48,8 @@ class _XhttpOptionsEditorState extends State<XhttpOptionsEditor> {
         key: ValueKey('xhttp-$id'),
         contentPadding: EdgeInsets.zero,
         title: Text(key),
-        subtitle: Text(l.xhttpDefault),
-        tristate: true,
-        value: target[key] as bool?,
+        tristate: false,
+        value: target[key] as bool? ?? false,
         onChanged: (value) => setState(() {
           if (value == null) {
             target.remove(key);
@@ -65,20 +61,24 @@ class _XhttpOptionsEditorState extends State<XhttpOptionsEditor> {
       );
     }
     if (rule['enum'] case final List choices) {
+      final current = target[key]?.toString() ?? '';
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: DropdownButtonFormField<String>(
           key: ValueKey('xhttp-$id'),
-          initialValue: target[key] as String?,
+          initialValue: current,
           isExpanded: true,
           decoration: InputDecoration(labelText: key),
           items: [
-            DropdownMenuItem<String>(value: null, child: Text(l.xhttpDefault)),
+            DropdownMenuItem<String>(value: '', child: Text(l.xhttpDefault)),
             for (final value in choices)
-              DropdownMenuItem(value: value as String, child: Text(value)),
+              if (value != '')
+                DropdownMenuItem(value: value as String, child: Text(value)),
+            if (current.isNotEmpty && !choices.contains(current))
+              DropdownMenuItem(value: current, child: Text(current)),
           ],
           onChanged: (value) {
-            if (value == null) {
+            if (value == null || value.isEmpty) {
               target.remove(key);
             } else {
               target[key] = value;

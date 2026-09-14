@@ -98,6 +98,14 @@ class FakeRunnerTransport implements RunnerTransport {
     var jobs = <RunnerJob>[];
     final extra = <String, Object?>{};
     switch (request.json['action']) {
+      case 'apt_plan':
+        extra['aptPlan'] = {
+          'packages': [
+            {'name': 'fixture', 'installed': '1', 'version': '2'},
+          ],
+          'fingerprint': 'f' * 64,
+          'rebootRequired': false,
+        };
       case 'panel_discover':
         extra['panelAccess'] = recoveredAccess;
         extra['panelDiscovery'] =
@@ -120,7 +128,7 @@ class FakeRunnerTransport implements RunnerTransport {
           'state': panelState,
           'supported': panelSupported,
           'portAvailable': panelPortAvailable,
-          'port': request.json['port'],
+          'port': request.json['port'] == 0 ? 43127 : request.json['port'],
           'fingerprint': panelFingerprint,
           'panelVersion': '3.7.0',
           'xrayVersion': '26.7.28',

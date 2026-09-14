@@ -2,7 +2,8 @@ import 'dart:convert';
 
 import 'runner_contract.g.dart';
 import 'ssh.dart';
-export 'runner_contract.g.dart' show validateRunnerRequest;
+export 'runner_contract.g.dart'
+    show validateRunnerRequest, verifiedComponentVersions;
 
 enum RunnerIssue {
   prerequisites,
@@ -50,6 +51,18 @@ final class RunnerRequest {
         'id': id,
         'target': target,
         'sni': sni,
+      });
+  factory RunnerRequest.aptPlan() =>
+      RunnerRequest.fromJson({'version': 1, 'action': 'apt_plan'});
+  factory RunnerRequest.apt(String id, {String? fingerprint}) =>
+      RunnerRequest.fromJson({
+        'version': 1,
+        'action': 'submit',
+        'id': id,
+        'kind': fingerprint == null ? 'apt_update' : 'apt_upgrade',
+        'count': 2,
+        'interval': 1,
+        'fingerprint': ?fingerprint,
       });
   factory RunnerRequest.list() =>
       RunnerRequest.fromJson({'version': 1, 'action': 'list'});
@@ -183,6 +196,9 @@ final class RunnerJob {
           'panel_install',
           'vless_apply',
           'component_install',
+          'inbound_update',
+          'apt_update',
+          'apt_upgrade',
         }.contains(kind) ||
         (kind == 'panel_install' && (count != 6 || interval != 1)) ||
         !(runnerSchema['states'] as List).contains(status) ||
@@ -258,6 +274,15 @@ final class RunnerResponse {
           : ComponentPlan.fromJson(
               Map<String, dynamic>.from(value['componentPlan'] as Map),
             ),
+      inboundSnapshot = value['inboundSnapshot'] == null
+          ? null
+          : Map<String, dynamic>.from(value['inboundSnapshot'] as Map),
+      inboundPlan = value['inboundPlan'] == null
+          ? null
+          : Map<String, dynamic>.from(value['inboundPlan'] as Map),
+      aptPlan = value['aptPlan'] == null
+          ? null
+          : Map<String, dynamic>.from(value['aptPlan'] as Map),
       panelDiscovery = value['panelDiscovery'] == null
           ? null
           : Map<String, dynamic>.from(value['panelDiscovery'] as Map),
@@ -288,6 +313,8 @@ final class RunnerResponse {
     }
   }
   final String code;
+  final Map<String, dynamic>? inboundSnapshot, inboundPlan;
+  final Map<String, dynamic>? aptPlan;
   final PanelPlan? panelPlan;
   final ComponentPlan? componentPlan;
   final PanelAccess? panelAccess;
@@ -358,22 +385,37 @@ final class PanelAccess {
   PanelAccess.fromJson(Map<String, dynamic> json)
     : id = json['id'] as String,
       port = json['port'] as int,
+      managed = json['managed'] != false,
+      tls = json['tls'] == true,
+      basePath = json['basePath'] as String? ?? '/',
       username = json['username'] as String,
       password = json['password'] as String,
       panelVersion = json['panelVersion'] as String,
       xrayVersion = json['xrayVersion'] as String {
     RunnerRequest.panelVerify(id);
-    RunnerRequest.panelPlan(port);
-    if (username != 'antirkn' ||
-        !RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(password)) {
+    if (port < 1 ||
+        port > 65535 ||
+        !RegExp(r'^/[A-Za-z0-9_/-]*$').hasMatch(basePath) ||
+        basePath.length > 2048 ||
+        username.isEmpty ||
+        username.length > 256 ||
+        password.isEmpty ||
+        password.length > 4096 ||
+        (managed &&
+            (username != 'antirkn' ||
+                !RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(password)))) {
       throw const FormatException('panel_access');
     }
   }
-  final String id, username, password, panelVersion, xrayVersion;
+  final String id, username, password, panelVersion, xrayVersion, basePath;
+  final bool managed, tls;
   final int port;
   Map<String, Object?> toJson() => {
     'id': id,
     'port': port,
+    'managed': managed,
+    'tls': tls,
+    'basePath': basePath,
     'username': username,
     'password': password,
     'panelVersion': panelVersion,

@@ -1639,4 +1639,129 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get realityCertificateNames =>
       'Names from the certificate — select an SNI, then scan again';
+
+  @override
+  String get softwareTitle => 'Server components';
+
+  @override
+  String get softwareInstall => 'Install';
+
+  @override
+  String get softwareInspect => 'Inspect installation';
+
+  @override
+  String get softwareUpdate => 'Update';
+
+  @override
+  String get softwareUpdateAvailable => 'Update available';
+
+  @override
+  String get softwarePanelAccess => 'Panel access';
+
+  @override
+  String get panelAutomaticAddress =>
+      'A free port and random panel path are assigned automatically.';
+
+  @override
+  String get panelUpdateManual =>
+      'A new version is available. Applying 3x-ui/Xray updates in the app is not supported yet; use the x-ui command on the server.';
+
+  @override
+  String get aptTitle => 'Ubuntu updates';
+
+  @override
+  String get aptUpdate => 'Refresh APT indexes';
+
+  @override
+  String get aptUpgrade => 'Upgrade packages';
+
+  @override
+  String get aptUpdatePlan =>
+      'Refresh available package lists (apt update). Installed packages will stay as they are.';
+
+  @override
+  String get aptUpgradePlan =>
+      'Upgrade the listed packages using the current APT indexes. Keep local configuration files. No packages are removed; new dependencies and reboot are separate actions. Services may restart.';
+
+  @override
+  String get aptCurrent =>
+      'No upgrades in the current indexes. Refresh APT indexes to check again.';
+
+  @override
+  String aptPackageCount(int count) {
+    return 'Packages to upgrade: $count';
+  }
+
+  @override
+  String get aptReboot =>
+      'The server requires a reboot. Restart it when convenient.';
+
+  @override
+  String get aptUpdating => 'Refreshing APT indexes…';
+
+  @override
+  String get aptUpgrading => 'Upgrading Ubuntu packages…';
+
+  @override
+  String get aptRunningHelp =>
+      'The job continues after the app closes. Cancellation waits for the current APT command to finish.';
+
+  @override
+  String get aptFailed =>
+      'APT did not complete the command. Check repositories, disk space and package manager locks, then prepare a new plan.';
+
+  @override
+  String get aptConflict =>
+      'The package state changed. Prepare a new upgrade plan.';
+
+  @override
+  String get aptInterrupted =>
+      'The upgrade may be partially applied. Check APT on the server before preparing a new plan; an interrupted command is not repeated automatically.';
+
+  @override
+  String get serverDetails => 'Server and network details';
+
+  @override
+  String get panelConnectTitle => 'Connect existing panel';
+
+  @override
+  String get panelAuthFailed =>
+      '3x-ui rejected the panel username or password. Check the panel account; SSH credentials are separate.';
+
+  @override
+  String get panelUnreachable =>
+      'The runner could not reach the panel API. Check that x-ui is running and that its listening address and HTTPS certificate are valid.';
+
+  @override
+  String get panelConnectUnsupported =>
+      'Could not identify a unique systemd panel at this port. Docker API connections are not supported yet.';
+
+  @override
+  String get panelLoginLimited =>
+      '3x-ui temporarily blocked login attempts. Wait before trying again.';
+
+  @override
+  String get panelUsername => 'Panel username';
+
+  @override
+  String get panelConnectHelp =>
+      'Enter the 3x-ui administrator account to view and edit through its API. Access will be saved for future connections.';
+
+  @override
+  String get observedClientsKept =>
+      'Existing clients and settings outside this plan are preserved.';
+
+  @override
+  String get observedFullConfig => 'Full configuration';
+
+  @override
+  String get observedEditPlan =>
+      'Save changes to the existing inbound and restart Xray. Active connections may be interrupted.';
+
+  @override
+  String get componentUpdateUnverified =>
+      'This release is not yet included in the app’s verified versions. The installed version is retained.';
+
+  @override
+  String get observedTransportJson => 'Transport settings (JSON)';
 }

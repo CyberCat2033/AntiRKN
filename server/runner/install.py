@@ -45,11 +45,11 @@ def install_runner(request):
                     raise ValueError('busy')
             finally:
                 db.close()
-        if not (BASE / 'v5').exists():
+        if not (BASE / 'v7').exists():
             temp = Path(tempfile.mkdtemp(prefix='.antirkn-', dir='/usr/local/lib'))
             try:
                 temp.chmod(0o755)
-                version = temp / 'v5'
+                version = temp / 'v7'
                 version.mkdir(mode=0o755)
                 version.chmod(0o755)
                 for name in PROGRAMS:
@@ -60,7 +60,7 @@ def install_runner(request):
                 (version / 'manifest.json').write_text(json.dumps(dict(release=release, hashes=hashes), sort_keys=True))
                 (version / 'manifest.json').chmod(0o644)
                 if BASE.exists():
-                    os.rename(str(version), str(BASE / 'v5'))
+                    os.rename(str(version), str(BASE / 'v7'))
                 else:
                     os.rename(str(temp), str(BASE))
             finally:

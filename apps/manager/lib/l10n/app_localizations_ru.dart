@@ -1646,4 +1646,129 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get realityCertificateNames =>
       'Имена из сертификата — выберите SNI и повторите проверку';
+
+  @override
+  String get softwareTitle => 'Компоненты сервера';
+
+  @override
+  String get softwareInstall => 'Установить';
+
+  @override
+  String get softwareInspect => 'Проверить наличие';
+
+  @override
+  String get softwareUpdate => 'Обновить';
+
+  @override
+  String get softwareUpdateAvailable => 'Доступно обновление';
+
+  @override
+  String get softwarePanelAccess => 'Доступ к панели';
+
+  @override
+  String get panelAutomaticAddress =>
+      'Свободный порт и случайный путь панели выбираются автоматически.';
+
+  @override
+  String get panelUpdateManual =>
+      'Новая версия обнаружена. Применение обновлений 3x-ui/Xray из приложения пока недоступно; обновить их можно через команду x-ui на сервере.';
+
+  @override
+  String get aptTitle => 'Обновления Ubuntu';
+
+  @override
+  String get aptUpdate => 'Обновить индексы APT';
+
+  @override
+  String get aptUpgrade => 'Обновить пакеты';
+
+  @override
+  String get aptUpdatePlan =>
+      'Обновить списки доступных пакетов (apt update). Установленные пакеты пока не изменятся.';
+
+  @override
+  String get aptUpgradePlan =>
+      'Обновить перечисленные пакеты по текущим индексам APT. Сохранить локальные конфиги. Пакеты не удаляются; установка новых зависимостей и перезагрузка выполняются отдельно. Службы могут перезапуститься.';
+
+  @override
+  String get aptCurrent =>
+      'По текущим индексам обновлений нет. Для свежей проверки обновите индексы APT.';
+
+  @override
+  String aptPackageCount(int count) {
+    return 'Пакетов к обновлению: $count';
+  }
+
+  @override
+  String get aptReboot =>
+      'Серверу требуется перезагрузка. Выполните её в удобное время.';
+
+  @override
+  String get aptUpdating => 'Обновление индексов APT…';
+
+  @override
+  String get aptUpgrading => 'Обновление пакетов Ubuntu…';
+
+  @override
+  String get aptRunningHelp =>
+      'Задание продолжится при закрытии приложения. Отмена дождётся завершения текущей команды APT.';
+
+  @override
+  String get aptFailed =>
+      'APT не завершил команду. Проверьте доступность репозиториев, свободное место и блокировку пакетного менеджера, затем подготовьте новый план.';
+
+  @override
+  String get aptConflict =>
+      'Состав пакетов изменился. Подготовьте новый план обновления.';
+
+  @override
+  String get aptInterrupted =>
+      'Обновление могло примениться частично. Проверьте состояние APT на сервере перед новым планом; прерванная команда автоматически не повторяется.';
+
+  @override
+  String get serverDetails => 'Сведения о сервере и сети';
+
+  @override
+  String get panelConnectTitle => 'Подключить существующую панель';
+
+  @override
+  String get panelAuthFailed =>
+      '3x-ui отклонила логин или пароль панели. Проверьте учётную запись панели; данные SSH используются отдельно.';
+
+  @override
+  String get panelUnreachable =>
+      'Не удалось подключиться к API панели. Проверьте работу x-ui, адрес прослушивания и сертификат HTTPS.';
+
+  @override
+  String get panelConnectUnsupported =>
+      'Не удалось однозначно определить systemd-панель на этом порту. Подключение к API Docker-панелей пока не поддерживается.';
+
+  @override
+  String get panelLoginLimited =>
+      '3x-ui временно ограничила попытки входа. Подождите перед повторной попыткой.';
+
+  @override
+  String get panelUsername => 'Логин панели';
+
+  @override
+  String get panelConnectHelp =>
+      'Введите учётную запись администратора 3x-ui для просмотра и редактирования через API. Доступ сохранится для следующих подключений.';
+
+  @override
+  String get observedClientsKept =>
+      'Существующие клиенты и параметры вне плана сохраняются.';
+
+  @override
+  String get observedFullConfig => 'Полная конфигурация';
+
+  @override
+  String get observedEditPlan =>
+      'Сохранить изменения существующего inbound и перезапустить Xray. Активные подключения могут прерваться.';
+
+  @override
+  String get componentUpdateUnverified =>
+      'Новая версия ещё не включена в проверенный набор приложения. Установленная версия сохранена.';
+
+  @override
+  String get observedTransportJson => 'Настройки транспорта (JSON)';
 }

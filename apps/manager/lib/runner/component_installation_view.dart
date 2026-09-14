@@ -17,65 +17,6 @@ class ComponentInstallationView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          l.protocolSoftware,
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        Wrap(
-          spacing: AppLayout.smallGap,
-          children: [
-            for (final entry in {
-              'trusttunnel': 'TrustTunnel',
-              'amneziawg': 'AmneziaWG',
-            }.entries)
-              OutlinedButton(
-                key: ValueKey('component-${entry.key}'),
-                onPressed: c.connected && !c.busy && c.pending == null
-                    ? () => c.prepareComponent(entry.key)
-                    : null,
-                child: Text(
-                  c.presence(
-                            entry.key == 'trusttunnel'
-                                ? VpnComponent.trustTunnel
-                                : VpnComponent.amneziaWg,
-                          ) ==
-                          ComponentPresence.detected
-                      ? '${entry.value} · ${l.componentManage}'
-                      : '${entry.value} · ${l.componentsInstall}',
-                ),
-              ),
-            if (updates != null)
-              TextButton(
-                onPressed: updates.busy ? null : updates.check,
-                child: Text(l.updatesCheck),
-              ),
-          ],
-        ),
-        if (updates != null)
-          UpdatesResult(controller: updates, showVersions: true),
-        if (updates?.suggestions == true)
-          for (final observation
-              in c.software?.call()?.components ?? <ComponentObservation>[])
-            for (final installation in observation.installations)
-              if (installation.version?.value case final String installed)
-                if (updates!.latest[releaseKey(
-                      observation.component,
-                      installation.identity,
-                    )]
-                    case final String latest)
-                  if (componentIsNewer(latest, installed) == true)
-                    Text(
-                      l.updatesAvailable(
-                        componentName(
-                          releaseKey(
-                            observation.component,
-                            installation.identity,
-                          ),
-                        ),
-                        installed,
-                        latest,
-                      ),
-                    ),
         if (plan != null) ...[
           Text(
             '${plan.component == 'trusttunnel' ? 'TrustTunnel' : 'AmneziaWG'} · ${plan.installedVersion ?? '—'} → ${plan.version}',
@@ -98,14 +39,13 @@ class ComponentInstallationView extends StatelessWidget {
             Text(l.protocolConfigurationSeparate),
             if (plan.activeUnits.isNotEmpty)
               Text(l.protocolRestart(plan.activeUnits.join(', '))),
-            if (plan.component == 'amneziawg') Text(l.protocolGoDependency),
-            Text(l.componentsRunnerSummary),
             ExpansionTile(
               key: PageStorageKey(
                 'component-plan-${c.serverId}-${plan.component}',
               ),
               title: Text(l.componentsDetails),
               children: [
+                if (plan.component == 'amneziawg') Text(l.protocolGoDependency),
                 SelectableText(
                   '/usr/local/lib/antirkn-components/${plan.component}/\n/usr/local/bin/\n/etc/antirkn-components/${plan.component}/\n/etc/systemd/system/\n/var/lib/antirkn-runner/',
                 ),
@@ -126,9 +66,6 @@ class ComponentInstallationView extends StatelessWidget {
             child: Text(l.runnerNotNow),
           ),
         ],
-        if (c.selected?.kind == 'component_install' &&
-            c.selected?.status == 'succeeded')
-          Text(l.protocolConfigurationSeparate),
         if (c.selected?.kind == 'component_install' &&
             const {
               'failed',

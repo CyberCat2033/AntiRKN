@@ -279,3 +279,25 @@ List<String> get vlessFingerprints => List<String>.from(
           as Map)['resources']['items']['properties']['fingerprint']['enum'])
       as List,
 );
+
+/// Explicit non-empty defaults from 3x-ui 3.7.0. Empty upstream values keep
+/// their inherited meaning; an existing XMUX strategy is never overwritten.
+Map<String, Object?> xhttpFormDefaults([Map initial = const {}]) {
+  final properties = xhttpOptionsSchema['properties'] as Map;
+  final xmux = (properties['xmux'] as Map)['properties'] as Map;
+  final existing = Map<String, Object?>.from(initial['xmux'] as Map? ?? {});
+  final multiplex = <String, Object?>{
+    for (final e in xmux.entries) e.key as String: (e.value as Map)['default'],
+    ...existing,
+  };
+  if (existing.isNotEmpty && !existing.containsKey('maxConnections')) {
+    multiplex['maxConnections'] = '0';
+  }
+  return {
+    for (final e in properties.entries)
+      if ((e.value as Map).containsKey('default'))
+        e.key as String: e.value['default'],
+    ...Map<String, Object?>.from(initial),
+    'xmux': multiplex,
+  };
+}

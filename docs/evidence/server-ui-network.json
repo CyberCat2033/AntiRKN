@@ -1,0 +1,44 @@
+{
+  "results": {
+    "form_defaults_preview": true,
+    "form_defaults_submit": true,
+    "form_defaults_succeeded": true,
+    "form_defaults_replay_no_effect": true,
+    "form_defaults_readback": true,
+    "xhttp_reality_auto_core_config": true,
+    "xhttp_reality_auto_tcp": true,
+    "xhttp_reality_auto_udp": true,
+    "xhttp_tls_packet-up_core_config": true,
+    "xhttp_tls_packet-up_tcp": true,
+    "xhttp_tls_packet-up_udp": true,
+    "xhttp_tls_stream-up_core_config": true,
+    "xhttp_tls_stream-up_tcp": true,
+    "xhttp_tls_stream-up_udp": true,
+    "xhttp_tls_stream-one_core_config": true,
+    "xhttp_tls_stream-one_tcp": true,
+    "xhttp_tls_stream-one_udp": true
+  },
+  "defaults": {
+    "noGRPCHeader": false,
+    "noSSEHeader": false,
+    "xPaddingObfsMode": false,
+    "xPaddingBytes": "100-1000",
+    "scStreamUpServerSecs": "20-80",
+    "uplinkChunkSize": "0",
+    "scMaxBufferedPosts": 30,
+    "serverMaxHeaderBytes": 0,
+    "xmux": {
+      "maxConcurrency": "0",
+      "maxConnections": "3",
+      "cMaxReuseTimes": "0",
+      "hMaxRequestTimes": "600-900",
+      "hMaxReusableSecs": "1800-3000",
+      "hKeepAlivePeriod": 0
+    }
+  },
+  "mihomo": "1.19.30",
+  "panel": "3.7.0",
+  "xray": "26.7.28",
+  "compiler": "production",
+  "transport": "SSH tunnel to isolated Ubuntu; controlled TLS and TCP/UDP destinations"
+}

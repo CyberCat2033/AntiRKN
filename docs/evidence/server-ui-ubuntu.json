@@ -1,0 +1,34 @@
+{
+  "results": {
+    "v7_running": true,
+    "random_persisted_webpath": true,
+    "discovery_recovers_random_path": true,
+    "api_uses_random_path": true,
+    "external_inbound_plan_native_validation": true,
+    "inbound_update_accepted": true,
+    "external_inbound_edit": true,
+    "external_clients_and_identity_preserved": true,
+    "external_reality_keys_preserved": true,
+    "external_stale_plan_refused": true,
+    "existing_panel_api_login": true,
+    "external_panel_api_access": true,
+    "apt_update_accepted": true,
+    "real_apt_indexes": true,
+    "real_apt_preview": true,
+    "apt_upgrade_accepted": true,
+    "real_apt_upgrade": true,
+    "apt_version_verified": true,
+    "apt_local_config_preserved": true,
+    "apt_no_remaining_updates": true
+  },
+  "panel": "3.7.0",
+  "xray": "26.7.28",
+  "runner": "v7",
+  "apt": "Ubuntu file repository; real dpkg 1.0 -> 2.0",
+  "runnerUpgrade": {
+    "v5ToV6": true,
+    "v6ToV7": true,
+    "preservedPanelAccess": true,
+    "note": "Verified during initial installation and the first v7 integration run; later replay tests reused v7."
+  }
+}

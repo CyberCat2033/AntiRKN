@@ -604,5 +604,47 @@
   "realityCertificateExpiry": "Certificate expires",
   "realityKeyExchange": "Key exchange",
   "realityLatency": "Latency, ms",
-  "realityCertificateNames": "Names from the certificate — select an SNI, then scan again"
+  "realityCertificateNames": "Names from the certificate — select an SNI, then scan again",
+  "softwareTitle": "Server components",
+  "softwareInstall": "Install",
+  "softwareInspect": "Inspect installation",
+  "softwareUpdate": "Update",
+  "softwareUpdateAvailable": "Update available",
+  "softwarePanelAccess": "Panel access",
+  "panelAutomaticAddress": "A free port and random panel path are assigned automatically.",
+  "panelUpdateManual": "A new version is available. Applying 3x-ui/Xray updates in the app is not supported yet; use the x-ui command on the server.",
+  "aptTitle": "Ubuntu updates",
+  "aptUpdate": "Refresh APT indexes",
+  "aptUpgrade": "Upgrade packages",
+  "aptUpdatePlan": "Refresh available package lists (apt update). Installed packages will stay as they are.",
+  "aptUpgradePlan": "Upgrade the listed packages using the current APT indexes. Keep local configuration files. No packages are removed; new dependencies and reboot are separate actions. Services may restart.",
+  "aptCurrent": "No upgrades in the current indexes. Refresh APT indexes to check again.",
+  "aptPackageCount": "Packages to upgrade: {count}",
+  "aptReboot": "The server requires a reboot. Restart it when convenient.",
+  "aptUpdating": "Refreshing APT indexes…",
+  "aptUpgrading": "Upgrading Ubuntu packages…",
+  "aptRunningHelp": "The job continues after the app closes. Cancellation waits for the current APT command to finish.",
+  "aptFailed": "APT did not complete the command. Check repositories, disk space and package manager locks, then prepare a new plan.",
+  "aptConflict": "The package state changed. Prepare a new upgrade plan.",
+  "aptInterrupted": "The upgrade may be partially applied. Check APT on the server before preparing a new plan; an interrupted command is not repeated automatically.",
+  "serverDetails": "Server and network details",
+  "@aptPackageCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "panelConnectTitle": "Connect existing panel",
+  "panelAuthFailed": "3x-ui rejected the panel username or password. Check the panel account; SSH credentials are separate.",
+  "panelUnreachable": "The runner could not reach the panel API. Check that x-ui is running and that its listening address and HTTPS certificate are valid.",
+  "panelConnectUnsupported": "Could not identify a unique systemd panel at this port. Docker API connections are not supported yet.",
+  "panelLoginLimited": "3x-ui temporarily blocked login attempts. Wait before trying again.",
+  "panelUsername": "Panel username",
+  "panelConnectHelp": "Enter the 3x-ui administrator account to view and edit through its API. Access will be saved for future connections.",
+  "observedClientsKept": "Existing clients and settings outside this plan are preserved.",
+  "observedFullConfig": "Full configuration",
+  "observedEditPlan": "Save changes to the existing inbound and restart Xray. Active connections may be interrupted.",
+  "componentUpdateUnverified": "This release is not yet included in the app’s verified versions. The installed version is retained.",
+  "observedTransportJson": "Transport settings (JSON)"
 }

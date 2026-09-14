@@ -12,8 +12,10 @@ import threading
 import subprocess
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from panel_discovery import discover as discover_panel
+from panel_discovery import discover as discover_panel, connect_existing, external_access
 from components import ComponentInstaller, ComponentError
+from observed_inbounds import ObservedInboundEdit, snapshot as inbound_snapshot, plan as inbound_plan, stage_payload
+from apt import AptJob, AptError, plan as apt_plan
 from contract import SCHEMA, validate_request
 from panel import PanelInstaller, PanelError, access_for, install_cli
 from vless import VlessApply, VlessError, parse_payload, plan as vless_plan, state as vless_state, panel_for
@@ -74,6 +76,14 @@ class Store:
     def request(self, request):
         req = validate_request(request)
         action = req['action']
+        if action == 'panel_connect':
+            return {**self.response('ok'), 'panelAccess': connect_existing(req['payload']), 'panelVerified': True}
+        if action == 'inbound_read':
+            return {**self.response('ok'), 'inboundSnapshot': inbound_snapshot(self, req)}
+        if action == 'inbound_plan':
+            return {**self.response('ok'), 'inboundPlan': inbound_plan(self, req)}
+        if action == 'apt_plan':
+            return {**self.response('ok'), 'aptPlan': apt_plan()}
         if action == 'reality_scan':
             result = panel_for(self, req['id']).call('/panel/api/server/scanRealityTarget',
                 dict(target=req['target'], sni=req['sni'], xver='0', allowPrivate='false'), form=True)
@@ -94,6 +104,10 @@ class Store:
             if req['count'] != len(payload['resources']) + 2 or req['interval'] != 1:
                 raise VlessError()
         if action == 'panel_access':
+            external = external_access()
+            if external and external['id'] == req['id']:
+                panel_for(self, req['id'])
+                return {**self.response('ok'), 'panelAccess': external, 'panelVerified': True}
             row = self.db.execute("SELECT * FROM jobs WHERE id=? AND status='succeeded'", (req['id'],)).fetchone()
             if row is None:
                 return self.response('missing')
@@ -114,6 +128,8 @@ class Store:
         try:
             row = self.db.execute('SELECT * FROM jobs WHERE id=?', (req['id'],)).fetchone()
             if action == 'submit':
+                if req['kind'] == 'inbound_update' and (row is not None or not self.db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running')").fetchone()):
+                    req = stage_payload(self, req)
                 encoded = json.dumps(req, sort_keys=True, separators=(',', ':'))
                 if row is not None:
                     code = 'ok' if row['request'] == encoded else 'conflict'
@@ -130,7 +146,7 @@ class Store:
                 code = 'missing'
             elif action == 'resume':
                 original = json.loads(row['request'])
-                if original['kind'] not in ('panel_install', 'vless_apply', 'component_install') or row['status'] not in ('failed', 'partially_applied'):
+                if original['kind'] not in ('panel_install', 'vless_apply', 'component_install', 'inbound_update') or row['status'] not in ('failed', 'partially_applied'):
                     code = 'conflict'
                 elif self.db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running')").fetchone():
                     code = 'busy'
@@ -180,7 +196,26 @@ class Store:
             if row['status'] == 'planned':
                 self.db.execute("UPDATE jobs SET status='running' WHERE id=?", (job_id,))
                 self.event(job_id, 'running', row['checkpoint'], req['count'])
-        if req['kind'] == 'vless_apply':
+        if req['kind'] in ('apt_update', 'apt_upgrade'):
+            task = AptJob(self, req)
+            try:
+                if row['cancel']:
+                    status = 'cancelled' if row['checkpoint'] == 0 and not task.marker.exists() else 'partially_applied'
+                    code = 'cancelled' if status == 'cancelled' else 'apt_interrupted'
+                else:
+                    task.step(row['checkpoint'])
+                    if row['checkpoint'] + 1 < req['count']:
+                        return 0.1
+                    status, code = 'succeeded', 'succeeded'
+            except (AptError, OSError, ValueError, subprocess.SubprocessError) as error:
+                code = error.code if isinstance(error, AptError) else 'apt_failed'
+                status = task.failure_status()
+            with self.db:
+                progress = self.db.execute('SELECT checkpoint FROM jobs WHERE id=?', (job_id,)).fetchone()[0]
+                self.db.execute('UPDATE jobs SET status=? WHERE id=?', (status, job_id))
+                self.event(job_id, code, progress, req['count'])
+            return 0.1
+        if req['kind'] in ('vless_apply', 'inbound_update'):
             try:
                 if row['cancel']:
                     # After preflight, an API effect may already have happened
@@ -188,7 +223,7 @@ class Store:
                     status = 'partially_applied' if row['checkpoint'] > 0 else 'cancelled'
                     code = 'vless_partial' if status == 'partially_applied' else 'cancelled'
                 else:
-                    VlessApply(self, req).step(row['checkpoint'])
+                    (ObservedInboundEdit(self, req) if req['kind'] == 'inbound_update' else VlessApply(self, req)).step(row['checkpoint'])
                     if row['checkpoint'] + 1 < req['count']:
                         return 0.1
                     status, code = 'succeeded', 'succeeded'
@@ -330,7 +365,7 @@ def main():
 if __name__ == '__main__':
     try:
         main()
-    except (ValueError, TypeError, KeyError, AttributeError, OSError, sqlite3.Error, VlessError, PanelError, subprocess.SubprocessError) as error:
+    except (ValueError, TypeError, KeyError, AttributeError, OSError, sqlite3.Error, VlessError, PanelError, AptError, subprocess.SubprocessError) as error:
         code = error.code if isinstance(error, VlessError) else str(error) if str(error) in SCHEMA['codes'] else 'failed'
         print(json.dumps(dict(version=SCHEMA['version'], code=code, alive=False, jobs=[])), flush=True)
         sys.exit(1)

@@ -145,14 +145,17 @@
               },
               "noGRPCHeader": {
                 "type": "boolean",
-                "mihomo": "no-grpc-header"
+                "mihomo": "no-grpc-header",
+                "default": false
               },
               "noSSEHeader": {
-                "type": "boolean"
+                "type": "boolean",
+                "default": false
               },
               "xPaddingObfsMode": {
                 "type": "boolean",
-                "mihomo": "x-padding-obfs-mode"
+                "mihomo": "x-padding-obfs-mode",
+                "default": false
               },
               "xPaddingBytes": {
                 "type": "string",
@@ -160,7 +163,8 @@
                 "maxLength": 21,
                 "range": true,
                 "hint": "100-1000",
-                "mihomo": "x-padding-bytes"
+                "mihomo": "x-padding-bytes",
+                "default": "100-1000"
               },
               "scMaxEachPostBytes": {
                 "type": "string",
@@ -183,7 +187,8 @@
                 "pattern": "^[0-9]{1,10}(-[0-9]{1,10})?$",
                 "maxLength": 21,
                 "range": true,
-                "hint": "20-80"
+                "hint": "20-80",
+                "default": "20-80"
               },
               "uplinkChunkSize": {
                 "type": "string",
@@ -191,7 +196,8 @@
                 "maxLength": 21,
                 "range": true,
                 "hint": "0",
-                "mihomo": "uplink-chunk-size"
+                "mihomo": "uplink-chunk-size",
+                "default": "0"
               },
               "sessionIDLength": {
                 "type": "string",
@@ -205,13 +211,15 @@
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 2147483647,
-                "hint": "30"
+                "hint": "30",
+                "default": 30
               },
               "serverMaxHeaderBytes": {
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 2147483647,
-                "hint": "8192"
+                "hint": "8192",
+                "default": 0
               },
               "xPaddingKey": {
                 "type": "string",
@@ -338,41 +346,47 @@
                     "pattern": "^[0-9]{1,10}(-[0-9]{1,10})?$",
                     "maxLength": 21,
                     "range": true,
-                    "mihomo": "max-concurrency"
+                    "mihomo": "max-concurrency",
+                    "default": "0"
                   },
                   "maxConnections": {
                     "type": "string",
                     "pattern": "^[0-9]{1,10}(-[0-9]{1,10})?$",
                     "maxLength": 21,
                     "range": true,
-                    "mihomo": "max-connections"
+                    "mihomo": "max-connections",
+                    "default": "3"
                   },
                   "cMaxReuseTimes": {
                     "type": "string",
                     "pattern": "^[0-9]{1,10}(-[0-9]{1,10})?$",
                     "maxLength": 21,
                     "range": true,
-                    "mihomo": "c-max-reuse-times"
+                    "mihomo": "c-max-reuse-times",
+                    "default": "0"
                   },
                   "hMaxRequestTimes": {
                     "type": "string",
                     "pattern": "^[0-9]{1,10}(-[0-9]{1,10})?$",
                     "maxLength": 21,
                     "range": true,
-                    "mihomo": "h-max-request-times"
+                    "mihomo": "h-max-request-times",
+                    "default": "600-900"
                   },
                   "hMaxReusableSecs": {
                     "type": "string",
                     "pattern": "^[0-9]{1,10}(-[0-9]{1,10})?$",
                     "maxLength": 21,
                     "range": true,
-                    "mihomo": "h-max-reusable-secs"
+                    "mihomo": "h-max-reusable-secs",
+                    "default": "1800-3000"
                   },
                   "hKeepAlivePeriod": {
                     "type": "integer",
                     "minimum": -1,
                     "maximum": 2147483647,
-                    "mihomo": "h-keep-alive-period"
+                    "mihomo": "h-keep-alive-period",
+                    "default": 0
                   }
                 },
                 "optional": [

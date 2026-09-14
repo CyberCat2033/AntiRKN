@@ -11,18 +11,72 @@ import '../ssh/ssh_panel.dart';
 import '../runner/runner_panel.dart';
 import '../ssh/server_inventory_panel.dart';
 
-class NetworkWorkbench extends StatelessWidget {
+class NetworkWorkbench extends StatefulWidget {
   const NetworkWorkbench({
     required this.controller,
     required this.motion,
     this.ssh,
     this.protocols,
+    this.diagnosticsOnly = false,
     super.key,
   });
   final NetworkController controller;
   final MotionPreference motion;
   final SshController? ssh;
   final Widget? protocols;
+  final bool diagnosticsOnly;
+
+  @override
+  State<NetworkWorkbench> createState() => _NetworkWorkbenchState();
+}
+
+class _NetworkWorkbenchState extends State<NetworkWorkbench> {
+  final _scroll = ScrollController();
+  bool _sshExpanded = false;
+  NetworkController get controller => widget.controller;
+  MotionPreference get motion => widget.motion;
+  SshController? get ssh => widget.ssh;
+  Widget? get protocols => widget.protocols;
+  bool get diagnosticsOnly => widget.diagnosticsOnly;
+  @override
+  void initState() {
+    super.initState();
+    _sshExpanded = ssh?.settingsExpanded ?? false;
+    ssh?.addListener(_sshChanged);
+  }
+
+  @override
+  void didUpdateWidget(NetworkWorkbench oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.ssh != ssh) {
+      oldWidget.ssh?.removeListener(_sshChanged);
+      _sshExpanded = ssh?.settingsExpanded ?? false;
+      ssh?.addListener(_sshChanged);
+    }
+  }
+
+  void _sshChanged() {
+    final expanded = ssh?.settingsExpanded ?? false;
+    if (_sshExpanded && !expanded) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scroll.hasClients) return;
+        final duration = AppMotion.duration(context, motion);
+        if (duration == Duration.zero) {
+          _scroll.jumpTo(0);
+        } else {
+          _scroll.animateTo(0, duration: duration, curve: Curves.easeInOut);
+        }
+      });
+    }
+    _sshExpanded = expanded;
+  }
+
+  @override
+  void dispose() {
+    ssh?.removeListener(_sshChanged);
+    _scroll.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -31,8 +85,13 @@ class NetworkWorkbench extends StatelessWidget {
       final l = AppLocalizations.of(context);
       final inventory = controller.inventory;
       return ListView(
-        key: const PageStorageKey('network-workbench'),
+        key: PageStorageKey(
+          diagnosticsOnly ? 'network-diagnostics' : 'network-workbench',
+        ),
         primary: false,
+        controller: _scroll,
+        shrinkWrap: diagnosticsOnly,
+        physics: diagnosticsOnly ? const NeverScrollableScrollPhysics() : null,
         padding: AppLayout.padding,
         children: [
           if (ssh != null) ...[
@@ -46,24 +105,35 @@ class NetworkWorkbench extends StatelessWidget {
                 const SizedBox(height: AppLayout.gap),
               ],
             ],
-            if (ssh!.software case final software?) ...[
-              ServerInventoryPanel(
-                inventory: software,
-                current: ssh!.stage == SshStage.connected,
-                motion: motion,
-              ),
-              const SizedBox(height: AppLayout.gap),
-            ],
           ],
-          if (ssh == null || inventory != null)
+          if (ssh != null)
+            ExpansionTile(
+              key: PageStorageKey('server-details-${ssh!.serverId}'),
+              title: Text(l.serverDetails),
+              children: [
+                if (ssh!.software case final software?)
+                  ServerInventoryPanel(
+                    inventory: software,
+                    current: ssh!.stage == SshStage.connected,
+                    motion: motion,
+                  ),
+                NetworkWorkbench(
+                  controller: controller,
+                  motion: motion,
+                  diagnosticsOnly: true,
+                ),
+              ],
+            ),
+          if (ssh == null)
             SectionCard(
               title: l.networkTitle,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (ssh == null) Text(l.networkSampleNotice),
+                  if (ssh == null && !diagnosticsOnly)
+                    Text(l.networkSampleNotice),
                   const SizedBox(height: AppLayout.gap),
-                  if (ssh == null)
+                  if (ssh == null && !diagnosticsOnly)
                     Align(
                       alignment: AlignmentDirectional.centerStart,
                       child: FilledButton(
@@ -117,7 +187,7 @@ class NetworkWorkbench extends StatelessWidget {
                 ],
               ),
             ),
-          if (inventory != null) ...[
+          if (ssh == null && inventory != null) ...[
             const SizedBox(height: AppLayout.gap),
             SectionCard(
               title: l.networkAssignments,

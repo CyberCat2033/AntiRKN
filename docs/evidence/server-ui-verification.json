@@ -1,0 +1,58 @@
+{
+  "date": "2026-09-15",
+  "dartFlutterTests": 237,
+  "suites": {
+    "storage": 22,
+    "sshTransport": 36,
+    "networkInventory": 24,
+    "profileCompiler": 23,
+    "manager": 132
+  },
+  "pythonTests": 54,
+  "analyze": "pass",
+  "format": "pass",
+  "generatedContracts": "pass",
+  "workspaceCheck": "pass",
+  "builds": {
+    "linux": {
+      "configuration": "debug",
+      "sha256": "9fffcfee576434e574553b9b3cc8214dffa856e18bc973d1a78545ecfddd3d13",
+      "bytes": 53696
+    },
+    "androidArm64": {
+      "configuration": "debug",
+      "sha256": "638a264b99d3205bbd816a1dd31ebf09453000e4a70687dc25253d84d8e7246a",
+      "bytes": 117989790
+    }
+  },
+  "androidInstallation": {
+    "device": "OnePlus 7T Pro / HD1911",
+    "package": "org.antirkn.antirkn_manager",
+    "versionName": "0.1.0",
+    "preservedData": true,
+    "installedApkSha256": "f5bbbf522fd178cdc97c8fe88a5136f991ea7c7da013782e19d6918948e7123c",
+    "loginFixInstalled": true,
+    "launchChecked": true,
+    "latestDropdownFixInstalled": false,
+    "latestInstallStatus": "awaiting explicit user approval; no further device operations"
+  },
+  "tls": {
+    "python": "3.12.3",
+    "certificateContexts": {
+      "old": "rejected_chain",
+      "fixed": "accepted"
+    },
+    "publicApiWithNonRootWebpath": "pass",
+    "ownerConfirmedLogin": true,
+    "ownerCredentialsUsedByAgent": false
+  },
+  "unverified": [
+    "Windows",
+    "Docker panel API editing",
+    "2FA panels",
+    "protocol or security migration for external inbounds",
+    "long-running load",
+    "real owner VPS mutations through new APT/inbound editor",
+    "runtime of latest dropdown correction on phone"
+  ]
+}

@@ -77,7 +77,10 @@ class RunnerController extends ChangeNotifier {
   bool choosingPanel = false;
   bool panelSelected = false;
   String? resumePlan;
-  int? panelPort = 2053;
+  int? panelPort = 0;
+  Map<String, dynamic>? aptPlan;
+  bool choosingAptUpdate = false;
+  String? dismissedJobId;
   List<RunnerJob> jobs = [];
   RunnerJob? selected;
   RunnerRequest? pending;
@@ -136,6 +139,8 @@ class RunnerController extends ChangeNotifier {
     choosingPanel = false;
     resumePlan = null;
     panelVerifiedAt = null;
+    aptPlan = null;
+    choosingAptUpdate = false;
     connectionLost = selected?.terminal == false || pending != null;
     _notify();
   }
@@ -285,10 +290,118 @@ class RunnerController extends ChangeNotifier {
     responseCode = list.code;
     alive = list.alive;
     jobs = list.jobs;
-    final id = pending?.id ?? selected?.id ?? jobs.firstOrNull?.id;
+    final id =
+        pending?.id ??
+        jobs.where((j) => !j.terminal).firstOrNull?.id ??
+        selected?.id ??
+        jobs.firstOrNull?.id;
     if (id != null) await _readJob(remote, token, id);
     if (prepare) await _discoverPanel(remote, token);
   });
+
+  Future<bool> connectPanel(int port, String username, String password) async {
+    var success = false;
+    await _run((remote, token) async {
+      final response = await remote.request(
+        RunnerRequest.fromJson({
+          'version': 1,
+          'action': 'panel_connect',
+          'payload': jsonEncode({
+            'port': port,
+            'username': username,
+            'password': password,
+          }),
+        }),
+        token,
+        sudoPassword: this.password(),
+      );
+      token.check();
+      responseCode = response.code;
+      if (response.code != 'ok' || response.panelAccess == null) {
+        throw const RunnerFailure(RunnerIssue.invalidResponse);
+      }
+      panelAccess = response.panelAccess;
+      panelVerifiedAt = DateTime.now();
+      await _save();
+      success = true;
+    });
+    return success;
+  }
+
+  Future<Map<String, dynamic>?> readInbound(int id) async {
+    if (panelAccess == null) return null;
+    Map<String, dynamic>? result;
+    await _run((remote, token) async {
+      final response = await remote.request(
+        RunnerRequest.fromJson({
+          'version': 1,
+          'action': 'inbound_read',
+          'id': panelAccess!.id,
+          'payload': jsonEncode({'inboundId': id}),
+        }),
+        token,
+        sudoPassword: password(),
+      );
+      token.check();
+      responseCode = response.code;
+      result = response.inboundSnapshot;
+    });
+    return result;
+  }
+
+  Future<Map<String, dynamic>?> planInbound(
+    Map<String, Object?> payload,
+  ) async {
+    if (panelAccess == null || !canPlan) return null;
+    Map<String, dynamic>? result;
+    await _run((remote, token) async {
+      final response = await remote.request(
+        RunnerRequest.fromJson({
+          'version': 1,
+          'action': 'inbound_plan',
+          'id': panelAccess!.id,
+          'payload': jsonEncode(payload),
+        }),
+        token,
+        sudoPassword: password(),
+      );
+      token.check();
+      responseCode = response.code;
+      result = response.inboundPlan;
+    });
+    return result;
+  }
+
+  Future<bool> applyInbound(
+    Map<String, Object?> payload,
+    String fingerprint,
+  ) async {
+    if (panelAccess == null || !canStart) return false;
+    var success = false;
+    await _run((remote, token) async {
+      final id = List.generate(
+        16,
+        (_) => Random.secure().nextInt(256).toRadixString(16).padLeft(2, '0'),
+      ).join();
+      pending = RunnerRequest.fromJson({
+        'version': 1,
+        'action': 'submit',
+        'id': id,
+        'kind': 'inbound_update',
+        'count': 3,
+        'interval': 1,
+        'payload': jsonEncode({...payload, 'panelId': panelAccess!.id}),
+        'fingerprint': fingerprint,
+      });
+      selected = null;
+      cursor = 0;
+      await _save();
+      token.check();
+      await _submit(remote, token);
+      success = responseCode == 'ok';
+    });
+    return success;
+  }
 
   Future<Map<String, dynamic>?> scanReality(String target, String sni) async {
     final panel = panelAccess;
@@ -408,6 +521,87 @@ class RunnerController extends ChangeNotifier {
     _notify();
   }
 
+  Future<void> openPanelPlan() {
+    if (busy ||
+        panelDetected ||
+        pending != null ||
+        jobs.any((j) => !j.terminal)) {
+      return Future.value();
+    }
+    choosingPanel = true;
+    panelSelected = true;
+    panelPort = 0;
+    componentPlan = null;
+    aptPlan = null;
+    choosingAptUpdate = false;
+    return preparePanel();
+  }
+
+  bool get canPlan =>
+      connected && !busy && pending == null && !jobs.any((j) => !j.terminal);
+  void dismissJob() {
+    if (selected?.terminal == true) {
+      dismissedJobId = selected!.id;
+      _notify();
+    }
+  }
+
+  void dismissApt() {
+    if (busy) return;
+    aptPlan = null;
+    choosingAptUpdate = false;
+    _notify();
+  }
+
+  Future<void> prepareApt({required bool upgrade}) {
+    if (!canPlan) return Future.value();
+    panelPlan = null;
+    componentPlan = null;
+    aptPlan = null;
+    choosingAptUpdate = !upgrade;
+    if (!upgrade) {
+      _notify();
+      return Future.value();
+    }
+    return _run((remote, token) async {
+      final response = await remote.request(
+        RunnerRequest.aptPlan(),
+        token,
+        sudoPassword: password(),
+      );
+      token.check();
+      if (response.code != 'ok' || response.aptPlan == null) {
+        throw const RunnerFailure(RunnerIssue.invalidResponse);
+      }
+      aptPlan = response.aptPlan;
+    });
+  }
+
+  Future<void> applyApt() {
+    if (!canStart ||
+        (!choosingAptUpdate && (aptPlan?['packages'] as List? ?? []).isEmpty)) {
+      return Future.value();
+    }
+    final fingerprint = choosingAptUpdate
+        ? null
+        : aptPlan!['fingerprint'] as String;
+    return _run((remote, token) async {
+      final random = Random.secure();
+      final id = List.generate(
+        16,
+        (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+      ).join();
+      pending = RunnerRequest.apt(id, fingerprint: fingerprint);
+      selected = null;
+      cursor = 0;
+      await _save();
+      token.check();
+      aptPlan = null;
+      choosingAptUpdate = false;
+      await _submit(remote, token);
+    });
+  }
+
   Future<void> preparePanel() {
     if (panelDetected ||
         !panelSelected ||
@@ -437,6 +631,7 @@ class RunnerController extends ChangeNotifier {
       );
       token.check();
       panelPlan = result.panelPlan;
+      panelPort = panelPlan?.port;
       panelRunnerPlan = runnerPlan;
       if (panelPlan == null) {
         throw const RunnerFailure(RunnerIssue.invalidResponse);
@@ -499,6 +694,9 @@ class RunnerController extends ChangeNotifier {
 
   Future<void> prepareComponent(String component) =>
       _run((remote, token) async {
+        panelPlan = null;
+        aptPlan = null;
+        choosingAptUpdate = false;
         componentPlan = null;
         componentRunnerPlan = null;
         final runnerPlan = await remote.inspect(token);
@@ -595,6 +793,7 @@ class RunnerController extends ChangeNotifier {
         !const {
           'panel_install',
           'component_install',
+          'inbound_update',
         }.contains(selected?.kind) ||
         !const {'failed', 'partially_applied'}.contains(selected?.status)) {
       return;
@@ -754,7 +953,12 @@ class RunnerController extends ChangeNotifier {
         job.events.isNotEmpty &&
         job.events.first.sequence > requestedCursor + 1;
     if (job.status == 'succeeded' &&
-        const {'panel_install', 'component_install'}.contains(job.kind) &&
+        const {
+          'panel_install',
+          'component_install',
+          'apt_upgrade',
+          'inbound_update',
+        }.contains(job.kind) &&
         (selected?.id != job.id || selected?.status != 'succeeded')) {
       _softwareRefreshPending = true;
     }

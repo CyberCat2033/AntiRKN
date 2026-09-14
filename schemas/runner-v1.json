@@ -29,7 +29,11 @@
           "component_plan",
           "panel_discover",
           "panel_cli",
-          "reality_scan"
+          "reality_scan",
+          "apt_plan",
+          "inbound_read",
+          "inbound_plan",
+          "panel_connect"
         ]
       },
       "id": {
@@ -42,7 +46,10 @@
           "diagnostic",
           "panel_install",
           "vless_apply",
-          "component_install"
+          "component_install",
+          "apt_update",
+          "apt_upgrade",
+          "inbound_update"
         ]
       },
       "count": {
@@ -62,7 +69,7 @@
       },
       "port": {
         "type": "integer",
-        "minimum": 1024,
+        "minimum": 0,
         "maximum": 65535
       },
       "fingerprint": {
@@ -165,6 +172,27 @@
         "id",
         "target",
         "sni"
+      ],
+      "apt_plan": [
+        "version",
+        "action"
+      ],
+      "inbound_read": [
+        "version",
+        "action",
+        "id",
+        "payload"
+      ],
+      "inbound_plan": [
+        "version",
+        "action",
+        "id",
+        "payload"
+      ],
+      "panel_connect": [
+        "version",
+        "action",
+        "payload"
       ]
     },
     "submissions": {
@@ -205,6 +233,33 @@
         "interval",
         "component",
         "fingerprint"
+      ],
+      "apt_update": [
+        "version",
+        "action",
+        "id",
+        "kind",
+        "count",
+        "interval"
+      ],
+      "apt_upgrade": [
+        "version",
+        "action",
+        "id",
+        "kind",
+        "count",
+        "interval",
+        "fingerprint"
+      ],
+      "inbound_update": [
+        "version",
+        "action",
+        "id",
+        "kind",
+        "count",
+        "interval",
+        "payload",
+        "fingerprint"
       ]
     },
     "kindConstants": {
@@ -214,6 +269,18 @@
       },
       "component_install": {
         "count": 6,
+        "interval": 1
+      },
+      "apt_update": {
+        "count": 2,
+        "interval": 1
+      },
+      "apt_upgrade": {
+        "count": 2,
+        "interval": 1
+      },
+      "inbound_update": {
+        "count": 3,
         "interval": 1
       }
     }
@@ -284,7 +351,15 @@
     "component_build_failed",
     "component_check_failed",
     "component_prerequisites",
-    "component_partial"
+    "component_partial",
+    "apt_updating",
+    "apt_upgrading",
+    "apt_checked",
+    "apt_reboot_required",
+    "apt_failed",
+    "apt_conflict",
+    "apt_interrupted",
+    "apt_prerequisites"
   ],
   "codes": [
     "ok",
@@ -298,7 +373,11 @@
     "vless_conflict",
     "vless_port_busy",
     "vless_invalid",
-    "vless_api_failed"
+    "vless_api_failed",
+    "panel_auth_failed",
+    "panel_unreachable",
+    "panel_connect_unsupported",
+    "panel_login_limited"
   ],
   "maxRequestBytes": 524288,
   "maxEvents": 256,

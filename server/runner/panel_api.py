@@ -3,21 +3,38 @@
 Inputs/outputs are private stdin/stdout, never command arguments or logs.
 """
 import http.cookiejar
+import ipaddress
 import json
 import urllib.request
 import urllib.parse
+from urllib.error import HTTPError
 
 
 class PanelApi:
-    def __init__(self, port):
-        self.base = 'http://127.0.0.1:%d' % port
+    def __init__(self, port, base_path='/', *, tls=False, certificate=None, host='127.0.0.1'):
+        address = ipaddress.ip_address(host or '127.0.0.1')
+        if address.is_unspecified:
+            address = ipaddress.ip_address('::1' if address.version == 6 else '127.0.0.1')
+        hostname = '[%s]' % address if address.version == 6 else str(address)
+        self.base = ('https' if tls else 'http') + '://%s:%d' % (hostname, port)
+        self.origin = self.base
+        self.base += base_path.rstrip('/')
+        handlers = []
+        if tls:
+            import ssl
+            context = ssl.create_default_context()
+            if certificate:
+                context.load_verify_locations(cafile=certificate)
+            context.check_hostname = False  # Loopback tunnel; trust the server's own certificate chain.
+            handlers.append(urllib.request.HTTPSHandler(context=context))
         self.client = urllib.request.build_opener(
+            *handlers,
             urllib.request.ProxyHandler({}),
             urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
         self.csrf = None
 
     def call(self, path, data=None, *, form=False):
-        headers = {'Connection': 'close', 'Origin': self.base}
+        headers = {'Connection': 'close', 'Origin': self.origin}
         if self.csrf:
             headers['X-CSRF-Token'] = self.csrf
         if data is not None:
@@ -35,17 +52,24 @@ class PanelApi:
 
     def login(self, username, password):
         self.csrf = self.call('/csrf-token')
-        self.call('/login', dict(username=username, password=password))
+        try:
+            self.call('/login', dict(username=username, password=password))
+        except HTTPError as error:
+            if error.code == 429: raise ValueError('panel_login_limited') from None
+            if error.code == 401: raise ValueError('panel_auth_failed') from None
+            raise
+        except ValueError:
+            raise ValueError('panel_auth_failed') from None
         self.csrf = self.call('/csrf-token')
 
 
 def configure_panel(access):
-    api = PanelApi(access['port'])
+    api = PanelApi(access['port'], access.get('basePath', '/'))
     try:
         api.login(access['username'], access['password'])
     except (ValueError, OSError):
         # Only our private namespace and freshly owned DB may use this fallback.
-        api = PanelApi(access['port'])
+        api = PanelApi(access['port'], access.get('basePath', '/'))
         api.login('admin', 'admin')
         api.call('/panel/api/setting/updateUser', dict(oldUsername='admin',
             oldPassword='admin', newUsername=access['username'],
@@ -53,7 +77,7 @@ def configure_panel(access):
         api.login(access['username'], access['password'])
     settings = api.call('/panel/api/setting/all', {})
     settings.update(webListen='127.0.0.1', webPort=access['port'],
-                    webBasePath='/', subEnable=False, subJsonEnable=False,
+                    webBasePath=access.get('basePath', '/'), subEnable=False, subJsonEnable=False,
                     subListen='127.0.0.1', tgBotEnable=False)
     api.call('/panel/api/setting/update', settings)
     observed = api.call('/panel/api/setting/all', {})

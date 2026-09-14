@@ -5,6 +5,7 @@ import '../l10n/app_localizations.dart';
 import '../network/network_controller.dart';
 import '../network/server_address_picker.dart';
 import 'vpn_controller.dart';
+import 'observed_inbound_dialog.dart';
 import 'xhttp_options_editor.dart';
 import '../runner/runner_controller.dart';
 import 'vpn_plan_view.dart';
@@ -42,7 +43,6 @@ class InboundsPanel extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(l.vpnInboundHelp),
             Wrap(
               spacing: AppLayout.smallGap,
               children: [
@@ -51,12 +51,6 @@ class InboundsPanel extends StatelessWidget {
                   onPressed: c.busy || !c.loaded ? null : () => _edit(context),
                   icon: const Icon(Icons.add),
                   label: Text(l.vpnAddInbound),
-                ),
-                TextButton(
-                  onPressed: c.busy || c.remote(serverId) == null
-                      ? null
-                      : () => c.refreshServer(serverId),
-                  child: Text(l.sshRefresh),
                 ),
                 OutlinedButton(
                   onPressed: c.busy || c.workspace.inbounds.isEmpty
@@ -91,9 +85,20 @@ class InboundsPanel extends StatelessWidget {
                     subtitle: Text(
                       '${observed['listen']}:${observed['port']} · ${observed['transport']} / ${observed['security']}\n${observed['enabled'] == true ? l.vpnEnabled : l.vpnDisabled} · ${l.vpnObserved}',
                     ),
-                    trailing: Tooltip(
-                      message: l.vpnObservedHelp,
-                      child: const Icon(Icons.lock_outline),
+                    trailing: IconButton(
+                      tooltip: l.vpnEdit,
+                      icon: const Icon(Icons.edit_outlined),
+                      onPressed: runner?.canPlan != true
+                          ? null
+                          : () => showDialog<void>(
+                              context: context,
+                              builder: (context) => ObservedInboundDialog(
+                                controller: runner!,
+                                inboundId: observed['id'] as int,
+                                port: panel['port'] as int,
+                                motion: motion,
+                              ),
+                            ),
                     ),
                   ),
             for (final r in inbounds)
@@ -212,6 +217,14 @@ class _InboundFormState extends State<InboundForm> {
     ])
       key: TextEditingController(text: '${spec[key]}'),
   };
+  @override
+  void initState() {
+    super.initState();
+    if (spec['transport'] == 'xhttp') {
+      spec['xhttp'] = xhttpFormDefaults(spec['xhttp'] as Map? ?? {});
+    }
+  }
+
   bool invalid = false;
   bool regenerated = false;
   bool scanning = false;
@@ -317,6 +330,7 @@ class _InboundFormState extends State<InboundForm> {
                 ],
                 onChanged: (v) => setState(() {
                   spec['transport'] = v;
+                  if (v == 'xhttp') spec['xhttp'] = xhttpFormDefaults();
                   if (v == 'raw') {
                     spec.remove('xhttp');
                     spec['security'] = 'reality';

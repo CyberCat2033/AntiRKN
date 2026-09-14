@@ -34,7 +34,9 @@ final class SshPanelApi {
       );
       final body = data == null ? <int>[] : utf8.encode(jsonEncode(data));
       final request = StringBuffer()
-        ..write('${data == null ? 'GET' : 'POST'} $path HTTP/1.1\r\n')
+        ..write(
+          '${data == null ? 'GET' : 'POST'} ${access.basePath.endsWith('/') ? access.basePath.substring(0, access.basePath.length - 1) : access.basePath}$path HTTP/1.1\r\n',
+        )
         ..write('Host: 127.0.0.1:${access.port}\r\n')
         ..write('Origin: http://127.0.0.1:${access.port}\r\n')
         ..write('Connection: close\r\nAccept: application/json\r\n')
@@ -87,6 +89,7 @@ final class SshPanelApi {
     final status = await call('/panel/api/server/status') as Map;
     if (settings['webListen'] != '127.0.0.1' ||
         settings['webPort'] != access.port ||
+        settings['webBasePath'] != access.basePath ||
         settings['subEnable'] != false ||
         inbounds is! List ||
         status['panelVersion'] != access.panelVersion ||

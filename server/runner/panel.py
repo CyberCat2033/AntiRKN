@@ -110,6 +110,14 @@ def prerequisites():
 
 
 def panel_plan(port):
+    if port == 0:
+        for _ in range(128):
+            candidate = 10000 + secrets.randbelow(55536)
+            if port_free(candidate):
+                port = candidate
+                break
+        else:
+            raise PanelError('panel_port_busy')
     paths = [PANEL, DATABASE, UNIT, BOOT_UNIT,
         Path('/usr/bin/x-ui'), Path('/usr/local/bin/x-ui'),
         Path('/lib/systemd/system/x-ui.service'), Path('/usr/bin/xray'),
@@ -155,7 +163,15 @@ def access_for(job_id, port):
         raise PanelError('panel_conflict')
     password = base64.urlsafe_b64encode(hmac.new(key,
         ('3x-ui/admin/' + job_id).encode(), hashlib.sha256).digest()).decode().rstrip('=')
-    return dict(id=job_id, port=port, username='antirkn', password=password,
+    path_file = DATABASE / '.antirkn-webpath'
+    base_path = '/'
+    if path_file.exists():
+        safe_file(path_file, 128)
+        base_path = path_file.read_text()
+        import re
+        if not re.fullmatch(r'/[A-Za-z0-9_-]{24}/', base_path):
+            raise PanelError('panel_conflict')
+    return dict(id=job_id, port=port, basePath=base_path, username='antirkn', password=password,
                 panelVersion=RELEASE['panelVersion'], xrayVersion=RELEASE['xrayVersion'])
 
 
@@ -352,8 +368,12 @@ class PanelInstaller:
 
     def configure(self):
         self.assert_owned()
+        path_file = DATABASE / '.antirkn-webpath'
+        if not path_file.exists():
+            atomic_file(path_file, ('/' + secrets.token_urlsafe(18) + '/').encode())
+        access = access_for(self.request['id'], self.request['port'])
         command([str(PANEL / 'x-ui'), 'setting', '-listenIP', '127.0.0.1',
-                 '-port', str(self.request['port']), '-webBasePath', '/'], timeout=90)
+                 '-port', str(self.request['port']), '-webBasePath', access['basePath']], timeout=90)
         atomic_file(BOOT_UNIT, unit_source(True), 0o644)
         systemctl('daemon-reload')
         systemctl('start', BOOT_UNIT.name)
@@ -394,13 +414,14 @@ class PanelInstaller:
         while time.monotonic() < deadline:
             self.pulse()
             try:
-                api = PanelApi(access['port'])
+                api = PanelApi(access['port'], access.get('basePath', '/'))
                 api.login(access['username'], access['password'])
                 settings = api.call('/panel/api/setting/all', {})
                 inbounds = api.call('/panel/api/inbounds/list')
                 status = api.call('/panel/api/server/status')
                 if (settings.get('webListen') != '127.0.0.1'
                         or settings.get('webPort') != access['port']
+                        or settings.get('webBasePath') != access['basePath']
                         or settings.get('subEnable') is not False
                         or inbounds != []):
                     raise PanelError('panel_conflict')

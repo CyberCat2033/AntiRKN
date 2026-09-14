@@ -1,11 +1,10 @@
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../l10n/app_localizations.dart';
 import 'runner_controller.dart';
-import 'panel_installation_view.dart';
 import 'component_installation_view.dart';
+import 'software_overview.dart';
 
 class RunnerPanel extends StatelessWidget {
   const RunnerPanel({
@@ -19,29 +18,29 @@ class RunnerPanel extends StatelessWidget {
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: controller,
     builder: (context, _) {
-      final c = controller;
-      final l = AppLocalizations.of(context);
-      final job = c.selected;
-      final installing =
-          const {'panel_install', 'component_install'}.contains(job?.kind) &&
-          !job!.terminal;
-      final duration = AppMotion.duration(context, motion);
-      final animation = AnimationStyle(
-        duration: duration,
-        reverseDuration: duration,
-      );
-      final stateLabel = job == null ? null : runnerStateLabel(l, job.status);
-      final eventLabel = job?.events.isNotEmpty == true
-          ? runnerEventLabel(l, job!.events.last.code)
-          : null;
+      final c = controller, l = AppLocalizations.of(context), job = c.selected;
+      final active = job != null && !job.terminal;
+      final failed =
+          job != null &&
+          const {
+            'failed',
+            'partially_applied',
+            'needs_attention',
+          }.contains(job.status);
+      final event = job?.events.where((e) => e.code != 'succeeded').lastOrNull;
+      final showJob =
+          job != null &&
+          (active ||
+              failed ||
+              (job.kind.startsWith('apt_') && c.dismissedJobId != job.id));
       return SectionCard(
-        title: l.runnerTitle,
+        title: l.softwareTitle,
         child: AppAnimatedSize(
           motion: motion,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (c.busy && !installing) const LinearProgressIndicator(),
+              if (c.busy && !active) const LinearProgressIndicator(),
               if (c.error case final issue?)
                 Semantics(
                   liveRegion: true,
@@ -49,99 +48,82 @@ class RunnerPanel extends StatelessWidget {
                 ),
               if (c.responseCode != null && c.responseCode != 'ok')
                 Text(runnerCodeLabel(l, c.responseCode!)),
-              if (c.connectionLost ||
-                  !c.connected && job != null && !job.terminal)
+              if (c.connectionLost || !c.connected && active)
                 Text(l.runnerConnectionLost),
-              const SizedBox(height: AppLayout.gap),
-              PanelInstallationView(controller: c, motion: motion),
-              ComponentInstallationView(controller: c),
-              const SizedBox(height: AppLayout.gap),
-              Wrap(
-                spacing: AppLayout.smallGap,
-                runSpacing: AppLayout.smallGap,
-                children: [
-                  OutlinedButton(
-                    key: const ValueKey('runner-refresh'),
-                    onPressed: c.connected && !c.busy
-                        ? () => c.refresh(prepare: true)
-                        : null,
-                    child: Text(l.sshRefresh),
+              if (c.panelDiscovery?['failed'] == true)
+                Text(l.panelDiscoveryFailed),
+              if (c.installed && !c.alive) Text(l.runnerNotRunning),
+              if (c.error != null || c.installed && !c.alive)
+                TextButton(
+                  key: const ValueKey('runner-refresh'),
+                  onPressed: c.connected && !c.busy
+                      ? () => c.refresh(prepare: true)
+                      : null,
+                  child: Text(l.runnerRetry),
+                ),
+              if (showJob) ...[
+                const SizedBox(height: AppLayout.gap),
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    active && event != null
+                        ? runnerEventLabel(l, event.code)
+                        : runnerStateLabel(l, job.status),
                   ),
-                ],
-              ),
+                ),
+                if (active)
+                  LinearProgressIndicator(value: job.checkpoint / job.count),
+                if (failed && event != null)
+                  Text(runnerEventLabel(l, event.code)),
+                if (job.events.any((e) => e.code == 'apt_reboot_required'))
+                  Text(l.aptReboot),
+                if (active && job.kind.startsWith('apt_'))
+                  Text(l.aptRunningHelp),
+                if (job.cancelRequested && active)
+                  Text(l.runnerCancelRequested),
+                if (active)
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: TextButton(
+                      key: const ValueKey('runner-cancel'),
+                      onPressed: c.connected && !c.busy && !job.cancelRequested
+                          ? c.cancelJob
+                          : null,
+                      child: Text(l.runnerCancel),
+                    ),
+                  ),
+                if (job.terminal && !failed)
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: TextButton(
+                      onPressed: c.dismissJob,
+                      child: Text(l.networkClose),
+                    ),
+                  ),
+              ],
               if (c.pending != null) ...[
                 Text(l.runnerPending),
-                OutlinedButton(
+                TextButton(
                   key: const ValueKey('runner-retry'),
                   onPressed: c.connected && !c.busy ? c.retryPending : null,
                   child: Text(l.runnerRetry),
                 ),
               ],
-              if (c.installed && !c.alive) Text(l.runnerNotRunning),
-              if (job != null) ...[
-                const SizedBox(height: AppLayout.gap),
-                if (job.kind == 'panel_install') Text(l.componentsJob),
-                Semantics(
-                  liveRegion: true,
+              if (failed && job.kind == 'inbound_update')
+                TextButton(
+                  onPressed: c.canPlan
+                      ? (c.resumePlan == null ? c.prepareResume : c.applyResume)
+                      : null,
                   child: Text(
-                    '${installing ? eventLabel ?? stateLabel : stateLabel} · ${job.checkpoint}/${job.count}',
+                    c.resumePlan == null ? l.runnerRetry : l.runnerApply,
                   ),
                 ),
-                if (const {
-                      'panel_install',
-                      'component_install',
-                    }.contains(job.kind) &&
-                    job.terminal &&
-                    eventLabel != null &&
-                    eventLabel != stateLabel)
-                  Text(eventLabel),
-                LinearProgressIndicator(value: job.checkpoint / job.count),
-                if (job.cancelRequested && !job.terminal)
-                  Text(l.runnerCancelRequested),
-                if (!job.terminal)
-                  TextButton(
-                    key: const ValueKey('runner-cancel'),
-                    onPressed: c.connected && !c.busy && !job.cancelRequested
-                        ? c.cancelJob
-                        : null,
-                    child: Text(l.runnerCancel),
-                  ),
-                if (c.eventsTruncated) Text(l.runnerEventsTruncated),
-                ExpansionTile(
-                  key: PageStorageKey('runner-journal-${c.serverId}-${job.id}'),
-                  expansionAnimationStyle: animation,
-                  title: Text(l.runnerJournal),
-                  children: [
-                    for (final event in job.events)
-                      ListTile(
-                        dense: true,
-                        title: Text(runnerEventLabel(l, event.code)),
-                        subtitle: Text(
-                          '${DateFormat.Hms(l.localeName).format(event.timestamp.toLocal())} · ${event.progress}/${event.total}',
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-              if (c.jobs.length > 1)
-                ExpansionTile(
-                  key: PageStorageKey('runner-history-${c.serverId}'),
-                  expansionAnimationStyle: animation,
-                  title: Text(l.runnerHistory),
-                  children: [
-                    for (final previous in c.jobs)
-                      ListTile(
-                        title: Text(runnerStateLabel(l, previous.status)),
-                        subtitle: Text(
-                          '${previous.checkpoint}/${previous.count} · ${previous.id.substring(0, 8)}',
-                        ),
-                        selected: previous.id == job?.id,
-                        onTap: c.connected && !c.busy && c.pending == null
-                            ? () => c.selectJob(previous.id)
-                            : null,
-                      ),
-                  ],
-                ),
+              SoftwareOverview(controller: c, motion: motion),
+              if (c.componentPlan == null &&
+                  failed &&
+                  job.kind == 'component_install')
+                ComponentInstallationView(controller: c),
+              AptMaintenanceView(controller: c),
             ],
           ),
         ),
@@ -161,6 +143,15 @@ String runnerIssueLabel(AppLocalizations l, RunnerIssue issue) =>
       RunnerIssue.storage => l.runnerStorage,
     };
 String runnerCodeLabel(AppLocalizations l, String code) => switch (code) {
+  'panel_auth_failed' => l.panelAuthFailed,
+  'panel_unreachable' => l.panelUnreachable,
+  'panel_connect_unsupported' => l.panelConnectUnsupported,
+  'panel_login_limited' => l.panelLoginLimited,
+  'panel_api_failed' => l.componentsApiFailed,
+  'vless_conflict' => l.vpnConflict,
+  'vless_port_busy' => l.vpnPortBusy,
+  'vless_invalid' => l.vpnInvalid,
+  'vless_api_failed' => l.vpnFailed,
   'busy' => l.runnerBusy,
   'conflict' => l.runnerConflict,
   'missing' => l.runnerMissing,
@@ -178,6 +169,14 @@ String runnerStateLabel(AppLocalizations l, String state) => switch (state) {
   _ => l.runnerAttention,
 };
 String runnerEventLabel(AppLocalizations l, String code) => switch (code) {
+  'apt_updating' => l.aptUpdating,
+  'apt_upgrading' => l.aptUpgrading,
+  'apt_checked' => l.runnerSucceeded,
+  'apt_reboot_required' => l.aptReboot,
+  'apt_failed' => l.aptFailed,
+  'apt_conflict' => l.aptConflict,
+  'apt_interrupted' => l.aptInterrupted,
+  'apt_prerequisites' => l.runnerPrerequisites,
   'component_prepared' => l.protocolPrepared,
   'component_downloaded' => l.componentsDownloaded,
   'component_built' => l.protocolBuilt,

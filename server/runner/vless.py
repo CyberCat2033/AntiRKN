@@ -106,12 +106,17 @@ def client_id(workspace, resource, user):
 
 def panel_for(store, panel_id):
     row = store.db.execute("SELECT request FROM jobs WHERE id=? AND status='succeeded'", (panel_id,)).fetchone()
-    if row is None: raise VlessError('vless_conflict')
-    req = json.loads(row[0])
-    if req.get('kind') != 'panel_install': raise VlessError('vless_conflict')
-    PanelInstaller(store, req).assert_owned()
-    access = access_for(panel_id, req['port'])
-    api = PanelApi(access['port'])
+    if row is None:
+        from panel_discovery import external_access
+        access = external_access()
+        if not access or access['id'] != panel_id: raise VlessError('vless_conflict')
+    else:
+        req = json.loads(row[0])
+        if req.get('kind') != 'panel_install': raise VlessError('vless_conflict')
+        PanelInstaller(store, req).assert_owned()
+        access = access_for(panel_id, req['port'])
+    api = PanelApi(access['port'], access.get('basePath', '/'), tls=access.get('tls', False),
+        certificate=access.get('certificate'), host=access.get('host', '127.0.0.1'))
     api.login(access['username'], access['password'])
     # During an API-triggered core restart the status cache briefly omits the
     # Xray version. A missing value is pending, not evidence of another binary.

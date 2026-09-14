@@ -84,7 +84,7 @@ final class SshRunnerTransport implements RunnerTransport {
           ? python(runnerComponentInspector)
           : action == 'panel_plan'
           ? python(runnerPanelInspector)
-          : '/usr/bin/python3 -I /usr/local/lib/antirkn-runner/v5/runner.py rpc',
+          : '/usr/bin/python3 -I /usr/local/lib/antirkn-runner/v7/runner.py rpc',
       jsonEncode(
         action == 'panel_verify'
             ? {...request.json, 'action': 'panel_access'}
@@ -101,7 +101,11 @@ final class SshRunnerTransport implements RunnerTransport {
         if (access == null || access.id != request.id) {
           throw const FormatException('panel_access');
         }
-        await SshPanelApi(executor.client, access, cancellation).verify();
+        if (access.managed) {
+          await SshPanelApi(executor.client, access, cancellation).verify();
+        } else if (!response.panelVerified) {
+          throw const FormatException('panel_verify');
+        }
         return RunnerResponse.fromJson({...json, 'panelVerified': true});
       }
       return response;

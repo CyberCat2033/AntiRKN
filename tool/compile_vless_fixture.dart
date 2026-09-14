@@ -5,6 +5,10 @@ import 'package:antirkn_profile_compiler/antirkn_profile_compiler.dart';
 
 // Private fixture input/output paths; never prints profiles or credentials.
 Future<void> main(List<String> args) async {
+  if (args.length == 1 && args.single == '--xhttp-defaults') {
+    stdout.writeln(jsonEncode(xhttpFormDefaults()));
+    return;
+  }
   final input = jsonDecode(await File(args[0]).readAsString()) as Map;
   final workspace = VpnWorkspace.decode(jsonEncode(input['workspace']));
   final user = input['userId'] as String;

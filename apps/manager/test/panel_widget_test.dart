@@ -10,7 +10,7 @@ void main() {
   for (final locale in ['ru', 'en']) {
     for (final width in [390.0, 1400.0]) {
       testWidgets(
-        'component plan requires selection and explicit apply $locale $width text x2',
+        'panel chooses port automatically and requires explicit apply $locale $width text x2',
         (tester) async {
           tester.view.devicePixelRatio = 1;
           tester.view.physicalSize = Size(width, 1000);
@@ -59,19 +59,12 @@ void main() {
           await tester.tap(choose);
           await tester.pumpAndSettle();
           expect(remote.installs, 0);
-          final select = find.byKey(const ValueKey('components-xray'));
-          await tester.ensureVisible(select);
-          await tester.tap(select);
-          await tester.pumpAndSettle();
-          final prepare = find.byKey(const ValueKey('components-plan'));
-          await tester.ensureVisible(prepare);
-          await tester.tap(prepare);
-          await tester.pumpAndSettle();
           expect(remote.installs, 0);
           expect(remote.submissions, 0);
           expect(find.byKey(const ValueKey('components-port')), findsNothing);
           expect(find.text(l.componentsPlanSummary), findsOneWidget);
-          expect(find.text(l.componentsRunnerSummary), findsOneWidget);
+          expect(find.text(l.panelAutomaticAddress), findsOneWidget);
+          expect(c.panelPlan!.port, 43127);
           expect(find.text(l.componentsPlanBody), findsNothing);
           expect(find.text('d' * 64), findsNothing);
           final details = find.text(l.componentsDetails);
@@ -86,19 +79,6 @@ void main() {
           await tester.ensureVisible(details);
           await tester.pumpAndSettle();
           await tester.tap(details);
-          await tester.pumpAndSettle();
-          // Editing returns to the same selection and port without a mutation.
-          final edit = find.text(l.componentsEditPlan);
-          await tester.ensureVisible(edit);
-          await tester.pumpAndSettle();
-          await tester.tap(edit);
-          await tester.pumpAndSettle();
-          expect(c.panelSelected, isTrue);
-          expect(c.panelPort, 2053);
-          expect(find.byKey(const ValueKey('components-port')), findsOneWidget);
-          await tester.ensureVisible(prepare);
-          await tester.pumpAndSettle();
-          await tester.tap(prepare);
           await tester.pumpAndSettle();
           final apply = find.byKey(const ValueKey('components-apply'));
           await tester.ensureVisible(apply);

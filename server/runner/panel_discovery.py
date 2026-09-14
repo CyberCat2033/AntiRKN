@@ -91,9 +91,60 @@ def discover(store):
             PanelInstaller(store, request).assert_owned()
             candidate = access_for(request['id'], request['port'])
             if any(p['source'] == 'systemd' and p['port'] == candidate['port']
-                   and p['basePath'] == '/' and not p['tls'] for p in panels):
+                   and p['basePath'] == candidate.get('basePath', '/') and not p['tls'] for p in panels):
                 access = candidate
                 break
         except (OSError, ValueError, PanelError):
             continue
+    if access is None:
+        candidate = external_access()
+        if candidate and any(p['port'] == candidate['port'] and p['basePath'] == candidate.get('basePath', '/') and p['tls'] == candidate.get('tls', False) for p in panels): access = candidate
     return dict(panels=panels, failed=failed, cliAvailable=CLI.is_file() and bool(CLI.stat().st_mode & 0o111)), access
+
+EXTERNAL_ACCESS = Path('/etc/antirkn-runner/external-panel.json')
+
+
+def external_access():
+    if not EXTERNAL_ACCESS.exists(): return None
+    safe_file(EXTERNAL_ACCESS, 16384)
+    return json.loads(EXTERNAL_ACCESS.read_text())
+
+
+def connect_existing(raw):
+    """Owner-entered API credentials, private RPC, separate from job history."""
+    import secrets
+    from panel import atomic_file, KEY
+    from panel_api import PanelApi
+    value = json.loads(raw)
+    if (type(value.get('port')) is not int or type(value.get('username')) is not str
+            or not 1 <= len(value['username']) <= 256 or type(value.get('password')) is not str
+            or not 1 <= len(value['password']) <= 4096): raise ValueError('invalid')
+    candidates = []
+    for path, source in databases():
+        if not path.exists(): continue
+        observed = read_database(path, source)
+        if observed['port'] == value['port'] and source == 'systemd': candidates.append((path, observed))
+    if len(candidates) != 1: raise ValueError('panel_connect_unsupported')
+    path, observed = candidates[0]
+    cert = None
+    if observed['tls']:
+        db = sqlite3.connect(path.resolve().as_uri() + '?mode=ro', uri=True)
+        try: cert = db.execute("SELECT value FROM settings WHERE key='webCertFile'").fetchone()[0]
+        finally: db.close()
+    try:
+        api = PanelApi(value['port'], observed['basePath'], tls=observed['tls'],
+            certificate=cert, host=observed['listen'])
+        api.login(value['username'], value['password'])
+        api.call('/panel/api/inbounds/list')
+        status = api.call('/panel/api/server/status')
+    except OSError:
+        raise ValueError('panel_unreachable') from None
+    old = external_access()
+    access = dict(id=old['id'] if old and old['port'] == value['port'] else secrets.token_hex(16),
+        port=value['port'], basePath=observed['basePath'], username=value['username'], password=value['password'],
+        panelVersion=status['panelVersion'], xrayVersion=status['xray']['version'], managed=False,
+        tls=observed['tls'], certificate=cert, host=observed['listen'])
+    KEY.parent.mkdir(mode=0o700, exist_ok=True)
+    if not KEY.exists(): atomic_file(KEY, secrets.token_bytes(32))
+    atomic_file(EXTERNAL_ACCESS, json.dumps(access).encode())
+    return access

@@ -1,6 +1,5 @@
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../l10n/app_localizations.dart';
 import 'runner_controller.dart';
 
@@ -17,15 +16,11 @@ class PanelInstallationView extends StatefulWidget {
 }
 
 class _PanelInstallationViewState extends State<PanelInstallationView> {
-  bool revealed = false;
   @override
   Widget build(BuildContext context) {
     final c = widget.controller;
     final l = AppLocalizations.of(context);
     final plan = c.panelPlan;
-    final access = c.panelAccess;
-    final installing =
-        c.selected?.kind == 'panel_install' && !c.selected!.terminal;
     final duration = AppMotion.duration(context, widget.motion);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -56,75 +51,6 @@ class _PanelInstallationViewState extends State<PanelInstallationView> {
             ),
           ],
         ],
-        if (!c.panelDetected && !c.choosingPanel && !installing)
-          OutlinedButton.icon(
-            key: const ValueKey('components-choose'),
-            onPressed: c.connected && !c.busy && c.pending == null
-                ? c.chooseComponents
-                : null,
-            icon: const Icon(Icons.add_box_outlined),
-            label: Text(l.componentsInstall),
-          ),
-        if (c.panelDetected && access == null) ...[
-          const Text('3x-ui / Xray'),
-          for (final panel in c.panels)
-            Text(
-              '${panel['tls'] == true ? 'https' : 'http'}://${panel['listen']}:${panel['port']}${panel['basePath']}',
-            ),
-          Text(l.panelObservedHelp),
-        ],
-        if (c.panelDetected &&
-            c.panelDiscovery?['cliAvailable'] == false &&
-            c.panels.any((p) => p['source'] == 'systemd')) ...[
-          Text(l.panelCliHelp),
-          OutlinedButton(
-            onPressed: c.connected && !c.busy ? c.installPanelCli : null,
-            child: Text(l.panelCliInstall),
-          ),
-        ],
-        if (c.panelDiscovery?['failed'] == true) Text(l.panelDiscoveryFailed),
-        if (c.choosingPanel && plan?.canApply != true) ...[
-          CheckboxListTile(
-            key: const ValueKey('components-xray'),
-            contentPadding: EdgeInsets.zero,
-            title: const Text('3x-ui / Xray'),
-            value: c.panelSelected,
-            onChanged: c.busy ? null : (v) => c.selectPanel(v ?? false),
-          ),
-          TextFormField(
-            key: const ValueKey('components-port'),
-            initialValue: '${c.panelPort ?? 2053}',
-            enabled: !c.busy,
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              labelText: l.componentsPort,
-              helperText: l.componentsPortHelp,
-              errorText: c.panelPort == null ? l.componentsPortInvalid : null,
-            ),
-            onChanged: c.changePanelPort,
-          ),
-          const SizedBox(height: AppLayout.smallGap),
-          Wrap(
-            spacing: AppLayout.smallGap,
-            children: [
-              FilledButton.tonal(
-                key: const ValueKey('components-plan'),
-                onPressed:
-                    c.connected &&
-                        !c.busy &&
-                        c.panelSelected &&
-                        c.panelPort != null
-                    ? c.preparePanel
-                    : null,
-                child: Text(l.componentsPrepare),
-              ),
-              TextButton(
-                onPressed: c.busy ? null : c.dismissComponents,
-                child: Text(l.runnerNotNow),
-              ),
-            ],
-          ),
-        ],
         if (plan != null) ...[
           const SizedBox(height: AppLayout.gap),
           Text(
@@ -135,11 +61,14 @@ class _PanelInstallationViewState extends State<PanelInstallationView> {
           if (plan.state == 'existing') Text(l.componentsExisting),
           if (!plan.supported) Text(l.componentsPrerequisites),
           if (!plan.portAvailable) Text(l.componentsPortBusy),
+          if (!plan.canApply)
+            TextButton(
+              onPressed: c.busy ? null : c.dismissComponents,
+              child: Text(l.runnerNotNow),
+            ),
           if (plan.canApply) ...[
             Text(l.componentsPlanSummary),
-            Text(l.panelInstallMethod),
-            Text('${l.componentsPort}: 127.0.0.1:${plan.port}'),
-            Text(l.componentsRunnerSummary),
+            Text(l.panelAutomaticAddress),
             ExpansionTile(
               key: PageStorageKey('panel-plan-details-${c.serverId}'),
               expansionAnimationStyle: AnimationStyle(
@@ -153,6 +82,7 @@ class _PanelInstallationViewState extends State<PanelInstallationView> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      Text(l.panelInstallMethod),
                       Text(l.componentsPlanBody),
                       Text(l.componentsDependencies),
                       const Text(
@@ -162,7 +92,7 @@ class _PanelInstallationViewState extends State<PanelInstallationView> {
                       Text(l.runnerPlanRelease),
                       Text(c.bundledRelease ?? ''),
                       const Text(
-                        '/usr/local/lib/antirkn-runner/v5/\n/var/lib/antirkn-runner/\n/etc/antirkn-runner/\n/etc/systemd/system/antirkn-runner.service',
+                        '/usr/local/lib/antirkn-runner/v7/\n/var/lib/antirkn-runner/\n/etc/antirkn-runner/\n/etc/systemd/system/antirkn-runner.service',
                       ),
                       Text(
                         'SHA-256 · ${(plan.bytes / (1024 * 1024)).toStringAsFixed(1)} MiB',
@@ -182,12 +112,6 @@ class _PanelInstallationViewState extends State<PanelInstallationView> {
                   child: Text(l.runnerApply),
                 ),
                 TextButton(
-                  onPressed: c.busy
-                      ? null
-                      : () => c.selectPanel(c.panelSelected),
-                  child: Text(l.componentsEditPlan),
-                ),
-                TextButton(
                   onPressed: c.busy ? null : c.dismissComponents,
                   child: Text(l.runnerNotNow),
                 ),
@@ -195,40 +119,92 @@ class _PanelInstallationViewState extends State<PanelInstallationView> {
             ),
           ],
         ],
-        if (access != null) ...[
-          const SizedBox(height: AppLayout.gap),
-          Text(
-            l.componentsPanelAccess,
-            style: Theme.of(context).textTheme.titleMedium,
+      ],
+    );
+  }
+}
+
+Future<void> showPanelAccess(BuildContext context, RunnerController c) =>
+    showDialog<void>(
+      context: context,
+      builder: (context) => _PanelAccessDialog(controller: c),
+    );
+
+class _PanelAccessDialog extends StatefulWidget {
+  const _PanelAccessDialog({required this.controller});
+  final RunnerController controller;
+  @override
+  State<_PanelAccessDialog> createState() => _PanelAccessDialogState();
+}
+
+class _PanelAccessDialogState extends State<_PanelAccessDialog> {
+  bool revealed = false;
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.controller,
+        l = AppLocalizations.of(context),
+        access = c.panelAccess;
+    return AlertDialog(
+      title: Text(l.componentsPanelAccess),
+      content: SizedBox(
+        width: 500,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (access != null) ...[
+                SelectableText(
+                  '${access.tls ? 'https' : 'http'}://127.0.0.1:${access.port}${access.basePath}',
+                ),
+                SelectableText(access.username),
+                Text(l.componentsAccessHelp),
+                const SizedBox(height: AppLayout.gap),
+                TextFormField(
+                  key: ValueKey('panel-secret-${access.id}-$revealed'),
+                  initialValue: access.password,
+                  readOnly: true,
+                  obscureText: !revealed,
+                  decoration: InputDecoration(
+                    labelText: l.componentsPassword,
+                    suffixIcon: IconButton(
+                      tooltip: revealed
+                          ? l.componentsHidePassword
+                          : l.componentsShowPassword,
+                      onPressed: () => setState(() => revealed = !revealed),
+                      icon: Icon(
+                        revealed ? Icons.visibility_off : Icons.visibility,
+                      ),
+                    ),
+                  ),
+                ),
+              ] else ...[
+                for (final panel in c.panels)
+                  SelectableText(
+                    '${panel['tls'] == true ? 'https' : 'http'}://${panel['listen']}:${panel['port']}${panel['basePath']}',
+                  ),
+                Text(l.panelObservedHelp),
+              ],
+              if (c.panelDiscovery?['cliAvailable'] == false &&
+                  c.panels.any((p) => p['source'] == 'systemd'))
+                TextButton(
+                  onPressed: c.canPlan
+                      ? () async {
+                          await c.installPanelCli();
+                          if (context.mounted) Navigator.pop(context);
+                        }
+                      : null,
+                  child: Text(l.panelCliInstall),
+                ),
+            ],
           ),
-          Text('3x-ui ${access.panelVersion} · Xray ${access.xrayVersion}'),
-          Text('127.0.0.1:${access.port} · ${access.username}'),
-          Text(l.componentsAccessHelp),
-          TextFormField(
-            key: ValueKey('panel-secret-${access.id}-$revealed'),
-            initialValue: access.password,
-            readOnly: true,
-            obscureText: !revealed,
-            decoration: InputDecoration(
-              labelText: l.componentsPassword,
-              suffixIcon: IconButton(
-                tooltip: revealed
-                    ? l.componentsHidePassword
-                    : l.componentsShowPassword,
-                onPressed: () => setState(() => revealed = !revealed),
-                icon: Icon(revealed ? Icons.visibility_off : Icons.visibility),
-              ),
-            ),
-          ),
-          if (c.panelVerifiedAt != null)
-            Text(
-              l.componentsVerified(
-                DateFormat.yMd(
-                  l.localeName,
-                ).add_Hm().format(c.panelVerifiedAt!.toLocal()),
-              ),
-            ),
-        ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(l.networkClose),
+        ),
       ],
     );
   }
