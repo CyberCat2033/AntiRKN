@@ -317,9 +317,11 @@ class _ManagerShellState extends State<ManagerShell>
       _vpn = VpnController(
         repository: widget.servers as VpnRepository,
         template: () => _controller.source,
-        serverIds: () => _catalog?.servers.map((s) => s.id) ?? const <String>[],
+        serverIds: () =>
+            _catalog?.servers.expand((s) => [s.id, awgTarget(s.id)]) ??
+            const <String>[],
         remote: (id) {
-          final runner = _catalog?.sessionFor(id)?.runner;
+          final runner = _catalog?.sessionFor(vpnServerId(id))?.runner;
           final transport = runner?.transport();
           final access = runner?.panelAccess;
           final identity = runner?.identity();
@@ -327,16 +329,16 @@ class _ManagerShellState extends State<ManagerShell>
               runner.busy ||
               !runner.installed ||
               transport == null ||
-              access == null ||
-              runner.panelVerifiedAt == null ||
+              (!isAwgTarget(id) &&
+                  (access == null || runner.panelVerifiedAt == null)) ||
               identity == null) {
             return null;
           }
           return VpnRemote(
             transport: transport,
-            panelId: access.id,
+            panelId: isAwgTarget(id) ? _vpn!.workspace.id : access!.id,
             observationKey:
-                '$identity|${runner.panelVerifiedAt!.toIso8601String()}',
+                '$identity|${runner.panelVerifiedAt?.toIso8601String()}|${identityHashCode(runner.installation)}',
             identity: identity,
             password: runner.password(),
             onSshFailure: runner.accessFailure,

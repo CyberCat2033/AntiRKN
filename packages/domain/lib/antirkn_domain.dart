@@ -1,3 +1,4 @@
+export 'src/awg.dart';
 export 'src/runner.dart';
 export 'src/component_updates.dart';
 export 'src/vpn.dart';

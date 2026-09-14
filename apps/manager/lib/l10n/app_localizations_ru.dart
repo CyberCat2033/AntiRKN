@@ -1799,4 +1799,82 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get panelUpdateCoreCompatibility =>
       'Xray 26.9.8/26.9.9 несовместим с REALITY-профилями проверенного Mihomo. Используем совместимое ядро 26.7.28; если оно уже установлено, его версия сохранится.';
+
+  @override
+  String get awgAdd => 'Добавить интерфейс';
+
+  @override
+  String get awgRefresh => 'Обновить состояние';
+
+  @override
+  String get awgEmpty => 'Управляемых AWG-интерфейсов пока нет.';
+
+  @override
+  String get awgConfirmed => 'Конфигурация подтверждена на сервере';
+
+  @override
+  String get awgHandshake => 'Последний handshake';
+
+  @override
+  String get awgNoHandshake => 'Клиент ещё не подключался';
+
+  @override
+  String get awgEndpoint => 'IP или домен для подключения';
+
+  @override
+  String get awgPort => 'UDP-порт';
+
+  @override
+  String get awgExternalPort => 'Внешний UDP-порт (NAT)';
+
+  @override
+  String get awgEndpointHelp =>
+      'Выберите IP для клиентских профилей. AWG слушает UDP-порт на всех адресах сервера. Свободный порт проверяется повторно при применении.';
+
+  @override
+  String get awgAdvanced => 'Дополнительные настройки';
+
+  @override
+  String get awgPool => 'IPv4-пул клиентов (CIDR)';
+
+  @override
+  String get awgPool6 => 'IPv6-пул ULA /64 (необязательно)';
+
+  @override
+  String get awgDefaultsHelp =>
+      'Значения по умолчанию основаны на AmneziaVPN 3.1. Ключи и адреса клиентов создаются автоматически и сохраняются при пересборке профиля. При RandomTrailers значения S1–S4 должны совпадать.';
+
+  @override
+  String get awgCps => 'Начальный пакет маскировки I1';
+
+  @override
+  String get awgNetworkPlan =>
+      'План включит IP forwarding, правила входящего UDP, пересылки и NAT для этого интерфейса. Изменение общих настроек обновит профили всех клиентов; возможен краткий перерыв соединений.';
+
+  @override
+  String get awgPrerequisites =>
+      'Для нового интерфейса установите управляемую AmneziaWG. Также нужны TUN, iptables/ip6tables и права администратора.';
+
+  @override
+  String get awgPoolConflict =>
+      'Пул пересекается с существующим маршрутом или интерфейсом. Выберите другой диапазон.';
+
+  @override
+  String get awgPoolFull =>
+      'В пуле недостаточно свободных адресов для клиентов.';
+
+  @override
+  String get awgObserved => 'Существующие установки';
+
+  @override
+  String get awgPeersPreserved =>
+      'Существующие peers, ключи и незатронутые поля будут сохранены. После смены общих параметров обновите ранее выданные клиентские конфигурации.';
+
+  @override
+  String get awgExternalUnsupported =>
+      'Просмотр доступен. Для изменения этой установки пока нет проверенного адаптера.';
+
+  @override
+  String get awgDockerPortHelp =>
+      'Порт опубликован Docker и сохраняется при редактировании. Его перенос требует отдельного пересоздания контейнера с новым сопоставлением портов.';
 }

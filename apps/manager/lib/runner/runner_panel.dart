@@ -109,7 +109,9 @@ class RunnerPanel extends StatelessWidget {
                   child: Text(l.runnerRetry),
                 ),
               ],
-              if (failed && job.kind == 'inbound_update')
+              if (failed &&
+                  (job.kind == 'inbound_update' ||
+                      job.kind == 'awg_external_edit'))
                 TextButton(
                   onPressed: c.canPlan
                       ? (c.resumePlan == null ? c.prepareResume : c.applyResume)
@@ -148,10 +150,10 @@ String runnerCodeLabel(AppLocalizations l, String code) => switch (code) {
   'panel_connect_unsupported' => l.panelConnectUnsupported,
   'panel_login_limited' => l.panelLoginLimited,
   'panel_api_failed' => l.componentsApiFailed,
-  'vless_conflict' => l.vpnConflict,
-  'vless_port_busy' => l.vpnPortBusy,
-  'vless_invalid' => l.vpnInvalid,
-  'vless_api_failed' => l.vpnFailed,
+  'vless_conflict' || 'awg_conflict' => l.vpnConflict,
+  'vless_port_busy' || 'awg_port_busy' => l.vpnPortBusy,
+  'vless_invalid' || 'awg_invalid' => l.vpnInvalid,
+  'vless_api_failed' || 'awg_failed' => l.vpnFailed,
   'busy' => l.runnerBusy,
   'conflict' => l.runnerConflict,
   'missing' => l.runnerMissing,
@@ -191,14 +193,14 @@ String runnerEventLabel(AppLocalizations l, String code) => switch (code) {
   'component_check_failed' => l.protocolCheckFailed,
   'component_prerequisites' => l.protocolPrerequisites,
   'component_partial' => l.componentsPartial,
-  'vless_preparing' => l.vpnPrepareStep,
-  'vless_applying' => l.vpnApplying,
-  'vless_checking' => l.vpnChecking,
-  'vless_conflict' => l.vpnConflict,
-  'vless_port_busy' => l.vpnPortBusy,
+  'vless_preparing' || 'awg_preparing' => l.vpnPrepareStep,
+  'vless_applying' || 'awg_applying' => l.vpnApplying,
+  'vless_checking' || 'awg_checking' => l.vpnChecking,
+  'vless_conflict' || 'awg_conflict' => l.vpnConflict,
+  'vless_port_busy' || 'awg_port_busy' => l.vpnPortBusy,
   'vless_partial' => l.vpnPartial,
-  'vless_invalid' => l.vpnInvalid,
-  'vless_api_failed' => l.vpnFailed,
+  'vless_invalid' || 'awg_invalid' => l.vpnInvalid,
+  'vless_api_failed' || 'awg_failed' => l.vpnFailed,
   'panel_update_preparing' => l.panelUpdatePreparing,
   'panel_update_backup' => l.panelUpdateBackup,
   'panel_update_switching' => l.panelUpdateSwitching,

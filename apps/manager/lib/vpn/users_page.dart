@@ -46,7 +46,7 @@ class UsersPage extends StatelessWidget {
                       label: Text(l.vpnAddUser),
                     ),
                     OutlinedButton(
-                      onPressed: c.busy || c.workspace.inbounds.isEmpty
+                      onPressed: c.busy || c.workspace.serverIds.isEmpty
                           ? null
                           : c.prepare,
                       child: Text(l.vpnPrepare),
@@ -103,7 +103,8 @@ class UsersPage extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: AppLayout.gap),
               child: SectionCard(
-                title: serverName(id),
+                title:
+                    '${serverName(vpnServerId(id))}${isAwgTarget(id) ? ' · AWG' : ''}',
                 child: VpnJobView(controller: c, serverId: id),
               ),
             ),
@@ -121,7 +122,7 @@ class UsersPage extends StatelessWidget {
     );
     if (result == null) return;
     await controller.saveUser(result);
-    if (controller.error == null && controller.workspace.inbounds.isNotEmpty) {
+    if (controller.error == null && controller.workspace.serverIds.isNotEmpty) {
       await controller.prepare();
     }
   }
@@ -256,7 +257,8 @@ class _ProfileDialogState extends State<_ProfileDialog> {
           widget.user.enabled &&
           result?.yaml != null &&
           result?.hasBlockingErrors == false &&
-          c.workspace.inbounds.any((r) => r.enabled && !r.deleted);
+          (c.workspace.inbounds.any((r) => r.enabled && !r.deleted) ||
+              c.workspace.awgInterfaces.any((r) => r.enabled && !r.deleted));
       return AlertDialog(
         title: Text('${l.vpnProfile} · ${widget.user.name}'),
         content: SizedBox(

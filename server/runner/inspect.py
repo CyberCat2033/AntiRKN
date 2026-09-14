@@ -13,12 +13,13 @@ BASE = Path('/usr/local/lib/antirkn-runner')
 UNIT = Path('/etc/systemd/system/antirkn-runner.service')
 LEGACY_PROGRAMS = ('runner.py', 'contract.py', 'panel.py', 'panel_api.py', 'panel_release.py', 'vless.py', 'vless_contract.py', 'components.py', 'component_releases.py', 'panel_discovery.py', 'apt.py', 'observed_inbounds.py')
 
-PROGRAMS = LEGACY_PROGRAMS + ('panel_update.py', 'panel_update_release.py')
+V9_PROGRAMS = LEGACY_PROGRAMS + ('panel_update.py', 'panel_update_release.py')
+PROGRAMS = V9_PROGRAMS + ('awg.py', 'awg_contract.py', 'awg_network.py', 'awg_external.py')
 
 def inspect_runner():
     hashes, unsafe = {}, False
     names_by_version = {'v1': ('runner.py', 'contract.py'),
-        'v2': ('runner.py', 'contract.py', 'panel.py', 'panel_api.py', 'panel_release.py'), 'v3': ('runner.py', 'contract.py', 'panel.py', 'panel_api.py', 'panel_release.py', 'vless.py', 'vless_contract.py'), 'v4': tuple(n for n in LEGACY_PROGRAMS if n not in ('panel_discovery.py', 'apt.py', 'observed_inbounds.py')), 'v5': tuple(n for n in LEGACY_PROGRAMS if n not in ('apt.py', 'observed_inbounds.py')), 'v6': LEGACY_PROGRAMS, 'v7': LEGACY_PROGRAMS, 'v8': PROGRAMS, 'v9': PROGRAMS}
+        'v2': ('runner.py', 'contract.py', 'panel.py', 'panel_api.py', 'panel_release.py'), 'v3': ('runner.py', 'contract.py', 'panel.py', 'panel_api.py', 'panel_release.py', 'vless.py', 'vless_contract.py'), 'v4': tuple(n for n in LEGACY_PROGRAMS if n not in ('panel_discovery.py', 'apt.py', 'observed_inbounds.py')), 'v5': tuple(n for n in LEGACY_PROGRAMS if n not in ('apt.py', 'observed_inbounds.py')), 'v6': LEGACY_PROGRAMS, 'v7': LEGACY_PROGRAMS, 'v8': V9_PROGRAMS, 'v9': V9_PROGRAMS, 'v10': PROGRAMS}
     directories = {BASE} | {BASE / version for version in names_by_version}
     paths = [BASE, UNIT]
     for version, names in names_by_version.items():
@@ -44,7 +45,7 @@ def inspect_runner():
     release, state, upgradable = None, 'missing', False
     try:
         predecessors = []
-        for version, expected in [('v1', PREDECESSOR), ('v2', PREDECESSOR_V2), ('v3', PREDECESSOR_V3), ('v4', PREDECESSOR_V4), ('v5', PREDECESSOR_V5), ('v6', PREDECESSOR_V6), ('v7', PREDECESSOR_V7), ('v8', PREDECESSOR_V8)]:
+        for version, expected in [('v1', PREDECESSOR), ('v2', PREDECESSOR_V2), ('v3', PREDECESSOR_V3), ('v4', PREDECESSOR_V4), ('v5', PREDECESSOR_V5), ('v6', PREDECESSOR_V6), ('v7', PREDECESSOR_V7), ('v8', PREDECESSOR_V8), ('v9', PREDECESSOR_V9)]:
             if hashes[str(BASE / version)]:
                 manifest = json.loads((BASE / version / 'manifest.json').read_text())
                 if isinstance(expected, list):
@@ -55,11 +56,11 @@ def inspect_runner():
                     if hashes[str(BASE / version / name)] != expected['hashes'][name]: raise ValueError()
                 predecessors.append(manifest)
         unit_hash = hashes[str(UNIT)]
-        if hashes[str(BASE / 'v9')]:
-            manifest = json.loads((BASE / 'v9/manifest.json').read_text())
+        if hashes[str(BASE / 'v10')]:
+            manifest = json.loads((BASE / 'v10/manifest.json').read_text())
             if set(manifest) != {'release','hashes'} or set(manifest['hashes']) != set(PROGRAMS) | {'antirkn-runner.service'}: raise ValueError()
             for name in PROGRAMS:
-                if hashes[str(BASE / 'v9' / name)] != manifest['hashes'][name]: raise ValueError()
+                if hashes[str(BASE / 'v10' / name)] != manifest['hashes'][name]: raise ValueError()
             expected = hashlib.sha256(json.dumps(manifest['hashes'], sort_keys=True).encode()).hexdigest()
             if manifest['release'] != expected: raise ValueError()
             release = expected

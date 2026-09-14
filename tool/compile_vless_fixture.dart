@@ -15,11 +15,17 @@ Future<void> main(List<String> args) async {
   final resource = input['resourceId'] as String;
   final selected = workspace.copy(
     inbounds: workspace.inbounds.where((r) => r.id == resource).toList(),
+    awgInterfaces: workspace.awgInterfaces
+        .where((r) => r.id == resource)
+        .toList(),
   );
   final result = const ProfileCompiler().compile(
     template: jsonEncode(input['template']),
     userId: user,
-    accesses: vlessUserAccesses(selected, user),
+    accesses: [
+      ...vlessUserAccesses(selected, user),
+      ...awgUserAccesses(selected, user),
+    ],
   );
   if (result.hasBlockingErrors || result.yaml == null) {
     stderr.writeln(result.diagnostics.map((e) => e.code).join(','));
@@ -27,5 +33,5 @@ Future<void> main(List<String> args) async {
     return;
   }
   await File(args[1]).writeAsString(result.yaml!, flush: true);
-  stdout.writeln('Compiled personal VLESS fixture with production compiler.');
+  stdout.writeln('Compiled personal VPN fixture with production compiler.');
 }

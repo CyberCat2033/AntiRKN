@@ -1,0 +1,19 @@
+{
+  "fixture": "Native config and real Docker container with official Amnezia paths and published UDP port; pinned AWG binaries, Ubuntu 24.04 base",
+  "results": {
+    "existing_discovery": true,
+    "native_and_docker_detected": true,
+    "native_snapshot_redacted": true,
+    "native_plan": true,
+    "native_edit": true,
+    "native_repeat": true,
+    "native_keys_and_peers_preserved": true,
+    "native_stale_plan_rejected": true,
+    "docker_snapshot_redacted": true,
+    "docker_plan": true,
+    "docker_edit": true,
+    "docker_repeat": true,
+    "docker_keys_and_peers_preserved": true,
+    "docker_stale_plan_rejected": true
+  }
+}

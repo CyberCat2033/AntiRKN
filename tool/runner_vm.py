@@ -81,6 +81,11 @@ def prepare():
         if not 1024 <= local <= 65535 or not 1024 <= guest <= 65535:
             raise ValueError('Invalid fixture forward')
         forwards += f',hostfwd=tcp:127.0.0.1:{local}-:{guest}'
+    for local, guest in json.loads(os.environ.get('ANTIRKN_VM_UDP_FORWARDS', '{}')).items():
+        local, guest = int(local), int(guest)
+        if not 1024 <= local <= 65535 or not 1024 <= guest <= 65535:
+            raise ValueError('Invalid fixture UDP forward')
+        forwards += f',hostfwd=udp:127.0.0.1:{local}-:{guest}'
     command = ['qemu-system-x86_64', '-accel', 'kvm' if os.access('/dev/kvm', os.R_OK | os.W_OK) else 'tcg', '-m', '1536', '-smp', '2', '-display', 'none',
                '-drive', f'file={DIRECTORY / "disk.qcow2"},if=virtio,format=qcow2',
                '-nic', f'user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:{port}-:22' + forwards,

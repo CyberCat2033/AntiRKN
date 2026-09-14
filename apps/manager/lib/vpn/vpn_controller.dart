@@ -34,7 +34,10 @@ ProfileResult _compile((String, String, String) input) {
     return const ProfileCompiler().compile(
       template: input.$2,
       userId: input.$3,
-      accesses: vlessUserAccesses(workspace, input.$3),
+      accesses: [
+        ...vlessUserAccesses(workspace, input.$3),
+        ...awgUserAccesses(workspace, input.$3),
+      ],
     );
   } on FormatException catch (e) {
     return ProfileResult(
@@ -142,6 +145,56 @@ class VpnController extends ChangeNotifier {
     plans = [];
     await _profiles();
   });
+  Future<Map<String, Object?>?> awgDefaults(String serverId) async {
+    Map<String, Object?>? result;
+    await _run((token) async {
+      final r = remote(awgTarget(serverId));
+      if (r == null) throw const FormatException('vpn_connection');
+      result = (await _request(
+        r,
+        RunnerRequest.awgDefaults(),
+        token,
+      )).awgDefaults;
+    });
+    return result;
+  }
+
+  Future<void> saveAwg(AwgInterface resource) => _run((token) async {
+    if (!loaded) return;
+    await _write(
+      workspace.copy(
+        awgInterfaces: [
+          ...workspace.awgInterfaces.where((r) => r.id != resource.id),
+          resource,
+        ],
+      ),
+    );
+    plans = [];
+    await _profiles();
+  });
+  RunnerRequest _planRequest(
+    String target,
+    String panel,
+    Map<String, Object?> payload,
+  ) => isAwgTarget(target)
+      ? RunnerRequest.awgPlan(workspace.id, payload)
+      : RunnerRequest.vlessPlan(panel, payload);
+  RunnerRequest _applyRequest(
+    String target,
+    String id,
+    Map<String, Object?> payload,
+    String fingerprint,
+  ) => isAwgTarget(target)
+      ? RunnerRequest.awgApply(id, payload, fingerprint)
+      : RunnerRequest.vlessApply(id, payload, fingerprint);
+  RunnerRequest _stateRequest(String target, String panel) =>
+      isAwgTarget(target)
+      ? RunnerRequest.awgState(workspace.id)
+      : RunnerRequest.vlessState(panel);
+  Map<String, dynamic>? _preview(RunnerResponse r, String target) =>
+      isAwgTarget(target) ? r.awgPlan : r.vlessPlan;
+  List<Map<String, dynamic>>? _observations(RunnerResponse r, String target) =>
+      isAwgTarget(target) ? r.awgState : r.vlessState;
   Future<void> saveInbound(VlessInbound inbound) => _run((token) async {
     if (!loaded) return;
     await _write(
@@ -171,7 +224,8 @@ class VpnController extends ChangeNotifier {
       if (response.code != 'ok' &&
           !(allowMissing && response.code == 'missing')) {
         throw FormatException(
-          response.code.startsWith('vless_')
+          (response.code.startsWith('vless_') ||
+                  response.code.startsWith('awg_'))
               ? response.code
               : 'vpn_${response.code}',
         );
@@ -198,7 +252,9 @@ class VpnController extends ChangeNotifier {
               previous['observingCancel'] == true)) {
         throw const FormatException('vpn_busy');
       }
-      final panelId = connection?.panelId ?? previous?['panelId'] as String?;
+      final panelId = isAwgTarget(id)
+          ? workspace.id
+          : connection?.panelId ?? previous?['panelId'] as String?;
       if (panelId == null) throw const FormatException('vpn_panel_required');
       final payload = workspace.desired(id, panelId);
       if (connection == null) {
@@ -211,11 +267,15 @@ class VpnController extends ChangeNotifier {
       }
       final response = await _request(
         connection,
-        RunnerRequest.vlessPlan(panelId, payload),
+        _planRequest(id, panelId, payload),
         token,
       );
-      if (response.vlessPlan == null) throw const FormatException('vpn_failed');
-      next.add(VpnPlan(id, payload, connection.identity, response.vlessPlan));
+      if (_preview(response, id) == null) {
+        throw const FormatException('vpn_failed');
+      }
+      next.add(
+        VpnPlan(id, payload, connection.identity, _preview(response, id)),
+      );
     }
     plans = next;
   });
@@ -246,7 +306,8 @@ class VpnController extends ChangeNotifier {
         'error': null,
         'pending': plan.preview == null
             ? null
-            : RunnerRequest.vlessApply(
+            : _applyRequest(
+                plan.serverId,
                 newVpnId(),
                 plan.payload,
                 plan.preview!['fingerprint'] as String,
@@ -323,13 +384,14 @@ class VpnController extends ChangeNotifier {
           }
           final preview = await _request(
             connection,
-            RunnerRequest.vlessPlan(connection.panelId, payload),
+            _planRequest(id, connection.panelId, payload),
             token,
           );
-          final request = RunnerRequest.vlessApply(
+          final request = _applyRequest(
+            id,
             newVpnId(),
             payload,
-            preview.vlessPlan!['fingerprint'] as String,
+            _preview(preview, id)!['fingerprint'] as String,
           );
           record = {
             ...record,
@@ -391,12 +453,12 @@ class VpnController extends ChangeNotifier {
             record = {...record, 'observingCancel': false};
             final state = await _request(
               connection,
-              RunnerRequest.vlessState(connection.panelId),
+              _stateRequest(id, connection.panelId),
               token,
             );
             record = {
               ...record,
-              'observed': state.vlessState,
+              'observed': _observations(state, id),
               'verifiedAt': DateTime.now().toUtc().toIso8601String(),
             };
             if (job.status == 'succeeded') {
@@ -407,9 +469,9 @@ class VpnController extends ChangeNotifier {
               final ids = (payload['resources'] as List)
                   .map((r) => (r as Map)['id'])
                   .toSet();
-              if (state.vlessState == null ||
+              if (_observations(state, id) == null ||
                   !ids.every(
-                    (rid) => state.vlessState!.any(
+                    (rid) => _observations(state, id)!.any(
                       (r) =>
                           r['id'] == rid &&
                           r['workspaceId'] == workspace.id &&
@@ -441,7 +503,11 @@ class VpnController extends ChangeNotifier {
         // reads/submits idempotently; it never fabricates a successful result.
         await _record(id, {...record, 'error': 'vpn_connection'});
       } on FormatException catch (e) {
-        await _record(id, {...record, 'error': e.message, 'paused': true});
+        await _record(id, {
+          ...record,
+          'error': e.message == 'vpn_busy' ? null : e.message,
+          'paused': e.message != 'vpn_busy',
+        });
       } on RunnerFailure {
         await _record(id, {...record, 'error': 'vpn_runner'});
       }
@@ -458,19 +524,39 @@ class VpnController extends ChangeNotifier {
     if (current['identity'] != null && current['identity'] != r.identity) {
       throw const FormatException('vpn_identity');
     }
-    final result = await _request(
-      r,
-      RunnerRequest.vlessState(r.panelId),
-      token,
-    );
+    final result = await _request(r, _stateRequest(id, r.panelId), token);
     await _record(id, {
       ...current,
       'identity': r.identity,
       'panelId': r.panelId,
-      'observed': result.vlessState,
+      'observed': _observations(result, id),
       'verifiedAt': DateTime.now().toUtc().toIso8601String(),
     });
-    final recovered = (result.vlessState ?? [])
+    if (isAwgTarget(id)) {
+      final recovered = (_observations(result, id) ?? [])
+          .where(
+            (o) =>
+                o['workspaceId'] == workspace.id &&
+                !workspace.awgInterfaces.any((i) => i.id == o['id']),
+          )
+          .map(
+            (o) => AwgInterface(
+              serverId: vpnServerId(id),
+              spec: Map<String, Object?>.from(o['spec'] as Map),
+            ),
+          )
+          .toList();
+      if (recovered.isNotEmpty) {
+        await _write(
+          workspace.copy(
+            awgInterfaces: [...workspace.awgInterfaces, ...recovered],
+          ),
+        );
+      }
+      await _profiles();
+      return;
+    }
+    final recovered = (_observations(result, id) ?? [])
         .where(
           (o) =>
               o['workspaceId'] == workspace.id &&

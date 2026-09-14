@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'awg.dart';
 import 'dart:math';
 import 'network/ip_address.dart';
 import 'vless_contract.g.dart';
@@ -117,10 +118,12 @@ final class VpnWorkspace {
     required this.id,
     List<VpnUser> users = const [],
     List<VlessInbound> inbounds = const [],
+    List<AwgInterface> awgInterfaces = const [],
     Map<String, Map<String, dynamic>> servers = const {},
     Map<String, Map<String, dynamic>> profiles = const {},
   }) : users = List.unmodifiable(users),
        inbounds = List.unmodifiable(inbounds),
+       awgInterfaces = List.unmodifiable(awgInterfaces),
        profiles = Map.unmodifiable(profiles),
        servers = Map.unmodifiable(
          servers.map(
@@ -132,14 +135,20 @@ final class VpnWorkspace {
         users.map((u) => u.id).toSet().length != users.length ||
         users.map((u) => u.login.toLowerCase()).toSet().length !=
             users.length ||
-        inbounds.map((i) => i.id).toSet().length != inbounds.length) {
+        <dynamic>{
+              ...inbounds.map((i) => i.id),
+              ...awgInterfaces.map((i) => i.id),
+            }.length !=
+            inbounds.length + awgInterfaces.length) {
       throw const FormatException('vpn_duplicate');
     }
   }
   factory VpnWorkspace.empty() => VpnWorkspace(id: newVpnId());
   factory VpnWorkspace.decode(String raw) {
     final j = jsonDecode(raw) as Map;
-    if (j['version'] != 1) throw const FormatException('vpn_version');
+    if (j['version'] != 1 && j['version'] != 2) {
+      throw const FormatException('vpn_version');
+    }
     return VpnWorkspace(
       id: j['id'] as String,
       users: (j['users'] as List)
@@ -149,6 +158,9 @@ final class VpnWorkspace {
           .map(
             (e) => VlessInbound.fromJson(Map<String, dynamic>.from(e as Map)),
           )
+          .toList(),
+      awgInterfaces: (j['awgInterfaces'] as List? ?? [])
+          .map((e) => AwgInterface.fromJson(e as Map))
           .toList(),
       profiles: (j['profiles'] as Map? ?? {}).map(
         (k, v) => MapEntry(k as String, Map<String, dynamic>.from(v as Map)),
@@ -161,28 +173,52 @@ final class VpnWorkspace {
   final String id;
   final List<VpnUser> users;
   final List<VlessInbound> inbounds;
+  final List<AwgInterface> awgInterfaces;
   final Map<String, Map<String, dynamic>> servers, profiles;
   String encode() => jsonEncode({
-    'version': 1,
+    'version': 2,
     'id': id,
     'users': users.map((e) => e.toJson()).toList(),
     'inbounds': inbounds.map((e) => e.toJson()).toList(),
+    'awgInterfaces': awgInterfaces.map((e) => e.toJson()).toList(),
     'servers': servers,
     'profiles': profiles,
   });
   VpnWorkspace copy({
     List<VpnUser>? users,
     List<VlessInbound>? inbounds,
+    List<AwgInterface>? awgInterfaces,
     Map<String, Map<String, dynamic>>? servers,
     Map<String, Map<String, dynamic>>? profiles,
   }) => VpnWorkspace(
     id: id,
     users: users ?? this.users,
     inbounds: inbounds ?? this.inbounds,
+    awgInterfaces: awgInterfaces ?? this.awgInterfaces,
     servers: servers ?? this.servers,
     profiles: profiles ?? this.profiles,
   );
   Map<String, Object?> desired(String serverId, String panelId) {
+    if (isAwgTarget(serverId)) {
+      final resources =
+          awgInterfaces
+              .where((r) => r.serverId == vpnServerId(serverId))
+              .toList()
+            ..sort((a, b) => a.id.compareTo(b.id));
+      final clients = users.toList()..sort((a, b) => a.id.compareTo(b.id));
+      final result = <String, Object?>{
+        'version': 1,
+        'protocol': 'awg',
+        'workspaceId': id,
+        'panelId': id,
+        'resources': resources.map((r) => r.spec).toList(),
+        'users': clients
+            .map((u) => <String, Object?>{'id': u.id, 'enabled': u.enabled})
+            .toList(),
+      };
+      validateAwgPayload(result);
+      return result;
+    }
     final resources = inbounds.where((i) => i.serverId == serverId).toList()
       ..sort((a, b) => a.id.compareTo(b.id));
     final clients = users.toList()..sort((a, b) => a.id.compareTo(b.id));
@@ -199,7 +235,10 @@ final class VpnWorkspace {
     return result;
   }
 
-  Set<String> get serverIds => inbounds.map((i) => i.serverId).toSet();
+  Set<String> get serverIds => {
+    ...inbounds.map((i) => i.serverId),
+    ...awgInterfaces.map((i) => awgTarget(i.serverId)),
+  };
   @override
   String toString() => 'VpnWorkspace(<redacted>)';
 }

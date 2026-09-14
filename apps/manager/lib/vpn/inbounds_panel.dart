@@ -15,6 +15,7 @@ class InboundsPanel extends StatelessWidget {
   const InboundsPanel({
     required this.controller,
     this.runner,
+    this.showPlan = true,
     this.serverHost = '',
     required this.serverId,
     required this.serverName,
@@ -23,6 +24,7 @@ class InboundsPanel extends StatelessWidget {
     super.key,
   });
   final VpnController controller;
+  final bool showPlan;
   final RunnerController? runner;
   final String serverHost;
   final String serverId;
@@ -148,7 +150,7 @@ class InboundsPanel extends StatelessWidget {
                 ),
               ),
             VpnJobView(controller: c, serverId: serverId),
-            VpnPlanView(controller: c, serverName: serverName),
+            if (showPlan) VpnPlanView(controller: c, serverName: serverName),
           ],
         ),
       );

@@ -19,6 +19,8 @@ from apt import AptJob, AptError, plan as apt_plan
 from contract import SCHEMA, validate_request
 from panel import PanelInstaller, PanelError, access_for, install_cli
 from panel_update import PanelUpdate, plan as panel_update_plan
+from awg_external import ExternalAwgEdit, discovery as awg_discovery, public_snapshot as awg_snapshot, plan as awg_external_plan
+from awg import AwgApply, AwgError, plan as awg_plan, state as awg_state, defaults as awg_defaults
 from vless import VlessApply, VlessError, parse_payload, plan as vless_plan, state as vless_state, panel_for
 
 STATE = Path('/var/lib/antirkn-runner')
@@ -52,6 +54,7 @@ class Store:
             self.db.execute('CREATE TABLE IF NOT EXISTS events (id TEXT NOT NULL, sequence INTEGER NOT NULL, event TEXT NOT NULL, PRIMARY KEY(id,sequence))')
             self.db.execute('CREATE TABLE IF NOT EXISTS health (id INTEGER PRIMARY KEY, heartbeat REAL NOT NULL)')
             self.db.execute('CREATE TABLE IF NOT EXISTS vless_resources (id TEXT PRIMARY KEY, data TEXT NOT NULL)')
+            self.db.execute('CREATE TABLE IF NOT EXISTS awg_resources (id TEXT PRIMARY KEY, data TEXT NOT NULL)')
             self.db.execute('PRAGMA user_version=1')
 
     def close(self):
@@ -98,6 +101,20 @@ class Store:
         if action == 'panel_discover':
             discovery, access = discover_panel(self)
             return {**self.response('ok'), 'panelDiscovery': discovery, 'panelAccess': access}
+        if action == 'awg_discover':
+            return {**self.response('ok'), 'awgExternal': awg_discovery()}
+        if action == 'awg_external_read':
+            return {**self.response('ok'), 'awgExternal': awg_snapshot(req['id'])}
+        if action == 'awg_external_plan':
+            return {**self.response('ok'), 'awgExternal': awg_external_plan(req)}
+        if action == 'awg_defaults':
+            return {**self.response('ok'), 'awgDefaults': awg_defaults(self)}
+        if action == 'awg_plan':
+            return {**self.response('ok'), 'awgPlan': awg_plan(self, req)}
+        if action == 'awg_state':
+            return {**self.response('ok'), 'awgState': awg_state(self, req['id'])}
+        if action == 'submit' and req['kind'] == 'awg_apply':
+            AwgApply(self, req)
         if action == 'vless_plan':
             return {**self.response('ok'), 'vlessPlan': vless_plan(self, req)}
         if action == 'vless_state':
@@ -149,7 +166,7 @@ class Store:
                 code = 'missing'
             elif action == 'resume':
                 original = json.loads(row['request'])
-                if original['kind'] not in ('panel_install', 'panel_update', 'vless_apply', 'component_install', 'inbound_update') or row['status'] not in ('failed', 'partially_applied'):
+                if original['kind'] not in ('panel_install', 'panel_update', 'vless_apply', 'awg_apply', 'awg_external_edit', 'component_install', 'inbound_update') or row['status'] not in ('failed', 'partially_applied'):
                     code = 'conflict'
                 elif self.db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running')").fetchone():
                     code = 'busy'
@@ -218,7 +235,7 @@ class Store:
                 self.db.execute('UPDATE jobs SET status=? WHERE id=?', (status, job_id))
                 self.event(job_id, code, progress, req['count'])
             return 0.1
-        if req['kind'] in ('vless_apply', 'inbound_update'):
+        if req['kind'] in ('vless_apply', 'awg_apply', 'awg_external_edit', 'inbound_update'):
             try:
                 if row['cancel']:
                     # After preflight, an API effect may already have happened
@@ -226,14 +243,14 @@ class Store:
                     status = 'partially_applied' if row['checkpoint'] > 0 else 'cancelled'
                     code = 'vless_partial' if status == 'partially_applied' else 'cancelled'
                 else:
-                    (ObservedInboundEdit(self, req) if req['kind'] == 'inbound_update' else VlessApply(self, req)).step(row['checkpoint'])
+                    (ObservedInboundEdit(self, req) if req['kind'] == 'inbound_update' else ExternalAwgEdit(self, req) if req['kind'] == 'awg_external_edit' else AwgApply(self, req) if req['kind'] == 'awg_apply' else VlessApply(self, req)).step(row['checkpoint'])
                     if row['checkpoint'] + 1 < req['count']:
                         return 0.1
                     status, code = 'succeeded', 'succeeded'
             except (VlessError, PanelError, OSError, ValueError, TypeError, KeyError, AttributeError, subprocess.SubprocessError):
                 # Upstream errors can contain credentials; never persist text.
                 error = sys.exc_info()[1]
-                code = error.code if isinstance(error, VlessError) else 'vless_api_failed'
+                code = error.code if isinstance(error, VlessError) else 'awg_failed' if req['kind'] in ('awg_apply', 'awg_external_edit') else 'vless_api_failed'
                 status = 'partially_applied' if row['checkpoint'] > 0 else 'failed'
             with self.db:
                 progress = self.db.execute('SELECT checkpoint FROM jobs WHERE id=?', (job_id,)).fetchone()[0]

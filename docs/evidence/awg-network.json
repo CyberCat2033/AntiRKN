@@ -1,0 +1,29 @@
+{
+  "mihomo": "1.19.30",
+  "awg": "3.1.20260828",
+  "tools": "3.1.20260812",
+  "os": "Ubuntu 24.04 x86_64",
+  "results": {
+    "pinned_mihomo": true,
+    "readback": true,
+    "confirmed_running": true,
+    "distinct_client_keys": true,
+    "mihomo_config": true,
+    "tcp_client_0": true,
+    "udp_client_0": true,
+    "plan": true,
+    "apply": true,
+    "idempotent_repeat": true,
+    "stable_keys_after_edit": true,
+    "revoked_old_profile": true,
+    "tcp_client_1": true,
+    "udp_client_1": true,
+    "restored": true
+  },
+  "mihomoArtifact": {
+    "url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.30/mihomo-linux-amd64-v1.19.30.gz",
+    "archiveSha256": "cf06ce2c7d1421bdbda14ee4a5b6046672dc35ebf8eecd8e77504ec3c0ed9a84",
+    "binarySha256": "3e92df24f5e80e86b9cf9183ceb7bb575f0bd132a9dc4081dae42e80f21076ae",
+    "verifiedAgainst": "official GitHub release asset digest; decompressed bytes matched executed binary"
+  }
+}

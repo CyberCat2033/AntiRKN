@@ -1,0 +1,96 @@
+{
+  "date": "2026-09-15",
+  "scope": "Owner-requested reduced checks for P4-AWG",
+  "checks": {
+    "python_runner_and_awg": {
+      "passed": 15,
+      "result": "PASS"
+    },
+    "dart_vpn_controller": {
+      "passed": 9,
+      "result": "PASS"
+    },
+    "flutter_vless_forms": {
+      "passed": 4,
+      "result": "PASS",
+      "locales": [
+        "ru",
+        "en"
+      ],
+      "widths": [
+        390,
+        1400
+      ],
+      "textScale": 2
+    },
+    "dart_awg_only_coordinator": {
+      "passed": 1,
+      "result": "PASS",
+      "coverage": [
+        "durable intent before submit",
+        "busy retry",
+        "personal credentials only",
+        "workspace v1 read and v2 roundtrip"
+      ]
+    },
+    "flutter_awg_form": {
+      "passed": 2,
+      "result": "PASS",
+      "locales": [
+        "ru",
+        "en"
+      ],
+      "width": 390,
+      "coverage": [
+        "manual endpoint",
+        "linked ports",
+        "advanced section opens without PageStorage crash"
+      ]
+    },
+    "flutter_analyze": "PASS",
+    "dart_format": "PASS",
+    "architecture_base_yml_localizations": "PASS",
+    "localizationKeysPerLanguage": 544,
+    "generated_contracts_and_bundle": "PASS",
+    "runner_v9_manifest_matches_previous_commit": "db6651e",
+    "final_runner_vm_readback": {
+      "managed_readback": true,
+      "existing_native_docker_discovery": true,
+      "managed_plan": true
+    },
+    "linux_x64_debug_build": "PASS",
+    "android_arm64_debug_build": "PASS"
+  },
+  "runner": {
+    "version": 10,
+    "release": "18af0ad2c523c90a7ce8973f8c30e4b55dcd39d0d913f7f92fe76cfbc1692a0c"
+  },
+  "artifacts": {
+    "apps/manager/build/linux/x64/debug/bundle/antirkn_manager": {
+      "size": 53696,
+      "sha256": "9fffcfee576434e574553b9b3cc8214dffa856e18bc973d1a78545ecfddd3d13"
+    },
+    "apps/manager/build/linux/x64/debug/bundle/data/flutter_assets/kernel_blob.bin": {
+      "size": 82004944,
+      "sha256": "1777ac3877fccc06f7598b23f2d961478f57af33768203ad0c8c8d9d0db08744"
+    },
+    "apps/manager/build/app/outputs/flutter-apk/app-debug.apk": {
+      "size": 117989790,
+      "sha256": "9d4cadc973022e9c50d0a2766dee5dd6fe6adb5fd32f9d21d928d3ef1775cb96"
+    }
+  },
+  "notTested": [
+    "full regression",
+    "full manual GUI acceptance",
+    "Android runtime",
+    "Windows",
+    "IPv6 transport",
+    "public VPS and censorship",
+    "multiple AWG servers and load",
+    "full crash/reboot/cancel matrix",
+    "actual runner v9 to v10 upgrade",
+    "unmodified official Amnezia Docker image"
+  ],
+  "adbUsed": false,
+  "pushAllowed": false
+}

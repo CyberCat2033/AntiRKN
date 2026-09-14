@@ -83,6 +83,36 @@ final class RunnerRequest {
       });
   factory RunnerRequest.list() =>
       RunnerRequest.fromJson({'version': 1, 'action': 'list'});
+  factory RunnerRequest.awgDefaults() =>
+      RunnerRequest.fromJson({'version': 1, 'action': 'awg_defaults'});
+  factory RunnerRequest.awgState(String workspaceId) => RunnerRequest.fromJson({
+    'version': 1,
+    'action': 'awg_state',
+    'id': workspaceId,
+  });
+  factory RunnerRequest.awgPlan(
+    String workspaceId,
+    Map<String, Object?> payload,
+  ) => RunnerRequest.fromJson({
+    'version': 1,
+    'action': 'awg_plan',
+    'id': workspaceId,
+    'payload': jsonEncode(payload),
+  });
+  factory RunnerRequest.awgApply(
+    String id,
+    Map<String, Object?> payload,
+    String fingerprint,
+  ) => RunnerRequest.fromJson({
+    'version': 1,
+    'action': 'submit',
+    'kind': 'awg_apply',
+    'id': id,
+    'count': (payload['resources'] as List).length + 2,
+    'interval': 1,
+    'payload': jsonEncode(payload),
+    'fingerprint': fingerprint,
+  });
   factory RunnerRequest.vlessPlan(
     String panelId,
     Map<String, Object?> payload,
@@ -213,6 +243,8 @@ final class RunnerJob {
           'panel_install',
           'panel_update',
           'vless_apply',
+          'awg_apply',
+          'awg_external_edit',
           'component_install',
           'inbound_update',
           'apt_update',
@@ -276,7 +308,21 @@ final class RunnerJob {
 
 final class RunnerResponse {
   RunnerResponse.fromJson(Map<String, dynamic> value)
-    : code = value['code'] as String,
+    : awgExternal = value['awgExternal'] == null
+          ? null
+          : Map<String, dynamic>.from(value['awgExternal'] as Map),
+      awgDefaults = value['awgDefaults'] == null
+          ? null
+          : Map<String, dynamic>.from(value['awgDefaults'] as Map),
+      awgPlan = value['awgPlan'] == null
+          ? null
+          : Map<String, dynamic>.from(value['awgPlan'] as Map),
+      awgState = value['awgState'] == null
+          ? null
+          : (value['awgState'] as List)
+                .map((v) => Map<String, dynamic>.from(v as Map))
+                .toList(),
+      code = value['code'] as String,
       panelUpdatePlan = value['panelUpdatePlan'] == null
           ? null
           : PanelUpdatePlan.fromJson(
@@ -336,6 +382,8 @@ final class RunnerResponse {
     }
   }
   final String code;
+  final Map<String, dynamic>? awgDefaults, awgPlan, awgExternal;
+  final List<Map<String, dynamic>>? awgState;
   final PanelUpdatePlan? panelUpdatePlan;
   final Map<String, dynamic>? inboundSnapshot, inboundPlan;
   final Map<String, dynamic>? aptPlan;

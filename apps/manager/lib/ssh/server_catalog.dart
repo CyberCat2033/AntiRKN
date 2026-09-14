@@ -8,6 +8,10 @@ import 'ssh_controller.dart';
 import 'ssh_panel.dart';
 import '../vpn/vpn_controller.dart';
 import '../vpn/inbounds_panel.dart';
+import '../vpn/awg_panel.dart';
+import '../vpn/awg_existing_panel.dart';
+import '../vpn/vpn_plan_view.dart';
+import 'package:antirkn_domain/antirkn_domain.dart';
 
 class ServerCatalog extends StatefulWidget {
   const ServerCatalog({
@@ -64,20 +68,49 @@ class _ServerCatalogState extends State<ServerCatalog> {
                   motion: widget.motion,
                   protocols: widget.vpn == null
                       ? null
-                      : InboundsPanel(
-                          controller: widget.vpn!,
-                          runner: session.runner,
-                          serverHost: session.host.text.trim(),
-                          serverId: c.selectedId!,
-                          serverName: (id) =>
-                              c.servers
-                                  .where((s) => s.id == id)
-                                  .firstOrNull
-                                  ?.profile
-                                  .displayName ??
-                              id,
-                          network: session.network,
-                          motion: widget.motion,
+                      : Column(
+                          children: [
+                            InboundsPanel(
+                              showPlan: false,
+                              controller: widget.vpn!,
+                              runner: session.runner,
+                              serverHost: session.host.text.trim(),
+                              serverId: c.selectedId!,
+                              serverName: (id) =>
+                                  c.servers
+                                      .where((s) => s.id == vpnServerId(id))
+                                      .firstOrNull
+                                      ?.profile
+                                      .displayName ??
+                                  id,
+                              network: session.network,
+                              motion: widget.motion,
+                            ),
+                            const SizedBox(height: AppLayout.gap),
+                            AwgPanel(
+                              controller: widget.vpn!,
+                              serverId: c.selectedId!,
+                              network: session.network,
+                              motion: widget.motion,
+                            ),
+                            AwgExistingPanel(
+                              runner: session.runner,
+                              motion: widget.motion,
+                            ),
+                            ListenableBuilder(
+                              listenable: widget.vpn!,
+                              builder: (context, _) => VpnPlanView(
+                                controller: widget.vpn!,
+                                serverName: (id) =>
+                                    c.servers
+                                        .where((s) => s.id == vpnServerId(id))
+                                        .firstOrNull
+                                        ?.profile
+                                        .displayName ??
+                                    id,
+                              ),
+                            ),
+                          ],
                         ),
                 ),
               ),

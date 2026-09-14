@@ -40,9 +40,10 @@ class VpnPlanView extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Text(
-                          serverName(p.serverId),
+                          '${serverName(vpnServerId(p.serverId))}${isAwgTarget(p.serverId) ? ' · AmneziaWG' : ''}',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
+                        if (isAwgTarget(p.serverId)) Text(l.awgNetworkPlan),
                         if (p.preview == null) Text(l.vpnOfflinePlan),
                         Text(
                           '${l.vpnUsers}: ${(p.payload['users'] as List).length}',
@@ -59,7 +60,11 @@ class VpnPlanView extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                Text(inboundSummary(r as Map)),
+                                Text(
+                                  isAwgTarget(p.serverId)
+                                      ? '${(r as Map)['name']} · UDP ${r['port']} → ${r['endpoint']}:${r['externalPort']}\n${r['pool']} · MTU ${r['mtu']}'
+                                      : inboundSummary(r as Map),
+                                ),
                                 if (r['security'] == 'reality' &&
                                     r['realitySeed'] != null)
                                   Text(l.vpnRealityKeyPlan),

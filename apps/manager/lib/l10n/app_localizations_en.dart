@@ -1793,4 +1793,81 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get panelUpdateCoreCompatibility =>
       'Xray 26.9.8/26.9.9 is incompatible with the verified Mihomo REALITY profiles. This plan uses compatible core 26.7.28; if already installed, its version stays the same.';
+
+  @override
+  String get awgAdd => 'Add interface';
+
+  @override
+  String get awgRefresh => 'Refresh state';
+
+  @override
+  String get awgEmpty => 'No managed AWG interfaces yet.';
+
+  @override
+  String get awgConfirmed => 'Configuration confirmed on server';
+
+  @override
+  String get awgHandshake => 'Last handshake';
+
+  @override
+  String get awgNoHandshake => 'Client has not connected yet';
+
+  @override
+  String get awgEndpoint => 'Connection IP or domain';
+
+  @override
+  String get awgPort => 'UDP port';
+
+  @override
+  String get awgExternalPort => 'External UDP port (NAT)';
+
+  @override
+  String get awgEndpointHelp =>
+      'Choose the IP for client profiles. AWG listens on the UDP port on all server addresses. The port is checked again before applying.';
+
+  @override
+  String get awgAdvanced => 'Advanced settings';
+
+  @override
+  String get awgPool => 'Client IPv4 pool (CIDR)';
+
+  @override
+  String get awgPool6 => 'IPv6 ULA pool /64 (optional)';
+
+  @override
+  String get awgDefaultsHelp =>
+      'Defaults follow AmneziaVPN 3.1. Client keys and addresses are generated automatically and retained when profiles are rebuilt. S1–S4 must match when RandomTrailers is enabled.';
+
+  @override
+  String get awgCps => 'Initial obfuscation packet I1';
+
+  @override
+  String get awgNetworkPlan =>
+      'The plan enables IP forwarding and this interface’s UDP, forwarding and NAT rules. Shared settings update all client profiles; connections may briefly stop.';
+
+  @override
+  String get awgPrerequisites =>
+      'A new interface requires managed AmneziaWG, TUN, iptables/ip6tables and administrator access.';
+
+  @override
+  String get awgPoolConflict =>
+      'The pool overlaps an existing route or interface. Choose another range.';
+
+  @override
+  String get awgPoolFull => 'The pool has insufficient free client addresses.';
+
+  @override
+  String get awgObserved => 'Existing installations';
+
+  @override
+  String get awgPeersPreserved =>
+      'Existing peers, keys and untouched fields will be preserved. Update previously issued client configurations after changing shared parameters.';
+
+  @override
+  String get awgExternalUnsupported =>
+      'Read-only: this installation has no verified editing adapter yet.';
+
+  @override
+  String get awgDockerPortHelp =>
+      'Docker publishes this port, so it is preserved when editing. Moving it requires recreating the container with a new port mapping.';
 }

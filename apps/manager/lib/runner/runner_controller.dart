@@ -408,6 +408,60 @@ class RunnerController extends ChangeNotifier {
     return success;
   }
 
+  Map<String, dynamic>? awgDiscovery;
+  Future<Map<String, dynamic>?> awgRequest(
+    String action, {
+    String? id,
+    Map<String, Object?>? payload,
+  }) async {
+    Map<String, dynamic>? result;
+    await _run((remote, token) async {
+      final response = await remote.request(
+        RunnerRequest.fromJson({
+          'version': 1,
+          'action': action,
+          'id': ?id,
+          if (payload != null) 'payload': jsonEncode(payload),
+        }),
+        token,
+        sudoPassword: password(),
+      );
+      token.check();
+      responseCode = response.code;
+      if (response.code != 'ok' || response.awgExternal == null) return;
+      result = response.awgExternal;
+      if (action == 'awg_discover') awgDiscovery = result;
+    });
+    return result;
+  }
+
+  Future<bool> applyExternalAwg(
+    Map<String, Object?> payload,
+    String fingerprint,
+  ) async {
+    if (!canStart || !installed) return false;
+    var success = false;
+    await _run((remote, token) async {
+      pending = RunnerRequest.fromJson({
+        'version': 1,
+        'action': 'submit',
+        'id': newVpnId(),
+        'kind': 'awg_external_edit',
+        'count': 3,
+        'interval': 1,
+        'payload': jsonEncode(payload),
+        'fingerprint': fingerprint,
+      });
+      selected = null;
+      cursor = 0;
+      await _save();
+      token.check();
+      await _submit(remote, token);
+      success = responseCode == 'ok';
+    });
+    return success;
+  }
+
   Future<Map<String, dynamic>?> scanReality(String target, String sni) async {
     final panel = panelAccess;
     if (panel == null || !installed || !connected || busy) return null;
@@ -868,6 +922,7 @@ class RunnerController extends ChangeNotifier {
           'panel_update',
           'component_install',
           'inbound_update',
+          'awg_external_edit',
         }.contains(selected?.kind) ||
         !const {'failed', 'partially_applied'}.contains(selected?.status)) {
       return;
@@ -1040,6 +1095,7 @@ class RunnerController extends ChangeNotifier {
           'component_install',
           'apt_upgrade',
           'inbound_update',
+          'awg_external_edit',
         }.contains(job.kind) &&
         (selected?.id != job.id || selected?.status != 'succeeded')) {
       _softwareRefreshPending = true;

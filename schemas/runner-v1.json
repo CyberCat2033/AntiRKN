@@ -34,7 +34,13 @@
           "inbound_read",
           "inbound_plan",
           "panel_connect",
-          "panel_update_plan"
+          "panel_update_plan",
+          "awg_defaults",
+          "awg_plan",
+          "awg_state",
+          "awg_discover",
+          "awg_external_read",
+          "awg_external_plan"
         ]
       },
       "id": {
@@ -51,7 +57,9 @@
           "apt_update",
           "apt_upgrade",
           "inbound_update",
-          "panel_update"
+          "panel_update",
+          "awg_apply",
+          "awg_external_edit"
         ]
       },
       "count": {
@@ -204,6 +212,35 @@
         "version",
         "action",
         "id"
+      ],
+      "awg_defaults": [
+        "version",
+        "action"
+      ],
+      "awg_plan": [
+        "version",
+        "action",
+        "id",
+        "payload"
+      ],
+      "awg_state": [
+        "version",
+        "action",
+        "id"
+      ],
+      "awg_discover": [
+        "version",
+        "action"
+      ],
+      "awg_external_read": [
+        "version",
+        "action",
+        "id"
+      ],
+      "awg_external_plan": [
+        "version",
+        "action",
+        "payload"
       ]
     },
     "submissions": {
@@ -281,6 +318,26 @@
         "interval",
         "panelId",
         "fingerprint"
+      ],
+      "awg_apply": [
+        "version",
+        "action",
+        "id",
+        "kind",
+        "count",
+        "interval",
+        "payload",
+        "fingerprint"
+      ],
+      "awg_external_edit": [
+        "version",
+        "action",
+        "id",
+        "kind",
+        "count",
+        "interval",
+        "payload",
+        "fingerprint"
       ]
     },
     "kindConstants": {
@@ -306,6 +363,10 @@
       },
       "panel_update": {
         "count": 6,
+        "interval": 1
+      },
+      "awg_external_edit": {
+        "count": 3,
         "interval": 1
       }
     }
@@ -388,7 +449,18 @@
     "panel_update_preparing",
     "panel_update_backup",
     "panel_update_switching",
-    "panel_update_incompatible"
+    "panel_update_incompatible",
+    "awg_invalid",
+    "awg_conflict",
+    "awg_port_busy",
+    "awg_prerequisites",
+    "awg_pool_conflict",
+    "awg_pool_full",
+    "awg_failed",
+    "awg_preparing",
+    "awg_applying",
+    "awg_checking",
+    "awg_port_mapping"
   ],
   "codes": [
     "ok",
@@ -406,7 +478,15 @@
     "panel_auth_failed",
     "panel_unreachable",
     "panel_connect_unsupported",
-    "panel_login_limited"
+    "panel_login_limited",
+    "awg_invalid",
+    "awg_conflict",
+    "awg_port_busy",
+    "awg_prerequisites",
+    "awg_pool_conflict",
+    "awg_pool_full",
+    "awg_failed",
+    "awg_port_mapping"
   ],
   "maxRequestBytes": 524288,
   "maxEvents": 256,

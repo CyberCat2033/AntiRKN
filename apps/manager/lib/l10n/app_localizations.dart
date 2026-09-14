@@ -3223,6 +3223,144 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Xray 26.9.8/26.9.9 is incompatible with the verified Mihomo REALITY profiles. This plan uses compatible core 26.7.28; if already installed, its version stays the same.'**
   String get panelUpdateCoreCompatibility;
+
+  /// No description provided for @awgAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add interface'**
+  String get awgAdd;
+
+  /// No description provided for @awgRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh state'**
+  String get awgRefresh;
+
+  /// No description provided for @awgEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No managed AWG interfaces yet.'**
+  String get awgEmpty;
+
+  /// No description provided for @awgConfirmed.
+  ///
+  /// In en, this message translates to:
+  /// **'Configuration confirmed on server'**
+  String get awgConfirmed;
+
+  /// No description provided for @awgHandshake.
+  ///
+  /// In en, this message translates to:
+  /// **'Last handshake'**
+  String get awgHandshake;
+
+  /// No description provided for @awgNoHandshake.
+  ///
+  /// In en, this message translates to:
+  /// **'Client has not connected yet'**
+  String get awgNoHandshake;
+
+  /// No description provided for @awgEndpoint.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection IP or domain'**
+  String get awgEndpoint;
+
+  /// No description provided for @awgPort.
+  ///
+  /// In en, this message translates to:
+  /// **'UDP port'**
+  String get awgPort;
+
+  /// No description provided for @awgExternalPort.
+  ///
+  /// In en, this message translates to:
+  /// **'External UDP port (NAT)'**
+  String get awgExternalPort;
+
+  /// No description provided for @awgEndpointHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose the IP for client profiles. AWG listens on the UDP port on all server addresses. The port is checked again before applying.'**
+  String get awgEndpointHelp;
+
+  /// No description provided for @awgAdvanced.
+  ///
+  /// In en, this message translates to:
+  /// **'Advanced settings'**
+  String get awgAdvanced;
+
+  /// No description provided for @awgPool.
+  ///
+  /// In en, this message translates to:
+  /// **'Client IPv4 pool (CIDR)'**
+  String get awgPool;
+
+  /// No description provided for @awgPool6.
+  ///
+  /// In en, this message translates to:
+  /// **'IPv6 ULA pool /64 (optional)'**
+  String get awgPool6;
+
+  /// No description provided for @awgDefaultsHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Defaults follow AmneziaVPN 3.1. Client keys and addresses are generated automatically and retained when profiles are rebuilt. S1–S4 must match when RandomTrailers is enabled.'**
+  String get awgDefaultsHelp;
+
+  /// No description provided for @awgCps.
+  ///
+  /// In en, this message translates to:
+  /// **'Initial obfuscation packet I1'**
+  String get awgCps;
+
+  /// No description provided for @awgNetworkPlan.
+  ///
+  /// In en, this message translates to:
+  /// **'The plan enables IP forwarding and this interface’s UDP, forwarding and NAT rules. Shared settings update all client profiles; connections may briefly stop.'**
+  String get awgNetworkPlan;
+
+  /// No description provided for @awgPrerequisites.
+  ///
+  /// In en, this message translates to:
+  /// **'A new interface requires managed AmneziaWG, TUN, iptables/ip6tables and administrator access.'**
+  String get awgPrerequisites;
+
+  /// No description provided for @awgPoolConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'The pool overlaps an existing route or interface. Choose another range.'**
+  String get awgPoolConflict;
+
+  /// No description provided for @awgPoolFull.
+  ///
+  /// In en, this message translates to:
+  /// **'The pool has insufficient free client addresses.'**
+  String get awgPoolFull;
+
+  /// No description provided for @awgObserved.
+  ///
+  /// In en, this message translates to:
+  /// **'Existing installations'**
+  String get awgObserved;
+
+  /// No description provided for @awgPeersPreserved.
+  ///
+  /// In en, this message translates to:
+  /// **'Existing peers, keys and untouched fields will be preserved. Update previously issued client configurations after changing shared parameters.'**
+  String get awgPeersPreserved;
+
+  /// No description provided for @awgExternalUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Read-only: this installation has no verified editing adapter yet.'**
+  String get awgExternalUnsupported;
+
+  /// No description provided for @awgDockerPortHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Docker publishes this port, so it is preserved when editing. Moving it requires recreating the container with a new port mapping.'**
+  String get awgDockerPortHelp;
 }
 
 class _AppLocalizationsDelegate
