@@ -21,7 +21,7 @@ def main():
     python(r'''
 import sys,json,os,subprocess,hashlib,shutil
 from pathlib import Path
-sys.path.insert(0,'/usr/local/lib/antirkn-runner/v4')
+sys.path.insert(0,'/usr/local/lib/antirkn-runner/v5')
 from components import extract,encode,installed
 from panel import atomic_file
 job=Path('/var/lib/antirkn-runner/component-'+('3'*32))

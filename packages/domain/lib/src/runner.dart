@@ -43,6 +43,14 @@ final class RunnerRequest {
         'component': plan.component,
         'fingerprint': plan.fingerprint,
       });
+  factory RunnerRequest.realityScan(String id, String target, String sni) =>
+      RunnerRequest.fromJson({
+        'version': 1,
+        'action': 'reality_scan',
+        'id': id,
+        'target': target,
+        'sni': sni,
+      });
   factory RunnerRequest.list() =>
       RunnerRequest.fromJson({'version': 1, 'action': 'list'});
   factory RunnerRequest.vlessPlan(
@@ -85,6 +93,10 @@ final class RunnerRequest {
     'action': 'panel_plan',
     'port': port,
   });
+  factory RunnerRequest.panelCli() =>
+      RunnerRequest.fromJson({'version': 1, 'action': 'panel_cli'});
+  factory RunnerRequest.panelDiscover() =>
+      RunnerRequest.fromJson({'version': 1, 'action': 'panel_discover'});
   factory RunnerRequest.panelVerify(String id) => RunnerRequest.fromJson({
     'version': 1,
     'action': 'panel_verify',
@@ -246,6 +258,12 @@ final class RunnerResponse {
           : ComponentPlan.fromJson(
               Map<String, dynamic>.from(value['componentPlan'] as Map),
             ),
+      panelDiscovery = value['panelDiscovery'] == null
+          ? null
+          : Map<String, dynamic>.from(value['panelDiscovery'] as Map),
+      realityScan = value['realityScan'] == null
+          ? null
+          : Map<String, dynamic>.from(value['realityScan'] as Map),
       panelVerified = value['panelVerified'] == true,
       vlessPlan = value['vlessPlan'] == null
           ? null
@@ -273,6 +291,8 @@ final class RunnerResponse {
   final PanelPlan? panelPlan;
   final ComponentPlan? componentPlan;
   final PanelAccess? panelAccess;
+  final Map<String, dynamic>? panelDiscovery;
+  final Map<String, dynamic>? realityScan;
   final bool panelVerified;
   final Map<String, dynamic>? vlessPlan;
   final List<Map<String, dynamic>>? vlessState;

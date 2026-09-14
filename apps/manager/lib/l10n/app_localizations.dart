@@ -2285,13 +2285,13 @@ abstract class AppLocalizations {
   /// No description provided for @vpnInboundHelp.
   ///
   /// In en, this message translates to:
-  /// **'Configure shared server settings here. Each client automatically receives personal access to every enabled inbound.'**
+  /// **'Each client receives personal access to enabled inbounds with an open lock. Close the lock to reserve an inbound for internal use.'**
   String get vpnInboundHelp;
 
   /// No description provided for @vpnNoInbounds.
   ///
   /// In en, this message translates to:
-  /// **'No managed inbounds on this server'**
+  /// **'No inbounds on this server'**
   String get vpnNoInbounds;
 
   /// No description provided for @vpnTransport.
@@ -2321,13 +2321,13 @@ abstract class AppLocalizations {
   /// No description provided for @vpnEndpoint.
   ///
   /// In en, this message translates to:
-  /// **'Client address (IP or domain)'**
+  /// **'Inbound address (IP or domain)'**
   String get vpnEndpoint;
 
   /// No description provided for @vpnExternalPort.
   ///
   /// In en, this message translates to:
-  /// **'Client port'**
+  /// **'Inbound port for connections'**
   String get vpnExternalPort;
 
   /// No description provided for @vpnSni.
@@ -2501,7 +2501,7 @@ abstract class AppLocalizations {
   /// No description provided for @vpnPanelRequired.
   ///
   /// In en, this message translates to:
-  /// **'Connect to the server, install or update the runner and verify the managed 3x-ui panel first.'**
+  /// **'Connect to the server to load the panel and inbounds. Client management requires access to the panel API.'**
   String get vpnPanelRequired;
 
   /// No description provided for @vpnStorage.
@@ -2603,7 +2603,7 @@ abstract class AppLocalizations {
   /// No description provided for @protocolSoftware.
   ///
   /// In en, this message translates to:
-  /// **'TrustTunnel and AmneziaWG'**
+  /// **'Protocol updates'**
   String get protocolSoftware;
 
   /// No description provided for @protocolExisting.
@@ -2717,13 +2717,13 @@ abstract class AppLocalizations {
   /// No description provided for @updatesCompatibility.
   ///
   /// In en, this message translates to:
-  /// **'Verified versions can be applied through the component plan. Newer unsupported releases require an app update.'**
+  /// **'New releases are checked for 3x-ui, Xray, TrustTunnel and AmneziaWG. Applying verified TrustTunnel/AmneziaWG updates is available through their plans; applying 3x-ui/Xray updates is not available yet.'**
   String get updatesCompatibility;
 
   /// No description provided for @updatesAvailable.
   ///
   /// In en, this message translates to:
-  /// **'{component}: update available {current} → {latest}. Open the component plan.'**
+  /// **'{component}: update available {current} → {latest}.'**
   String updatesAvailable(String component, String current, String latest);
 
   /// No description provided for @protocolRestart.
@@ -2737,6 +2737,234 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Installation requires Ubuntu x86_64, Python 3.8+/SQLite, systemd 235+ and ca-certificates. Free space: TrustTunnel — 150 MiB; AmneziaWG — 2000 MiB and an available /dev/net/tun.'**
   String get protocolPrerequisites;
+
+  /// No description provided for @componentManage.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage / update'**
+  String get componentManage;
+
+  /// No description provided for @panelObservedHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Existing panel detected. Its inbounds are shown below; the panel settings and existing clients are preserved.'**
+  String get panelObservedHelp;
+
+  /// No description provided for @panelDiscoveryFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Some panel settings could not be read. Refresh to retry.'**
+  String get panelDiscoveryFailed;
+
+  /// No description provided for @vpnInternal.
+  ///
+  /// In en, this message translates to:
+  /// **'Internal use'**
+  String get vpnInternal;
+
+  /// No description provided for @vpnClientAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Assign to clients'**
+  String get vpnClientAccess;
+
+  /// No description provided for @vpnInternalHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep the inbound enabled, exclude it from client profiles and revoke AntiRKN client access through the plan.'**
+  String get vpnInternalHelp;
+
+  /// No description provided for @vpnObserved.
+  ///
+  /// In en, this message translates to:
+  /// **'Existing · outside client management'**
+  String get vpnObserved;
+
+  /// No description provided for @vpnObservedHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Existing settings and clients are preserved. This inbound is not assigned to AntiRKN clients.'**
+  String get vpnObservedHelp;
+
+  /// No description provided for @panelCliHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Install the official x-ui command from 3x-ui 3.7.0. Panel settings, clients and service remain unchanged.'**
+  String get panelCliHelp;
+
+  /// No description provided for @panelCliInstall.
+  ///
+  /// In en, this message translates to:
+  /// **'Install x-ui management menu'**
+  String get panelCliInstall;
+
+  /// No description provided for @panelInstallMethod.
+  ///
+  /// In en, this message translates to:
+  /// **'Official GitHub release archive and x-ui.sh menu. AntiRKN installs and configures them in recoverable steps; upstream install.sh is not run.'**
+  String get panelInstallMethod;
+
+  /// No description provided for @vpnConnectionAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Inbound connection address'**
+  String get vpnConnectionAddress;
+
+  /// No description provided for @vpnConnectionAddressHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Uses the server address and listen port by default. Change these only when the inbound is reached through a different address or port (NAT / reverse proxy).'**
+  String get vpnConnectionAddressHelp;
+
+  /// No description provided for @xhttpAdvanced.
+  ///
+  /// In en, this message translates to:
+  /// **'XHTTP settings'**
+  String get xhttpAdvanced;
+
+  /// No description provided for @xhttpDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Default (leave empty)'**
+  String get xhttpDefault;
+
+  /// No description provided for @xmuxHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection reuse settings shared by this inbound’s client profiles. maxConcurrency and maxConnections cannot both be greater than zero. Ranges use min-max.'**
+  String get xmuxHelp;
+
+  /// No description provided for @xhttpHeaders.
+  ///
+  /// In en, this message translates to:
+  /// **'HTTP headers'**
+  String get xhttpHeaders;
+
+  /// No description provided for @vpnRegenerateReality.
+  ///
+  /// In en, this message translates to:
+  /// **'Regenerate REALITY keys and Short ID'**
+  String get vpnRegenerateReality;
+
+  /// No description provided for @vpnRealityAutomatic.
+  ///
+  /// In en, this message translates to:
+  /// **'REALITY keys and Short ID are generated automatically and kept when editing.'**
+  String get vpnRealityAutomatic;
+
+  /// No description provided for @vpnRealityRegenerated.
+  ///
+  /// In en, this message translates to:
+  /// **'New REALITY keys and Short ID will be applied with the plan. Client profiles will be rebuilt.'**
+  String get vpnRealityRegenerated;
+
+  /// No description provided for @vpnRealityKeyPlan.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply the selected REALITY key revision and rebuild client profiles.'**
+  String get vpnRealityKeyPlan;
+
+  /// No description provided for @realityScan.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan target'**
+  String get realityScan;
+
+  /// No description provided for @realityScanHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Checks TLS and the certificate from this server using 3x-ui. SNI follows Target until you change it.'**
+  String get realityScanHelp;
+
+  /// No description provided for @realityScanFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not check the target. Connect to the server and verify panel access.'**
+  String get realityScanFailed;
+
+  /// No description provided for @realityFeasible.
+  ///
+  /// In en, this message translates to:
+  /// **'Suitable for REALITY'**
+  String get realityFeasible;
+
+  /// No description provided for @realityNotFeasible.
+  ///
+  /// In en, this message translates to:
+  /// **'Not suitable for REALITY'**
+  String get realityNotFeasible;
+
+  /// No description provided for @realityScanPrivate.
+  ///
+  /// In en, this message translates to:
+  /// **'The target resolves to a private address.'**
+  String get realityScanPrivate;
+
+  /// No description provided for @realityScanTls.
+  ///
+  /// In en, this message translates to:
+  /// **'TLS 1.3 was not negotiated.'**
+  String get realityScanTls;
+
+  /// No description provided for @realityScanH2.
+  ///
+  /// In en, this message translates to:
+  /// **'HTTP/2 (h2) was not negotiated.'**
+  String get realityScanH2;
+
+  /// No description provided for @realityScanCurve.
+  ///
+  /// In en, this message translates to:
+  /// **'X25519 key exchange was not negotiated.'**
+  String get realityScanCurve;
+
+  /// No description provided for @realityScanCertificate.
+  ///
+  /// In en, this message translates to:
+  /// **'The certificate is not valid for this SNI or is not trusted.'**
+  String get realityScanCertificate;
+
+  /// No description provided for @realityScanUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The target could not complete a TLS handshake.'**
+  String get realityScanUnavailable;
+
+  /// No description provided for @realitySniUsed.
+  ///
+  /// In en, this message translates to:
+  /// **'SNI used'**
+  String get realitySniUsed;
+
+  /// No description provided for @realityCertificate.
+  ///
+  /// In en, this message translates to:
+  /// **'Certificate'**
+  String get realityCertificate;
+
+  /// No description provided for @realityCertificateExpiry.
+  ///
+  /// In en, this message translates to:
+  /// **'Certificate expires'**
+  String get realityCertificateExpiry;
+
+  /// No description provided for @realityKeyExchange.
+  ///
+  /// In en, this message translates to:
+  /// **'Key exchange'**
+  String get realityKeyExchange;
+
+  /// No description provided for @realityLatency.
+  ///
+  /// In en, this message translates to:
+  /// **'Latency, ms'**
+  String get realityLatency;
+
+  /// No description provided for @realityCertificateNames.
+  ///
+  /// In en, this message translates to:
+  /// **'Names from the certificate — select an SNI, then scan again'**
+  String get realityCertificateNames;
 }
 
 class _AppLocalizationsDelegate

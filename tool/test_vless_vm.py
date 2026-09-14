@@ -112,7 +112,7 @@ def fixtures():
     # supported API, allow only the two local test echo ports on this VM.
     python('''import sys,json,urllib.request,urllib.parse
 from pathlib import Path
-sys.path.insert(0,'/usr/local/lib/antirkn-runner/v4')
+sys.path.insert(0,'/usr/local/lib/antirkn-runner/v5')
 from runner import Store
 from vless import panel_for
 store=Store(Path('/var/lib/antirkn-runner'))
@@ -197,7 +197,7 @@ def network(state,resources,index,user_index=0,expected=True):
         try:
             sock,_=socks(port,1,'10.0.2.2',29880)
             with sock:
-                sock.sendall(b'GET / HTTP/1.0\r\nHost: fixture\r\n\r\n');data=b''
+                sock.sendall(b'GET / HTTP/1.0\r\nHost: 10.0.2.2\r\n\r\n');data=b''
                 while True:
                     b=sock.recv(4096)
                     if not b:break

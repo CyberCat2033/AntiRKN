@@ -71,7 +71,7 @@ def main():
     python('''
 import sys,json,os,hashlib
 from pathlib import Path
-sys.path.insert(0,'/usr/local/lib/antirkn-runner/v4')
+sys.path.insert(0,'/usr/local/lib/antirkn-runner/v5')
 from components import extract,encode,installed
 from panel import atomic_file
 base=Path('/usr/local/lib/antirkn-components/trusttunnel')

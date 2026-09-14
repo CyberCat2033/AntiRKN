@@ -56,7 +56,7 @@ class _PanelInstallationViewState extends State<PanelInstallationView> {
             ),
           ],
         ],
-        if (!c.choosingPanel && !installing)
+        if (!c.panelDetected && !c.choosingPanel && !installing)
           OutlinedButton.icon(
             key: const ValueKey('components-choose'),
             onPressed: c.connected && !c.busy && c.pending == null
@@ -65,6 +65,24 @@ class _PanelInstallationViewState extends State<PanelInstallationView> {
             icon: const Icon(Icons.add_box_outlined),
             label: Text(l.componentsInstall),
           ),
+        if (c.panelDetected && access == null) ...[
+          const Text('3x-ui / Xray'),
+          for (final panel in c.panels)
+            Text(
+              '${panel['tls'] == true ? 'https' : 'http'}://${panel['listen']}:${panel['port']}${panel['basePath']}',
+            ),
+          Text(l.panelObservedHelp),
+        ],
+        if (c.panelDetected &&
+            c.panelDiscovery?['cliAvailable'] == false &&
+            c.panels.any((p) => p['source'] == 'systemd')) ...[
+          Text(l.panelCliHelp),
+          OutlinedButton(
+            onPressed: c.connected && !c.busy ? c.installPanelCli : null,
+            child: Text(l.panelCliInstall),
+          ),
+        ],
+        if (c.panelDiscovery?['failed'] == true) Text(l.panelDiscoveryFailed),
         if (c.choosingPanel && plan?.canApply != true) ...[
           CheckboxListTile(
             key: const ValueKey('components-xray'),
@@ -119,6 +137,7 @@ class _PanelInstallationViewState extends State<PanelInstallationView> {
           if (!plan.portAvailable) Text(l.componentsPortBusy),
           if (plan.canApply) ...[
             Text(l.componentsPlanSummary),
+            Text(l.panelInstallMethod),
             Text('${l.componentsPort}: 127.0.0.1:${plan.port}'),
             Text(l.componentsRunnerSummary),
             ExpansionTile(
@@ -143,7 +162,7 @@ class _PanelInstallationViewState extends State<PanelInstallationView> {
                       Text(l.runnerPlanRelease),
                       Text(c.bundledRelease ?? ''),
                       const Text(
-                        '/usr/local/lib/antirkn-runner/v4/\n/var/lib/antirkn-runner/\n/etc/antirkn-runner/\n/etc/systemd/system/antirkn-runner.service',
+                        '/usr/local/lib/antirkn-runner/v5/\n/var/lib/antirkn-runner/\n/etc/antirkn-runner/\n/etc/systemd/system/antirkn-runner.service',
                       ),
                       Text(
                         'SHA-256 · ${(plan.bytes / (1024 * 1024)).toStringAsFixed(1)} MiB',
@@ -210,13 +229,6 @@ class _PanelInstallationViewState extends State<PanelInstallationView> {
               ),
             ),
         ],
-        if (access != null ||
-            c.selected?.kind == 'panel_install' &&
-                c.selected?.status == 'succeeded')
-          TextButton(
-            onPressed: c.connected && !c.busy ? c.verifyPanel : null,
-            child: Text(l.componentsVerifyApi),
-          ),
       ],
     );
   }

@@ -66,6 +66,14 @@ class VpnPlanView extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 Text(inboundSummary(r as Map)),
+                                if (r['security'] == 'reality' &&
+                                    r['realitySeed'] != null)
+                                  Text(l.vpnRealityKeyPlan),
+                                Text(
+                                  r['internal'] == true
+                                      ? l.vpnInternalHelp
+                                      : l.vpnClientAccess,
+                                ),
                                 Text(
                                   r['deleted'] == true
                                       ? l.vpnDeleteHelp

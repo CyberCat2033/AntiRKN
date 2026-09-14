@@ -5,6 +5,7 @@ Inputs/outputs are private stdin/stdout, never command arguments or logs.
 import http.cookiejar
 import json
 import urllib.request
+import urllib.parse
 
 
 class PanelApi:
@@ -15,14 +16,14 @@ class PanelApi:
             urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
         self.csrf = None
 
-    def call(self, path, data=None):
+    def call(self, path, data=None, *, form=False):
         headers = {'Connection': 'close', 'Origin': self.base}
         if self.csrf:
             headers['X-CSRF-Token'] = self.csrf
         if data is not None:
-            headers['Content-Type'] = 'application/json'
+            headers['Content-Type'] = 'application/x-www-form-urlencoded' if form else 'application/json'
         req = urllib.request.Request(self.base + path, headers=headers,
-            data=json.dumps(data).encode() if data is not None else None)
+            data=(urllib.parse.urlencode(data) if form else json.dumps(data)).encode() if data is not None else None)
         with self.client.open(req, timeout=20) as response:
             raw = response.read(4194305)
         if len(raw) > 4194304:

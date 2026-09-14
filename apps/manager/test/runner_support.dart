@@ -57,6 +57,8 @@ class FakeRunnerTransport implements RunnerTransport {
   int cancellations = 0;
   Completer<void>? submitGate;
   RunnerJob? job;
+  Map<String, dynamic>? discovery;
+  Map<String, dynamic>? recoveredAccess;
   String panelState = 'missing';
   String panelFingerprint = 'c' * 64;
   bool panelPortAvailable = true;
@@ -96,6 +98,11 @@ class FakeRunnerTransport implements RunnerTransport {
     var jobs = <RunnerJob>[];
     final extra = <String, Object?>{};
     switch (request.json['action']) {
+      case 'panel_discover':
+        extra['panelAccess'] = recoveredAccess;
+        extra['panelDiscovery'] =
+            discovery ??
+            {'panels': <Object?>[], 'failed': false, 'cliAvailable': false};
       case 'component_plan':
         extra['componentPlan'] = {
           'component': request.json['component'],

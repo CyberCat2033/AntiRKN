@@ -5,8 +5,8 @@ import 'dart:math';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/foundation.dart';
 
-/// One controller per server. Polling only observes; submit/cancel/install are
-/// explicit actions. The persisted request is written before any submission.
+/// One controller per server. Connection setup prepares the runner; polling
+/// observes jobs. Persist each job request before submitting it.
 class RunnerController extends ChangeNotifier {
   RunnerController({
     required this.serverId,
@@ -16,6 +16,7 @@ class RunnerController extends ChangeNotifier {
     required this.accessFailure,
     this.store,
     this.software,
+    this.refreshSoftware,
   }) {
     _timer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (!busy &&
@@ -29,6 +30,8 @@ class RunnerController extends ChangeNotifier {
     });
   }
   final String serverId;
+  final void Function()? refreshSoftware;
+  bool _softwareRefreshPending = false;
   final ServerSoftwareInventory? Function()? software;
   final RunnerTransport? Function() transport;
   final String? Function() identity;
@@ -52,7 +55,24 @@ class RunnerController extends ChangeNotifier {
   ComponentPlan? componentPlan;
   RunnerInstallation? componentRunnerPlan;
 
+  Map<String, dynamic>? panelDiscovery;
   PanelAccess? panelAccess;
+  ComponentPresence presence(VpnComponent component) =>
+      software
+          ?.call()
+          ?.components
+          .where((c) => c.component == component)
+          .firstOrNull
+          ?.presence ??
+      ComponentPresence.unknown;
+  bool get panelDetected =>
+      panelAccess != null ||
+      panels.isNotEmpty ||
+      presence(VpnComponent.panel) == ComponentPresence.detected;
+  List<Map<String, dynamic>> get panels =>
+      (panelDiscovery?['panels'] as List? ?? [])
+          .map((p) => Map<String, dynamic>.from(p as Map))
+          .toList();
   DateTime? panelVerifiedAt;
   bool choosingPanel = false;
   bool panelSelected = false;
@@ -100,7 +120,7 @@ class RunnerController extends ChangeNotifier {
   void connectionReady() {
     if (_disposed || busy || transport() == null) return;
     if (error == RunnerIssue.unavailable) error = null;
-    unawaited(refresh());
+    unawaited(refresh(prepare: true));
   }
 
   void disconnected() {
@@ -115,6 +135,7 @@ class RunnerController extends ChangeNotifier {
     panelRunnerPlan = null;
     choosingPanel = false;
     resumePlan = null;
+    panelVerifiedAt = null;
     connectionLost = selected?.terminal == false || pending != null;
     _notify();
   }
@@ -140,12 +161,16 @@ class RunnerController extends ChangeNotifier {
     cursor = 0;
     installation = null;
     panelAccess = null;
+    panelDiscovery = null;
     panelVerifiedAt = null;
     _identity = current;
     if (raw != null) {
       final json = decodeRunnerObject(raw);
       if (json['version'] != 1) throw const RunnerFailure(RunnerIssue.storage);
       if (json['identity'] == current) {
+        if (json['panelDiscovery'] case final Map discovery) {
+          panelDiscovery = Map<String, dynamic>.from(discovery);
+        }
         if (json['panelAccess'] case final Map access) {
           panelAccess = PanelAccess.fromJson(Map<String, dynamic>.from(access));
           panelVerifiedAt = DateTime.tryParse(
@@ -177,6 +202,7 @@ class RunnerController extends ChangeNotifier {
         'pending': pending?.json,
         'selected': selected?.toJson(),
         'cursor': cursor,
+        'panelDiscovery': panelDiscovery,
         'panelAccess': panelAccess?.toJson(),
         'panelVerifiedAt': panelVerifiedAt?.toUtc().toIso8601String(),
       }),
@@ -218,14 +244,31 @@ class RunnerController extends ChangeNotifier {
         _token = null;
       }
       _notify();
+      if (_softwareRefreshPending && !_disposed) {
+        _softwareRefreshPending = false;
+        refreshSoftware?.call();
+      }
     }
   }
 
-  Future<void> refresh() => _run((remote, token) async {
+  Future<void> refresh({bool prepare = false}) => _run((remote, token) async {
     installation = await remote.inspect(token);
     token.check();
     if (installation!.state == 'conflict') {
       throw const RunnerFailure(RunnerIssue.conflict);
+    }
+    if (prepare &&
+        installation!.supported &&
+        (installation!.release == null ||
+            installation!.upgradable ||
+            installation!.release == remote.bundledRelease) &&
+        (!installed || installation!.active == false)) {
+      installation = await remote.install(
+        installation!,
+        token,
+        sudoPassword: password(),
+      );
+      token.check();
     }
     if (installation!.release != null &&
         installation!.release != remote.bundledRelease) {
@@ -244,7 +287,66 @@ class RunnerController extends ChangeNotifier {
     jobs = list.jobs;
     final id = pending?.id ?? selected?.id ?? jobs.firstOrNull?.id;
     if (id != null) await _readJob(remote, token, id);
+    if (prepare) await _discoverPanel(remote, token);
   });
+
+  Future<Map<String, dynamic>?> scanReality(String target, String sni) async {
+    final panel = panelAccess;
+    if (panel == null || !installed || !connected || busy) return null;
+    Map<String, dynamic>? result;
+    await _run((remote, token) async {
+      final response = await remote.request(
+        RunnerRequest.realityScan(panel.id, target, sni),
+        token,
+        sudoPassword: password(),
+      );
+      token.check();
+      if (response.code != 'ok' || response.realityScan == null) {
+        throw const RunnerFailure(RunnerIssue.invalidResponse);
+      }
+      result = response.realityScan;
+    });
+    return result;
+  }
+
+  Future<void> installPanelCli() => _run((remote, token) async {
+    final result = await remote.request(
+      RunnerRequest.panelCli(),
+      token,
+      sudoPassword: password(),
+    );
+    token.check();
+    if (result.code != 'ok' || result.panelDiscovery == null) {
+      throw const RunnerFailure(RunnerIssue.installFailed);
+    }
+    panelDiscovery = result.panelDiscovery;
+    await _save();
+  });
+
+  Future<void> _discoverPanel(
+    RunnerTransport remote,
+    CancellationToken token,
+  ) async {
+    final result = await remote.request(
+      RunnerRequest.panelDiscover(),
+      token,
+      sudoPassword: password(),
+    );
+    token.check();
+    if (result.code != 'ok' || result.panelDiscovery == null) {
+      throw const RunnerFailure(RunnerIssue.invalidResponse);
+    }
+    panelDiscovery = result.panelDiscovery;
+    panelAccess = result.panelAccess;
+    panelVerifiedAt = null;
+    if (panelDetected) {
+      choosingPanel = false;
+      panelSelected = false;
+      panelPort = panels.firstOrNull?['port'] as int? ?? panelAccess?.port;
+    }
+    await _save();
+    if (panelAccess != null) await _verifyPanel(remote, token, panelAccess!.id);
+  }
 
   Future<void> prepareInstall() => _run((remote, token) async {
     final next = await remote.inspect(token);
@@ -268,7 +370,7 @@ class RunnerController extends ChangeNotifier {
   }
 
   void chooseComponents() {
-    if (busy) return;
+    if (busy || panelDetected) return;
     choosingPanel = true;
     panelSelected = false;
     panelPlan = null;
@@ -307,7 +409,10 @@ class RunnerController extends ChangeNotifier {
   }
 
   Future<void> preparePanel() {
-    if (!panelSelected || panelPort == null || pending != null) {
+    if (panelDetected ||
+        !panelSelected ||
+        panelPort == null ||
+        pending != null) {
       return Future.value();
     }
     return _run((remote, token) async {
@@ -648,6 +753,11 @@ class RunnerController extends ChangeNotifier {
     eventsTruncated =
         job.events.isNotEmpty &&
         job.events.first.sequence > requestedCursor + 1;
+    if (job.status == 'succeeded' &&
+        const {'panel_install', 'component_install'}.contains(job.kind) &&
+        (selected?.id != job.id || selected?.status != 'succeeded')) {
+      _softwareRefreshPending = true;
+    }
     selected = job.mergeEvents(selected);
     cursor = job.sequence;
     if (pending?.id == id) pending = null;

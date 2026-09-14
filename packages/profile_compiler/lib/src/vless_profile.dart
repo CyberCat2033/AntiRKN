@@ -12,7 +12,7 @@ List<PreparedProxy> vlessUserAccesses(VpnWorkspace workspace, String userId) {
   if (user == null || !user.enabled) return [];
   final proxies = <PreparedProxy>[];
   for (final inbound in workspace.inbounds.where(
-    (i) => i.enabled && !i.deleted,
+    (i) => i.enabled && !i.deleted && !i.internal,
   )) {
     final server = workspace.servers[inbound.serverId];
     if (server?['pending'] != null ||
@@ -50,7 +50,7 @@ List<PreparedProxy> vlessUserAccesses(VpnWorkspace workspace, String userId) {
       'udp': true,
       'tls': true,
       'servername': s['sni'],
-      'client-fingerprint': 'chrome',
+      'client-fingerprint': s['fingerprint'] ?? 'chrome',
       'packet-encoding': 'xudp',
       'network': inbound.transport == 'raw' ? 'tcp' : 'xhttp',
       if (inbound.transport == 'raw') 'flow': 'xtls-rprx-vision',
@@ -64,6 +64,7 @@ List<PreparedProxy> vlessUserAccesses(VpnWorkspace workspace, String userId) {
           'path': s['path'],
           'host': s['host'],
           'mode': s['mode'],
+          ...xhttpMihomoOptions(s['xhttp'] as Map? ?? {}),
         },
     };
     final proxy = PreparedProxy(

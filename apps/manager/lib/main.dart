@@ -317,6 +317,7 @@ class _ManagerShellState extends State<ManagerShell>
       _vpn = VpnController(
         repository: widget.servers as VpnRepository,
         template: () => _controller.source,
+        serverIds: () => _catalog?.servers.map((s) => s.id) ?? const <String>[],
         remote: (id) {
           final runner = _catalog?.sessionFor(id)?.runner;
           final transport = runner?.transport();
@@ -327,12 +328,15 @@ class _ManagerShellState extends State<ManagerShell>
               !runner.installed ||
               transport == null ||
               access == null ||
+              runner.panelVerifiedAt == null ||
               identity == null) {
             return null;
           }
           return VpnRemote(
             transport: transport,
             panelId: access.id,
+            observationKey:
+                '$identity|${runner.panelVerifiedAt!.toIso8601String()}',
             identity: identity,
             password: runner.password(),
             onSshFailure: runner.accessFailure,

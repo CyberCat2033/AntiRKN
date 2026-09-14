@@ -11,9 +11,11 @@ final class VpnRemote {
     required this.identity,
     this.password,
     this.onSshFailure,
+    this.observationKey,
   });
   final RunnerTransport transport;
   final String panelId, identity;
+  final String? observationKey;
   final String? password;
   final void Function(SshIssue)? onSshFailure;
 }
@@ -49,6 +51,7 @@ class VpnController extends ChangeNotifier {
     required this.repository,
     required this.remote,
     required this.template,
+    this.serverIds,
     Timer Function(Duration, void Function(Timer))? timer,
   }) {
     _timer = (timer ?? Timer.periodic)(
@@ -59,6 +62,8 @@ class VpnController extends ChangeNotifier {
   final VpnRepository repository;
   final VpnRemote? Function(String) remote;
   final String Function() template;
+  final Iterable<String> Function()? serverIds;
+  final Map<String, String> _observedConnections = {};
   Timer? _timer;
   CancellationToken? _token;
   bool _disposed = false;
@@ -267,8 +272,19 @@ class VpnController extends ChangeNotifier {
                   r['authorizedPayload'] != null &&
                       r['authorizedPayload'] != r['appliedPayload'])),
     );
-    if (!work && template() == _lastTemplate) return;
+    final fresh = (serverIds?.call() ?? const <String>[]).where((id) {
+      final connection = remote(id);
+      return connection?.observationKey != null &&
+          _observedConnections[id] != connection!.observationKey;
+    }).toList();
+    if (!work && fresh.isEmpty && template() == _lastTemplate) return;
     await _run((token) async {
+      for (final id in fresh) {
+        final connection = remote(id);
+        if (connection == null) continue;
+        await _refreshServer(id, token);
+        _observedConnections[id] = connection.observationKey!;
+      }
       if (work) await _reconcile(token);
       if (template() != _lastTemplate) await _profiles();
     });
@@ -433,7 +449,9 @@ class VpnController extends ChangeNotifier {
     if (changed) await _profiles();
   }
 
-  Future<void> refreshServer(String id) => _run((token) async {
+  Future<void> refreshServer(String id) =>
+      _run((token) => _refreshServer(id, token));
+  Future<void> _refreshServer(String id, CancellationToken token) async {
     final r = remote(id);
     if (r == null) throw const FormatException('vpn_connection');
     final current = workspace.servers[id] ?? {};
@@ -452,8 +470,27 @@ class VpnController extends ChangeNotifier {
       'observed': result.vlessState,
       'verifiedAt': DateTime.now().toUtc().toIso8601String(),
     });
+    final recovered = (result.vlessState ?? [])
+        .where(
+          (o) =>
+              o['workspaceId'] == workspace.id &&
+              !workspace.inbounds.any((i) => i.id == o['id']),
+        )
+        .map(
+          (o) => VlessInbound(
+            serverId: id,
+            spec: Map<String, Object?>.from(o['spec'] as Map),
+          ),
+        )
+        .toList();
+    if (recovered.isNotEmpty) {
+      await _write(
+        workspace.copy(inbounds: [...workspace.inbounds, ...recovered]),
+      );
+    }
     await _profiles();
-  });
+  }
+
   Future<void> cancel(String id) => _run((token) async {
     final record = workspace.servers[id];
     if (record == null) return;

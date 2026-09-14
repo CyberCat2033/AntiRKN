@@ -26,7 +26,10 @@
           "resume",
           "vless_plan",
           "vless_state",
-          "component_plan"
+          "component_plan",
+          "panel_discover",
+          "panel_cli",
+          "reality_scan"
         ]
       },
       "id": {
@@ -76,6 +79,16 @@
           "trusttunnel",
           "amneziawg"
         ]
+      },
+      "target": {
+        "type": "string",
+        "maxLength": 300,
+        "pattern": "^[A-Za-z0-9.\\[\\]:_-]+$"
+      },
+      "sni": {
+        "type": "string",
+        "maxLength": 253,
+        "pattern": "^[A-Za-z0-9._-]*$"
       }
     },
     "actions": {
@@ -137,6 +150,21 @@
         "version",
         "action",
         "component"
+      ],
+      "panel_discover": [
+        "version",
+        "action"
+      ],
+      "panel_cli": [
+        "version",
+        "action"
+      ],
+      "reality_scan": [
+        "version",
+        "action",
+        "id",
+        "target",
+        "sni"
       ]
     },
     "submissions": {

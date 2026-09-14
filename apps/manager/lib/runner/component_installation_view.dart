@@ -33,7 +33,16 @@ class ComponentInstallationView extends StatelessWidget {
                 onPressed: c.connected && !c.busy && c.pending == null
                     ? () => c.prepareComponent(entry.key)
                     : null,
-                child: Text(entry.value),
+                child: Text(
+                  c.presence(
+                            entry.key == 'trusttunnel'
+                                ? VpnComponent.trustTunnel
+                                : VpnComponent.amneziaWg,
+                          ) ==
+                          ComponentPresence.detected
+                      ? '${entry.value} · ${l.componentManage}'
+                      : '${entry.value} · ${l.componentsInstall}',
+                ),
               ),
             if (updates != null)
               TextButton(
@@ -42,38 +51,31 @@ class ComponentInstallationView extends StatelessWidget {
               ),
           ],
         ),
-        if (updates != null) UpdatesResult(controller: updates),
+        if (updates != null)
+          UpdatesResult(controller: updates, showVersions: true),
         if (updates?.suggestions == true)
           for (final observation
               in c.software?.call()?.components ?? <ComponentObservation>[])
-            if (observation.component == VpnComponent.trustTunnel ||
-                observation.component == VpnComponent.amneziaWg)
-              for (final installation in observation.installations)
-                if (installation.version?.value != null &&
-                    (observation.component == VpnComponent.trustTunnel ||
-                        installation.source == InstallationSource.binary))
-                  if (updates!.latest[observation.component ==
-                              VpnComponent.trustTunnel
-                          ? 'trusttunnel'
-                          : installation.identity.contains('tools') ||
-                                installation.identity.endsWith('/awg')
-                          ? 'amneziawgTools'
-                          : 'amneziawg']
-                      case final String latest)
-                    if (componentIsNewer(
-                          latest,
-                          installation.version!.value!,
-                        ) ==
-                        true)
-                      Text(
-                        l.updatesAvailable(
-                          observation.component == VpnComponent.trustTunnel
-                              ? 'TrustTunnel'
-                              : 'AmneziaWG',
-                          installation.version!.value!,
-                          latest,
+            for (final installation in observation.installations)
+              if (installation.version?.value case final String installed)
+                if (updates!.latest[releaseKey(
+                      observation.component,
+                      installation.identity,
+                    )]
+                    case final String latest)
+                  if (componentIsNewer(latest, installed) == true)
+                    Text(
+                      l.updatesAvailable(
+                        componentName(
+                          releaseKey(
+                            observation.component,
+                            installation.identity,
+                          ),
                         ),
+                        installed,
+                        latest,
                       ),
+                    ),
         if (plan != null) ...[
           Text(
             '${plan.component == 'trusttunnel' ? 'TrustTunnel' : 'AmneziaWG'} · ${plan.installedVersion ?? '—'} → ${plan.version}',
@@ -178,11 +180,7 @@ class UpdatesResult extends StatelessWidget {
         if (showVersions) ...[
           for (final entry in c.latest.entries)
             Text(
-              '${entry.key == 'trusttunnel'
-                  ? 'TrustTunnel'
-                  : entry.key == 'amneziawg'
-                  ? 'AmneziaWG Go'
-                  : 'amneziawg-tools'} · ${l.updatesLatest}: ${entry.value}',
+              '${componentName(entry.key)} · ${l.updatesLatest}: ${entry.value}',
             ),
           if (c.latest.isNotEmpty) Text(l.updatesCompatibility),
         ],
@@ -222,3 +220,22 @@ class ComponentUpdateSettings extends StatelessWidget {
     );
   }
 }
+
+String releaseKey(VpnComponent component, String identity) =>
+    switch (component) {
+      VpnComponent.panel => 'panel',
+      VpnComponent.xray => 'xray',
+      VpnComponent.trustTunnel => 'trusttunnel',
+      VpnComponent.amneziaWg =>
+        identity.contains('tools') || identity.endsWith('/awg')
+            ? 'amneziawgTools'
+            : 'amneziawg',
+    };
+String componentName(String key) => switch (key) {
+  'panel' => '3x-ui',
+  'xray' => 'Xray',
+  'trusttunnel' => 'TrustTunnel',
+  'amneziawg' => 'AmneziaWG Go',
+  'amneziawgTools' => 'amneziawg-tools',
+  _ => key,
+};

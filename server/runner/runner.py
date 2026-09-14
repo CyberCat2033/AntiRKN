@@ -12,10 +12,11 @@ import threading
 import subprocess
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from panel_discovery import discover as discover_panel
 from components import ComponentInstaller, ComponentError
 from contract import SCHEMA, validate_request
-from panel import PanelInstaller, PanelError, access_for
-from vless import VlessApply, VlessError, parse_payload, plan as vless_plan, state as vless_state
+from panel import PanelInstaller, PanelError, access_for, install_cli
+from vless import VlessApply, VlessError, parse_payload, plan as vless_plan, state as vless_state, panel_for
 
 STATE = Path('/var/lib/antirkn-runner')
 INPUT_PROMPT = '__ANTIRKN_RUNNER_INPUT__'
@@ -73,6 +74,17 @@ class Store:
     def request(self, request):
         req = validate_request(request)
         action = req['action']
+        if action == 'reality_scan':
+            result = panel_for(self, req['id']).call('/panel/api/server/scanRealityTarget',
+                dict(target=req['target'], sni=req['sni'], xver='0', allowPrivate='false'), form=True)
+            return {**self.response('ok'), 'realityScan': result}
+        if action == 'panel_cli':
+            install_cli()
+            discovery, access = discover_panel(self)
+            return {**self.response('ok'), 'panelDiscovery': discovery, 'panelAccess': access}
+        if action == 'panel_discover':
+            discovery, access = discover_panel(self)
+            return {**self.response('ok'), 'panelDiscovery': discovery, 'panelAccess': access}
         if action == 'vless_plan':
             return {**self.response('ok'), 'vlessPlan': vless_plan(self, req)}
         if action == 'vless_state':

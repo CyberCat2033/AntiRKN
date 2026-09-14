@@ -11,13 +11,13 @@ import sys
 
 BASE = Path('/usr/local/lib/antirkn-runner')
 UNIT = Path('/etc/systemd/system/antirkn-runner.service')
-PROGRAMS = ('runner.py', 'contract.py', 'panel.py', 'panel_api.py', 'panel_release.py', 'vless.py', 'vless_contract.py', 'components.py', 'component_releases.py')
+PROGRAMS = ('runner.py', 'contract.py', 'panel.py', 'panel_api.py', 'panel_release.py', 'vless.py', 'vless_contract.py', 'components.py', 'component_releases.py', 'panel_discovery.py')
 
 
 def inspect_runner():
     hashes, unsafe = {}, False
     names_by_version = {'v1': ('runner.py', 'contract.py'),
-        'v2': ('runner.py', 'contract.py', 'panel.py', 'panel_api.py', 'panel_release.py'), 'v3': ('runner.py', 'contract.py', 'panel.py', 'panel_api.py', 'panel_release.py', 'vless.py', 'vless_contract.py'), 'v4': PROGRAMS}
+        'v2': ('runner.py', 'contract.py', 'panel.py', 'panel_api.py', 'panel_release.py'), 'v3': ('runner.py', 'contract.py', 'panel.py', 'panel_api.py', 'panel_release.py', 'vless.py', 'vless_contract.py'), 'v4': tuple(n for n in PROGRAMS if n != 'panel_discovery.py'), 'v5': PROGRAMS}
     directories = {BASE} | {BASE / version for version in names_by_version}
     paths = [BASE, UNIT]
     for version, names in names_by_version.items():
@@ -43,7 +43,7 @@ def inspect_runner():
     release, state, upgradable = None, 'missing', False
     try:
         predecessors = []
-        for version, expected in [('v1', PREDECESSOR), ('v2', PREDECESSOR_V2), ('v3', PREDECESSOR_V3)]:
+        for version, expected in [('v1', PREDECESSOR), ('v2', PREDECESSOR_V2), ('v3', PREDECESSOR_V3), ('v4', PREDECESSOR_V4)]:
             if hashes[str(BASE / version)]:
                 manifest = json.loads((BASE / version / 'manifest.json').read_text())
                 if manifest != expected: raise ValueError()
@@ -51,11 +51,11 @@ def inspect_runner():
                     if hashes[str(BASE / version / name)] != expected['hashes'][name]: raise ValueError()
                 predecessors.append(manifest)
         unit_hash = hashes[str(UNIT)]
-        if hashes[str(BASE / 'v4')]:
-            manifest = json.loads((BASE / 'v4/manifest.json').read_text())
+        if hashes[str(BASE / 'v5')]:
+            manifest = json.loads((BASE / 'v5/manifest.json').read_text())
             if set(manifest) != {'release','hashes'} or set(manifest['hashes']) != set(PROGRAMS) | {'antirkn-runner.service'}: raise ValueError()
             for name in PROGRAMS:
-                if hashes[str(BASE / 'v4' / name)] != manifest['hashes'][name]: raise ValueError()
+                if hashes[str(BASE / 'v5' / name)] != manifest['hashes'][name]: raise ValueError()
             expected = hashlib.sha256(json.dumps(manifest['hashes'], sort_keys=True).encode()).hexdigest()
             if manifest['release'] != expected: raise ValueError()
             release = expected

@@ -52,12 +52,34 @@ class VlessTests(unittest.TestCase):
         return self.job(req)
     def test_two_inbounds_have_distinct_stable_personal_credentials(self):
         req=self.submit();self.assertEqual(self.finish(req)['status'],'succeeded')
+        self.assertTrue(all(r['sniffing']['enabled'] for r in self.api.rows))
+        self.assertEqual(self.api.rows[0]['sniffing']['destOverride'], ['http','tls','quic','fakedns'])
         observed=state(self.store,'b'*32);ids=[u['uuid'] for r in observed for u in r['clients']]
         self.assertEqual(len(set(ids)),4);self.assertTrue(all(r['confirmed'] for r in observed))
         self.assertNotIn(ids[0],self.store.db.execute('SELECT request FROM jobs').fetchone()[0])
         p=payload();p['resources'][0]['name']='Переименован';p['users'][0]['enabled']=False
         second=self.submit(p,2);self.assertEqual(self.finish(second)['status'],'succeeded')
         self.assertEqual(ids,[u['uuid'] for r in state(self.store,'b'*32) for u in r['clients']])
+    def test_internal_inbound_revokes_our_clients_and_reopens_with_same_credentials(self):
+        self.finish(self.submit())
+        before=[c['uuid'] for c in state(self.store,'b'*32)[0]['clients']]
+        p=payload();p['resources'][0]['internal']=True
+        self.assertEqual(self.finish(self.submit(p,2))['status'],'succeeded')
+        self.assertTrue(self.api.rows[0]['enable'])
+        self.assertEqual(self.api.rows[0]['settings']['clients'],[])
+        self.assertEqual(state(self.store,'b'*32)[0]['clients'],[])
+        p['resources'][0]['internal']=False
+        self.assertEqual(self.finish(self.submit(p,3))['status'],'succeeded')
+        self.assertEqual(before,[c['uuid'] for c in state(self.store,'b'*32)[0]['clients']])
+    def test_xhttp_options_reach_api_and_conflicts_are_rejected(self):
+        p=payload();p['resources'][1]['xhttp']={'xmux':{'maxConnections':'2-3','hKeepAlivePeriod':30},'xPaddingBytes':'200-400','headers':{'X-Fixture':'yes'},'noSSEHeader':True}
+        self.assertEqual(self.finish(self.submit(p))['status'],'succeeded')
+        observed=self.api.rows[1]['streamSettings']['xhttpSettings']
+        self.assertEqual(observed['xmux']['maxConnections'],'2-3')
+        self.assertEqual(observed['xPaddingBytes'],'200-400')
+        for extra in [{'xmux':{'maxConnections':'2','maxConcurrency':'4'}},{'xPaddingBytes':'400-200'},{'headers':{'Host':'bad'}},{'headers':{'X-Test':'bad\r\nInjected:yes'}},{'uplinkDataPlacement':'cookie'}]:
+            p['resources'][1]['xhttp']=extra
+            with self.subTest(extra=extra),self.assertRaises((ValueError,VlessError)): parse_payload(json.dumps(p))
     def test_crash_after_panel_effect_resumes_without_duplicate(self):
         req=self.submit();self.store.tick();self.api.crash=True;self.store.tick()
         self.assertEqual(self.job(req)['status'],'partially_applied');self.assertEqual(len(self.api.rows),1)
@@ -99,4 +121,21 @@ class VlessTests(unittest.TestCase):
         with patch('vless.command',return_value=b'Hostname example.com does NOT match certificate\n'):
             with self.assertRaises(VlessError):self.submit(p)
         self.assertEqual(self.api.effects,0)
+
+class RealityMaterialTests(unittest.TestCase):
+    def test_regenerate_changes_only_reality_material_and_is_stable_on_retry(self):
+        from vless import material
+        with tempfile.TemporaryDirectory() as directory:
+            key=Path(directory)/'key';key.write_bytes(bytes(range(32)))
+            with patch('vless.KEY',key),patch('vless.safe_file'):
+                original=material('a'*32,'b'*32)
+                regenerated=material('a'*32,'b'*32,'c'*32)
+                self.assertEqual(regenerated,material('a'*32,'b'*32,'c'*32))
+                self.assertNotEqual(original['publicKey'],regenerated['publicKey'])
+                self.assertNotEqual(original['shortId'],regenerated['shortId'])
+                self.assertEqual([len(x) for x in regenerated['shortIds']],list(range(2,17,2)))
+                before=client_id('a'*32,'b'*32,'d'*32)
+                material('a'*32,'b'*32,'e'*32)
+                self.assertEqual(before,client_id('a'*32,'b'*32,'d'*32))
+
 if __name__=='__main__':unittest.main()

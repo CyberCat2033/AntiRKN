@@ -1247,10 +1247,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get vpnInboundHelp =>
-      'Configure shared server settings here. Each client automatically receives personal access to every enabled inbound.';
+      'Each client receives personal access to enabled inbounds with an open lock. Close the lock to reserve an inbound for internal use.';
 
   @override
-  String get vpnNoInbounds => 'No managed inbounds on this server';
+  String get vpnNoInbounds => 'No inbounds on this server';
 
   @override
   String get vpnTransport => 'Transport';
@@ -1265,10 +1265,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get vpnPort => 'Listen port';
 
   @override
-  String get vpnEndpoint => 'Client address (IP or domain)';
+  String get vpnEndpoint => 'Inbound address (IP or domain)';
 
   @override
-  String get vpnExternalPort => 'Client port';
+  String get vpnExternalPort => 'Inbound port for connections';
 
   @override
   String get vpnSni => 'Server name (SNI)';
@@ -1367,7 +1367,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get vpnPanelRequired =>
-      'Connect to the server, install or update the runner and verify the managed 3x-ui panel first.';
+      'Connect to the server to load the panel and inbounds. Client management requires access to the panel API.';
 
   @override
   String get vpnStorage =>
@@ -1426,7 +1426,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'REALITY uses minClientVer=1.8.2 for Mihomo compatibility. Xray warns of increased detection risk when lowering this threshold. Compatibility tests do not establish resistance to blocking.';
 
   @override
-  String get protocolSoftware => 'TrustTunnel and AmneziaWG';
+  String get protocolSoftware => 'Protocol updates';
 
   @override
   String get protocolExisting =>
@@ -1494,11 +1494,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get updatesCompatibility =>
-      'Verified versions can be applied through the component plan. Newer unsupported releases require an app update.';
+      'New releases are checked for 3x-ui, Xray, TrustTunnel and AmneziaWG. Applying verified TrustTunnel/AmneziaWG updates is available through their plans; applying 3x-ui/Xray updates is not available yet.';
 
   @override
   String updatesAvailable(String component, String current, String latest) {
-    return '$component: update available $current → $latest. Open the component plan.';
+    return '$component: update available $current → $latest.';
   }
 
   @override
@@ -1509,4 +1509,134 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get protocolPrerequisites =>
       'Installation requires Ubuntu x86_64, Python 3.8+/SQLite, systemd 235+ and ca-certificates. Free space: TrustTunnel — 150 MiB; AmneziaWG — 2000 MiB and an available /dev/net/tun.';
+
+  @override
+  String get componentManage => 'Manage / update';
+
+  @override
+  String get panelObservedHelp =>
+      'Existing panel detected. Its inbounds are shown below; the panel settings and existing clients are preserved.';
+
+  @override
+  String get panelDiscoveryFailed =>
+      'Some panel settings could not be read. Refresh to retry.';
+
+  @override
+  String get vpnInternal => 'Internal use';
+
+  @override
+  String get vpnClientAccess => 'Assign to clients';
+
+  @override
+  String get vpnInternalHelp =>
+      'Keep the inbound enabled, exclude it from client profiles and revoke AntiRKN client access through the plan.';
+
+  @override
+  String get vpnObserved => 'Existing · outside client management';
+
+  @override
+  String get vpnObservedHelp =>
+      'Existing settings and clients are preserved. This inbound is not assigned to AntiRKN clients.';
+
+  @override
+  String get panelCliHelp =>
+      'Install the official x-ui command from 3x-ui 3.7.0. Panel settings, clients and service remain unchanged.';
+
+  @override
+  String get panelCliInstall => 'Install x-ui management menu';
+
+  @override
+  String get panelInstallMethod =>
+      'Official GitHub release archive and x-ui.sh menu. AntiRKN installs and configures them in recoverable steps; upstream install.sh is not run.';
+
+  @override
+  String get vpnConnectionAddress => 'Inbound connection address';
+
+  @override
+  String get vpnConnectionAddressHelp =>
+      'Uses the server address and listen port by default. Change these only when the inbound is reached through a different address or port (NAT / reverse proxy).';
+
+  @override
+  String get xhttpAdvanced => 'XHTTP settings';
+
+  @override
+  String get xhttpDefault => 'Default (leave empty)';
+
+  @override
+  String get xmuxHelp =>
+      'Connection reuse settings shared by this inbound’s client profiles. maxConcurrency and maxConnections cannot both be greater than zero. Ranges use min-max.';
+
+  @override
+  String get xhttpHeaders => 'HTTP headers';
+
+  @override
+  String get vpnRegenerateReality => 'Regenerate REALITY keys and Short ID';
+
+  @override
+  String get vpnRealityAutomatic =>
+      'REALITY keys and Short ID are generated automatically and kept when editing.';
+
+  @override
+  String get vpnRealityRegenerated =>
+      'New REALITY keys and Short ID will be applied with the plan. Client profiles will be rebuilt.';
+
+  @override
+  String get vpnRealityKeyPlan =>
+      'Apply the selected REALITY key revision and rebuild client profiles.';
+
+  @override
+  String get realityScan => 'Scan target';
+
+  @override
+  String get realityScanHelp =>
+      'Checks TLS and the certificate from this server using 3x-ui. SNI follows Target until you change it.';
+
+  @override
+  String get realityScanFailed =>
+      'Could not check the target. Connect to the server and verify panel access.';
+
+  @override
+  String get realityFeasible => 'Suitable for REALITY';
+
+  @override
+  String get realityNotFeasible => 'Not suitable for REALITY';
+
+  @override
+  String get realityScanPrivate => 'The target resolves to a private address.';
+
+  @override
+  String get realityScanTls => 'TLS 1.3 was not negotiated.';
+
+  @override
+  String get realityScanH2 => 'HTTP/2 (h2) was not negotiated.';
+
+  @override
+  String get realityScanCurve => 'X25519 key exchange was not negotiated.';
+
+  @override
+  String get realityScanCertificate =>
+      'The certificate is not valid for this SNI or is not trusted.';
+
+  @override
+  String get realityScanUnavailable =>
+      'The target could not complete a TLS handshake.';
+
+  @override
+  String get realitySniUsed => 'SNI used';
+
+  @override
+  String get realityCertificate => 'Certificate';
+
+  @override
+  String get realityCertificateExpiry => 'Certificate expires';
+
+  @override
+  String get realityKeyExchange => 'Key exchange';
+
+  @override
+  String get realityLatency => 'Latency, ms';
+
+  @override
+  String get realityCertificateNames =>
+      'Names from the certificate — select an SNI, then scan again';
 }

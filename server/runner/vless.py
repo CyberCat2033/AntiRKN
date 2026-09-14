@@ -61,6 +61,16 @@ def parse_payload(raw):
             target = urlsplit('//' + r['target'])
             if not target.hostname or not target.port: raise ValueError()
             if '..' in Path(r['certificate']).parts or '..' in Path(r['certificateKey']).parts: raise ValueError()
+            extra = r.get('xhttp', {})
+            if extra and r['transport'] != 'xhttp': raise ValueError()
+            if any(k.lower() == 'host' for k in extra.get('headers', {})): raise ValueError()
+            if (extra.get('uplinkHTTPMethod') == 'GET' or extra.get('uplinkDataPlacement') in ('header','cookie')) and r['mode'] != 'packet-up': raise ValueError()
+            lower = lambda v: int(str(v).split('-')[0])
+            upper = lambda v: int(str(v).split('-')[-1])
+            if 'xPaddingBytes' in extra and lower(extra['xPaddingBytes']) == 0 and upper(extra['xPaddingBytes']) > 0: raise ValueError()
+            xmux = extra.get('xmux', {})
+            if upper(xmux.get('maxConcurrency',0)) > 0 and upper(xmux.get('maxConnections',0)) > 0: raise ValueError()
+            if 'sessionIDTable' in extra and not 10 <= lower(extra.get('sessionIDLength','16-32')) <= upper(extra.get('sessionIDLength','16-32')) <= 128: raise ValueError()
             if r['deleted'] and r['enabled']: raise ValueError()
         except (ValueError, TypeError): raise VlessError()
     return value
@@ -77,8 +87,8 @@ def secret(label):
     return hmac.new(key, ('vless-v1/' + label).encode(), hashlib.sha256).digest()
 
 
-def material(workspace, resource):
-    label = workspace + '/' + resource
+def material(workspace, resource, seed=None):
+    label = workspace + '/' + resource + ('/' + seed if seed is not None else '')
     private = secret('reality/' + label)
     # PKCS#8 X25519 private key; OpenSSL does the curve operation. No homemade
     # crypto and no private key in process arguments.
@@ -86,7 +96,8 @@ def material(workspace, resource):
     public = command(['/usr/bin/openssl', 'pkey', '-inform', 'DER', '-pubout', '-outform', 'DER'], input_data=der)
     if len(public) != 44: raise VlessError()
     b64 = lambda b: base64.urlsafe_b64encode(b).decode().rstrip('=')
-    return dict(privateKey=b64(private), publicKey=b64(public[-32:]), shortId=secret('short/' + label).hex()[:16])
+    return dict(privateKey=b64(private), publicKey=b64(public[-32:]), shortId=secret('short/' + label).hex()[:16],
+        shortIds=[secret('short/' + label + '/' + str(n)).hex()[:2*n] for n in range(1, 8)] + [secret('short/' + label).hex()[:16]])
 
 
 def client_id(workspace, resource, user):
@@ -148,12 +159,12 @@ def subset(wanted, actual):
 
 
 def wanted_inbound(payload, r, current=None):
-    keys = material(payload['workspaceId'], r['id'])
+    keys = material(payload['workspaceId'], r['id'], r.get('realitySeed'))
     clients = [dict(id=client_id(payload['workspaceId'], r['id'], u['id']),
         email='ar_' + r['id'] + '_' + u['id'], enable=u['enabled'],
         flow='xtls-rprx-vision' if r['transport'] == 'raw' else '',
         totalGB=0, expiryTime=0, limitIp=0, tgId=0, subId='', reset=0)
-        for u in payload['users']]
+        for u in payload['users'] if not r.get('internal', False)]
     stream = dict(network='tcp' if r['transport'] == 'raw' else 'xhttp', security=r['security'])
     if r['security'] == 'reality':
         stream['realitySettings'] = dict(show=False, target=r['target'], xver=0,
@@ -161,17 +172,19 @@ def wanted_inbound(payload, r, current=None):
             # Xray 26.7.28 defaults to 26.3.27 and otherwise rejects it.
             # This compatibility tradeoff is shown in the approval plan.
             minClientVer='1.8.2',
-            serverNames=[r['sni']], privateKey=keys['privateKey'], shortIds=[keys['shortId']],
-            settings=dict(publicKey=keys['publicKey'], fingerprint='chrome', serverName=r['sni'], spiderX='/'))
+            serverNames=[r['sni']], privateKey=keys['privateKey'], shortIds=keys.get('shortIds', [keys['shortId']]),
+            settings=dict(publicKey=keys['publicKey'], fingerprint=r.get('fingerprint', 'chrome'), serverName=r['sni'], spiderX='/'))
     else:
         stream['tlsSettings'] = dict(serverName=r['sni'], minVersion='1.2',
             alpn=['h2', 'http/1.1'], certificates=[dict(certificateFile=r['certificate'], keyFile=r['certificateKey'], usage='encipherment')])
     if r['transport'] == 'xhttp':
-        stream['xhttpSettings'] = dict(path=r['path'], host=r['host'], mode=r['mode'])
+        stream['xhttpSettings'] = dict(path=r['path'], host=r['host'], mode=r['mode'], **copy.deepcopy(r.get('xhttp', {})))
+        if 'sessionIDTable' in stream['xhttpSettings']:
+            stream['xhttpSettings'].setdefault('sessionIDLength', '16-32')
     wanted = dict(remark=marker(payload['workspaceId'], r['id']), enable=r['enabled'],
         listen=r['listen'], port=r['port'], protocol='vless', expiryTime=0,
         settings=canonical(dict(clients=clients, decryption='none', fallbacks=[])),
-        streamSettings=canonical(stream), sniffing=canonical(dict(enabled=False, destOverride=['http', 'tls'])))
+        streamSettings=canonical(stream), sniffing=canonical(dict(enabled=True, destOverride=['http', 'tls', 'quic', 'fakedns'], metadataOnly=False, routeOnly=False)))
     if current:
         # Retain unknown unrelated panel fields. Only managed transport/client
         # configuration is replaced, after comparison with our last observation.
@@ -298,11 +311,11 @@ class VlessApply:
                 if observed is not None: raise VlessError('vless_api_failed')
             elif observed is None or not subset(desired, normal(observed)):
                 raise VlessError('vless_api_failed')
-            keys = material(p['workspaceId'], r['id'])
+            keys = material(p['workspaceId'], r['id'], r.get('realitySeed'))
             data = dict(workspaceId=p['workspaceId'], panelId=p['panelId'], spec=r,
                 observedHash=digest(normal(observed)) if observed else None, deleted=r['deleted'],
                 publicKey=keys['publicKey'], shortId=keys['shortId'], revision=digest(p),
-                clients=[dict(id=u['id'], uuid=client_id(p['workspaceId'],r['id'],u['id']),enabled=u['enabled']) for u in p['users']])
+                clients=[dict(id=u['id'], uuid=client_id(p['workspaceId'],r['id'],u['id']),enabled=u['enabled']) for u in p['users'] if not r.get('internal', False)])
             with db:
                 db.execute('INSERT INTO vless_resources VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data', (r['id'], canonical(data)))
                 db.execute('UPDATE jobs SET checkpoint=? WHERE id=?',(checkpoint+1,job_id))

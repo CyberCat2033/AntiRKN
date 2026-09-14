@@ -5,11 +5,16 @@ import '../l10n/app_localizations.dart';
 import '../network/network_controller.dart';
 import '../network/server_address_picker.dart';
 import 'vpn_controller.dart';
+import 'xhttp_options_editor.dart';
+import '../runner/runner_controller.dart';
 import 'vpn_plan_view.dart';
+import 'reality_scan_result.dart';
 
 class InboundsPanel extends StatelessWidget {
   const InboundsPanel({
     required this.controller,
+    this.runner,
+    this.serverHost = '',
     required this.serverId,
     required this.serverName,
     required this.network,
@@ -17,13 +22,15 @@ class InboundsPanel extends StatelessWidget {
     super.key,
   });
   final VpnController controller;
+  final RunnerController? runner;
+  final String serverHost;
   final String serverId;
   final String Function(String) serverName;
   final NetworkController network;
   final MotionPreference motion;
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: controller,
+    listenable: Listenable.merge([controller, runner]),
     builder: (context, _) {
       final c = controller,
           l = AppLocalizations.of(context),
@@ -60,7 +67,35 @@ class InboundsPanel extends StatelessWidget {
               ],
             ),
             if (c.remote(serverId) == null) Text(l.vpnPanelRequired),
-            if (inbounds.isEmpty) Text(l.vpnNoInbounds),
+            if (runner?.panelDetected == true &&
+                (runner?.panels.isEmpty ?? true))
+              Text(l.panelDiscoveryFailed),
+            if (inbounds.isEmpty &&
+                runner?.panelDiscovery?['failed'] != true &&
+                !(runner?.panelDetected == true &&
+                    (runner?.panels.isEmpty ?? true)) &&
+                (runner?.panels.every((p) => (p['inbounds'] as List).isEmpty) ??
+                    true))
+              Text(l.vpnNoInbounds),
+            for (final panel in runner?.panels ?? <Map<String, dynamic>>[])
+              for (final observed in panel['inbounds'] as List)
+                if (!inbounds.any(
+                  (r) =>
+                      observed['name'] == 'AntiRKN:${c.workspace.id}:${r.id}',
+                ))
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      '${observed['name']} · ${observed['protocol']}',
+                    ),
+                    subtitle: Text(
+                      '${observed['listen']}:${observed['port']} · ${observed['transport']} / ${observed['security']}\n${observed['enabled'] == true ? l.vpnEnabled : l.vpnDisabled} · ${l.vpnObserved}',
+                    ),
+                    trailing: Tooltip(
+                      message: l.vpnObservedHelp,
+                      child: const Icon(Icons.lock_outline),
+                    ),
+                  ),
             for (final r in inbounds)
               Padding(
                 padding: const EdgeInsets.only(top: AppLayout.gap),
@@ -69,11 +104,39 @@ class InboundsPanel extends StatelessWidget {
                   children: [
                     Text(inboundSummary(r.spec)),
                     Text(r.enabled ? l.vpnEnabled : l.vpnDisabled),
+                    Text(r.internal ? l.vpnInternal : l.vpnClientAccess),
                     Align(
                       alignment: AlignmentDirectional.centerStart,
-                      child: TextButton(
-                        onPressed: c.busy ? null : () => _edit(context, r),
-                        child: Text(l.vpnEdit),
+                      child: Wrap(
+                        children: [
+                          IconButton(
+                            key: ValueKey('vpn-internal-${r.id}'),
+                            tooltip: r.internal
+                                ? l.vpnInternal
+                                : l.vpnClientAccess,
+                            icon: Icon(
+                              r.internal ? Icons.lock : Icons.lock_open,
+                            ),
+                            onPressed: c.busy
+                                ? null
+                                : () async {
+                                    await c.saveInbound(
+                                      VlessInbound(
+                                        serverId: r.serverId,
+                                        spec: {
+                                          ...r.spec,
+                                          'internal': !r.internal,
+                                        },
+                                      ),
+                                    );
+                                    if (c.error == null) await c.prepare();
+                                  },
+                          ),
+                          TextButton(
+                            onPressed: c.busy ? null : () => _edit(context, r),
+                            child: Text(l.vpnEdit),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -94,6 +157,8 @@ class InboundsPanel extends StatelessWidget {
         network: network,
         motion: motion,
         inbound: inbound,
+        defaultEndpoint: serverHost,
+        scanReality: runner?.scanReality,
       ),
       animationStyle: AnimationStyle(
         duration: AppMotion.duration(context, motion),
@@ -111,19 +176,25 @@ class InboundForm extends StatefulWidget {
     required this.network,
     required this.motion,
     this.inbound,
+    this.defaultEndpoint = '',
+    this.scanReality,
     super.key,
   });
   final String serverId;
   final NetworkController network;
   final MotionPreference motion;
   final VlessInbound? inbound;
+  final String defaultEndpoint;
+  final Future<Map<String, dynamic>?> Function(String target, String sni)?
+  scanReality;
   @override
   State<InboundForm> createState() => _InboundFormState();
 }
 
 class _InboundFormState extends State<InboundForm> {
   late final Map<String, Object?> spec = {
-    ...(widget.inbound?.spec ?? VlessInbound.defaults()),
+    ...(widget.inbound?.spec ??
+        {...VlessInbound.defaults(), 'endpoint': widget.defaultEndpoint}),
   };
   late final fields = <String, TextEditingController>{
     for (final key in [
@@ -142,6 +213,40 @@ class _InboundFormState extends State<InboundForm> {
       key: TextEditingController(text: '${spec[key]}'),
   };
   bool invalid = false;
+  bool regenerated = false;
+  bool scanning = false;
+  bool scanFailed = false;
+  Map<String, dynamic>? scanResult;
+  late bool automaticSni =
+      fields['sni']!.text.isEmpty ||
+      fields['sni']!.text == realityTargetHost(fields['target']!.text);
+  Future<void> scan() async {
+    final target = normalizeRealityTarget(fields['target']!.text.trim());
+    final sni = fields['sni']!.text.trim();
+    setState(() {
+      scanning = true;
+      scanFailed = false;
+      scanResult = null;
+    });
+    Map<String, dynamic>? result;
+    try {
+      result = await widget.scanReality?.call(target, sni);
+    } catch (_) {
+      /* Display a localized failure below. */
+    }
+    if (!mounted) return;
+    setState(() {
+      scanning = false;
+      if (target != normalizeRealityTarget(fields['target']!.text.trim()) ||
+          sni != fields['sni']!.text.trim()) {
+        return;
+      }
+      scanResult = result;
+      scanFailed = result == null;
+    });
+  }
+
+  late bool automaticPort = spec['port'] == spec['externalPort'];
   @override
   void dispose() {
     for (final field in fields.values) {
@@ -155,6 +260,28 @@ class _InboundFormState extends State<InboundForm> {
     child: TextField(
       key: ValueKey('vpn-inbound-$key'),
       controller: fields[key],
+      onChanged: (value) {
+        if (key == 'target' || key == 'sni') {
+          setState(() {
+            scanResult = null;
+            scanFailed = false;
+            if (key == 'sni') {
+              automaticSni =
+                  value.isEmpty ||
+                  value == realityTargetHost(fields['target']!.text);
+            }
+            if (key == 'target' && automaticSni) {
+              fields['sni']!.text = realityTargetHost(value);
+            }
+          });
+        }
+        if (key == 'port' && automaticPort) {
+          fields['externalPort']!.text = value;
+        }
+        if (key == 'externalPort') {
+          automaticPort = value == fields['port']!.text;
+        }
+      },
       keyboardType: number ? TextInputType.number : null,
       autocorrect: false,
       enableSuggestions: false,
@@ -191,6 +318,7 @@ class _InboundFormState extends State<InboundForm> {
                 onChanged: (v) => setState(() {
                   spec['transport'] = v;
                   if (v == 'raw') {
+                    spec.remove('xhttp');
                     spec['security'] = 'reality';
                     spec['mode'] = 'auto';
                   }
@@ -214,7 +342,7 @@ class _InboundFormState extends State<InboundForm> {
                 ),
                 const SizedBox(height: AppLayout.gap),
               ],
-              for (final role in AddressRole.values)
+              for (final role in [AddressRole.listener])
                 Padding(
                   padding: const EdgeInsets.only(bottom: AppLayout.gap),
                   child: ServerAddressPicker(
@@ -249,10 +377,75 @@ class _InboundFormState extends State<InboundForm> {
                 ),
               field('listen', l.vpnListen),
               field('port', l.vpnPort, number: true),
-              field('endpoint', l.vpnEndpoint),
-              field('externalPort', l.vpnExternalPort, number: true),
+              ExpansionTile(
+                key: const ValueKey('inbound-connection-address'),
+                title: Text(l.vpnConnectionAddress),
+                children: [
+                  Text(l.vpnConnectionAddressHelp),
+                  const SizedBox(height: AppLayout.gap),
+                  field('endpoint', l.vpnEndpoint),
+                  field('externalPort', l.vpnExternalPort, number: true),
+                ],
+              ),
+              DropdownButtonFormField<String>(
+                key: const ValueKey('vpn-inbound-utls'),
+                initialValue: spec['fingerprint'] as String? ?? 'chrome',
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'uTLS'),
+                items: [
+                  for (final name in vlessFingerprints)
+                    DropdownMenuItem(value: name, child: Text(name)),
+                ],
+                onChanged: (value) {
+                  if (value != null) spec['fingerprint'] = value;
+                },
+              ),
+              const SizedBox(height: AppLayout.gap),
+              if (!tls) ...[
+                field('target', l.vpnTarget),
+                OutlinedButton.icon(
+                  key: const ValueKey('vpn-reality-scan'),
+                  onPressed:
+                      scanning ||
+                          widget.scanReality == null ||
+                          fields['target']!.text.trim().isEmpty
+                      ? null
+                      : scan,
+                  icon: scanning
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.radar),
+                  label: Text(l.realityScan),
+                ),
+                Text(l.realityScanHelp),
+                if (scanFailed) Text(l.realityScanFailed),
+                if (scanResult case final result?)
+                  RealityScanResultView(
+                    result: result,
+                    onSni: (name) => setState(() {
+                      fields['sni']!.text = name;
+                      automaticSni = false;
+                      scanResult = null;
+                    }),
+                  ),
+              ],
               field('sni', l.vpnSni),
-              if (!tls) field('target', l.vpnTarget),
+              if (!tls) ...[
+                OutlinedButton.icon(
+                  key: const ValueKey('vpn-reality-regenerate'),
+                  onPressed: () => setState(() {
+                    spec['realitySeed'] = newVpnId();
+                    regenerated = true;
+                  }),
+                  icon: const Icon(Icons.refresh),
+                  label: Text(l.vpnRegenerateReality),
+                ),
+                Text(
+                  regenerated ? l.vpnRealityRegenerated : l.vpnRealityAutomatic,
+                ),
+              ],
               if (xhttp) ...[
                 field('path', l.vpnPath),
                 field('host', l.vpnHost),
@@ -274,6 +467,20 @@ class _InboundFormState extends State<InboundForm> {
                 ),
                 const SizedBox(height: AppLayout.gap),
               ],
+              if (xhttp)
+                XhttpOptionsEditor(
+                  motion: widget.motion,
+                  initial: Map<String, Object?>.from(
+                    spec['xhttp'] as Map? ?? {},
+                  ),
+                  onChanged: (values) {
+                    if (values.isEmpty) {
+                      spec.remove('xhttp');
+                    } else {
+                      spec['xhttp'] = values;
+                    }
+                  },
+                ),
               if (tls) ...[
                 Text(l.vpnTlsHelp),
                 field('certificate', l.vpnCertificate),
@@ -287,12 +494,13 @@ class _InboundFormState extends State<InboundForm> {
                     ? null
                     : (v) => setState(() => spec['enabled'] = v),
               ),
-              CheckboxListTile(
+              SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text(l.vpnRegion),
-                value: spec['region'] == 'RU',
-                onChanged: (v) =>
-                    setState(() => spec['region'] = v == true ? 'RU' : ''),
+                title: Text(l.vpnInternal),
+                subtitle: Text(l.vpnInternalHelp),
+                secondary: const Icon(Icons.lock_outline),
+                value: spec['internal'] == true,
+                onChanged: (v) => setState(() => spec['internal'] = v),
               ),
               if (widget.inbound != null)
                 CheckboxListTile(
@@ -330,6 +538,11 @@ class _InboundFormState extends State<InboundForm> {
                       ? int.tryParse(e.value.text.trim())
                       : e.value.text.trim(),
               };
+              if (!tls) {
+                values['target'] = normalizeRealityTarget(
+                  values['target'] as String,
+                );
+              }
               if (tls && values['target'] == '') {
                 values['target'] = '${values['sni']}:443';
               }

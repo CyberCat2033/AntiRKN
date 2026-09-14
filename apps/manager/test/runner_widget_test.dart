@@ -10,7 +10,7 @@ void main() {
   for (final locale in ['ru', 'en']) {
     for (final width in [390.0, 1400.0]) {
       testWidgets(
-        'runner approval, progress and events $locale $width text x2',
+        'automatic runner setup, progress and events $locale $width text x2',
         (tester) async {
           tester.view.devicePixelRatio = 1;
           tester.view.physicalSize = Size(width, 1000);
@@ -50,23 +50,14 @@ void main() {
             ),
           );
           await tester.pumpAndSettle();
-          final prepare = find.byKey(const ValueKey('runner-prepare'));
-          await tester.ensureVisible(prepare);
-          await tester.tap(prepare);
-          await tester.pumpAndSettle();
-          expect(remote.installs, 0);
-          expect(remote.submissions, 0);
-          final apply = find.byKey(const ValueKey('runner-apply'));
-          await tester.ensureVisible(apply);
-          await tester.pumpAndSettle();
-          await tester.tap(apply);
+          expect(find.byKey(const ValueKey('runner-prepare')), findsNothing);
+          expect(find.byKey(const ValueKey('runner-start')), findsNothing);
+          c.connectionReady();
           await tester.pumpAndSettle();
           expect(remote.installs, 1);
           expect(remote.submissions, 0);
-          final start = find.byKey(const ValueKey('runner-start'));
-          await tester.ensureVisible(start);
-          await tester.pumpAndSettle();
-          await tester.tap(start);
+          // An existing job still has progress, events and cancellation.
+          await c.startDiagnostic();
           await tester.pumpAndSettle();
           expect(remote.submissions, 1);
           final cancel = find.byKey(const ValueKey('runner-cancel'));

@@ -18,8 +18,12 @@ def validate_schema(value, rule=SCHEMA):
     if type(value) is not types[kind]:
         raise ValueError('vless_invalid')
     if kind == 'object':
-        if set(value) != set(rule['properties']): raise ValueError('vless_invalid')
-        for k, v in value.items(): validate_schema(v, rule['properties'][k])
+        if not set(rule['properties']) - set(rule.get('optional', [])) <= set(value): raise ValueError('vless_invalid')
+        if not rule.get('additionalProperties') and not set(value) <= set(rule['properties']): raise ValueError('vless_invalid')
+        if len(value) > rule.get('maxProperties', 1000): raise ValueError('vless_invalid')
+        for k, v in value.items():
+            if 'keyPattern' in rule and re.fullmatch(rule['keyPattern'], k) is None: raise ValueError('vless_invalid')
+            validate_schema(v, rule['properties'].get(k, rule.get('additionalProperties')))
     elif kind == 'array':
         if len(value) > rule['maxItems']: raise ValueError('vless_invalid')
         for v in value: validate_schema(v, rule['items'])
@@ -28,6 +32,9 @@ def validate_schema(value, rule=SCHEMA):
         if 'pattern' in rule and re.fullmatch(rule['pattern'], value) is None: raise ValueError('vless_invalid')
     elif kind == 'integer' and 'minimum' in rule:
         if not rule['minimum'] <= value <= rule['maximum']: raise ValueError('vless_invalid')
+    if rule.get('range'):
+        bounds = [int(n) for n in value.split('-')]
+        if not 0 <= bounds[0] <= bounds[-1] <= 2147483647: raise ValueError('vless_invalid')
     if 'enum' in rule and value not in rule['enum']: raise ValueError('vless_invalid')
 ''' % schema
 
@@ -45,8 +52,15 @@ void validateVlessSchema(Object? value, [Map? rule]) {
   if (!valid) throw const FormatException('vless_invalid');
   if (value is Map) {
     final properties = rule['properties'] as Map;
-    if (value.length != properties.length || !properties.keys.every(value.containsKey)) throw const FormatException('vless_invalid');
-    for (final e in value.entries) { validateVlessSchema(e.value, properties[e.key] as Map); }
+    final optional = rule['optional'] as List? ?? [];
+    if ((rule['additionalProperties'] == null && !value.keys.every(properties.containsKey)) || !properties.keys.where((k) => !optional.contains(k)).every(value.containsKey)) throw const FormatException('vless_invalid');
+    if (value.length > (rule['maxProperties'] as int? ?? 1000)) throw const FormatException('vless_invalid');
+    for (final e in value.entries) {
+      if (rule['keyPattern'] case final String pattern) {
+        if (!RegExp(pattern).hasMatch(e.key as String)) throw const FormatException('vless_invalid');
+      }
+      validateVlessSchema(e.value, (properties[e.key] ?? rule['additionalProperties']) as Map);
+    }
   } else if (value is List) {
     if (value.length > (rule['maxItems'] as int)) throw const FormatException('vless_invalid');
     for (final v in value) { validateVlessSchema(v, rule['items'] as Map); }
@@ -58,6 +72,10 @@ void validateVlessSchema(Object? value, [Map? rule]) {
     }
   } else if (value is int && rule.containsKey('minimum')) {
     if (value < (rule['minimum'] as int) || value > (rule['maximum'] as int)) throw const FormatException('vless_invalid');
+  }
+  if (rule['range'] == true) {
+    final bounds = (value as String).split('-').map(int.parse).toList();
+    if (bounds.first < 0 || bounds.first > bounds.last || bounds.last > 2147483647) throw const FormatException('vless_invalid');
   }
   if (rule['enum'] case final List choices) {
     if (!choices.contains(value)) throw const FormatException('vless_invalid');

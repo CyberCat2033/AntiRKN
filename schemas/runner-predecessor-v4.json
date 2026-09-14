@@ -1,0 +1,15 @@
+{
+  "release": "9c883118882154affb21c229eea10cd8658115bbe22f5d5027c92082fc870711",
+  "hashes": {
+    "antirkn-runner.service": "d03bab440cfae84242eb1a31e572bf62a4b7d93f1a19037966b063a07d495cb8",
+    "component_releases.py": "d1486eda1a67d3afce697dd96439349d1e6bd9c8d58b875a7f65ef7564891adb",
+    "components.py": "7cdb472bd0ba2609006e90edce815c806cf40f64894575debc88e71e562f2a46",
+    "contract.py": "dba856ad55d7056562ec7aad6fc91ade72e398f36c5371e2a8b23b2f8cd49d3e",
+    "panel.py": "a7180a0a28c361f92e0ab4b5f12a830716bc3f58390c12bcd047a44896fdde61",
+    "panel_api.py": "aaf964e602edb842de66ab12c3ee47c444c9f4b986fa5beebb477449ebaa5d67",
+    "panel_release.py": "f651e6bfa37513e94fe9bfb6827b890abcb9c13f6b60ec5f8f3748d9da0be81f",
+    "runner.py": "b24feba387a178eb0aaf991e002619949075c0014ebee48e0195501ad7ec2fd8",
+    "vless.py": "b583d34f6959cbc28b0e586af732149650e28b3209f17a4b87e02667d9b00c32",
+    "vless_contract.py": "003bb1a944b1291bad678a9cf0dd142c4dcb9c859b6c611998787ecc9cde5e2e"
+  }
+}

@@ -33,7 +33,7 @@ def bundle_strings():
 
 
 def rpc(request):
-    result = remote('/usr/bin/python3 -I /usr/local/lib/antirkn-runner/v4/runner.py rpc',
+    result = remote('/usr/bin/python3 -I /usr/local/lib/antirkn-runner/v5/runner.py rpc',
                     json.dumps(request).encode(), check=False)
     return json.loads(result.stdout)
 
@@ -95,7 +95,7 @@ def main():
     check(preview2['state'] == 'existing', 'existing_installation_preserved')
     record = dict(results=results, panelVersion=access['panelVersion'], xrayVersion=access['xrayVersion'],
                   os=remote('lsb_release -ds').stdout.decode().strip())
-    (ROOT / 'docs/evidence/panel-ubuntu.json').write_text(json.dumps(record, indent=2) + '\n')
+    (ROOT / 'docs/evidence' / os.environ.get('ANTIRKN_PANEL_EVIDENCE', 'panel-ubuntu.json')).write_text(json.dumps(record, indent=2) + '\n')
 
 
 if __name__ == '__main__':

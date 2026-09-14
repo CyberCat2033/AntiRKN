@@ -66,6 +66,8 @@ class _ServerCatalogState extends State<ServerCatalog> {
                       ? null
                       : InboundsPanel(
                           controller: widget.vpn!,
+                          runner: session.runner,
+                          serverHost: session.host.text.trim(),
                           serverId: c.selectedId!,
                           serverName: (id) =>
                               c.servers

@@ -154,6 +154,8 @@ class _UserFormState extends State<_UserForm> {
   late final login = TextEditingController(text: widget.user?.login ?? '');
   late final name = TextEditingController(text: widget.user?.name ?? '');
   late bool enabled = widget.user?.enabled ?? true;
+  late bool automaticName =
+      widget.user == null || widget.user!.name == widget.user!.login;
   String? error;
   @override
   void dispose() {
@@ -174,6 +176,9 @@ class _UserFormState extends State<_UserForm> {
             TextField(
               key: const ValueKey('vpn-user-login'),
               controller: login,
+              onChanged: (value) {
+                if (automaticName) name.text = value.trim();
+              },
               autocorrect: false,
               decoration: InputDecoration(labelText: l.vpnLogin),
             ),
@@ -181,6 +186,8 @@ class _UserFormState extends State<_UserForm> {
             TextField(
               key: const ValueKey('vpn-user-name'),
               controller: name,
+              onChanged: (value) => automaticName =
+                  value.trim().isEmpty || value.trim() == login.text.trim(),
               decoration: InputDecoration(labelText: l.vpnName),
             ),
             SwitchListTile(
@@ -205,7 +212,9 @@ class _UserFormState extends State<_UserForm> {
               final user = VpnUser(
                 id: widget.user?.id ?? newVpnId(),
                 login: login.text.trim(),
-                name: name.text.trim(),
+                name: name.text.trim().isEmpty
+                    ? login.text.trim()
+                    : name.text.trim(),
                 enabled: enabled,
               );
               Navigator.pop(context, user);

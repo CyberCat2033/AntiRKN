@@ -25,7 +25,6 @@ class RunnerPanel extends StatelessWidget {
       final installing =
           const {'panel_install', 'component_install'}.contains(job?.kind) &&
           !job!.terminal;
-      final panelFlow = c.choosingPanel || installing;
       final duration = AppMotion.duration(context, motion);
       final animation = AnimationStyle(
         duration: duration,
@@ -63,54 +62,13 @@ class RunnerPanel extends StatelessWidget {
                 children: [
                   OutlinedButton(
                     key: const ValueKey('runner-refresh'),
-                    onPressed: c.connected && !c.busy ? c.refresh : null,
+                    onPressed: c.connected && !c.busy
+                        ? () => c.refresh(prepare: true)
+                        : null,
                     child: Text(l.sshRefresh),
                   ),
-                  if (!panelFlow &&
-                      (!c.installed || c.installation?.active == false))
-                    FilledButton.tonal(
-                      key: const ValueKey('runner-prepare'),
-                      onPressed: c.connected && !c.busy
-                          ? c.prepareInstall
-                          : null,
-                      child: Text(l.runnerPrepare),
-                    ),
-                  if (c.installed && !panelFlow)
-                    FilledButton(
-                      key: const ValueKey('runner-start'),
-                      onPressed: c.canStart ? c.startDiagnostic : null,
-                      child: Text(l.runnerStart),
-                    ),
                 ],
               ),
-              if (c.installPlan != null) ...[
-                const SizedBox(height: AppLayout.gap),
-                Text(
-                  l.runnerPlanTitle,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                Text(l.runnerPlanBody),
-                const SizedBox(height: AppLayout.smallGap),
-                const SelectableText(
-                  '/usr/local/lib/antirkn-runner/v4/\n/etc/systemd/system/antirkn-runner.service\n/var/lib/antirkn-runner/',
-                ),
-                Text(l.runnerPlanRelease),
-                SelectableText(c.bundledRelease ?? ''),
-                Wrap(
-                  spacing: AppLayout.smallGap,
-                  children: [
-                    FilledButton(
-                      key: const ValueKey('runner-apply'),
-                      onPressed: c.connected && !c.busy ? c.applyInstall : null,
-                      child: Text(l.runnerApply),
-                    ),
-                    TextButton(
-                      onPressed: c.busy ? null : c.dismissPlan,
-                      child: Text(l.runnerNotNow),
-                    ),
-                  ],
-                ),
-              ],
               if (c.pending != null) ...[
                 Text(l.runnerPending),
                 OutlinedButton(

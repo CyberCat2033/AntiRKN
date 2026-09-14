@@ -20,7 +20,7 @@ def main():
     outcome=python(r'''
 import sys,json,os
 from pathlib import Path
-sys.path.insert(0,'/usr/local/lib/antirkn-runner/v4')
+sys.path.insert(0,'/usr/local/lib/antirkn-runner/v5')
 from components import component_plan,ComponentInstaller,installed
 from runner import Store
 base=Path('/usr/local/lib/antirkn-components/trusttunnel')
@@ -75,7 +75,7 @@ store.close()
     check(json.loads(python(r'''
 import sys,json
 from pathlib import Path
-sys.path.insert(0,'/usr/local/lib/antirkn-runner/v4')
+sys.path.insert(0,'/usr/local/lib/antirkn-runner/v5')
 from components import component_plan
 path=Path('/etc/systemd/system/antirkn-trusttunnel.service')
 original=path.read_bytes()

@@ -71,6 +71,7 @@ final class VlessInbound {
         target.port > 65535) {
       throw const FormatException('vless_invalid');
     }
+    validateXhttpOptions(spec);
     if (deleted && enabled) throw const FormatException('vless_invalid');
   }
   factory VlessInbound.fromJson(Map<String, dynamic> j) => VlessInbound(
@@ -103,6 +104,7 @@ final class VlessInbound {
   String get name => spec['name'] as String;
   String get transport => spec['transport'] as String;
   String get security => spec['security'] as String;
+  bool get internal => spec['internal'] == true;
   bool get enabled => spec['enabled'] as bool;
   bool get deleted => spec['deleted'] as bool;
   Map<String, Object?> toJson() => {'serverId': serverId, 'spec': spec};
@@ -216,3 +218,64 @@ abstract interface class VpnRepository {
 abstract interface class ProfileExporter {
   Future<bool> save(String name, String source);
 }
+
+Map get xhttpOptionsSchema =>
+    (((vlessSchema['properties'] as Map)['resources'] as Map)['items']
+            as Map)['properties']['xhttp']
+        as Map;
+
+void validateXhttpOptions(Map spec) {
+  final extra = spec['xhttp'] as Map? ?? {};
+  if (extra.isEmpty) return;
+  if (spec['transport'] != 'xhttp') {
+    throw const FormatException('vless_invalid');
+  }
+  final headers = extra['headers'] as Map? ?? {};
+  if (headers.keys.any((key) => key.toString().toLowerCase() == 'host')) {
+    throw const FormatException('vless_invalid');
+  }
+  if ((extra['uplinkHTTPMethod'] == 'GET' ||
+          ['header', 'cookie'].contains(extra['uplinkDataPlacement'])) &&
+      spec['mode'] != 'packet-up') {
+    throw const FormatException('vless_invalid');
+  }
+  int lower(Object? value) =>
+      value == null ? 0 : int.parse('$value'.split('-').first);
+  int upper(Object? value) =>
+      value == null ? 0 : int.parse('$value'.split('-').last);
+  if (extra.containsKey('xPaddingBytes') &&
+      lower(extra['xPaddingBytes']) == 0 &&
+      upper(extra['xPaddingBytes']) > 0) {
+    throw const FormatException('vless_invalid');
+  }
+  final xmux = extra['xmux'] as Map? ?? {};
+  if (upper(xmux['maxConcurrency']) > 0 && upper(xmux['maxConnections']) > 0) {
+    throw const FormatException('vless_invalid');
+  }
+  if (extra.containsKey('sessionIDTable')) {
+    final lengths = (extra['sessionIDLength'] as String? ?? '16-32')
+        .split('-')
+        .map(int.parse)
+        .toList();
+    if (lengths.first < 10 || lengths.last > 128) {
+      throw const FormatException('vless_invalid');
+    }
+  }
+}
+
+Map<String, Object?> xhttpMihomoOptions(Map options, [Map? schema]) {
+  final properties = (schema ?? xhttpOptionsSchema)['properties'] as Map;
+  return {
+    for (final e in options.entries)
+      if ((properties[e.key] as Map)['mihomo'] case final String name)
+        name: e.key == 'xmux'
+            ? xhttpMihomoOptions(e.value as Map, properties[e.key] as Map)
+            : e.value,
+  };
+}
+
+List<String> get vlessFingerprints => List<String>.from(
+  ((vlessSchema['properties']
+          as Map)['resources']['items']['properties']['fingerprint']['enum'])
+      as List,
+);

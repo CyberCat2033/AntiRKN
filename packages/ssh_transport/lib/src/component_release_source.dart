@@ -5,8 +5,10 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 
 /// Device-side metadata only. No SSH, APT, executable download or execution.
 final class GithubComponentReleaseSource implements ComponentReleaseSource {
-  const GithubComponentReleaseSource();
+  const GithubComponentReleaseSource({this.metadata});
+  final Future<dynamic> Function(String path)? metadata;
   Future<dynamic> _read(HttpClient client, String path) async {
+    if (metadata != null) return metadata!(path);
     final request = await client.getUrl(
       Uri.https('api.github.com', '/repos/$path'),
     );
@@ -35,6 +37,8 @@ final class GithubComponentReleaseSource implements ComponentReleaseSource {
       return await (() async {
         final result = <String, String>{};
         for (final entry in {
+          'panel': 'MHSanaei/3x-ui',
+          'xray': 'XTLS/Xray-core',
           'trusttunnel': 'TrustTunnel/TrustTunnel',
           'amneziawgTools': 'amnezia-vpn/amneziawg-tools',
         }.entries) {

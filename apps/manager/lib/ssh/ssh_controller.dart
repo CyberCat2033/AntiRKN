@@ -57,6 +57,7 @@ class SshController extends ChangeNotifier {
       password: () => isRoot ? null : _effectiveSudoPassword,
       accessFailure: recordPrivilegeFailure,
       software: () => software,
+      refreshSoftware: () => unawaited(refresh()),
     );
     runner.addListener(_notify);
     for (final field in fields) {

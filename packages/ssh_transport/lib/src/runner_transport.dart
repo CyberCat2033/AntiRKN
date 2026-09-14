@@ -84,7 +84,7 @@ final class SshRunnerTransport implements RunnerTransport {
           ? python(runnerComponentInspector)
           : action == 'panel_plan'
           ? python(runnerPanelInspector)
-          : '/usr/bin/python3 -I /usr/local/lib/antirkn-runner/v4/runner.py rpc',
+          : '/usr/bin/python3 -I /usr/local/lib/antirkn-runner/v5/runner.py rpc',
       jsonEncode(
         action == 'panel_verify'
             ? {...request.json, 'action': 'panel_access'}

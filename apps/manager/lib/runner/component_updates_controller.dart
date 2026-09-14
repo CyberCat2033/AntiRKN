@@ -31,6 +31,9 @@ class ComponentUpdatesController extends ChangeNotifier {
         final data = jsonDecode(cache) as Map;
         checkedAt = DateTime.parse(data['checkedAt'] as String);
         latest = Map<String, String>.from(data['latest'] as Map);
+        if (!latest.containsKey('panel') || !latest.containsKey('xray')) {
+          checkedAt = null;
+        }
       }
     } catch (_) {
       storageFailed = true;

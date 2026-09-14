@@ -3,7 +3,7 @@ import 'dart:convert';
 
 final Map<String, dynamic> vlessSchema =
     jsonDecode(
-          r'''{"type":"object","properties":{"version":{"type":"integer","enum":[1]},"workspaceId":{"type":"string","pattern":"^[a-f0-9]{32}$"},"panelId":{"type":"string","pattern":"^[a-f0-9]{32}$"},"resources":{"type":"array","maxItems":32,"items":{"type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{32}$"},"name":{"type":"string","minLength":1,"maxLength":80,"pattern":"^[^\\x00-\\x1f\\x7f]+$"},"enabled":{"type":"boolean"},"deleted":{"type":"boolean"},"listen":{"type":"string","minLength":1,"maxLength":64,"pattern":"^[0-9a-fA-F:.]+$"},"port":{"type":"integer","minimum":1,"maximum":65535},"endpoint":{"type":"string","minLength":1,"maxLength":253,"pattern":"^[A-Za-z0-9:.\\-]+$"},"externalPort":{"type":"integer","minimum":1,"maximum":65535},"transport":{"type":"string","enum":["raw","xhttp"]},"security":{"type":"string","enum":["reality","tls"]},"sni":{"type":"string","minLength":1,"maxLength":253,"pattern":"^[A-Za-z0-9.\\-]+$"},"target":{"type":"string","minLength":1,"maxLength":253,"pattern":"^[A-Za-z0-9:.\\-\\[\\]]+$"},"path":{"type":"string","minLength":1,"maxLength":256,"pattern":"^/[A-Za-z0-9/_.\\-]*$"},"host":{"type":"string","minLength":0,"maxLength":253,"pattern":"^[A-Za-z0-9.\\-]*$"},"mode":{"type":"string","enum":["auto","packet-up","stream-up","stream-one"]},"certificate":{"type":"string","minLength":0,"maxLength":512,"pattern":"^(/[^\\x00-\\x1f]*)?$"},"certificateKey":{"type":"string","minLength":0,"maxLength":512,"pattern":"^(/[^\\x00-\\x1f]*)?$"},"region":{"type":"string","enum":["","RU"]}}}},"users":{"type":"array","maxItems":1000,"items":{"type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{32}$"},"enabled":{"type":"boolean"}}}}}}''',
+          r'''{"type":"object","properties":{"version":{"type":"integer","enum":[1]},"workspaceId":{"type":"string","pattern":"^[a-f0-9]{32}$"},"panelId":{"type":"string","pattern":"^[a-f0-9]{32}$"},"resources":{"type":"array","maxItems":32,"items":{"type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{32}$"},"name":{"type":"string","minLength":1,"maxLength":80,"pattern":"^[^\\x00-\\x1f\\x7f]+$"},"enabled":{"type":"boolean"},"deleted":{"type":"boolean"},"listen":{"type":"string","minLength":1,"maxLength":64,"pattern":"^[0-9a-fA-F:.]+$"},"port":{"type":"integer","minimum":1,"maximum":65535},"endpoint":{"type":"string","minLength":1,"maxLength":253,"pattern":"^[A-Za-z0-9:.\\-]+$"},"externalPort":{"type":"integer","minimum":1,"maximum":65535},"transport":{"type":"string","enum":["raw","xhttp"]},"security":{"type":"string","enum":["reality","tls"]},"sni":{"type":"string","minLength":1,"maxLength":253,"pattern":"^[A-Za-z0-9.\\-]+$"},"target":{"type":"string","minLength":1,"maxLength":253,"pattern":"^[A-Za-z0-9:.\\-\\[\\]]+$"},"path":{"type":"string","minLength":1,"maxLength":256,"pattern":"^/[A-Za-z0-9/_.\\-]*$"},"host":{"type":"string","minLength":0,"maxLength":253,"pattern":"^[A-Za-z0-9.\\-]*$"},"mode":{"type":"string","enum":["auto","packet-up","stream-up","stream-one"]},"certificate":{"type":"string","minLength":0,"maxLength":512,"pattern":"^(/[^\\x00-\\x1f]*)?$"},"certificateKey":{"type":"string","minLength":0,"maxLength":512,"pattern":"^(/[^\\x00-\\x1f]*)?$"},"region":{"type":"string","enum":["","RU"]},"internal":{"type":"boolean"},"xhttp":{"type":"object","properties":{"headers":{"type":"object","properties":{},"additionalProperties":{"type":"string","maxLength":2048,"pattern":"^[^\\r\\n\\x00]*$"},"maxProperties":32,"keyPattern":"^[!#$%&'*+.^_`|~0-9A-Za-z-]+$","mihomo":"headers"},"noGRPCHeader":{"type":"boolean","mihomo":"no-grpc-header"},"noSSEHeader":{"type":"boolean"},"xPaddingObfsMode":{"type":"boolean","mihomo":"x-padding-obfs-mode"},"xPaddingBytes":{"type":"string","pattern":"^[0-9]{1,10}(-[0-9]{1,10})?$","maxLength":21,"range":true,"hint":"100-1000","mihomo":"x-padding-bytes"},"scMaxEachPostBytes":{"type":"string","pattern":"^[0-9]{1,10}(-[0-9]{1,10})?$","maxLength":21,"range":true,"hint":"1000000","mihomo":"sc-max-each-post-bytes"},"scMinPostsIntervalMs":{"type":"string","pattern":"^[0-9]{1,10}(-[0-9]{1,10})?$","maxLength":21,"range":true,"hint":"30","mihomo":"sc-min-posts-interval-ms"},"scStreamUpServerSecs":{"type":"string","pattern":"^[0-9]{1,10}(-[0-9]{1,10})?$","maxLength":21,"range":true,"hint":"20-80"},"uplinkChunkSize":{"type":"string","pattern":"^[0-9]{1,10}(-[0-9]{1,10})?$","maxLength":21,"range":true,"hint":"0","mihomo":"uplink-chunk-size"},"sessionIDLength":{"type":"string","pattern":"^[0-9]{1,10}(-[0-9]{1,10})?$","maxLength":21,"range":true,"hint":"16-32","mihomo":"session-length"},"scMaxBufferedPosts":{"type":"integer","minimum":0,"maximum":2147483647,"hint":"30"},"serverMaxHeaderBytes":{"type":"integer","minimum":0,"maximum":2147483647,"hint":"8192"},"xPaddingKey":{"type":"string","minLength":1,"maxLength":128,"pattern":"^[^\\x00-\\x20\\x7f]+$","hint":"x_padding","mihomo":"x-padding-key"},"xPaddingHeader":{"type":"string","minLength":1,"maxLength":128,"pattern":"^[^\\x00-\\x20\\x7f]+$","hint":"X-Padding","mihomo":"x-padding-header"},"sessionIDKey":{"type":"string","minLength":1,"maxLength":128,"pattern":"^[^\\x00-\\x20\\x7f]+$","mihomo":"session-key"},"seqKey":{"type":"string","minLength":1,"maxLength":128,"pattern":"^[^\\x00-\\x20\\x7f]+$","mihomo":"seq-key"},"uplinkDataKey":{"type":"string","minLength":1,"maxLength":128,"pattern":"^[^\\x00-\\x20\\x7f]+$","mihomo":"uplink-data-key"},"xPaddingPlacement":{"type":"string","enum":["cookie","header","query","queryInHeader"],"hint":"queryInHeader","mihomo":"x-padding-placement"},"xPaddingMethod":{"type":"string","enum":["repeat-x","tokenish"],"hint":"repeat-x","mihomo":"x-padding-method"},"uplinkHTTPMethod":{"type":"string","enum":["POST","GET","PUT","PATCH"],"hint":"POST","mihomo":"uplink-http-method"},"sessionIDPlacement":{"type":"string","enum":["path","cookie","header","query"],"hint":"path","mihomo":"session-placement"},"seqPlacement":{"type":"string","enum":["path","cookie","header","query"],"hint":"path","mihomo":"seq-placement"},"uplinkDataPlacement":{"type":"string","enum":["auto","body","cookie","header"],"hint":"auto","mihomo":"uplink-data-placement"},"sessionIDTable":{"type":"string","enum":["ALPHABET","Alphabet","BASE36","Base62","HEX","alphabet","base36","hex","number"],"hint":"Base62","mihomo":"session-table"},"xmux":{"type":"object","properties":{"maxConcurrency":{"type":"string","pattern":"^[0-9]{1,10}(-[0-9]{1,10})?$","maxLength":21,"range":true,"mihomo":"max-concurrency"},"maxConnections":{"type":"string","pattern":"^[0-9]{1,10}(-[0-9]{1,10})?$","maxLength":21,"range":true,"mihomo":"max-connections"},"cMaxReuseTimes":{"type":"string","pattern":"^[0-9]{1,10}(-[0-9]{1,10})?$","maxLength":21,"range":true,"mihomo":"c-max-reuse-times"},"hMaxRequestTimes":{"type":"string","pattern":"^[0-9]{1,10}(-[0-9]{1,10})?$","maxLength":21,"range":true,"mihomo":"h-max-request-times"},"hMaxReusableSecs":{"type":"string","pattern":"^[0-9]{1,10}(-[0-9]{1,10})?$","maxLength":21,"range":true,"mihomo":"h-max-reusable-secs"},"hKeepAlivePeriod":{"type":"integer","minimum":-1,"maximum":2147483647,"mihomo":"h-keep-alive-period"}},"optional":["maxConcurrency","maxConnections","cMaxReuseTimes","hMaxRequestTimes","hMaxReusableSecs","hKeepAlivePeriod"],"mihomo":"reuse-settings"}},"optional":["headers","noGRPCHeader","noSSEHeader","xPaddingObfsMode","xPaddingBytes","scMaxEachPostBytes","scMinPostsIntervalMs","scStreamUpServerSecs","uplinkChunkSize","sessionIDLength","scMaxBufferedPosts","serverMaxHeaderBytes","xPaddingKey","xPaddingHeader","sessionIDKey","seqKey","uplinkDataKey","xPaddingPlacement","xPaddingMethod","uplinkHTTPMethod","sessionIDPlacement","seqPlacement","uplinkDataPlacement","sessionIDTable","xmux"]},"fingerprint":{"type":"string","enum":["chrome","firefox","safari","ios","android","edge","360","qq","random","randomized","chrome120","firefox120","safari16"]},"realitySeed":{"type":"string","pattern":"^[a-f0-9]{32}$"}},"optional":["internal","xhttp","fingerprint","realitySeed"]}},"users":{"type":"array","maxItems":1000,"items":{"type":"object","properties":{"id":{"type":"string","pattern":"^[a-f0-9]{32}$"},"enabled":{"type":"boolean"}}}}}}''',
         )
         as Map<String, dynamic>;
 void validateVlessSchema(Object? value, [Map? rule]) {
@@ -22,12 +22,27 @@ void validateVlessSchema(Object? value, [Map? rule]) {
   }
   if (value is Map) {
     final properties = rule['properties'] as Map;
-    if (value.length != properties.length ||
-        !properties.keys.every(value.containsKey)) {
+    final optional = rule['optional'] as List? ?? [];
+    if ((rule['additionalProperties'] == null &&
+            !value.keys.every(properties.containsKey)) ||
+        !properties.keys
+            .where((k) => !optional.contains(k))
+            .every(value.containsKey)) {
+      throw const FormatException('vless_invalid');
+    }
+    if (value.length > (rule['maxProperties'] as int? ?? 1000)) {
       throw const FormatException('vless_invalid');
     }
     for (final e in value.entries) {
-      validateVlessSchema(e.value, properties[e.key] as Map);
+      if (rule['keyPattern'] case final String pattern) {
+        if (!RegExp(pattern).hasMatch(e.key as String)) {
+          throw const FormatException('vless_invalid');
+        }
+      }
+      validateVlessSchema(
+        e.value,
+        (properties[e.key] ?? rule['additionalProperties']) as Map,
+      );
     }
   } else if (value is List) {
     if (value.length > (rule['maxItems'] as int)) {
@@ -49,6 +64,14 @@ void validateVlessSchema(Object? value, [Map? rule]) {
     }
   } else if (value is int && rule.containsKey('minimum')) {
     if (value < (rule['minimum'] as int) || value > (rule['maximum'] as int)) {
+      throw const FormatException('vless_invalid');
+    }
+  }
+  if (rule['range'] == true) {
+    final bounds = (value as String).split('-').map(int.parse).toList();
+    if (bounds.first < 0 ||
+        bounds.first > bounds.last ||
+        bounds.last > 2147483647) {
       throw const FormatException('vless_invalid');
     }
   }

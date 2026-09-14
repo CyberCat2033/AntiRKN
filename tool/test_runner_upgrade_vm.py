@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Known v1/v2 -> v3 upgrade and interrupted-bootstrap repair on a disposable VM."""
+"""Known v1/v2/v3 -> current runner upgrade and interrupted-bootstrap repair on a disposable VM."""
 import json
 import os
 import re
@@ -54,7 +54,7 @@ def main():
     check(pid == remote('systemctl show antirkn-runner -p MainPID --value').stdout, 'repeat_does_not_restart_worker')
     if material_before:
         check(material_before == remote('sha256sum /etc/antirkn-runner/panel.key').stdout, 'panel_root_material_preserved')
-    (ROOT / ('docs/evidence/components-runner-upgrade-' + version + '.json')).write_text(json.dumps({'from':version,'to':'v4','release':json.loads(new['runnerBundle'])['release'],'results':results},indent=2)+'\n')
+    (ROOT / ('docs/evidence/components-runner-upgrade-' + version + '.json')).write_text(json.dumps({'from':version,'to':'v5','release':json.loads(new['runnerBundle'])['release'],'results':results},indent=2)+'\n')
 
 
 if __name__ == '__main__': main()

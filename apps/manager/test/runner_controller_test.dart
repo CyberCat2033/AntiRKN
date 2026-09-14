@@ -33,6 +33,49 @@ void main() {
   }
 
   test(
+    'connect prepares runner once and recovers existing panel independently of last job',
+    () async {
+      remote.job = runnerJob('d' * 32, status: 'succeeded', progress: 10);
+      remote.discovery = {
+        'failed': false,
+        'cliAvailable': true,
+        'panels': [
+          {
+            'source': 'systemd',
+            'port': 2053,
+            'listen': '127.0.0.1',
+            'basePath': '/',
+            'tls': false,
+            'inbounds': <Object?>[],
+          },
+        ],
+      };
+      remote.recoveredAccess = {
+        'id': 'e' * 32,
+        'port': 2053,
+        'username': 'antirkn',
+        'password': 'A' * 43,
+        'panelVersion': '3.7.0',
+        'xrayVersion': '26.7.28',
+      };
+      await c.refresh(prepare: true);
+      expect(c.error, isNull);
+      expect(remote.installs, 1);
+      expect(c.panelDetected, isTrue);
+      expect(c.panelAccess?.id, 'e' * 32);
+      expect(c.panelVerifiedAt, isNotNull);
+      c.chooseComponents();
+      expect(c.choosingPanel, isFalse);
+      await c.preparePanel();
+      expect(remote.submissions, 0);
+      await c.refresh(prepare: true);
+      expect(remote.installs, 1);
+      c.disconnected();
+      expect(c.panelVerifiedAt, isNull);
+    },
+  );
+
+  test(
     'inspection, plan preview and dismissal have no server effect',
     () async {
       await c.refresh();

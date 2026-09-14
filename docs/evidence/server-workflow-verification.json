@@ -1,0 +1,56 @@
+{
+  "dartFlutterTests": 227,
+  "suites": {
+    "storage": 22,
+    "sshTransport": 36,
+    "networkInventory": 24,
+    "profileCompiler": 23,
+    "manager": 122
+  },
+  "pythonTests": 42,
+  "analyze": "pass",
+  "generatedContracts": "pass",
+  "format": "pass",
+  "workspaceCheck": "pass",
+  "builds": {
+    "linux": {
+      "configuration": "debug",
+      "sha256": "9fffcfee576434e574553b9b3cc8214dffa856e18bc973d1a78545ecfddd3d13",
+      "bytes": 53696
+    },
+    "androidArm64": {
+      "configuration": "debug",
+      "sha256": "81d7f1e78003bf6d607a3d769b0fee6d9afb1b3702c44b061b3a57bfd6b8bfeb",
+      "bytes": 117989790
+    }
+  },
+  "linuxStartup": {
+    "separateStorage": true,
+    "observedSeconds": 10,
+    "dartVmStarted": true,
+    "terminatedByTest": true,
+    "warnings": [
+      "cursor theme lookup",
+      "libsecret Secret Service unavailable"
+    ]
+  },
+  "liveReleaseMetadata": {
+    "latest": {
+      "panel": "3.8.0",
+      "xray": "26.3.27",
+      "trusttunnel": "1.1.0",
+      "amneziawgTools": "3.1.20260812",
+      "amneziawg": "3.1.20260828"
+    },
+    "checkedAt": "2026-09-14T19:57:03.183455Z"
+  },
+  "notVerified": [
+    "Android runtime",
+    "Windows build/runtime",
+    "owner VPS",
+    "3x-ui/Xray update application",
+    "external panel API adoption",
+    "XHTTP separate downloadSettings",
+    "TrustTunnel/AmneziaWG client access"
+  ]
+}

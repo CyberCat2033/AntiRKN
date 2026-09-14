@@ -26,6 +26,7 @@ DATABASE = Path('/etc/x-ui')
 UNIT = Path('/etc/systemd/system/x-ui.service')
 BOOT_UNIT = Path('/etc/systemd/system/antirkn-x-ui-bootstrap.service')
 KEY = Path('/etc/antirkn-runner/panel.key')
+CLI = Path('/usr/bin/x-ui')
 STEPS = 6
 
 
@@ -158,6 +159,42 @@ def access_for(job_id, port):
                 panelVersion=RELEASE['panelVersion'], xrayVersion=RELEASE['xrayVersion'])
 
 
+
+def install_cli():
+    """Install the unmodified, pinned upstream menu without running install.sh."""
+    if CLI.exists() or CLI.is_symlink():
+        safe_file(CLI, 1024 * 1024)
+        if not os.access(CLI, os.X_OK): raise PanelError('panel_conflict')
+        return  # Preserve any administrator-installed menu.
+    if not (PANEL / 'x-ui').is_file(): raise PanelError('panel_existing')
+    bundled = PANEL / 'x-ui.sh'
+    if bundled.is_file():
+        safe_file(bundled, RELEASE['cli']['bytes'])
+        raw = bundled.read_bytes()
+    else:
+        client = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        try:
+            with client.open(RELEASE['cli']['url'], timeout=30) as response:
+                if not response.geturl().startswith('https://'): raise PanelError('panel_download_failed')
+                raw = response.read(RELEASE['cli']['bytes'] + 1)
+        except OSError as error:
+            raise PanelError('panel_download_failed') from error
+    if len(raw) != RELEASE['cli']['bytes'] or hashlib.sha256(raw).hexdigest() != RELEASE['cli']['sha256']:
+        raise PanelError('panel_checksum_failed')
+    import tempfile
+    fd, temporary = tempfile.mkstemp(prefix='.antirkn-x-ui-', dir=str(CLI.parent))
+    try:
+        with os.fdopen(fd, 'wb') as stream:
+            stream.write(raw); stream.flush(); os.fsync(stream.fileno())
+        os.chmod(temporary, 0o755)
+        os.link(temporary, str(CLI))  # Exclusive: never replace another writer.
+        parent = os.open(str(CLI.parent), os.O_RDONLY | os.O_DIRECTORY)
+        try: os.fsync(parent)
+        finally: os.close(parent)
+    finally:
+        os.unlink(temporary)
+
+
 def unit_source(private=False):
     return ('[Unit]\nDescription=AntiRKN managed 3x-ui\nAfter=network.target\n'
         '[Service]\nType=simple\nWorkingDirectory=/usr/local/x-ui\n'
@@ -272,7 +309,7 @@ class PanelInstaller:
                     dst.flush(); os.fsync(dst.fileno())
                 if digest(path) != RELEASE['files'][relative]:
                     raise PanelError('panel_checksum_failed')
-                path.chmod(0o755 if relative in ('x-ui', 'bin/xray-linux-amd64') else 0o644)
+                path.chmod(0o755 if relative in ('x-ui', 'x-ui.sh', 'bin/xray-linux-amd64') else 0o644)
                 self.pulse()
             if seen != set(RELEASE['files']):
                 raise PanelError('panel_checksum_failed')
@@ -294,6 +331,8 @@ class PanelInstaller:
             staging.chmod(0o755)
             (staging / 'bin').chmod(0o755)
             os.rename(str(staging), str(PANEL))
+        if not (PANEL / 'x-ui.sh').exists():
+            atomic_file(PANEL / 'x-ui.sh', (target / 'x-ui.sh').read_bytes(), 0o755)
         for name, expected in RELEASE['files'].items():
             path = PANEL / name
             safe_file(path, 200 * 1024 * 1024)
@@ -339,6 +378,7 @@ class PanelInstaller:
 
     def start(self):
         self.assert_owned()
+        install_cli()
         if not UNIT.exists():
             if not port_free(self.request['port']):
                 raise PanelError('panel_port_busy')

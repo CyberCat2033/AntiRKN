@@ -14,7 +14,13 @@ class Source implements ComponentReleaseSource {
     calls++;
     if (fail) throw const FormatException('offline');
     return gate?.future ??
-        {'trusttunnel': '1.1.0', 'amneziawg': '3.1.20260828'};
+        {
+          'panel': '3.7.0',
+          'xray': '26.7.28',
+          'trusttunnel': '1.1.0',
+          'amneziawg': '3.1.20260828',
+          'amneziawgTools': '3.1.20260812',
+        };
   }
 }
 
