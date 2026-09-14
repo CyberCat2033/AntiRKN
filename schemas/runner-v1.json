@@ -25,7 +25,8 @@
           "panel_verify",
           "resume",
           "vless_plan",
-          "vless_state"
+          "vless_state",
+          "component_plan"
         ]
       },
       "id": {
@@ -37,7 +38,8 @@
         "enum": [
           "diagnostic",
           "panel_install",
-          "vless_apply"
+          "vless_apply",
+          "component_install"
         ]
       },
       "count": {
@@ -67,6 +69,13 @@
       "payload": {
         "type": "string",
         "maxLength": 262144
+      },
+      "component": {
+        "type": "string",
+        "enum": [
+          "trusttunnel",
+          "amneziawg"
+        ]
       }
     },
     "actions": {
@@ -123,6 +132,11 @@
         "version",
         "action",
         "id"
+      ],
+      "component_plan": [
+        "version",
+        "action",
+        "component"
       ]
     },
     "submissions": {
@@ -153,10 +167,24 @@
         "interval",
         "payload",
         "fingerprint"
+      ],
+      "component_install": [
+        "version",
+        "action",
+        "id",
+        "kind",
+        "count",
+        "interval",
+        "component",
+        "fingerprint"
       ]
     },
     "kindConstants": {
       "panel_install": {
+        "count": 6,
+        "interval": 1
+      },
+      "component_install": {
         "count": 6,
         "interval": 1
       }
@@ -214,7 +242,21 @@
     "vless_port_busy",
     "vless_invalid",
     "vless_partial",
-    "vless_api_failed"
+    "vless_api_failed",
+    "component_prepared",
+    "component_downloaded",
+    "component_built",
+    "component_staged",
+    "component_switched",
+    "component_checked",
+    "component_conflict",
+    "component_incompatible",
+    "component_download_failed",
+    "component_checksum_failed",
+    "component_build_failed",
+    "component_check_failed",
+    "component_prerequisites",
+    "component_partial"
   ],
   "codes": [
     "ok",

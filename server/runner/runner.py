@@ -12,6 +12,7 @@ import threading
 import subprocess
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from components import ComponentInstaller, ComponentError
 from contract import SCHEMA, validate_request
 from panel import PanelInstaller, PanelError, access_for
 from vless import VlessApply, VlessError, parse_payload, plan as vless_plan, state as vless_state
@@ -92,7 +93,7 @@ class Store:
             except (PanelError, OSError):
                 return self.response('conflict')
             return {**self.response('ok'), 'panelAccess': access_for(req['id'], original['port'])}
-        if action in ('panel_plan', 'panel_verify'):
+        if action in ('panel_plan', 'panel_verify', 'component_plan'):
             raise ValueError('invalid')  # Device-side operations, never arbitrary worker commands.
         if action == 'list':
             rows = self.db.execute('SELECT * FROM jobs ORDER BY created DESC LIMIT ?', (SCHEMA['pageSize'],)).fetchall()
@@ -117,7 +118,7 @@ class Store:
                 code = 'missing'
             elif action == 'resume':
                 original = json.loads(row['request'])
-                if original['kind'] not in ('panel_install', 'vless_apply') or row['status'] not in ('failed', 'partially_applied'):
+                if original['kind'] not in ('panel_install', 'vless_apply', 'component_install') or row['status'] not in ('failed', 'partially_applied'):
                     code = 'conflict'
                 elif self.db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running')").fetchone():
                     code = 'busy'
@@ -184,6 +185,27 @@ class Store:
                 error = sys.exc_info()[1]
                 code = error.code if isinstance(error, VlessError) else 'vless_api_failed'
                 status = 'partially_applied' if row['checkpoint'] > 0 else 'failed'
+            with self.db:
+                progress = self.db.execute('SELECT checkpoint FROM jobs WHERE id=?', (job_id,)).fetchone()[0]
+                self.db.execute('UPDATE jobs SET status=? WHERE id=?', (status, job_id))
+                self.event(job_id, code, progress, req['count'])
+            return 0.1
+        if req['kind'] == 'component_install':
+            installer = ComponentInstaller(self, req)
+            try:
+                if row['cancel']:
+                    status = installer.abort()
+                    code = 'component_partial' if status == 'partially_applied' else 'cancelled'
+                else:
+                    installer.step(row['checkpoint'])
+                    if row['checkpoint'] + 1 < req['count']:
+                        return 0.1
+                    status, code = 'succeeded', 'succeeded'
+            except (ComponentError, PanelError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
+                code = error.code if isinstance(error, ComponentError) else 'component_partial'
+                status = installer.abort()
+                if status == 'cancelled' and code != 'cancelled':
+                    status = 'failed'
             with self.db:
                 progress = self.db.execute('SELECT checkpoint FROM jobs WHERE id=?', (job_id,)).fetchone()[0]
                 self.db.execute('UPDATE jobs SET status=? WHERE id=?', (status, job_id))

@@ -15,6 +15,7 @@ class RunnerController extends ChangeNotifier {
     required this.password,
     required this.accessFailure,
     this.store,
+    this.software,
   }) {
     _timer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (!busy &&
@@ -28,6 +29,7 @@ class RunnerController extends ChangeNotifier {
     });
   }
   final String serverId;
+  final ServerSoftwareInventory? Function()? software;
   final RunnerTransport? Function() transport;
   final String? Function() identity;
   final String? Function() password;
@@ -47,6 +49,9 @@ class RunnerController extends ChangeNotifier {
   RunnerInstallation? installPlan;
   RunnerInstallation? panelRunnerPlan;
   PanelPlan? panelPlan;
+  ComponentPlan? componentPlan;
+  RunnerInstallation? componentRunnerPlan;
+
   PanelAccess? panelAccess;
   DateTime? panelVerifiedAt;
   bool choosingPanel = false;
@@ -105,6 +110,8 @@ class RunnerController extends ChangeNotifier {
     busy = false;
     installPlan = null;
     panelPlan = null;
+    componentPlan = null;
+    componentRunnerPlan = null;
     panelRunnerPlan = null;
     choosingPanel = false;
     resumePlan = null;
@@ -119,6 +126,8 @@ class RunnerController extends ChangeNotifier {
     if (_loaded && current != _identity) {
       resumePlan = null;
       panelPlan = null;
+      componentPlan = null;
+      componentRunnerPlan = null;
       panelRunnerPlan = null;
       installPlan = null;
       choosingPanel = false;
@@ -263,6 +272,8 @@ class RunnerController extends ChangeNotifier {
     choosingPanel = true;
     panelSelected = false;
     panelPlan = null;
+    componentPlan = null;
+    componentRunnerPlan = null;
     _notify();
   }
 
@@ -270,6 +281,8 @@ class RunnerController extends ChangeNotifier {
     if (busy) return;
     panelSelected = value;
     panelPlan = null;
+    componentPlan = null;
+    componentRunnerPlan = null;
     _notify();
   }
 
@@ -278,6 +291,8 @@ class RunnerController extends ChangeNotifier {
     final port = int.tryParse(value);
     panelPort = port != null && port >= 1024 && port <= 65535 ? port : null;
     panelPlan = null;
+    componentPlan = null;
+    componentRunnerPlan = null;
     _notify();
   }
 
@@ -285,6 +300,8 @@ class RunnerController extends ChangeNotifier {
     if (busy) return;
     choosingPanel = false;
     panelPlan = null;
+    componentPlan = null;
+    componentRunnerPlan = null;
     panelRunnerPlan = null;
     _notify();
   }
@@ -346,6 +363,8 @@ class RunnerController extends ChangeNotifier {
       if (current.panelPlan?.fingerprint != plan.fingerprint ||
           current.panelPlan?.canApply != true) {
         panelPlan = null;
+        componentPlan = null;
+        componentRunnerPlan = null;
         throw const RunnerFailure(RunnerIssue.conflict);
       }
       installation = await remote.install(
@@ -366,7 +385,93 @@ class RunnerController extends ChangeNotifier {
       token.check();
       choosingPanel = false;
       panelPlan = null;
+      componentPlan = null;
+      componentRunnerPlan = null;
       panelRunnerPlan = null;
+      await _submit(remote, token);
+    });
+  }
+
+  Future<void> prepareComponent(String component) =>
+      _run((remote, token) async {
+        componentPlan = null;
+        componentRunnerPlan = null;
+        final runnerPlan = await remote.inspect(token);
+        token.check();
+        if (!runnerPlan.supported) {
+          throw const RunnerFailure(RunnerIssue.prerequisites);
+        }
+        if (runnerPlan.state == 'conflict') {
+          throw const RunnerFailure(RunnerIssue.conflict);
+        }
+        if (runnerPlan.release != null &&
+            runnerPlan.release != remote.bundledRelease &&
+            !runnerPlan.upgradable) {
+          throw const RunnerFailure(RunnerIssue.incompatible);
+        }
+        final response = await remote.request(
+          RunnerRequest.componentPlan(component),
+          token,
+          sudoPassword: password(),
+        );
+        token.check();
+        if (response.code != 'ok' || response.componentPlan == null) {
+          throw const RunnerFailure(RunnerIssue.invalidResponse);
+        }
+        componentPlan = response.componentPlan;
+        componentRunnerPlan = runnerPlan;
+      });
+
+  void dismissComponent() {
+    if (busy) return;
+    componentPlan = null;
+    componentRunnerPlan = null;
+    _notify();
+  }
+
+  bool get canApplyComponent =>
+      connected &&
+      !busy &&
+      pending == null &&
+      componentPlan?.canApply == true &&
+      componentRunnerPlan != null &&
+      !jobs.any((j) => !j.terminal);
+
+  Future<void> applyComponent() {
+    if (!canApplyComponent) return Future.value();
+    final plan = componentPlan!;
+    final runnerPlan = componentRunnerPlan!;
+    return _run((remote, token) async {
+      final current = await remote.request(
+        RunnerRequest.componentPlan(plan.component),
+        token,
+        sudoPassword: password(),
+      );
+      token.check();
+      if (current.componentPlan?.fingerprint != plan.fingerprint ||
+          current.componentPlan?.canApply != true) {
+        componentPlan = null;
+        throw const RunnerFailure(RunnerIssue.conflict);
+      }
+      installation = await remote.install(
+        runnerPlan,
+        token,
+        sudoPassword: password(),
+      );
+      token.check();
+      final random = Random.secure();
+      final id = List.generate(
+        16,
+        (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+      ).join();
+      pending = RunnerRequest.componentInstall(id, plan);
+      selected = null;
+      cursor = 0;
+      await _save();
+      token.check();
+      componentPlan = null;
+      componentRunnerPlan = null;
+      choosingPanel = false;
       await _submit(remote, token);
     });
   }
@@ -382,7 +487,10 @@ class RunnerController extends ChangeNotifier {
 
   void prepareResume() {
     if (busy ||
-        selected?.kind != 'panel_install' ||
+        !const {
+          'panel_install',
+          'component_install',
+        }.contains(selected?.kind) ||
         !const {'failed', 'partially_applied'}.contains(selected?.status)) {
       return;
     }

@@ -112,7 +112,7 @@ def fixtures():
     # supported API, allow only the two local test echo ports on this VM.
     python('''import sys,json,urllib.request,urllib.parse
 from pathlib import Path
-sys.path.insert(0,'/usr/local/lib/antirkn-runner/v3')
+sys.path.insert(0,'/usr/local/lib/antirkn-runner/v4')
 from runner import Store
 from vless import panel_for
 store=Store(Path('/var/lib/antirkn-runner'))

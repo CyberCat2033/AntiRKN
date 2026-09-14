@@ -1,0 +1,33 @@
+{
+  "results": {
+    "trusttunnel_read_only_plan": true,
+    "trusttunnel_preview_no_effect": true,
+    "trusttunnel_cached_endpoint_checksum": true,
+    "trusttunnel_submit": true,
+    "trusttunnel_network_retry_same_id": true,
+    "trusttunnel_succeeded": true,
+    "trusttunnel_repeat_no_effect": true,
+    "trusttunnel_read_back_current": true,
+    "amneziawg_read_only_plan": true,
+    "amneziawg_preview_no_effect": true,
+    "amneziawg_cached_source_checksum": true,
+    "amneziawg_cached_tools_checksum": true,
+    "amneziawg_cached_go_checksum": true,
+    "amneziawg_submit": true,
+    "amneziawg_succeeded": true,
+    "amneziawg_repeat_no_effect": true,
+    "amneziawg_read_back_current": true,
+    "older_upstream_checksum": true,
+    "real_older_version": true,
+    "old_service_active": true,
+    "update_plan_versions": true,
+    "update_submit": true,
+    "update_preserves_configs_and_credentials": true,
+    "active_service_restarted": true,
+    "updated_service_active": true,
+    "credential_backup_created": true,
+    "updated_tls_ping_with_certificate_verification": true,
+    "real_updated_version": true,
+    "old_version_backup_kept": true
+  }
+}

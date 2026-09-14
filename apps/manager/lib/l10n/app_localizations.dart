@@ -2599,6 +2599,144 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'REALITY uses minClientVer=1.8.2 for Mihomo compatibility. Xray warns of increased detection risk when lowering this threshold. Compatibility tests do not establish resistance to blocking.'**
   String get vpnRealityCompatibility;
+
+  /// No description provided for @protocolSoftware.
+  ///
+  /// In en, this message translates to:
+  /// **'TrustTunnel and AmneziaWG'**
+  String get protocolSoftware;
+
+  /// No description provided for @protocolExisting.
+  ///
+  /// In en, this message translates to:
+  /// **'An existing installation or modified files were found. Automatic adoption is unavailable.'**
+  String get protocolExisting;
+
+  /// No description provided for @protocolCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'The verified version supported by this app is installed.'**
+  String get protocolCurrent;
+
+  /// No description provided for @protocolInstallPlan.
+  ///
+  /// In en, this message translates to:
+  /// **'Install the selected server component and verify its executables.'**
+  String get protocolInstallPlan;
+
+  /// No description provided for @protocolUpdatePlan.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace the executables. The previous version remains available for recovery; configurations and keys are preserved.'**
+  String get protocolUpdatePlan;
+
+  /// No description provided for @protocolConfigurationSeparate.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing the software does not create a VPN connection. Endpoint, certificates and peers require separate configuration.'**
+  String get protocolConfigurationSeparate;
+
+  /// No description provided for @protocolGoDependency.
+  ///
+  /// In en, this message translates to:
+  /// **'Dependencies: Go 1.26.8 and AWG source verified by SHA-256; Go modules verified against go.sum. Built on the server; requires at least 2000 MiB free space.'**
+  String get protocolGoDependency;
+
+  /// No description provided for @protocolPrepared.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan verified'**
+  String get protocolPrepared;
+
+  /// No description provided for @protocolBuilt.
+  ///
+  /// In en, this message translates to:
+  /// **'Executables ready'**
+  String get protocolBuilt;
+
+  /// No description provided for @protocolStaged.
+  ///
+  /// In en, this message translates to:
+  /// **'New version staged'**
+  String get protocolStaged;
+
+  /// No description provided for @protocolSwitched.
+  ///
+  /// In en, this message translates to:
+  /// **'New version installed'**
+  String get protocolSwitched;
+
+  /// No description provided for @protocolBuildFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'AmneziaWG build failed. Check Go modules connectivity, server memory and disk space.'**
+  String get protocolBuildFailed;
+
+  /// No description provided for @protocolCheckFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Installed version verification failed.'**
+  String get protocolCheckFailed;
+
+  /// No description provided for @updatesCheck.
+  ///
+  /// In en, this message translates to:
+  /// **'Check for updates'**
+  String get updatesCheck;
+
+  /// No description provided for @updatesAutomatic.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatically check protocol versions'**
+  String get updatesAutomatic;
+
+  /// No description provided for @updatesSuggestions.
+  ///
+  /// In en, this message translates to:
+  /// **'Show update suggestions'**
+  String get updatesSuggestions;
+
+  /// No description provided for @updatesFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not check for updates. The previous result may be stale.'**
+  String get updatesFailed;
+
+  /// No description provided for @updatesChecked.
+  ///
+  /// In en, this message translates to:
+  /// **'Last successful check: {date}'**
+  String updatesChecked(String date);
+
+  /// No description provided for @updatesLatest.
+  ///
+  /// In en, this message translates to:
+  /// **'latest upstream version'**
+  String get updatesLatest;
+
+  /// No description provided for @updatesCompatibility.
+  ///
+  /// In en, this message translates to:
+  /// **'Verified versions can be applied through the component plan. Newer unsupported releases require an app update.'**
+  String get updatesCompatibility;
+
+  /// No description provided for @updatesAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'{component}: update available {current} → {latest}. Open the component plan.'**
+  String updatesAvailable(String component, String current, String latest);
+
+  /// No description provided for @protocolRestart.
+  ///
+  /// In en, this message translates to:
+  /// **'Services to restart: {services}. Connections may be interrupted. A configuration backup remains with the job journal.'**
+  String protocolRestart(String services);
+
+  /// No description provided for @protocolPrerequisites.
+  ///
+  /// In en, this message translates to:
+  /// **'Installation requires Ubuntu x86_64, Python 3.8+/SQLite, systemd 235+ and ca-certificates. Free space: TrustTunnel — 150 MiB; AmneziaWG — 2000 MiB and an available /dev/net/tun.'**
+  String get protocolPrerequisites;
 }
 
 class _AppLocalizationsDelegate

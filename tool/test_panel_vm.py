@@ -33,7 +33,7 @@ def bundle_strings():
 
 
 def rpc(request):
-    result = remote('/usr/bin/python3 -I /usr/local/lib/antirkn-runner/v3/runner.py rpc',
+    result = remote('/usr/bin/python3 -I /usr/local/lib/antirkn-runner/v4/runner.py rpc',
                     json.dumps(request).encode(), check=False)
     return json.loads(result.stdout)
 

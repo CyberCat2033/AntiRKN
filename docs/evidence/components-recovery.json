@@ -1,0 +1,14 @@
+{
+  "results": {
+    "effect_without_checkpoint": true,
+    "cancel_after_effect_is_partial": true,
+    "real_reboot": true,
+    "partial_result_survives_reboot": true,
+    "explicit_resume_same_id": true,
+    "effect_reconciled_and_finished": true,
+    "recovery_preserves_configs_and_keys": true,
+    "events_remain_monotonic": true,
+    "service_active_after_recovery": true,
+    "unknown_unit_not_overwritten": true
+  }
+}

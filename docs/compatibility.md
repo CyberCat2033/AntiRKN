@@ -40,8 +40,8 @@ Mihomo archive SHA-256: `db214c7a2517e63c150d123178d16d102e03a241ccdae4e5e07ffbe
 | VLESS RAW/TCP REALITY Vision | 3x-ui 3.7.0 / Xray 26.7.28, два сервера | Production-компилятор + Mihomo 1.19.30 config-test | PASS | PASS |
 | VLESS XHTTP REALITY | auto / stream-one, два сервера | Production-компилятор + Mihomo 1.19.30 config-test | PASS | PASS |
 | VLESS XHTTP TLS | auto / packet-up / stream-up / stream-one, два сервера | Production-компилятор + Mihomo 1.19.30 config-test | PASS | PASS |
-| TrustTunnel | Не испытана | Публичный fixture принят v1.19.30 | Не испытан | Не испытан |
-| AWG | Не выбрано поколение | Публичный fixture принят v1.19.30; не означает поддержки версии сервера | Не испытан | Не испытан |
+| TrustTunnel | ПО 1.1.0 установлено, обновление 1.0.33 → 1.1.0 и TLS health проверены; продуктовый endpoint отдельно | Публичный fixture принят v1.19.30 | Не испытан | Не испытан |
+| AWG | ПО Go 3.1.20260828 / tools 3.1.20260812; установка и обновление службы проверены. Совместимые клиентские параметры ещё не выбраны | Публичный fixture принят v1.19.30; не означает поддержки версии сервера | Не испытан | Не испытан |
 
 ## base.yml
 

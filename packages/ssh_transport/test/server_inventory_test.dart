@@ -367,6 +367,14 @@ void main() {
         ),
         isEmpty,
       );
+      expect(
+        componentForUnit('antirkn-trusttunnel.service'),
+        VpnComponent.trustTunnel,
+      );
+      expect(
+        componentForUnit('antirkn-awg@awg0.service'),
+        VpnComponent.amneziaWg,
+      );
       expect(() => parseUnits('not output', live: true), throwsFormatException);
       expect(() => parseContainers('private data'), throwsFormatException);
       expect(

@@ -1,0 +1,17 @@
+{
+  "oldSourceCommit": "1b86b2ae0e493e7ea93f8c1a0f0cb6735b1551f1",
+  "oldSourceSha256": "bd49bf8ea693b8799d0fd291794bb4e2c8f2c18187ae182c155d8ff3743c1a1c",
+  "results": {
+    "real_old_awg_version": true,
+    "old_awg_service_active": true,
+    "active_awg_update_plan": true,
+    "awg_update_submitted": true,
+    "awg_update_succeeded": true,
+    "awg_config_key_and_address_preserved": true,
+    "real_updated_awg_version": true,
+    "updated_awg_interface_listens": true,
+    "updated_awg_service_active": true,
+    "awg_configuration_backup": true,
+    "awg_repeat_no_effect": true
+  }
+}

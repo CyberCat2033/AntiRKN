@@ -1,0 +1,39 @@
+{
+  "checkedAt": "2026-09-14T19:24:34.332668+00:00",
+  "tests": {
+    "dartFlutter": 221,
+    "python": 34,
+    "finalFocusedUiAndController": 14
+  },
+  "analyze": true,
+  "generatedRunner": true,
+  "architectureAndBaseYaml": true,
+  "translations": 440,
+  "builds": {
+    "linux": {
+      "path": "apps/manager/build/linux/x64/debug/bundle/antirkn_manager",
+      "bytes": 53696,
+      "sha256": "9fffcfee576434e574553b9b3cc8214dffa856e18bc973d1a78545ecfddd3d13"
+    },
+    "android": {
+      "path": "apps/manager/build/app/outputs/flutter-apk/app-debug.apk",
+      "bytes": 117989790,
+      "sha256": "40ed42fef8e23cac585ae55043c300fc21e786a5dbb2b8f22c88b6603b8d5fa2"
+    }
+  },
+  "runnerRelease": "9c883118882154affb21c229eea10cd8658115bbe22f5d5027c92082fc870711",
+  "releaseSource": {
+    "realDartAdapter": true,
+    "latest": {
+      "trusttunnel": "1.1.0",
+      "amneziawg": "3.1.20260828",
+      "amneziawgTools": "3.1.20260812"
+    }
+  },
+  "limits": [
+    "Android APK built but not installed; Windows untested",
+    "No product endpoint/ACME/peers/YAML for new protocols",
+    "No VPN TCP/UDP Mihomo tests in this stage",
+    "Final VM artifact downloads used pinned cache after real GitHub TLS failures; Go modules were checked against upstream go.sum"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "release": "e674eaf3d977199b263ce967993a62a93c4d590ddb45b41a45bf256b12054441",
+  "hashes": {
+    "runner.py": "01f5c9ef6c1624cf0a934cb25a9f434cfcc3aa0c930e7f8b97f3f1338c41dba6",
+    "contract.py": "76e27ab70a106d3888676084749a62a6bed0f7b134af5485f90fd3fd6d1d0b70",
+    "panel.py": "a7180a0a28c361f92e0ab4b5f12a830716bc3f58390c12bcd047a44896fdde61",
+    "panel_api.py": "aaf964e602edb842de66ab12c3ee47c444c9f4b986fa5beebb477449ebaa5d67",
+    "panel_release.py": "f651e6bfa37513e94fe9bfb6827b890abcb9c13f6b60ec5f8f3748d9da0be81f",
+    "vless.py": "b583d34f6959cbc28b0e586af732149650e28b3209f17a4b87e02667d9b00c32",
+    "vless_contract.py": "003bb1a944b1291bad678a9cf0dd142c4dcb9c859b6c611998787ecc9cde5e2e",
+    "antirkn-runner.service": "36100f167420452f68f0ee3af60f573e8ec94b5f7f45831b2c2c49cc8840e436"
+  }
+}

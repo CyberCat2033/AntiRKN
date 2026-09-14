@@ -1,0 +1,16 @@
+{
+  "results": {
+    "root_runner_release": true,
+    "root_trusttunnel_read_only_plan": true,
+    "root_trusttunnel_actual_version": true,
+    "root_amneziawg_read_only_plan": true,
+    "root_amneziawg_actual_version": true,
+    "root_cancel_before_request": true,
+    "antirkn_runner_release": true,
+    "antirkn_trusttunnel_read_only_plan": true,
+    "antirkn_trusttunnel_actual_version": true,
+    "antirkn_amneziawg_read_only_plan": true,
+    "antirkn_amneziawg_actual_version": true,
+    "antirkn_cancel_before_request": true
+  }
+}

@@ -295,10 +295,12 @@ VpnComponent? componentForUnit(String name) {
   }
   if (RegExp(r'^x-ui(?:[.@-])').hasMatch(name)) return VpnComponent.panel;
   if (RegExp(r'^xray(?:[.@-])').hasMatch(name)) return VpnComponent.xray;
-  if (RegExp(r'^trusttunnel(?:[.@-])').hasMatch(name)) {
+  if (name == 'antirkn-trusttunnel.service' ||
+      RegExp(r'^trusttunnel(?:[.@-])').hasMatch(name)) {
     return VpnComponent.trustTunnel;
   }
-  if (name.startsWith('awg-quick@') ||
+  if (name.startsWith('antirkn-awg@') ||
+      name.startsWith('awg-quick@') ||
       RegExp(r'^amneziawg(?:[.@-])').hasMatch(name)) {
     return VpnComponent.amneziaWg;
   }

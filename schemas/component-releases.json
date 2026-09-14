@@ -1,0 +1,50 @@
+{
+  "trusttunnel": {
+    "version": "1.1.0",
+    "repository": "TrustTunnel/TrustTunnel",
+    "archives": {
+      "endpoint": {
+        "url": "https://github.com/TrustTunnel/TrustTunnel/releases/download/v1.1.0/trusttunnel-v1.1.0-linux-x86_64.tar.gz",
+        "bytes": 10608905,
+        "sha256": "91c2ea3db7416a01b5258a4c047ec22890490bc55e1b194206031aa75144f0e7",
+        "files": {
+          "trusttunnel_endpoint": "9bb15f4e30e2ff196cf0aa387462c42387d9405ddfeb5caad133838560fa33cd",
+          "trusttunnel_endpoint.sig": "2049ddc410c91868fa26cedfbbbf7430bdd84a686d698f0a2bd607e24d4b70ac",
+          "setup_wizard": "6ac3512a2cc0bffc15fcb90c69f49c9e1f8c82ea0d2855effd0b9408e2cbea91",
+          "setup_wizard.sig": "89b38eac2afde2b04f6dda76d031cacd5b871406b29c158c9c365217f9e8f745",
+          "LICENSE": "cd994f29faba128fa963ccab364cdee0b51cdb399f98432c4bb6c7a6d017d3df",
+          "trusttunnel.service.template": "ad1f4025c0817b2cd28112ac3e2d9318d4369b2d7bf19f4937b315c174cbdc61"
+        }
+      }
+    }
+  },
+  "amneziawg": {
+    "version": "3.1.20260828",
+    "toolsVersion": "3.1.20260812",
+    "repository": "amnezia-vpn/amneziawg-go",
+    "commit": "b5928efb6ca19f0153958460c3d141f04abc5c2e",
+    "archives": {
+      "source": {
+        "url": "https://codeload.github.com/amnezia-vpn/amneziawg-go/tar.gz/b5928efb6ca19f0153958460c3d141f04abc5c2e",
+        "bytes": 132779,
+        "sha256": "10bf7458e090bf52f87df27adcd3904a60e4d17fab844d9415e46379147f1ab4"
+      },
+      "tools": {
+        "url": "https://github.com/amnezia-vpn/amneziawg-tools/releases/download/v3.1.20260812/ubuntu-22.04-amneziawg-tools.zip",
+        "bytes": 63115,
+        "sha256": "919e9d0a367c7c72f9c16b7d0a9e4840b943628353b2210a33cb4b582785ba56",
+        "files": {
+          "awg-quick.sha256": "80c60c3aefafcdf236a1ee4f9e7ac529d2f869e499e341bb693bcd6b64528ddd",
+          "awg": "23d29323258166183eeeb288c1f9f08b879f3707e54591b1bfb2402413f6d8d8",
+          "awg-quick": "f4bb0f5d63665ade87f0cb9f2185c43515cff09868637eb311f98f65a318722c",
+          "awg.sha256": "b93ddcaccc9bf275d72d95d86db9e9fe0848e29060a18fdd0b5070f8a0298fe1"
+        }
+      },
+      "go": {
+        "url": "https://go.dev/dl/go1.26.8.linux-amd64.tar.gz",
+        "bytes": 66897291,
+        "sha256": "d0f743b33e8d8945e6b1f432edd15785c70507121d6e2a723b21285eddf8b57b"
+      }
+    }
+  }
+}

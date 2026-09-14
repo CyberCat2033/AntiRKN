@@ -96,6 +96,18 @@ class FakeRunnerTransport implements RunnerTransport {
     var jobs = <RunnerJob>[];
     final extra = <String, Object?>{};
     switch (request.json['action']) {
+      case 'component_plan':
+        extra['componentPlan'] = {
+          'component': request.json['component'],
+          'state': panelState,
+          'supported': panelSupported,
+          'version': '1.1.0',
+          'installedVersion': null,
+          'toolsVersion': null,
+          'fingerprint': panelFingerprint,
+          'archives': <String, dynamic>{},
+          'prerequisites': <String>[],
+        };
       case 'panel_plan':
         extra['panelPlan'] = {
           'state': panelState,

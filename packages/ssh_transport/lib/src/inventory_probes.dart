@@ -18,7 +18,7 @@ abstract final class InventoryProbes {
         'for t in apt-get dpkg-query systemctl docker sudo; do if command -v "\$t" >/dev/null 2>&1; then printf "%s\\n" "\$t"; fi; done',
   };
   static const patterns =
-      "'x-ui*.service' 'xray*.service' 'trusttunnel*.service' 'awg-quick@*.service' 'amneziawg*.service'";
+      "'x-ui*.service' 'xray*.service' 'trusttunnel*.service' 'awg-quick@*.service' 'amneziawg*.service' 'antirkn-trusttunnel.service' 'antirkn-awg@*.service'";
   static const services =
       'if ! command -v systemctl >/dev/null 2>&1 || [ ! -d /run/systemd/system ]; then printf "@unavailable\\n"; else systemctl list-units --all --type=service --no-legend --plain --no-pager --full $patterns; fi';
   static const serviceFiles =

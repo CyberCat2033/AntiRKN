@@ -26,6 +26,23 @@ final class RunnerRequest {
     : json = Map.unmodifiable(value) {
     validateRunnerRequest(value);
   }
+  factory RunnerRequest.componentPlan(String component) =>
+      RunnerRequest.fromJson({
+        'version': 1,
+        'action': 'component_plan',
+        'component': component,
+      });
+  factory RunnerRequest.componentInstall(String id, ComponentPlan plan) =>
+      RunnerRequest.fromJson({
+        'version': 1,
+        'action': 'submit',
+        'id': id,
+        'kind': 'component_install',
+        'count': 6,
+        'interval': 1,
+        'component': plan.component,
+        'fingerprint': plan.fingerprint,
+      });
   factory RunnerRequest.list() =>
       RunnerRequest.fromJson({'version': 1, 'action': 'list'});
   factory RunnerRequest.vlessPlan(
@@ -149,7 +166,12 @@ final class RunnerJob {
         ),
       ) {
     RunnerRequest.diagnostic(id, count: count, interval: interval);
-    if (!const {'diagnostic', 'panel_install', 'vless_apply'}.contains(kind) ||
+    if (!const {
+          'diagnostic',
+          'panel_install',
+          'vless_apply',
+          'component_install',
+        }.contains(kind) ||
         (kind == 'panel_install' && (count != 6 || interval != 1)) ||
         !(runnerSchema['states'] as List).contains(status) ||
         checkpoint < 0 ||
@@ -219,6 +241,11 @@ final class RunnerResponse {
           : PanelAccess.fromJson(
               Map<String, dynamic>.from(value['panelAccess'] as Map),
             ),
+      componentPlan = value['componentPlan'] == null
+          ? null
+          : ComponentPlan.fromJson(
+              Map<String, dynamic>.from(value['componentPlan'] as Map),
+            ),
       panelVerified = value['panelVerified'] == true,
       vlessPlan = value['vlessPlan'] == null
           ? null
@@ -244,6 +271,7 @@ final class RunnerResponse {
   }
   final String code;
   final PanelPlan? panelPlan;
+  final ComponentPlan? componentPlan;
   final PanelAccess? panelAccess;
   final bool panelVerified;
   final Map<String, dynamic>? vlessPlan;
@@ -357,3 +385,36 @@ abstract interface class RunnerJournalStore {
 
 Map<String, dynamic> decodeRunnerObject(String source) =>
     Map<String, dynamic>.from(jsonDecode(source) as Map);
+
+final class ComponentPlan {
+  ComponentPlan.fromJson(Map<String, dynamic> json)
+    : component = json['component'] as String,
+      state = json['state'] as String,
+      supported = json['supported'] as bool,
+      version = json['version'] as String,
+      installedVersion = json['installedVersion'] as String?,
+      toolsVersion = json['toolsVersion'] as String?,
+      fingerprint = json['fingerprint'] as String,
+      activeUnits = List<String>.from(json['activeUnits'] as List? ?? const []),
+      archives = Map<String, dynamic>.unmodifiable(json['archives'] as Map),
+      prerequisites = List<String>.from(json['prerequisites'] as List) {
+    RunnerRequest.componentPlan(component);
+    if (!const {
+          'missing',
+          'current',
+          'update',
+          'conflict',
+          'incompatible',
+        }.contains(state) ||
+        !RegExp(r'^[a-f0-9]{64}$').hasMatch(fingerprint)) {
+      throw const FormatException('component_plan');
+    }
+  }
+  final String component, state, version, fingerprint;
+  final String? installedVersion, toolsVersion;
+  final bool supported;
+  final Map<String, dynamic> archives;
+  final List<String> prerequisites;
+  final List<String> activeUnits;
+  bool get canApply => supported && const {'missing', 'update'}.contains(state);
+}

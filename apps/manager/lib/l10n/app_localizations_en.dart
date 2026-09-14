@@ -1424,4 +1424,89 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get vpnRealityCompatibility =>
       'REALITY uses minClientVer=1.8.2 for Mihomo compatibility. Xray warns of increased detection risk when lowering this threshold. Compatibility tests do not establish resistance to blocking.';
+
+  @override
+  String get protocolSoftware => 'TrustTunnel and AmneziaWG';
+
+  @override
+  String get protocolExisting =>
+      'An existing installation or modified files were found. Automatic adoption is unavailable.';
+
+  @override
+  String get protocolCurrent =>
+      'The verified version supported by this app is installed.';
+
+  @override
+  String get protocolInstallPlan =>
+      'Install the selected server component and verify its executables.';
+
+  @override
+  String get protocolUpdatePlan =>
+      'Replace the executables. The previous version remains available for recovery; configurations and keys are preserved.';
+
+  @override
+  String get protocolConfigurationSeparate =>
+      'Installing the software does not create a VPN connection. Endpoint, certificates and peers require separate configuration.';
+
+  @override
+  String get protocolGoDependency =>
+      'Dependencies: Go 1.26.8 and AWG source verified by SHA-256; Go modules verified against go.sum. Built on the server; requires at least 2000 MiB free space.';
+
+  @override
+  String get protocolPrepared => 'Plan verified';
+
+  @override
+  String get protocolBuilt => 'Executables ready';
+
+  @override
+  String get protocolStaged => 'New version staged';
+
+  @override
+  String get protocolSwitched => 'New version installed';
+
+  @override
+  String get protocolBuildFailed =>
+      'AmneziaWG build failed. Check Go modules connectivity, server memory and disk space.';
+
+  @override
+  String get protocolCheckFailed => 'Installed version verification failed.';
+
+  @override
+  String get updatesCheck => 'Check for updates';
+
+  @override
+  String get updatesAutomatic => 'Automatically check protocol versions';
+
+  @override
+  String get updatesSuggestions => 'Show update suggestions';
+
+  @override
+  String get updatesFailed =>
+      'Could not check for updates. The previous result may be stale.';
+
+  @override
+  String updatesChecked(String date) {
+    return 'Last successful check: $date';
+  }
+
+  @override
+  String get updatesLatest => 'latest upstream version';
+
+  @override
+  String get updatesCompatibility =>
+      'Verified versions can be applied through the component plan. Newer unsupported releases require an app update.';
+
+  @override
+  String updatesAvailable(String component, String current, String latest) {
+    return '$component: update available $current → $latest. Open the component plan.';
+  }
+
+  @override
+  String protocolRestart(String services) {
+    return 'Services to restart: $services. Connections may be interrupted. A configuration backup remains with the job journal.';
+  }
+
+  @override
+  String get protocolPrerequisites =>
+      'Installation requires Ubuntu x86_64, Python 3.8+/SQLite, systemd 235+ and ca-certificates. Free space: TrustTunnel — 150 MiB; AmneziaWG — 2000 MiB and an available /dev/net/tun.';
 }

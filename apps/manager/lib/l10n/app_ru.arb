@@ -516,5 +516,55 @@
   "vpnChanged": "Изменения ожидают подтверждения",
   "vpnEmptyTemplate": "Сначала выберите базовый YAML в разделе шаблонов.",
   "vpnNoAccess": "Для этого клиента пока нет настроенных активных inbounds.",
-  "vpnRealityCompatibility": "Для Mihomo REALITY использует minClientVer=1.8.2. Xray предупреждает о повышенном риске обнаружения при снижении этого порога. Совместимость проверяется отдельно от устойчивости к блокировкам."
+  "vpnRealityCompatibility": "Для Mihomo REALITY использует minClientVer=1.8.2. Xray предупреждает о повышенном риске обнаружения при снижении этого порога. Совместимость проверяется отдельно от устойчивости к блокировкам.",
+  "protocolSoftware": "TrustTunnel и AmneziaWG",
+  "protocolExisting": "Обнаружена существующая установка или изменённые файлы. Автоматическое принятие под управление недоступно.",
+  "protocolCurrent": "Установлена проверенная версия этой сборки приложения.",
+  "protocolInstallPlan": "Установить выбранный серверный компонент и проверить исполняемые файлы.",
+  "protocolUpdatePlan": "Заменить исполняемые файлы. Предыдущая версия сохранится для восстановления; конфигурации и ключи сохраняются.",
+  "protocolConfigurationSeparate": "Установка ПО не создаёт VPN-подключение. Endpoint, сертификаты и peers настраиваются отдельным шагом.",
+  "protocolGoDependency": "Зависимости: Go 1.26.8 и исходники AWG с проверкой SHA-256; модули Go — с проверкой go.sum. Сборка на сервере, не менее 2000 МиБ свободного места.",
+  "protocolPrepared": "План проверен",
+  "protocolBuilt": "Исполняемые файлы готовы",
+  "protocolStaged": "Новая версия подготовлена",
+  "protocolSwitched": "Новая версия установлена",
+  "protocolBuildFailed": "Сборка AmneziaWG не завершилась. Проверьте доступ к Go modules, память и место на сервере.",
+  "protocolCheckFailed": "Проверка установленной версии не пройдена.",
+  "updatesCheck": "Проверить обновления",
+  "updatesAutomatic": "Автоматически проверять версии протоколов",
+  "updatesSuggestions": "Показывать предложения обновлений",
+  "updatesFailed": "Не удалось проверить обновления. Предыдущий результат может быть устаревшим.",
+  "updatesChecked": "Успешная проверка: {date}",
+  "updatesLatest": "новая версия в источнике",
+  "updatesCompatibility": "Применение доступно для проверенных версий через план компонента. Более новые несовместимые релизы требуют обновления приложения.",
+  "@updatesChecked": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "updatesAvailable": "{component}: доступно обновление {current} → {latest}. Откройте план компонента.",
+  "@updatesAvailable": {
+    "placeholders": {
+      "component": {
+        "type": "String"
+      },
+      "current": {
+        "type": "String"
+      },
+      "latest": {
+        "type": "String"
+      }
+    }
+  },
+  "protocolRestart": "Перезапустятся службы: {services}. Соединения могут прерваться. Резервная копия конфигурации остаётся в журнале задания.",
+  "@protocolRestart": {
+    "placeholders": {
+      "services": {
+        "type": "String"
+      }
+    }
+  },
+  "protocolPrerequisites": "Для установки нужны Ubuntu x86_64, Python 3.8+/SQLite, systemd 235+ и ca-certificates. Свободное место: TrustTunnel — 150 МиБ; AmneziaWG — 2000 МиБ и доступный /dev/net/tun."
 }

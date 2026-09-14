@@ -1430,4 +1430,90 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get vpnRealityCompatibility =>
       'Для Mihomo REALITY использует minClientVer=1.8.2. Xray предупреждает о повышенном риске обнаружения при снижении этого порога. Совместимость проверяется отдельно от устойчивости к блокировкам.';
+
+  @override
+  String get protocolSoftware => 'TrustTunnel и AmneziaWG';
+
+  @override
+  String get protocolExisting =>
+      'Обнаружена существующая установка или изменённые файлы. Автоматическое принятие под управление недоступно.';
+
+  @override
+  String get protocolCurrent =>
+      'Установлена проверенная версия этой сборки приложения.';
+
+  @override
+  String get protocolInstallPlan =>
+      'Установить выбранный серверный компонент и проверить исполняемые файлы.';
+
+  @override
+  String get protocolUpdatePlan =>
+      'Заменить исполняемые файлы. Предыдущая версия сохранится для восстановления; конфигурации и ключи сохраняются.';
+
+  @override
+  String get protocolConfigurationSeparate =>
+      'Установка ПО не создаёт VPN-подключение. Endpoint, сертификаты и peers настраиваются отдельным шагом.';
+
+  @override
+  String get protocolGoDependency =>
+      'Зависимости: Go 1.26.8 и исходники AWG с проверкой SHA-256; модули Go — с проверкой go.sum. Сборка на сервере, не менее 2000 МиБ свободного места.';
+
+  @override
+  String get protocolPrepared => 'План проверен';
+
+  @override
+  String get protocolBuilt => 'Исполняемые файлы готовы';
+
+  @override
+  String get protocolStaged => 'Новая версия подготовлена';
+
+  @override
+  String get protocolSwitched => 'Новая версия установлена';
+
+  @override
+  String get protocolBuildFailed =>
+      'Сборка AmneziaWG не завершилась. Проверьте доступ к Go modules, память и место на сервере.';
+
+  @override
+  String get protocolCheckFailed =>
+      'Проверка установленной версии не пройдена.';
+
+  @override
+  String get updatesCheck => 'Проверить обновления';
+
+  @override
+  String get updatesAutomatic => 'Автоматически проверять версии протоколов';
+
+  @override
+  String get updatesSuggestions => 'Показывать предложения обновлений';
+
+  @override
+  String get updatesFailed =>
+      'Не удалось проверить обновления. Предыдущий результат может быть устаревшим.';
+
+  @override
+  String updatesChecked(String date) {
+    return 'Успешная проверка: $date';
+  }
+
+  @override
+  String get updatesLatest => 'новая версия в источнике';
+
+  @override
+  String get updatesCompatibility =>
+      'Применение доступно для проверенных версий через план компонента. Более новые несовместимые релизы требуют обновления приложения.';
+
+  @override
+  String updatesAvailable(String component, String current, String latest) {
+    return '$component: доступно обновление $current → $latest. Откройте план компонента.';
+  }
+
+  @override
+  String protocolRestart(String services) {
+    return 'Перезапустятся службы: $services. Соединения могут прерваться. Резервная копия конфигурации остаётся в журнале задания.';
+  }
+
+  @override
+  String get protocolPrerequisites =>
+      'Для установки нужны Ubuntu x86_64, Python 3.8+/SQLite, systemd 235+ и ca-certificates. Свободное место: TrustTunnel — 150 МиБ; AmneziaWG — 2000 МиБ и доступный /dev/net/tun.';
 }

@@ -80,9 +80,11 @@ final class SshRunnerTransport implements RunnerTransport {
     validateRunnerRequest(request.json);
     final action = request.json['action'];
     final result = await _privileged(
-      action == 'panel_plan'
+      action == 'component_plan'
+          ? python(runnerComponentInspector)
+          : action == 'panel_plan'
           ? python(runnerPanelInspector)
-          : '/usr/bin/python3 -I /usr/local/lib/antirkn-runner/v3/runner.py rpc',
+          : '/usr/bin/python3 -I /usr/local/lib/antirkn-runner/v4/runner.py rpc',
       jsonEncode(
         action == 'panel_verify'
             ? {...request.json, 'action': 'panel_access'}

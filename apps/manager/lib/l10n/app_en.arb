@@ -516,5 +516,55 @@
   "vpnChanged": "Changes awaiting approval",
   "vpnEmptyTemplate": "Choose a base YAML in Templates first.",
   "vpnNoAccess": "No active inbounds are configured for this client yet.",
-  "vpnRealityCompatibility": "REALITY uses minClientVer=1.8.2 for Mihomo compatibility. Xray warns of increased detection risk when lowering this threshold. Compatibility tests do not establish resistance to blocking."
+  "vpnRealityCompatibility": "REALITY uses minClientVer=1.8.2 for Mihomo compatibility. Xray warns of increased detection risk when lowering this threshold. Compatibility tests do not establish resistance to blocking.",
+  "protocolSoftware": "TrustTunnel and AmneziaWG",
+  "protocolExisting": "An existing installation or modified files were found. Automatic adoption is unavailable.",
+  "protocolCurrent": "The verified version supported by this app is installed.",
+  "protocolInstallPlan": "Install the selected server component and verify its executables.",
+  "protocolUpdatePlan": "Replace the executables. The previous version remains available for recovery; configurations and keys are preserved.",
+  "protocolConfigurationSeparate": "Installing the software does not create a VPN connection. Endpoint, certificates and peers require separate configuration.",
+  "protocolGoDependency": "Dependencies: Go 1.26.8 and AWG source verified by SHA-256; Go modules verified against go.sum. Built on the server; requires at least 2000 MiB free space.",
+  "protocolPrepared": "Plan verified",
+  "protocolBuilt": "Executables ready",
+  "protocolStaged": "New version staged",
+  "protocolSwitched": "New version installed",
+  "protocolBuildFailed": "AmneziaWG build failed. Check Go modules connectivity, server memory and disk space.",
+  "protocolCheckFailed": "Installed version verification failed.",
+  "updatesCheck": "Check for updates",
+  "updatesAutomatic": "Automatically check protocol versions",
+  "updatesSuggestions": "Show update suggestions",
+  "updatesFailed": "Could not check for updates. The previous result may be stale.",
+  "updatesChecked": "Last successful check: {date}",
+  "updatesLatest": "latest upstream version",
+  "updatesCompatibility": "Verified versions can be applied through the component plan. Newer unsupported releases require an app update.",
+  "@updatesChecked": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "updatesAvailable": "{component}: update available {current} → {latest}. Open the component plan.",
+  "@updatesAvailable": {
+    "placeholders": {
+      "component": {
+        "type": "String"
+      },
+      "current": {
+        "type": "String"
+      },
+      "latest": {
+        "type": "String"
+      }
+    }
+  },
+  "protocolRestart": "Services to restart: {services}. Connections may be interrupted. A configuration backup remains with the job journal.",
+  "@protocolRestart": {
+    "placeholders": {
+      "services": {
+        "type": "String"
+      }
+    }
+  },
+  "protocolPrerequisites": "Installation requires Ubuntu x86_64, Python 3.8+/SQLite, systemd 235+ and ca-certificates. Free space: TrustTunnel — 150 MiB; AmneziaWG — 2000 MiB and an available /dev/net/tun."
 }

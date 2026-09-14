@@ -1,0 +1,12 @@
+{
+  "trusttunnelOld": {
+    "url": "https://github.com/TrustTunnel/TrustTunnel/releases/download/v1.0.33/trusttunnel-v1.0.33-linux-x86_64.tar.gz",
+    "sha256": "48802662bc745aed60207c6ed6465d9fed428b1e53532045689d89bcad19bdd9",
+    "bytes": 10739873
+  },
+  "amneziawgOld": {
+    "url": "https://codeload.github.com/amnezia-vpn/amneziawg-go/tar.gz/1b86b2ae0e493e7ea93f8c1a0f0cb6735b1551f1",
+    "sha256": "bd49bf8ea693b8799d0fd291794bb4e2c8f2c18187ae182c155d8ff3743c1a1c",
+    "bytes": 132813
+  }
+}

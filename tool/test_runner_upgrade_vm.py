@@ -15,7 +15,7 @@ def main():
         results[name] = True
         print('PASS', name, flush=True)
     version = os.environ.get('ANTIRKN_PREDECESSOR', 'v2')
-    commit = {'v1':'9f7c846', 'v2':'5f057bc'}[version]
+    commit = {'v1':'9f7c846', 'v2':'5f057bc', 'v3':'bbf67ed'}[version]
     source = subprocess.check_output(['git', 'show', commit + ':packages/ssh_transport/lib/src/runner_bundle.g.dart'], cwd=ROOT, text=True)
     old = {name: re.search(r'const ' + name + r" =\s*r'''(.*?)''';", source, re.S).group(1)
            for name in ('runnerBundle', 'runnerInspector', 'runnerInstaller')}
@@ -54,7 +54,7 @@ def main():
     check(pid == remote('systemctl show antirkn-runner -p MainPID --value').stdout, 'repeat_does_not_restart_worker')
     if material_before:
         check(material_before == remote('sha256sum /etc/antirkn-runner/panel.key').stdout, 'panel_root_material_preserved')
-    (ROOT / ('docs/evidence/vless-runner-upgrade-' + version + '.json')).write_text(json.dumps({'from':version,'to':'v3','release':json.loads(new['runnerBundle'])['release'],'results':results},indent=2)+'\n')
+    (ROOT / ('docs/evidence/components-runner-upgrade-' + version + '.json')).write_text(json.dumps({'from':version,'to':'v4','release':json.loads(new['runnerBundle'])['release'],'results':results},indent=2)+'\n')
 
 
 if __name__ == '__main__': main()

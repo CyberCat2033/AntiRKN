@@ -25,7 +25,7 @@ def request(p):
 
 API_PREFIX='''import json,sys
 from pathlib import Path
-sys.path.insert(0,'/usr/local/lib/antirkn-runner/v3')
+sys.path.insert(0,'/usr/local/lib/antirkn-runner/v4')
 from runner import Store
 from vless import panel_for
 store=Store(Path('/var/lib/antirkn-runner'))

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../l10n/app_localizations.dart';
 import 'runner_controller.dart';
 import 'panel_installation_view.dart';
+import 'component_installation_view.dart';
 
 class RunnerPanel extends StatelessWidget {
   const RunnerPanel({
@@ -21,7 +22,9 @@ class RunnerPanel extends StatelessWidget {
       final c = controller;
       final l = AppLocalizations.of(context);
       final job = c.selected;
-      final installing = job?.kind == 'panel_install' && !job!.terminal;
+      final installing =
+          const {'panel_install', 'component_install'}.contains(job?.kind) &&
+          !job!.terminal;
       final panelFlow = c.choosingPanel || installing;
       final duration = AppMotion.duration(context, motion);
       final animation = AnimationStyle(
@@ -52,6 +55,7 @@ class RunnerPanel extends StatelessWidget {
                 Text(l.runnerConnectionLost),
               const SizedBox(height: AppLayout.gap),
               PanelInstallationView(controller: c, motion: motion),
+              ComponentInstallationView(controller: c),
               const SizedBox(height: AppLayout.gap),
               Wrap(
                 spacing: AppLayout.smallGap,
@@ -88,7 +92,7 @@ class RunnerPanel extends StatelessWidget {
                 Text(l.runnerPlanBody),
                 const SizedBox(height: AppLayout.smallGap),
                 const SelectableText(
-                  '/usr/local/lib/antirkn-runner/v3/\n/etc/systemd/system/antirkn-runner.service\n/var/lib/antirkn-runner/',
+                  '/usr/local/lib/antirkn-runner/v4/\n/etc/systemd/system/antirkn-runner.service\n/var/lib/antirkn-runner/',
                 ),
                 Text(l.runnerPlanRelease),
                 SelectableText(c.bundledRelease ?? ''),
@@ -125,7 +129,10 @@ class RunnerPanel extends StatelessWidget {
                     '${installing ? eventLabel ?? stateLabel : stateLabel} · ${job.checkpoint}/${job.count}',
                   ),
                 ),
-                if (job.kind == 'panel_install' &&
+                if (const {
+                      'panel_install',
+                      'component_install',
+                    }.contains(job.kind) &&
                     job.terminal &&
                     eventLabel != null &&
                     eventLabel != stateLabel)
@@ -213,6 +220,20 @@ String runnerStateLabel(AppLocalizations l, String state) => switch (state) {
   _ => l.runnerAttention,
 };
 String runnerEventLabel(AppLocalizations l, String code) => switch (code) {
+  'component_prepared' => l.protocolPrepared,
+  'component_downloaded' => l.componentsDownloaded,
+  'component_built' => l.protocolBuilt,
+  'component_staged' => l.protocolStaged,
+  'component_switched' => l.protocolSwitched,
+  'component_checked' => l.componentsChecked,
+  'component_conflict' => l.runnerConflict,
+  'component_incompatible' => l.runnerIncompatible,
+  'component_download_failed' => l.componentsDownloadFailed,
+  'component_checksum_failed' => l.componentsChecksumFailed,
+  'component_build_failed' => l.protocolBuildFailed,
+  'component_check_failed' => l.protocolCheckFailed,
+  'component_prerequisites' => l.protocolPrerequisites,
+  'component_partial' => l.componentsPartial,
   'vless_preparing' => l.vpnPrepareStep,
   'vless_applying' => l.vpnApplying,
   'vless_checking' => l.vpnChecking,

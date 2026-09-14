@@ -21,11 +21,17 @@ IMAGE_SHA256 = '612b2c0cc1bc413a6cb8c38fd611794caf0f2b436c50013d8b3794db12ad7354
 def prepare():
     DIRECTORY.mkdir(mode=0o700, exist_ok=True)
     DIRECTORY.chmod(0o700)
-    if (DIRECTORY / 'disk.qcow2').exists():
+    reuse = os.environ.get('ANTIRKN_VM_REUSE') == '1'
+    if (DIRECTORY / 'disk.qcow2').exists() and not reuse:
         raise RuntimeError('Stop the old fixture and remove its disposable overlay before preparing a new VM')
     image = DIRECTORY / 'ubuntu.img'
     if not image.exists():
-        urllib.request.urlretrieve(IMAGE_URL, image)
+        download = DIRECTORY / 'ubuntu.download'
+        urllib.request.urlretrieve(IMAGE_URL, download)
+        with download.open('rb') as stream:
+            if hashlib.file_digest(stream, 'sha256').hexdigest() != IMAGE_SHA256:
+                raise RuntimeError('Ubuntu image checksum mismatch')
+        os.replace(download, image)
     with image.open('rb') as stream:
         if hashlib.file_digest(stream, 'sha256').hexdigest() != IMAGE_SHA256:
             raise RuntimeError('Ubuntu image checksum mismatch')
@@ -35,7 +41,8 @@ def prepare():
         path = DIRECTORY / key
         if not path.exists():
             subprocess.run(['ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-f', str(path)], check=True)
-    password = secrets.token_urlsafe(24)
+    password = (json.loads((DIRECTORY / 'credentials.json').read_text())['password']
+                if reuse and (DIRECTORY / 'credentials.json').exists() else secrets.token_urlsafe(24))
     credentials = DIRECTORY / 'credentials.json'
     credentials.write_text(json.dumps(dict(password=password)))
     credentials.chmod(0o600)
@@ -63,7 +70,7 @@ def prepare():
     server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(QuietHandler, directory=str(seed)))
     threading.Thread(target=server.serve_forever, daemon=True).start()
     with socket.socket() as sock:
-        sock.bind(('127.0.0.1', 0))
+        sock.bind(('127.0.0.1', int(os.environ.get('ANTIRKN_VM_SSH_PORT', '0'))))
         port = sock.getsockname()[1]
     (DIRECTORY / 'port').write_text(str(port))
     host_public = (DIRECTORY / 'host.pub').read_text().split()
@@ -74,7 +81,7 @@ def prepare():
         if not 1024 <= local <= 65535 or not 1024 <= guest <= 65535:
             raise ValueError('Invalid fixture forward')
         forwards += f',hostfwd=tcp:127.0.0.1:{local}-:{guest}'
-    command = ['qemu-system-x86_64', '-accel', 'kvm' if Path('/dev/kvm').exists() else 'tcg', '-m', '1536', '-smp', '2', '-display', 'none',
+    command = ['qemu-system-x86_64', '-accel', 'kvm' if os.access('/dev/kvm', os.R_OK | os.W_OK) else 'tcg', '-m', '1536', '-smp', '2', '-display', 'none',
                '-drive', f'file={DIRECTORY / "disk.qcow2"},if=virtio,format=qcow2',
                '-nic', f'user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:{port}-:22' + forwards,
                '-smbios', f'type=1,serial=ds=nocloud;s=http://10.0.2.2:{server.server_port}/',

@@ -7,6 +7,8 @@ import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
 
 import 'app_strings.dart';
+import 'runner/component_updates_controller.dart';
+import 'runner/component_installation_view.dart';
 import 'l10n/app_localizations.dart';
 import 'language_controller.dart';
 import 'network/network_controller.dart';
@@ -134,6 +136,23 @@ class _AntiRknAppState extends State<AntiRknApp> {
   late ThemeMode _theme = widget.initialTheme;
   late MotionPreference _motion = widget.initialMotion;
   bool _settingsError = false;
+  late final ComponentUpdatesController _updates;
+  @override
+  void initState() {
+    super.initState();
+    _updates = ComponentUpdatesController(
+      source: const GithubComponentReleaseSource(),
+      settings: widget.settings,
+    );
+    _updates.load();
+  }
+
+  @override
+  void dispose() {
+    _updates.dispose();
+    super.dispose();
+  }
+
   Future<void> _saveSetting(
     String key,
     String value,
@@ -186,22 +205,25 @@ class _AntiRknAppState extends State<AntiRknApp> {
                   ),
                 ),
               )
-            : ManagerShell(
-                source: widget.source!,
-                pickTemplate: widget.pickTemplate,
-                languages: widget.languages,
-                previewTemplate: widget.previewTemplate,
-                networkReader: widget.networkReader,
-                ssh: widget.ssh,
-                servers: widget.servers,
-                drafts: widget.drafts,
-                settingsError: _settingsError,
-                theme: _theme,
-                motion: _motion,
-                onTheme: (value) =>
-                    _saveSetting('theme', value.name, () => _theme = value),
-                onMotion: (value) =>
-                    _saveSetting('motion', value.name, () => _motion = value),
+            : ComponentUpdatesScope(
+                controller: _updates,
+                child: ManagerShell(
+                  source: widget.source!,
+                  pickTemplate: widget.pickTemplate,
+                  languages: widget.languages,
+                  previewTemplate: widget.previewTemplate,
+                  networkReader: widget.networkReader,
+                  ssh: widget.ssh,
+                  servers: widget.servers,
+                  drafts: widget.drafts,
+                  settingsError: _settingsError,
+                  theme: _theme,
+                  motion: _motion,
+                  onTheme: (value) =>
+                      _saveSetting('theme', value.name, () => _theme = value),
+                  onMotion: (value) =>
+                      _saveSetting('motion', value.name, () => _motion = value),
+                ),
               ),
       ),
     ),
@@ -470,6 +492,8 @@ class _ManagerShellState extends State<ManagerShell>
                         padding: AppLayout.padding,
                         children: [
                           if (widget.settingsError) Text(l.settingsSaveError),
+                          const ComponentUpdateSettings(),
+                          const SizedBox(height: AppLayout.gap),
                           SectionCard(
                             title: l.language,
                             child: Column(

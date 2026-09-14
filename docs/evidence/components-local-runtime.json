@@ -1,0 +1,17 @@
+{
+  "server": {
+    "running": true,
+    "clean": true,
+    "os": "Ubuntu 24.04.5 LTS",
+    "host": "127.0.0.1",
+    "port": 2222,
+    "resetTested": true,
+    "repeatedStopTested": true,
+    "restartPreservesKeys": true
+  },
+  "linux": {
+    "running": true,
+    "dartVmService": false,
+    "fatalLogMarkers": false
+  }
+}

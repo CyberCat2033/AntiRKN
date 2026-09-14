@@ -1,0 +1,17 @@
+{
+  "from": "v3",
+  "to": "v4",
+  "release": "9c883118882154affb21c229eea10cd8658115bbe22f5d5027c92082fc870711",
+  "results": {
+    "previous_release_installed": true,
+    "known_predecessor_recognized": true,
+    "unknown_unit_not_adopted": true,
+    "changed_unit_refuses_old_plan": true,
+    "injected_bootstrap_interruption": true,
+    "partial_bootstrap_identified": true,
+    "partial_bootstrap_repaired_by_plan": true,
+    "previous_job_and_events_preserved": true,
+    "repeat_install_confirmed": true,
+    "repeat_does_not_restart_worker": true
+  }
+}
