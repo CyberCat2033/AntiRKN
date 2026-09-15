@@ -41,7 +41,6 @@ class TemplateSettings extends StatelessWidget {
                     controller.pickTemplate == null
                 ? null
                 : () {
-                    AppHaptics.selection();
                     controller.importFile();
                   },
           ),

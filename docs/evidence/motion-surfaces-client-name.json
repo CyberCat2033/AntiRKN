@@ -1,0 +1,41 @@
+{
+  "date": "2026-09-16",
+  "focused_flutter_tests": {
+    "passed": 18,
+    "motion_theme_haptic": 6,
+    "server_surface_navigation": 2,
+    "login_generator": 3,
+    "client_rename_collision": 1,
+    "forms_ru_en_text_scale_2": 4,
+    "drag_selection_without_haptics": 2
+  },
+  "targeted_dart_analyze": "PASS; 29 changed Dart files, no issues",
+  "workspace_check": "PASS; architecture, base.yml, 854 RU/EN",
+  "screenshots": {
+    "type": "synthetic Flutter widget rendering",
+    "widths": [
+      390,
+      1200
+    ],
+    "reviewed": true
+  },
+  "navigation": {
+    "wide_ms": 180,
+    "compact_ms": 240,
+    "scale": [
+      0.985,
+      1.0
+    ],
+    "quick_reverse": "PASS",
+    "draft_retention": "PASS",
+    "inactive_back": "PASS",
+    "system_disable_animations": "PASS"
+  },
+  "dynamic_palette": "legacy surface roles repaired; system accent retained; modern palettes unchanged",
+  "haptics": "mock platform channel only; mobile add/delete; desktop silent",
+  "build_install": "not performed",
+  "physical_fps_haptics": "not tested",
+  "full_verify": "not run",
+  "push": false,
+  "prior_work_checkpoint": "b0b778e4399066e78ebaffdd710c5959087459c8"
+}

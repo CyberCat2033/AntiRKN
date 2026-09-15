@@ -44,13 +44,20 @@ class UsersPage extends StatefulWidget {
   ]) async {
     final result = await showDialog<Object>(
       context: context,
-      builder: (_) => _UserForm(user: user, publications: publications),
+      builder: (_) => _UserForm(
+        user: user,
+        publications: publications,
+        existingLogins: () => controller.workspace.users
+            .where((u) => !u.deleted)
+            .map((u) => u.login),
+      ),
       animationStyle: AnimationStyle(
         duration: AppMotion.duration(context, motion),
       ),
     );
     if (result == null) return;
     await controller.saveUser(result as VpnUser);
+    if (user == null && controller.error == null) AppHaptics.added();
     if (controller.error == null && controller.workspace.serverIds.isNotEmpty) {
       await controller.prepare();
     }
@@ -138,7 +145,6 @@ class _UsersPageState extends State<UsersPage> {
   }
 
   Future<void> _profile(BuildContext context, VpnUser user) async {
-    AppHaptics.selection();
     await controller.refreshProfiles();
     if (!context.mounted) return;
     final content = ProfileShareSheet(
@@ -456,7 +462,8 @@ class _UsersPageState extends State<UsersPage> {
 }
 
 class _UserForm extends StatefulWidget {
-  const _UserForm({this.user, this.publications});
+  const _UserForm({required this.existingLogins, this.user, this.publications});
+  final Iterable<String> Function() existingLogins;
   final VpnUser? user;
   final PublicationController? publications;
   @override
@@ -464,15 +471,11 @@ class _UserForm extends StatefulWidget {
 }
 
 class _UserFormState extends State<_UserForm> {
-  late final login = TextEditingController(text: widget.user?.login ?? '');
   late final name = TextEditingController(text: widget.user?.name ?? '');
   late bool enabled = widget.user?.enabled ?? true;
-  late bool automaticName =
-      widget.user == null || widget.user!.name == widget.user!.login;
   String? error;
   @override
   void dispose() {
-    login.dispose();
     name.dispose();
     super.dispose();
   }
@@ -487,20 +490,8 @@ class _UserFormState extends State<_UserForm> {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
-              key: const ValueKey('vpn-user-login'),
-              controller: login,
-              onChanged: (value) {
-                if (automaticName) name.text = value.trim();
-              },
-              autocorrect: false,
-              decoration: InputDecoration(labelText: l.vpnLogin),
-            ),
-            const SizedBox(height: AppLayout.gap),
-            TextField(
               key: const ValueKey('vpn-user-name'),
               controller: name,
-              onChanged: (value) => automaticName =
-                  value.trim().isEmpty || value.trim() == login.text.trim(),
               decoration: InputDecoration(labelText: l.vpnName),
             ),
             SwitchListTile(
@@ -508,21 +499,15 @@ class _UserFormState extends State<_UserForm> {
               title: Text(l.vpnEnabled),
               value: enabled,
               onChanged: (v) {
-                AppHaptics.selection();
                 setState(() => enabled = v);
               },
             ),
             if (widget.user != null && widget.publications != null)
               ListenableBuilder(
-                listenable: Listenable.merge([
-                  login,
-                  name,
-                  widget.publications!,
-                ]),
+                listenable: Listenable.merge([name, widget.publications!]),
                 builder: (context, _) {
                   final c = widget.publications!;
                   final unchanged =
-                      login.text.trim() == widget.user!.login &&
                       name.text.trim() == widget.user!.name &&
                       enabled == widget.user!.enabled;
                   return Column(
@@ -576,10 +561,13 @@ class _UserFormState extends State<_UserForm> {
             try {
               final user = VpnUser(
                 id: widget.user?.id ?? newVpnId(),
-                login: login.text.trim(),
-                name: name.text.trim().isEmpty
-                    ? login.text.trim()
-                    : name.text.trim(),
+                login:
+                    widget.user?.login ??
+                    generateClientLogin(
+                      name.text.trim(),
+                      widget.existingLogins(),
+                    ),
+                name: name.text.trim(),
                 enabled: enabled,
               );
               Navigator.pop(context, user);

@@ -85,10 +85,14 @@ class _ServerCatalogState extends State<ServerCatalog> {
     super.dispose();
   }
 
-  Widget _content(BuildContext context) {
+  Widget? _detail;
+  SshController? _detailSession;
+
+  Widget _content(BuildContext context, {bool detail = false}) {
     final c = widget.controller;
     final l = AppLocalizations.of(context);
-    if (c.selected case final session?) {
+    if (detail && c.selected != null) {
+      final session = c.selected!;
       final vpn = widget.vpn;
       final managed =
           vpn?.workspace.inbounds
@@ -122,7 +126,7 @@ class _ServerCatalogState extends State<ServerCatalog> {
                 )
                 .toList();
       return ServerDetailView(
-        key: ValueKey(c.selectedId),
+        key: ObjectKey(session),
         session: session,
         motion: widget.motion,
         onBack: c.showList,
@@ -243,7 +247,6 @@ class _ServerCatalogState extends State<ServerCatalog> {
       enabled: !c.loading,
       builder: (scroll, item) => RefreshIndicator(
         onRefresh: () async {
-          AppHaptics.selection();
           await c.refresh();
         },
         child: ListView(
@@ -257,7 +260,6 @@ class _ServerCatalogState extends State<ServerCatalog> {
                 onPressed: c.loading
                     ? null
                     : () {
-                        AppHaptics.selection();
                         c.add();
                       },
                 icon: const Icon(Icons.add),
@@ -417,7 +419,6 @@ class _ServerCatalogState extends State<ServerCatalog> {
                                   : selection.active
                                   ? () => selection.toggle(server.id)
                                   : () {
-                                      AppHaptics.selection();
                                       c.select(server.id);
                                     },
                             ),
@@ -437,43 +438,23 @@ class _ServerCatalogState extends State<ServerCatalog> {
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: Listenable.merge([widget.controller, selection, widget.vpn]),
-    builder: (context, _) => ClipRect(
-      child: AnimatedSwitcher(
-        duration: AppMotion.navigationDuration(context, widget.motion),
-        transitionBuilder: (child, animation) {
-          final entering =
-              child.key ==
-              ValueKey(widget.controller.selectedId ?? 'catalogue');
-          final forward = widget.controller.selectedId != null;
-          final offset = entering
-              ? (forward ? const Offset(.3, 0) : const Offset(-.15, 0))
-              : (forward ? const Offset(-.15, 0) : const Offset(.3, 0));
-          return AppPageVisibility(
-            active: AppPageVisibility.of(context) && entering,
-            child: IgnorePointer(
-              ignoring: !entering,
-              child: FadeTransition(
-                opacity: animation,
-                child: SlideTransition(
-                  position: animation.drive(
-                    Tween(begin: offset, end: Offset.zero),
-                  ),
-                  child: child,
-                ),
-              ),
-            ),
-          );
-        },
-        switchInCurve: AppMotion.curve,
-        layoutBuilder: (current, previous) => Stack(
-          fit: StackFit.expand,
-          children: [...previous, if (current != null) current],
-        ),
-        child: KeyedSubtree(
-          key: ValueKey(widget.controller.selectedId ?? 'catalogue'),
-          child: _content(context),
-        ),
-      ),
-    ),
+    builder: (context, _) {
+      final selected = widget.controller.selected != null;
+      if (selected) {
+        _detailSession = widget.controller.selected;
+        _detail = _content(context, detail: true);
+      } else if (_detailSession != null &&
+          widget.controller.sessionFor(_detailSession!.serverId) !=
+              _detailSession) {
+        _detail = null;
+        _detailSession = null;
+      }
+      return AppPageSwitch(
+        index: selected ? 1 : 0,
+        depth: selected ? 1 : 0,
+        motion: widget.motion,
+        children: [_content(context), _detail ?? const SizedBox.shrink()],
+      );
+    },
   );
 }

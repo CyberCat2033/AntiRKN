@@ -93,6 +93,13 @@ class _TtPanelState extends State<TtPanel> {
     );
     if (value == null) return;
     await widget.controller.saveTt(value);
+    if (widget.controller.error == null) {
+      if (value.deleted && current != null && !current.deleted) {
+        AppHaptics.deleted();
+      } else if (current == null && !value.deleted) {
+        AppHaptics.added();
+      }
+    }
     if (widget.controller.error == null) await widget.controller.prepare();
   }
 

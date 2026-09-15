@@ -14,10 +14,11 @@ Future<bool> removeServerProtocol(
 ) async {
   final l = AppLocalizations.of(context), runner = session.runner;
   void notice(String message) {
-    if (context.mounted)
+    if (context.mounted) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(message)));
+    }
   }
 
   if (vpn.busy || vpn.hasRunning || runner.busy || session.busy) {
@@ -88,7 +89,7 @@ Future<bool> removeServerProtocol(
     ),
   );
   if (confirmed != true || !context.mounted) return false;
-  AppHaptics.confirm();
+  AppHaptics.deleted();
   final submitted = await runner.removeProtocol(
     plan,
     () => vpn.retireProtocol(session.serverId, protocol),

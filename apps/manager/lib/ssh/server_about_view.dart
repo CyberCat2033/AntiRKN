@@ -53,7 +53,6 @@ class ServerAboutView extends StatelessWidget {
                 onPressed:
                     c.stage == SshStage.connected && !c.busy && !c.runner.busy
                     ? () {
-                        AppHaptics.selection();
                         c.refresh();
                       }
                     : null,
@@ -88,11 +87,11 @@ class ServerAboutView extends StatelessWidget {
                       icon: const Icon(Icons.copy_outlined),
                       onPressed: () async {
                         await Clipboard.setData(ClipboardData(text: entry.key));
-                        AppHaptics.confirm();
-                        if (context.mounted)
+                        if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(content: Text(l.uiAddressCopied)),
                           );
+                        }
                       },
                     ),
                   ),
@@ -146,7 +145,6 @@ class ServerAboutView extends StatelessWidget {
                               c.canResetTraffic &&
                               c.trafficSample != null
                           ? () async {
-                              AppHaptics.confirm();
                               await c.resetTraffic();
                             }
                           : null,

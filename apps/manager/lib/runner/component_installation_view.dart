@@ -104,7 +104,6 @@ class ComponentUpdateSettings extends StatelessWidget {
             subtitle: Text(l.uiUpdatesAutomaticHelp),
             value: c.automatic,
             onChanged: (v) {
-              AppHaptics.selection();
               c.setPreference(automatic: v);
             },
           ),
@@ -113,7 +112,6 @@ class ComponentUpdateSettings extends StatelessWidget {
             subtitle: Text(l.uiUpdatesSuggestionsHelp),
             value: c.suggestions,
             onChanged: (v) {
-              AppHaptics.selection();
               c.setPreference(suggestions: v);
             },
           ),

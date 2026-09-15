@@ -9,7 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   for (final locale in ['ru', 'en']) {
     testWidgets(
-      'long press, reversible range, edge scroll and feedback: $locale',
+      'long press, reversible range and edge scroll without haptics: $locale',
       (tester) async {
         tester.view.physicalSize = const Size(390, 650);
         tester.view.devicePixelRatio = 1;
@@ -127,10 +127,9 @@ void main() {
         await gesture.up();
         await tester.pumpAndSettle();
         expect(taps, 0);
-        expect(feedback.length, greaterThan(5));
-        final clicks = feedback.length;
+        expect(feedback, isEmpty);
         await tester.pump(const Duration(seconds: 1));
-        expect(feedback.length, clicks);
+        expect(feedback, isEmpty);
         await tester.tap(find.byKey(const ValueKey('test-select-all')));
         await tester.pumpAndSettle();
         expect(selection.ids.length, 40);
@@ -140,6 +139,7 @@ void main() {
         await tester.tap(find.byKey(const ValueKey('test-edit-exit')));
         await tester.pumpAndSettle();
         expect(selection.active, false);
+        expect(feedback, isEmpty);
         expect(tester.takeException(), isNull);
       },
     );

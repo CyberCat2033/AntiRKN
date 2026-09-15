@@ -13,12 +13,10 @@ class CatalogSelection extends ChangeNotifier {
       ..clear()
       ..addAll(values);
     notifyListeners();
-    AppHaptics.selection();
     return true;
   }
 
-  void start({bool feedback = true}) {
-    if (feedback) AppHaptics.selection();
+  void start() {
     active = true;
     ids.clear();
     notifyListeners();
@@ -31,13 +29,11 @@ class CatalogSelection extends ChangeNotifier {
   }
 
   void toggle(String id) {
-    AppHaptics.selection();
     if (!ids.remove(id)) ids.add(id);
     notifyListeners();
   }
 
   void selectAll(Iterable<String> available) {
-    AppHaptics.selection();
     final next = available.toSet();
     if (next.isNotEmpty && ids.containsAll(next)) {
       ids.clear();
@@ -155,7 +151,7 @@ Future<bool> confirmCatalogDeletion(
             FilledButton(
               key: ValueKey(confirmKey),
               onPressed: () {
-                AppHaptics.confirm();
+                AppHaptics.deleted();
                 Navigator.pop(context, true);
               },
               child: Text(l.catalogDeleteSelected),

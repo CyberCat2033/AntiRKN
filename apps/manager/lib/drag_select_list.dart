@@ -76,7 +76,7 @@ class _DragSelectListState extends State<DragSelectList> {
     final index = _indexAt(details.globalPosition);
     if (index == null) return;
     before = widget.selection.active ? Set.of(widget.selection.ids) : {};
-    if (!widget.selection.active) widget.selection.start(feedback: false);
+    if (!widget.selection.active) widget.selection.start();
     anchor = index;
     pointer = details.globalPosition;
     _range(index);

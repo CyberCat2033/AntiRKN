@@ -212,7 +212,6 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
             onTap: _busy
                 ? null
                 : () async {
-                    AppHaptics.selection();
                     await showDialog<void>(
                       context: context,
                       builder: (_) => AppFormDialog(
@@ -240,12 +239,12 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
               onChanged: _busy
                   ? null
                   : (value) async {
-                      AppHaptics.selection();
                       try {
                         await sync.setEnabled(value);
                       } catch (_) {
-                        if (mounted)
+                        if (mounted) {
                           setState(() => _error = GoogleAccountIssue.storage);
+                        }
                       }
                     },
             ),

@@ -21,6 +21,89 @@ class Export implements ProfileExporter {
 
 void main() {
   testWidgets(
+    'client names hide login, resolve collisions and preserve existing credentials on rename',
+    (tester) async {
+      final c = fixtures.controller(fixtures.MemoryVpn(), {});
+      Future<void>? pending;
+      addTearDown(c.dispose);
+      await tester.runAsync(() async {
+        await c.load();
+        await c.saveUser(
+          VpnUser(
+            id: fixtures.alice,
+            login: 'ivan-ivanov',
+            name: 'Иван Иванов',
+          ),
+        );
+      });
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => Column(
+                children: [
+                  TextButton(
+                    onPressed: () => pending = UsersPage.edit(
+                      context,
+                      c,
+                      MotionPreference.off,
+                      c.workspace.users.first,
+                    ),
+                    child: const Text('rename'),
+                  ),
+                  TextButton(
+                    onPressed: () => pending = UsersPage.edit(
+                      context,
+                      c,
+                      MotionPreference.off,
+                    ),
+                    child: const Text('create'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.runAsync(() => tester.tap(find.text('rename')));
+      await tester.pumpAndSettle();
+      expect(find.text('Client login'), findsNothing);
+      expect(find.byKey(const ValueKey('vpn-user-login')), findsNothing);
+      await tester.enterText(
+        find.byKey(const ValueKey('vpn-user-name')),
+        'Пётр Петров',
+      );
+      await tester.tap(find.byKey(const ValueKey('vpn-user-save')));
+      await tester.pumpAndSettle();
+      await tester.runAsync(() => pending!);
+      await tester.pumpAndSettle();
+      expect(c.workspace.users.single.id, fixtures.alice);
+      expect(c.workspace.users.single.login, 'ivan-ivanov');
+      expect(c.workspace.users.single.name, 'Пётр Петров');
+      await tester.runAsync(() => tester.tap(find.text('create')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('vpn-user-name')),
+        'Иван Иванов',
+      );
+      await tester.tap(find.byKey(const ValueKey('vpn-user-save')));
+      await tester.pumpAndSettle();
+      await tester.runAsync(() => pending!);
+      await tester.pumpAndSettle();
+      expect(c.error, isNull);
+      expect(c.workspace.users, hasLength(2));
+      final created = c.workspace.users.singleWhere(
+        (u) => u.id != fixtures.alice,
+      );
+      expect(created.login, 'ivan-ivanov-2');
+      expect(created.name, 'Иван Иванов');
+    },
+  );
+
+  testWidgets(
     'TrustTunnel-only profile with empty groups can be viewed and exported',
     (tester) async {
       tester.view.physicalSize = const Size(1200, 1000);
@@ -128,41 +211,9 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.byKey(const ValueKey('vpn-user-add')));
         await tester.pumpAndSettle();
-        await tester.enterText(
-          find.byKey(const ValueKey('vpn-user-login')),
-          'client',
-        );
-        expect(
-          tester
-              .widget<TextField>(find.byKey(const ValueKey('vpn-user-name')))
-              .controller!
-              .text,
-          'client',
-        );
-        await tester.enterText(
-          find.byKey(const ValueKey('vpn-user-login')),
-          'client2',
-        );
-        expect(
-          tester
-              .widget<TextField>(find.byKey(const ValueKey('vpn-user-name')))
-              .controller!
-              .text,
-          'client2',
-        );
+        expect(find.byKey(const ValueKey('vpn-user-login')), findsNothing);
         await tester.enterText(
           find.byKey(const ValueKey('vpn-user-name')),
-          'Клиент / Client',
-        );
-        await tester.enterText(
-          find.byKey(const ValueKey('vpn-user-login')),
-          'client',
-        );
-        expect(
-          tester
-              .widget<TextField>(find.byKey(const ValueKey('vpn-user-name')))
-              .controller!
-              .text,
           'Клиент / Client',
         );
         expect(tester.takeException(), isNull);
@@ -172,7 +223,8 @@ void main() {
           () => Future<void>.delayed(const Duration(milliseconds: 100)),
         );
         await tester.pumpAndSettle();
-        expect(c.workspace.users.single.login, 'client');
+        expect(c.workspace.users.single.login, 'klient-client');
+        expect(c.workspace.users.single.name, 'Клиент / Client');
         expect(tester.takeException(), isNull);
         final network = NetworkController(
           reader: const SampleInventoryReader(),

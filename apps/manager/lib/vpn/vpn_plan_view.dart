@@ -58,7 +58,7 @@ class VpnPlanView extends StatelessWidget {
                         ),
                         for (final user in c.workspace.users)
                           Text(
-                            '${user.name} (${user.login}): ${user.enabled ? l.vpnEnabled : l.vpnDisabled}',
+                            '${user.name}: ${user.enabled ? l.vpnEnabled : l.vpnDisabled}',
                           ),
                         for (final r in p.payload['resources'] as List)
                           Padding(

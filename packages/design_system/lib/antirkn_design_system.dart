@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 abstract final class AppLayout {
@@ -24,9 +25,16 @@ abstract final class AppMotion {
   static Duration navigationDuration(
     BuildContext context,
     MotionPreference preference,
-  ) => duration(context, preference) == standard
-      ? const Duration(milliseconds: 340)
-      : duration(context, preference);
+  ) {
+    final base = duration(context, preference);
+    if (base != standard) return base;
+    return Duration(
+      milliseconds: MediaQuery.sizeOf(context).width >= AppLayout.compact
+          ? 180
+          : 240,
+    );
+  }
+
   static const curve = Curves.easeOutCubic;
 
   static Duration duration(BuildContext context, MotionPreference preference) {
@@ -38,12 +46,19 @@ abstract final class AppMotion {
   }
 }
 
-/// Feedback only for deliberate interactions, never background refreshes.
+/// Feedback belongs to explicit additions and confirmed deletions only.
 abstract final class AppHaptics {
-  static void selection() =>
-      unawaited(HapticFeedback.selectionClick().catchError((Object _) {}));
-  static void confirm() =>
-      unawaited(HapticFeedback.lightImpact().catchError((Object _) {}));
+  static void added() => _impact(HapticFeedback.lightImpact);
+  static void deleted() => _impact(HapticFeedback.mediumImpact);
+
+  static void _impact(Future<void> Function() impact) {
+    if (kIsWeb ||
+        (defaultTargetPlatform != TargetPlatform.android &&
+            defaultTargetPlatform != TargetPlatform.iOS)) {
+      return;
+    }
+    unawaited(impact().catchError((Object _) {}));
+  }
 }
 
 /// Keeps page state mounted while animating navigation between sections.
@@ -51,11 +66,15 @@ class AppPageSwitch extends StatefulWidget {
   const AppPageSwitch({
     required this.index,
     required this.children,
+    this.depth,
     this.motion = MotionPreference.system,
     super.key,
   });
   final int index;
   final List<Widget> children;
+
+  /// Null for peer sections; otherwise the actual navigation depth.
+  final int? depth;
   final MotionPreference motion;
   @override
   State<AppPageSwitch> createState() => _AppPageSwitchState();
@@ -81,26 +100,43 @@ class _AppPageSwitchState extends State<AppPageSwitch>
     with SingleTickerProviderStateMixin {
   late final animation = AnimationController(vsync: this, value: 1)
     ..addStatusListener((status) {
-      if (status == AnimationStatus.completed && mounted) {
+      if (status == AnimationStatus.completed && mounted && previous != null) {
         setState(() => previous = null);
       }
     });
   int? previous;
-  double direction = 1;
+  bool opening = true;
+  bool hierarchical = false;
+
+  void updateDuration() {
+    animation.duration = AppMotion.navigationDuration(context, widget.motion);
+    if (animation.duration == Duration.zero && animation.isAnimating) {
+      animation.value = 1;
+    }
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    animation.duration = AppMotion.navigationDuration(context, widget.motion);
+    updateDuration();
   }
 
   @override
   void didUpdateWidget(AppPageSwitch oldWidget) {
     super.didUpdateWidget(oldWidget);
-    animation.duration = AppMotion.navigationDuration(context, widget.motion);
-    if (oldWidget.index != widget.index) {
-      previous = oldWidget.index;
-      direction = widget.index > oldWidget.index ? 1 : -1;
-      animation.forward(from: 0);
+    updateDuration();
+    if (oldWidget.index == widget.index) return;
+    hierarchical = widget.depth != null && widget.depth != oldWidget.depth;
+    opening = (widget.depth ?? 0) > (oldWidget.depth ?? 0);
+    // A quick Back reverses the current reveal at exactly the same position.
+    final reversing = animation.isAnimating && previous == widget.index;
+    final start = reversing ? 1 - animation.value : 0.0;
+    previous = oldWidget.index;
+    if (animation.duration == Duration.zero) {
+      previous = null;
+      animation.value = 1;
+    } else {
+      animation.forward(from: start);
     }
   }
 
@@ -113,86 +149,89 @@ class _AppPageSwitchState extends State<AppPageSwitch>
   @override
   Widget build(BuildContext context) {
     final active = AppPageVisibility.of(context);
-    return ClipRect(
-      child: AnimatedBuilder(
-        animation: animation,
-        builder: (context, _) {
-          final t = Curves.easeInOutCubicEmphasized.transform(animation.value);
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              for (var i = 0; i < widget.children.length; i++)
-                Offstage(
-                  key: ValueKey(i),
-                  offstage: i != widget.index && i != previous,
-                  child: AppPageVisibility(
-                    active: active && i == widget.index,
-                    child: ExcludeFocus(
-                      excluding: i != widget.index,
-                      child: ExcludeSemantics(
-                        excluding: i != widget.index,
-                        child: IgnorePointer(
-                          ignoring: i != widget.index,
-                          child: TickerMode(
-                            enabled:
-                                active && (i == widget.index || i == previous),
-                            child: FractionalTranslation(
-                              translation: Offset(
-                                i == widget.index
-                                    ? direction * .18 * (1 - t)
-                                    : -direction * .12 * t,
-                                0,
+    final spatial =
+        hierarchical &&
+        AppMotion.duration(context, widget.motion) == AppMotion.standard;
+    final foreground = opening ? widget.index : previous;
+    // Stable keys retain drafts when paint order changes. Each transition
+    // caches its expensive page subtree instead of rebuilding it per frame.
+    final layers = <Widget>[
+      for (var i = 0; i < widget.children.length; i++)
+        Offstage(
+          key: ValueKey(i),
+          offstage: i != widget.index && i != previous,
+          child: AppPageVisibility(
+            active: active && i == widget.index,
+            child: ExcludeFocus(
+              excluding: !active || i != widget.index,
+              child: ExcludeSemantics(
+                excluding: !active || i != widget.index,
+                child: IgnorePointer(
+                  ignoring: !active || i != widget.index,
+                  child: TickerMode(
+                    enabled: active && i == widget.index,
+                    child: AnimatedBuilder(
+                      animation: animation,
+                      child: RepaintBoundary(child: widget.children[i]),
+                      builder: (context, child) {
+                        final moving = spatial && i == foreground;
+                        final progress = opening
+                            ? animation.value
+                            : 1 - animation.value;
+                        final reveal = AppMotion.curve.transform(progress);
+                        final opacity = spatial
+                            ? (moving ? (reveal / .45).clamp(0.0, 1.0) : 1.0)
+                            : (i == widget.index
+                                  ? animation.value
+                                  : 1 - animation.value);
+                        return Opacity(
+                          opacity: opacity,
+                          child: Transform.scale(
+                            scale: moving ? .985 + .015 * reveal : 1,
+                            alignment: Alignment.topCenter,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(
+                                moving ? AppLayout.radius * (1 - reveal) : 0,
                               ),
-                              child: Opacity(
-                                opacity: i == widget.index ? t : 1 - t,
-                                child: widget.children[i],
+                              child: ColoredBox(
+                                color: Theme.of(
+                                  context,
+                                ).scaffoldBackgroundColor,
+                                child: child,
                               ),
                             ),
                           ),
-                        ),
-                      ),
+                        );
+                      },
                     ),
                   ),
                 ),
-            ],
-          );
-        },
+              ),
+            ),
+          ),
+        ),
+    ];
+    final top = spatial ? foreground ?? widget.index : widget.index;
+    return ClipRect(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          for (var i = 0; i < layers.length; i++)
+            if (i != top) layers[i],
+          layers[top],
+        ],
       ),
     );
   }
 }
 
-/// Header changes follow the same motion as nested pages.
+/// Titles stay still so a second animation never competes with the page.
 class AppAnimatedTitle extends StatelessWidget {
   const AppAnimatedTitle(this.title, {super.key});
   final String title;
   @override
-  Widget build(BuildContext context) => ClipRect(
-    child: AnimatedSwitcher(
-      duration: AppMotion.navigationDuration(context, MotionPreference.system),
-      transitionBuilder: (child, animation) => FadeTransition(
-        opacity: animation,
-        child: SlideTransition(
-          position: animation.drive(
-            Tween(
-              begin: const Offset(0, .25),
-              end: Offset.zero,
-            ).chain(CurveTween(curve: AppMotion.curve)),
-          ),
-          child: child,
-        ),
-      ),
-      layoutBuilder: (current, previous) => Stack(
-        alignment: Alignment.centerLeft,
-        children: [...previous, if (current != null) current],
-      ),
-      child: Text(
-        title,
-        key: ValueKey(title),
-        style: Theme.of(context).textTheme.headlineSmall,
-      ),
-    ),
-  );
+  Widget build(BuildContext context) =>
+      Text(title, style: Theme.of(context).textTheme.headlineSmall);
 }
 
 /// Stable catalogue rows animate insertion and removal without losing gestures.
@@ -348,10 +387,36 @@ class AppAnimatedSize extends StatelessWidget {
 }
 
 abstract final class AppTheme {
+  static ColorScheme _completeDynamicScheme(
+    ColorScheme scheme,
+    Brightness brightness,
+  ) {
+    if (scheme.surfaceContainerLowest != scheme.surfaceContainerLow &&
+        scheme.surfaceContainerLow != scheme.surfaceContainerHigh) {
+      return scheme;
+    }
+    final tones = ColorScheme.fromSeed(
+      seedColor: scheme.primary,
+      brightness: brightness,
+    );
+    return scheme.copyWith(
+      surface: tones.surface,
+      surfaceDim: tones.surfaceDim,
+      surfaceBright: tones.surfaceBright,
+      surfaceContainerLowest: tones.surfaceContainerLowest,
+      surfaceContainerLow: tones.surfaceContainerLow,
+      surfaceContainer: tones.surfaceContainer,
+      surfaceContainerHigh: tones.surfaceContainerHigh,
+      surfaceContainerHighest: tones.surfaceContainerHighest,
+    );
+  }
+
   static ThemeData create(Brightness brightness, {ColorScheme? dynamicScheme}) {
     final dark = brightness == Brightness.dark;
     final colors =
-        dynamicScheme ??
+        (dynamicScheme == null
+            ? null
+            : _completeDynamicScheme(dynamicScheme, brightness)) ??
         ColorScheme.fromSeed(
           seedColor: const Color(0xffa85b65),
           brightness: brightness,
@@ -448,6 +513,7 @@ abstract final class AppTheme {
         shape: shape,
       ),
       listTileTheme: ListTileThemeData(
+        enableFeedback: false,
         titleTextStyle: typography.titleMedium,
         subtitleTextStyle: typography.bodyMedium,
         iconColor: colors.onSurfaceVariant,
@@ -778,7 +844,6 @@ class ResourceTile extends StatelessWidget {
                   TextButton.icon(
                     key: ValueKey('resource-details-$storageId'),
                     onPressed: () {
-                      AppHaptics.selection();
                       showAppDetails(context, title: title, children: details);
                     },
                     icon: const Icon(Icons.chevron_right, size: 18),
@@ -1278,7 +1343,6 @@ Future<T?> showAppChoice<T>(
   required T value,
   required List<(T, String)> options,
 }) {
-  AppHaptics.selection();
   return showModalBottomSheet<T>(
     context: context,
     useSafeArea: true,
@@ -1308,7 +1372,6 @@ Future<T?> showAppChoice<T>(
                 selected: value == option.$1,
                 trailing: value == option.$1 ? const Icon(Icons.check) : null,
                 onTap: () {
-                  AppHaptics.selection();
                   Navigator.pop(context, option.$1);
                 },
               ),
@@ -1328,7 +1391,7 @@ class AppActionRow extends StatelessWidget {
       final stacked =
           constraints.maxWidth < 280 ||
           MediaQuery.textScalerOf(context).scale(14) > 20;
-      if (stacked)
+      if (stacked) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -1338,6 +1401,7 @@ class AppActionRow extends StatelessWidget {
             ],
           ],
         );
+      }
       return Row(
         children: [
           for (var i = 0; i < children.length; i++) ...[
@@ -1356,11 +1420,12 @@ class AppTwoColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      if (constraints.maxWidth < AppLayout.expanded)
+      if (constraints.maxWidth < AppLayout.expanded) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [first, const SizedBox(height: 24), second],
         );
+      }
       return Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

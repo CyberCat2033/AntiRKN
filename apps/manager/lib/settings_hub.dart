@@ -36,7 +36,6 @@ class SettingsHubState extends State<SettingsHub> {
   void showRoot() => open(0);
   final visited = <int>{0};
   void open(int value) {
-    AppHaptics.selection();
     setState(() {
       selected = value;
       visited.add(value);
@@ -97,6 +96,7 @@ class SettingsHubState extends State<SettingsHub> {
           Expanded(
             child: AppPageSwitch(
               index: selected,
+              depth: selected == 0 ? 0 : 1,
               motion: widget.motion,
               children: [
                 scroll('menu', [

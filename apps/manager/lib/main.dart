@@ -583,14 +583,12 @@ class _ManagerShellState extends State<ManagerShell>
 
   void _navigate(int value) {
     if (value == _index) {
-      AppHaptics.selection();
       _serverSelection.exit();
       _clientSelection.exit();
       if (value == 0) _catalog?.showList();
       if (value == 2) _settingsKey.currentState?.showRoot();
     }
     if (value != _index) {
-      AppHaptics.selection();
       _serverSelection.exit();
       _clientSelection.exit();
     }

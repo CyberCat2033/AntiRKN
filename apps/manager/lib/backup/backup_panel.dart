@@ -45,7 +45,6 @@ class BackupPanel extends StatelessWidget {
           subtitle: Text(l.uiBackupExportHelp),
           trailing: const Icon(Icons.chevron_right),
           onTap: () {
-            AppHaptics.selection();
             _open(context, false);
           },
         ),
@@ -57,7 +56,6 @@ class BackupPanel extends StatelessWidget {
           subtitle: Text(l.uiBackupImportHelp),
           trailing: const Icon(Icons.chevron_right),
           onTap: () {
-            AppHaptics.selection();
             _open(context, true);
           },
         ),

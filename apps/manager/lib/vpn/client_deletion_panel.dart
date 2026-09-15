@@ -34,7 +34,7 @@ class ClientDeletionPanel extends StatelessWidget {
           ),
           FilledButton(
             onPressed: () {
-              AppHaptics.confirm();
+              AppHaptics.deleted();
               Navigator.pop(context, true);
             },
             child: Text(l.uiForceDeleteClient),

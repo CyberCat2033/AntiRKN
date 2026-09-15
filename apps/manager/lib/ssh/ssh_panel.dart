@@ -366,7 +366,15 @@ class _SshPanelState extends State<SshPanel> {
                               widget.showConnectionActions)
                             FilledButton(
                               key: const ValueKey('ssh-connect'),
-                              onPressed: c.editing ? c.connect : null,
+                              onPressed: c.editing
+                                  ? () async {
+                                      final adding = !c.hasSavedProfile;
+                                      await c.connect();
+                                      if (adding && c.hasSavedProfile) {
+                                        AppHaptics.added();
+                                      }
+                                    }
+                                  : null,
                               child: Text(
                                 c.saved ? l.sshConnect : l.sshSaveAndConnect,
                               ),
@@ -374,7 +382,14 @@ class _SshPanelState extends State<SshPanel> {
                           if (expanded)
                             OutlinedButton(
                               key: const ValueKey('ssh-save'),
-                              onPressed: c.editing && !c.saved ? c.save : null,
+                              onPressed: c.editing && !c.saved
+                                  ? () async {
+                                      final adding = !c.hasSavedProfile;
+                                      if (await c.save() && adding) {
+                                        AppHaptics.added();
+                                      }
+                                    }
+                                  : null,
                               child: Text(l.sshSave),
                             ),
                           if (expanded && c.hasSavedProfile)

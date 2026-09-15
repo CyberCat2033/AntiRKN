@@ -180,7 +180,6 @@ class _PublicationSettingsState extends State<PublicationSettingsPanel> {
                 onChanged: c.editing
                     ? null
                     : (value) {
-                        AppHaptics.selection();
                         c.setEnabled(value);
                       },
               ),

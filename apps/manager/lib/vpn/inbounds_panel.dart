@@ -81,8 +81,7 @@ class InboundsPanel extends StatelessWidget {
                         storageId:
                             'observed-$serverId-${panel['port']}-${observed['id']}',
                         title: '${observed['name'] ?? ''}'.trim().isEmpty
-                            ? '${observed['protocol']}'.toUpperCase() +
-                                  ' · ${observed['port']}'
+                            ? "${'${observed['protocol']}'.toUpperCase()} · ${observed['port']}"
                             : '${observed['name']}',
                         subtitle:
                             '${observed['transport']} · ${observed['security']}',
@@ -196,7 +195,6 @@ class InboundsPanel extends StatelessWidget {
     },
   );
   Future<void> _edit(BuildContext context, [VlessInbound? inbound]) async {
-    AppHaptics.selection();
     final result = await showDialog<VlessInbound>(
       context: context,
       builder: (context) => InboundForm(
@@ -213,6 +211,13 @@ class InboundsPanel extends StatelessWidget {
     );
     if (result == null) return;
     await controller.saveInbound(result);
+    if (controller.error == null) {
+      if (result.deleted && inbound != null && !inbound.deleted) {
+        AppHaptics.deleted();
+      } else if (inbound == null && !result.deleted) {
+        AppHaptics.added();
+      }
+    }
     if (controller.error == null) await controller.prepare();
   }
 }

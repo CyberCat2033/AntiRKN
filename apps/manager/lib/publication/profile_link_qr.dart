@@ -41,7 +41,6 @@ class _ProfileLinkQrState extends State<ProfileLinkQr> {
       await widget.beforeCopy();
       if (!mounted || widget.url != url) return;
       await Clipboard.setData(ClipboardData(text: url));
-      AppHaptics.confirm();
       if (mounted) {
         ScaffoldMessenger.of(
           context,

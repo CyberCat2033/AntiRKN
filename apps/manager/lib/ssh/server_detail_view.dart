@@ -97,7 +97,6 @@ class _ServerDetailViewState extends State<ServerDetailView> {
   void open(int index) {
     if (index == 1) widget.session.editSettings();
     if (index != 1 && selected == 1) widget.session.closeSettings();
-    AppHaptics.selection();
     setState(() {
       selected = index;
       visited.add(index);
@@ -105,7 +104,6 @@ class _ServerDetailViewState extends State<ServerDetailView> {
   }
 
   Future<void> refresh() async {
-    AppHaptics.selection();
     await widget.session.refresh();
     await widget.session.runner.refresh();
   }
@@ -121,12 +119,9 @@ class _ServerDetailViewState extends State<ServerDetailView> {
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 1000),
-            child: AppAnimatedSize(
-              motion: widget.motion,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: children,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: children,
             ),
           ),
         ),
@@ -211,6 +206,12 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                 AppActionRow(
                   children: [
                     FilledButton.tonalIcon(
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                      ),
                       key: ValueKey(
                         c.busy
                             ? 'ssh-cancel'
@@ -220,12 +221,10 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                       ),
                       onPressed: c.busy || connected
                           ? () {
-                              AppHaptics.selection();
                               c.disconnect();
                             }
                           : c.editing
                           ? () {
-                              AppHaptics.selection();
                               c.connect();
                             }
                           : null,
@@ -301,7 +300,6 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                                     !widget.sections[i].detected
                                 ? null
                                 : () async {
-                                    AppHaptics.confirm();
                                     final submitted =
                                         await widget.sections[i].onRemove!();
                                     if (mounted && submitted) open(2);
@@ -400,8 +398,9 @@ class _ServerDetailViewState extends State<ServerDetailView> {
     builder: (context, _) {
       final c = widget.session, l = AppLocalizations.of(context);
       final active = AppPageVisibility.of(context);
-      if (!c.initialised)
+      if (!c.initialised) {
         return const Center(child: CircularProgressIndicator());
+      }
       final requiresConnection =
           !c.hasSavedProfile || c.challenge != null || c.showPrivilegePrompt;
       final index = requiresConnection ? 1 : selected;
@@ -472,6 +471,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
             Expanded(
               child: AppPageSwitch(
                 index: index,
+                depth: index == 0 ? 0 : 1,
                 motion: widget.motion,
                 children: [
                   page('overview', [overview(context)]),
@@ -564,6 +564,7 @@ class _ProtocolTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppLayout.radius),
         onTap: onTap,
         onLongPress: onLongPress,
+        enableFeedback: false,
         child: Padding(
           padding: const EdgeInsets.all(17),
           child: Column(

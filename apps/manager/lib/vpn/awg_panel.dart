@@ -37,6 +37,13 @@ class AwgPanel extends StatelessWidget {
     );
     if (result == null) return;
     await controller.saveAwg(result);
+    if (controller.error == null) {
+      if (result.deleted && current != null && !current.deleted) {
+        AppHaptics.deleted();
+      } else if (current == null && !result.deleted) {
+        AppHaptics.added();
+      }
+    }
     if (controller.error == null) await controller.prepare();
   }
 
