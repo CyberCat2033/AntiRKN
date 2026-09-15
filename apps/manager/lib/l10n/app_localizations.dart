@@ -3533,7 +3533,7 @@ abstract class AppLocalizations {
   /// No description provided for @ttAcmeHelp.
   ///
   /// In en, this message translates to:
-  /// **'All A/AAAA records must match the selected IPs. With a wildcard listener, enter the external IPs. HTTP-01 needs public TCP port 80. Applying this plan requests a certificate from Let’s Encrypt, accepts its subscriber agreement, and enables server renewal with Certbot. Existing certificates from other issuers are not reissued.'**
+  /// **'Server IPs are detected automatically. The domain must point to this server, and TCP port 80 must be reachable from the internet. Confirmation issues a Let’s Encrypt certificate and enables automatic renewal. No email is required.'**
   String get ttAcmeHelp;
 
   /// No description provided for @ttExpiry.
@@ -3671,7 +3671,7 @@ abstract class AppLocalizations {
   /// No description provided for @ttDnsMismatch.
   ///
   /// In en, this message translates to:
-  /// **'Domain A/AAAA records do not match the selected listening/external IPs. Correct DNS or the selected addresses before issuance.'**
+  /// **'The domain points to a different IP. Set its A/AAAA records to this server’s IPs and try again.'**
   String get ttDnsMismatch;
 
   /// No description provided for @ttAcmePortBusy.

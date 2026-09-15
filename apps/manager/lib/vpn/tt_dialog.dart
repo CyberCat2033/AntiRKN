@@ -10,6 +10,7 @@ mixin TtPlannedState<T extends StatefulWidget> on State<T> {
   String get jobKind;
   int get steps;
   Map<String, Object?> buildPayload();
+  Future<Map<String, Object?>> preparePayload() async => buildPayload();
   bool busy = false;
   String? error;
   Map<String, dynamic>? preview;
@@ -26,7 +27,7 @@ mixin TtPlannedState<T extends StatefulWidget> on State<T> {
     });
     try {
       if (preview == null) {
-        final p = buildPayload();
+        final p = await preparePayload();
         final result = await runner.ttRequest(planAction, payload: p);
         if (!mounted) return;
         if (result == null) {

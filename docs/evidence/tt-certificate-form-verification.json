@@ -1,0 +1,58 @@
+{
+  "stage": "TrustTunnel automatic certificate form",
+  "date": "2026-09-15",
+  "tests": {
+    "integrations": 17,
+    "sync": 17,
+    "storage": 115,
+    "ssh": 36,
+    "network": 24,
+    "compiler": 24,
+    "app": 185,
+    "python_runner": 85,
+    "python_tools": 5,
+    "total": 508
+  },
+  "checks": {
+    "full_verify": "PASS",
+    "analyze_format_generators_architecture_base": "PASS",
+    "ru_en_messages": 708,
+    "diff": "PASS"
+  },
+  "runner_upgrade_inspector": {
+    "kind": "local inspector smoke; mocked ownership/systemctl, actual bundle files",
+    "results": {
+      "v13_recognized_for_upgrade": true,
+      "modified_predecessor_rejected": true,
+      "partial_v14_recognized": true,
+      "v14_recognized": true,
+      "modified_unit_rejected": true
+    }
+  },
+  "builds": {
+    "linux": {
+      "status": "PASS",
+      "path": "apps/manager/build/linux/x64/debug/bundle/antirkn_manager",
+      "sha256": "fe29c4e441b1b86708e344bf267dd2af24f28771a97e297156c7bfe446b34cc7",
+      "kernel_sha256": "11a63fd8573602befd71996a448ad5d3f33de53f97805349437a87c55bc7a290"
+    },
+    "android": {
+      "status": "PASS",
+      "path": "apps/manager/build/app/outputs/flutter-apk/app-debug.apk",
+      "sha256": "68654f2f72bc5f173692a7245195f0cb260e734e8502d18a11db028028e7f915",
+      "google_project_configured": true
+    }
+  },
+  "unverified": [
+    "Public ACME HTTP-01/NAT",
+    "Actual VPS upgrade to v14",
+    "Manual GUI/Android runtime",
+    "Windows"
+  ],
+  "not_performed": [
+    "ADB/APK install",
+    "Push",
+    "Workspace GUI launch",
+    "Shutdown"
+  ]
+}

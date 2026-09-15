@@ -84,6 +84,7 @@ void main() {
         );
         final network = NetworkController(reader: SampleInventoryReader());
         addTearDown(network.dispose);
+        await tester.runAsync(network.load);
         await runner.refresh(prepare: true);
         TrustTunnelEndpoint? result;
         late AppLocalizations l;
@@ -106,7 +107,9 @@ void main() {
                           spec: {
                             ...fixture.spec(),
                             'certificateId': '',
-                            'listen': '203.0.113.1',
+                            'listen': language == 'ru'
+                                ? '0.0.0.0'
+                                : '203.0.113.1',
                           },
                           runner: runner,
                           picker: FakeKeyPicker(),
@@ -145,27 +148,9 @@ void main() {
               .text,
           'vpn.example.com',
         );
-        expect(
-          tester
-              .widget<TextField>(
-                find.byKey(const ValueKey('tt-certificate-listen')),
-              )
-              .controller!
-              .text,
-          '203.0.113.1',
-        );
-        expect(
-          tester
-              .widget<TextField>(
-                find.byKey(const ValueKey('tt-certificate-expectedIps')),
-              )
-              .controller!
-              .text,
-          '203.0.113.1',
-        );
-        final email = find.byKey(const ValueKey('tt-certificate-email'));
-        await tester.ensureVisible(email);
-        await tester.enterText(email, 'admin@example.com');
+        for (final key in ['listen', 'expectedIps', 'email']) {
+          expect(find.byKey(ValueKey('tt-certificate-$key')), findsNothing);
+        }
         remote.planCode = 'tt_dns_mismatch';
         await tester.tap(
           find.descendant(of: dialog, matching: find.text(l.vpnPrepare)),
@@ -179,7 +164,16 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(remote.planned!['mode'], 'acme');
-        expect(remote.planned!['expectedIps'], ['203.0.113.1']);
+        if (language == 'en') {
+          expect(remote.planned!['expectedIps'], contains('203.0.113.1'));
+        }
+        expect(remote.planned!['expectedIps'], contains('203.0.113.20'));
+        expect(
+          remote.planned!['listen'],
+          language == 'ru' ? '0.0.0.0' : '203.0.113.1',
+        );
+        expect(remote.planned!['autoDetectIps'], isTrue);
+        expect(remote.planned!['email'], '');
         await tester.tap(
           find.descendant(of: dialog, matching: find.text(l.vpnApply)),
         );

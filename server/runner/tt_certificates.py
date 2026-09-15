@@ -22,7 +22,7 @@ from tt_common import (CERT_ROOT, STATE, TtError, active, address, available,
     canonical, digest, domain, identifier, ip, lock, mkdir, read, run, safe_path)
 from panel import atomic_file
 
-SCRIPT = '/usr/local/lib/antirkn-runner/v13/tt_certificates.py'
+SCRIPT = '/usr/local/lib/antirkn-runner/v14/tt_certificates.py'
 UNITS = Path('/etc/systemd/system')
 
 
@@ -46,9 +46,10 @@ def dns_check(spec):
     name = domain(spec['domain'])
     listen = ip(spec['listen'], wildcard=True)
     expected = {ip(v) for v in spec['expectedIps']}
-    if not expected or len(expected) > 8:
+    automatic = spec.get('autoDetectIps', False)
+    if (not expected and not automatic) or len(expected) > 8:
         raise TtError()
-    if listen not in ('0.0.0.0', '::') and expected != {listen}:
+    if not automatic and listen not in ('0.0.0.0', '::') and expected != {listen}:
         raise TtError('tt_dns_mismatch')
     # Resolver isolation gives getaddrinfo a real, bounded timeout.
     source = 'import json,socket,sys; print(json.dumps(sorted({r[4][0] for r in socket.getaddrinfo(sys.argv[1],80,type=socket.SOCK_STREAM)})))'
@@ -56,10 +57,18 @@ def dns_check(spec):
     if result.returncode:
         raise TtError('tt_dns_failed')
     resolved = {ip(v) for v in json.loads(result.stdout)}
-    if resolved != expected:
+    if not automatic and resolved != expected:
         raise TtError('tt_dns_mismatch')
     local = json.loads(run(['/usr/sbin/ip', '-j', 'address', 'show']).stdout)
-    assigned = {a['local'] for row in local for a in row.get('addr_info', [])}
+    assigned = {ip(a['local'], wildcard=True) for row in local for a in row.get('addr_info', [])}
+    if automatic:
+        # DNS supplies the domain's addresses, never the trusted server IP set.
+        # The SSH peer supplied by the app covers a public NAT address.
+        expected |= {v for v in assigned if not (ipaddress.ip_address(v).is_loopback or
+            ipaddress.ip_address(v).is_link_local or ipaddress.ip_address(v).is_multicast or
+            ipaddress.ip_address(v).is_unspecified)}
+        if not resolved or not resolved.issubset(expected):
+            raise TtError('tt_dns_mismatch')
     if listen not in ('0.0.0.0', '::') and listen not in assigned:
         raise TtError('tt_dns_mismatch')
     return dict(domain=name, addresses=sorted(resolved), expected=sorted(expected))
@@ -139,17 +148,17 @@ def inventory():
 def decode(raw):
     p = json.loads(raw)
     fields = {'id', 'domain', 'mode', 'listen', 'expectedIps', 'email', 'certificate', 'privateKey', 'certificatePem', 'privateKeyPem'}
-    if type(p) is not dict or set(p) != fields or p['mode'] not in ('files', 'import', 'acme'):
+    if type(p) is not dict or set(p) - {'autoDetectIps'} != fields or type(p.get('autoDetectIps', False)) is not bool or p['mode'] not in ('files', 'import', 'acme'):
         raise TtError()
     identifier(p['id']); domain(p['domain']); ip(p['listen'], wildcard=True)
-    if type(p['expectedIps']) is not list or len(p['expectedIps']) > 8 or p['mode'] == 'acme' and not p['expectedIps']:
+    if type(p['expectedIps']) is not list or len(p['expectedIps']) > 8 or p['mode'] == 'acme' and not p['expectedIps'] and not p.get('autoDetectIps', False):
         raise TtError()
     for v in p['expectedIps']: ip(v)
     for k in fields - {'expectedIps'}:
         if type(p[k]) is not str or '\x00' in p[k]: raise TtError()
     if len(p['certificatePem']) > 196608 or len(p['privateKeyPem']) > 32768:
         raise TtError()
-    if p['mode'] == 'acme' and not re.fullmatch(r'[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,63}', p['email']):
+    if p['mode'] == 'acme' and p['email'] and not re.fullmatch(r'[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,63}', p['email']):
         raise TtError()
     if any(p[k] for k in ('certificatePem', 'privateKeyPem')) and p['mode'] != 'import':
         raise TtError()
@@ -318,7 +327,7 @@ def timer_sources():
 def install_timer():
     for name, source in timer_sources().items():
         p = UNITS / name
-        if p.exists() and read(p) not in (source, source.replace(b'/v13/',b'/v12/'), source.replace(b'/v13/',b'/v11/')):
+        if p.exists() and read(p) not in (source, source.replace(b'/v14/',b'/v13/'), source.replace(b'/v14/',b'/v12/'), source.replace(b'/v14/',b'/v11/')):
             raise TtError('tt_conflict')
         atomic_file(p, source, 0o644)
     run(['/usr/bin/systemctl', 'daemon-reload'])
@@ -335,7 +344,8 @@ def issue(p, renew=False):
         '--logs-dir', str(base / 'logs'), '--cert-name', 'endpoint']
     if not renew:
         args += ['--standalone', '--preferred-challenges', 'http', '--agree-tos',
-            '--email', p['email'], '-d', p['domain'], '--keep-until-expiring']
+            '-d', p['domain'], '--keep-until-expiring']
+        args += ['--email', p['email']] if p['email'] else ['--register-unsafely-without-email']
     result = run(args, timeout=600, check=False)
     if result.returncode:
         raise TtError('tt_acme_failed')

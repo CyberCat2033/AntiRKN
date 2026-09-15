@@ -4,7 +4,6 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../network/network_controller.dart';
-import '../network/server_address_picker.dart';
 import '../runner/runner_controller.dart';
 import 'tt_dialog.dart';
 import 'vpn_strings.dart';
@@ -165,18 +164,9 @@ class _TtCertificateState extends State<TtCertificateDialog>
         },
   );
   late final fields = {
-    for (final k in [
-      'domain',
-      'listen',
-      'expectedIps',
-      'email',
-      'certificate',
-      'privateKey',
-    ])
+    for (final k in ['domain', 'listen', 'certificate', 'privateKey'])
       k: TextEditingController(
-        text: k == 'expectedIps'
-            ? (configuration[k] as List? ?? []).join(', ')
-            : configuration[k] as String? ?? (k == 'listen' ? '0.0.0.0' : ''),
+        text: configuration[k] as String? ?? (k == 'listen' ? '0.0.0.0' : ''),
       ),
   };
   final pem = <String, String>{};
@@ -227,13 +217,7 @@ class _TtCertificateState extends State<TtCertificateDialog>
       autocorrect: false,
       enableSuggestions: false,
       decoration: InputDecoration(labelText: label),
-      onChanged: (_) {
-        if (k == 'listen' &&
-            !['0.0.0.0', '::'].contains(fields[k]!.text.trim())) {
-          fields['expectedIps']!.text = fields[k]!.text.trim();
-        }
-        changed();
-      },
+      onChanged: (_) => changed(),
     ),
   );
   @override
@@ -242,21 +226,29 @@ class _TtCertificateState extends State<TtCertificateDialog>
     'mode': mode,
     'domain': fields['domain']!.text.trim().toLowerCase(),
     'listen': fields['listen']!.text.trim(),
-    'expectedIps': fields['expectedIps']!.text
-        .split(',')
-        .map((v) => v.trim())
-        .where((v) => v.isNotEmpty)
-        .toList(),
-    'email': fields['email']!.text.trim(),
+    'autoDetectIps': mode == 'acme',
+    'expectedIps': <String>{
+      ...List<String>.from(configuration['expectedIps'] as List? ?? []),
+      if (widget.network.inventory?.sshPeer case final IpAddress peer)
+        peer.toString(),
+    }.take(8).toList(),
+    'email': configuration['email'] as String? ?? '',
     'certificate': fields['certificate']!.text.trim(),
     'privateKey': fields['privateKey']!.text.trim(),
     'certificatePem': mode == 'import' ? pem['certificate'] ?? '' : '',
     'privateKeyPem': mode == 'import' ? pem['privateKey'] ?? '' : '',
   };
   @override
+  Future<Map<String, Object?>> preparePayload() async {
+    if (mode == 'acme' && widget.network.inventory == null) {
+      await widget.network.load();
+    }
+    return buildPayload();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    final choices = widget.network.choices(AddressRole.listener);
     return AlertDialog(
       title: Text(widget.certificate == null ? l.ttAddCertificate : l.vpnEdit),
       content: SizedBox(
@@ -330,49 +322,7 @@ class _TtCertificateState extends State<TtCertificateDialog>
                     ),
                   ),
               ],
-              if (mode == 'acme') ...[
-                ServerAddressPicker(
-                  role: AddressRole.listener,
-                  choices: choices,
-                  selected: choices
-                      .where((c) => c.host == fields['listen']!.text)
-                      .firstOrNull,
-                  selectionIssue: null,
-                  motion: widget.motion,
-                  enabled: !busy && preview == null,
-                  onSelected: (c) {
-                    fields['listen']!.text = c?.host ?? '';
-                    if (c != null && !['0.0.0.0', '::'].contains(c.host)) {
-                      fields['expectedIps']!.text = c.host;
-                    }
-                    changed();
-                  },
-                ),
-                field('listen', l.networkListener),
-                if ([
-                  '0.0.0.0',
-                  '::',
-                ].contains(fields['listen']!.text.trim())) ...[
-                  ServerAddressPicker(
-                    role: AddressRole.endpoint,
-                    choices: widget.network.choices(AddressRole.endpoint),
-                    selected: widget.network
-                        .choices(AddressRole.endpoint)
-                        .where((c) => c.host == fields['expectedIps']!.text)
-                        .firstOrNull,
-                    selectionIssue: null,
-                    motion: widget.motion,
-                    enabled: !busy && preview == null,
-                    onSelected: (c) {
-                      fields['expectedIps']!.text = c?.host ?? '';
-                      changed();
-                    },
-                  ),
-                ],
-                field('expectedIps', l.ttExpectedIps),
-                field('email', l.ttAcmeEmail),
-                Text(l.ttAcmeHelp),
-              ],
+              if (mode == 'acme') Text(l.ttAcmeHelp),
               ...status(l),
             ],
           ),

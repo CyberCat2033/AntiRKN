@@ -146,6 +146,42 @@ class TrustTunnelTests(unittest.TestCase):
         results=[types.SimpleNamespace(returncode=0,stdout=b'["203.0.113.1"]'),types.SimpleNamespace(returncode=0,stdout=b'[]')]
         with patch.object(cert,'run',side_effect=results):self.assertEqual(cert.dns_check(p)['expected'],p['expectedIps'])
 
+    def test_automatic_dns_uses_assigned_addresses_and_ssh_nat_hint(self):
+        p=dict(domain='vpn.example.com',listen='0.0.0.0',expectedIps=[],autoDetectIps=True)
+        def result(value):return types.SimpleNamespace(returncode=0,stdout=json.dumps(value).encode())
+        local=[{'addr_info':[{'local':'203.0.113.1'},{'local':'2001:db8::1'},{'local':'127.0.0.1'},{'local':'fe80::1'}]}]
+        for records in (['203.0.113.1'],['203.0.113.1','2001:db8::1']):
+            with patch.object(cert,'run',side_effect=[result(records),result(local)]):
+                self.assertEqual(cert.dns_check(p)['addresses'],sorted(records))
+        for records in ([],['203.0.113.99'],['203.0.113.1','2001:db8::99'],['127.0.0.1']):
+            with patch.object(cert,'run',side_effect=[result(records),result(local)]),self.assertRaises(cert.TtError) as error:
+                cert.dns_check(p)
+            self.assertEqual(error.exception.code,'tt_dns_mismatch')
+        p['expectedIps']=['198.51.100.8']
+        with patch.object(cert,'run',side_effect=[result(['198.51.100.8']),result([{'addr_info':[{'local':'10.0.0.5'}]}])]):
+            self.assertEqual(cert.dns_check(p)['addresses'],['198.51.100.8'])
+
+    def test_email_free_registration_and_existing_email_renewal(self):
+        p=dict(id='a'*32,domain='vpn.example.com',mode='acme',listen='0.0.0.0',expectedIps=[],autoDetectIps=True,
+            email='',certificate='',privateKey='',certificatePem='',privateKeyPem='')
+        self.assertEqual(cert.decode(json.dumps(p)),p)
+        with patch.object(cert,'dns_check'),patch.object(cert,'available',return_value=True),patch.object(cert,'run',return_value=types.SimpleNamespace(returncode=0)) as run:
+            cert.issue(p)
+            args=run.call_args.args[0]
+            self.assertIn('--register-unsafely-without-email',args)
+            self.assertNotIn('--email',args)
+            old=dict(p,email='owner@example.com',expectedIps=['203.0.113.1'])
+            del old['autoDetectIps']
+            self.assertEqual(cert.decode(json.dumps(old)),old)
+            cert.issue(old)
+            self.assertIn('--email',run.call_args.args[0])
+            cert.issue(p,renew=True)
+            self.assertIn('renew',run.call_args.args[0])
+            self.assertNotIn('--email',run.call_args.args[0])
+        for value in ('bad-email','inject\n@example.com'):
+            with self.assertRaises(cert.TtError):cert.decode(json.dumps(dict(p,email=value)))
+        with self.assertRaises(cert.TtError):cert.decode(json.dumps(dict(p,autoDetectIps='true')))
+
     def test_stale_external_plan_rejected_without_writes(self):
         c=dict(listen='127.0.0.1',port=8443,quic=False,ipv6=False,allowPrivate=False,outbound='direct',socksAddress='127.0.0.1:1080',hostIndex=0,domain='vpn.example.com',certificateId='')
         req={'payload':json.dumps(dict(resourceId='b'*32,observedHash='a'*64,changes=c))}
