@@ -2011,7 +2011,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get ttNeedCertificate =>
-      'First add a certificate in the TLS certificates section.';
+      'Select an existing certificate or issue one for the entered SNI.';
+
+  @override
+  String get ttCertificatePending =>
+      'Certificate issuance was submitted to the server. The certificate will be selected automatically after it succeeds.';
 
   @override
   String get ttPrerequisites =>

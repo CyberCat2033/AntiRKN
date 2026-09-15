@@ -6,6 +6,7 @@ String vpnMessage(AppLocalizations l, String code) => switch (code) {
   'succeeded' => l.runnerSucceeded,
   'planned' => l.runnerPlanned,
   'running' => l.runnerRunning,
+  'failed' || 'partially_applied' || 'needs_attention' => l.vpnFailed,
   'cancelled' => l.runnerCancelled,
   'recovered' => l.runnerRecovered,
   'cancel_requested' => l.runnerCancelRequested,

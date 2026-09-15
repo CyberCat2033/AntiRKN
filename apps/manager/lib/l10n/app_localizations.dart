@@ -3623,8 +3623,14 @@ abstract class AppLocalizations {
   /// No description provided for @ttNeedCertificate.
   ///
   /// In en, this message translates to:
-  /// **'First add a certificate in the TLS certificates section.'**
+  /// **'Select an existing certificate or issue one for the entered SNI.'**
   String get ttNeedCertificate;
+
+  /// No description provided for @ttCertificatePending.
+  ///
+  /// In en, this message translates to:
+  /// **'Certificate issuance was submitted to the server. The certificate will be selected automatically after it succeeds.'**
+  String get ttCertificatePending;
 
   /// No description provided for @ttPrerequisites.
   ///

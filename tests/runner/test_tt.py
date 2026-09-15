@@ -26,6 +26,15 @@ def payload():
 
 
 class TrustTunnelTests(unittest.TestCase):
+    def test_defaults_use_https_ports_and_do_not_require_udp(self):
+        for free, expected, probes in (([True],443,[443]),([False,True],8443,[443,8443]),([False,False],443,[443,8443])):
+            with self.subTest(free=free),patch.object(tt,'prerequisites'),patch.object(tt,'available',side_effect=free) as probe:
+                value=tt.defaults(None)
+                self.assertEqual(value['port'],expected)
+                self.assertEqual(value['externalPort'],expected)
+                self.assertFalse(value['quic'])
+                self.assertEqual([c.args for c in probe.call_args_list],[('0.0.0.0',p) for p in probes])
+
     def test_certificate_watcher_lock_queues_job_and_remains_cancellable(self):
         with tempfile.TemporaryDirectory() as d:
             s=Store(d)

@@ -22,7 +22,7 @@ from tt_common import (CERT_ROOT, STATE, TtError, active, address, available,
     canonical, digest, domain, identifier, ip, lock, mkdir, read, run, safe_path)
 from panel import atomic_file
 
-SCRIPT = '/usr/local/lib/antirkn-runner/v12/tt_certificates.py'
+SCRIPT = '/usr/local/lib/antirkn-runner/v13/tt_certificates.py'
 UNITS = Path('/etc/systemd/system')
 
 
@@ -318,7 +318,7 @@ def timer_sources():
 def install_timer():
     for name, source in timer_sources().items():
         p = UNITS / name
-        if p.exists() and read(p) not in (source, source.replace(b'/v12/',b'/v11/')):
+        if p.exists() and read(p) not in (source, source.replace(b'/v13/',b'/v12/'), source.replace(b'/v13/',b'/v11/')):
             raise TtError('tt_conflict')
         atomic_file(p, source, 0o644)
     run(['/usr/bin/systemctl', 'daemon-reload'])

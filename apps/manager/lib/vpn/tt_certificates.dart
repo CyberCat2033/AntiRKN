@@ -121,9 +121,17 @@ class TtCertificateDialog extends StatefulWidget {
     required this.network,
     required this.motion,
     this.certificate,
+    this.newCertificateId,
+    this.initialMode = 'files',
+    this.initialDomain = '',
+    this.initialListen = '0.0.0.0',
+    this.initialExpectedIps = const [],
     super.key,
   });
   final Map<String, dynamic>? certificate;
+  final String? newCertificateId;
+  final String initialMode, initialDomain, initialListen;
+  final List<String> initialExpectedIps;
   final RunnerController runner;
   final PrivateKeyFilePicker picker;
   final NetworkController network;
@@ -142,10 +150,19 @@ class _TtCertificateState extends State<TtCertificateDialog>
   String get jobKind => 'tt_certificate';
   @override
   int get steps => 4;
-  late final id = widget.certificate?['id'] as String? ?? newVpnId();
-  late String mode = widget.certificate?['mode'] as String? ?? 'files';
+  late final id =
+      widget.certificate?['id'] as String? ??
+      widget.newCertificateId ??
+      newVpnId();
+  late String mode =
+      widget.certificate?['mode'] as String? ?? widget.initialMode;
   late final configuration = Map<String, dynamic>.from(
-    widget.certificate?['configuration'] as Map? ?? {},
+    widget.certificate?['configuration'] as Map? ??
+        {
+          'domain': widget.initialDomain,
+          'listen': widget.initialListen,
+          'expectedIps': widget.initialExpectedIps,
+        },
   );
   late final fields = {
     for (final k in [
@@ -201,6 +218,7 @@ class _TtCertificateState extends State<TtCertificateDialog>
   Widget field(String k, String label, {bool secret = false}) => Padding(
     padding: const EdgeInsets.only(bottom: AppLayout.gap),
     child: TextField(
+      key: ValueKey('tt-certificate-$k'),
       controller: fields[k],
       enabled:
           !busy &&
@@ -209,7 +227,13 @@ class _TtCertificateState extends State<TtCertificateDialog>
       autocorrect: false,
       enableSuggestions: false,
       decoration: InputDecoration(labelText: label),
-      onChanged: (_) => changed(),
+      onChanged: (_) {
+        if (k == 'listen' &&
+            !['0.0.0.0', '::'].contains(fields[k]!.text.trim())) {
+          fields['expectedIps']!.text = fields[k]!.text.trim();
+        }
+        changed();
+      },
     ),
   );
   @override
@@ -325,6 +349,26 @@ class _TtCertificateState extends State<TtCertificateDialog>
                   },
                 ),
                 field('listen', l.networkListener),
+                if ([
+                  '0.0.0.0',
+                  '::',
+                ].contains(fields['listen']!.text.trim())) ...[
+                  ServerAddressPicker(
+                    role: AddressRole.endpoint,
+                    choices: widget.network.choices(AddressRole.endpoint),
+                    selected: widget.network
+                        .choices(AddressRole.endpoint)
+                        .where((c) => c.host == fields['expectedIps']!.text)
+                        .firstOrNull,
+                    selectionIssue: null,
+                    motion: widget.motion,
+                    enabled: !busy && preview == null,
+                    onSelected: (c) {
+                      fields['expectedIps']!.text = c?.host ?? '';
+                      changed();
+                    },
+                  ),
+                ],
                 field('expectedIps', l.ttExpectedIps),
                 field('email', l.ttAcmeEmail),
                 Text(l.ttAcmeHelp),

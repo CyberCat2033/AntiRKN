@@ -79,10 +79,11 @@ class _TtPanelState extends State<TtPanel> {
     if (spec == null || !mounted) return;
     final value = await showDialog<TrustTunnelEndpoint>(
       context: context,
-      builder: (_) => _ManagedTtDialog(
+      builder: (_) => ManagedTtDialog(
         serverId: widget.serverId,
         spec: spec,
         runner: widget.runner,
+        picker: widget.picker,
         network: widget.network,
         motion: widget.motion,
       ),
@@ -224,6 +225,7 @@ class TtSettingsEditor extends StatelessWidget {
     required this.onChanged,
     this.external = false,
     this.enabled = true,
+    this.onIssueCertificate,
     super.key,
   });
   final Map<String, TextEditingController> fields;
@@ -232,6 +234,7 @@ class TtSettingsEditor extends StatelessWidget {
   final NetworkController network;
   final MotionPreference motion;
   final VoidCallback onChanged;
+  final VoidCallback? onIssueCertificate;
   final bool external, enabled;
   @override
   Widget build(BuildContext context) {
@@ -273,11 +276,6 @@ class TtSettingsEditor extends StatelessWidget {
         picker(AddressRole.listener, 'listen'),
         field('listen', l.networkListener),
         field('port', l.ttPort, number: true),
-        if (!external) ...[
-          picker(AddressRole.endpoint, 'endpoint'),
-          field('endpoint', l.awgEndpoint),
-          field('externalPort', l.ttExternalPort, number: true),
-        ],
         field('domain', l.ttDomain),
         DropdownButtonFormField<String>(
           key: ValueKey('tt-certificate-$id-${certificates.length}'),
@@ -307,6 +305,18 @@ class TtSettingsEditor extends StatelessWidget {
               : null,
         ),
         if (certificates.isEmpty && !external) Text(l.ttNeedCertificate),
+        if (onIssueCertificate != null)
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: OutlinedButton.icon(
+              key: const ValueKey('tt-issue-certificate'),
+              onPressed: enabled && fields['domain']!.text.trim().isNotEmpty
+                  ? onIssueCertificate
+                  : null,
+              icon: const Icon(Icons.add_moderator_outlined),
+              label: Text(l.ttIssueAcme),
+            ),
+          ),
         const SizedBox(height: AppLayout.gap),
         DropdownButtonFormField<String>(
           initialValue: spec['outbound'] == 'socks5' ? 'socks5' : 'direct',
@@ -369,40 +379,99 @@ class TtSettingsEditor extends StatelessWidget {
   }
 }
 
-class _ManagedTtDialog extends StatefulWidget {
-  const _ManagedTtDialog({
+class ManagedTtDialog extends StatefulWidget {
+  const ManagedTtDialog({
     required this.serverId,
     required this.spec,
     required this.runner,
+    required this.picker,
     required this.network,
     required this.motion,
+    super.key,
   });
   final String serverId;
   final Map<String, Object?> spec;
   final RunnerController runner;
+  final PrivateKeyFilePicker picker;
   final NetworkController network;
   final MotionPreference motion;
   @override
-  State<_ManagedTtDialog> createState() => _ManagedTtState();
+  State<ManagedTtDialog> createState() => _ManagedTtState();
 }
 
-class _ManagedTtState extends State<_ManagedTtDialog> {
+class _ManagedTtState extends State<ManagedTtDialog> {
   late final spec = Map<String, Object?>.from(widget.spec);
   late final fields = {
-    for (final k in [
-      'name',
-      'listen',
-      'port',
-      'endpoint',
-      'externalPort',
-      'domain',
-      'socksAddress',
-    ])
+    for (final k in ['name', 'listen', 'port', 'domain', 'socksAddress'])
       k: TextEditingController(text: '${spec[k]}'),
   };
   bool invalid = false, rotate = false;
+  String? pendingCertificateId;
+  bool certificateDialogOpen = false;
+  @override
+  void initState() {
+    super.initState();
+    widget.runner.addListener(certificateChanged);
+  }
+
+  void certificateChanged() {
+    if (!mounted) return;
+    final certificates =
+        (widget.runner.ttCertificates?['certificates'] as List? ?? [])
+            .whereType<Map>();
+    final certificate = certificates
+        .where((c) => c['id'] == pendingCertificateId)
+        .firstOrNull;
+    setState(() {
+      if (certificate != null) {
+        if (certificate['domain'] ==
+            fields['domain']!.text.trim().toLowerCase()) {
+          spec['certificateId'] = certificate['id'];
+        }
+        pendingCertificateId = null;
+      }
+    });
+  }
+
+  Future<void> issueCertificate() async {
+    final domain = fields['domain']!.text.trim().toLowerCase();
+    final listen = fields['listen']!.text.trim();
+    final id = newVpnId();
+    final expectedIps = ['0.0.0.0', '::'].contains(listen)
+        ? <String>[]
+        : [listen];
+    setState(() => certificateDialogOpen = true);
+    final applied = await showDialog<bool>(
+      context: context,
+      builder: (_) => TtCertificateDialog(
+        runner: widget.runner,
+        picker: widget.picker,
+        network: widget.network,
+        motion: widget.motion,
+        newCertificateId: id,
+        initialMode: 'acme',
+        initialDomain: domain,
+        initialListen: listen,
+        initialExpectedIps: expectedIps,
+      ),
+      animationStyle: AnimationStyle(
+        duration: AppMotion.duration(context, widget.motion),
+      ),
+    );
+    if (!mounted) return;
+    setState(() {
+      certificateDialogOpen = false;
+      if (applied == true) pendingCertificateId = id;
+    });
+    if (applied == true) {
+      await widget.runner.ttRequest('tt_certificates');
+      certificateChanged();
+    }
+  }
+
   @override
   void dispose() {
+    widget.runner.removeListener(certificateChanged);
     for (final f in fields.values) {
       f.dispose();
     }
@@ -431,8 +500,30 @@ class _ManagedTtState extends State<_ManagedTtDialog> {
                         .toList(),
                 network: widget.network,
                 motion: widget.motion,
+                enabled: !certificateDialogOpen && !widget.runner.busy,
+                onIssueCertificate:
+                    widget.runner.canStart && widget.runner.installed
+                    ? issueCertificate
+                    : null,
                 onChanged: () => setState(() => invalid = false),
               ),
+              if (pendingCertificateId != null) ...[
+                Text(l.ttCertificatePending),
+                if (widget.runner.selected case final job?) ...[
+                  Text(vpnMessage(l, job.status)),
+                  if (job.events.lastOrNull case final event?)
+                    Text(vpnMessage(l, event.code)),
+                ],
+                TextButton(
+                  onPressed: widget.runner.busy
+                      ? null
+                      : () async {
+                          await widget.runner.refresh();
+                          await widget.runner.ttRequest('tt_certificates');
+                        },
+                  child: Text(l.awgRefresh),
+                ),
+              ],
               SwitchListTile(
                 title: Text(l.vpnEnabled),
                 value: spec['enabled'] as bool,
@@ -465,24 +556,31 @@ class _ManagedTtState extends State<_ManagedTtDialog> {
           child: Text(l.runnerNotNow),
         ),
         FilledButton(
-          onPressed: () {
-            try {
-              for (final e in fields.entries) {
-                spec[e.key] = ['port', 'externalPort'].contains(e.key)
-                    ? int.parse(e.value.text)
-                    : e.value.text.trim();
-              }
-              spec['domain'] = (spec['domain'] as String).toLowerCase();
-              spec['rotation'] =
-                  (widget.spec['rotation'] as int) + (rotate ? 1 : 0);
-              Navigator.pop(
-                context,
-                TrustTunnelEndpoint(serverId: widget.serverId, spec: spec),
-              );
-            } on FormatException {
-              setState(() => invalid = true);
-            }
-          },
+          onPressed: certificateDialogOpen || widget.runner.busy
+              ? null
+              : () {
+                  try {
+                    for (final e in fields.entries) {
+                      spec[e.key] = e.key == 'port'
+                          ? int.parse(e.value.text)
+                          : e.value.text.trim();
+                    }
+                    spec['domain'] = (spec['domain'] as String).toLowerCase();
+                    spec['endpoint'] = spec['domain'];
+                    spec['externalPort'] = spec['port'];
+                    spec['rotation'] =
+                        (widget.spec['rotation'] as int) + (rotate ? 1 : 0);
+                    Navigator.pop(
+                      context,
+                      TrustTunnelEndpoint(
+                        serverId: widget.serverId,
+                        spec: spec,
+                      ),
+                    );
+                  } on FormatException {
+                    setState(() => invalid = true);
+                  }
+                },
           child: Text(l.vpnPrepare),
         ),
       ],

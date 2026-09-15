@@ -1,0 +1,63 @@
+{
+  "stage": "TrustTunnel endpoint UX",
+  "date": "2026-09-15",
+  "tests": {
+    "integrations": 11,
+    "sync": 10,
+    "storage": 109,
+    "ssh": 36,
+    "network": 24,
+    "compiler": 24,
+    "app": 183,
+    "python_runner": 83,
+    "python_tools": 5,
+    "total": 485
+  },
+  "checks": {
+    "full_verify": "PASS",
+    "analyze": "PASS",
+    "format_generators_architecture_l10n_base": "PASS",
+    "ru_en_messages": 684,
+    "diff": "PASS"
+  },
+  "runner_upgrade_inspector": {
+    "kind": "local inspector smoke; mocked ownership and systemctl, real fixture files",
+    "results": {
+      "v12_recognized_for_upgrade": true,
+      "modified_predecessor_rejected": true,
+      "interrupted_upgrade_is_partial": true,
+      "v13_recognized": true,
+      "external_unit_rejected": true
+    }
+  },
+  "builds": {
+    "linux": {
+      "path": "apps/manager/build/linux/x64/debug/bundle/antirkn_manager",
+      "sha256": "fe29c4e441b1b86708e344bf267dd2af24f28771a97e297156c7bfe446b34cc7",
+      "result": "PASS",
+      "kind": "debug",
+      "runtime_tested": false
+    },
+    "android": {
+      "path": "apps/manager/build/app/outputs/flutter-apk/app-debug.apk",
+      "sha256": "bed8d57595746036573ba0e37d9a6c1e3bdd21af82d42b9c26e6e6afdf8bad72",
+      "result": "PASS",
+      "kind": "debug",
+      "runtime_tested": false
+    }
+  },
+  "schema": {
+    "sqlite": 5,
+    "backup": 3,
+    "bundled_runner": 13
+  },
+  "unverified": [
+    "Windows build/runtime",
+    "Manual final GUI/APK runtime",
+    "Actual VPS runner v12 to v13 installation",
+    "Public ACME issuance; widget RPC fixture and existing DNS/backend tests only"
+  ],
+  "adb_used": false,
+  "push_used": false,
+  "android_google_project_id_included": true
+}

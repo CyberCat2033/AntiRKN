@@ -77,10 +77,9 @@ def prerequisites():
 
 def defaults(store):
     prerequisites()
-    for _ in range(256):
-        port = 49152 + secrets.randbelow(16384)
-        if available('0.0.0.0', port, True): break
-    else: raise TtError('tt_port_busy')
+    # HTTP/2 is the default. A busy wildcard bind can still be free on the
+    # specific address selected in the editor; preflight checks that binding.
+    port = next((p for p in (443, 8443) if available('0.0.0.0', p)), 443)
     return dict(id=secrets.token_hex(16), name='TrustTunnel', enabled=True, deleted=False,
         listen='0.0.0.0', endpoint='', port=port, externalPort=port, domain='',
         certificateId='', quic=False, ipv6=False, allowPrivate=False,

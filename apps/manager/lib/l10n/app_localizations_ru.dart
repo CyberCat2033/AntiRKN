@@ -2016,7 +2016,11 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get ttNeedCertificate =>
-      'Сначала добавьте сертификат в разделе TLS-сертификатов.';
+      'Выберите готовый сертификат или выпустите новый по введённому SNI.';
+
+  @override
+  String get ttCertificatePending =>
+      'Выпуск сертификата отправлен на сервер. После успешного завершения сертификат будет выбран автоматически.';
 
   @override
   String get ttPrerequisites =>
