@@ -1870,4 +1870,168 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get awgDockerPortHelp =>
       'Docker publishes this port, so it is preserved when editing. Moving it requires recreating the container with a new port mapping.';
+
+  @override
+  String get ttAdd => 'Add endpoint';
+
+  @override
+  String get ttEmpty => 'No managed TrustTunnel endpoints yet.';
+
+  @override
+  String get ttPort => 'Listening port';
+
+  @override
+  String get ttExternalPort => 'Connection port (external port for NAT)';
+
+  @override
+  String get ttDomain => 'TLS domain (SNI)';
+
+  @override
+  String get ttOutbound => 'Outbound connection';
+
+  @override
+  String get ttDirect => 'Direct';
+
+  @override
+  String get ttSocksAddress => 'SOCKS5 address and port';
+
+  @override
+  String get ttSocksHelp =>
+      'For example, 127.0.0.1:1080 on this server. A local SOCKS5 proxy without authentication is supported; UDP also requires UDP support in SOCKS5 and its upstream route.';
+
+  @override
+  String get ttQuic => 'QUIC / HTTP/3';
+
+  @override
+  String get ttIpv6 => 'Allow outgoing IPv6';
+
+  @override
+  String get ttAllowPrivate => 'Allow access to private networks';
+
+  @override
+  String get ttRotate => 'Replace passwords for all clients of this endpoint';
+
+  @override
+  String get ttCertificates => 'TLS certificates';
+
+  @override
+  String get ttAddCertificate => 'Add or issue certificate';
+
+  @override
+  String get ttCertificateSource => 'Certificate source';
+
+  @override
+  String get ttServerFiles => 'Existing server files';
+
+  @override
+  String get ttImportPem => 'Import PEM files';
+
+  @override
+  String get ttIssueAcme => 'Issue with ACME HTTP-01';
+
+  @override
+  String get ttFilesHelp =>
+      'Select discovered files or enter server paths. The existing issuer continues renewal; AntiRKN checks changes and restarts linked TrustTunnel services.';
+
+  @override
+  String get ttImportHelp =>
+      'Select the full certificate chain and its private key. Files are copied securely to the server. Imported files need a new import when renewed.';
+
+  @override
+  String get ttExpectedIps => 'Expected domain IPs, separated by commas';
+
+  @override
+  String get ttAcmeEmail => 'Email for ACME registration';
+
+  @override
+  String get ttAcmeHelp =>
+      'All A/AAAA records must match the selected IPs. With a wildcard listener, enter the external IPs. HTTP-01 needs public TCP port 80. Applying this plan requests a certificate from Let’s Encrypt, accepts its subscriber agreement, and enables server renewal with Certbot. Existing certificates from other issuers are not reissued.';
+
+  @override
+  String get ttExpiry => 'Valid until';
+
+  @override
+  String get ttLastSuccess => 'Last successful check';
+
+  @override
+  String get ttNextCheck => 'Next check';
+
+  @override
+  String get ttExpirySoon => 'Certificate expires in less than 21 days.';
+
+  @override
+  String get ttRenewAcme => 'Automatic renewal with Certbot';
+
+  @override
+  String get ttRenewExternal => 'Renewed by the existing issuer';
+
+  @override
+  String get ttRenewImport => 'Update by importing renewed files';
+
+  @override
+  String get ttRestartPlan =>
+      'After a certificate or configuration change, restart TrustTunnel and verify the service. Active connections may be interrupted briefly.';
+
+  @override
+  String get ttDnsChecked => 'DNS matches the selected IPs';
+
+  @override
+  String get ttCertbotPresent => 'Installed Certbot';
+
+  @override
+  String get ttCertbotInstall =>
+      'Install Certbot and its required dependencies';
+
+  @override
+  String get ttPreserveUsers =>
+      'Existing users, passwords and untouched configuration fields are preserved.';
+
+  @override
+  String get ttKeepCertificate => 'Keep existing certificate';
+
+  @override
+  String get ttChooseCertificate => 'Select certificate';
+
+  @override
+  String get ttNeedCertificate =>
+      'First add a certificate in the TLS certificates section.';
+
+  @override
+  String get ttPrerequisites =>
+      'Install the verified TrustTunnel version first.';
+
+  @override
+  String get ttUnsupported =>
+      'This TrustTunnel installation or configuration is not supported for editing.';
+
+  @override
+  String get ttSocksFailed =>
+      'SOCKS5 did not accept a connection without authentication. Check its address, port and configuration.';
+
+  @override
+  String get ttCertInvalid =>
+      'Certificate validation failed: check domain, validity, full chain and matching private key.';
+
+  @override
+  String get ttRestartFailed =>
+      'TrustTunnel did not start with the expected certificate. The previous certificate was restored where available; check server status.';
+
+  @override
+  String get ttDnsFailed => 'Unable to resolve the domain’s A/AAAA records.';
+
+  @override
+  String get ttDnsMismatch =>
+      'Domain A/AAAA records do not match the selected listening/external IPs. Correct DNS or the selected addresses before issuance.';
+
+  @override
+  String get ttAcmePortBusy =>
+      'TCP port 80 is occupied. HTTP-01 standalone issuance cannot start.';
+
+  @override
+  String get ttCertbotRequired =>
+      'Certbot cannot be installed from the current APT indexes. Run the manual APT index update and prepare a new plan.';
+
+  @override
+  String get ttAcmeFailed =>
+      'ACME issuance or renewal failed. Check public DNS, port 80 reachability and the ACME log on the server.';
 }

@@ -6,8 +6,11 @@ import 'vless_contract.g.dart';
 /// independent observations and operation IDs for each backend.
 String awgTarget(String serverId) => 'awg/$serverId';
 bool isAwgTarget(String target) => target.startsWith('awg/');
-String vpnServerId(String target) =>
-    isAwgTarget(target) ? target.substring(4) : target;
+String vpnServerId(String target) => isAwgTarget(target)
+    ? target.substring(4)
+    : target.startsWith('tt/')
+    ? target.substring(3)
+    : target;
 
 Map get awgResourceSchema =>
     (awgSchema['properties'] as Map)['resources']['items'] as Map;

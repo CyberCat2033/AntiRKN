@@ -1,3 +1,4 @@
+import '../vpn/vpn_strings.dart';
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
@@ -111,7 +112,9 @@ class RunnerPanel extends StatelessWidget {
               ],
               if (failed &&
                   (job.kind == 'inbound_update' ||
-                      job.kind == 'awg_external_edit'))
+                      job.kind == 'awg_external_edit' ||
+                      job.kind == 'tt_external_edit' ||
+                      job.kind == 'tt_certificate'))
                 TextButton(
                   onPressed: c.canPlan
                       ? (c.resumePlan == null ? c.prepareResume : c.applyResume)
@@ -145,6 +148,7 @@ String runnerIssueLabel(AppLocalizations l, RunnerIssue issue) =>
       RunnerIssue.storage => l.runnerStorage,
     };
 String runnerCodeLabel(AppLocalizations l, String code) => switch (code) {
+  final String v when v.startsWith('tt_') => vpnMessage(l, v),
   'panel_auth_failed' => l.panelAuthFailed,
   'panel_unreachable' => l.panelUnreachable,
   'panel_connect_unsupported' => l.panelConnectUnsupported,
@@ -171,6 +175,7 @@ String runnerStateLabel(AppLocalizations l, String state) => switch (state) {
   _ => l.runnerAttention,
 };
 String runnerEventLabel(AppLocalizations l, String code) => switch (code) {
+  final String v when v.startsWith('tt_') => vpnMessage(l, v),
   'apt_updating' => l.aptUpdating,
   'apt_upgrading' => l.aptUpgrading,
   'apt_checked' => l.runnerSucceeded,

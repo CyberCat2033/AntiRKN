@@ -1,3 +1,4 @@
+export 'src/tt.dart';
 export 'src/awg.dart';
 export 'src/runner.dart';
 export 'src/component_updates.dart';

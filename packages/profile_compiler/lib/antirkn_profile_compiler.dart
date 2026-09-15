@@ -1,3 +1,4 @@
+export 'src/tt_profile.dart';
 export 'src/awg_profile.dart';
 export 'src/compiler.dart';
 export 'src/prepared_proxy.dart';

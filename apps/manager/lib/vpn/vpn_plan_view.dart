@@ -40,10 +40,15 @@ class VpnPlanView extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Text(
-                          '${serverName(vpnServerId(p.serverId))}${isAwgTarget(p.serverId) ? ' · AmneziaWG' : ''}',
+                          '${serverName(vpnServerId(p.serverId))}${isAwgTarget(p.serverId)
+                              ? ' · AmneziaWG'
+                              : isTtTarget(p.serverId)
+                              ? ' · TrustTunnel'
+                              : ''}',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         if (isAwgTarget(p.serverId)) Text(l.awgNetworkPlan),
+                        if (isTtTarget(p.serverId)) Text(l.ttRestartPlan),
                         if (p.preview == null) Text(l.vpnOfflinePlan),
                         Text(
                           '${l.vpnUsers}: ${(p.payload['users'] as List).length}',
@@ -61,7 +66,9 @@ class VpnPlanView extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 Text(
-                                  isAwgTarget(p.serverId)
+                                  isTtTarget(p.serverId)
+                                      ? '${(r as Map)['name']} · ${r['domain']}\n${r['listen']}:${r['port']} → ${r['endpoint']}:${r['externalPort']}\n${r['outbound'] == 'socks5' ? 'SOCKS5 ${r['socksAddress']}' : l.ttDirect}'
+                                      : isAwgTarget(p.serverId)
                                       ? '${(r as Map)['name']} · UDP ${r['port']} → ${r['endpoint']}:${r['externalPort']}\n${r['pool']} · MTU ${r['mtu']}'
                                       : inboundSummary(r as Map),
                                 ),

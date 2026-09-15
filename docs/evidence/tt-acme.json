@@ -1,0 +1,24 @@
+{
+  "authority": "Local Pebble 2.10.1",
+  "archiveSha256": "sha256:4f2fcb5bca8c85c9cf73ad140fccfc0d2be40bd81ab99879c79b7b8a0b4f70ed",
+  "challenge": "real HTTP-01 on port 80",
+  "publicLetsEncrypt": false,
+  "certbot": "certbot 2.9.0",
+  "results": {
+    "isolated_ubuntu": true,
+    "plan_tt_certificate_ok": true,
+    "apply_tt_certificate_succeeded": true,
+    "repeat_tt_certificate": true,
+    "root_certificate_discovery_and_job": true,
+    "pem_import_and_public_inventory_redaction": true,
+    "wrong_domain_address_blocks_issuance": true,
+    "acme_dns_and_package_plan": true,
+    "real_http01_issue_succeeded": true,
+    "plan_tt_apply_ok": true,
+    "apply_tt_apply_succeeded": true,
+    "repeat_tt_apply": true,
+    "state_readback": true,
+    "real_acme_renewal_and_tls_readback": true,
+    "acme_renewal_restarts_tt": true
+  }
+}

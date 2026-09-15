@@ -14,6 +14,7 @@ Future<void> main(List<String> args) async {
   final user = input['userId'] as String;
   final resource = input['resourceId'] as String;
   final selected = workspace.copy(
+    ttEndpoints: workspace.ttEndpoints.where((r) => r.id == resource).toList(),
     inbounds: workspace.inbounds.where((r) => r.id == resource).toList(),
     awgInterfaces: workspace.awgInterfaces
         .where((r) => r.id == resource)
@@ -25,6 +26,7 @@ Future<void> main(List<String> args) async {
     accesses: [
       ...vlessUserAccesses(selected, user),
       ...awgUserAccesses(selected, user),
+      ...ttUserAccesses(selected, user),
     ],
   );
   if (result.hasBlockingErrors || result.yaml == null) {

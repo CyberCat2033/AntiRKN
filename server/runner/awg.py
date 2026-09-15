@@ -212,7 +212,7 @@ def desired(p, r, previous, preview=False):
         v6 = ipaddress.ip_network(r['pool6'])
         address += f', {v6.network_address + 1}/64'
     name = name_for(r['id'])
-    hook = '/usr/bin/python3 -I /usr/local/lib/antirkn-runner/v10/awg_network.py'
+    hook = '/usr/bin/python3 -I /usr/local/lib/antirkn-runner/v12/awg_network.py'
     lines = ['[Interface]', 'PrivateKey = ' + private, 'Address = ' + address,
         'ListenPort = ' + str(r['port']), 'MTU = ' + str(r['mtu']), 'Table = off',
         'PostUp = ' + hook + ' up ' + name, 'PostDown = ' + hook + ' down ' + name,

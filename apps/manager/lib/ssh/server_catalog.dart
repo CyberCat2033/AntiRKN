@@ -9,6 +9,7 @@ import 'ssh_panel.dart';
 import '../vpn/vpn_controller.dart';
 import '../vpn/inbounds_panel.dart';
 import '../vpn/awg_panel.dart';
+import '../vpn/tt_panel.dart';
 import '../vpn/awg_existing_panel.dart';
 import '../vpn/vpn_plan_view.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
@@ -95,6 +96,15 @@ class _ServerCatalogState extends State<ServerCatalog> {
                             ),
                             AwgExistingPanel(
                               runner: session.runner,
+                              motion: widget.motion,
+                            ),
+                            TtPanel(
+                              key: ValueKey('tt-${c.selectedId}'),
+                              controller: widget.vpn!,
+                              serverId: c.selectedId!,
+                              runner: session.runner,
+                              picker: c.picker,
+                              network: session.network,
                               motion: widget.motion,
                             ),
                             ListenableBuilder(

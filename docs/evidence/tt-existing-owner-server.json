@@ -1,0 +1,14 @@
+{
+  "date": "2026-09-15",
+  "scope": "Read-only probe on owner-authorized real server",
+  "runnerVersion": 12,
+  "service": "trusttunnel.service",
+  "settings": "/opt/trusttunnel/vpn.toml",
+  "hosts": "/opt/trusttunnel/hosts.toml",
+  "clients": 24,
+  "configurationOwnedBySshUser": true,
+  "discoveryIssues": [],
+  "configurationChanged": false,
+  "serviceRestarted": false,
+  "credentialsLogged": false
+}

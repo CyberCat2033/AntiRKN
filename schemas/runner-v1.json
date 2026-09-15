@@ -40,7 +40,15 @@
           "awg_state",
           "awg_discover",
           "awg_external_read",
-          "awg_external_plan"
+          "awg_external_plan",
+          "tt_defaults",
+          "tt_plan",
+          "tt_state",
+          "tt_discover",
+          "tt_external_read",
+          "tt_external_plan",
+          "tt_certificates",
+          "tt_certificate_plan"
         ]
       },
       "id": {
@@ -59,7 +67,10 @@
           "inbound_update",
           "panel_update",
           "awg_apply",
-          "awg_external_edit"
+          "awg_external_edit",
+          "tt_apply",
+          "tt_external_edit",
+          "tt_certificate"
         ]
       },
       "count": {
@@ -241,6 +252,44 @@
         "version",
         "action",
         "payload"
+      ],
+      "tt_defaults": [
+        "version",
+        "action"
+      ],
+      "tt_plan": [
+        "version",
+        "action",
+        "id",
+        "payload"
+      ],
+      "tt_state": [
+        "version",
+        "action",
+        "id"
+      ],
+      "tt_discover": [
+        "version",
+        "action"
+      ],
+      "tt_external_read": [
+        "version",
+        "action",
+        "id"
+      ],
+      "tt_external_plan": [
+        "version",
+        "action",
+        "payload"
+      ],
+      "tt_certificates": [
+        "version",
+        "action"
+      ],
+      "tt_certificate_plan": [
+        "version",
+        "action",
+        "payload"
       ]
     },
     "submissions": {
@@ -338,6 +387,36 @@
         "interval",
         "payload",
         "fingerprint"
+      ],
+      "tt_apply": [
+        "version",
+        "action",
+        "id",
+        "kind",
+        "count",
+        "interval",
+        "payload",
+        "fingerprint"
+      ],
+      "tt_external_edit": [
+        "version",
+        "action",
+        "id",
+        "kind",
+        "count",
+        "interval",
+        "payload",
+        "fingerprint"
+      ],
+      "tt_certificate": [
+        "version",
+        "action",
+        "id",
+        "kind",
+        "count",
+        "interval",
+        "payload",
+        "fingerprint"
       ]
     },
     "kindConstants": {
@@ -367,6 +446,14 @@
       },
       "awg_external_edit": {
         "count": 3,
+        "interval": 1
+      },
+      "tt_external_edit": {
+        "count": 3,
+        "interval": 1
+      },
+      "tt_certificate": {
+        "count": 4,
         "interval": 1
       }
     }
@@ -460,7 +547,28 @@
     "awg_preparing",
     "awg_applying",
     "awg_checking",
-    "awg_port_mapping"
+    "awg_port_mapping",
+    "tt_invalid",
+    "tt_failed",
+    "tt_conflict",
+    "tt_busy",
+    "tt_prerequisites",
+    "tt_unsupported",
+    "tt_port_busy",
+    "tt_login_conflict",
+    "tt_socks_failed",
+    "tt_certificate_invalid",
+    "tt_restart_failed",
+    "tt_dns_failed",
+    "tt_dns_mismatch",
+    "tt_acme_port_busy",
+    "tt_certbot_required",
+    "tt_acme_failed",
+    "tt_preparing",
+    "tt_applying",
+    "tt_checking",
+    "tt_certificate_ready",
+    "tt_restarting"
   ],
   "codes": [
     "ok",
@@ -486,7 +594,23 @@
     "awg_pool_conflict",
     "awg_pool_full",
     "awg_failed",
-    "awg_port_mapping"
+    "awg_port_mapping",
+    "tt_invalid",
+    "tt_failed",
+    "tt_conflict",
+    "tt_busy",
+    "tt_prerequisites",
+    "tt_unsupported",
+    "tt_port_busy",
+    "tt_login_conflict",
+    "tt_socks_failed",
+    "tt_certificate_invalid",
+    "tt_restart_failed",
+    "tt_dns_failed",
+    "tt_dns_mismatch",
+    "tt_acme_port_busy",
+    "tt_certbot_required",
+    "tt_acme_failed"
   ],
   "maxRequestBytes": 524288,
   "maxEvents": 256,

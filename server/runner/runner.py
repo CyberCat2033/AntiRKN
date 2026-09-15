@@ -20,6 +20,10 @@ from contract import SCHEMA, validate_request
 from panel import PanelInstaller, PanelError, access_for, install_cli
 from panel_update import PanelUpdate, plan as panel_update_plan
 from awg_external import ExternalAwgEdit, discovery as awg_discovery, public_snapshot as awg_snapshot, plan as awg_external_plan
+from tt import TtApply, plan as tt_plan, state as tt_state, defaults as tt_defaults
+from tt_external import ExternalTtEdit, discovery as tt_discovery, public_snapshot as tt_snapshot, plan as tt_external_plan
+from tt_certificates import CertificateJob, inventory as tt_certificates, plan as tt_certificate_plan
+from tt_common import TtError
 from awg import AwgApply, AwgError, plan as awg_plan, state as awg_state, defaults as awg_defaults
 from vless import VlessApply, VlessError, parse_payload, plan as vless_plan, state as vless_state, panel_for
 
@@ -54,6 +58,7 @@ class Store:
             self.db.execute('CREATE TABLE IF NOT EXISTS events (id TEXT NOT NULL, sequence INTEGER NOT NULL, event TEXT NOT NULL, PRIMARY KEY(id,sequence))')
             self.db.execute('CREATE TABLE IF NOT EXISTS health (id INTEGER PRIMARY KEY, heartbeat REAL NOT NULL)')
             self.db.execute('CREATE TABLE IF NOT EXISTS vless_resources (id TEXT PRIMARY KEY, data TEXT NOT NULL)')
+            self.db.execute('CREATE TABLE IF NOT EXISTS tt_resources (id TEXT PRIMARY KEY, data TEXT NOT NULL)')
             self.db.execute('CREATE TABLE IF NOT EXISTS awg_resources (id TEXT PRIMARY KEY, data TEXT NOT NULL)')
             self.db.execute('PRAGMA user_version=1')
 
@@ -101,6 +106,24 @@ class Store:
         if action == 'panel_discover':
             discovery, access = discover_panel(self)
             return {**self.response('ok'), 'panelDiscovery': discovery, 'panelAccess': access}
+        if action == 'tt_defaults':
+            return {**self.response('ok'), 'tt': tt_defaults(self)}
+        if action == 'tt_plan':
+            return {**self.response('ok'), 'tt': tt_plan(self, req)}
+        if action == 'tt_state':
+            return {**self.response('ok'), 'tt': {'resources': tt_state(self, req['id'])}}
+        if action == 'tt_discover':
+            return {**self.response('ok'), 'tt': tt_discovery()}
+        if action == 'tt_external_read':
+            return {**self.response('ok'), 'tt': tt_snapshot(req['id'])}
+        if action == 'tt_external_plan':
+            return {**self.response('ok'), 'tt': tt_external_plan(req)}
+        if action == 'tt_certificates':
+            return {**self.response('ok'), 'tt': tt_certificates()}
+        if action == 'tt_certificate_plan':
+            return {**self.response('ok'), 'tt': tt_certificate_plan(req)}
+        if action == 'submit' and req['kind'] == 'tt_apply':
+            TtApply(self, req)
         if action == 'awg_discover':
             return {**self.response('ok'), 'awgExternal': awg_discovery()}
         if action == 'awg_external_read':
@@ -166,7 +189,7 @@ class Store:
                 code = 'missing'
             elif action == 'resume':
                 original = json.loads(row['request'])
-                if original['kind'] not in ('panel_install', 'panel_update', 'vless_apply', 'awg_apply', 'awg_external_edit', 'component_install', 'inbound_update') or row['status'] not in ('failed', 'partially_applied'):
+                if original['kind'] not in ('panel_install', 'panel_update', 'vless_apply', 'awg_apply', 'awg_external_edit', 'tt_apply', 'tt_external_edit', 'tt_certificate', 'component_install', 'inbound_update') or row['status'] not in ('failed', 'partially_applied'):
                     code = 'conflict'
                 elif self.db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running')").fetchone():
                     code = 'busy'
@@ -235,7 +258,7 @@ class Store:
                 self.db.execute('UPDATE jobs SET status=? WHERE id=?', (status, job_id))
                 self.event(job_id, code, progress, req['count'])
             return 0.1
-        if req['kind'] in ('vless_apply', 'awg_apply', 'awg_external_edit', 'inbound_update'):
+        if req['kind'] in ('vless_apply', 'awg_apply', 'awg_external_edit', 'inbound_update', 'tt_apply', 'tt_external_edit', 'tt_certificate'):
             try:
                 if row['cancel']:
                     # After preflight, an API effect may already have happened
@@ -243,14 +266,16 @@ class Store:
                     status = 'partially_applied' if row['checkpoint'] > 0 else 'cancelled'
                     code = 'vless_partial' if status == 'partially_applied' else 'cancelled'
                 else:
-                    (ObservedInboundEdit(self, req) if req['kind'] == 'inbound_update' else ExternalAwgEdit(self, req) if req['kind'] == 'awg_external_edit' else AwgApply(self, req) if req['kind'] == 'awg_apply' else VlessApply(self, req)).step(row['checkpoint'])
+                    (TtApply(self, req) if req['kind'] == 'tt_apply' else ExternalTtEdit(self, req) if req['kind'] == 'tt_external_edit' else CertificateJob(self, req) if req['kind'] == 'tt_certificate' else ObservedInboundEdit(self, req) if req['kind'] == 'inbound_update' else ExternalAwgEdit(self, req) if req['kind'] == 'awg_external_edit' else AwgApply(self, req) if req['kind'] == 'awg_apply' else VlessApply(self, req)).step(row['checkpoint'])
                     if row['checkpoint'] + 1 < req['count']:
                         return 0.1
                     status, code = 'succeeded', 'succeeded'
             except (VlessError, PanelError, OSError, ValueError, TypeError, KeyError, AttributeError, subprocess.SubprocessError):
                 # Upstream errors can contain credentials; never persist text.
                 error = sys.exc_info()[1]
-                code = error.code if isinstance(error, VlessError) else 'awg_failed' if req['kind'] in ('awg_apply', 'awg_external_edit') else 'vless_api_failed'
+                if isinstance(error, TtError) and error.code == 'tt_busy':
+                    return 0.5  # The independent certificate watcher owns the lock.
+                code = error.code if isinstance(error, VlessError) else 'tt_failed' if req['kind'].startswith('tt_') else 'awg_failed' if req['kind'] in ('awg_apply', 'awg_external_edit') else 'vless_api_failed'
                 status = 'partially_applied' if row['checkpoint'] > 0 else 'failed'
             with self.db:
                 progress = self.db.execute('SELECT checkpoint FROM jobs WHERE id=?', (job_id,)).fetchone()[0]

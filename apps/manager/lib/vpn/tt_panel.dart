@@ -1,0 +1,608 @@
+import 'dart:async';
+import 'package:antirkn_design_system/antirkn_design_system.dart';
+import 'package:antirkn_domain/antirkn_domain.dart';
+import 'package:flutter/material.dart';
+import '../l10n/app_localizations.dart';
+import '../network/network_controller.dart';
+import '../network/server_address_picker.dart';
+import '../runner/runner_controller.dart';
+import 'tt_certificates.dart';
+import 'tt_dialog.dart';
+import 'vpn_controller.dart';
+import 'vpn_plan_view.dart';
+import 'vpn_strings.dart';
+
+class TtPanel extends StatefulWidget {
+  const TtPanel({
+    required this.controller,
+    required this.serverId,
+    required this.runner,
+    required this.picker,
+    required this.network,
+    required this.motion,
+    super.key,
+  });
+  final VpnController controller;
+  final String serverId;
+  final RunnerController runner;
+  final PrivateKeyFilePicker picker;
+  final NetworkController network;
+  final MotionPreference motion;
+  @override
+  State<TtPanel> createState() => _TtPanelState();
+}
+
+class _TtPanelState extends State<TtPanel> {
+  String? queried;
+  bool querying = false;
+  @override
+  void initState() {
+    super.initState();
+    widget.runner.addListener(changed);
+    WidgetsBinding.instance.addPostFrameCallback((_) => changed());
+  }
+
+  @override
+  void dispose() {
+    widget.runner.removeListener(changed);
+    super.dispose();
+  }
+
+  void changed() {
+    final r = widget.runner;
+    final key =
+        '${r.identity()}|${r.selected?.terminal == true ? r.selected?.id : ''}';
+    if (mounted &&
+        !querying &&
+        r.installed &&
+        r.connected &&
+        !r.busy &&
+        queried != key) {
+      queried = key;
+      unawaited(refresh());
+    }
+  }
+
+  Future<void> refresh() async {
+    querying = true;
+    try {
+      await widget.runner.ttRequest('tt_discover');
+      if (mounted) await widget.runner.ttRequest('tt_certificates');
+    } finally {
+      querying = false;
+    }
+  }
+
+  Future<void> edit([TrustTunnelEndpoint? current]) async {
+    final spec =
+        current?.spec ?? await widget.controller.ttDefaults(widget.serverId);
+    if (spec == null || !mounted) return;
+    final value = await showDialog<TrustTunnelEndpoint>(
+      context: context,
+      builder: (_) => _ManagedTtDialog(
+        serverId: widget.serverId,
+        spec: spec,
+        runner: widget.runner,
+        network: widget.network,
+        motion: widget.motion,
+      ),
+      animationStyle: AnimationStyle(
+        duration: AppMotion.duration(context, widget.motion),
+      ),
+    );
+    if (value == null) return;
+    await widget.controller.saveTt(value);
+    if (widget.controller.error == null) await widget.controller.prepare();
+  }
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: Listenable.merge([widget.controller, widget.runner]),
+    builder: (context, _) {
+      final l = AppLocalizations.of(context),
+          c = widget.controller,
+          r = widget.runner;
+      final target = ttTarget(widget.serverId);
+      final endpoints = c.workspace.ttEndpoints.where(
+        (e) => e.serverId == widget.serverId && !e.deleted,
+      );
+      return SectionCard(
+        title: 'TrustTunnel',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Wrap(
+              spacing: AppLayout.smallGap,
+              children: [
+                FilledButton.icon(
+                  onPressed: c.busy || !c.loaded || r.busy
+                      ? null
+                      : () => edit(),
+                  icon: const Icon(Icons.add),
+                  label: Text(l.ttAdd),
+                ),
+                TextButton(
+                  onPressed: c.busy || c.remote(target) == null
+                      ? null
+                      : () => c.refreshServer(target),
+                  child: Text(l.awgRefresh),
+                ),
+              ],
+            ),
+            if (endpoints.isEmpty) Text(l.ttEmpty),
+            for (final e in endpoints)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(e.name),
+                subtitle: Text(
+                  '${e.spec['domain']} · ${e.spec['listen']}:${e.spec['port']}\n${e.spec['outbound'] == 'socks5' ? 'SOCKS5 ${e.spec['socksAddress']}' : l.ttDirect} · ${e.enabled ? l.vpnEnabled : l.vpnDisabled}',
+                ),
+                trailing: IconButton(
+                  onPressed: c.busy || r.busy ? null : () => edit(e),
+                  icon: const Icon(Icons.edit_outlined),
+                  tooltip: l.vpnEdit,
+                ),
+              ),
+            VpnJobView(controller: c, serverId: target),
+            const Divider(),
+            TtCertificates(
+              runner: r,
+              picker: widget.picker,
+              network: widget.network,
+              motion: widget.motion,
+            ),
+            const Divider(),
+            Text(l.awgObserved, style: Theme.of(context).textTheme.titleMedium),
+            for (final issue
+                in (r.ttDiscovery?['issues'] as List? ?? []).whereType<Map>())
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text('${issue['name']}'),
+                subtitle: Text(vpnMessage(l, issue['code'] as String)),
+                leading: const Icon(Icons.info_outline),
+              ),
+            for (final item
+                in (r.ttDiscovery?['resources'] as List? ?? [])
+                    .whereType<Map>())
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text('${item['name']}'),
+                subtitle: Text(
+                  '${item['values']['listen']}:${item['values']['port']} · ${(item['users'] as List).length} ${l.vpnUsers}\n${(item['hosts'] as List).map((h) => (h as Map)['domain']).join(', ')}',
+                ),
+                trailing: IconButton(
+                  icon: const Icon(Icons.edit_outlined),
+                  tooltip: l.vpnEdit,
+                  onPressed: r.busy
+                      ? null
+                      : () async {
+                          final snapshot = await r.ttRequest(
+                            'tt_external_read',
+                            id: item['id'] as String,
+                          );
+                          if (snapshot == null || !context.mounted) return;
+                          await showDialog<bool>(
+                            context: context,
+                            builder: (_) => _ExistingTtDialog(
+                              runner: r,
+                              snapshot: snapshot,
+                              network: widget.network,
+                              motion: widget.motion,
+                            ),
+                            animationStyle: AnimationStyle(
+                              duration: AppMotion.duration(
+                                context,
+                                widget.motion,
+                              ),
+                            ),
+                          );
+                        },
+                ),
+              ),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton(
+                onPressed: r.busy || !r.installed ? null : refresh,
+                child: Text(l.awgRefresh),
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+/// The listener, outbound and TLS controls are shared by both endpoint editors.
+class TtSettingsEditor extends StatelessWidget {
+  const TtSettingsEditor({
+    required this.fields,
+    required this.spec,
+    required this.certificates,
+    required this.network,
+    required this.motion,
+    required this.onChanged,
+    this.external = false,
+    this.enabled = true,
+    super.key,
+  });
+  final Map<String, TextEditingController> fields;
+  final Map<String, Object?> spec;
+  final List<Map> certificates;
+  final NetworkController network;
+  final MotionPreference motion;
+  final VoidCallback onChanged;
+  final bool external, enabled;
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    Widget field(String k, String label, {bool number = false}) => Padding(
+      padding: const EdgeInsets.only(bottom: AppLayout.gap),
+      child: TextField(
+        key: ValueKey('tt-$k'),
+        controller: fields[k],
+        enabled: enabled,
+        autocorrect: false,
+        enableSuggestions: false,
+        keyboardType: number ? TextInputType.number : TextInputType.text,
+        decoration: InputDecoration(labelText: label),
+        onChanged: (_) => onChanged(),
+      ),
+    );
+    Widget picker(AddressRole role, String key) {
+      final choices = network.choices(role);
+      return ServerAddressPicker(
+        role: role,
+        choices: choices,
+        selected: choices.where((c) => c.host == fields[key]!.text).firstOrNull,
+        selectionIssue: null,
+        motion: motion,
+        enabled: enabled,
+        onSelected: (c) {
+          fields[key]!.text = c?.host ?? '';
+          onChanged();
+        },
+      );
+    }
+
+    final id = spec['certificateId'] as String? ?? '';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (!external) field('name', l.vpnName),
+        picker(AddressRole.listener, 'listen'),
+        field('listen', l.networkListener),
+        field('port', l.ttPort, number: true),
+        if (!external) ...[
+          picker(AddressRole.endpoint, 'endpoint'),
+          field('endpoint', l.awgEndpoint),
+          field('externalPort', l.ttExternalPort, number: true),
+        ],
+        field('domain', l.ttDomain),
+        DropdownButtonFormField<String>(
+          key: ValueKey('tt-certificate-$id-${certificates.length}'),
+          initialValue: certificates.any((c) => c['id'] == id) ? id : '',
+          isExpanded: true,
+          decoration: InputDecoration(labelText: l.ttCertificates),
+          items: [
+            DropdownMenuItem(
+              value: '',
+              child: Text(
+                external ? l.ttKeepCertificate : l.ttChooseCertificate,
+              ),
+            ),
+            for (final c in certificates)
+              DropdownMenuItem(
+                value: c['id'] as String,
+                child: Text('${c['domain']}'),
+              ),
+          ],
+          onChanged: enabled
+              ? (v) {
+                  spec['certificateId'] = v!;
+                  final c = certificates.where((c) => c['id'] == v).firstOrNull;
+                  if (c != null) fields['domain']!.text = c['domain'] as String;
+                  onChanged();
+                }
+              : null,
+        ),
+        if (certificates.isEmpty && !external) Text(l.ttNeedCertificate),
+        const SizedBox(height: AppLayout.gap),
+        DropdownButtonFormField<String>(
+          initialValue: spec['outbound'] == 'socks5' ? 'socks5' : 'direct',
+          isExpanded: true,
+          decoration: InputDecoration(labelText: l.ttOutbound),
+          items: [
+            DropdownMenuItem(value: 'direct', child: Text(l.ttDirect)),
+            const DropdownMenuItem(value: 'socks5', child: Text('SOCKS5')),
+          ],
+          onChanged: enabled
+              ? (v) {
+                  spec['outbound'] = v!;
+                  onChanged();
+                }
+              : null,
+        ),
+        if (spec['outbound'] == 'socks5') ...[
+          field('socksAddress', l.ttSocksAddress),
+          Text(l.ttSocksHelp),
+        ],
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(l.ttQuic),
+          value: spec['quic'] == true,
+          onChanged: enabled
+              ? (v) {
+                  spec['quic'] = v;
+                  onChanged();
+                }
+              : null,
+        ),
+        ExpansionTile(
+          key: ValueKey('tt-options-$external'),
+          title: Text(l.awgAdvanced),
+          children: [
+            SwitchListTile(
+              title: Text(l.ttIpv6),
+              value: spec['ipv6'] == true,
+              onChanged: enabled
+                  ? (v) {
+                      spec['ipv6'] = v;
+                      onChanged();
+                    }
+                  : null,
+            ),
+            SwitchListTile(
+              title: Text(l.ttAllowPrivate),
+              value: spec['allowPrivate'] == true,
+              onChanged: enabled
+                  ? (v) {
+                      spec['allowPrivate'] = v;
+                      onChanged();
+                    }
+                  : null,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _ManagedTtDialog extends StatefulWidget {
+  const _ManagedTtDialog({
+    required this.serverId,
+    required this.spec,
+    required this.runner,
+    required this.network,
+    required this.motion,
+  });
+  final String serverId;
+  final Map<String, Object?> spec;
+  final RunnerController runner;
+  final NetworkController network;
+  final MotionPreference motion;
+  @override
+  State<_ManagedTtDialog> createState() => _ManagedTtState();
+}
+
+class _ManagedTtState extends State<_ManagedTtDialog> {
+  late final spec = Map<String, Object?>.from(widget.spec);
+  late final fields = {
+    for (final k in [
+      'name',
+      'listen',
+      'port',
+      'endpoint',
+      'externalPort',
+      'domain',
+      'socksAddress',
+    ])
+      k: TextEditingController(text: '${spec[k]}'),
+  };
+  bool invalid = false, rotate = false;
+  @override
+  void dispose() {
+    for (final f in fields.values) {
+      f.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return AlertDialog(
+      title: const Text('TrustTunnel'),
+      content: SizedBox(
+        width: 650,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TtSettingsEditor(
+                fields: fields,
+                spec: spec,
+                certificates:
+                    (widget.runner.ttCertificates?['certificates'] as List? ??
+                            [])
+                        .whereType<Map>()
+                        .toList(),
+                network: widget.network,
+                motion: widget.motion,
+                onChanged: () => setState(() => invalid = false),
+              ),
+              SwitchListTile(
+                title: Text(l.vpnEnabled),
+                value: spec['enabled'] as bool,
+                onChanged: (v) => setState(() {
+                  spec['enabled'] = v;
+                  if (v) spec['deleted'] = false;
+                }),
+              ),
+              CheckboxListTile(
+                title: Text(l.ttRotate),
+                value: rotate,
+                onChanged: (v) => setState(() => rotate = v!),
+              ),
+              CheckboxListTile(
+                title: Text(l.vpnDeleteHelp),
+                value: spec['deleted'] as bool,
+                onChanged: (v) => setState(() {
+                  spec['deleted'] = v!;
+                  if (v) spec['enabled'] = false;
+                }),
+              ),
+              if (invalid) Text(l.vpnInvalid),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(l.runnerNotNow),
+        ),
+        FilledButton(
+          onPressed: () {
+            try {
+              for (final e in fields.entries) {
+                spec[e.key] = ['port', 'externalPort'].contains(e.key)
+                    ? int.parse(e.value.text)
+                    : e.value.text.trim();
+              }
+              spec['domain'] = (spec['domain'] as String).toLowerCase();
+              spec['rotation'] =
+                  (widget.spec['rotation'] as int) + (rotate ? 1 : 0);
+              Navigator.pop(
+                context,
+                TrustTunnelEndpoint(serverId: widget.serverId, spec: spec),
+              );
+            } on FormatException {
+              setState(() => invalid = true);
+            }
+          },
+          child: Text(l.vpnPrepare),
+        ),
+      ],
+    );
+  }
+}
+
+class _ExistingTtDialog extends StatefulWidget {
+  const _ExistingTtDialog({
+    required this.runner,
+    required this.snapshot,
+    required this.network,
+    required this.motion,
+  });
+  final RunnerController runner;
+  final Map<String, dynamic> snapshot;
+  final NetworkController network;
+  final MotionPreference motion;
+  @override
+  State<_ExistingTtDialog> createState() => _ExistingTtState();
+}
+
+class _ExistingTtState extends State<_ExistingTtDialog>
+    with TtPlannedState<_ExistingTtDialog> {
+  @override
+  RunnerController get runner => widget.runner;
+  @override
+  String get planAction => 'tt_external_plan';
+  @override
+  String get jobKind => 'tt_external_edit';
+  @override
+  int get steps => 3;
+  late final hosts = (widget.snapshot['hosts'] as List)
+      .whereType<Map>()
+      .toList();
+  late final spec = <String, Object?>{
+    ...Map<String, Object?>.from(widget.snapshot['values'] as Map),
+    'hostIndex': 0,
+    'domain': hosts.first['domain'],
+    'certificateId': '',
+  };
+  late final fields = {
+    for (final k in ['listen', 'port', 'domain', 'socksAddress'])
+      k: TextEditingController(text: '${spec[k]}'),
+  };
+  @override
+  void dispose() {
+    for (final f in fields.values) {
+      f.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Map<String, Object?> buildPayload() {
+    for (final e in fields.entries) {
+      spec[e.key] = e.key == 'port'
+          ? int.parse(e.value.text)
+          : e.value.text.trim();
+    }
+    return {
+      'resourceId': widget.snapshot['id'],
+      'observedHash': widget.snapshot['fingerprint'],
+      'changes': Map<String, Object?>.from(spec),
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return AlertDialog(
+      title: Text('${l.vpnEdit} · ${widget.snapshot['name']}'),
+      content: SizedBox(
+        width: 650,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(l.ttPreserveUsers),
+              Text((widget.snapshot['users'] as List).join(', ')),
+              if (hosts.length > 1)
+                DropdownButtonFormField<int>(
+                  initialValue: 0,
+                  isExpanded: true,
+                  items: [
+                    for (var i = 0; i < hosts.length; i++)
+                      DropdownMenuItem(
+                        value: i,
+                        child: Text('${hosts[i]['domain']}'),
+                      ),
+                  ],
+                  onChanged: busy || preview != null
+                      ? null
+                      : (v) {
+                          spec['hostIndex'] = v!;
+                          fields['domain']!.text = hosts[v]['domain'] as String;
+                          spec['certificateId'] = '';
+                          changed();
+                        },
+                ),
+              TtSettingsEditor(
+                fields: fields,
+                spec: spec,
+                certificates:
+                    (runner.ttCertificates?['certificates'] as List? ?? [])
+                        .whereType<Map>()
+                        .toList(),
+                network: widget.network,
+                motion: widget.motion,
+                external: true,
+                enabled: !busy && preview == null,
+                onChanged: changed,
+              ),
+              ...status(l),
+            ],
+          ),
+        ),
+      ),
+      actions: actions(l),
+    );
+  }
+}

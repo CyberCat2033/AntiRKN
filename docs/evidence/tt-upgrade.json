@@ -1,0 +1,7 @@
+{
+  "fromRelease": "a5ad406a257de3c37dd4eb79163835e5625022cf26ed9047e58d5c75fe64255f",
+  "toRelease": "960695d0088e72c8fde281f01df331328937b698da6ec137039b5269693758c4",
+  "fromVersion": 11,
+  "toVersion": 12,
+  "result": "PASS"
+}

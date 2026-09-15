@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'awg.dart';
+import 'tt.dart';
 import 'dart:math';
 import 'network/ip_address.dart';
 import 'vless_contract.g.dart';
@@ -119,11 +120,13 @@ final class VpnWorkspace {
     List<VpnUser> users = const [],
     List<VlessInbound> inbounds = const [],
     List<AwgInterface> awgInterfaces = const [],
+    List<TrustTunnelEndpoint> ttEndpoints = const [],
     Map<String, Map<String, dynamic>> servers = const {},
     Map<String, Map<String, dynamic>> profiles = const {},
   }) : users = List.unmodifiable(users),
        inbounds = List.unmodifiable(inbounds),
        awgInterfaces = List.unmodifiable(awgInterfaces),
+       ttEndpoints = List.unmodifiable(ttEndpoints),
        profiles = Map.unmodifiable(profiles),
        servers = Map.unmodifiable(
          servers.map(
@@ -138,15 +141,16 @@ final class VpnWorkspace {
         <dynamic>{
               ...inbounds.map((i) => i.id),
               ...awgInterfaces.map((i) => i.id),
+              ...ttEndpoints.map((i) => i.id),
             }.length !=
-            inbounds.length + awgInterfaces.length) {
+            inbounds.length + awgInterfaces.length + ttEndpoints.length) {
       throw const FormatException('vpn_duplicate');
     }
   }
   factory VpnWorkspace.empty() => VpnWorkspace(id: newVpnId());
   factory VpnWorkspace.decode(String raw) {
     final j = jsonDecode(raw) as Map;
-    if (j['version'] != 1 && j['version'] != 2) {
+    if (![1, 2, 3].contains(j['version'])) {
       throw const FormatException('vpn_version');
     }
     return VpnWorkspace(
@@ -162,6 +166,9 @@ final class VpnWorkspace {
       awgInterfaces: (j['awgInterfaces'] as List? ?? [])
           .map((e) => AwgInterface.fromJson(e as Map))
           .toList(),
+      ttEndpoints: (j['ttEndpoints'] as List? ?? [])
+          .map((e) => TrustTunnelEndpoint.fromJson(e as Map))
+          .toList(),
       profiles: (j['profiles'] as Map? ?? {}).map(
         (k, v) => MapEntry(k as String, Map<String, dynamic>.from(v as Map)),
       ),
@@ -174,13 +181,15 @@ final class VpnWorkspace {
   final List<VpnUser> users;
   final List<VlessInbound> inbounds;
   final List<AwgInterface> awgInterfaces;
+  final List<TrustTunnelEndpoint> ttEndpoints;
   final Map<String, Map<String, dynamic>> servers, profiles;
   String encode() => jsonEncode({
-    'version': 2,
+    'version': 3,
     'id': id,
     'users': users.map((e) => e.toJson()).toList(),
     'inbounds': inbounds.map((e) => e.toJson()).toList(),
     'awgInterfaces': awgInterfaces.map((e) => e.toJson()).toList(),
+    'ttEndpoints': ttEndpoints.map((e) => e.toJson()).toList(),
     'servers': servers,
     'profiles': profiles,
   });
@@ -188,6 +197,7 @@ final class VpnWorkspace {
     List<VpnUser>? users,
     List<VlessInbound>? inbounds,
     List<AwgInterface>? awgInterfaces,
+    List<TrustTunnelEndpoint>? ttEndpoints,
     Map<String, Map<String, dynamic>>? servers,
     Map<String, Map<String, dynamic>>? profiles,
   }) => VpnWorkspace(
@@ -195,10 +205,35 @@ final class VpnWorkspace {
     users: users ?? this.users,
     inbounds: inbounds ?? this.inbounds,
     awgInterfaces: awgInterfaces ?? this.awgInterfaces,
+    ttEndpoints: ttEndpoints ?? this.ttEndpoints,
     servers: servers ?? this.servers,
     profiles: profiles ?? this.profiles,
   );
   Map<String, Object?> desired(String serverId, String panelId) {
+    if (isTtTarget(serverId)) {
+      final resources =
+          ttEndpoints.where((r) => r.serverId == vpnServerId(serverId)).toList()
+            ..sort((a, b) => a.id.compareTo(b.id));
+      final clients = users.toList()..sort((a, b) => a.id.compareTo(b.id));
+      final result = <String, Object?>{
+        'version': 1,
+        'protocol': 'tt',
+        'workspaceId': id,
+        'panelId': id,
+        'resources': resources.map((r) => r.spec).toList(),
+        'users': clients
+            .map(
+              (u) => <String, Object?>{
+                'id': u.id,
+                'enabled': u.enabled,
+                'login': u.login,
+              },
+            )
+            .toList(),
+      };
+      validateTtPayload(result);
+      return result;
+    }
     if (isAwgTarget(serverId)) {
       final resources =
           awgInterfaces
@@ -238,6 +273,7 @@ final class VpnWorkspace {
   Set<String> get serverIds => {
     ...inbounds.map((i) => i.serverId),
     ...awgInterfaces.map((i) => awgTarget(i.serverId)),
+    ...ttEndpoints.map((i) => ttTarget(i.serverId)),
   };
   @override
   String toString() => 'VpnWorkspace(<redacted>)';

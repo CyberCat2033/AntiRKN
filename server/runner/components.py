@@ -73,13 +73,13 @@ def unit_source(component):
 
 
 def active_units(component):
-    pattern = 'antirkn-trusttunnel.service' if component == 'trusttunnel' else 'antirkn-awg@*.service'
+    patterns = ['antirkn-trusttunnel.service', 'antirkn-tt@*.service'] if component == 'trusttunnel' else ['antirkn-awg@*.service']
     result = subprocess.run(['/usr/bin/systemctl', 'list-units', '--state=active,activating',
-        '--type=service', '--no-legend', '--plain', pattern], capture_output=True, timeout=20)
+        '--type=service', '--no-legend', '--plain', *patterns], capture_output=True, timeout=20)
     if result.returncode:
         raise ComponentError('component_prerequisites')
     units = [line.split()[0] for line in result.stdout.decode().splitlines() if line.strip()]
-    if any(not re.fullmatch(r'antirkn-trusttunnel\.service|antirkn-awg@[A-Za-z0-9_=+.-]{1,15}\.service', u) for u in units):
+    if any(not re.fullmatch(r'antirkn-trusttunnel\.service|antirkn-tt@[a-f0-9]{32}\.service|antirkn-awg@[A-Za-z0-9_=+.-]{1,15}\.service', u) for u in units):
         raise ComponentError()
     return sorted(units)
 

@@ -83,6 +83,36 @@ final class RunnerRequest {
       });
   factory RunnerRequest.list() =>
       RunnerRequest.fromJson({'version': 1, 'action': 'list'});
+  factory RunnerRequest.ttDefaults() =>
+      RunnerRequest.fromJson({'version': 1, 'action': 'tt_defaults'});
+  factory RunnerRequest.ttState(String workspaceId) => RunnerRequest.fromJson({
+    'version': 1,
+    'action': 'tt_state',
+    'id': workspaceId,
+  });
+  factory RunnerRequest.ttPlan(
+    String workspaceId,
+    Map<String, Object?> payload,
+  ) => RunnerRequest.fromJson({
+    'version': 1,
+    'action': 'tt_plan',
+    'id': workspaceId,
+    'payload': jsonEncode(payload),
+  });
+  factory RunnerRequest.ttApply(
+    String id,
+    Map<String, Object?> payload,
+    String fingerprint,
+  ) => RunnerRequest.fromJson({
+    'version': 1,
+    'action': 'submit',
+    'kind': 'tt_apply',
+    'id': id,
+    'count': (payload['resources'] as List).length + 2,
+    'interval': 1,
+    'payload': jsonEncode(payload),
+    'fingerprint': fingerprint,
+  });
   factory RunnerRequest.awgDefaults() =>
       RunnerRequest.fromJson({'version': 1, 'action': 'awg_defaults'});
   factory RunnerRequest.awgState(String workspaceId) => RunnerRequest.fromJson({
@@ -245,6 +275,9 @@ final class RunnerJob {
           'vless_apply',
           'awg_apply',
           'awg_external_edit',
+          'tt_apply',
+          'tt_external_edit',
+          'tt_certificate',
           'component_install',
           'inbound_update',
           'apt_update',
@@ -308,7 +341,10 @@ final class RunnerJob {
 
 final class RunnerResponse {
   RunnerResponse.fromJson(Map<String, dynamic> value)
-    : awgExternal = value['awgExternal'] == null
+    : tt = value['tt'] == null
+          ? null
+          : Map<String, dynamic>.from(value['tt'] as Map),
+      awgExternal = value['awgExternal'] == null
           ? null
           : Map<String, dynamic>.from(value['awgExternal'] as Map),
       awgDefaults = value['awgDefaults'] == null
@@ -382,7 +418,7 @@ final class RunnerResponse {
     }
   }
   final String code;
-  final Map<String, dynamic>? awgDefaults, awgPlan, awgExternal;
+  final Map<String, dynamic>? awgDefaults, awgPlan, awgExternal, tt;
   final List<Map<String, dynamic>>? awgState;
   final PanelUpdatePlan? panelUpdatePlan;
   final Map<String, dynamic>? inboundSnapshot, inboundPlan;

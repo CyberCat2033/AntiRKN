@@ -1,0 +1,42 @@
+{
+  "os": "Ubuntu 24.04 x86_64",
+  "trusttunnel": "1.1.0",
+  "mihomo": {
+    "version": "1.19.30",
+    "url": "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.30/mihomo-linux-amd64-compatible-v1.19.30.gz",
+    "archiveSha256": "sha256:db214c7a2517e63c150d123178d16d102e03a241ccdae4e5e07ffbe9cf56c6f9",
+    "binarySha256": "8ad44e28fe72be4640254b96741b677f4074991b99186cc4486a1c28ded02b1a"
+  },
+  "results": {
+    "isolated_ubuntu": true,
+    "plan_tt_certificate_ok": true,
+    "apply_tt_certificate_succeeded": true,
+    "repeat_tt_certificate": true,
+    "plan_tt_apply_ok": true,
+    "apply_tt_apply_succeeded": true,
+    "repeat_tt_apply": true,
+    "state_readback": true,
+    "server_confirmed": true,
+    "mihomo_config": true,
+    "tcp_direct_0": true,
+    "udp_direct_0": true,
+    "stable_passwords": true,
+    "revoked_old_profile": true,
+    "tcp_direct_1": true,
+    "udp_direct_1": true,
+    "tcp_socks5_0": true,
+    "udp_socks5_0": true,
+    "tcp_socks5_1": true,
+    "udp_socks5_1": true,
+    "existing_native_discovered": true,
+    "plan_tt_external_edit_ok": true,
+    "apply_tt_external_edit_succeeded": true,
+    "repeat_tt_external_edit": true,
+    "external_credentials_preserved": true,
+    "external_unknown_fields_preserved": true,
+    "external_stale_plan_rejected": true,
+    "renewed_certificate_served": true,
+    "certificate_change_restarts_service": true,
+    "incomplete_pair_keeps_running_certificate": true
+  }
+}

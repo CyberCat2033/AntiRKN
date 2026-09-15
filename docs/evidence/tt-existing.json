@@ -1,0 +1,15 @@
+{
+  "ownerUid": 1000,
+  "runnerVersion": 12,
+  "results": {
+    "isolated_ubuntu": true,
+    "existing_native_discovered": true,
+    "plan_tt_external_edit_ok": true,
+    "apply_tt_external_edit_succeeded": true,
+    "repeat_tt_external_edit": true,
+    "external_credentials_preserved": true,
+    "installation_owner_group_and_modes_preserved": true,
+    "external_unknown_fields_preserved": true,
+    "external_stale_plan_rejected": true
+  }
+}

@@ -3361,6 +3361,300 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Docker publishes this port, so it is preserved when editing. Moving it requires recreating the container with a new port mapping.'**
   String get awgDockerPortHelp;
+
+  /// No description provided for @ttAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add endpoint'**
+  String get ttAdd;
+
+  /// No description provided for @ttEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No managed TrustTunnel endpoints yet.'**
+  String get ttEmpty;
+
+  /// No description provided for @ttPort.
+  ///
+  /// In en, this message translates to:
+  /// **'Listening port'**
+  String get ttPort;
+
+  /// No description provided for @ttExternalPort.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection port (external port for NAT)'**
+  String get ttExternalPort;
+
+  /// No description provided for @ttDomain.
+  ///
+  /// In en, this message translates to:
+  /// **'TLS domain (SNI)'**
+  String get ttDomain;
+
+  /// No description provided for @ttOutbound.
+  ///
+  /// In en, this message translates to:
+  /// **'Outbound connection'**
+  String get ttOutbound;
+
+  /// No description provided for @ttDirect.
+  ///
+  /// In en, this message translates to:
+  /// **'Direct'**
+  String get ttDirect;
+
+  /// No description provided for @ttSocksAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'SOCKS5 address and port'**
+  String get ttSocksAddress;
+
+  /// No description provided for @ttSocksHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'For example, 127.0.0.1:1080 on this server. A local SOCKS5 proxy without authentication is supported; UDP also requires UDP support in SOCKS5 and its upstream route.'**
+  String get ttSocksHelp;
+
+  /// No description provided for @ttQuic.
+  ///
+  /// In en, this message translates to:
+  /// **'QUIC / HTTP/3'**
+  String get ttQuic;
+
+  /// No description provided for @ttIpv6.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow outgoing IPv6'**
+  String get ttIpv6;
+
+  /// No description provided for @ttAllowPrivate.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow access to private networks'**
+  String get ttAllowPrivate;
+
+  /// No description provided for @ttRotate.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace passwords for all clients of this endpoint'**
+  String get ttRotate;
+
+  /// No description provided for @ttCertificates.
+  ///
+  /// In en, this message translates to:
+  /// **'TLS certificates'**
+  String get ttCertificates;
+
+  /// No description provided for @ttAddCertificate.
+  ///
+  /// In en, this message translates to:
+  /// **'Add or issue certificate'**
+  String get ttAddCertificate;
+
+  /// No description provided for @ttCertificateSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Certificate source'**
+  String get ttCertificateSource;
+
+  /// No description provided for @ttServerFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Existing server files'**
+  String get ttServerFiles;
+
+  /// No description provided for @ttImportPem.
+  ///
+  /// In en, this message translates to:
+  /// **'Import PEM files'**
+  String get ttImportPem;
+
+  /// No description provided for @ttIssueAcme.
+  ///
+  /// In en, this message translates to:
+  /// **'Issue with ACME HTTP-01'**
+  String get ttIssueAcme;
+
+  /// No description provided for @ttFilesHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Select discovered files or enter server paths. The existing issuer continues renewal; AntiRKN checks changes and restarts linked TrustTunnel services.'**
+  String get ttFilesHelp;
+
+  /// No description provided for @ttImportHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Select the full certificate chain and its private key. Files are copied securely to the server. Imported files need a new import when renewed.'**
+  String get ttImportHelp;
+
+  /// No description provided for @ttExpectedIps.
+  ///
+  /// In en, this message translates to:
+  /// **'Expected domain IPs, separated by commas'**
+  String get ttExpectedIps;
+
+  /// No description provided for @ttAcmeEmail.
+  ///
+  /// In en, this message translates to:
+  /// **'Email for ACME registration'**
+  String get ttAcmeEmail;
+
+  /// No description provided for @ttAcmeHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'All A/AAAA records must match the selected IPs. With a wildcard listener, enter the external IPs. HTTP-01 needs public TCP port 80. Applying this plan requests a certificate from Let’s Encrypt, accepts its subscriber agreement, and enables server renewal with Certbot. Existing certificates from other issuers are not reissued.'**
+  String get ttAcmeHelp;
+
+  /// No description provided for @ttExpiry.
+  ///
+  /// In en, this message translates to:
+  /// **'Valid until'**
+  String get ttExpiry;
+
+  /// No description provided for @ttLastSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Last successful check'**
+  String get ttLastSuccess;
+
+  /// No description provided for @ttNextCheck.
+  ///
+  /// In en, this message translates to:
+  /// **'Next check'**
+  String get ttNextCheck;
+
+  /// No description provided for @ttExpirySoon.
+  ///
+  /// In en, this message translates to:
+  /// **'Certificate expires in less than 21 days.'**
+  String get ttExpirySoon;
+
+  /// No description provided for @ttRenewAcme.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic renewal with Certbot'**
+  String get ttRenewAcme;
+
+  /// No description provided for @ttRenewExternal.
+  ///
+  /// In en, this message translates to:
+  /// **'Renewed by the existing issuer'**
+  String get ttRenewExternal;
+
+  /// No description provided for @ttRenewImport.
+  ///
+  /// In en, this message translates to:
+  /// **'Update by importing renewed files'**
+  String get ttRenewImport;
+
+  /// No description provided for @ttRestartPlan.
+  ///
+  /// In en, this message translates to:
+  /// **'After a certificate or configuration change, restart TrustTunnel and verify the service. Active connections may be interrupted briefly.'**
+  String get ttRestartPlan;
+
+  /// No description provided for @ttDnsChecked.
+  ///
+  /// In en, this message translates to:
+  /// **'DNS matches the selected IPs'**
+  String get ttDnsChecked;
+
+  /// No description provided for @ttCertbotPresent.
+  ///
+  /// In en, this message translates to:
+  /// **'Installed Certbot'**
+  String get ttCertbotPresent;
+
+  /// No description provided for @ttCertbotInstall.
+  ///
+  /// In en, this message translates to:
+  /// **'Install Certbot and its required dependencies'**
+  String get ttCertbotInstall;
+
+  /// No description provided for @ttPreserveUsers.
+  ///
+  /// In en, this message translates to:
+  /// **'Existing users, passwords and untouched configuration fields are preserved.'**
+  String get ttPreserveUsers;
+
+  /// No description provided for @ttKeepCertificate.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep existing certificate'**
+  String get ttKeepCertificate;
+
+  /// No description provided for @ttChooseCertificate.
+  ///
+  /// In en, this message translates to:
+  /// **'Select certificate'**
+  String get ttChooseCertificate;
+
+  /// No description provided for @ttNeedCertificate.
+  ///
+  /// In en, this message translates to:
+  /// **'First add a certificate in the TLS certificates section.'**
+  String get ttNeedCertificate;
+
+  /// No description provided for @ttPrerequisites.
+  ///
+  /// In en, this message translates to:
+  /// **'Install the verified TrustTunnel version first.'**
+  String get ttPrerequisites;
+
+  /// No description provided for @ttUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This TrustTunnel installation or configuration is not supported for editing.'**
+  String get ttUnsupported;
+
+  /// No description provided for @ttSocksFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'SOCKS5 did not accept a connection without authentication. Check its address, port and configuration.'**
+  String get ttSocksFailed;
+
+  /// No description provided for @ttCertInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Certificate validation failed: check domain, validity, full chain and matching private key.'**
+  String get ttCertInvalid;
+
+  /// No description provided for @ttRestartFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'TrustTunnel did not start with the expected certificate. The previous certificate was restored where available; check server status.'**
+  String get ttRestartFailed;
+
+  /// No description provided for @ttDnsFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to resolve the domain’s A/AAAA records.'**
+  String get ttDnsFailed;
+
+  /// No description provided for @ttDnsMismatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Domain A/AAAA records do not match the selected listening/external IPs. Correct DNS or the selected addresses before issuance.'**
+  String get ttDnsMismatch;
+
+  /// No description provided for @ttAcmePortBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'TCP port 80 is occupied. HTTP-01 standalone issuance cannot start.'**
+  String get ttAcmePortBusy;
+
+  /// No description provided for @ttCertbotRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Certbot cannot be installed from the current APT indexes. Run the manual APT index update and prepare a new plan.'**
+  String get ttCertbotRequired;
+
+  /// No description provided for @ttAcmeFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'ACME issuance or renewal failed. Check public DNS, port 80 reachability and the ACME log on the server.'**
+  String get ttAcmeFailed;
 }
 
 class _AppLocalizationsDelegate

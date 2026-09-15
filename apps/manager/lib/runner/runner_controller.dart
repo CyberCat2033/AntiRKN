@@ -408,6 +408,63 @@ class RunnerController extends ChangeNotifier {
     return success;
   }
 
+  Map<String, dynamic>? ttDiscovery, ttCertificates;
+  Future<Map<String, dynamic>?> ttRequest(
+    String action, {
+    String? id,
+    Map<String, Object?>? payload,
+  }) async {
+    Map<String, dynamic>? result;
+    await _run((remote, token) async {
+      final response = await remote.request(
+        RunnerRequest.fromJson({
+          'version': 1,
+          'action': action,
+          'id': ?id,
+          if (payload != null) 'payload': jsonEncode(payload),
+        }),
+        token,
+        sudoPassword: password(),
+      );
+      token.check();
+      responseCode = response.code;
+      if (response.code != 'ok' || response.tt == null) return;
+      result = response.tt;
+      if (action == 'tt_discover') ttDiscovery = result;
+      if (action == 'tt_certificates') ttCertificates = result;
+    });
+    return result;
+  }
+
+  Future<bool> applyTtJob(
+    Map<String, Object?> payload,
+    String fingerprint, {
+    String kind = 'tt_external_edit',
+    int count = 3,
+  }) async {
+    if (!canStart || !installed) return false;
+    var success = false;
+    await _run((remote, token) async {
+      pending = RunnerRequest.fromJson({
+        'version': 1,
+        'action': 'submit',
+        'id': newVpnId(),
+        'kind': kind,
+        'count': count,
+        'interval': 1,
+        'payload': jsonEncode(payload),
+        'fingerprint': fingerprint,
+      });
+      selected = null;
+      cursor = 0;
+      await _save();
+      token.check();
+      await _submit(remote, token);
+      success = responseCode == 'ok';
+    });
+    return success;
+  }
+
   Map<String, dynamic>? awgDiscovery;
   Future<Map<String, dynamic>?> awgRequest(
     String action, {
@@ -923,6 +980,8 @@ class RunnerController extends ChangeNotifier {
           'component_install',
           'inbound_update',
           'awg_external_edit',
+          'tt_external_edit',
+          'tt_certificate',
         }.contains(selected?.kind) ||
         !const {'failed', 'partially_applied'}.contains(selected?.status)) {
       return;
@@ -1096,6 +1155,8 @@ class RunnerController extends ChangeNotifier {
           'apt_upgrade',
           'inbound_update',
           'awg_external_edit',
+          'tt_external_edit',
+          'tt_certificate',
         }.contains(job.kind) &&
         (selected?.id != job.id || selected?.status != 'succeeded')) {
       _softwareRefreshPending = true;

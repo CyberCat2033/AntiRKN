@@ -1877,4 +1877,167 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get awgDockerPortHelp =>
       'Порт опубликован Docker и сохраняется при редактировании. Его перенос требует отдельного пересоздания контейнера с новым сопоставлением портов.';
+
+  @override
+  String get ttAdd => 'Добавить endpoint';
+
+  @override
+  String get ttEmpty => 'Управляемых endpoint TrustTunnel пока нет.';
+
+  @override
+  String get ttPort => 'Порт прослушивания';
+
+  @override
+  String get ttExternalPort => 'Порт подключения (внешний порт при NAT)';
+
+  @override
+  String get ttDomain => 'TLS-домен (SNI)';
+
+  @override
+  String get ttOutbound => 'Выход в интернет';
+
+  @override
+  String get ttDirect => 'Напрямую';
+
+  @override
+  String get ttSocksAddress => 'Адрес и порт SOCKS5';
+
+  @override
+  String get ttSocksHelp =>
+      'Например, 127.0.0.1:1080 на этом сервере. Поддерживается локальный SOCKS5 без авторизации; для UDP нужна его поддержка в SOCKS5 и дальнейшем маршруте.';
+
+  @override
+  String get ttQuic => 'QUIC / HTTP/3';
+
+  @override
+  String get ttIpv6 => 'Разрешить выход по IPv6';
+
+  @override
+  String get ttAllowPrivate => 'Разрешить доступ к внутренним сетям';
+
+  @override
+  String get ttRotate => 'Заменить пароли всех клиентов этого endpoint';
+
+  @override
+  String get ttCertificates => 'TLS-сертификаты';
+
+  @override
+  String get ttAddCertificate => 'Добавить или выпустить сертификат';
+
+  @override
+  String get ttCertificateSource => 'Источник сертификата';
+
+  @override
+  String get ttServerFiles => 'Готовые файлы на сервере';
+
+  @override
+  String get ttImportPem => 'Импорт файлов PEM';
+
+  @override
+  String get ttIssueAcme => 'Выпустить через ACME HTTP-01';
+
+  @override
+  String get ttFilesHelp =>
+      'Выберите найденные файлы или укажите пути на сервере. Продлением продолжит заниматься существующая служба; AntiRKN проверит изменения и перезапустит связанные сервисы TrustTunnel.';
+
+  @override
+  String get ttImportHelp =>
+      'Выберите полную цепочку сертификата и приватный ключ. Файлы будут защищённо скопированы на сервер. После продления потребуется импорт новых файлов.';
+
+  @override
+  String get ttExpectedIps => 'IP домена для проверки, через запятую';
+
+  @override
+  String get ttAcmeEmail => 'Email для регистрации ACME';
+
+  @override
+  String get ttAcmeHelp =>
+      'Все A/AAAA-записи должны совпадать с выбранными IP. Для wildcard укажите внешние IP. HTTP-01 требует доступного из интернета TCP-порта 80. Применение плана запрашивает сертификат Let’s Encrypt, принимает соглашение подписчика и включает продление на сервере через Certbot. Готовые сертификаты других служб не перевыпускаются.';
+
+  @override
+  String get ttExpiry => 'Действует до';
+
+  @override
+  String get ttLastSuccess => 'Последняя успешная проверка';
+
+  @override
+  String get ttNextCheck => 'Следующая проверка';
+
+  @override
+  String get ttExpirySoon => 'До истечения сертификата осталось меньше 21 дня.';
+
+  @override
+  String get ttRenewAcme => 'Автопродление через Certbot';
+
+  @override
+  String get ttRenewExternal => 'Продлевает существующая служба';
+
+  @override
+  String get ttRenewImport => 'Обновление импортом новых файлов';
+
+  @override
+  String get ttRestartPlan =>
+      'После изменения сертификата или конфигурации — перезапуск TrustTunnel и проверка сервиса. Возможен краткий обрыв активных подключений.';
+
+  @override
+  String get ttDnsChecked => 'DNS совпадает с выбранными IP';
+
+  @override
+  String get ttCertbotPresent => 'Установленный Certbot';
+
+  @override
+  String get ttCertbotInstall => 'Установить Certbot и необходимые зависимости';
+
+  @override
+  String get ttPreserveUsers =>
+      'Существующие пользователи, пароли и незатронутые поля конфигурации сохраняются.';
+
+  @override
+  String get ttKeepCertificate => 'Оставить существующий сертификат';
+
+  @override
+  String get ttChooseCertificate => 'Выберите сертификат';
+
+  @override
+  String get ttNeedCertificate =>
+      'Сначала добавьте сертификат в разделе TLS-сертификатов.';
+
+  @override
+  String get ttPrerequisites =>
+      'Сначала установите проверенную версию TrustTunnel.';
+
+  @override
+  String get ttUnsupported =>
+      'Эта установка или конфигурация TrustTunnel не поддерживается редактором.';
+
+  @override
+  String get ttSocksFailed =>
+      'SOCKS5 не принял подключение без авторизации. Проверьте адрес, порт и настройки.';
+
+  @override
+  String get ttCertInvalid =>
+      'Сертификат не прошёл проверку: проверьте домен, срок, полную цепочку и соответствие приватного ключа.';
+
+  @override
+  String get ttRestartFailed =>
+      'TrustTunnel не запустился с ожидаемым сертификатом. Прежний сертификат восстановлен, если он был; проверьте состояние сервера.';
+
+  @override
+  String get ttDnsFailed => 'Не удалось получить A/AAAA-записи домена.';
+
+  @override
+  String get ttDnsMismatch =>
+      'A/AAAA-записи домена не совпадают с выбранными IP прослушивания/внешними IP. Исправьте DNS или выбранные адреса до выпуска.';
+
+  @override
+  String get ttAcmePortBusy =>
+      'TCP-порт 80 занят. Выпуск HTTP-01 в режиме standalone невозможен.';
+
+  @override
+  String get ttCertbotRequired =>
+      'Certbot недоступен по текущим индексам APT. Запустите ручное обновление индексов и подготовьте новый план.';
+
+  @override
+  String get ttAcmeFailed =>
+      'Выпуск или продление ACME завершились ошибкой. Проверьте публичный DNS, доступность порта 80 и журнал ACME на сервере.';
 }

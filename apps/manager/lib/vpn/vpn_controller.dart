@@ -37,6 +37,7 @@ ProfileResult _compile((String, String, String) input) {
       accesses: [
         ...vlessUserAccesses(workspace, input.$3),
         ...awgUserAccesses(workspace, input.$3),
+        ...ttUserAccesses(workspace, input.$3),
       ],
     );
   } on FormatException catch (e) {
@@ -145,6 +146,29 @@ class VpnController extends ChangeNotifier {
     plans = [];
     await _profiles();
   });
+  Future<Map<String, Object?>?> ttDefaults(String serverId) async {
+    Map<String, Object?>? result;
+    await _run((token) async {
+      final r = remote(ttTarget(serverId));
+      if (r == null) throw const FormatException('vpn_connection');
+      result = (await _request(r, RunnerRequest.ttDefaults(), token)).tt;
+    });
+    return result;
+  }
+
+  Future<void> saveTt(TrustTunnelEndpoint resource) => _run((token) async {
+    if (!loaded) return;
+    await _write(
+      workspace.copy(
+        ttEndpoints: [
+          ...workspace.ttEndpoints.where((r) => r.id != resource.id),
+          resource,
+        ],
+      ),
+    );
+    plans = [];
+    await _profiles();
+  });
   Future<Map<String, Object?>?> awgDefaults(String serverId) async {
     Map<String, Object?>? result;
     await _run((token) async {
@@ -176,7 +200,9 @@ class VpnController extends ChangeNotifier {
     String target,
     String panel,
     Map<String, Object?> payload,
-  ) => isAwgTarget(target)
+  ) => isTtTarget(target)
+      ? RunnerRequest.ttPlan(workspace.id, payload)
+      : isAwgTarget(target)
       ? RunnerRequest.awgPlan(workspace.id, payload)
       : RunnerRequest.vlessPlan(panel, payload);
   RunnerRequest _applyRequest(
@@ -184,17 +210,30 @@ class VpnController extends ChangeNotifier {
     String id,
     Map<String, Object?> payload,
     String fingerprint,
-  ) => isAwgTarget(target)
+  ) => isTtTarget(target)
+      ? RunnerRequest.ttApply(id, payload, fingerprint)
+      : isAwgTarget(target)
       ? RunnerRequest.awgApply(id, payload, fingerprint)
       : RunnerRequest.vlessApply(id, payload, fingerprint);
-  RunnerRequest _stateRequest(String target, String panel) =>
-      isAwgTarget(target)
+  RunnerRequest _stateRequest(String target, String panel) => isTtTarget(target)
+      ? RunnerRequest.ttState(workspace.id)
+      : isAwgTarget(target)
       ? RunnerRequest.awgState(workspace.id)
       : RunnerRequest.vlessState(panel);
   Map<String, dynamic>? _preview(RunnerResponse r, String target) =>
-      isAwgTarget(target) ? r.awgPlan : r.vlessPlan;
+      isTtTarget(target)
+      ? r.tt
+      : isAwgTarget(target)
+      ? r.awgPlan
+      : r.vlessPlan;
   List<Map<String, dynamic>>? _observations(RunnerResponse r, String target) =>
-      isAwgTarget(target) ? r.awgState : r.vlessState;
+      isTtTarget(target)
+      ? (r.tt?['resources'] as List?)
+            ?.map((e) => Map<String, dynamic>.from(e as Map))
+            .toList()
+      : isAwgTarget(target)
+      ? r.awgState
+      : r.vlessState;
   Future<void> saveInbound(VlessInbound inbound) => _run((token) async {
     if (!loaded) return;
     await _write(
@@ -225,7 +264,8 @@ class VpnController extends ChangeNotifier {
           !(allowMissing && response.code == 'missing')) {
         throw FormatException(
           (response.code.startsWith('vless_') ||
-                  response.code.startsWith('awg_'))
+                  response.code.startsWith('awg_') ||
+                  response.code.startsWith('tt_'))
               ? response.code
               : 'vpn_${response.code}',
         );
@@ -252,7 +292,7 @@ class VpnController extends ChangeNotifier {
               previous['observingCancel'] == true)) {
         throw const FormatException('vpn_busy');
       }
-      final panelId = isAwgTarget(id)
+      final panelId = (isAwgTarget(id) || isTtTarget(id))
           ? workspace.id
           : connection?.panelId ?? previous?['panelId'] as String?;
       if (panelId == null) throw const FormatException('vpn_panel_required');
@@ -532,6 +572,28 @@ class VpnController extends ChangeNotifier {
       'observed': _observations(result, id),
       'verifiedAt': DateTime.now().toUtc().toIso8601String(),
     });
+    if (isTtTarget(id)) {
+      final recovered = (_observations(result, id) ?? [])
+          .where(
+            (o) =>
+                o['workspaceId'] == workspace.id &&
+                !workspace.ttEndpoints.any((i) => i.id == o['id']),
+          )
+          .map(
+            (o) => TrustTunnelEndpoint(
+              serverId: vpnServerId(id),
+              spec: Map<String, Object?>.from(o['spec'] as Map),
+            ),
+          )
+          .toList();
+      if (recovered.isNotEmpty) {
+        await _write(
+          workspace.copy(ttEndpoints: [...workspace.ttEndpoints, ...recovered]),
+        );
+      }
+      await _profiles();
+      return;
+    }
     if (isAwgTarget(id)) {
       final recovered = (_observations(result, id) ?? [])
           .where(

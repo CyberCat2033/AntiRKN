@@ -1,0 +1,57 @@
+{
+  "date": "2026-09-15",
+  "checks": {
+    "python_runner": 80,
+    "targeted_dart_flutter": 15,
+    "analyze": "PASS",
+    "format": "PASS",
+    "generated_contracts_and_bundle": "PASS",
+    "architecture_and_base_yml": "PASS",
+    "localizationKeysPerLanguage": 593,
+    "linux_x64_debug": "PASS",
+    "android_arm64_debug": "PASS",
+    "v10_manifest_matches_commit": "09bb78a",
+    "v11_to_v12_upgrade": "PASS",
+    "owner_controlled_native_edit": "PASS",
+    "real_owner_server_read_only_discovery": "PASS"
+  },
+  "runner": {
+    "version": 12,
+    "release": "960695d0088e72c8fde281f01df331328937b698da6ec137039b5269693758c4"
+  },
+  "artifacts": {
+    "apps/manager/build/linux/x64/debug/bundle/antirkn_manager": {
+      "size": 53696,
+      "sha256": "9fffcfee576434e574553b9b3cc8214dffa856e18bc973d1a78545ecfddd3d13"
+    },
+    "apps/manager/build/linux/x64/debug/bundle/data/flutter_assets/kernel_blob.bin": {
+      "size": 82421608,
+      "sha256": "5fea8815e25c13f127cbbb9d5fb406dc3b86754b1e3f33f2d4a0e59f961b39ce"
+    },
+    "apps/manager/build/app/outputs/flutter-apk/app-debug.apk": {
+      "size": 117989790,
+      "sha256": "362fe970e076cd5cc020c172e042f55476fe3059079b555a265b282cc889ac4d"
+    }
+  },
+  "notTested": [
+    "public Lets Encrypt",
+    "public VPS",
+    "3x-ui SOCKS to remote VLESS chain",
+    "IPv6 transport",
+    "Windows",
+    "multiple TT servers and load",
+    "full GUI and Android runtime acceptance",
+    "full crash matrix",
+    "direct runner v10 to v12 upgrade"
+  ],
+  "adbInstallationAuthorized": true,
+  "pushAllowed": false,
+  "androidInstall": {
+    "device": "OnePlus HD1911",
+    "command": "adb install -r",
+    "result": "Success",
+    "dataPreserved": true,
+    "runtimeTested": false,
+    "includesOwnerDiscoveryFix": true
+  }
+}
