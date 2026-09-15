@@ -4,6 +4,7 @@ cd "$(dirname "$0")/.."
 flutter pub get --enforce-lockfile
 python3 tool/check_workspace.py
 python3 tool/generate_changes.py --check
+python3 tool/generate_sync.py --check
 python3 tool/generate_vless.py --check
 python3 tool/generate_runner.py --check
 python3 -m unittest discover -s tests/runner -v
@@ -13,6 +14,10 @@ python3 -m unittest discover -s tests/runner -v
 )
 dart format --output=none --set-exit-if-changed apps packages tool/compile_fixtures.dart tool/compile_vless_fixture.dart
 flutter analyze --no-pub
+(
+  cd packages/sync
+  dart test
+)
 (
   cd packages/storage
   flutter test --no-pub

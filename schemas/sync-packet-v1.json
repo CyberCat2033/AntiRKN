@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "magic": "AntiRKNS",
+  "suite": 1,
+  "algorithm": "XChaCha20-Poly1305",
+  "keyBytes": 32,
+  "nonceBytes": 24,
+  "tagBytes": 16,
+  "maxPacketBytes": 16777216,
+  "maxSourceBytes": 8388608,
+  "header": [
+    ["magic", 8], ["version", 1], ["suite", 1], ["keyVersion", 4],
+    ["workspaceId", 16], ["changeId", 16]
+  ],
+  "body": ["header", "source"],
+  "description": "Fixed binary header (integers big-endian) is AAD. Body is canonical UTF-8 JSON containing local-change-v1 header and source. Wire: header, nonce, ciphertext, tag. No device authentication or merge implied."
+}

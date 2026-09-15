@@ -176,7 +176,7 @@ void main() {
       final db = open();
       await db.writeDraft('keep');
       for (final mutate in <void Function(Map<String, dynamic>)>[
-        (data) => data['version'] = 2,
+        (data) => data['version'] = 99,
         (data) => (data['changes'] as List).removeLast(),
         (data) =>
             ((data['changes'] as List)[1]['header'] as Map)['baseChangeId'] =
@@ -244,7 +244,7 @@ void main() {
       expect(await db.readDraft(), 'keep');
       expect((await db.readWorkspaceIdentity()).deviceId, identity.deviceId);
       expect(history(await db.readPendingChanges()), before);
-      expect(raw.userVersion, 3);
+      expect(raw.userVersion, 4);
       expect(raw.select('PRAGMA foreign_key_check'), isEmpty);
       raw.execute('DROP TRIGGER fail_restore');
       await db.restoreBackup(await db.prepareRestore(backup, password));

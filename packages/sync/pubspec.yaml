@@ -1,0 +1,11 @@
+name: antirkn_sync
+publish_to: none
+resolution: workspace
+environment:
+  sdk: '>=3.11.0 <4.0.0'
+dependencies:
+  antirkn_domain:
+    path: ../domain
+  cryptography: 2.9.0
+dev_dependencies:
+  test: 1.29.0

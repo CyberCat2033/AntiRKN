@@ -293,7 +293,7 @@ void main() {
       // Deliberate tampering bypasses the guard against old application writers.
       raw.execute('BEGIN IMMEDIATE');
       raw.execute(
-        'UPDATE sync_identity SET write_guard=1, writer_device=device_id',
+        'UPDATE sync_identity SET write_guard=1, writer_device=device_id, writer_version=4',
       );
       raw.execute(
         'UPDATE servers SET payload = (SELECT payload FROM servers WHERE id = ?) WHERE id = ?',

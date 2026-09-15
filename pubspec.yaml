@@ -5,6 +5,7 @@ environment:
 workspace:
   - apps/manager
   - packages/storage
+  - packages/sync
   - packages/ssh_transport
   - packages/domain
   - packages/network_inventory

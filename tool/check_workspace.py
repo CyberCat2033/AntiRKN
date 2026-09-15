@@ -30,7 +30,8 @@ allowed = {
     'network_inventory': {'antirkn_domain'},
     'profile_compiler': {'antirkn_domain', 'crypto', 'yaml', 'yaml_edit'},
     'design_system': {'flutter'},
-    'storage': {'antirkn_domain', 'shared_preferences', 'file_selector', 'flutter', 'cryptography', 'flutter_secure_storage', 'path_provider', 'sqlite3', 'sqlite3_flutter_libs'},
+    'storage': {'antirkn_domain', 'antirkn_sync', 'shared_preferences', 'file_selector', 'flutter', 'cryptography', 'flutter_secure_storage', 'path_provider', 'sqlite3', 'sqlite3_flutter_libs'},
+    'sync': {'antirkn_domain', 'cryptography'},
     'ssh_transport': {'antirkn_domain', 'antirkn_network_inventory', 'dartssh2'},
 }
 for package, dependencies in allowed.items():
@@ -38,7 +39,7 @@ for package, dependencies in allowed.items():
         for target in re.findall(r"(?:import|export)\s+['\"]([^'\"]+)['\"]", path.read_text()):
             if target.startswith('package:') and target[8:].split('/')[0] not in dependencies:
                 errors.append(f'{path.relative_to(ROOT)}: forbidden dependency {target}')
-            if package in {'domain', 'profile_compiler', 'network_inventory'} and target in {'dart:io', 'dart:ui'}:
+            if package in {'domain', 'profile_compiler', 'network_inventory', 'sync'} and target in {'dart:io', 'dart:ui'}:
                 errors.append(f'{path.relative_to(ROOT)}: domain layer cannot import {target}')
 
 for error in errors:

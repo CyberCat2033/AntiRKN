@@ -1,0 +1,173 @@
+{
+  "stage": "P1-04 E2EE change packets",
+  "verified_at_utc": "2026-09-15T08:13:15.496279+00:00",
+  "base_commit": "c3286e48dff3acf2c585cdd6072aa060c136e5eb",
+  "tests": [
+    {
+      "suite": "sync",
+      "command": [
+        "dart",
+        "test"
+      ],
+      "cwd": "packages/sync",
+      "exit_code": 0,
+      "seconds": 1.79,
+      "passed": 7,
+      "result": "PASS"
+    },
+    {
+      "suite": "storage",
+      "command": [
+        "flutter",
+        "test",
+        "--no-pub"
+      ],
+      "cwd": "packages/storage",
+      "exit_code": 0,
+      "seconds": 18.93,
+      "passed": 62,
+      "result": "PASS"
+    },
+    {
+      "suite": "app",
+      "command": [
+        "flutter",
+        "test",
+        "--no-pub",
+        "test/backup_test.dart",
+        "test/backup_reload_test.dart",
+        "test/vpn_controller_test.dart",
+        "test/vpn_workspace_identity_test.dart",
+        "test/widget_test.dart",
+        "test/server_catalog_test.dart",
+        "test/runner_controller_test.dart"
+      ],
+      "cwd": "apps/manager",
+      "exit_code": 0,
+      "seconds": 26.12,
+      "passed": 47,
+      "result": "PASS"
+    }
+  ],
+  "total_tests_passed": 116,
+  "checks": [
+    {
+      "command": "flutter analyze --no-pub",
+      "result": "PASS"
+    },
+    {
+      "command": "python3 tool/check_workspace.py",
+      "result": "PASS"
+    },
+    {
+      "command": "python3 tool/generate_sync.py --check",
+      "result": "PASS"
+    },
+    {
+      "command": "python3 tool/generate_changes.py --check",
+      "result": "PASS"
+    },
+    {
+      "command": "python3 tool/generate_vless.py --check",
+      "result": "PASS"
+    },
+    {
+      "command": "python3 tool/generate_runner.py --check",
+      "result": "PASS"
+    },
+    {
+      "command": "dart format --output=none --set-exit-if-changed apps packages tool/compile_fixtures.dart tool/compile_vless_fixture.dart",
+      "result": "PASS"
+    },
+    {
+      "command": "git diff --check",
+      "result": "PASS"
+    }
+  ],
+  "artifacts": [
+    {
+      "platform": "linux",
+      "command": [
+        "flutter",
+        "build",
+        "linux",
+        "--debug",
+        "--no-pub"
+      ],
+      "exit_code": 0,
+      "seconds": 16.28,
+      "path": "apps/manager/build/linux/x64/debug/bundle/antirkn_manager",
+      "bytes": 53696,
+      "sha256": "9fffcfee576434e574553b9b3cc8214dffa856e18bc973d1a78545ecfddd3d13",
+      "result": "PASS",
+      "dart_kernel": {
+        "path": "apps/manager/build/linux/x64/debug/bundle/data/flutter_assets/kernel_blob.bin",
+        "bytes": 82663544,
+        "sha256": "63343cd55003db9dd6c46b42a264ad32b64d6b345de186c28d6ba1d5c3cab6d3"
+      }
+    },
+    {
+      "platform": "android",
+      "command": [
+        "flutter",
+        "build",
+        "apk",
+        "--debug",
+        "--target-platform",
+        "android-arm64",
+        "--no-pub"
+      ],
+      "exit_code": 0,
+      "seconds": 27.33,
+      "path": "apps/manager/build/app/outputs/flutter-apk/app-debug.apk",
+      "bytes": 117989790,
+      "sha256": "000e36c3df3fd53e9b1eccfe0aeabeaff5f3a75f3bd637654d9f8eaba0409001",
+      "result": "PASS"
+    }
+  ],
+  "independent_fixture": {
+    "generator": "libsodium 1.0.22",
+    "path": "packages/sync/test/fixtures/libsodium-packet.json",
+    "sha256": "a10cb617634fd91824a1b01120af800993de9f0b097408a54e07ec5aa7899cc4",
+    "contains_only_public_test_key": true
+  },
+  "verified_scenarios": [
+    "independent libsodium packet decrypted; every outer-header byte and nonce/ciphertext/tag tampering rejected",
+    "authenticated malformed/duplicate/noncanonical payload, incompatible version, invalid revision/source and size limits rejected",
+    "different local keys after backup restore: exact workspace/entity IDs, credentials, pending queue and prepared ciphertext",
+    "received valid, duplicate, damaged, wrong-key and foreign-workspace packets do not modify receiver tables",
+    "uninitialized receive does not trigger migration or key generation",
+    "parallel key initialization and packet preparation converge on committed key and ciphertext",
+    "cache insert failure, migration DDL failure and restore insert failure roll back",
+    "v1/v2/v3 migration retains source ciphertext; old writer blocked",
+    "missing/corrupt key and corrupt cache not silently replaced",
+    "paging and explicit acknowledgements preserve pending IDs; preparation never acknowledges",
+    "separate process exits after packet commit without close; WAL retains same bytes and outbox",
+    "backup snapshot v1 remains readable; v2 validates key/cache and wraps key with destination local protection",
+    "new packet preparation invalidates stale restore preview",
+    "fixture credentials, encoded and raw sync key absent from database and WAL",
+    "app backup reload, catalog, workspace identity and pending operation regressions"
+  ],
+  "fixtures": "Isolated temporary SQLite stores and public non-working credentials. No owner data, VPS or Google account accessed.",
+  "unverified": [
+    "Windows build/runtime",
+    "real Android runtime/file provider",
+    "full manual Linux GUI acceptance",
+    "physical power-loss/disk-full",
+    "load and maximum-size backup",
+    "cloud exchange, device authentication/pairing/revocation, merge, key rotation"
+  ],
+  "limits": {
+    "packet_bytes": 16777216,
+    "source_bytes": 8388608,
+    "page_events": 100,
+    "page_bytes": 33554432,
+    "backup_bytes": 67108864,
+    "history_events": 200000,
+    "cache_compaction": false,
+    "drive_sync": false
+  },
+  "adb_performed": false,
+  "push_performed": false,
+  "shutdown_performed": false
+}

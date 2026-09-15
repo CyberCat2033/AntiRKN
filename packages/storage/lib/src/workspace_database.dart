@@ -6,6 +6,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:antirkn_domain/antirkn_domain.dart';
+import 'package:antirkn_sync/antirkn_sync.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,6 +18,7 @@ import 'secret_vault.dart';
 
 part 'workspace_journal.dart';
 part 'workspace_backup.dart';
+part 'workspace_sync.dart';
 
 Future<WorkspaceDatabase> openLocalWorkspace() async {
   final support = await getApplicationSupportDirectory();
@@ -111,6 +113,7 @@ final class WorkspaceDatabase
         RunnerJournalStore,
         VpnRepository,
         ChangeJournalStore,
+        SyncPacketStore,
         WorkspaceBackupStore,
         WorkspaceRecoveryStore,
         SettingsStore,
@@ -129,7 +132,7 @@ final class WorkspaceDatabase
       db.execute('PRAGMA journal_mode = WAL');
       db.execute('PRAGMA synchronous = FULL');
       final version = db.userVersion;
-      if (version > 3) throw const VaultFailure(VaultIssue.corrupt);
+      if (version > 4) throw const VaultFailure(VaultIssue.corrupt);
       if (version == 0) {
         db.execute('BEGIN IMMEDIATE');
         try {
@@ -167,17 +170,24 @@ final class WorkspaceDatabase
     _decrypt,
   );
   Future<void> _pending = Future.value();
+  late final _WorkspaceSync _sync = _WorkspaceSync(this);
   bool _closed = false;
   bool _restored = false;
   @override
   bool needsLegacyPassword = false;
 
-  Future<T> _serial<T>(FutureOr<T> Function() action) {
+  Future<T> _serial<T>(FutureOr<T> Function() action, {bool migrate = true}) {
     final next = _pending.then((_) async {
       if (_closed || _restored) {
         throw const VaultFailure(VaultIssue.unavailable);
       }
+      // Receiving an untrusted packet must not create a workspace key or
+      // migrate a database. Normal repository initialization prepares the key.
+      if (!migrate && _db.userVersion != 4) {
+        throw const SyncPacketFailure(SyncPacketIssue.storage);
+      }
       await _journal.initialize();
+      await _sync.initialize();
       return action();
     });
     _pending = next.then<void>((_) {}, onError: (Object _, StackTrace _) {});
@@ -189,12 +199,12 @@ final class WorkspaceDatabase
     try {
       _journal.checkIdentity();
       _db.execute(
-        'UPDATE sync_identity SET write_guard=1, writer_device=? WHERE singleton=1',
+        'UPDATE sync_identity SET write_guard=1, writer_device=?, writer_version=4 WHERE singleton=1',
         [_journal.identity.deviceId],
       );
       final result = body();
       _db.execute(
-        'UPDATE sync_identity SET write_guard=0, writer_device=NULL WHERE singleton=1',
+        'UPDATE sync_identity SET write_guard=0, writer_device=NULL, writer_version=0 WHERE singleton=1',
       );
       _db.execute('COMMIT');
       return result;
@@ -575,6 +585,21 @@ final class WorkspaceDatabase
   @override
   Future<WorkspaceIdentity> readWorkspaceIdentity() =>
       _serial(() => _journal.identity);
+
+  @override
+  Future<List<EncryptedChangePacket>> preparePendingPackets({
+    int afterSequence = 0,
+    int limit = 100,
+  }) => _serial(() => _sync.prepare(afterSequence, limit));
+
+  @override
+  Future<LocalChange> verifySyncPacket(Uint8List bytes) {
+    if (bytes.length > syncMaxPacketBytes) {
+      return Future.error(const SyncPacketFailure(SyncPacketIssue.tooLarge));
+    }
+    final owned = Uint8List.fromList(bytes);
+    return _serial(() => _sync.verify(owned), migrate: false);
+  }
 
   @override
   Future<List<LocalChange>> readChanges({

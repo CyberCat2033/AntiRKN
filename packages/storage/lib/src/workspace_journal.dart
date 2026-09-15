@@ -235,7 +235,9 @@ final class _LocalChangeJournal {
         );
         commit(batch);
         db.userVersion = 2;
-      } else if (db.userVersion != 2 && db.userVersion != 3) {
+      } else if (db.userVersion != 2 &&
+          db.userVersion != 3 &&
+          db.userVersion != 4) {
         throw const VaultFailure(VaultIssue.corrupt);
       }
       db.execute('COMMIT');

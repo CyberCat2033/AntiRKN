@@ -35,6 +35,8 @@ String _backupStamp(WorkspaceDatabase store) => jsonEncode([
     'SELECT workspace_id,device_id,sequence FROM sync_identity',
   ),
   ...store._db.select('SELECT change_id FROM sync_outbox ORDER BY change_id'),
+  ...store._db.select('SELECT hex(payload) AS key_stamp FROM sync_keys'),
+  ...store._db.select('SELECT COUNT(*) AS packets FROM sync_packets'),
 ]);
 
 Future<Uint8List> _createBackup(
@@ -55,7 +57,15 @@ Future<Uint8List> _createBackup(
             + (SELECT COALESCE(SUM(length(payload)+length(header)),0) FROM sync_changes) AS bytes,
             (SELECT COUNT(*) FROM sync_changes) AS changes
         ''').single;
-        if ((size['bytes'] as int) > maxWorkspaceBackupBytes ||
+        final packetBytes =
+            store._db
+                    .select(
+                      'SELECT COALESCE(SUM(length(payload)),0) AS bytes FROM sync_packets',
+                    )
+                    .single['bytes']
+                as int;
+        if ((size['bytes'] as int) + packetBytes * 4 ~/ 3 >
+                maxWorkspaceBackupBytes ||
             (size['changes'] as int) > 200000) {
           throw const BackupFailure(BackupIssue.tooLarge);
         }
@@ -65,6 +75,8 @@ Future<Uint8List> _createBackup(
           ('changes', 'SELECT * FROM sync_changes ORDER BY sequence'),
           ('outbox', 'SELECT change_id FROM sync_outbox ORDER BY change_id'),
           ('heads', 'SELECT * FROM sync_heads ORDER BY entity_kind,entity_id'),
+          ('syncKey', 'SELECT payload FROM sync_keys WHERE singleton=1'),
+          ('syncPackets', 'SELECT * FROM sync_packets ORDER BY change_id'),
         ]) {
           captured[name] = store._db.select(sql);
         }
@@ -74,13 +86,27 @@ Future<Uint8List> _createBackup(
         rethrow;
       }
       final data = <String, dynamic>{
-        'version': 1,
+        'version': 2,
         'createdAt': DateTime.now().toUtc().toIso8601String(),
         'workspaceId': store._journal.identity.workspaceId,
         'servers': <Object?>[],
         'documents': <Object?>[],
         'changes': <Object?>[],
         'outbox': [for (final row in captured['outbox']!) row['change_id']],
+        'syncKey': jsonDecode(
+          await store._decrypt(
+            _WorkspaceSync.keyScope(store._journal.identity.workspaceId),
+            1,
+            captured['syncKey']!.single['payload'] as Uint8List,
+          ),
+        ),
+        'syncPackets': [
+          for (final row in captured['syncPackets']!)
+            {
+              'changeId': row['change_id'],
+              'packet': base64Encode(row['payload'] as Uint8List),
+            },
+        ],
       };
       var sourceBytes = 0;
       for (final table in ['servers', 'documents']) {
@@ -210,6 +236,11 @@ Future<void> _restoreBackup(
         'documents': [],
         'changes': [],
       };
+      final syncKeyPayload = await store._encrypt(
+        _WorkspaceSync.keyScope(snapshot.summary.workspaceId),
+        1,
+        canonicalJson(snapshot.data['syncKey'] ?? await _newSyncKey()),
+      );
       for (final table in ['servers', 'documents']) {
         for (final dynamic row in snapshot.data[table] as List) {
           final id = row['id'] as String, revision = row['revision'] as int;
@@ -250,6 +281,8 @@ Future<void> _restoreBackup(
           }
         }
         for (final table in [
+          'sync_packets',
+          'sync_keys',
           'sync_outbox',
           'sync_heads',
           'sync_changes',
@@ -269,14 +302,20 @@ Future<void> _restoreBackup(
             store._db.execute(_LocalChangeJournal._guard(table, action));
           }
         }
-        store._db
-            .execute('INSERT INTO sync_identity VALUES (1, ?, ?, ?, ?, 1, ?)', [
-              snapshot.summary.workspaceId,
-              deviceId,
-              snapshot.changes.length,
-              proof,
-              deviceId,
-            ]);
+        _WorkspaceSync.installSchema(store._db);
+        store._db.execute('INSERT INTO sync_keys VALUES (1,?)', [
+          syncKeyPayload,
+        ]);
+        store._db.execute(
+          'INSERT INTO sync_identity VALUES (1, ?, ?, ?, ?, 1, ?, 4)',
+          [
+            snapshot.summary.workspaceId,
+            deviceId,
+            snapshot.changes.length,
+            proof,
+            deviceId,
+          ],
+        );
         for (final table in ['servers', 'documents', 'changes']) {
           for (final row in records[table]!) {
             store._db.execute(
@@ -296,6 +335,13 @@ Future<void> _restoreBackup(
         }
         for (final id in snapshot.outbox) {
           store._db.execute('INSERT INTO sync_outbox VALUES (?)', [id]);
+        }
+        for (final dynamic record
+            in snapshot.data['syncPackets'] as List? ?? []) {
+          store._db.execute('INSERT INTO sync_packets VALUES (?,?)', [
+            record['changeId'],
+            base64Decode(record['packet'] as String),
+          ]);
         }
         // Do not reimport an obsolete local vault after restoring another copy.
         store._db.execute(
@@ -321,7 +367,7 @@ Future<void> _restoreBackup(
           "INSERT INTO settings VALUES ('backupRestoredTargets',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
           [jsonEncode(restoredTargets.toList()..sort())],
         );
-        store._db.userVersion = 3;
+        store._db.userVersion = 4;
       });
       store._restored = true;
       store.needsLegacyPassword = false;
@@ -343,7 +389,53 @@ Future<void> _restoreBackup(
 // Keep this closure outside database methods: a shared closure context must
 // never capture the unsendable native SQLite handle.
 Future<_BackupSnapshot> _validateBackupInBackground(String source) =>
-    Isolate.run(() => _validateBackup(source));
+    Isolate.run(() async {
+      final snapshot = _validateBackup(source);
+      await _validateBackupPackets(snapshot);
+      return snapshot;
+    });
+
+Future<void> _validateBackupPackets(_BackupSnapshot snapshot) async {
+  if (snapshot.data['version'] == 1) return;
+  _SyncKey? key;
+  try {
+    key = _decodeSyncKey(snapshot.data['syncKey']);
+    final codec = SyncPacketCodec(
+      workspaceId: snapshot.summary.workspaceId,
+      keyVersion: key.version,
+      key: key.secret,
+    );
+    final events = {
+      for (final dynamic record in snapshot.changes)
+        (record['header'] as Map)['changeId']: record,
+    };
+    final ids = <String>{};
+    for (final dynamic record in snapshot.data['syncPackets'] as List) {
+      final value = record as Map;
+      final id = value['changeId'] as String;
+      final event = events[id];
+      if (value.length != 2 || !ids.add(id) || event == null) {
+        throw const FormatException();
+      }
+      final encoded = value['packet'] as String;
+      if (encoded.length > (syncMaxPacketBytes + 2) ~/ 3 * 4) {
+        throw const FormatException();
+      }
+      final bytes = base64Decode(encoded);
+      if (base64Encode(bytes) != encoded) throw const FormatException();
+      final change = await codec.open(bytes);
+      if (canonicalJson(change.header.toJson()) !=
+              canonicalJson(event['header']) ||
+          change.source != event['source']) {
+        throw const FormatException();
+      }
+    }
+  } catch (_) {
+    throw const BackupFailure(BackupIssue.invalid);
+  } finally {
+    key?.dispose();
+  }
+}
 
 Object? _backupJson(String source) {
   var depth = 0, quoted = false, escaped = false;
@@ -373,8 +465,12 @@ _BackupSnapshot _validateBackup(String source) {
       throw const BackupFailure(BackupIssue.tooLarge);
     }
     final data = _backupJson(source) as Map<String, dynamic>;
-    if (data['version'] != 1) throw const BackupFailure(BackupIssue.version);
-    if (data.length != 7) throw const FormatException();
+    if (data['version'] != 1 && data['version'] != 2) {
+      throw const BackupFailure(BackupIssue.version);
+    }
+    if (data.length != (data['version'] == 1 ? 7 : 9)) {
+      throw const FormatException();
+    }
     final workspaceId = data['workspaceId'] as String;
     if (!RegExp(r'^[a-f0-9]{32}$').hasMatch(workspaceId)) {
       throw const FormatException();
