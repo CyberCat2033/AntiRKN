@@ -272,7 +272,7 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
                   value: enabled,
                   onChanged: (v) => setState(() => enabled = v),
                 ),
-                ExpansionTile(
+                AppExpansionTile(
                   title: Text(l.observedTransportJson),
                   onExpansionChanged: (open) {
                     if (open && !streamInvalid) {
@@ -302,7 +302,7 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
                   ],
                 ),
                 Text(l.observedClientsKept),
-                ExpansionTile(
+                AppExpansionTile(
                   key: const ValueKey('observed-details'),
                   title: Text(l.observedFullConfig),
                   children: [
@@ -319,7 +319,7 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
                 Text(l.observedEditPlan),
                 Text('${plan!['name']} · #${plan!['inboundId']}'),
                 Text(l.observedClientsKept),
-                ExpansionTile(
+                AppExpansionTile(
                   title: Text(l.componentsDetails),
                   children: [
                     SelectableText(

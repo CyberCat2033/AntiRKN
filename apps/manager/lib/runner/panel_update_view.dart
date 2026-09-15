@@ -1,3 +1,4 @@
+import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import 'runner_controller.dart';
@@ -22,7 +23,7 @@ class PanelUpdateView extends StatelessWidget {
           if (p.canApply) ...[
             Text(l.panelUpdateSummary),
             Text(l.panelUpdateCoreCompatibility),
-            ExpansionTile(
+            AppExpansionTile(
               key: PageStorageKey('panel-update-details-${c.serverId}'),
               title: Text(l.componentsDetails),
               children: [

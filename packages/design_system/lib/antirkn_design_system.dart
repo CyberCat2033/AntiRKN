@@ -206,7 +206,7 @@ class ResourceTile extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        ExpansionTile(
+        AppExpansionTile(
           key: PageStorageKey('resource-details-$storageId'),
           maintainState: true,
           shape: const Border(),
@@ -235,6 +235,70 @@ class ResourceTile extends StatelessWidget {
   );
 }
 
+/// Expansion state and descendant scroll positions must use different buckets.
+/// TextField and SelectableText contain scrollables even without an explicit
+/// controller. Otherwise they can read the tile's bool as a double after login,
+/// lazy construction or reopening a section.
+class AppExpansionTile extends StatefulWidget {
+  const AppExpansionTile({
+    required this.title,
+    this.children = const [],
+    this.subtitle,
+    this.leading,
+    this.maintainState = false,
+    this.childrenPadding,
+    this.tilePadding,
+    this.expandedCrossAxisAlignment,
+    this.shape,
+    this.collapsedShape,
+    this.onExpansionChanged,
+    this.expansionAnimationStyle,
+    super.key,
+  });
+  final Widget title;
+  final List<Widget> children;
+  final Widget? subtitle, leading;
+  final bool maintainState;
+  final EdgeInsetsGeometry? childrenPadding, tilePadding;
+  final CrossAxisAlignment? expandedCrossAxisAlignment;
+  final ShapeBorder? shape, collapsedShape;
+  final ValueChanged<bool>? onExpansionChanged;
+  final AnimationStyle? expansionAnimationStyle;
+
+  @override
+  State<AppExpansionTile> createState() => _AppExpansionTileState();
+}
+
+class _AppExpansionTileState extends State<AppExpansionTile> {
+  final _contents = PageStorageBucket();
+
+  @override
+  Widget build(BuildContext context) => ExpansionTile(
+    title: widget.title,
+    subtitle: widget.subtitle,
+    leading: widget.leading,
+    maintainState: widget.maintainState,
+    tilePadding: widget.tilePadding,
+    childrenPadding: widget.childrenPadding,
+    expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+    shape: widget.shape,
+    collapsedShape: widget.collapsedShape,
+    onExpansionChanged: widget.onExpansionChanged,
+    expansionAnimationStyle: widget.expansionAnimationStyle,
+    children: [
+      PageStorage(
+        bucket: _contents,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment:
+              widget.expandedCrossAxisAlignment ?? CrossAxisAlignment.center,
+          children: widget.children,
+        ),
+      ),
+    ],
+  );
+}
+
 /// Keeps settings and their draft state mounted while showing a short summary.
 class SettingsGroup extends StatelessWidget {
   const SettingsGroup({
@@ -250,7 +314,7 @@ class SettingsGroup extends StatelessWidget {
   final bool attention;
 
   @override
-  Widget build(BuildContext context) => ExpansionTile(
+  Widget build(BuildContext context) => AppExpansionTile(
     maintainState: true,
     title: Text(title),
     subtitle: subtitle == null ? null : Text(subtitle!),

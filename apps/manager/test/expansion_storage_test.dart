@@ -6,6 +6,66 @@ import 'package:flutter_test/flutter_test.dart';
 import 'vpn_controller_test.dart' as f;
 
 void main() {
+  testWidgets(
+    'expanded content can appear late and reopen with editable text',
+    (tester) async {
+      final bucket = PageStorageBucket();
+      final input = TextEditingController(text: 'draft');
+      addTearDown(input.dispose);
+      var visible = true, loaded = false;
+      late StateSetter rebuild;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) {
+                rebuild = setState;
+                return PageStorage(
+                  bucket: bucket,
+                  child: visible
+                      ? ListView(
+                          key: const PageStorageKey('settings'),
+                          children: [
+                            AppExpansionTile(
+                              key: const PageStorageKey('account'),
+                              title: const Text('Account'),
+                              children: [
+                                if (loaded) ...[
+                                  const SelectableText('fixture@example.com'),
+                                  TextField(controller: input),
+                                ],
+                              ],
+                            ),
+                          ],
+                        )
+                      : const SizedBox.shrink(),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Account'));
+      await tester.pumpAndSettle();
+      rebuild(() => loaded = true);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.enterText(find.byType(TextField), 'edited draft');
+      await tester.tap(find.text('Account'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Account'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      rebuild(() => visible = false);
+      await tester.pumpAndSettle();
+      rebuild(() => visible = true);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('fixture@example.com').hitTestable(), findsOneWidget);
+      expect(find.text('edited draft'), findsOneWidget);
+    },
+  );
+
   testWidgets('scroll offset and late snapshot expansion have separate state', (
     tester,
   ) async {

@@ -164,6 +164,31 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'signing in inside an expanded Drive group keeps account visible',
+    (tester) async {
+      final languages = LanguageController(Languages());
+      await languages.load();
+      addTearDown(languages.dispose);
+      await tester.pumpWidget(
+        AntiRknApp(
+          source: '',
+          languages: languages,
+          googleAccount: AccountService(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Настройки').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Google Drive').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('google-sign-in')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('fixture@example.com').hitTestable(), findsOneWidget);
+    },
+  );
+
   for (final locale in ['ru', 'en']) {
     testWidgets(
       '$locale desktop cancellation and platform-specific errors at text x2',

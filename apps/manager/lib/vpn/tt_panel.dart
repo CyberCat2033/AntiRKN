@@ -352,7 +352,7 @@ class TtSettingsEditor extends StatelessWidget {
                 }
               : null,
         ),
-        ExpansionTile(
+        AppExpansionTile(
           key: ValueKey('tt-options-$external'),
           title: Text(l.awgAdvanced),
           children: [

@@ -1,3 +1,4 @@
+import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'dart:convert';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
@@ -155,12 +156,12 @@ class _PublicationBindingDialogState extends State<PublicationBindingDialog> {
                         ? l.publicationLinkHelp
                         : l.publicationPrivateHelp,
                   ),
-                  ExpansionTile(
+                  AppExpansionTile(
                     key: const PageStorageKey('binding-old-preview'),
                     title: Text(l.publicationOldContent),
                     children: [SelectableText(excerpt(value.content))],
                   ),
-                  ExpansionTile(
+                  AppExpansionTile(
                     key: const PageStorageKey('binding-new-preview'),
                     title: Text(l.publicationNewContent),
                     children: [

@@ -99,12 +99,12 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                     '${vpnMessage(l, d.code)}${d.subject == null ? '' : ' (${d.subject})'}',
                   ),
               if (usable)
-                ExpansionTile(
+                AppExpansionTile(
                   title: Text(l.uiPreviewYaml),
                   children: [SelectableText(result!.yaml!)],
                 ),
               if (result != null)
-                ExpansionTile(
+                AppExpansionTile(
                   title: Text(l.uiProfileDetails),
                   children: [
                     Text(l.vpnProfileValidation),

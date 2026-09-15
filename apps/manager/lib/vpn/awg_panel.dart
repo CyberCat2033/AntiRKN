@@ -205,7 +205,7 @@ class _AwgFormState extends State<AwgForm> {
               field('endpoint', l.awgEndpoint),
               field('port', l.awgPort, number: true),
               Text(l.awgEndpointHelp),
-              ExpansionTile(
+              AppExpansionTile(
                 key: const ValueKey<String>('awg-advanced'),
                 title: Text(l.awgAdvanced),
                 children: [

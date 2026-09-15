@@ -263,7 +263,7 @@ class AptMaintenanceView extends StatelessWidget {
                   : l.aptPackageCount(packages.length),
             ),
             if (packages.isNotEmpty)
-              ExpansionTile(
+              AppExpansionTile(
                 key: const PageStorageKey('software-package-updates'),
                 title: Text(l.componentsDetails),
                 children: [

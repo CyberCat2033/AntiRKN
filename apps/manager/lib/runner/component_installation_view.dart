@@ -39,7 +39,7 @@ class ComponentInstallationView extends StatelessWidget {
             Text(l.protocolConfigurationSeparate),
             if (plan.activeUnits.isNotEmpty)
               Text(l.protocolRestart(plan.activeUnits.join(', '))),
-            ExpansionTile(
+            AppExpansionTile(
               key: PageStorageKey(
                 'component-plan-${c.serverId}-${plan.component}',
               ),

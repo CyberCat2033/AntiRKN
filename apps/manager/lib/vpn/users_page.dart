@@ -299,7 +299,7 @@ class _UsersPageState extends State<UsersPage> {
                 ),
               ),
             for (final user in c.pendingDeletions)
-              ExpansionTile(
+              AppExpansionTile(
                 key: PageStorageKey('client-deletion-${user.id}'),
                 leading: const Icon(Icons.person_remove_outlined),
                 title: Text(user.name),
@@ -338,7 +338,7 @@ class _UsersPageState extends State<UsersPage> {
                 ],
               ),
             for (final id in c.workspace.serverIds.where(_needsAttention))
-              ExpansionTile(
+              AppExpansionTile(
                 key: PageStorageKey('vpn-operation-$id'),
                 leading: const Icon(Icons.pending_actions),
                 title: Text(serverName(vpnServerId(id))),

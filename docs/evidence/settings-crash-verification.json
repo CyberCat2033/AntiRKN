@@ -1,0 +1,28 @@
+{
+  "date": "2026-09-15",
+  "verify": "PASS",
+  "tests": 561,
+  "groups": [
+    23,
+    32,
+    117,
+    36,
+    24,
+    24,
+    213,
+    87,
+    5
+  ],
+  "analyze": "PASS",
+  "localization": "758 RU/EN",
+  "regression_before": "FAIL: bool is not a subtype of double?",
+  "regression_after": "PASS",
+  "unverified": [
+    "secondary assertion from screenshot",
+    "real Google account",
+    "physical Android",
+    "Windows",
+    "manual GUI runtime"
+  ],
+  "builds": "Deferred to the already authorized UI stage; no APK installed"
+}

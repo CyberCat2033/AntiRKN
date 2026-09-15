@@ -178,7 +178,7 @@ class _ServerDetailViewState extends State<ServerDetailView>
                       showDelete: false,
                       showConnectionActions: false,
                     ),
-                    ExpansionTile(
+                    AppExpansionTile(
                       key: PageStorageKey('server-details-${c.serverId}'),
                       title: Text(l.serverDetails),
                       children: [

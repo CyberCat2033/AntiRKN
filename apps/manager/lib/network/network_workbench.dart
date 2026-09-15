@@ -107,7 +107,7 @@ class _NetworkWorkbenchState extends State<NetworkWorkbench> {
             ],
           ],
           if (ssh != null)
-            ExpansionTile(
+            AppExpansionTile(
               key: PageStorageKey('server-details-${ssh!.serverId}'),
               title: Text(l.serverDetails),
               children: [

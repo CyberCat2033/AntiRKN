@@ -38,7 +38,7 @@ class ServerInventoryPanel extends StatelessWidget {
           ),
           if (!current) Text(l.inventoryStale),
           for (final component in inventory.components)
-            ExpansionTile(
+            AppExpansionTile(
               expansionAnimationStyle: animation,
               key: PageStorageKey('component-${component.component.name}'),
               tilePadding: EdgeInsets.zero,
@@ -107,7 +107,7 @@ class ServerInventoryPanel extends StatelessWidget {
             ),
           const SizedBox(height: AppLayout.smallGap),
           Text(l.inventoryPrivilegesHint),
-          ExpansionTile(
+          AppExpansionTile(
             expansionAnimationStyle: animation,
             key: const PageStorageKey('inventory-ports'),
             tilePadding: EdgeInsets.zero,

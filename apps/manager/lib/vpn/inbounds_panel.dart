@@ -409,7 +409,7 @@ class _InboundFormState extends State<InboundForm> {
                 ),
               field('listen', l.vpnListen),
               field('port', l.vpnPort, number: true),
-              ExpansionTile(
+              AppExpansionTile(
                 key: const ValueKey('inbound-connection-address'),
                 title: Text(l.vpnConnectionAddress),
                 children: [

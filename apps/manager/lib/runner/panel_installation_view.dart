@@ -69,7 +69,7 @@ class _PanelInstallationViewState extends State<PanelInstallationView> {
           if (plan.canApply) ...[
             Text(l.componentsPlanSummary),
             Text(l.panelAutomaticAddress),
-            ExpansionTile(
+            AppExpansionTile(
               key: PageStorageKey('panel-plan-details-${c.serverId}'),
               expansionAnimationStyle: AnimationStyle(
                 duration: duration,

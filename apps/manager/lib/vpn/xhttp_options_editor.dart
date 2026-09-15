@@ -139,7 +139,7 @@ class _XhttpOptionsEditorState extends State<XhttpOptionsEditor> {
     );
     return Column(
       children: [
-        ExpansionTile(
+        AppExpansionTile(
           expansionAnimationStyle: animation,
           key: const ValueKey('xhttp-xmux'),
           title: const Text('XMUX'),
@@ -155,7 +155,7 @@ class _XhttpOptionsEditorState extends State<XhttpOptionsEditor> {
               ),
           ],
         ),
-        ExpansionTile(
+        AppExpansionTile(
           expansionAnimationStyle: animation,
           key: const ValueKey('xhttp-extra'),
           title: Text(l.xhttpAdvanced),
