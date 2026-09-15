@@ -290,10 +290,15 @@ void main() {
       await (await db.openServer(a)).saveProfile(profile('a.example'));
       await (await db.openServer(b)).saveProfile(profile('b.example'));
       final raw = sqlite3.open(path);
+      // Deliberate tampering bypasses the guard against old application writers.
+      raw.execute('BEGIN IMMEDIATE');
+      raw.execute('UPDATE sync_identity SET write_guard=1');
       raw.execute(
         'UPDATE servers SET payload = (SELECT payload FROM servers WHERE id = ?) WHERE id = ?',
         [a, b],
       );
+      raw.execute('UPDATE sync_identity SET write_guard=0');
+      raw.execute('COMMIT');
       raw.dispose();
       await expectLater(db.listServers(), throwsA(isA<VaultFailure>()));
       expect((await db.openServer(a)).profile!.host, 'a.example');

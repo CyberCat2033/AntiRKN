@@ -23,7 +23,7 @@ void main() {
       final initial = await first.readVpn();
       expect(initial.revision, 0);
       final workspace = VpnWorkspace(
-        id: 'a' * 32,
+        id: initial.workspaceId!,
         users: [
           VpnUser(
             id: 'b' * 32,
@@ -74,9 +74,13 @@ void main() {
         expect(raw, isNot(contains(secret)));
       }
       final db = sqlite3.open(path);
+      db.execute('BEGIN IMMEDIATE');
+      db.execute('UPDATE sync_identity SET write_guard=1');
       db.execute(
         "UPDATE documents SET payload=zeroblob(length(payload)) WHERE id='vpn-workspace-v1'",
       );
+      db.execute('UPDATE sync_identity SET write_guard=0');
+      db.execute('COMMIT');
       db.dispose();
       final corrupt = open();
       addTearDown(corrupt.close);

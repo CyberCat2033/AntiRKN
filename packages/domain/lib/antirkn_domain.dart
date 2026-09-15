@@ -1,3 +1,5 @@
+export 'src/canonical_json.dart';
+export 'src/change_journal.dart';
 export 'src/tt.dart';
 export 'src/awg.dart';
 export 'src/runner.dart';

@@ -127,7 +127,7 @@ class VpnController extends ChangeNotifier {
     token.check();
     revision = saved.revision;
     workspace = saved.source == null
-        ? VpnWorkspace.empty()
+        ? VpnWorkspace(id: saved.workspaceId ?? newVpnId())
         : VpnWorkspace.decode(saved.source!);
     if (saved.source == null) await _write(workspace);
     loaded = true;

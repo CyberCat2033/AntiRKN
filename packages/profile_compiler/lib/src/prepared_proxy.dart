@@ -1,6 +1,7 @@
-import 'dart:convert';
-
 import 'package:antirkn_domain/antirkn_domain.dart';
+
+export 'package:antirkn_domain/antirkn_domain.dart'
+    show canonicalJson, canonicalValue;
 
 /// Ephemeral adapter output after credentials have been resolved from a vault.
 /// Never store these fields in logs or an unencrypted database.
@@ -82,15 +83,3 @@ Object? _freeze(Object? value) => switch (value) {
   null || String() || bool() || int() || double() => value,
   _ => throw const FormatException('non_serializable_proxy'),
 };
-
-/// A canonical ordering for nested mappings; list order remains semantic.
-Object? canonicalValue(Object? value) {
-  if (value is Map<String, Object?>) {
-    final keys = value.keys.toList()..sort();
-    return {for (final key in keys) key: canonicalValue(value[key])};
-  }
-  if (value is List) return value.map(canonicalValue).toList();
-  return value;
-}
-
-String canonicalJson(Object? value) => jsonEncode(canonicalValue(value));

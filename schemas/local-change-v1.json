@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "description": "Local journal header, authenticated as AEAD additional data. No network envelope or replay executor in v1.",
+  "entityKinds": ["workspace", "server", "template", "vpnWorkspace", "vpnUser", "vlessInbound", "awgInterface", "ttEndpoint", "vpnServerState", "profile", "runnerState", "document"],
+  "fields": {
+    "workspaceId": "id",
+    "deviceId": "id",
+    "changeId": "id",
+    "sequence": "positive",
+    "transactionId": "id",
+    "transactionIndex": "nonnegative",
+    "transactionSize": "positive",
+    "entityKind": "kind",
+    "entityId": "entityId",
+    "baseChangeId": "nullableId",
+    "baseRevision": "nonnegative",
+    "revision": "positive",
+    "deleted": "boolean"
+  }
+}

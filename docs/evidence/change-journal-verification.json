@@ -1,0 +1,75 @@
+{
+  "stage": "P1-02",
+  "date": "2026-09-15",
+  "sqlite_schema": 2,
+  "local_change_schema": 1,
+  "tests": {
+    "storage": {
+      "result": "PASS",
+      "tests": 37,
+      "log_sha256": "386dc2c4951f16b6baaa2cc1180d12ba7869393358fe3ee09d409fe97193c6e0"
+    },
+    "app": {
+      "result": "PASS",
+      "tests": 16,
+      "log_sha256": "7d72b2b2fef2abd787e236269c3f0b258ec4dddffed3ec905646aeda5d288ce0"
+    },
+    "compiler": {
+      "result": "PASS",
+      "tests": 23,
+      "log_sha256": "732e27a9c6883264c2cfd403e4b8dffef700e6bb67c778dec9f1024eddbb0135"
+    }
+  },
+  "total_tests": 76,
+  "checks": {
+    "analyze": "PASS",
+    "format": "PASS: 154 files, unchanged",
+    "architecture": "PASS: 593 RU/EN, base.yml unchanged",
+    "generators": [
+      "local changes: PASS",
+      "VLESS/AWG/TT: PASS",
+      "runner: PASS"
+    ],
+    "dependency_lock": "PASS: flutter pub get --enforce-lockfile"
+  },
+  "scenarios": [
+    "SQLite v1 migration with VPN document versions 1/2/3 preserves original ciphertext, IDs, credentials and source revisions",
+    "stable workspace/device identity and controller integration using real SQLite",
+    "atomic data + history + heads + outbox rollback on mid-batch write error",
+    "interrupted DDL migration rollback and retry without duplicate baseline events",
+    "concurrent initialization and writers, stable sequence and optimistic conflicts",
+    "physical and soft tombstones; stale writers cannot resurrect a removed server",
+    "exact-ID acknowledgement, atomic rejection of unknown receipts, restart and paging",
+    "local AEAD storage, no plaintext fixture secrets in DB/WAL, wrong key rejected, swapped payload rejected",
+    "abrupt child-process exit without database.close: committed WAL and queue recover with identical event IDs",
+    "already-open v1 connection blocked from writing outside journal transaction"
+  ],
+  "builds": {
+    "linux": {
+      "result": "PASS",
+      "mode": "debug",
+      "architecture": "x64",
+      "path": "apps/manager/build/linux/x64/debug/bundle/antirkn_manager",
+      "bytes": 53696,
+      "sha256": "9fffcfee576434e574553b9b3cc8214dffa856e18bc973d1a78545ecfddd3d13"
+    },
+    "android": {
+      "result": "PASS",
+      "mode": "debug",
+      "architecture": "arm64",
+      "path": "apps/manager/build/app/outputs/flutter-apk/app-debug.apk",
+      "bytes": 117989790,
+      "sha256": "c65f3214305b99306a0dc0e21a7836eab67cfc1bef41559434afe9f893f526ea"
+    }
+  },
+  "not_tested": [
+    "Windows build/runtime",
+    "Android functional runtime and full GUI acceptance",
+    "physical power loss or disk-full",
+    "load at target workspace size",
+    "Google Drive / E2EE transport / incoming merge / publication coordination (not implemented)"
+  ],
+  "adb_used": false,
+  "push_performed": false,
+  "shutdown_performed": false
+}

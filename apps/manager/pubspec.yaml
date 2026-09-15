@@ -25,6 +25,7 @@ dependencies:
   antirkn_profile_compiler:
     path: ../../packages/profile_compiler
 dev_dependencies:
+  cryptography: 2.9.0
   flutter_test:
     sdk: flutter
 flutter:

@@ -280,9 +280,10 @@ final class VpnWorkspace {
 }
 
 final class VpnStoredDocument {
-  const VpnStoredDocument(this.source, this.revision);
+  const VpnStoredDocument(this.source, this.revision, {this.workspaceId});
   final String? source;
   final int revision;
+  final String? workspaceId;
 }
 
 abstract interface class VpnRepository {

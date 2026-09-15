@@ -13,6 +13,8 @@ import 'package:sqlite3/sqlite3.dart';
 import 'profile_codec.dart';
 import 'secret_vault.dart';
 
+part 'workspace_journal.dart';
+
 Future<WorkspaceDatabase> openLocalWorkspace() async {
   final support = await getApplicationSupportDirectory();
   final directory = Directory('${support.path}/workspace');
@@ -105,6 +107,7 @@ final class WorkspaceDatabase
         ServerRepository,
         RunnerJournalStore,
         VpnRepository,
+        ChangeJournalStore,
         SettingsStore,
         TemplateDraftStore,
         LanguagePreferenceStore {
@@ -121,7 +124,7 @@ final class WorkspaceDatabase
       db.execute('PRAGMA journal_mode = WAL');
       db.execute('PRAGMA synchronous = FULL');
       final version = db.userVersion;
-      if (version > 1) throw const VaultFailure(VaultIssue.corrupt);
+      if (version > 2) throw const VaultFailure(VaultIssue.corrupt);
       if (version == 0) {
         db.execute('BEGIN IMMEDIATE');
         try {
@@ -153,14 +156,20 @@ final class WorkspaceDatabase
   final SecretKeyData _key;
   final SecretVault? _legacy;
   static final _cipher = AesGcm.with256bits();
+  late final _LocalChangeJournal _journal = _LocalChangeJournal(
+    _db,
+    _encrypt,
+    _decrypt,
+  );
   Future<void> _pending = Future.value();
   bool _closed = false;
   @override
   bool needsLegacyPassword = false;
 
   Future<T> _serial<T>(FutureOr<T> Function() action) {
-    final next = _pending.then((_) {
+    final next = _pending.then((_) async {
       if (_closed) throw const VaultFailure(VaultIssue.unavailable);
+      await _journal.initialize();
       return action();
     });
     _pending = next.then<void>((_) {}, onError: (Object _, StackTrace _) {});
@@ -170,7 +179,9 @@ final class WorkspaceDatabase
   T _transaction<T>(T Function() body) {
     _db.execute('BEGIN IMMEDIATE');
     try {
+      _db.execute('UPDATE sync_identity SET write_guard=1 WHERE singleton=1');
       final result = body();
+      _db.execute('UPDATE sync_identity SET write_guard=0 WHERE singleton=1');
       _db.execute('COMMIT');
       return result;
     } catch (_) {
@@ -257,14 +268,39 @@ final class WorkspaceDatabase
     if (profile != null && !profile.valid) {
       throw const VaultFailure(VaultIssue.corrupt);
     }
-    final revision = expected + 1;
-    final payload = profile == null
+    final previous = _db.select('SELECT * FROM servers WHERE id=?', [id]);
+    if (profile == null && previous.isEmpty) return null;
+    if ((previous.firstOrNull?['revision'] ?? 0) != expected ||
+        _journal.serverWasDeleted(id)) {
+      throw const VaultFailure(VaultIssue.busy);
+    }
+    final oldSource = previous.isEmpty
         ? null
-        : await _encrypt(
+        : await _decrypt(
             'server:$id',
-            revision,
-            jsonEncode({...encodeProfile(profile), 'id': id}),
+            expected,
+            previous.single['payload'] as Uint8List,
           );
+    final source = profile == null
+        ? null
+        : jsonEncode({...encodeProfile(profile), 'id': id});
+    if (oldSource != null &&
+        source != null &&
+        canonicalJson(jsonDecode(oldSource)) ==
+            canonicalJson(jsonDecode(source))) {
+      return _transaction(() {
+        _checkRevision('servers', id, expected);
+        return SavedServer(id, profile!, expected);
+      });
+    }
+    final revision = expected + 1;
+    final payload = source == null
+        ? null
+        : await _encrypt('server:$id', revision, source);
+    final changes = await _journal.prepare(
+      _serverEntities(id, oldSource),
+      _serverEntities(id, source),
+    );
     return _transaction(() {
       final rows = _db.select('SELECT revision FROM servers WHERE id = ?', [
         id,
@@ -273,12 +309,14 @@ final class WorkspaceDatabase
       if (current != expected) throw const VaultFailure(VaultIssue.busy);
       if (profile == null) {
         _db.execute('DELETE FROM servers WHERE id = ?', [id]);
+        _journal.commit(changes);
         return null;
       }
       _db.execute(
         'INSERT INTO servers VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload, revision=excluded.revision, updated_at=excluded.updated_at',
         [id, payload, revision, DateTime.now().millisecondsSinceEpoch],
       );
+      _journal.commit(changes);
       return SavedServer(id, profile, revision);
     });
   });
@@ -313,7 +351,13 @@ final class WorkspaceDatabase
     final rows = _db.select('SELECT * FROM documents WHERE id=?', [
       'vpn-workspace-v1',
     ]);
-    if (rows.isEmpty) return const VpnStoredDocument(null, 0);
+    if (rows.isEmpty) {
+      return VpnStoredDocument(
+        null,
+        0,
+        workspaceId: _journal.identity.workspaceId,
+      );
+    }
     final row = rows.single;
     return VpnStoredDocument(
       await _decrypt(
@@ -322,6 +366,7 @@ final class WorkspaceDatabase
         row['payload'] as Uint8List,
       ),
       row['revision'] as int,
+      workspaceId: _journal.identity.workspaceId,
     );
   });
   @override
@@ -332,10 +377,33 @@ final class WorkspaceDatabase
     if (utf8.encode(source).length > 8 * 1024 * 1024) {
       throw const VaultFailure(VaultIssue.writeFailed);
     }
-    VpnWorkspace.decode(source);
+    if (VpnWorkspace.decode(source).id != _journal.identity.workspaceId) {
+      throw const VaultFailure(VaultIssue.corrupt);
+    }
     const id = 'vpn-workspace-v1';
+    final previous = _db.select('SELECT * FROM documents WHERE id=?', [id]);
+    if ((previous.firstOrNull?['revision'] ?? 0) != expectedRevision) {
+      throw const VaultFailure(VaultIssue.busy);
+    }
+    final oldSource = previous.isEmpty
+        ? null
+        : await _decrypt(
+            id,
+            expectedRevision,
+            previous.single['payload'] as Uint8List,
+          );
+    if (oldSource == source) {
+      return _transaction(() {
+        _checkRevision('documents', id, expectedRevision);
+        return expectedRevision;
+      });
+    }
     final revision = expectedRevision + 1;
     final payload = await _encrypt(id, revision, source);
+    final changes = await _journal.prepare(
+      _documentEntities(id, oldSource),
+      _documentEntities(id, source),
+    );
     return _transaction(() {
       final current = _db.select('SELECT revision FROM documents WHERE id=?', [
         id,
@@ -348,6 +416,7 @@ final class WorkspaceDatabase
         'INSERT INTO documents VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload, revision=excluded.revision',
         [id, payload, revision],
       );
+      _journal.commit(changes);
       return revision;
     });
   });
@@ -374,10 +443,21 @@ final class WorkspaceDatabase
     if (utf8.encode(source).length > 256 * 1024) {
       throw const VaultFailure(VaultIssue.writeFailed);
     }
-    final rows = _db.select('SELECT revision FROM documents WHERE id=?', [id]);
+    final rows = _db.select('SELECT * FROM documents WHERE id=?', [id]);
     final expected = rows.isEmpty ? 0 : rows.single['revision'] as int;
+    final oldSource = rows.isEmpty
+        ? null
+        : await _decrypt(id, expected, rows.single['payload'] as Uint8List);
+    if (oldSource == source) {
+      _transaction(() => _checkRevision('documents', id, expected));
+      return;
+    }
     final revision = expected + 1;
     final payload = await _encrypt(id, revision, source);
+    final changes = await _journal.prepare(
+      _documentEntities(id, oldSource),
+      _documentEntities(id, source),
+    );
     _transaction(() {
       final current = _db.select('SELECT revision FROM documents WHERE id=?', [
         id,
@@ -389,8 +469,16 @@ final class WorkspaceDatabase
         'INSERT INTO documents VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload, revision=excluded.revision',
         [id, payload, revision],
       );
+      _journal.commit(changes);
     });
   });
+
+  void _checkRevision(String table, String id, int expected) {
+    final current = _db.select('SELECT revision FROM $table WHERE id=?', [id]);
+    if ((current.firstOrNull?['revision'] ?? 0) != expected) {
+      throw const VaultFailure(VaultIssue.busy);
+    }
+  }
 
   Future<void> inspectLegacy() async {
     if (_db
@@ -437,6 +525,15 @@ final class WorkspaceDatabase
               1,
               jsonEncode({...encodeProfile(profile), 'id': id}),
             );
+      final changes = await _journal.prepare(
+        {},
+        _serverEntities(
+          id,
+          profile == null
+              ? null
+              : jsonEncode({...encodeProfile(profile), 'id': id}),
+        ),
+      );
       _transaction(() {
         if (_db
             .select("SELECT id FROM migrations WHERE id = 'legacy-vault-v1'")
@@ -451,12 +548,47 @@ final class WorkspaceDatabase
           ]);
         }
         _db.execute("INSERT INTO migrations VALUES ('legacy-vault-v1')");
+        _journal.commit(changes);
       });
       needsLegacyPassword = false;
     } finally {
       legacy?.lock();
     }
   });
+
+  @override
+  Future<WorkspaceIdentity> readWorkspaceIdentity() =>
+      _serial(() => _journal.identity);
+
+  @override
+  Future<List<LocalChange>> readChanges({
+    int afterSequence = 0,
+    int limit = 100,
+  }) => _serial(
+    () => _journal.read(
+      pending: false,
+      afterSequence: afterSequence,
+      limit: limit,
+    ),
+  );
+
+  @override
+  Future<List<LocalChange>> readPendingChanges({
+    int afterSequence = 0,
+    int limit = 100,
+  }) => _serial(
+    () => _journal.read(
+      pending: true,
+      afterSequence: afterSequence,
+      limit: limit,
+    ),
+  );
+
+  @override
+  Future<void> acknowledgeChanges(List<String> changeIds) {
+    final ids = List<String>.of(changeIds);
+    return _serial(() => _transaction(() => _journal.acknowledge(ids)));
+  }
 
   Future<void> close() async {
     await _pending;

@@ -3,6 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 flutter pub get --enforce-lockfile
 python3 tool/check_workspace.py
+python3 tool/generate_changes.py --check
 python3 tool/generate_vless.py --check
 python3 tool/generate_runner.py --check
 python3 -m unittest discover -s tests/runner -v
