@@ -23,7 +23,18 @@ class Keys implements VaultKeyStore {
   }
 }
 
-class Bridge implements GoogleAuthorizationBridge {
+class Bridge
+    implements GoogleAuthorizationBridge, PublicationGoogleAuthorizationBridge {
+  int publications = 0;
+  @override
+  Future<String?> authorizePublications({
+    required bool interactive,
+    String? email,
+  }) async {
+    publications++;
+    return authorize(interactive: interactive, email: email);
+  }
+
   String? token = 'PRIVATE-ANDROID-TOKEN-FIXTURE';
   final calls = <bool>[];
   String? email;
@@ -159,6 +170,46 @@ void main() {
       expect(await service().restore(), isNull);
     },
   );
+  test(
+    'publication consent survives restore; silent renewal requests both scopes',
+    () async {
+      final first = service();
+      await first.signIn();
+      final binding = first.accountKey;
+      expect(first.publicationAuthorized, isFalse);
+      await first.authorizePublications();
+      expect(first.publicationAuthorized, isTrue);
+      expect(first.accountKey, binding);
+      final restored = service();
+      await restored.restore();
+      expect(restored.publicationAuthorized, isTrue);
+      await restored.accessToken();
+      expect(bridge.publications, 2);
+      expect(bridge.calls.last, isFalse);
+      await restored.signOut();
+      expect(restored.publicationAuthorized, isFalse);
+    },
+  );
+  test('publication method channel explicitly requests extra scope', () async {
+    const channel = MethodChannel('org.antirkn/google_authorization');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.arguments, {
+        'interactive': true,
+        'email': null,
+        'publications': true,
+      });
+      return 'fixture';
+    });
+    expect(
+      await const MethodChannelGoogleAuthorization().authorizePublications(
+        interactive: true,
+      ),
+      'fixture',
+    );
+  });
   test('unconfigured build fails before native authorization', () async {
     await expectLater(
       service(project: '').signIn(),

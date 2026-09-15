@@ -5,9 +5,17 @@ import '../l10n/app_localizations.dart';
 import 'auto_sync_controller.dart';
 
 class GoogleAccountPanel extends StatefulWidget {
-  const GoogleAccountPanel({required this.service, this.sync, super.key});
+  const GoogleAccountPanel({
+    required this.service,
+    this.sync,
+    this.beforeAccountChange,
+    this.afterAccountChange,
+    super.key,
+  });
   final GoogleAccountService service;
   final AutoSyncController? sync;
+  final Future<void> Function()? beforeAccountChange;
+  final void Function()? afterAccountChange;
   @override
   State<GoogleAccountPanel> createState() => _GoogleAccountPanelState();
 }
@@ -50,6 +58,7 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
       _error = null;
     });
     try {
+      await widget.beforeAccountChange?.call();
       await widget.sync?.suspendAccount();
       if (signIn) {
         final account = await widget.service.signIn();
@@ -64,6 +73,7 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
       _error = GoogleAccountIssue.unavailable;
     } finally {
       await widget.sync?.accountChanged(_account);
+      widget.afterAccountChange?.call();
       if (mounted) {
         setState(() {
           _busy = false;
@@ -74,7 +84,14 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
   }
 
   void _syncChanged() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {
+        if (!_busy && widget.sync != null) {
+          _account = widget.sync!.account;
+          _error = widget.sync!.accountError;
+        }
+      });
+    }
   }
 
   @override

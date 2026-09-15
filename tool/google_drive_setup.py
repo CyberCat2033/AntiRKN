@@ -85,7 +85,7 @@ def configure(source, android_client_id=None):
             os.unlink(temp)
     return client, destination
 
-def authorize(client):
+def authorize(client, scope=SCOPE):
     state = secrets.token_urlsafe(32)
     verifier = secrets.token_urlsafe(64)
     challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b'=').decode()
@@ -116,11 +116,11 @@ def authorize(client):
     redirect = f'http://127.0.0.1:{server.server_port}/oauth2/callback'
     url = 'https://accounts.google.com/o/oauth2/v2/auth?' + urllib.parse.urlencode({
         'client_id': client['client_id'], 'redirect_uri': redirect,
-        'response_type': 'code', 'scope': SCOPE, 'state': state,
+        'response_type': 'code', 'scope': scope, 'state': state,
         'code_challenge': challenge, 'code_challenge_method': 'S256',
         'access_type': 'online', 'prompt': 'select_account consent',
     })
-    print('Открываю системный браузер. Выберите аккаунт и разрешите служебные данные Drive.', flush=True)
+    print('Открываю системный браузер. Выберите аккаунт и подтвердите запрошенный доступ к Google Drive.', flush=True)
     try:
         if not webbrowser.open(url):
             raise SetupFailure('System browser could not be opened')
@@ -137,8 +137,8 @@ def authorize(client):
         'redirect_uri': redirect, 'grant_type': 'authorization_code',
     }).encode(), {'Content-Type': 'application/x-www-form-urlencoded'})
     token = response.get('access_token')
-    if not isinstance(token, str) or not token or SCOPE not in response.get('scope', SCOPE).split():
-        raise SetupFailure('Google did not grant appData access')
+    if not isinstance(token, str) or not token or not set(scope.split()).issubset(response.get('scope', scope).split()):
+        raise SetupFailure('Google did not grant the requested Drive access')
     user = request_json('https://www.googleapis.com/drive/v3/about?fields=user(permissionId)',
                         headers={'Authorization': 'Bearer ' + token})
     permission_id = user.get('user', {}).get('permissionId')

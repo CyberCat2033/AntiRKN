@@ -8,6 +8,7 @@ import 'package:cryptography/cryptography.dart';
 import 'drive_http.dart';
 
 const googleAppDataScope = 'https://www.googleapis.com/auth/drive.appdata';
+const googleDriveFileScope = 'https://www.googleapis.com/auth/drive.file';
 
 /// Runtime configuration only; endpoints are never taken from a local file.
 final class GoogleDesktopClient {
@@ -81,9 +82,17 @@ abstract interface class GoogleDesktopOAuth {
   Future<GoogleOAuthTokens> refresh(GoogleDesktopClient client, String token);
 }
 
+abstract interface class GooglePublicationOAuth {
+  Future<GoogleOAuthTokens?> authorizePublications(
+    GoogleDesktopClient client,
+    GoogleOAuthCancellation cancellation,
+  );
+}
+
 /// System browser + single-use IPv4 loopback callback, state and PKCE S256.
 /// The browser sees neither client_secret nor the code verifier / tokens.
-final class LoopbackGoogleOAuth implements GoogleDesktopOAuth {
+final class LoopbackGoogleOAuth
+    implements GoogleDesktopOAuth, GooglePublicationOAuth {
   LoopbackGoogleOAuth({
     required this.openBrowser,
     DriveHttp? http,
@@ -101,6 +110,16 @@ final class LoopbackGoogleOAuth implements GoogleDesktopOAuth {
   Future<GoogleOAuthTokens?> authorize(
     GoogleDesktopClient client,
     GoogleOAuthCancellation cancellation,
+  ) => _authorize(client, cancellation, false);
+  @override
+  Future<GoogleOAuthTokens?> authorizePublications(
+    GoogleDesktopClient client,
+    GoogleOAuthCancellation cancellation,
+  ) => _authorize(client, cancellation, true);
+  Future<GoogleOAuthTokens?> _authorize(
+    GoogleDesktopClient client,
+    GoogleOAuthCancellation cancellation,
+    bool publications,
   ) async {
     if (cancellation.cancelled) return null;
     HttpServer? server;
@@ -203,7 +222,9 @@ final class LoopbackGoogleOAuth implements GoogleDesktopOAuth {
         'client_id': client.clientId,
         'redirect_uri': redirect.toString(),
         'response_type': 'code',
-        'scope': googleAppDataScope,
+        'scope': publications
+            ? '$googleAppDataScope $googleDriveFileScope'
+            : googleAppDataScope,
         'state': state,
         'code_challenge': challenge,
         'code_challenge_method': 'S256',
@@ -222,12 +243,17 @@ final class LoopbackGoogleOAuth implements GoogleDesktopOAuth {
         throw GoogleAccountFailure(callbackIssue!);
       }
       if (code == null || cancellation.cancelled) return null;
-      final tokens = await _tokens(client, {
-        'grant_type': 'authorization_code',
-        'code': code,
-        'code_verifier': verifier,
-        'redirect_uri': redirect.toString(),
-      }, requireRefresh: true);
+      final tokens = await _tokens(
+        client,
+        {
+          'grant_type': 'authorization_code',
+          'code': code,
+          'code_verifier': verifier,
+          'redirect_uri': redirect.toString(),
+        },
+        requireRefresh: true,
+        publications: publications,
+      );
       return cancellation.cancelled ? null : tokens;
     } on GoogleAccountFailure {
       rethrow;
@@ -250,6 +276,7 @@ final class LoopbackGoogleOAuth implements GoogleDesktopOAuth {
     GoogleDesktopClient client,
     Map<String, String> fields, {
     bool requireRefresh = false,
+    bool publications = false,
   }) async {
     try {
       final response = await _http.send(
@@ -300,7 +327,9 @@ final class LoopbackGoogleOAuth implements GoogleDesktopOAuth {
       if ((requireRefresh && (refresh == null || scope is! String)) ||
           (scope != null &&
               (scope is! String ||
-                  !scope.split(' ').contains(googleAppDataScope)))) {
+                  (!scope.split(' ').contains(googleAppDataScope) ||
+                      publications &&
+                          !scope.split(' ').contains(googleDriveFileScope))))) {
         throw const GoogleAccountFailure(GoogleAccountIssue.denied);
       }
       return GoogleOAuthTokens(

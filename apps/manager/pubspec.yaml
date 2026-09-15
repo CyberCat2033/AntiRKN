@@ -11,6 +11,10 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   intl: 0.20.2
+  antirkn_integrations:
+    path: ../../packages/integrations
+  antirkn_sync:
+    path: ../../packages/sync
   antirkn_storage:
     path: ../../packages/storage
   antirkn_ssh_transport:

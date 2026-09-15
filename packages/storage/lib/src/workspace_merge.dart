@@ -559,7 +559,8 @@ void _validateEventIdentities(Iterable<LocalChange> events) {
 
 void _validateSyncChange(LocalChange e) {
   final h = e.header, text = e.source;
-  if (h.entityKind == ChangeEntityKind.document ||
+  if ((h.entityKind == ChangeEntityKind.document &&
+          !_isPublicationDocument(h.entityId)) ||
       (h.entityKind == ChangeEntityKind.template && h.entityId != 'default')) {
     throw const SyncMergeFailure(SyncMergeIssue.invalid);
   }
@@ -576,6 +577,7 @@ void _validateSyncChange(LocalChange e) {
             ChangeEntityKind.template,
             ChangeEntityKind.server,
             ChangeEntityKind.runnerState,
+            ChangeEntityKind.document,
           ].contains(h.entityKind)
           ? 256 * 1024
           : 8 * 1024 * 1024)) {
@@ -656,6 +658,8 @@ void _validateSyncChange(LocalChange e) {
       case ChangeEntityKind.profile:
         if (h.deleted) throw const FormatException();
       case ChangeEntityKind.document:
+        if (h.deleted) throw const FormatException();
+        _validatePublicationDocument(h.entityId, text);
       case ChangeEntityKind.template:
         throw const FormatException();
     }
@@ -758,6 +762,9 @@ Map<String, String> _materializedDocuments(
         documents['template-draft'] = entry.value.source;
       case ChangeEntityKind.runnerState:
         documents['runner/${entry.key.$2}'] = entry.value.source;
+      case ChangeEntityKind.document:
+        _validatePublicationDocument(entry.key.$2, entry.value.source);
+        documents[entry.key.$2] = entry.value.source;
       default:
         break;
     }

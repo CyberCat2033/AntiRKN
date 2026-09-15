@@ -6,6 +6,8 @@ import '../l10n/app_localizations.dart';
 import 'vpn_controller.dart';
 import 'vpn_plan_view.dart';
 import 'vpn_strings.dart';
+import '../publication/publication_controller.dart';
+import '../publication/publication_panel.dart';
 
 class UsersPage extends StatelessWidget {
   const UsersPage({
@@ -13,9 +15,11 @@ class UsersPage extends StatelessWidget {
     required this.serverName,
     required this.exporter,
     required this.motion,
+    this.publications,
     super.key,
   });
   final VpnController controller;
+  final PublicationController? publications;
   final String Function(String) serverName;
   final ProfileExporter exporter;
   final MotionPreference motion;
@@ -91,6 +95,11 @@ class UsersPage extends StatelessWidget {
                         ),
                       ],
                     ),
+                    if (publications != null)
+                      UserPublicationView(
+                        controller: publications!,
+                        userId: u.id,
+                      ),
                     if (c.results[u.id]?.hasBlockingErrors == true)
                       Text(
                         vpnMessage(l, c.results[u.id]!.diagnostics.first.code),

@@ -1,3 +1,4 @@
+export 'src/publication.dart';
 export 'src/auto_sync.dart';
 export 'src/google_account.dart';
 export 'src/sync_transport.dart';

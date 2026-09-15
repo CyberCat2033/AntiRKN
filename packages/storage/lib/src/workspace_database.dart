@@ -24,6 +24,7 @@ part 'workspace_backup.dart';
 part 'workspace_sync.dart';
 part 'workspace_merge.dart';
 part 'workspace_auto_sync.dart';
+part 'workspace_publications.dart';
 
 Future<WorkspaceDatabase> openLocalWorkspace() async {
   final support = await getApplicationSupportDirectory();
@@ -115,6 +116,7 @@ Future<SecretKeyData> _deviceKey(Directory directory) async {
 final class WorkspaceDatabase
     implements
         ServerRepository,
+        PublicationRepository,
         RunnerJournalStore,
         ConditionalRunnerJournalStore,
         VpnRepository,
@@ -398,6 +400,154 @@ final class WorkspaceDatabase
       writeSetting('language', language.name);
 
   @override
+  Future<String?> readPublicationDocument(String id) =>
+      _readDocument(_publicationId(id));
+  @override
+  Future<void> writePublicationDocument(
+    String id,
+    String source, {
+    required String? expectedSource,
+  }) {
+    final key = _publicationId(id);
+    _validatePublicationDocument(key, source);
+    return _writeDocument(
+      key,
+      source,
+      conditional: true,
+      expectedSource: expectedSource,
+    );
+  }
+
+  LocalVaultFileStore _publicationQueueFiles(String userId) {
+    _publicationId('queue/$userId');
+    return LocalVaultFileStore(File('$_path.publication-$userId.json'));
+  }
+
+  @override
+  Future<String?> readPublicationQueue(String userId) => _serial(() async {
+    final source = await _publicationQueueFiles(userId).read();
+    return source == null
+        ? null
+        : _decrypt('publication-queue/$userId', 1, base64Decode(source));
+  });
+  @override
+  Future<void> writePublicationQueue(
+    String userId,
+    String source, {
+    required String? expectedSource,
+  }) => _serial(() async {
+    if (utf8.encode(source).length > 65536) {
+      throw const PublicationFailure(PublicationIssue.size);
+    }
+    final files = _publicationQueueFiles(userId);
+    final before = await files.read();
+    final plain = before == null
+        ? null
+        : await _decrypt('publication-queue/$userId', 1, base64Decode(before));
+    if (plain != expectedSource) {
+      throw const SyncMergeFailure(SyncMergeIssue.changed);
+    }
+    if (source == plain) return;
+    await files.replace(
+      before,
+      base64Encode(await _encrypt('publication-queue/$userId', 1, source)),
+    );
+  });
+
+  @override
+  Future<PublicationDraft?> readPublicationDraft(
+    String userId,
+  ) => _serial(() async {
+    _publicationId('queue/$userId');
+    _checkSyncEffectsNow();
+    final row = _db.select('SELECT * FROM documents WHERE id=?', [
+      'vpn-workspace-v1',
+    ]).firstOrNull;
+    if (row == null) return null;
+    final workspace = VpnWorkspace.decode(
+      await _decrypt(
+        'vpn-workspace-v1',
+        row['revision'] as int,
+        row['payload'] as Uint8List,
+      ),
+    );
+    final user = workspace.users
+        .where((u) => u.id == userId && u.enabled)
+        .firstOrNull;
+    final profile = workspace.profiles[userId];
+    if (user == null ||
+        profile == null ||
+        profile['yaml'] is! String ||
+        profile['hash'] is! String) {
+      return null;
+    }
+    final events = await _merge.events();
+    final headId = _merge.preferredHeads()[(ChangeEntityKind.profile, userId)];
+    if (headId == null) return null;
+    final ancestors = <String>{};
+    final waiting = [headId];
+    while (waiting.isNotEmpty) {
+      final id = waiting.removeLast();
+      if (!ancestors.add(id)) continue;
+      final event = events[id];
+      if (event == null) throw const SyncMergeFailure(SyncMergeIssue.changed);
+      waiting.addAll(event.header.parents);
+    }
+    final bytes = Uint8List.fromList(utf8.encode(profile['yaml'] as String));
+    final hash = (await Sha256().hash(
+      bytes,
+    )).bytes.map((v) => v.toRadixString(16).padLeft(2, '0')).join();
+    if (hash != profile['hash']) {
+      throw const PublicationFailure(PublicationIssue.invalid);
+    }
+    return PublicationDraft(
+      workspaceId: workspace.id,
+      deviceId: _journal.identity.deviceId,
+      userId: userId,
+      name: user.login,
+      headId: headId,
+      hash: hash,
+      bytes: bytes,
+      ancestors: ancestors,
+      stamp: _publicationInputStamp(),
+    );
+  });
+  @override
+  Future<void> checkPublicationDraft(
+    PublicationDraft draft,
+  ) => _serial(() async {
+    _journal.checkIdentity();
+    _checkSyncEffectsNow();
+    if (_journal.identity.workspaceId != draft.workspaceId ||
+        _journal.identity.deviceId != draft.deviceId) {
+      throw const SyncMergeFailure(SyncMergeIssue.changed);
+    }
+    if (draft.stamp != _publicationInputStamp()) {
+      throw const SyncMergeFailure(SyncMergeIssue.changed);
+    }
+    // Queue/result documents change the global journal stamp. Recheck the
+    // profile head and user instead of treating our own queue write as an edit.
+    if (_merge.preferredHeads()[(ChangeEntityKind.profile, draft.userId)] !=
+        draft.headId) {
+      throw const SyncMergeFailure(SyncMergeIssue.changed);
+    }
+    final row = _db.select('SELECT * FROM documents WHERE id=?', [
+      'vpn-workspace-v1',
+    ]).single;
+    final workspace = VpnWorkspace.decode(
+      await _decrypt(
+        'vpn-workspace-v1',
+        row['revision'] as int,
+        row['payload'] as Uint8List,
+      ),
+    );
+    if (!workspace.users.any((u) => u.id == draft.userId && u.enabled) ||
+        workspace.profiles[draft.userId]?['hash'] != draft.hash) {
+      throw const SyncMergeFailure(SyncMergeIssue.changed);
+    }
+  });
+
+  @override
   Future<String?> readDraft() => _readDocument('template-draft');
   @override
   Future<VpnStoredDocument> readVpn() => _serial(() async {
@@ -654,14 +804,15 @@ final class WorkspaceDatabase
     String selectedChangeId,
   ) => _serial(() => _merge.resolve(conflict, selectedChangeId));
   @override
-  Future<void> checkSyncEffects() => _serial(() {
+  Future<void> checkSyncEffects() => _serial(_checkSyncEffectsNow);
+  void _checkSyncEffectsNow() {
     if (_db.select('SELECT 1 FROM sync_conflicts LIMIT 1').isNotEmpty ||
         _db
             .select('SELECT 1 FROM sync_incoming WHERE state=2 LIMIT 1')
             .isNotEmpty) {
       throw const SyncMergeFailure(SyncMergeIssue.conflict);
     }
-  });
+  }
 
   @override
   Future<WorkspaceIdentity> readWorkspaceIdentity() =>

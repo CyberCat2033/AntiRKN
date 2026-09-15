@@ -1,0 +1,29 @@
+{
+  "kind": "real-drive-publication-synthetic-probe",
+  "checks": {
+    "generated_id_create": true,
+    "duplicate_id_409": true,
+    "initial_authorized_readback": true,
+    "v2_matching_etag_updates": true,
+    "v2_stale_etag_rejected": true,
+    "v2_body_and_head_updated": true,
+    "v2_two_writers_one_commit": true,
+    "public_yaml_without_auth": true,
+    "same_url_new_revision_without_auth": true,
+    "final_authorized_readback": true,
+    "file_id_preserved": true,
+    "allocated_files_removed": true
+  },
+  "observations": {
+    "metadata_etag_present": false,
+    "media_etag_present": false,
+    "media_wrong_if_match_http": 200,
+    "media_wrong_if_match_preserved_content": false,
+    "media_conditional_write_proven": false,
+    "v2_parallel_statuses": [
+      200,
+      412
+    ]
+  },
+  "status": "PASS"
+}

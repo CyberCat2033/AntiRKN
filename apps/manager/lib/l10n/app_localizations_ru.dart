@@ -2367,4 +2367,86 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get autoSyncOtherWorkspaces =>
       'В Drive есть другое рабочее пространство. Чтобы получить его серверы и клиентов здесь, восстановите зашифрованную копию с устройства, где они уже есть.';
+
+  @override
+  String get publicationTitle => 'Публикация профилей';
+
+  @override
+  String get publicationHelp =>
+      'Автоматически сохранять клиентские YAML в Google Drive и обновлять тот же файл. Настройте папку на одном устройстве, затем синхронизируйте остальные.';
+
+  @override
+  String get publicationAuthorize => 'Разрешить публикацию в Drive';
+
+  @override
+  String get publicationAuthorizeHelp =>
+      'Для публикации подтвердите доступ к файлам приложения в Google. Синхронизация использует отдельное разрешение.';
+
+  @override
+  String get publicationAccess => 'Доступ к профилям';
+
+  @override
+  String get publicationPrivate => 'Приватный файл';
+
+  @override
+  String get publicationLink => 'Доступ по ссылке';
+
+  @override
+  String get publicationLinkHelp =>
+      'Любой получатель ссылки сможет скачать профиль с доступами клиента.';
+
+  @override
+  String get publicationPrivateHelp =>
+      'Файл сохраняется в Drive. Для обычной ссылки подписки нужен доступ по ссылке.';
+
+  @override
+  String get publicationFolder => 'Папка';
+
+  @override
+  String get publicationNewFolder => 'Создать папку AntiRKN profiles';
+
+  @override
+  String get publicationChooseFolder => 'Выбрать доступную приложению папку';
+
+  @override
+  String get publicationEnable => 'Настроить публикацию';
+
+  @override
+  String get publicationAuto => 'Автоматическая публикация';
+
+  @override
+  String get publicationCompleteSetup => 'Завершить настройку папки';
+
+  @override
+  String get publicationMissing =>
+      'Файл или папка недоступны. Проверьте доступ и корзину Drive; прежняя привязка сохранена.';
+
+  @override
+  String get publicationConflict =>
+      'Версия на Drive изменилась. Синхронизируйте устройства и проверьте конфликт; файл не перезаписан.';
+
+  @override
+  String get publicationAccountChanged =>
+      'Для этой публикации нужен Google-аккаунт, с которым выбрана папка.';
+
+  @override
+  String get publicationLinkUnavailable =>
+      'Ссылка не отдаёт ожидаемый YAML без входа в Google. Повторите проверку позже.';
+
+  @override
+  String get publicationNetwork =>
+      'Drive временно недоступен. Публикация сохранена в очереди.';
+
+  @override
+  String get publicationWaiting => 'Ожидает публикации';
+
+  @override
+  String get publicationFailed =>
+      'Публикация не завершена. Проверьте настройки и повторите.';
+
+  @override
+  String get publicationPublished => 'Профиль опубликован';
+
+  @override
+  String get publicationCopyLink => 'Копировать ссылку профиля';
 }

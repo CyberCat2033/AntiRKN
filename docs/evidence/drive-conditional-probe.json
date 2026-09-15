@@ -1,0 +1,26 @@
+{
+  "kind": "real-drive-conditional-appdata-probe",
+  "observations": {
+    "v3_etag_present": false,
+    "v3_metadata_wrong_if_match_http": 200,
+    "v3_media_wrong_if_match_http": 200,
+    "v3_media_unchanged": false,
+    "v3_multipart_wrong_if_match_http": 200,
+    "v3_multipart_unchanged": false,
+    "v2_etag_present": true,
+    "v2_metadata_wrong_if_match_http": 500,
+    "v2_media_wrong_if_match_http": 500,
+    "v2_media_unchanged": true,
+    "v2_multipart_wrong_if_match_http": 500,
+    "v2_multipart_unchanged": true,
+    "v2_metadata_valid_if_match_http": 200,
+    "v2_metadata_stale_if_match_http": 412,
+    "v2_media_valid_if_match_http": 200,
+    "v2_media_stale_if_match_http": 412,
+    "v2_media_updated_content": true,
+    "v2_multipart_valid_if_match_http": 200,
+    "v2_multipart_stale_if_match_http": 412,
+    "v2_multipart_updated_content": true
+  },
+  "cleanup": true
+}

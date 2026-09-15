@@ -1,4 +1,7 @@
 import 'dart:async';
+import 'package:antirkn_integrations/antirkn_integrations.dart';
+import 'publication/publication_controller.dart';
+import 'publication/publication_panel.dart';
 import 'sync/auto_sync_controller.dart';
 import 'sync/google_account_panel.dart';
 import 'sync/sync_conflicts_panel.dart';
@@ -376,6 +379,7 @@ class _ManagerShellState extends State<ManagerShell>
   SshController? _sshController;
   ServerCatalogController? _catalog;
   VpnController? _vpn;
+  PublicationController? _publications;
   bool _applyingSync = false;
   int _syncRevision = 0;
   static const _icons = [
@@ -459,6 +463,22 @@ class _ManagerShellState extends State<ManagerShell>
           );
         },
       )..load();
+      if (widget.servers is PublicationRepository &&
+          widget.googleAccount is GoogleSyncAccountService) {
+        final account = widget.googleAccount! as GoogleSyncAccountService;
+        _publications = PublicationController(
+          repository: widget.servers! as PublicationRepository,
+          account: account,
+          remote: () => GoogleDrivePublisher(tokens: account),
+          vpn: _vpn!,
+          sync: widget.autoSync,
+          canPublish: () =>
+              !_applyingSync &&
+              !_controller.importing &&
+              !_controller.savingDraft &&
+              !_controller.draftSaveFailed,
+        );
+      }
     }
   }
 
@@ -468,6 +488,7 @@ class _ManagerShellState extends State<ManagerShell>
     widget.autoSync?.removeListener(_syncChanged);
     widget.autoSync?.apply = (_) async => false;
     _catalog?.dispose();
+    _publications?.dispose();
     _vpn?.dispose();
     _sshController?.dispose();
     _controller.dispose();
@@ -483,6 +504,11 @@ class _ManagerShellState extends State<ManagerShell>
       state == AppLifecycleState.resumed ||
           (state == AppLifecycleState.inactive &&
               widget.googleAccount is CancelableGoogleSignIn),
+    );
+    _publications?.foreground(
+      state == AppLifecycleState.resumed ||
+          state == AppLifecycleState.inactive &&
+              widget.googleAccount is CancelableGoogleSignIn,
     );
     if (state == AppLifecycleState.resumed) {
       _networkController.tick();
@@ -502,6 +528,7 @@ class _ManagerShellState extends State<ManagerShell>
         (_catalog?.hasActiveWork ?? false) ||
         (_catalog?.hasUnsavedEdits ?? false) ||
         (_vpn?.busy ?? false) ||
+        (_publications?.busy ?? false) ||
         (_vpn?.hasRunning ?? false) ||
         (_vpn?.plans.isNotEmpty ?? false) ||
         _controller.savingDraft ||
@@ -517,12 +544,13 @@ class _ManagerShellState extends State<ManagerShell>
       if (!mounted) return false;
       await receive();
       await _catalog?.reloadAfterSync();
-      await _vpn?.load();
       final source = await widget.drafts?.readDraft();
       if (source != null && source != _controller.source) {
         _controller.source = source;
         await _controller.refresh();
       }
+      await _vpn?.load();
+      await _publications?.reload();
       _syncRevision++;
       return true;
     } catch (_) {
@@ -674,6 +702,15 @@ class _ManagerShellState extends State<ManagerShell>
                                 GoogleAccountPanel(
                                   service: widget.googleAccount!,
                                   sync: widget.autoSync,
+                                  beforeAccountChange: _publications?.suspend,
+                                  afterAccountChange: () =>
+                                      _publications?.resume(),
+                                ),
+                                const SizedBox(height: AppLayout.gap),
+                              ],
+                              if (_publications != null) ...[
+                                PublicationSettingsPanel(
+                                  controller: _publications!,
                                 ),
                                 const SizedBox(height: AppLayout.gap),
                               ],
@@ -688,6 +725,7 @@ class _ManagerShellState extends State<ManagerShell>
                                       !_applyingSync &&
                                       !(_catalog?.hasActiveWork ?? false) &&
                                       !(_vpn?.busy ?? false) &&
+                                      !(_publications?.busy ?? false) &&
                                       !_controller.savingDraft &&
                                       !_controller.importing,
                                 ),
@@ -702,6 +740,7 @@ class _ManagerShellState extends State<ManagerShell>
                                       !_applyingSync &&
                                       !(_catalog?.hasActiveWork ?? false) &&
                                       !(_vpn?.busy ?? false) &&
+                                      !(_publications?.busy ?? false) &&
                                       !_controller.savingDraft &&
                                       !_controller.importing,
                                   onResolved: widget.onRestored!,
@@ -825,6 +864,7 @@ class _ManagerShellState extends State<ManagerShell>
                           if (_vpn != null)
                             UsersPage(
                               controller: _vpn!,
+                              publications: _publications,
                               serverName: (id) =>
                                   _catalog?.servers
                                       .where((s) => s.id == id)

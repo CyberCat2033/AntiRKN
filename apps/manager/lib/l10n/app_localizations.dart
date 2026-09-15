@@ -4207,6 +4207,150 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Drive contains another workspace. To use its servers and clients here, restore an encrypted backup from the device that already has them.'**
   String get autoSyncOtherWorkspaces;
+
+  /// No description provided for @publicationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile publication'**
+  String get publicationTitle;
+
+  /// No description provided for @publicationHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatically save client YAML profiles to Google Drive and update the same file. Set up the folder on one device, then sync the others.'**
+  String get publicationHelp;
+
+  /// No description provided for @publicationAuthorize.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow publishing to Drive'**
+  String get publicationAuthorize;
+
+  /// No description provided for @publicationAuthorizeHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'To publish, grant access to application files in Google. Sync uses a separate permission.'**
+  String get publicationAuthorizeHelp;
+
+  /// No description provided for @publicationAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile access'**
+  String get publicationAccess;
+
+  /// No description provided for @publicationPrivate.
+  ///
+  /// In en, this message translates to:
+  /// **'Private file'**
+  String get publicationPrivate;
+
+  /// No description provided for @publicationLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Anyone with the link'**
+  String get publicationLink;
+
+  /// No description provided for @publicationLinkHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Anyone with the link can download the profile and its client credentials.'**
+  String get publicationLinkHelp;
+
+  /// No description provided for @publicationPrivateHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'The file is saved in Drive. A subscription URL requires access for anyone with the link.'**
+  String get publicationPrivateHelp;
+
+  /// No description provided for @publicationFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Folder'**
+  String get publicationFolder;
+
+  /// No description provided for @publicationNewFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Create AntiRKN profiles folder'**
+  String get publicationNewFolder;
+
+  /// No description provided for @publicationChooseFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a folder accessible to the app'**
+  String get publicationChooseFolder;
+
+  /// No description provided for @publicationEnable.
+  ///
+  /// In en, this message translates to:
+  /// **'Set up publication'**
+  String get publicationEnable;
+
+  /// No description provided for @publicationAuto.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic publication'**
+  String get publicationAuto;
+
+  /// No description provided for @publicationCompleteSetup.
+  ///
+  /// In en, this message translates to:
+  /// **'Complete folder setup'**
+  String get publicationCompleteSetup;
+
+  /// No description provided for @publicationMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'The file or folder is unavailable. Check Drive access and trash; the existing binding is preserved.'**
+  String get publicationMissing;
+
+  /// No description provided for @publicationConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'The Drive version changed. Sync devices and review the conflict; the file was not overwritten.'**
+  String get publicationConflict;
+
+  /// No description provided for @publicationAccountChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'This publication requires the Google account used to select its folder.'**
+  String get publicationAccountChanged;
+
+  /// No description provided for @publicationLinkUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The link does not return the expected YAML without Google sign-in. Retry the check later.'**
+  String get publicationLinkUnavailable;
+
+  /// No description provided for @publicationNetwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Drive is temporarily unavailable. Publication remains queued.'**
+  String get publicationNetwork;
+
+  /// No description provided for @publicationWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting to publish'**
+  String get publicationWaiting;
+
+  /// No description provided for @publicationFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Publication is incomplete. Check settings and retry.'**
+  String get publicationFailed;
+
+  /// No description provided for @publicationPublished.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile published'**
+  String get publicationPublished;
+
+  /// No description provided for @publicationCopyLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy profile link'**
+  String get publicationCopyLink;
 }
 
 class _AppLocalizationsDelegate

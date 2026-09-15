@@ -1,0 +1,7 @@
+{
+  "kind": "real-dart-publication-coordinator",
+  "status": "NOT_RUN",
+  "issue": "Google authorization timed out before token exchange and before Dart launch",
+  "createdFiles": 0,
+  "applicationSessionChanged": false
+}

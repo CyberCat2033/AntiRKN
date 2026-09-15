@@ -24,6 +24,7 @@ class GoogleAuthorizationBridge(private val activity: Activity, messenger: Binar
     private var deadline: Runnable? = null
     private var lastToken: String? = null
     private var disposed = false
+    private var requestedScopes = listOf(SCOPE)
 
     init {
         channel.setMethodCallHandler { call, result ->
@@ -46,7 +47,8 @@ class GoogleAuthorizationBridge(private val activity: Activity, messenger: Binar
                     result.error("google_configuration", null, null)
                     return@setMethodCallHandler
                 }
-                val request = AuthorizationRequest.builder().setRequestedScopes(listOf(Scope(SCOPE)))
+                requestedScopes = if (call.argument<Boolean>("publications") == true) listOf(SCOPE, FILE_SCOPE) else listOf(SCOPE)
+                val request = AuthorizationRequest.builder().setRequestedScopes(requestedScopes.map(::Scope))
                 if (interactive) request.setPrompt(AuthorizationRequest.Prompt.SELECT_ACCOUNT)
                 else if (email != null) request.setAccount(Account(email, "com.google"))
                 else {
@@ -89,7 +91,7 @@ class GoogleAuthorizationBridge(private val activity: Activity, messenger: Binar
 
     private fun complete(authorization: AuthorizationResult) {
         val token = authorization.accessToken
-        if (token.isNullOrEmpty() || !authorization.grantedScopes.contains(SCOPE)) {
+        if (token.isNullOrEmpty() || !authorization.grantedScopes.containsAll(requestedScopes)) {
             finish(error = "google_denied")
         } else {
             lastToken = token
@@ -124,6 +126,7 @@ class GoogleAuthorizationBridge(private val activity: Activity, messenger: Binar
 
     companion object {
         private const val REQUEST_CODE = 7031
+        private const val FILE_SCOPE = "https://www.googleapis.com/auth/drive.file"
         private const val SCOPE = "https://www.googleapis.com/auth/drive.appdata"
     }
 }

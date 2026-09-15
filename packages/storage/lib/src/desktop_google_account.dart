@@ -61,12 +61,13 @@ final class _Session {
     this.refresh, {
     required this.id,
     this.reauthorize = false,
+    this.publications = false,
   });
   final GoogleDesktopClient client;
   final GoogleDriveAccount account;
   final String refresh;
   final String id;
-  final bool reauthorize;
+  final bool reauthorize, publications;
   String encode() => jsonEncode({
     'version': 1,
     'id': id,
@@ -74,6 +75,7 @@ final class _Session {
     'account': account.toJson(),
     'refresh': refresh,
     'reauthorize': reauthorize,
+    'publications': publications,
   });
   factory _Session.decode(String text) {
     final value = jsonDecode(text) as Map<String, dynamic>;
@@ -93,6 +95,7 @@ final class _Session {
       refresh,
       id: id,
       reauthorize: reauthorize,
+      publications: value['publications'] == true,
     );
   }
 }
@@ -100,6 +103,7 @@ final class _Session {
 final class DesktopGoogleAccountService
     implements
         GoogleSyncAccountService,
+        GooglePublicationAuthorization,
         CancelableGoogleSignIn,
         RefreshableSyncAccessTokenProvider {
   DesktopGoogleAccountService({
@@ -193,7 +197,14 @@ final class DesktopGoogleAccountService
   ).readAccount();
 
   @override
-  Future<GoogleDriveAccount?> signIn() => _operation(() async {
+  Future<GoogleDriveAccount?> signIn() => _signIn(false);
+  @override
+  bool get publicationAuthorized => _session?.publications == true;
+  @override
+  Future<GoogleDriveAccount?> authorizePublications() => _signIn(true);
+  Future<GoogleDriveAccount?> _signIn(
+    bool publications,
+  ) => _operation(() async {
     final cancellation = GoogleOAuthCancellation();
     _cancellation = cancellation;
     try {
@@ -204,7 +215,12 @@ final class DesktopGoogleAccountService
       final client = old?.client ?? await loadClient();
       if (client == null || cancellation.cancelled) return null;
       final started = _now();
-      final tokens = await _oauth.authorize(client, cancellation);
+      final tokens = publications
+          ? await (_oauth as GooglePublicationOAuth).authorizePublications(
+              client,
+              cancellation,
+            )
+          : await _oauth.authorize(client, cancellation);
       if (tokens == null || cancellation.cancelled) return null;
       final account = await _identity(tokens.accessToken);
       if (cancellation.cancelled) return null;
@@ -215,6 +231,7 @@ final class DesktopGoogleAccountService
         client,
         account,
         tokens.refreshToken!,
+        publications: publications,
         id: List.generate(
           32,
           (_) => Random.secure().nextInt(256),
@@ -264,6 +281,7 @@ final class DesktopGoogleAccountService
           session.account,
           tokens.refreshToken!,
           id: session.id,
+          publications: session.publications,
         );
         final encoded = next.encode();
         await store.replace(_stored, encoded);
@@ -281,6 +299,7 @@ final class DesktopGoogleAccountService
           session.account,
           session.refresh,
           id: session.id,
+          publications: session.publications,
           reauthorize: true,
         );
         final encoded = next.encode();

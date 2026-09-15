@@ -241,6 +241,35 @@ void main() {
   );
 
   test(
+    'incremental consent requests both scopes and rejects partial grant',
+    () async {
+      final http = TokenHttp();
+      final oauth = LoopbackGoogleOAuth(
+        http: http,
+        openBrowser: (url) async {
+          expect(url.queryParameters['scope']!.split(' ').toSet(), {
+            googleAppDataScope,
+            googleDriveFileScope,
+          });
+          await callback(url, {
+            'state': url.queryParameters['state']!,
+            'code': 'fixture',
+          });
+          return true;
+        },
+      );
+      await expectLater(
+        oauth.authorizePublications(client, GoogleOAuthCancellation()),
+        throwsA(issue(GoogleAccountIssue.denied)),
+      );
+      http.response['scope'] = '$googleAppDataScope $googleDriveFileScope';
+      expect(
+        await oauth.authorizePublications(client, GoogleOAuthCancellation()),
+        isNotNull,
+      );
+    },
+  );
+  test(
     'refresh body, token rotation, scope checks and sanitized provider errors',
     () async {
       final http = TokenHttp();

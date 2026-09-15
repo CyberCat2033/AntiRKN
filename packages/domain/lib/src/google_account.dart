@@ -70,3 +70,10 @@ abstract interface class CancelableGoogleSignIn {
   void cancelSignIn();
   Future<void> close();
 }
+
+/// User-initiated, additional Drive file consent. Sync-only sessions continue
+/// working until publication is explicitly enabled on this installation.
+abstract interface class GooglePublicationAuthorization {
+  bool get publicationAuthorized;
+  Future<GoogleDriveAccount?> authorizePublications();
+}

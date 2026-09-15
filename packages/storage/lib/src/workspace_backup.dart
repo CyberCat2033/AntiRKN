@@ -593,7 +593,8 @@ _BackupSnapshot _validateBackup(String source) {
         } else {
           if (id != 'template-draft' &&
               id != 'vpn-workspace-v1' &&
-              !id.startsWith('runner/')) {
+              !id.startsWith('runner/') &&
+              !_isPublicationDocument(id)) {
             throw const BackupFailure(BackupIssue.version);
           }
           if (utf8.encode(text).length >
@@ -601,6 +602,9 @@ _BackupSnapshot _validateBackup(String source) {
             throw const FormatException();
           }
           if (id != 'template-draft') _backupJson(text);
+          if (_isPublicationDocument(id)) {
+            _validatePublicationDocument(id, text);
+          }
           if (id == 'vpn-workspace-v1') {
             final vpn = VpnWorkspace.decode(text);
             if (vpn.id != workspaceId) throw const FormatException();

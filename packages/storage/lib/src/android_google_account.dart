@@ -11,16 +11,35 @@ abstract interface class GoogleAuthorizationBridge {
   Future<void> clearToken();
 }
 
+abstract interface class PublicationGoogleAuthorizationBridge {
+  Future<String?> authorizePublications({
+    required bool interactive,
+    String? email,
+  });
+}
+
 final class MethodChannelGoogleAuthorization
-    implements GoogleAuthorizationBridge {
+    implements GoogleAuthorizationBridge, PublicationGoogleAuthorizationBridge {
   const MethodChannelGoogleAuthorization();
   static const _channel = MethodChannel('org.antirkn/google_authorization');
   @override
-  Future<String?> authorize({required bool interactive, String? email}) async {
+  Future<String?> authorize({required bool interactive, String? email}) =>
+      _authorize(interactive: interactive, email: email);
+  @override
+  Future<String?> authorizePublications({
+    required bool interactive,
+    String? email,
+  }) => _authorize(interactive: interactive, email: email, publications: true);
+  Future<String?> _authorize({
+    required bool interactive,
+    String? email,
+    bool publications = false,
+  }) async {
     try {
       return await _channel.invokeMethod<String>('authorize', {
         'interactive': interactive,
         'email': email,
+        if (publications) 'publications': true,
       });
     } on PlatformException catch (error) {
       throw GoogleAccountFailure(switch (error.code) {
@@ -51,7 +70,11 @@ final class _Token implements SyncAccessTokenProvider {
 
 /// Only account metadata is persisted in the platform's encrypted SecretStore.
 /// Google Play services obtains/renews access tokens; our tokens stay in memory.
-final class AndroidGoogleAccountService implements GoogleSyncAccountService {
+final class AndroidGoogleAccountService
+    implements
+        GoogleSyncAccountService,
+        GooglePublicationAuthorization,
+        RefreshableSyncAccessTokenProvider {
   AndroidGoogleAccountService({
     this.projectId = const String.fromEnvironment('ANTIRKN_GOOGLE_PROJECT_ID'),
     VaultKeyStore keys = const PlatformVaultKeyStore(),
@@ -72,6 +95,8 @@ final class AndroidGoogleAccountService implements GoogleSyncAccountService {
   GoogleDriveAccount? _account;
   String? _accountKey;
   bool _busy = false;
+  @override
+  bool publicationAuthorized = false;
 
   @override
   String get accountKey =>
@@ -127,14 +152,17 @@ final class AndroidGoogleAccountService implements GoogleSyncAccountService {
     if (!supported) return null;
     final text = await _keys.read(_storageId);
     if (text == null) {
+      publicationAuthorized = false;
       await _remember(null);
       return null;
     }
     final value = jsonDecode(text) as Map<String, dynamic>;
     if (value['project'] != projectId) {
+      publicationAuthorized = false;
       await _remember(null);
       return null;
     }
+    publicationAuthorized = value['publications'] == true;
     final account = GoogleDriveAccount.fromJson(
       value['account'] as Map<String, dynamic>,
     );
@@ -146,18 +174,30 @@ final class AndroidGoogleAccountService implements GoogleSyncAccountService {
       GoogleDriveSyncStore(tokens: _Token(token), http: _http).readAccount();
 
   @override
-  Future<GoogleDriveAccount?> signIn() => _operation(() async {
-    _checkConfiguration();
-    final token = await _bridge.authorize(interactive: true);
-    if (token == null) return null;
-    final account = await _identity(token);
-    await _keys.write(
-      _storageId,
-      jsonEncode({'project': projectId, 'account': account.toJson()}),
-    );
-    await _remember(account);
-    return account;
-  });
+  Future<GoogleDriveAccount?> signIn() => _signIn(false);
+  @override
+  Future<GoogleDriveAccount?> authorizePublications() => _signIn(true);
+  Future<GoogleDriveAccount?> _signIn(bool publications) =>
+      _operation(() async {
+        _checkConfiguration();
+        final token = publications
+            ? await (_bridge as PublicationGoogleAuthorizationBridge)
+                  .authorizePublications(interactive: true)
+            : await _bridge.authorize(interactive: true);
+        if (token == null) return null;
+        final account = await _identity(token);
+        await _keys.write(
+          _storageId,
+          jsonEncode({
+            'project': projectId,
+            'account': account.toJson(),
+            'publications': publications,
+          }),
+        );
+        await _remember(account);
+        publicationAuthorized = publications;
+        return account;
+      });
 
   @override
   Future<String> accessToken() => _operation(() async {
@@ -166,10 +206,10 @@ final class AndroidGoogleAccountService implements GoogleSyncAccountService {
     if (account == null) {
       throw const GoogleAccountFailure(GoogleAccountIssue.reauthorize);
     }
-    final token = await _bridge.authorize(
-      interactive: false,
-      email: account.email,
-    );
+    final token = publicationAuthorized
+        ? await (_bridge as PublicationGoogleAuthorizationBridge)
+              .authorizePublications(interactive: false, email: account.email)
+        : await _bridge.authorize(interactive: false, email: account.email);
     if (token == null) {
       throw const GoogleAccountFailure(GoogleAccountIssue.reauthorize);
     }
@@ -180,9 +220,13 @@ final class AndroidGoogleAccountService implements GoogleSyncAccountService {
   });
 
   @override
+  Future<void> invalidateAccessToken(String rejected) => _bridge.clearToken();
+
+  @override
   Future<void> signOut() => _operation(() async {
     await _keys.delete(_storageId);
     await _remember(null);
+    publicationAuthorized = false;
     // Cache cleanup may fail offline. Local sign-out still disables all access.
     try {
       await _bridge.clearToken();

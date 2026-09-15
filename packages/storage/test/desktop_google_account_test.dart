@@ -21,7 +21,17 @@ final client = GoogleDesktopClient.parse(
   }),
 );
 
-class OAuth implements GoogleDesktopOAuth {
+class OAuth implements GoogleDesktopOAuth, GooglePublicationOAuth {
+  int publications = 0;
+  @override
+  Future<GoogleOAuthTokens?> authorizePublications(
+    GoogleDesktopClient client,
+    GoogleOAuthCancellation cancellation,
+  ) {
+    publications++;
+    return authorize(client, cancellation);
+  }
+
   GoogleOAuthTokens? tokens = const GoogleOAuthTokens(
     'public-fixture-token',
     'public-refresh-token',
@@ -158,6 +168,37 @@ void main() {
     now = DateTime.utc(2026, 9, 15);
   });
 
+  test(
+    'publication consent is retained across restart and refresh; denial preserves session',
+    () async {
+      final first = service();
+      await first.signIn();
+      final binding = first.accountKey;
+      expect(first.publicationAuthorized, isFalse);
+      oauth.error = GoogleAccountIssue.denied;
+      await expectLater(
+        first.authorizePublications(),
+        throwsA(issue(GoogleAccountIssue.denied)),
+      );
+      expect(first.accountKey, binding);
+      expect(first.publicationAuthorized, isFalse);
+      oauth.error = null;
+      await first.authorizePublications();
+      expect(first.publicationAuthorized, isTrue);
+      final restored = service();
+      await restored.restore();
+      expect(restored.publicationAuthorized, isTrue);
+      expect(restored.accountKey, binding);
+      now = now.add(const Duration(hours: 2));
+      await restored.accessToken();
+      expect(restored.publicationAuthorized, isTrue);
+      final again = service();
+      await again.restore();
+      expect(again.publicationAuthorized, isTrue);
+      await again.signOut();
+      expect(again.publicationAuthorized, isFalse);
+    },
+  );
   test(
     'local restore, cached access, expiry refresh and rotation keep provider identity and binding',
     () async {

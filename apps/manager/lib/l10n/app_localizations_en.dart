@@ -2361,4 +2361,86 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get autoSyncOtherWorkspaces =>
       'Drive contains another workspace. To use its servers and clients here, restore an encrypted backup from the device that already has them.';
+
+  @override
+  String get publicationTitle => 'Profile publication';
+
+  @override
+  String get publicationHelp =>
+      'Automatically save client YAML profiles to Google Drive and update the same file. Set up the folder on one device, then sync the others.';
+
+  @override
+  String get publicationAuthorize => 'Allow publishing to Drive';
+
+  @override
+  String get publicationAuthorizeHelp =>
+      'To publish, grant access to application files in Google. Sync uses a separate permission.';
+
+  @override
+  String get publicationAccess => 'Profile access';
+
+  @override
+  String get publicationPrivate => 'Private file';
+
+  @override
+  String get publicationLink => 'Anyone with the link';
+
+  @override
+  String get publicationLinkHelp =>
+      'Anyone with the link can download the profile and its client credentials.';
+
+  @override
+  String get publicationPrivateHelp =>
+      'The file is saved in Drive. A subscription URL requires access for anyone with the link.';
+
+  @override
+  String get publicationFolder => 'Folder';
+
+  @override
+  String get publicationNewFolder => 'Create AntiRKN profiles folder';
+
+  @override
+  String get publicationChooseFolder => 'Choose a folder accessible to the app';
+
+  @override
+  String get publicationEnable => 'Set up publication';
+
+  @override
+  String get publicationAuto => 'Automatic publication';
+
+  @override
+  String get publicationCompleteSetup => 'Complete folder setup';
+
+  @override
+  String get publicationMissing =>
+      'The file or folder is unavailable. Check Drive access and trash; the existing binding is preserved.';
+
+  @override
+  String get publicationConflict =>
+      'The Drive version changed. Sync devices and review the conflict; the file was not overwritten.';
+
+  @override
+  String get publicationAccountChanged =>
+      'This publication requires the Google account used to select its folder.';
+
+  @override
+  String get publicationLinkUnavailable =>
+      'The link does not return the expected YAML without Google sign-in. Retry the check later.';
+
+  @override
+  String get publicationNetwork =>
+      'Drive is temporarily unavailable. Publication remains queued.';
+
+  @override
+  String get publicationWaiting => 'Waiting to publish';
+
+  @override
+  String get publicationFailed =>
+      'Publication is incomplete. Check settings and retry.';
+
+  @override
+  String get publicationPublished => 'Profile published';
+
+  @override
+  String get publicationCopyLink => 'Copy profile link';
 }

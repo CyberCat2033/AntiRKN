@@ -1,0 +1,59 @@
+{
+  "stage": "P5 first agreed scope: Drive publication",
+  "date": "2026-09-15",
+  "tests": {
+    "integrations": 17,
+    "sync": 17,
+    "storage": 115,
+    "ssh": 36,
+    "network": 24,
+    "compiler": 24,
+    "app": 185,
+    "python_runner": 83,
+    "python_tools": 5,
+    "total": 506
+  },
+  "checks": {
+    "full_verify": "PASS",
+    "final_analyze": "PASS",
+    "final_adapter_tests": 5,
+    "final_widget_tests": 2,
+    "format_generators_architecture_l10n_base": "PASS",
+    "ru_en_messages": 708,
+    "final_diff_and_file_review": "PASS"
+  },
+  "builds": {
+    "linux": {
+      "path": "apps/manager/build/linux/x64/debug/bundle/antirkn_manager",
+      "sha256": "fe29c4e441b1b86708e344bf267dd2af24f28771a97e297156c7bfe446b34cc7",
+      "status": "PASS",
+      "kernel_sha256": "243e826c31f11293c7617f58eef15e6a8741b05b1ba9f68ed70759a01d606cb9"
+    },
+    "android": {
+      "path": "apps/manager/build/app/outputs/flutter-apk/app-debug.apk",
+      "sha256": "208b1a7a86ddd3277a773c5bcaaa54c07953a8485bc7d1df80e4a655d4eeefd0",
+      "status": "PASS",
+      "google_project_configured": true
+    }
+  },
+  "real_api_probes": [
+    "drive-publication-probe.json",
+    "drive-conditional-probe.json"
+  ],
+  "final_dart_smoke": "NOT_RUN: Google authorization timed out before Dart launch; no files created",
+  "unverified": [
+    "Final real Dart coordinator until Google authorization",
+    "Physical Linux/Android publication pair",
+    "Manual final GUI/APK runtime",
+    "Windows",
+    "Closed application background execution",
+    "Workspace domain policies/quota/load",
+    "Hardware power-loss"
+  ],
+  "not_performed": [
+    "ADB/APK install",
+    "Push",
+    "Workspace GUI launch",
+    "Shutdown"
+  ]
+}
