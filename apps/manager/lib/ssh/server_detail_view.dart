@@ -68,6 +68,31 @@ class _ServerDetailViewState extends State<ServerDetailView>
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                 ),
+                Flexible(
+                  child: FilledButton.tonal(
+                    key: ValueKey(
+                      c.busy
+                          ? 'ssh-cancel'
+                          : c.stage == SshStage.connected
+                          ? 'ssh-disconnect'
+                          : 'ssh-connect',
+                    ),
+                    onPressed: c.busy || c.stage == SshStage.connected
+                        ? c.disconnect
+                        : c.editing
+                        ? c.connect
+                        : null,
+                    child: Text(
+                      c.busy
+                          ? l.sshCancel
+                          : c.stage == SshStage.connected
+                          ? l.sshDisconnect
+                          : c.saved
+                          ? l.sshConnect
+                          : l.sshSaveAndConnect,
+                    ),
+                  ),
+                ),
                 if (c.hasSavedProfile)
                   PopupMenuButton<String>(
                     key: const ValueKey('server-actions'),
@@ -92,7 +117,7 @@ class _ServerDetailViewState extends State<ServerDetailView>
                       PopupMenuItem(
                         key: const ValueKey('ssh-delete'),
                         value: 'delete',
-                        child: Text(l.sshDelete),
+                        child: Text(l.uiDeleteServer),
                       ),
                     ],
                   ),
@@ -117,16 +142,6 @@ class _ServerDetailViewState extends State<ServerDetailView>
               leading: const Icon(Icons.error_outline),
               title: Text(sshIssueLabel(l, c.error!)),
               onTap: () => tabs.animateTo(2),
-            ),
-          if (c.stage == SshStage.connected)
-            const SizedBox.shrink()
-          else if (!connectionRequired)
-            ListTile(
-              title: Text(c.busy ? l.sshConnecting : l.sshIdle),
-              trailing: TextButton(
-                onPressed: () => tabs.animateTo(2),
-                child: Text(l.uiConnection),
-              ),
             ),
           ListenableBuilder(
             listenable: c.runner,
@@ -174,6 +189,7 @@ class _ServerDetailViewState extends State<ServerDetailView>
                       controller: c,
                       motion: widget.motion,
                       showDelete: false,
+                      showConnectionActions: false,
                     ),
                     ExpansionTile(
                       key: PageStorageKey('server-details-${c.serverId}'),

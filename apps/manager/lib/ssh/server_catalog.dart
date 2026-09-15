@@ -68,6 +68,8 @@ class _ServerCatalogState extends State<ServerCatalog> {
                   motion: widget.motion,
                   canDelete: () =>
                       !(widget.vpn?.busy ?? false) &&
+                      !(widget.vpn?.hasPendingRevocation(c.selectedId!) ??
+                          false) &&
                       !(widget.vpn?.hasRunning ?? false),
                   onDeleted: c.showList,
                   protocols: widget.vpn == null

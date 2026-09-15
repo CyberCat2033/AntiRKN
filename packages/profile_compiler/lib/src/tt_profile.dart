@@ -1,5 +1,6 @@
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'prepared_proxy.dart';
+import 'proxy_name.dart';
 
 List<PreparedProxy> ttUserAccesses(VpnWorkspace workspace, String userId) {
   final user = workspace.users
@@ -40,7 +41,7 @@ List<PreparedProxy> ttUserAccesses(VpnWorkspace workspace, String userId) {
         confirmed: true,
       ),
       fields: {
-        'name': '${r.name}_TT_${r.id}',
+        'name': clientProxyName(workspace, userId, r.id),
         'type': 'trusttunnel',
         'server': r.spec['endpoint'],
         'port': r.spec['externalPort'],

@@ -295,12 +295,15 @@ void main() {
       expect(c.results[bob]!.yaml, isNot(contains('aaaaaaaa-0000')));
       final before = c.results[alice]!.yaml;
       await c.saveUser(VpnUser(id: alice, login: 'alice', name: 'Renamed'));
-      expect(c.results[alice]!.yaml, before);
+      expect(
+        c.results[alice]!.yaml,
+        before!.replaceAll('Alice_VLESS', 'Renamed_VLESS'),
+      );
       final restored = controller(store, remotes);
       addTearDown(restored.dispose);
       await restored.load();
       expect(restored.workspace.users.length, 2);
-      expect(restored.results[alice]!.yaml, before);
+      expect(restored.results[alice]!.yaml, c.results[alice]!.yaml);
     },
   );
   test(

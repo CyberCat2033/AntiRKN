@@ -1,5 +1,6 @@
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'prepared_proxy.dart';
+import 'proxy_name.dart';
 
 List<PreparedProxy> awgUserAccesses(VpnWorkspace workspace, String userId) {
   if (!workspace.users.any((u) => u.id == userId && u.enabled)) return [];
@@ -35,7 +36,7 @@ List<PreparedProxy> awgUserAccesses(VpnWorkspace workspace, String userId) {
         confirmed: true,
       ),
       fields: {
-        'name': '${interface.name}_WG_${interface.id}',
+        'name': clientProxyName(workspace, userId, interface.id),
         'type': 'wireguard',
         'server': s['endpoint'],
         'port': s['externalPort'],

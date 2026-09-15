@@ -5,6 +5,7 @@ client/key material is derived with HMAC from the existing private runner key.
 Only public REALITY material and personal UUIDs leave the server over SSH.
 """
 import base64
+from client_revocations import check as check_revocations
 import copy
 import hashlib
 import hmac
@@ -211,6 +212,7 @@ def locate(rows, workspace, resource):
 
 
 def preflight(store, payload, api):
+    check_revocations(store, payload)
     rows = api.call('/panel/api/inbounds/list')
     if not isinstance(rows, list): raise VlessError('vless_api_failed')
     saved = owned_rows(store)
@@ -287,11 +289,13 @@ class VlessApply:
 
     def step(self, checkpoint):
         p, db = self.payload, self.store.db
+        check_revocations(self.store, p)
         api = panel_for(self.store, p['panelId'])
         job_id = self.req['id']
         if checkpoint == 0:
             preview = preflight(self.store, p, api)
             if preview['fingerprint'] != self.req['fingerprint']: raise VlessError('vless_conflict')
+            check_revocations(self.store, p, persist=True)
             backup = self.store.directory / ('vless-backup-' + job_id + '.json')
             if not backup.exists():
                 atomic_file(backup, canonical(dict(rows=api.call('/panel/api/inbounds/list'), resources=owned_rows(self.store))).encode())

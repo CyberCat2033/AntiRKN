@@ -44,6 +44,65 @@ class PublicationController extends ChangeNotifier {
   int _reloadGeneration = 0;
   bool get busy => editing || _running != null;
 
+  Map<String, dynamic>? deletionFileFor(String userId) {
+    final result = results[userId], destination = settings;
+    if (destination == null ||
+        result?['fileId'] is! String ||
+        result?['registryId'] is! String) {
+      return null;
+    }
+    return {
+      'fileId': result!['fileId'],
+      'registryId': result['registryId'],
+      'accountKey': destination.accountKey,
+      'folderId': destination.folderId,
+    };
+  }
+
+  Future<void> deleteClientFile(
+    VpnUser user,
+    Future<void> Function() guard,
+  ) async {
+    final target = user.deletion?['file'] as Map?;
+    if (target == null || !user.deleted) {
+      throw const PublicationFailure(PublicationIssue.invalid);
+    }
+    if (!authorized) {
+      throw const PublicationFailure(PublicationIssue.unauthorized);
+    }
+    final store = remote();
+    Future<void> check() async {
+      await guard();
+      if (store.accountKey != target['accountKey'] ||
+          account.accountKey != target['accountKey']) {
+        throw const PublicationFailure(PublicationIssue.accountChanged);
+      }
+      final result = await repository.readPublicationDocument(
+        'result/${user.id}',
+      );
+      if (result == null ||
+          (jsonDecode(result) as Map)['fileId'] != target['fileId']) {
+        throw const PublicationFailure(PublicationIssue.conflict);
+      }
+    }
+
+    await check();
+    final file = await store.getFile(target['fileId'] as String);
+    if (!file.binary ||
+        file.properties['antirknWorkspace'] != vpn.workspace.id ||
+        file.properties['antirknUser'] != user.id) {
+      throw const PublicationFailure(PublicationIssue.conflict);
+    }
+    if (file.trashed) return;
+    await check();
+    await store.trashFile(file, user.deletion!['id'] as String);
+    final verified = await store.getFile(file.id);
+    if (!verified.trashed ||
+        verified.properties['antirknDeleted'] != user.deletion!['id']) {
+      throw const PublicationFailure(PublicationIssue.readback);
+    }
+  }
+
   /// Results are written by the coordinator only after public readback succeeds.
   /// A failed update may retain the previous verified URL, but a revoked or
   /// conflicting destination must never be presented as a working subscription.

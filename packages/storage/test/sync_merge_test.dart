@@ -284,6 +284,83 @@ void main() {
     },
   );
   test(
+    'deleted client survives offline edit, resolution and encrypted restore; login is reusable',
+    () async {
+      final original = await vpn(a);
+      final deleted = VpnUser(
+        id: '1' * 32,
+        login: 'one',
+        name: 'One',
+        enabled: false,
+        deletion: {
+          'version': 1,
+          'id': 'd' * 32,
+          'executor': (await a.readWorkspaceIdentity()).deviceId,
+          'targets': {
+            'one': {'status': 'waiting', 'identity': 'fixture-host'},
+          },
+        },
+      );
+      await saveVpn(a, original.copy(users: [deleted, original.users.last]));
+      await saveVpn(
+        b,
+        original.copy(
+          users: [
+            VpnUser(id: '1' * 32, login: 'one', name: 'Offline edit'),
+            original.users.last,
+          ],
+        ),
+      );
+      final pa = await packets(a), pb = await packets(b);
+      for (final (db, p) in [(a, pb), (b, pa)]) {
+        final result = await db.receiveSyncPackets(p);
+        expect(result.conflicts, hasLength(1));
+        expect((await vpn(db)).users.first.deleted, isTrue);
+      }
+      final conflict = (await a.readSyncMergeStatus()).conflicts.single;
+      await expectLater(
+        a.resolveSyncConflict(
+          conflict,
+          conflict.variants
+              .firstWhere((v) => !v.header.deleted)
+              .header
+              .changeId,
+        ),
+        throwsA(isA<SyncMergeFailure>()),
+      );
+      await a.resolveSyncConflict(
+        conflict,
+        conflict.variants.firstWhere((v) => v.header.deleted).header.changeId,
+      );
+      await b.receiveSyncPackets(await packets(a));
+      await saveVpn(
+        a,
+        (await vpn(a)).copy(
+          users: [
+            ...(await vpn(a)).users,
+            VpnUser(id: '3' * 32, login: 'one', name: 'One'),
+          ],
+        ),
+      );
+      await b.receiveSyncPackets(await packets(a));
+      final restored = await clone(b, 'deleted-restored', 67);
+      final users = (await vpn(restored)).users;
+      expect(
+        users.where((u) => !u.deleted && u.login == 'one').single.id,
+        '3' * 32,
+      );
+      expect(users.first.deletion, deleted.deletion);
+      await expectLater(
+        saveVpn(restored, original),
+        throwsA(isA<FormatException>()),
+      );
+      expect(
+        jsonDecode((await vpn(restored)).encode()),
+        jsonDecode((await vpn(a)).encode()),
+      );
+    },
+  );
+  test(
     'incompatible independent edits cannot violate unique login constraint',
     () async {
       await saveVpn(

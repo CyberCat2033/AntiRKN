@@ -1,5 +1,6 @@
 """Managed TrustTunnel 1.1 endpoints and durable personal credentials."""
 import base64
+from client_revocations import check as check_revocations
 import copy
 import hashlib
 import hmac
@@ -166,6 +167,7 @@ def confirmed(saved, probe=True):
 
 
 def preflight(store, p):
+    check_revocations(store, p)
     release = prerequisites()
     saved = owned(store)
     ids = {r['id'] for r in p['resources']}
@@ -222,9 +224,11 @@ class TtApply:
     def step(self, checkpoint):
         with lock():
             p,req,db = self.p,self.req,self.store.db
+            check_revocations(self.store, p)
             prerequisites()
             if checkpoint == 0:
                 if preflight(self.store,p)['fingerprint'] != req['fingerprint']: raise TtError('tt_conflict')
+                check_revocations(self.store, p, persist=True)
                 backup = self.store.directory / ('tt-backup-'+req['id']+'.json')
                 if not backup.exists():
                     atomic_file(backup,canonical(dict(records=owned(self.store),files={r['id']:[base64.b64encode(read(f)).decode() if f.exists() else None for f in paths(r['id'])] for r in p['resources']})).encode())

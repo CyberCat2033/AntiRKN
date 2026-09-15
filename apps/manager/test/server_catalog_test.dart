@@ -249,7 +249,17 @@ void main() {
         await tester.pumpWidget(const SizedBox());
         await launch();
         await tap('server-$firstId');
+        expect(find.byKey(const ValueKey('ssh-connect')), findsOneWidget);
+        expect(
+          tester.getBottomLeft(find.byKey(const ValueKey('ssh-connect'))).dy,
+          lessThanOrEqualTo(tester.getTopLeft(find.byType(TabBar)).dy),
+        );
         await tap('server-tab-connection');
+        expect(find.byKey(const ValueKey('ssh-connect')), findsOneWidget);
+        expect(
+          find.text(language == 'en' ? 'Connection' : 'Подключение'),
+          findsOneWidget,
+        );
         expect(
           find.text(language == 'en' ? 'Connect' : 'Подключиться'),
           findsOneWidget,
@@ -317,8 +327,6 @@ void main() {
         expect(find.textContaining('Ubuntu 24.04'), findsOneWidget);
         await tap('server-list-back');
         await tap('server-$secondId');
-        await tap('server-tab-connection');
-        await tap('ssh-edit');
         final deleteText = language == 'en'
             ? 'Delete saved connection'
             : 'Удалить сохранённое подключение';

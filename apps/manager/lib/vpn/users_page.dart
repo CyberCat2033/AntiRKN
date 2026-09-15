@@ -31,16 +31,26 @@ class UsersPage extends StatelessWidget {
     VpnController controller,
     MotionPreference motion, [
     VpnUser? user,
+    PublicationController? publications,
   ]) async {
-    final result = await showDialog<VpnUser>(
+    final result = await showDialog<Object>(
       context: context,
-      builder: (_) => _UserForm(user: user),
+      builder: (_) => _UserForm(user: user, publications: publications),
       animationStyle: AnimationStyle(
         duration: AppMotion.duration(context, motion),
       ),
     );
     if (result == null) return;
-    await controller.saveUser(result);
+    if (result is _DeleteUserRequest) {
+      await publications?.suspend();
+      try {
+        await controller.deleteUser(result.user, file: result.file);
+      } finally {
+        publications?.resume();
+      }
+      return;
+    }
+    await controller.saveUser(result as VpnUser);
     if (controller.error == null && controller.workspace.serverIds.isNotEmpty) {
       await controller.prepare();
     }
@@ -137,14 +147,14 @@ class UsersPage extends StatelessWidget {
                   tooltip: l.vpnAddUser,
                   onPressed: c.busy || !c.loaded
                       ? null
-                      : () => edit(context, c, motion),
+                      : () => edit(context, c, motion, null, publications),
                   icon: const Icon(Icons.add),
                 ),
             ],
           ),
           VpnPlanView(controller: c, serverName: serverName),
-          if (c.workspace.users.isEmpty) Text(l.vpnNoUsers),
-          for (final user in c.workspace.users)
+          if (!c.workspace.users.any((u) => !u.deleted)) Text(l.vpnNoUsers),
+          for (final user in c.workspace.users.where((u) => !u.deleted))
             Padding(
               padding: const EdgeInsets.only(bottom: AppLayout.smallGap),
               child: Card.filled(
@@ -170,7 +180,9 @@ class UsersPage extends StatelessWidget {
                         ),
                     ],
                   ),
-                  onTap: c.busy ? null : () => edit(context, c, motion, user),
+                  onTap: c.busy
+                      ? null
+                      : () => edit(context, c, motion, user, publications),
                   trailing: IconButton(
                     tooltip: l.vpnProfile,
                     onPressed: c.busy ? null : () => _profile(context, user),
@@ -178,6 +190,42 @@ class UsersPage extends StatelessWidget {
                   ),
                 ),
               ),
+            ),
+          for (final user in c.pendingDeletions)
+            ExpansionTile(
+              key: PageStorageKey('client-deletion-${user.id}'),
+              leading: const Icon(Icons.person_remove_outlined),
+              title: Text(user.name),
+              subtitle: Text(
+                user.revocationComplete
+                    ? l.vpnDeleteFilePending
+                    : l.vpnRevocationPending,
+              ),
+              children: [
+                for (final entry in (user.deletion!['targets'] as Map).entries)
+                  ListTile(
+                    title: Text(serverName(vpnServerId(entry.key as String))),
+                    subtitle: Text(
+                      entry.value['status'] == 'revoked'
+                          ? l.vpnAccessRevoked
+                          : entry.value['error'] != null
+                          ? vpnMessage(l, entry.value['error'] as String)
+                          : l.vpnRevocationPending,
+                    ),
+                  ),
+                if (user.deletion!['file']?['error'] case final String issue)
+                  Padding(
+                    padding: const EdgeInsets.all(AppLayout.gap),
+                    child: Text(publicationMessage(l, issue)),
+                  ),
+                TextButton(
+                  key: ValueKey('client-deletion-retry-${user.id}'),
+                  onPressed: c.busy ? null : () => c.retryDeletion(user.id),
+                  child: Text(
+                    c.ownsDeletion(user) ? l.runnerRetry : l.operationTakeOver,
+                  ),
+                ),
+              ],
             ),
           for (final id in c.workspace.serverIds.where(_needsAttention))
             ExpansionTile(
@@ -197,9 +245,16 @@ class UsersPage extends StatelessWidget {
   );
 }
 
+class _DeleteUserRequest {
+  const _DeleteUserRequest(this.user, this.file);
+  final VpnUser user;
+  final Map<String, dynamic>? file;
+}
+
 class _UserForm extends StatefulWidget {
-  const _UserForm({this.user});
+  const _UserForm({this.user, this.publications});
   final VpnUser? user;
+  final PublicationController? publications;
   @override
   State<_UserForm> createState() => _UserFormState();
 }
@@ -222,7 +277,65 @@ class _UserFormState extends State<_UserForm> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     return AlertDialog(
-      title: Text(widget.user == null ? l.vpnAddUser : l.vpnEdit),
+      title: Row(
+        children: [
+          Expanded(child: Text(widget.user == null ? l.vpnAddUser : l.vpnEdit)),
+          if (widget.user != null)
+            PopupMenuButton<String>(
+              key: const ValueKey('client-actions'),
+              tooltip: l.uiActions,
+              itemBuilder: (_) => [
+                PopupMenuItem(value: 'delete', child: Text(l.vpnDeleteUser)),
+              ],
+              onSelected: (_) async {
+                final user = widget.user!;
+                final file = widget.publications?.deletionFileFor(user.id);
+                var deleteFile = false;
+                final accepted = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => StatefulBuilder(
+                    builder: (context, setDialogState) => AlertDialog(
+                      title: Text(l.vpnDeleteUser),
+                      content: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(l.vpnDeleteExplanation),
+                            if (file != null)
+                              CheckboxListTile(
+                                key: const ValueKey('client-delete-file'),
+                                value: deleteFile,
+                                onChanged: (value) =>
+                                    setDialogState(() => deleteFile = value!),
+                                title: Text(l.vpnDeleteFile),
+                              ),
+                          ],
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: Text(l.sshCancel),
+                        ),
+                        FilledButton(
+                          key: const ValueKey('client-delete-confirm'),
+                          onPressed: () => Navigator.pop(context, true),
+                          child: Text(l.vpnDeleteUser),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+                if (accepted == true && context.mounted) {
+                  Navigator.pop(
+                    context,
+                    _DeleteUserRequest(user, deleteFile ? file : null),
+                  );
+                }
+              },
+            ),
+        ],
+      ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,

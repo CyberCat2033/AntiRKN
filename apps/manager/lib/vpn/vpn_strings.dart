@@ -2,6 +2,8 @@ import '../l10n/app_localizations.dart';
 import '../app_strings.dart';
 
 String vpnMessage(AppLocalizations l, String code) => switch (code) {
+  'vpn_user_deleted' => l.vpnUserDeleted,
+  'vpn_revocation_failed' => l.vpnRevocationFailed,
   'sync_conflict' => l.syncEffectsBlocked,
   'succeeded' => l.runnerSucceeded,
   'planned' => l.runnerPlanned,

@@ -2490,4 +2490,38 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get uiOperationPending => 'Операция требует внимания';
+
+  @override
+  String get vpnDeleteUser => 'Удалить клиента';
+
+  @override
+  String get vpnDeleteExplanation =>
+      'Клиент исчезнет из списка. Доступы на недоступных серверах будут отозваны после подключения. Имя и логин можно использовать снова.';
+
+  @override
+  String get vpnDeleteFile =>
+      'Также переместить файл конфигурации в корзину Google Drive';
+
+  @override
+  String get vpnRevocationPending => 'Ожидает отзыва доступа';
+
+  @override
+  String get vpnDeleteFilePending => 'Доступы отозваны. Ожидает удаления файла';
+
+  @override
+  String get vpnAccessRevoked => 'Доступ отозван';
+
+  @override
+  String get vpnRevocationFailed =>
+      'Отзыв не завершён. Проверьте сервер и повторите.';
+
+  @override
+  String get vpnUserDeleted =>
+      'Эта запись клиента удалена. Можно создать нового клиента с тем же именем и логином.';
+
+  @override
+  String get vpnNodeName => 'Название узла';
+
+  @override
+  String get uiDeleteServer => 'Удалить сервер';
 }

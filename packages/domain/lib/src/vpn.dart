@@ -4,6 +4,7 @@ import 'tt.dart';
 import 'dart:math';
 import 'network/ip_address.dart';
 import 'vless_contract.g.dart';
+import 'runner.dart';
 
 String newVpnId() => List.generate(
   16,
@@ -16,6 +17,7 @@ final class VpnUser {
     required this.login,
     required this.name,
     this.enabled = true,
+    this.deletion,
   }) {
     if (!RegExp(r'^[a-f0-9]{32}$').hasMatch(id) ||
         !RegExp(r'^[A-Za-z0-9_.-]{1,64}$').hasMatch(login) ||
@@ -24,20 +26,76 @@ final class VpnUser {
         name.contains(RegExp(r'[\x00-\x1f\x7f]'))) {
       throw const FormatException('vpn_user_invalid');
     }
+    if (deletion != null) {
+      if (enabled ||
+          deletion!['version'] != 1 ||
+          !RegExp(
+            r'^[a-f0-9]{32}$',
+          ).hasMatch(deletion!['id'] as String? ?? '') ||
+          deletion!['targets'] is! Map ||
+          (deletion!['targets'] as Map).length > 1000 ||
+          deletion!['executor'] != null &&
+              !RegExp(
+                r'^[a-f0-9]{32}$',
+              ).hasMatch(deletion!['executor'] as String)) {
+        throw const FormatException('vpn_user_invalid');
+      }
+      for (final target in (deletion!['targets'] as Map).values) {
+        if (target is! Map ||
+            ![
+              'waiting',
+              'running',
+              'revoked',
+              'error',
+            ].contains(target['status'])) {
+          throw const FormatException('vpn_user_invalid');
+        }
+        if (target['request'] case final Map request) {
+          RunnerRequest.fromJson(Map<String, Object?>.from(request));
+        }
+      }
+      if (deletion!['file'] case final Map file) {
+        if (!['accountKey', 'fileId', 'registryId', 'folderId'].every(
+              (key) => file[key] is String && (file[key] as String).isNotEmpty,
+            ) ||
+            !['waiting', 'deleted', 'error'].contains(file['status'])) {
+          throw const FormatException('vpn_user_invalid');
+        }
+      }
+    }
   }
-  factory VpnUser.fromJson(Map<String, dynamic> j) => VpnUser(
-    id: j['id'] as String,
-    login: j['login'] as String,
-    name: j['name'] as String,
-    enabled: j['enabled'] as bool,
-  );
+  factory VpnUser.fromJson(Map<String, dynamic> j) {
+    if ((j['deleted'] == true) != (j['deletion'] != null)) {
+      throw const FormatException('vpn_user_invalid');
+    }
+    return VpnUser(
+      id: j['id'] as String,
+      login: j['login'] as String,
+      name: j['name'] as String,
+      enabled: j['enabled'] as bool,
+      deletion: j['deletion'] == null
+          ? null
+          : Map<String, dynamic>.from(j['deletion'] as Map),
+    );
+  }
   final String id, login, name;
   final bool enabled;
+  final Map<String, dynamic>? deletion;
+  bool get deleted => deletion != null;
+  bool get revocationComplete =>
+      deleted &&
+      (deletion!['targets'] as Map).values.every(
+        (t) => t['status'] == 'revoked',
+      );
+  bool get deletionComplete =>
+      revocationComplete &&
+      (deletion!['file'] == null || deletion!['file']['status'] == 'deleted');
   Map<String, Object?> toJson() => {
     'id': id,
     'login': login,
     'name': name,
     'enabled': enabled,
+    if (deleted) ...{'deleted': true, 'deletion': deletion},
   };
 }
 
@@ -134,10 +192,15 @@ final class VpnWorkspace {
          ),
        ) {
     if (!RegExp(r'^[a-f0-9]{32}$').hasMatch(id) ||
-        users.length > 1000 ||
+        users.where((u) => !u.deleted).length > 1000 ||
+        users.length > 10000 ||
         users.map((u) => u.id).toSet().length != users.length ||
-        users.map((u) => u.login.toLowerCase()).toSet().length !=
-            users.length ||
+        users
+                .where((u) => !u.deleted)
+                .map((u) => u.login.toLowerCase())
+                .toSet()
+                .length !=
+            users.where((u) => !u.deleted).length ||
         <dynamic>{
               ...inbounds.map((i) => i.id),
               ...awgInterfaces.map((i) => i.id),
@@ -150,7 +213,7 @@ final class VpnWorkspace {
   factory VpnWorkspace.empty() => VpnWorkspace(id: newVpnId());
   factory VpnWorkspace.decode(String raw) {
     final j = jsonDecode(raw) as Map;
-    if (![1, 2, 3].contains(j['version'])) {
+    if (![1, 2, 3, 4].contains(j['version'])) {
       throw const FormatException('vpn_version');
     }
     return VpnWorkspace(
@@ -184,7 +247,7 @@ final class VpnWorkspace {
   final List<TrustTunnelEndpoint> ttEndpoints;
   final Map<String, Map<String, dynamic>> servers, profiles;
   String encode() => jsonEncode({
-    'version': 3,
+    'version': users.any((u) => u.deleted) ? 4 : 3,
     'id': id,
     'users': users.map((e) => e.toJson()).toList(),
     'inbounds': inbounds.map((e) => e.toJson()).toList(),
@@ -214,7 +277,8 @@ final class VpnWorkspace {
       final resources =
           ttEndpoints.where((r) => r.serverId == vpnServerId(serverId)).toList()
             ..sort((a, b) => a.id.compareTo(b.id));
-      final clients = users.toList()..sort((a, b) => a.id.compareTo(b.id));
+      final clients = users.where((u) => !u.deleted).toList()
+        ..sort((a, b) => a.id.compareTo(b.id));
       final result = <String, Object?>{
         'version': 1,
         'protocol': 'tt',
@@ -240,7 +304,8 @@ final class VpnWorkspace {
               .where((r) => r.serverId == vpnServerId(serverId))
               .toList()
             ..sort((a, b) => a.id.compareTo(b.id));
-      final clients = users.toList()..sort((a, b) => a.id.compareTo(b.id));
+      final clients = users.where((u) => !u.deleted).toList()
+        ..sort((a, b) => a.id.compareTo(b.id));
       final result = <String, Object?>{
         'version': 1,
         'protocol': 'awg',
@@ -256,7 +321,8 @@ final class VpnWorkspace {
     }
     final resources = inbounds.where((i) => i.serverId == serverId).toList()
       ..sort((a, b) => a.id.compareTo(b.id));
-    final clients = users.toList()..sort((a, b) => a.id.compareTo(b.id));
+    final clients = users.where((u) => !u.deleted).toList()
+      ..sort((a, b) => a.id.compareTo(b.id));
     final result = <String, Object?>{
       'version': 1,
       'workspaceId': id,

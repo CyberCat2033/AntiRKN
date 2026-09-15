@@ -76,6 +76,7 @@ abstract interface class PublicationRemoteStore {
     PublicationFile expected,
     Map<String, String> properties,
   );
+  Future<void> trashFile(PublicationFile expected, String deletionId);
   Future<void> createRegistry(
     String fileId,
     String folderId,

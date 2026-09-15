@@ -1,5 +1,6 @@
 """AWG 3.1 interfaces and stable personal peers, through durable runner jobs."""
 import base64
+from client_revocations import check as check_revocations
 import hashlib
 import hmac
 import ipaddress
@@ -212,7 +213,7 @@ def desired(p, r, previous, preview=False):
         v6 = ipaddress.ip_network(r['pool6'])
         address += f', {v6.network_address + 1}/64'
     name = name_for(r['id'])
-    hook = '/usr/bin/python3 -I /usr/local/lib/antirkn-runner/v14/awg_network.py'
+    hook = '/usr/bin/python3 -I /usr/local/lib/antirkn-runner/v15/awg_network.py'
     lines = ['[Interface]', 'PrivateKey = ' + private, 'Address = ' + address,
         'ListenPort = ' + str(r['port']), 'MTU = ' + str(r['mtu']), 'Table = off',
         'PostUp = ' + hook + ' up ' + name, 'PostDown = ' + hook + ' down ' + name,
@@ -310,6 +311,7 @@ def confirmed(saved):
 
 
 def preflight(store, p):
+    check_revocations(store, p)
     release = prerequisites()
     saved = owned(store)
     ids = {r['id'] for r in p['resources']}
@@ -391,10 +393,12 @@ class AwgApply:
 
     def step(self, checkpoint):
         p, req, db = self.payload, self.req, self.store.db
+        check_revocations(self.store, p)
         prerequisites()
         if checkpoint == 0:
             if preflight(self.store, p)['fingerprint'] != req['fingerprint']:
                 raise AwgError('awg_conflict')
+            check_revocations(self.store, p, persist=True)
             backup = self.store.directory / ('awg-backup-' + req['id'] + '.json')
             if not backup.exists():
                 content = {r['id']: [base64.b64encode(path.read_bytes()).decode() if path.exists() else None for path in paths(r['id'])] for r in p['resources']}

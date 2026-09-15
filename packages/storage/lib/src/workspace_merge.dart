@@ -315,6 +315,11 @@ final class _WorkspaceMerge {
       throw const SyncMergeFailure(SyncMergeIssue.changed);
     }
     final chosen = graph.events[choice]!;
+    if (key.$1 == ChangeEntityKind.vpnUser &&
+        !chosen.header.deleted &&
+        ids.any((id) => graph.events[id]!.header.deleted)) {
+      throw const SyncMergeFailure(SyncMergeIssue.invalid);
+    }
     final parents = ids.map((id) => graph.events[id]!.header).toList()
       ..sort(
         (a, b) => b.revision == a.revision
@@ -606,7 +611,7 @@ void _validateSyncChange(LocalChange e) {
         if (data['id'] != h.workspaceId ||
             h.entityId != h.workspaceId ||
             h.deleted ||
-            ![1, 2, 3].contains(data['version'])) {
+            ![1, 2, 3, 4].contains(data['version'])) {
           throw const FormatException();
         }
         for (final field in _vpnCollections.keys) {
@@ -614,7 +619,8 @@ void _validateSyncChange(LocalChange e) {
           if (ids.toSet().length != ids.length) throw const FormatException();
         }
       case ChangeEntityKind.vpnUser:
-        if (VpnUser.fromJson(data).id != h.entityId || h.deleted) {
+        final user = VpnUser.fromJson(data);
+        if (user.id != h.entityId || user.deleted != h.deleted) {
           throw const FormatException();
         }
       case ChangeEntityKind.vlessInbound:

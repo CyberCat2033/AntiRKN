@@ -93,6 +93,9 @@ class Blob {
 }
 
 class Remote implements PublicationRemoteStore {
+  @override
+  Future<void> trashFile(PublicationFile expected, String deletionId) async =>
+      throw UnimplementedError();
   final blobs = <String, Blob>{'folder': Blob(bytes(''), {}, folder: true)};
   int ids = 0, createdProfiles = 0, updatedProfiles = 0;
   bool loseCreate = false, loseUpdate = false, linkBroken = false;

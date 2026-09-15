@@ -474,6 +474,17 @@
           }
         }
       }
+    },
+    "revokedUsers": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{32}$"
+      }
     }
-  }
+  },
+  "optional": [
+    "revokedUsers"
+  ]
 }

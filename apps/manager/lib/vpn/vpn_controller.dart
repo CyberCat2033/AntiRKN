@@ -4,6 +4,8 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_profile_compiler/antirkn_profile_compiler.dart';
 import 'package:flutter/foundation.dart';
 
+part 'client_deletion.dart';
+
 final class VpnRemote {
   const VpnRemote({
     required this.transport,
@@ -79,6 +81,7 @@ class VpnController extends ChangeNotifier {
   final Iterable<String> Function()? serverIds;
   final Map<String, String> _observedConnections = {};
   String? _deviceId;
+  Future<void> Function(VpnUser, Future<void> Function())? deletePublishedFile;
   final observedJobs = <String, RunnerJob?>{};
   final observationErrors = <String, String>{};
   ServerOperation? operation(String id) {
@@ -181,15 +184,27 @@ class VpnController extends ChangeNotifier {
     plans = [];
     await _profiles();
   });
-  bool get hasRunning => workspace.servers.entries.any(
-    (e) =>
-        !observesOperation(e.key) &&
-        !_restoredTargets.contains(e.key) &&
-        e.value['pending'] != null &&
-        e.value['paused'] != true,
-  );
+  bool get hasRunning =>
+      pendingRevocations.any(
+        (u) =>
+            ownsDeletion(u) &&
+            (u.deletion!['targets'] as Map).values.any(
+              (t) => t['status'] == 'running',
+            ),
+      ) ||
+      workspace.servers.entries.any(
+        (e) =>
+            !observesOperation(e.key) &&
+            !_restoredTargets.contains(e.key) &&
+            e.value['pending'] != null &&
+            e.value['paused'] != true,
+      );
   Future<void> saveUser(VpnUser user) => _run((token) async {
     if (!loaded) return;
+    if (user.deleted ||
+        workspace.users.any((u) => u.id == user.id && u.deleted)) {
+      throw const FormatException('vpn_user_deleted');
+    }
     final next = workspace.copy(
       users: [...workspace.users.where((u) => u.id != user.id), user],
     );
@@ -340,6 +355,7 @@ class VpnController extends ChangeNotifier {
   }
 
   Future<void> prepare() => _run((token) async {
+    if (pendingRevocations.isNotEmpty) throw const FormatException('vpn_busy');
     plans = [];
     final next = <VpnPlan>[];
     for (final id in workspace.serverIds) {
@@ -389,6 +405,7 @@ class VpnController extends ChangeNotifier {
   }
 
   Future<void> apply() => _run((token) async {
+    if (pendingRevocations.isNotEmpty) throw const FormatException('vpn_busy');
     if (plans.isEmpty) return;
     final records = {...workspace.servers};
     for (final plan in plans) {
@@ -452,7 +469,12 @@ class VpnController extends ChangeNotifier {
       return connection?.observationKey != null &&
           _observedConnections[id] != connection!.observationKey;
     }).toList();
-    if (!work && fresh.isEmpty && template() == _lastTemplate) return;
+    if (!work &&
+        fresh.isEmpty &&
+        template() == _lastTemplate &&
+        pendingDeletions.isEmpty) {
+      return;
+    }
     await _run((token) async {
       for (final id in fresh) {
         final connection = remote(id);
@@ -461,6 +483,7 @@ class VpnController extends ChangeNotifier {
         _observedConnections[id] = connection.observationKey!;
       }
       if (work) await _reconcile(token);
+      await _reconcileDeletions(token);
       if (template() != _lastTemplate) await _profiles();
     });
   }
@@ -883,6 +906,7 @@ class VpnController extends ChangeNotifier {
     });
   });
   Future<void> resume(String id) => _run((token) async {
+    if (pendingRevocations.isNotEmpty) throw const FormatException('vpn_busy');
     final r = remote(id), record = workspace.servers[id];
     if (r == null || record == null) {
       throw const FormatException('vpn_connection');
@@ -930,6 +954,11 @@ class VpnController extends ChangeNotifier {
     final histories = {...workspace.profiles};
     var changed = false;
     for (final user in workspace.users) {
+      if (user.deleted) {
+        results.remove(user.id);
+        changed = histories.remove(user.id) != null || changed;
+        continue;
+      }
       final result = await compute(_compile, (encoded, source, user.id));
       if (_disposed) return;
       results[user.id] = result;

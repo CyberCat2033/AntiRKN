@@ -918,5 +918,15 @@
   "uiCopyFailed": "Could not copy the link. Tap the QR code to retry.",
   "uiPreviewYaml": "Preview YAML",
   "uiProfileDetails": "Profile details",
-  "uiOperationPending": "Operation needs attention"
+  "uiOperationPending": "Operation needs attention",
+  "vpnDeleteUser": "Delete client",
+  "vpnDeleteExplanation": "The client will leave the list. Access on unavailable servers will be revoked after reconnecting. The name and login can be used again.",
+  "vpnDeleteFile": "Also move the configuration file to Google Drive trash",
+  "vpnRevocationPending": "Waiting to revoke access",
+  "vpnDeleteFilePending": "Access revoked. Waiting to delete the file",
+  "vpnAccessRevoked": "Access revoked",
+  "vpnRevocationFailed": "Revocation is incomplete. Check the server and retry.",
+  "vpnUserDeleted": "This client record was deleted. You can create a new client with the same name and login.",
+  "vpnNodeName": "Node name",
+  "uiDeleteServer": "Delete server"
 }

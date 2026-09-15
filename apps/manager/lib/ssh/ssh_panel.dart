@@ -11,11 +11,13 @@ class SshPanel extends StatefulWidget {
     required this.controller,
     this.motion = MotionPreference.system,
     this.showDelete = true,
+    this.showConnectionActions = true,
     super.key,
   });
   final SshController controller;
   final MotionPreference motion;
   final bool showDelete;
+  final bool showConnectionActions;
   @override
   State<SshPanel> createState() => _SshPanelState();
 }
@@ -328,18 +330,20 @@ class _SshPanelState extends State<SshPanel> {
                             onPressed: c.refresh,
                             child: Text(l.sshRefresh),
                           ),
-                          OutlinedButton(
-                            onPressed: c.disconnect,
-                            child: Text(l.sshDisconnect),
-                          ),
-                        ] else if (c.busy)
+                          if (widget.showConnectionActions)
+                            OutlinedButton(
+                              onPressed: c.disconnect,
+                              child: Text(l.sshDisconnect),
+                            ),
+                        ] else if (c.busy && widget.showConnectionActions)
                           OutlinedButton(
                             key: const ValueKey('ssh-cancel'),
                             onPressed: c.disconnect,
                             child: Text(l.sshCancel),
                           )
                         else ...[
-                          if (c.stage != SshStage.connected)
+                          if (c.stage != SshStage.connected &&
+                              widget.showConnectionActions)
                             FilledButton(
                               key: const ValueKey('ssh-connect'),
                               onPressed: c.editing ? c.connect : null,
@@ -492,7 +496,7 @@ Future<void> confirmSshProfileDeletion(
   final accepted = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: Text(l.sshDelete),
+      title: Text(l.uiDeleteServer),
       content: Text(l.sshDeleteHelp),
       actions: [
         TextButton(
@@ -502,7 +506,7 @@ Future<void> confirmSshProfileDeletion(
         TextButton(
           key: const ValueKey('ssh-delete-confirm'),
           onPressed: () => Navigator.pop(context, true),
-          child: Text(l.sshDelete),
+          child: Text(l.uiDeleteServer),
         ),
       ],
     ),

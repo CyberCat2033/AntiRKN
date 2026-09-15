@@ -1,0 +1,33 @@
+{
+  "release": "1c567bbe81937d5793240703f694ec163e9404ba6b097420205c90153263a6b4",
+  "hashes": {
+    "antirkn-runner.service": "92c109d00cbb8dfea21bc926a81d5c811c936de870ab273bdafcfee7c3454402",
+    "apt.py": "9e156f4de63c4ee299bf38e3aac9d95bf5ae09b5e0d518788f45fd843e3ad97a",
+    "awg.py": "d6e09b8820a848670424a7ca0406ff2ad3f4bf933441c7e89e70ac1c19ac3ffc",
+    "awg_contract.py": "a73bb8f2ff9d364b74fda706474ca570a4ca62cef07d447bd102f74e875d9d59",
+    "awg_external.py": "770d098d616f1b1dc3169c70f2221c4bb2a8f3913fbecd4f164c8744627a5a19",
+    "awg_network.py": "fc4edd7883f13d29117db0a1ad1497c6e800e48ed3ebd8837ca24510c5d2258c",
+    "component_releases.py": "d1486eda1a67d3afce697dd96439349d1e6bd9c8d58b875a7f65ef7564891adb",
+    "components.py": "c5909d53f46bea1a447ad1625b45f1f23a68223dcc88a162079d3965b9f6e398",
+    "contract.py": "c34edc7f949104bcdfc688bf4bad5ea8482627f75d3be2d710a9bcc531482f20",
+    "observed_inbounds.py": "b7a73c5694fed30ae6946407922e596bb66b97f803ed3756afa58d38f851fb51",
+    "panel.py": "e178af99b9bdf387a23093dcd4687612a5a144c30020e1a1f619d3b3683254df",
+    "panel_api.py": "6efa5b123c0e92aaaa22077219fa1b8534c85522f7a2b0db7be868fec4212d64",
+    "panel_discovery.py": "ea706b5bd1a4ac91478fb99c35d5d1e536379d44f4c8afab5b60d782b4cf8d40",
+    "panel_release.py": "b67b0de1668cd0429965ed4b468b1e6688fd1bd2e0a1d151b48f6a2179cc446b",
+    "panel_update.py": "be09ad33c4badfc4096210dbea6eeed7b9932b843def39639a1f69d3259593b5",
+    "panel_update_release.py": "1a99ce7e3b9b4e5ea9f90fb5f9c61695739ba6849fb809cc2ca06506decbdbee",
+    "runner.py": "5351b9b7106fa1e854b541a3bdc9b540b076a789ea86092b1d9cc21d4785c146",
+    "tt.py": "7846e3c7b2e74e4eb0446d90bf5dca7717088a975a37d1259741b6ae63a094cc",
+    "tt_certificates.py": "e19e089e5a9f398d3efe19b92b52289e57154a7f54b1b11dd25cf2749cc49cad",
+    "tt_common.py": "bf75ea29b11964f59ade6c544b1807da52854cae476662811649c118d150781b",
+    "tt_contract.py": "e8110b63274e946b2795abacd8bb7f668e0a593896d48c5769e6c8c7caab873f",
+    "tt_external.py": "db43d9fb486554ec03433aaa31a6c4804606d37d1cdacb6833de19890d2b201a",
+    "tt_tomli_LICENSE": "b80816b0d530b8accb4c2211783790984a6e3b61922c2b5ee92f3372ab2742fe",
+    "tt_tomli_parser.py": "8d9b29aad227de145893851342ec43de4a1b88fd8e6ab70ddec2b79db61651e2",
+    "tt_tomli_re.py": "1232a091728a07c08a6ed384c4d5ffd9cc1e1d31690b3f771a6527c0ba7e8907",
+    "tt_tomli_types.py": "f864c6d9552a929c7032ace654ee05ef26ca75d21b027b801d77e65907138b74",
+    "vless.py": "deee6dbc784ec0dbe7e6d5b25263c3ad579355f933d86d90e8d8f81058bf9e00",
+    "vless_contract.py": "f259c6878db37288e3327b0f2055f50a143ff17a3b94c34e020a07b048de9277"
+  }
+}

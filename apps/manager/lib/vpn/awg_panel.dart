@@ -189,7 +189,7 @@ class _AwgFormState extends State<AwgForm> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              field('name', l.vpnName),
+              field('name', l.vpnNodeName),
               ServerAddressPicker(
                 role: AddressRole.endpoint,
                 choices: choices,

@@ -601,6 +601,14 @@ final class WorkspaceDatabase
         return expectedRevision;
       });
     }
+    if (oldSource != null) {
+      final next = VpnWorkspace.decode(source);
+      if (VpnWorkspace.decode(oldSource).users.any(
+        (u) => u.deleted && !next.users.any((v) => v.id == u.id && v.deleted),
+      )) {
+        throw const FormatException('vpn_user_deleted');
+      }
+    }
     final revision = expectedRevision + 1;
     final payload = await _encrypt(id, revision, source);
     final changes = await _journal.prepare(

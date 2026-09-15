@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:crypto/crypto.dart';
 import 'prepared_proxy.dart';
+import 'proxy_name.dart';
 
 String vlessRevision(Map<String, Object?> payload) =>
     sha256.convert(utf8.encode(canonicalJson(payload))).toString();
@@ -41,8 +42,7 @@ List<PreparedProxy> vlessUserAccesses(VpnWorkspace workspace, String userId) {
     if (binding == null) throw const FormatException('vpn_pending');
     final s = inbound.spec;
     final fields = <String, Object?>{
-      'name':
-          '${inbound.name}_${inbound.id}${s['region'] == 'RU' ? '_RU' : ''}',
+      'name': clientProxyName(workspace, userId, inbound.id),
       'type': 'vless',
       'server': s['endpoint'],
       'port': s['externalPort'],

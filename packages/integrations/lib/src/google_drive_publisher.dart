@@ -328,6 +328,34 @@ final class GoogleDrivePublisher implements PublicationRemoteStore {
   }
 
   @override
+  Future<void> trashFile(PublicationFile expected, String deletionId) async {
+    if (!expected.binary ||
+        !expected.editable ||
+        !RegExp(r'^[a-f0-9]{32}$').hasMatch(deletionId)) {
+      throw const PublicationFailure(PublicationIssue.invalid);
+    }
+    await _send(
+      'PATCH',
+      _v2('files/${_id(expected.id)}'),
+      body: Uint8List.fromList(
+        utf8.encode(
+          jsonEncode({
+            ..._propertyBody({
+              ...expected.properties,
+              'antirknDeleted': deletionId,
+            }),
+            'labels': {'trashed': true},
+          }),
+        ),
+      ),
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'If-Match': _etag(expected),
+      },
+    );
+  }
+
+  @override
   Future<void> updateFile(
     PublicationFile expected,
     Uint8List bytes, {

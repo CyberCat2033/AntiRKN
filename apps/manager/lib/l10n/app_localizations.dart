@@ -4429,6 +4429,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Operation needs attention'**
   String get uiOperationPending;
+
+  /// No description provided for @vpnDeleteUser.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete client'**
+  String get vpnDeleteUser;
+
+  /// No description provided for @vpnDeleteExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'The client will leave the list. Access on unavailable servers will be revoked after reconnecting. The name and login can be used again.'**
+  String get vpnDeleteExplanation;
+
+  /// No description provided for @vpnDeleteFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Also move the configuration file to Google Drive trash'**
+  String get vpnDeleteFile;
+
+  /// No description provided for @vpnRevocationPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting to revoke access'**
+  String get vpnRevocationPending;
+
+  /// No description provided for @vpnDeleteFilePending.
+  ///
+  /// In en, this message translates to:
+  /// **'Access revoked. Waiting to delete the file'**
+  String get vpnDeleteFilePending;
+
+  /// No description provided for @vpnAccessRevoked.
+  ///
+  /// In en, this message translates to:
+  /// **'Access revoked'**
+  String get vpnAccessRevoked;
+
+  /// No description provided for @vpnRevocationFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Revocation is incomplete. Check the server and retry.'**
+  String get vpnRevocationFailed;
+
+  /// No description provided for @vpnUserDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'This client record was deleted. You can create a new client with the same name and login.'**
+  String get vpnUserDeleted;
+
+  /// No description provided for @vpnNodeName.
+  ///
+  /// In en, this message translates to:
+  /// **'Node name'**
+  String get vpnNodeName;
+
+  /// No description provided for @uiDeleteServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete server'**
+  String get uiDeleteServer;
 }
 
 class _AppLocalizationsDelegate

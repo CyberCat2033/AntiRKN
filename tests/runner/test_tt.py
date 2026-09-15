@@ -121,7 +121,7 @@ class TrustTunnelTests(unittest.TestCase):
     def test_enabling_quic_checks_only_new_udp_socket(self):
         p=payload();r=p['resources'][0];r['quic']=True
         old=dict(workspaceId=p['workspaceId'],spec=dict(r,quic=False))
-        with patch.object(tt,'prerequisites',return_value='fixture'),patch.object(tt,'owned',return_value={r['id']:old}),patch.object(tt,'intact',return_value=True),patch.object(tt,'desired'),patch.object(cert,'record',return_value=dict(id=r['certificateId'],pairHash='fixture')),patch.object(tt,'active',return_value=True),patch.object(tt,'available',return_value=True) as port:
+        with patch.object(tt,'check_revocations'),patch.object(tt,'prerequisites',return_value='fixture'),patch.object(tt,'owned',return_value={r['id']:old}),patch.object(tt,'intact',return_value=True),patch.object(tt,'desired'),patch.object(cert,'record',return_value=dict(id=r['certificateId'],pairHash='fixture')),patch.object(tt,'active',return_value=True),patch.object(tt,'available',return_value=True) as port:
             tt.preflight(None,p)
             port.assert_called_once_with(r['listen'],r['port'],udp_only=True)
 

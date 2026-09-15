@@ -120,6 +120,7 @@ final class PublicationCoordinator {
           if (file.properties['antirknWorkspace'] != draft.workspaceId ||
               file.properties['antirknUser'] != draft.userId ||
               !file.editable ||
+              file.properties['antirknDeleted'] != null ||
               !file.binary ||
               file.trashed) {
             throw const PublicationFailure(PublicationIssue.invalid);

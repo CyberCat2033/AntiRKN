@@ -472,6 +472,7 @@ class _ManagerShellState extends State<ManagerShell>
               !_controller.savingDraft &&
               !_controller.draftSaveFailed,
         );
+        _vpn!.deletePublishedFile = _publications!.deleteClientFile;
       }
     }
   }
@@ -610,7 +611,13 @@ class _ManagerShellState extends State<ManagerShell>
                       tooltip: l.vpnAddUser,
                       onPressed: _vpn!.busy || !_vpn!.loaded
                           ? null
-                          : () => UsersPage.edit(context, _vpn!, widget.motion),
+                          : () => UsersPage.edit(
+                              context,
+                              _vpn!,
+                              widget.motion,
+                              null,
+                              _publications,
+                            ),
                       icon: const Icon(Icons.add),
                     ),
                   ),

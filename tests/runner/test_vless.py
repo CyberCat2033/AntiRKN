@@ -74,6 +74,31 @@ class VlessTests(unittest.TestCase):
         wanted = wanted_inbound(p, p['resources'][0])
         self.assertEqual(json.loads(wanted['streamSettings'])['realitySettings']['minClientVer'], '0.0.0')
 
+    def test_deleted_id_cannot_resume_but_new_id_gets_new_credentials(self):
+        original = self.submit()
+        self.assertEqual(self.finish(original)['status'], 'succeeded')
+        old_uuid = state(self.store, 'b'*32)[0]['clients'][0]['uuid']
+        revoked = payload()
+        revoked['users'][0]['enabled'] = False
+        revoked['revokedUsers'] = ['c'*32]
+        self.assertEqual(self.finish(self.submit(revoked, 2))['status'], 'succeeded')
+        self.assertTrue(all(not r['clients'][0]['enabled'] and r['clients'][1]['enabled'] for r in state(self.store, 'b'*32)))
+        effects = self.api.effects
+        self.store.close()
+        self.store = Store(Path(self.temp.name))
+        with self.assertRaisesRegex(ValueError, 'revoked_client'):
+            self.submit(payload(), 3)
+        with self.assertRaisesRegex(ValueError, 'revoked_client'):
+            VlessApply(self.store, original).step(1)
+        self.assertEqual(self.api.effects, effects)
+        recreated = payload()
+        recreated['users'][0]['id'] = 'e'*32
+        self.assertEqual(self.finish(self.submit(recreated, 4))['status'], 'succeeded')
+        clients = state(self.store, 'b'*32)[0]['clients']
+        self.assertEqual(clients[0]['id'], 'e'*32)
+        self.assertTrue(clients[0]['enabled'])
+        self.assertNotEqual(clients[0]['uuid'], old_uuid)
+
     def test_two_inbounds_have_distinct_stable_personal_credentials(self):
         req=self.submit();self.assertEqual(self.finish(req)['status'],'succeeded')
         self.assertTrue(all(r['sniffing']['enabled'] for r in self.api.rows))

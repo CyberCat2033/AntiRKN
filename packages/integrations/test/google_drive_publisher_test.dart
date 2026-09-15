@@ -119,6 +119,50 @@ void main() {
     expect(http.requests, isEmpty);
   });
   test(
+    'trash marks exactly the bound file using its ETag; stale delete has no fallback',
+    () async {
+      await drive.trashFile(file, 'd' * 32);
+      final request = http.requests.single;
+      expect(request.method, 'PATCH');
+      expect(request.uri.path, '/drive/v2/files/fixture');
+      expect(request.headers['If-Match'], file.etag);
+      final body = jsonDecode(request.body!) as Map;
+      expect(body['labels'], {'trashed': true});
+      expect(
+        body['properties'],
+        contains(
+          equals({
+            'key': 'antirknDeleted',
+            'value': 'd' * 32,
+            'visibility': 'PRIVATE',
+          }),
+        ),
+      );
+      expect(
+        body['properties'],
+        contains(
+          equals({
+            'key': 'retained',
+            'value': 'value',
+            'visibility': 'PRIVATE',
+          }),
+        ),
+      );
+      http.reply = (_) async => response(412, {});
+      await expectLater(
+        drive.trashFile(file, 'd' * 32),
+        throwsA(issue(PublicationIssue.conflict)),
+      );
+      expect(http.requests, hasLength(2));
+      expect(
+        http.requests.every(
+          (r) => r.method == 'PATCH' && r.uri.path.endsWith('/fixture'),
+        ),
+        isTrue,
+      );
+    },
+  );
+  test(
     'public redirects carry no credentials; foreign hosts and login HTML rejected',
     () async {
       final yaml = Uint8List.fromList(utf8.encode('mode: rule\n'));

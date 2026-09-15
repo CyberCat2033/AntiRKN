@@ -2484,4 +2484,39 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get uiOperationPending => 'Operation needs attention';
+
+  @override
+  String get vpnDeleteUser => 'Delete client';
+
+  @override
+  String get vpnDeleteExplanation =>
+      'The client will leave the list. Access on unavailable servers will be revoked after reconnecting. The name and login can be used again.';
+
+  @override
+  String get vpnDeleteFile =>
+      'Also move the configuration file to Google Drive trash';
+
+  @override
+  String get vpnRevocationPending => 'Waiting to revoke access';
+
+  @override
+  String get vpnDeleteFilePending =>
+      'Access revoked. Waiting to delete the file';
+
+  @override
+  String get vpnAccessRevoked => 'Access revoked';
+
+  @override
+  String get vpnRevocationFailed =>
+      'Revocation is incomplete. Check the server and retry.';
+
+  @override
+  String get vpnUserDeleted =>
+      'This client record was deleted. You can create a new client with the same name and login.';
+
+  @override
+  String get vpnNodeName => 'Node name';
+
+  @override
+  String get uiDeleteServer => 'Delete server';
 }

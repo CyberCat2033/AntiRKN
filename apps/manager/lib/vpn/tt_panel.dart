@@ -272,7 +272,7 @@ class TtSettingsEditor extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (!external) field('name', l.vpnName),
+        if (!external) field('name', l.vpnNodeName),
         picker(AddressRole.listener, 'listen'),
         field('listen', l.networkListener),
         field('port', l.ttPort, number: true),

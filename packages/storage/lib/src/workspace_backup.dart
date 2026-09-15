@@ -427,6 +427,13 @@ Future<void> _restoreBackup(
         for (final dynamic row in snapshot.documents) {
           if (row['id'] == 'vpn-workspace-v1') {
             final vpn = VpnWorkspace.decode(row['source'] as String);
+            for (final user in vpn.users.where(
+              (u) => u.deleted && !u.deletionComplete,
+            )) {
+              restoredTargets.addAll(
+                (user.deletion!['targets'] as Map).keys.cast<String>(),
+              );
+            }
             for (final entry in vpn.servers.entries) {
               final record = entry.value;
               if (record['pending'] != null ||
