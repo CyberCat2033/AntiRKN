@@ -292,7 +292,9 @@ void main() {
       final raw = sqlite3.open(path);
       // Deliberate tampering bypasses the guard against old application writers.
       raw.execute('BEGIN IMMEDIATE');
-      raw.execute('UPDATE sync_identity SET write_guard=1');
+      raw.execute(
+        'UPDATE sync_identity SET write_guard=1, writer_device=device_id',
+      );
       raw.execute(
         'UPDATE servers SET payload = (SELECT payload FROM servers WHERE id = ?) WHERE id = ?',
         [a, b],

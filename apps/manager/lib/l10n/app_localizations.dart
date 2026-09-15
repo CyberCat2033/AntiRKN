@@ -3655,6 +3655,174 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'ACME issuance or renewal failed. Check public DNS, port 80 reachability and the ACME log on the server.'**
   String get ttAcmeFailed;
+
+  /// No description provided for @backupTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Backups'**
+  String get backupTitle;
+
+  /// No description provided for @backupHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Save servers, clients, keys, templates and change history in an encrypted file to restore on another installation.'**
+  String get backupHelp;
+
+  /// No description provided for @backupExport.
+  ///
+  /// In en, this message translates to:
+  /// **'Create backup'**
+  String get backupExport;
+
+  /// No description provided for @backupImport.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore backup'**
+  String get backupImport;
+
+  /// No description provided for @backupPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Backup password'**
+  String get backupPassword;
+
+  /// No description provided for @backupRepeat.
+  ///
+  /// In en, this message translates to:
+  /// **'Repeat password'**
+  String get backupRepeat;
+
+  /// No description provided for @backupPasswordHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Use a separate password of at least 12 characters. Restoration requires the file and this password. The app does not save it.'**
+  String get backupPasswordHelp;
+
+  /// No description provided for @backupPasswordMismatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter at least 12 characters; both fields must match when creating a backup.'**
+  String get backupPasswordMismatch;
+
+  /// No description provided for @backupShowPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Show password'**
+  String get backupShowPassword;
+
+  /// No description provided for @backupHidePassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide password'**
+  String get backupHidePassword;
+
+  /// No description provided for @backupInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Incorrect password or damaged backup. Your data was not replaced.'**
+  String get backupInvalid;
+
+  /// No description provided for @backupVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'This app version does not support the backup format.'**
+  String get backupVersion;
+
+  /// No description provided for @backupTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'The backup exceeds 64 MiB.'**
+  String get backupTooLarge;
+
+  /// No description provided for @backupChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'Data changed after the preview. Select the backup again and review its contents.'**
+  String get backupChanged;
+
+  /// No description provided for @backupStorage.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read or write storage. Restoration was not applied.'**
+  String get backupStorage;
+
+  /// No description provided for @backupFileError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read or save the file. Check access and try again.'**
+  String get backupFileError;
+
+  /// No description provided for @backupWorking.
+  ///
+  /// In en, this message translates to:
+  /// **'Processing backup…'**
+  String get backupWorking;
+
+  /// No description provided for @backupSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Encrypted backup saved.'**
+  String get backupSaved;
+
+  /// No description provided for @backupSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Created: {date}\nServers: {servers}\nClients: {users}\nChanges: {changes}\nQueued: {pending}'**
+  String backupSummary(
+    String date,
+    int servers,
+    int users,
+    int changes,
+    int pending,
+  );
+
+  /// No description provided for @backupReplaceHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Current servers, clients, templates and history will be replaced by the backup. Save a separate backup of your current data first if you need it. SSH connections will close. The app will reopen the restored workspace; unfinished VPN operations will require a new decision. This device’s preferences will be retained.'**
+  String get backupReplaceHelp;
+
+  /// No description provided for @backupActiveWork.
+  ///
+  /// In en, this message translates to:
+  /// **'Wait for the current operation or data save to finish, then try again.'**
+  String get backupActiveWork;
+
+  /// No description provided for @backupClose.
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get backupClose;
+
+  /// No description provided for @backupCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get backupCancel;
+
+  /// No description provided for @backupReplace.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace and restore'**
+  String get backupReplace;
+
+  /// No description provided for @backupSelect.
+  ///
+  /// In en, this message translates to:
+  /// **'Select file'**
+  String get backupSelect;
+
+  /// No description provided for @backupOperationReview.
+  ///
+  /// In en, this message translates to:
+  /// **'This operation was restored from a backup and will not be sent automatically. Check the server and confirm a new plan, or choose to cancel or retry the existing job.'**
+  String get backupOperationReview;
+
+  /// No description provided for @backupReviewServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Check server state'**
+  String get backupReviewServer;
 }
 
 class _AppLocalizationsDelegate

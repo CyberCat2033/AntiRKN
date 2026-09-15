@@ -75,7 +75,9 @@ void main() {
       }
       final db = sqlite3.open(path);
       db.execute('BEGIN IMMEDIATE');
-      db.execute('UPDATE sync_identity SET write_guard=1');
+      db.execute(
+        'UPDATE sync_identity SET write_guard=1, writer_device=device_id',
+      );
       db.execute(
         "UPDATE documents SET payload=zeroblob(length(payload)) WHERE id='vpn-workspace-v1'",
       );

@@ -18,6 +18,7 @@ class MainActivity : FlutterActivity() {
     private val reader = Executors.newSingleThreadExecutor()
     private var pending: MethodChannel.Result? = null
     private var pickingKey = false
+    private var backup = false
     private var exporting: ByteArray? = null
     private val handler = Handler(Looper.getMainLooper())
     private var requestId = 7142
@@ -32,16 +33,17 @@ class MainActivity : FlutterActivity() {
                 if (call.method == "cancelKey") {
                     if (pickingKey) finishPick(requestId)
                     result.success(null)
-                } else if (call.method != "pick" && call.method != "pickKey" && call.method != "saveProfile") {
+                } else if (call.method !in setOf("pick", "pickKey", "saveProfile", "pickBackup", "saveBackup")) {
                     result.notImplemented()
                 } else if (pending != null) {
                     result.error("picker_busy", null, null)
                 } else {
                     pending = result
                     pickingKey = call.method == "pickKey"
-                    val save = call.method == "saveProfile"
+                    backup = call.method == "pickBackup" || call.method == "saveBackup"
+                    val save = call.method == "saveProfile" || call.method == "saveBackup"
                     exporting = if (save) call.argument<ByteArray>("bytes") else null
-                    if (save && (exporting == null || exporting!!.size > 4 * 1024 * 1024)) {
+                    if (save && (exporting == null || exporting!!.size > (if (backup) BACKUP_BYTES else 4 * 1024 * 1024))) {
                         finishPick(requestId, error = "template_size_limit")
                         return@setMethodCallHandler
                     }
@@ -50,7 +52,7 @@ class MainActivity : FlutterActivity() {
                     // Validate the returned display name before reading any content.
                     val intent = Intent(if (save) Intent.ACTION_CREATE_DOCUMENT else Intent.ACTION_OPEN_DOCUMENT).apply {
                         addCategory(Intent.CATEGORY_OPENABLE)
-                        type = if (save) "application/yaml" else "*/*"
+                        type = if (save && backup) "application/octet-stream" else if (save) "application/yaml" else "*/*"
                         if (save) putExtra(Intent.EXTRA_TITLE, call.argument<String>("name"))
                     }
                     try {
@@ -78,11 +80,12 @@ class MainActivity : FlutterActivity() {
         // Only the provider read is timed: browsing the system picker may take
         // as long as the user needs. Stale callbacks cannot finish a new request.
         val isKey = pickingKey
+        val isBackup = backup
         val outputBytes = exporting?.copyOf()
         val signal = CancellationSignal()
         readSignal = signal
         deadline = Runnable { finishPick(requestCode, error = "template_read_error") }
-        handler.postDelayed(deadline!!, 20_000)
+        handler.postDelayed(deadline!!, if (isBackup) 120_000 else 20_000)
         readTask = reader.submit {
             try {
                 if (outputBytes != null) {
@@ -99,7 +102,7 @@ class MainActivity : FlutterActivity() {
                 val name = contentResolver.query(
                     uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null, signal
                 )?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
-                if (name == null || (!isKey && name.substringAfterLast('.').lowercase(Locale.ROOT)
+                if (name == null || (!isKey && !isBackup && name.substringAfterLast('.').lowercase(Locale.ROOT)
                     !in setOf("yml", "yaml"))) {
                     runOnUiThread { finishPick(requestCode, error = "invalid_template_extension") }
                     return@submit
@@ -112,7 +115,7 @@ class MainActivity : FlutterActivity() {
                         signal.throwIfCanceled()
                         val count = input.read(buffer)
                         if (count < 0) break
-                        if (output.size() + count > MAX_BYTES) {
+                        if (output.size() + count > (if (isBackup) BACKUP_BYTES else MAX_BYTES)) {
                             runOnUiThread { finishPick(requestCode, error = "template_size_limit") }
                             return@submit
                         }
@@ -141,6 +144,7 @@ class MainActivity : FlutterActivity() {
         val result = pending ?: return
         pending = null
         pickingKey = false
+        backup = false
         exporting?.fill(0)
         exporting = null
         deadline?.let(handler::removeCallbacks)
@@ -160,5 +164,6 @@ class MainActivity : FlutterActivity() {
 
     companion object {
         private const val MAX_BYTES = 256 * 1024
+        private const val BACKUP_BYTES = 64 * 1024 * 1024
     }
 }

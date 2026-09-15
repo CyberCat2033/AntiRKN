@@ -26,6 +26,15 @@ class MemoryVpn implements VpnRepository {
   }
 }
 
+class RestoredTargets implements WorkspaceRecoveryStore {
+  final targets = <String>{'one', 'two'};
+  @override
+  Future<Set<String>> readRestoredTargets() async => Set.of(targets);
+  @override
+  Future<void> approveRestoredTargets(Iterable<String> approved) async =>
+      targets.removeAll(approved);
+}
+
 class Remote implements RunnerTransport {
   Remote(this.store);
   final MemoryVpn store;
@@ -158,8 +167,10 @@ VpnController controller(
   MemoryVpn store,
   Map<String, Remote> remotes, {
   String Function()? source,
+  WorkspaceRecoveryStore? recovery,
 }) => VpnController(
   repository: store,
+  recovery: recovery,
   template: source ?? () => template,
   remote: (id) => remotes[id] == null
       ? null
@@ -186,6 +197,82 @@ Future<void> setup(VpnController c) async {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test(
+    'restored offline intentions wait for a fresh explicit plan and cannot replay on reconnect',
+    () async {
+      final store = MemoryVpn(), remotes = <String, Remote>{};
+      remotes.addAll({'one': Remote(store), 'two': Remote(store)});
+      final c = controller(store, remotes);
+      await setup(c);
+      // Obtain panel bindings first, then authorize an offline change.
+      await c.prepare();
+      await c.apply();
+      await c.saveUser(
+        VpnUser(id: alice, login: 'alice', name: 'Changed', enabled: false),
+      );
+      final connections = Map.of(remotes);
+      remotes.clear();
+      await c.prepare();
+      await c.apply();
+      expect(c.error, isNull);
+      c.dispose();
+      remotes.addAll(connections);
+      for (final remote in remotes.values) {
+        remote.actions.clear();
+      }
+      final recovery = RestoredTargets();
+      final restored = controller(store, remotes, recovery: recovery);
+      addTearDown(restored.dispose);
+      await restored.load();
+      await restored.reconcile();
+      expect(restored.needsRestoreReview('one'), isTrue);
+      expect(
+        remotes.values.expand((r) => r.actions),
+        isNot(contains('submit')),
+      );
+      await restored.reviewRestored('one');
+      expect(
+        remotes.values.expand((r) => r.actions),
+        isNot(contains('submit')),
+      );
+      await restored.prepare();
+      expect(restored.error, isNull);
+      await restored.apply();
+      expect(restored.error, isNull);
+      expect(recovery.targets, isEmpty);
+      expect(remotes.values.expand((r) => r.actions), contains('submit'));
+    },
+  );
+
+  test(
+    'restored pending request is queried by ID and never submitted during review',
+    () async {
+      final store = MemoryVpn(), remotes = <String, Remote>{};
+      remotes.addAll({
+        'one': Remote(store)..loseReply = true,
+        'two': Remote(store),
+      });
+      final c = controller(store, remotes);
+      await setup(c);
+      await c.prepare();
+      await c.apply();
+      expect(c.workspace.servers['one']!['pending'], isNotNull);
+      c.dispose();
+      final recovery = RestoredTargets();
+      final restored = controller(store, remotes, recovery: recovery);
+      addTearDown(restored.dispose);
+      await restored.load();
+      for (final remote in remotes.values) {
+        remote.actions.clear();
+      }
+      await restored.reconcile();
+      await restored.reviewRestored('one');
+      expect(restored.error, isNull);
+      expect(remotes['one']!.actions, contains('status'));
+      expect(remotes['one']!.actions, isNot(contains('submit')));
+      expect(restored.workspace.servers['one']!['pending'], isNull);
+    },
+  );
   test(
     'two clients x two servers x two inbounds, only personal credentials in each YAML',
     () async {

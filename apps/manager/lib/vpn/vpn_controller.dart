@@ -56,6 +56,7 @@ class VpnController extends ChangeNotifier {
     required this.remote,
     required this.template,
     this.serverIds,
+    this.recovery,
     Timer Function(Duration, void Function(Timer))? timer,
   }) {
     _timer = (timer ?? Timer.periodic)(
@@ -64,6 +65,15 @@ class VpnController extends ChangeNotifier {
     );
   }
   final VpnRepository repository;
+  final WorkspaceRecoveryStore? recovery;
+  Set<String> _restoredTargets = {};
+  bool needsRestoreReview(String id) => _restoredTargets.contains(id);
+  Future<void> _approveRestored(Iterable<String> targets) async {
+    final approved = targets.toSet();
+    await recovery?.approveRestoredTargets(approved);
+    _restoredTargets.removeAll(approved);
+  }
+
   final VpnRemote? Function(String) remote;
   final String Function() template;
   final Iterable<String> Function()? serverIds;
@@ -123,6 +133,7 @@ class VpnController extends ChangeNotifier {
   }
 
   Future<void> load() => _run((token) async {
+    _restoredTargets = await recovery?.readRestoredTargets() ?? {};
     final saved = await repository.readVpn();
     token.check();
     revision = saved.revision;
@@ -359,6 +370,7 @@ class VpnController extends ChangeNotifier {
     }
     // Every server's intent is durable before the first remote submission.
     await _write(workspace.copy(servers: records));
+    await _approveRestored(plans.map((p) => p.serverId));
     plans = [];
     await _reconcile(token);
   });
@@ -394,6 +406,7 @@ class VpnController extends ChangeNotifier {
   Future<void> _reconcile(CancellationToken token) async {
     var changed = false;
     for (final id in workspace.serverIds) {
+      if (_restoredTargets.contains(id)) continue;
       final connection = remote(id);
       if (connection == null) continue;
       var record = Map<String, dynamic>.from(workspace.servers[id] ?? {});
@@ -645,17 +658,63 @@ class VpnController extends ChangeNotifier {
     final req = record['pending'] as Map?;
     if (req == null) {
       await _record(id, {...record, 'paused': true, 'authorizedPayload': null});
+      await _approveRestored([id]);
       return;
     }
     // Remember cancellation while offline and send it before any further
     // resubmission when the server becomes reachable.
     await _record(id, {...record, 'paused': true, 'cancelRequested': true});
+    await _approveRestored([id]);
     final r = remote(id);
     if (r == null) return;
     if (record['identity'] != null && record['identity'] != r.identity) {
       throw const FormatException('vpn_identity');
     }
     await _reconcile(token);
+  });
+
+  /// A restored request is only inspected here. Missing jobs are not submitted.
+  Future<void> reviewRestored(String id) => _run((token) async {
+    if (!_restoredTargets.contains(id)) return;
+    final connection = remote(id);
+    if (connection == null) throw const FormatException('vpn_connection');
+    final old = workspace.servers[id];
+    if (old == null) return;
+    if (old['identity'] != null && old['identity'] != connection.identity) {
+      throw const FormatException('vpn_identity');
+    }
+    await _refreshServer(id, token);
+    final record = workspace.servers[id]!;
+    final request = record['pending'] as Map?;
+    RunnerJob? job;
+    if (request != null) {
+      final response = await _request(
+        connection,
+        RunnerRequest.status(request['id'] as String, 0),
+        token,
+        allowMissing: true,
+      );
+      if (response.code != 'missing') {
+        if (response.jobs.length != 1 ||
+            response.jobs.single.id != request['id']) {
+          throw const FormatException('vpn_failed');
+        }
+        job = response.jobs.single;
+      }
+    }
+    await _record(id, {
+      ...record,
+      'paused': true,
+      'authorizedPayload': null,
+      'cancelRequested': false,
+      'observingCancel': false,
+      'pending':
+          job == null || job.status == 'succeeded' || job.status == 'cancelled'
+          ? null
+          : request,
+      'job': job?.toJson(),
+      'error': null,
+    });
   });
   Future<void> resume(String id) => _run((token) async {
     final r = remote(id), record = workspace.servers[id];
@@ -674,6 +733,7 @@ class VpnController extends ChangeNotifier {
       'cancelRequested': false,
       'error': null,
     });
+    await _approveRestored([id]);
     await _reconcile(token);
   });
   Future<void> refreshProfiles() => _run((token) async {

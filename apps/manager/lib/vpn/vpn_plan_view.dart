@@ -139,6 +139,16 @@ class VpnJobView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (c.needsRestoreReview(serverId)) ...[
+          Text(l.backupOperationReview),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton(
+              onPressed: c.busy ? null : () => c.reviewRestored(serverId),
+              child: Text(l.backupReviewServer),
+            ),
+          ),
+        ],
         if (record['error'] case final String error) Text(vpnMessage(l, error)),
         if (job != null) ...[
           Text(runnerStateLabel(l, job.status)),

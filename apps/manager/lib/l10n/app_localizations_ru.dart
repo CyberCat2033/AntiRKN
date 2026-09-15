@@ -2040,4 +2040,104 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get ttAcmeFailed =>
       'Выпуск или продление ACME завершились ошибкой. Проверьте публичный DNS, доступность порта 80 и журнал ACME на сервере.';
+
+  @override
+  String get backupTitle => 'Резервные копии';
+
+  @override
+  String get backupHelp =>
+      'Сохраните серверы, клиентов, ключи, шаблоны и историю изменений в зашифрованный файл для восстановления на другой установке.';
+
+  @override
+  String get backupExport => 'Создать копию';
+
+  @override
+  String get backupImport => 'Восстановить из копии';
+
+  @override
+  String get backupPassword => 'Пароль резервной копии';
+
+  @override
+  String get backupRepeat => 'Повторите пароль';
+
+  @override
+  String get backupPasswordHelp =>
+      'Отдельный пароль от 12 символов. Для восстановления нужны файл и этот пароль. Приложение пароль не сохраняет.';
+
+  @override
+  String get backupPasswordMismatch =>
+      'Введите пароль от 12 символов; при создании оба поля должны совпадать.';
+
+  @override
+  String get backupShowPassword => 'Показать пароль';
+
+  @override
+  String get backupHidePassword => 'Скрыть пароль';
+
+  @override
+  String get backupInvalid =>
+      'Неверный пароль или повреждённая резервная копия. Данные не заменены.';
+
+  @override
+  String get backupVersion =>
+      'Версия резервной копии не поддерживается этой сборкой.';
+
+  @override
+  String get backupTooLarge => 'Размер резервной копии превышает 64 МиБ.';
+
+  @override
+  String get backupChanged =>
+      'После просмотра данные изменились. Выберите копию повторно и проверьте её состав.';
+
+  @override
+  String get backupStorage =>
+      'Не удалось прочитать или записать хранилище. Восстановление не применено.';
+
+  @override
+  String get backupFileError =>
+      'Не удалось прочитать или сохранить файл. Проверьте доступ и повторите.';
+
+  @override
+  String get backupWorking => 'Обработка резервной копии…';
+
+  @override
+  String get backupSaved => 'Зашифрованная резервная копия сохранена.';
+
+  @override
+  String backupSummary(
+    String date,
+    int servers,
+    int users,
+    int changes,
+    int pending,
+  ) {
+    return 'Создана: $date\nСерверов: $servers\nКлиентов: $users\nИзменений: $changes\nВ очереди: $pending';
+  }
+
+  @override
+  String get backupReplaceHelp =>
+      'Текущие серверы, клиенты, шаблоны и история будут заменены содержимым копии. Сначала сохраните отдельную копию текущих данных, если они нужны. SSH-соединения закроются. Приложение откроет восстановленное хранилище; незавершённые VPN-операции потребуют нового решения. Личные настройки этого устройства сохранятся.';
+
+  @override
+  String get backupActiveWork =>
+      'Дождитесь завершения текущей операции или сохранения данных, затем повторите.';
+
+  @override
+  String get backupClose => 'Закрыть';
+
+  @override
+  String get backupCancel => 'Отмена';
+
+  @override
+  String get backupReplace => 'Заменить и восстановить';
+
+  @override
+  String get backupSelect => 'Выбрать файл';
+
+  @override
+  String get backupOperationReview =>
+      'Операция восстановлена из резервной копии и автоматически не отправляется. Проверьте сервер и подтвердите новый план либо выберите отмену или повтор существующего задания.';
+
+  @override
+  String get backupReviewServer => 'Проверить состояние сервера';
 }

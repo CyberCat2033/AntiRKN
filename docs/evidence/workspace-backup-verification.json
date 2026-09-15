@@ -1,0 +1,107 @@
+{
+  "stage": "P1-03 workspace backup/restore",
+  "verified_at_utc": "2026-09-15T07:49:08.852090+00:00",
+  "base_commit": "c801178fb253f98f5ed9ce239dadbf5d3429b764",
+  "tests": [
+    {
+      "suite": "storage",
+      "command": "flutter test --no-pub",
+      "cwd": "packages/storage",
+      "passed": 49,
+      "result": "PASS"
+    },
+    {
+      "suite": "app",
+      "command": "flutter test --no-pub test/backup_test.dart test/vpn_controller_test.dart test/vpn_workspace_identity_test.dart test/widget_test.dart test/server_catalog_test.dart test/runner_controller_test.dart",
+      "cwd": "apps/manager",
+      "passed": 46,
+      "result": "PASS"
+    },
+    {
+      "suite": "restore_shell",
+      "command": "flutter test --no-pub test/backup_reload_test.dart",
+      "cwd": "apps/manager",
+      "passed": 1,
+      "result": "PASS"
+    }
+  ],
+  "total_tests_passed": 96,
+  "checks": [
+    {
+      "command": "python3 tool/check_workspace.py",
+      "result": "PASS",
+      "summary": "Architecture boundaries, base.yml SHA-256 and 620 RU/EN messages: OK"
+    },
+    {
+      "command": "python3 tool/generate_changes.py --check",
+      "result": "PASS",
+      "summary": "Local change generated contract: OK"
+    },
+    {
+      "command": "python3 tool/generate_vless.py --check",
+      "result": "PASS",
+      "summary": "VLESS generated contract: OK"
+    },
+    {
+      "command": "python3 tool/generate_runner.py --check",
+      "result": "PASS",
+      "summary": "Runner generated contracts/bundle: OK"
+    },
+    {
+      "command": "flutter analyze --no-pub",
+      "result": "PASS"
+    },
+    {
+      "command": "dart format --output=none --set-exit-if-changed apps packages tool/compile_fixtures.dart tool/compile_vless_fixture.dart",
+      "result": "PASS",
+      "files": 167
+    }
+  ],
+  "artifacts": [
+    {
+      "platform": "linux-x64-debug",
+      "path": "apps/manager/build/linux/x64/debug/bundle/antirkn_manager",
+      "bytes": 53696,
+      "sha256": "9fffcfee576434e574553b9b3cc8214dffa856e18bc973d1a78545ecfddd3d13",
+      "result": "PASS"
+    },
+    {
+      "platform": "android-arm64-debug",
+      "path": "apps/manager/build/app/outputs/flutter-apk/app-debug.apk",
+      "bytes": 117989790,
+      "sha256": "6ab8ef264c7f7f5fd4a6ed8837ad560aeef96fb48594ac2cf396006074b846c1",
+      "result": "PASS"
+    }
+  ],
+  "verified_scenarios": [
+    "different destination encryption key; same workspace/entity IDs and credentials; new device ID",
+    "exact history, revisions, outbox and tombstones retained",
+    "wrong password, damaged header/ciphertext, unsupported schema and inconsistent snapshot rejected",
+    "stale preview and acknowledgement conflict; foreign/cancelled plans rejected",
+    "injected insert failure rolls back data, history, schema and identity",
+    "v1/v2 migration preserves previous ciphertext and events; old writers rejected",
+    "separate process exits after commit without SQLite close; restored WAL recovered",
+    "encrypted backup and DB/WAL checked against fixture plaintext secrets",
+    "RU/EN 390 px text scale 2, confirmation/cancel/late results",
+    "actual SQLite shell reload creates new controllers and displays restored data",
+    "restored VPN intentions do not automatically submit; status review and explicit new plan verified"
+  ],
+  "fixtures": "Isolated temporary directories and non-working test credentials; no owner data or VPS accessed.",
+  "unverified": [
+    "Windows build/runtime",
+    "Android document-provider/runtime",
+    "manual Linux desktop dialogs and full GUI acceptance",
+    "physical power loss and disk-full",
+    "load and maximum-size backup",
+    "public VPS / cloud exchange"
+  ],
+  "limits": {
+    "file_bytes": 67108864,
+    "history_events": 200000,
+    "standalone_startup_recovery_wizard": false,
+    "drive_sync": false
+  },
+  "adb_performed": false,
+  "push_performed": false,
+  "shutdown_performed": false
+}

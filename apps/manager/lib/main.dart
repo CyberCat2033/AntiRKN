@@ -7,6 +7,7 @@ import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
 
 import 'app_strings.dart';
+import 'backup/backup_panel.dart';
 import 'runner/component_updates_controller.dart';
 import 'runner/component_installation_view.dart';
 import 'l10n/app_localizations.dart';
@@ -27,27 +28,59 @@ Future<void> main() async {
 }
 
 class WorkspaceLauncher extends StatefulWidget {
-  const WorkspaceLauncher({super.key});
+  const WorkspaceLauncher({
+    this.openWorkspace = openLocalWorkspace,
+    this.backupFiles,
+    super.key,
+  });
+  final Future<WorkspaceDatabase> Function() openWorkspace;
+  final BackupFileStore? backupFiles;
   @override
   State<WorkspaceLauncher> createState() => _WorkspaceLauncherState();
 }
 
 class _WorkspaceLauncherState extends State<WorkspaceLauncher> {
   late Future<Widget> _app = _load();
+  WorkspaceDatabase? _database;
+  LanguageController? _languages;
+  int _generation = 0;
+
+  Future<void> _reopen() async {
+    final old = _database, languages = _languages;
+    Future<Widget> restart() async {
+      // Dispose the previous shell and its SSH sessions before reopening data.
+      await WidgetsBinding.instance.endOfFrame;
+      await old?.close();
+      languages?.dispose();
+      return _load();
+    }
+
+    setState(() {
+      _generation++;
+      _app = restart();
+    });
+  }
+
   Future<Widget> _load() async {
-    final database = await openLocalWorkspace();
+    final database = await widget.openWorkspace();
     try {
       final languages = LanguageController(database);
       await languages.load();
       final source = await database.readDraft() ?? '';
       final theme = await database.readSetting('theme');
       final motion = await database.readSetting('motion');
+      _database = database;
+      _languages = languages;
       return AntiRknApp(
+        key: ValueKey(_generation),
         source: source,
         languages: languages,
         settings: database,
         drafts: database,
         servers: database,
+        backups: database,
+        backupFiles: widget.backupFiles ?? SystemBackupFileStore(),
+        onRestored: _reopen,
         initialTheme:
             ThemeMode.values.where((e) => e.name == theme).firstOrNull ??
             ThemeMode.system,
@@ -72,6 +105,7 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher> {
 
   @override
   Widget build(BuildContext context) => FutureBuilder<Widget>(
+    key: ValueKey(_generation),
     future: _app,
     builder: (context, snapshot) =>
         snapshot.data ??
@@ -113,6 +147,9 @@ class AntiRknApp extends StatefulWidget {
     this.servers,
     this.settings,
     this.drafts,
+    this.backups,
+    this.backupFiles,
+    this.onRestored,
     this.initialTheme = ThemeMode.system,
     this.initialMotion = MotionPreference.system,
     super.key,
@@ -125,6 +162,9 @@ class AntiRknApp extends StatefulWidget {
   final ServerRepository? servers;
   final SettingsStore? settings;
   final TemplateDraftStore? drafts;
+  final WorkspaceBackupStore? backups;
+  final BackupFileStore? backupFiles;
+  final Future<void> Function()? onRestored;
   final ThemeMode initialTheme;
   final MotionPreference initialMotion;
   final SshDependencies? ssh;
@@ -216,6 +256,9 @@ class _AntiRknAppState extends State<AntiRknApp> {
                   ssh: widget.ssh,
                   servers: widget.servers,
                   drafts: widget.drafts,
+                  backups: widget.backups,
+                  backupFiles: widget.backupFiles,
+                  onRestored: widget.onRestored,
                   settingsError: _settingsError,
                   theme: _theme,
                   motion: _motion,
@@ -240,6 +283,9 @@ class ManagerShell extends StatefulWidget {
     this.ssh,
     this.servers,
     this.drafts,
+    this.backups,
+    this.backupFiles,
+    this.onRestored,
     this.settingsError = false,
     required this.theme,
     required this.motion,
@@ -254,6 +300,9 @@ class ManagerShell extends StatefulWidget {
   final NetworkInventoryReader networkReader;
   final ServerRepository? servers;
   final TemplateDraftStore? drafts;
+  final WorkspaceBackupStore? backups;
+  final BackupFileStore? backupFiles;
+  final Future<void> Function()? onRestored;
   final bool settingsError;
   final SshDependencies? ssh;
   final ThemeMode theme;
@@ -316,6 +365,9 @@ class _ManagerShellState extends State<ManagerShell>
     if (widget.servers is VpnRepository) {
       _vpn = VpnController(
         repository: widget.servers as VpnRepository,
+        recovery: widget.servers is WorkspaceRecoveryStore
+            ? widget.servers as WorkspaceRecoveryStore
+            : null,
         template: () => _controller.source,
         serverIds: () =>
             _catalog?.servers.expand(
@@ -503,6 +555,21 @@ class _ManagerShellState extends State<ManagerShell>
                         padding: AppLayout.padding,
                         children: [
                           if (widget.settingsError) Text(l.settingsSaveError),
+                          if (widget.backups != null &&
+                              widget.backupFiles != null &&
+                              widget.onRestored != null) ...[
+                            BackupPanel(
+                              store: widget.backups!,
+                              files: widget.backupFiles!,
+                              onRestored: widget.onRestored!,
+                              canRestore: () =>
+                                  !(_catalog?.hasActiveWork ?? false) &&
+                                  !(_vpn?.busy ?? false) &&
+                                  !_controller.savingDraft &&
+                                  !_controller.importing,
+                            ),
+                            const SizedBox(height: AppLayout.gap),
+                          ],
                           const ComponentUpdateSettings(),
                           const SizedBox(height: AppLayout.gap),
                           SectionCard(

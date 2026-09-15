@@ -726,5 +726,51 @@
   "ttDnsMismatch": "Domain A/AAAA records do not match the selected listening/external IPs. Correct DNS or the selected addresses before issuance.",
   "ttAcmePortBusy": "TCP port 80 is occupied. HTTP-01 standalone issuance cannot start.",
   "ttCertbotRequired": "Certbot cannot be installed from the current APT indexes. Run the manual APT index update and prepare a new plan.",
-  "ttAcmeFailed": "ACME issuance or renewal failed. Check public DNS, port 80 reachability and the ACME log on the server."
+  "ttAcmeFailed": "ACME issuance or renewal failed. Check public DNS, port 80 reachability and the ACME log on the server.",
+  "backupTitle": "Backups",
+  "backupHelp": "Save servers, clients, keys, templates and change history in an encrypted file to restore on another installation.",
+  "backupExport": "Create backup",
+  "backupImport": "Restore backup",
+  "backupPassword": "Backup password",
+  "backupRepeat": "Repeat password",
+  "backupPasswordHelp": "Use a separate password of at least 12 characters. Restoration requires the file and this password. The app does not save it.",
+  "backupPasswordMismatch": "Enter at least 12 characters; both fields must match when creating a backup.",
+  "backupShowPassword": "Show password",
+  "backupHidePassword": "Hide password",
+  "backupInvalid": "Incorrect password or damaged backup. Your data was not replaced.",
+  "backupVersion": "This app version does not support the backup format.",
+  "backupTooLarge": "The backup exceeds 64 MiB.",
+  "backupChanged": "Data changed after the preview. Select the backup again and review its contents.",
+  "backupStorage": "Could not read or write storage. Restoration was not applied.",
+  "backupFileError": "Could not read or save the file. Check access and try again.",
+  "backupWorking": "Processing backup…",
+  "backupSaved": "Encrypted backup saved.",
+  "backupSummary": "Created: {date}\nServers: {servers}\nClients: {users}\nChanges: {changes}\nQueued: {pending}",
+  "backupReplaceHelp": "Current servers, clients, templates and history will be replaced by the backup. Save a separate backup of your current data first if you need it. SSH connections will close. The app will reopen the restored workspace; unfinished VPN operations will require a new decision. This device’s preferences will be retained.",
+  "backupActiveWork": "Wait for the current operation or data save to finish, then try again.",
+  "backupClose": "Close",
+  "backupCancel": "Cancel",
+  "backupReplace": "Replace and restore",
+  "backupSelect": "Select file",
+  "backupOperationReview": "This operation was restored from a backup and will not be sent automatically. Check the server and confirm a new plan, or choose to cancel or retry the existing job.",
+  "@backupSummary": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "servers": {
+        "type": "int"
+      },
+      "users": {
+        "type": "int"
+      },
+      "changes": {
+        "type": "int"
+      },
+      "pending": {
+        "type": "int"
+      }
+    }
+  },
+  "backupReviewServer": "Check server state"
 }

@@ -26,6 +26,11 @@ class ServerCatalogController extends ChangeNotifier {
   SshController? get selected => _sessions[selectedId];
   SshController? sessionFor(String id) => _sessions[id];
   bool get needsLegacyPassword => repository.needsLegacyPassword;
+  bool get hasActiveWork =>
+      loading ||
+      _sessions.values.any(
+        (s) => s.busy || s.runner.busy || s.vaultBusy || s.picking,
+      );
 
   Future<void> load({String? password}) async {
     if (loading || _disposed) return;

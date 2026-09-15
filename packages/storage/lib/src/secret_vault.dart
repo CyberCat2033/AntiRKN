@@ -5,6 +5,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'profile_codec.dart';
+import 'password_key.dart';
 
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:cryptography/cryptography.dart';
@@ -375,22 +376,11 @@ final class EncryptedSecretVault implements SecretVault {
 
   static Future<SecretKeyData> _derive(String password, String salt) async {
     final bytes = await Isolate.run(() async {
-      final passwordKey = SecretKeyData(
-        utf8.encode(password),
-        overwriteWhenDestroyed: true,
-      );
+      final key = await derivePasswordKey(password, base64Decode(salt));
       try {
-        final derived = await Argon2id(
-          parallelism: 1,
-          memory: 19456,
-          iterations: 2,
-          hashLength: 32,
-        ).deriveKey(secretKey: passwordKey, nonce: base64Decode(salt));
-        final result = Uint8List.fromList(await derived.extractBytes());
-        derived.destroy();
-        return result;
+        return Uint8List.fromList(key.bytes);
       } finally {
-        passwordKey.destroy();
+        key.destroy();
       }
     });
     final key = SecretKeyData(bytes, overwriteWhenDestroyed: true);

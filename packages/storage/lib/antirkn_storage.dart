@@ -6,6 +6,7 @@ export 'src/template_file_picker.dart';
 export 'src/secret_vault.dart';
 export 'src/private_key_file_picker.dart';
 export 'src/workspace_database.dart';
+export 'src/backup_file_store.dart';
 
 /// Stores non-secret, per-device preferences only. This is NOT a SecretStore.
 final class LocalLanguagePreferenceStore implements LanguagePreferenceStore {

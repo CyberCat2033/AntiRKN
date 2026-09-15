@@ -97,7 +97,7 @@ void main() {
         );
         await db.close();
         final after = sqlite3.open(path);
-        expect(after.userVersion, 2);
+        expect(after.userVersion, 3);
         expect(after.select('SELECT * FROM servers').single, oldServer);
         expect(
           after.select('SELECT * FROM documents ORDER BY id'),
@@ -178,6 +178,57 @@ void main() {
         first.writeVpn(VpnWorkspace.empty().encode(), expectedRevision: 1),
         throwsA(isA<VaultFailure>()),
       );
+    },
+  );
+
+  test(
+    'shipped v2 schema upgrades with the same identity, ciphertext and events; wrong key cannot migrate it',
+    () async {
+      await createV1(path);
+      final original = open();
+      final identity = await original.readWorkspaceIdentity();
+      final events = ids(await original.readPendingChanges());
+      await original.close();
+      final raw = sqlite3.open(path);
+      final ciphertext = raw.select('SELECT * FROM servers').single;
+      try {
+        // Reconstruct the shipped v2 schema; record encryption and headers are
+        // unchanged across v2/v3 and come from the independent v1 fixture.
+        for (final table in ['servers', 'documents']) {
+          for (final action in ['insert', 'update', 'delete']) {
+            raw.execute('DROP TRIGGER journal_guard_${table}_$action');
+            raw.execute(
+              "CREATE TRIGGER journal_guard_${table}_$action BEFORE $action ON $table WHEN (SELECT write_guard FROM sync_identity WHERE singleton=1) != 1 BEGIN SELECT RAISE(ABORT, 'journal_writer_required'); END",
+            );
+          }
+        }
+        raw.execute('ALTER TABLE sync_identity DROP COLUMN writer_device');
+        raw.userVersion = 2;
+        final wrong = WorkspaceDatabase.open(
+          path,
+          key: SecretKeyData(List.filled(32, 8)),
+        );
+        stores.add(wrong);
+        await expectLater(
+          wrong.readWorkspaceIdentity(),
+          throwsA(isA<VaultFailure>()),
+        );
+        expect(raw.userVersion, 2);
+        final migrated = open();
+        expect(
+          (await migrated.readWorkspaceIdentity()).deviceId,
+          identity.deviceId,
+        );
+        expect(raw.userVersion, 3);
+        expect(raw.select('SELECT * FROM servers').single, ciphertext);
+        expect(ids(await migrated.readPendingChanges()), events);
+        expect(
+          (await migrated.listServers()).single.profile.secrets,
+          fixtureServer().secrets,
+        );
+      } finally {
+        raw.dispose();
+      }
     },
   );
 
@@ -413,7 +464,7 @@ void main() {
       );
       expect(await db.readDraft(), 'private-template-fixture');
       raw = sqlite3.open(path);
-      expect(raw.userVersion, 2);
+      expect(raw.userVersion, 3);
       raw.dispose();
     },
   );

@@ -2034,4 +2034,104 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get ttAcmeFailed =>
       'ACME issuance or renewal failed. Check public DNS, port 80 reachability and the ACME log on the server.';
+
+  @override
+  String get backupTitle => 'Backups';
+
+  @override
+  String get backupHelp =>
+      'Save servers, clients, keys, templates and change history in an encrypted file to restore on another installation.';
+
+  @override
+  String get backupExport => 'Create backup';
+
+  @override
+  String get backupImport => 'Restore backup';
+
+  @override
+  String get backupPassword => 'Backup password';
+
+  @override
+  String get backupRepeat => 'Repeat password';
+
+  @override
+  String get backupPasswordHelp =>
+      'Use a separate password of at least 12 characters. Restoration requires the file and this password. The app does not save it.';
+
+  @override
+  String get backupPasswordMismatch =>
+      'Enter at least 12 characters; both fields must match when creating a backup.';
+
+  @override
+  String get backupShowPassword => 'Show password';
+
+  @override
+  String get backupHidePassword => 'Hide password';
+
+  @override
+  String get backupInvalid =>
+      'Incorrect password or damaged backup. Your data was not replaced.';
+
+  @override
+  String get backupVersion =>
+      'This app version does not support the backup format.';
+
+  @override
+  String get backupTooLarge => 'The backup exceeds 64 MiB.';
+
+  @override
+  String get backupChanged =>
+      'Data changed after the preview. Select the backup again and review its contents.';
+
+  @override
+  String get backupStorage =>
+      'Could not read or write storage. Restoration was not applied.';
+
+  @override
+  String get backupFileError =>
+      'Could not read or save the file. Check access and try again.';
+
+  @override
+  String get backupWorking => 'Processing backup…';
+
+  @override
+  String get backupSaved => 'Encrypted backup saved.';
+
+  @override
+  String backupSummary(
+    String date,
+    int servers,
+    int users,
+    int changes,
+    int pending,
+  ) {
+    return 'Created: $date\nServers: $servers\nClients: $users\nChanges: $changes\nQueued: $pending';
+  }
+
+  @override
+  String get backupReplaceHelp =>
+      'Current servers, clients, templates and history will be replaced by the backup. Save a separate backup of your current data first if you need it. SSH connections will close. The app will reopen the restored workspace; unfinished VPN operations will require a new decision. This device’s preferences will be retained.';
+
+  @override
+  String get backupActiveWork =>
+      'Wait for the current operation or data save to finish, then try again.';
+
+  @override
+  String get backupClose => 'Close';
+
+  @override
+  String get backupCancel => 'Cancel';
+
+  @override
+  String get backupReplace => 'Replace and restore';
+
+  @override
+  String get backupSelect => 'Select file';
+
+  @override
+  String get backupOperationReview =>
+      'This operation was restored from a backup and will not be sent automatically. Check the server and confirm a new plan, or choose to cancel or retry the existing job.';
+
+  @override
+  String get backupReviewServer => 'Check server state';
 }

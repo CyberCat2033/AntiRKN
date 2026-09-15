@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -11,9 +12,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import 'profile_codec.dart';
+import 'backup_envelope.dart';
 import 'secret_vault.dart';
 
 part 'workspace_journal.dart';
+part 'workspace_backup.dart';
 
 Future<WorkspaceDatabase> openLocalWorkspace() async {
   final support = await getApplicationSupportDirectory();
@@ -108,6 +111,8 @@ final class WorkspaceDatabase
         RunnerJournalStore,
         VpnRepository,
         ChangeJournalStore,
+        WorkspaceBackupStore,
+        WorkspaceRecoveryStore,
         SettingsStore,
         TemplateDraftStore,
         LanguagePreferenceStore {
@@ -124,7 +129,7 @@ final class WorkspaceDatabase
       db.execute('PRAGMA journal_mode = WAL');
       db.execute('PRAGMA synchronous = FULL');
       final version = db.userVersion;
-      if (version > 2) throw const VaultFailure(VaultIssue.corrupt);
+      if (version > 3) throw const VaultFailure(VaultIssue.corrupt);
       if (version == 0) {
         db.execute('BEGIN IMMEDIATE');
         try {
@@ -163,12 +168,15 @@ final class WorkspaceDatabase
   );
   Future<void> _pending = Future.value();
   bool _closed = false;
+  bool _restored = false;
   @override
   bool needsLegacyPassword = false;
 
   Future<T> _serial<T>(FutureOr<T> Function() action) {
     final next = _pending.then((_) async {
-      if (_closed) throw const VaultFailure(VaultIssue.unavailable);
+      if (_closed || _restored) {
+        throw const VaultFailure(VaultIssue.unavailable);
+      }
       await _journal.initialize();
       return action();
     });
@@ -179,9 +187,15 @@ final class WorkspaceDatabase
   T _transaction<T>(T Function() body) {
     _db.execute('BEGIN IMMEDIATE');
     try {
-      _db.execute('UPDATE sync_identity SET write_guard=1 WHERE singleton=1');
+      _journal.checkIdentity();
+      _db.execute(
+        'UPDATE sync_identity SET write_guard=1, writer_device=? WHERE singleton=1',
+        [_journal.identity.deviceId],
+      );
       final result = body();
-      _db.execute('UPDATE sync_identity SET write_guard=0 WHERE singleton=1');
+      _db.execute(
+        'UPDATE sync_identity SET write_guard=0, writer_device=NULL WHERE singleton=1',
+      );
       _db.execute('COMMIT');
       return result;
     } catch (_) {
@@ -327,12 +341,14 @@ final class WorkspaceDatabase
     return rows.isEmpty ? null : rows.single['value'] as String;
   });
   @override
-  Future<void> writeSetting(String key, String value) => _serial(() {
-    _db.execute(
-      'INSERT INTO settings VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
-      [key, value],
-    );
-  });
+  Future<void> writeSetting(String key, String value) => _serial(
+    () => _transaction(() {
+      _db.execute(
+        'INSERT INTO settings VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
+        [key, value],
+      );
+    }),
+  );
   @override
   Future<AppLanguage> readLanguage() async {
     final value = await readSetting('language');
@@ -590,7 +606,53 @@ final class WorkspaceDatabase
     return _serial(() => _transaction(() => _journal.acknowledge(ids)));
   }
 
+  @override
+  Future<Uint8List> createBackup(String password) =>
+      _createBackup(this, password);
+
+  @override
+  Future<Set<String>> readRestoredTargets() => _serial(() {
+    final rows = _db.select(
+      "SELECT value FROM settings WHERE key='backupRestoredTargets'",
+    );
+    return rows.isEmpty
+        ? <String>{}
+        : Set<String>.from(jsonDecode(rows.single['value'] as String) as List);
+  });
+
+  @override
+  Future<void> approveRestoredTargets(Iterable<String> targets) {
+    final approved = targets.toSet();
+    return _serial(
+      () => _transaction(() {
+        final rows = _db.select(
+          "SELECT value FROM settings WHERE key='backupRestoredTargets'",
+        );
+        final pending = rows.isEmpty
+            ? <String>{}
+            : Set<String>.from(
+                jsonDecode(rows.single['value'] as String) as List,
+              );
+        pending.removeAll(approved);
+        _db.execute(
+          "INSERT INTO settings VALUES ('backupRestoredTargets',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+          [jsonEncode(pending.toList()..sort())],
+        );
+      }),
+    );
+  }
+
+  @override
+  Future<WorkspaceRestorePlan> prepareRestore(
+    Uint8List bytes,
+    String password,
+  ) => _prepareRestore(this, bytes, password);
+  @override
+  Future<void> restoreBackup(WorkspaceRestorePlan plan) =>
+      _restoreBackup(this, plan);
+
   Future<void> close() async {
+    if (_closed) return;
     await _pending;
     if (_closed) return;
     _closed = true;

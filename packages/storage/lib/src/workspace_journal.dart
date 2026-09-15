@@ -105,7 +105,10 @@ final class _LocalChangeJournal {
   ];
 
   Future<void> initialize() async {
-    if (_identity != null) return;
+    if (_identity != null) {
+      checkIdentity();
+      return;
+    }
     if (db.userVersion == 1) await _migrate();
     final row = db.select('SELECT * FROM sync_identity').single;
     final proof = jsonDecode(
@@ -117,10 +120,46 @@ final class _LocalChangeJournal {
         proof['deviceId'] != row['device_id']) {
       throw const VaultFailure(VaultIssue.corrupt);
     }
+    if (db.userVersion == 2) {
+      db.execute('BEGIN IMMEDIATE');
+      try {
+        if (db.userVersion == 2) {
+          db.execute('ALTER TABLE sync_identity ADD COLUMN writer_device TEXT');
+          for (final table in ['servers', 'documents']) {
+            for (final action in ['insert', 'update', 'delete']) {
+              db.execute('DROP TRIGGER journal_guard_${table}_$action');
+              db.execute(_guard(table, action));
+            }
+          }
+          db.userVersion = 3;
+        }
+        db.execute('COMMIT');
+      } catch (_) {
+        db.execute('ROLLBACK');
+        rethrow;
+      }
+    }
     _identity = WorkspaceIdentity(
       workspaceId: row['workspace_id'] as String,
       deviceId: row['device_id'] as String,
     );
+    checkIdentity();
+  }
+
+  static String _guard(String table, String action) =>
+      "CREATE TRIGGER journal_guard_${table}_$action BEFORE $action ON $table WHEN (SELECT write_guard != 1 OR writer_device IS NOT device_id FROM sync_identity WHERE singleton=1) BEGIN SELECT RAISE(ABORT, 'journal_writer_required'); END";
+
+  /// A restore invalidates cached editors and other already-open processes.
+  void checkIdentity() {
+    final row = db
+        .select(
+          'SELECT workspace_id,device_id FROM sync_identity WHERE singleton=1',
+        )
+        .single;
+    if (row['workspace_id'] != identity.workspaceId ||
+        row['device_id'] != identity.deviceId) {
+      throw const VaultFailure(VaultIssue.busy);
+    }
   }
 
   List<Row> _servers() => db.select('SELECT * FROM servers ORDER BY id');
@@ -196,7 +235,7 @@ final class _LocalChangeJournal {
         );
         commit(batch);
         db.userVersion = 2;
-      } else if (db.userVersion != 2) {
+      } else if (db.userVersion != 2 && db.userVersion != 3) {
         throw const VaultFailure(VaultIssue.corrupt);
       }
       db.execute('COMMIT');
@@ -341,8 +380,7 @@ final class _LocalChangeJournal {
         );
         if (header.changeId != row['change_id'] ||
             header.sequence != row['sequence'] ||
-            header.workspaceId != identity.workspaceId ||
-            header.deviceId != identity.deviceId) {
+            header.workspaceId != identity.workspaceId) {
           throw const VaultFailure(VaultIssue.corrupt);
         }
         final body =
