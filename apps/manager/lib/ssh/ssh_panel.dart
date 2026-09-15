@@ -10,10 +10,12 @@ class SshPanel extends StatefulWidget {
   const SshPanel({
     required this.controller,
     this.motion = MotionPreference.system,
+    this.showDelete = true,
     super.key,
   });
   final SshController controller;
   final MotionPreference motion;
+  final bool showDelete;
   @override
   State<SshPanel> createState() => _SshPanelState();
 }
@@ -84,7 +86,9 @@ class _SshPanelState extends State<SshPanel> {
           if (c.unlocked) ...[
             const SizedBox(height: AppLayout.gap),
             SectionCard(
-              title: c.settingsExpanded ? l.sshTitle : c.displayName,
+              title: c.settingsExpanded || !widget.showDelete
+                  ? l.sshTitle
+                  : c.displayName,
               trailing: c.settingsExpanded
                   ? null
                   : IconButton(
@@ -356,37 +360,15 @@ class _SshPanelState extends State<SshPanel> {
                               child: Text(l.sshCancel),
                             ),
                         ],
-                        if (c.settingsExpanded &&
+                        if (widget.showDelete &&
+                            c.settingsExpanded &&
                             c.editing &&
                             c.hasSavedProfile &&
                             c.stage != SshStage.connected)
                           TextButton(
                             key: const ValueKey('ssh-delete'),
-                            onPressed: () async {
-                              final accepted = await showDialog<bool>(
-                                context: context,
-                                builder: (context) => AlertDialog(
-                                  title: Text(l.sshDelete),
-                                  content: Text(l.sshDeleteHelp),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(context, false),
-                                      child: Text(l.sshCancel),
-                                    ),
-                                    TextButton(
-                                      key: const ValueKey('ssh-delete-confirm'),
-                                      onPressed: () =>
-                                          Navigator.pop(context, true),
-                                      child: Text(l.sshDelete),
-                                    ),
-                                  ],
-                                ),
-                              );
-                              if (accepted == true && c.editing) {
-                                await c.deleteProfile();
-                              }
-                            },
+                            onPressed: () =>
+                                confirmSshProfileDeletion(context, c),
                             child: Text(l.sshDelete),
                           ),
                       ],
@@ -501,3 +483,31 @@ String privilegeStatusLabel(AppLocalizations l, PrivilegeStatus status) =>
       PrivilegeStatus.terminalRequired => l.privilegesTerminal,
       PrivilegeStatus.invalidPassword => l.privilegesInvalidPassword,
     };
+
+Future<void> confirmSshProfileDeletion(
+  BuildContext context,
+  SshController c,
+) async {
+  final l = AppLocalizations.of(context);
+  final accepted = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(l.sshDelete),
+      content: Text(l.sshDeleteHelp),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: Text(l.sshCancel),
+        ),
+        TextButton(
+          key: const ValueKey('ssh-delete-confirm'),
+          onPressed: () => Navigator.pop(context, true),
+          child: Text(l.sshDelete),
+        ),
+      ],
+    ),
+  );
+  if (accepted == true && c.editing) {
+    await c.deleteProfile();
+  }
+}

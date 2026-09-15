@@ -83,7 +83,7 @@ class Remote implements PublicationRemoteStore {
 void main() {
   for (final locale in ['ru', 'en']) {
     testWidgets(
-      '$locale setup recovers lost folder response; received result and failed update retain copy link',
+      '$locale setup recovers lost folder response; received result and failed update retain verified URL without duplicate copy button',
       (tester) async {
         final account = Account(),
             repo = Repository(),
@@ -142,6 +142,7 @@ void main() {
         expect(remote.ids, 1);
         expect(remote.creates, 1);
         repo.docs['result/${fixtures.alice}'] = jsonEncode({
+          'fileId': 'fixture',
           'hash': vpn.results[fixtures.alice]!.sha256Hash,
           'access': 'link',
           'url': 'https://drive.google.com/uc?id=fixture',
@@ -163,7 +164,21 @@ void main() {
           ),
           findsNothing,
         );
-        expect(find.byIcon(Icons.copy), findsOneWidget);
+        expect(find.byIcon(Icons.copy), findsNothing);
+        expect(
+          c.verifiedLinkFor(fixtures.alice),
+          'https://drive.google.com/uc?id=fixture',
+        );
+        repo.queues[fixtures.alice] =
+            '{"status":"error","issue":"linkUnavailable"}';
+        await c.reload();
+        expect(c.verifiedLinkFor(fixtures.alice), isNull);
+        repo.queues.remove(fixtures.alice);
+        await c.reload();
+        c.error = PublicationIssue.missing;
+        expect(c.verifiedLinkFor(fixtures.alice), isNull);
+        c.error = PublicationIssue.network;
+        expect(c.verifiedLinkFor(fixtures.alice), isNotNull);
         await c.setEnabled(false);
         expect(c.settings!.enabled, isFalse);
         expect(tester.takeException(), isNull);

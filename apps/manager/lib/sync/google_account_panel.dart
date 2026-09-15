@@ -104,29 +104,6 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
     super.dispose();
   }
 
-  String _syncStatus(AppLocalizations l) {
-    final sync = widget.sync!;
-    if (sync.accountError == GoogleAccountIssue.reauthorize ||
-        sync.transportError == SyncTransportIssue.unauthorized) {
-      return l.googleReauthorize;
-    }
-    if (sync.accountError == GoogleAccountIssue.denied ||
-        sync.transportError == SyncTransportIssue.forbidden) {
-      return l.googleDenied;
-    }
-    return switch (sync.phase) {
-      AutoSyncPhase.disconnected => l.googleAccountHelp,
-      AutoSyncPhase.disabled => l.autoSyncDisabled,
-      AutoSyncPhase.waiting => l.autoSyncWaiting,
-      AutoSyncPhase.syncing => l.autoSyncWorking,
-      AutoSyncPhase.synced => l.autoSyncDone,
-      AutoSyncPhase.editing => l.autoSyncEditing,
-      AutoSyncPhase.conflict => l.autoSyncConflict,
-      AutoSyncPhase.incomplete => l.autoSyncIncomplete,
-      AutoSyncPhase.error => l.autoSyncError,
-    };
-  }
-
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
@@ -224,7 +201,10 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
                       }
                     },
             ),
-            Text(_syncStatus(l), key: const ValueKey('google-sync-status')),
+            Text(
+              syncStatusLabel(l, widget.sync!),
+              key: const ValueKey('google-sync-status'),
+            ),
             if ((widget.sync!.result?.otherWorkspaces ?? 0) > 0)
               Text(
                 l.autoSyncOtherWorkspaces,
@@ -255,4 +235,26 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
       ),
     );
   }
+}
+
+String syncStatusLabel(AppLocalizations l, AutoSyncController sync) {
+  if (sync.accountError == GoogleAccountIssue.reauthorize ||
+      sync.transportError == SyncTransportIssue.unauthorized) {
+    return l.googleReauthorize;
+  }
+  if (sync.accountError == GoogleAccountIssue.denied ||
+      sync.transportError == SyncTransportIssue.forbidden) {
+    return l.googleDenied;
+  }
+  return switch (sync.phase) {
+    AutoSyncPhase.disconnected => l.googleAccountHelp,
+    AutoSyncPhase.disabled => l.autoSyncDisabled,
+    AutoSyncPhase.waiting => l.autoSyncWaiting,
+    AutoSyncPhase.syncing => l.autoSyncWorking,
+    AutoSyncPhase.synced => l.autoSyncDone,
+    AutoSyncPhase.editing => l.autoSyncEditing,
+    AutoSyncPhase.conflict => l.autoSyncConflict,
+    AutoSyncPhase.incomplete => l.autoSyncIncomplete,
+    AutoSyncPhase.error => l.autoSyncError,
+  };
 }

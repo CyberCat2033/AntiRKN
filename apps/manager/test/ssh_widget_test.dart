@@ -175,7 +175,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Servers'));
+        await tester.tap(find.text('Servers').last);
         await tester.pumpAndSettle();
       }
 

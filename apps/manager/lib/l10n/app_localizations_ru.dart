@@ -2449,4 +2449,45 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get publicationCopyLink => 'Копировать ссылку профиля';
+
+  @override
+  String get uiGoogleDrive => 'Google Drive';
+
+  @override
+  String get uiAppearance => 'Оформление';
+
+  @override
+  String get uiActions => 'Действия';
+
+  @override
+  String get uiProtocols => 'Протоколы';
+
+  @override
+  String get uiMaintenance => 'Обслуживание';
+
+  @override
+  String get uiConnection => 'Подключение';
+
+  @override
+  String get uiDisconnectBeforeDelete =>
+      'Перед удалением завершите операции и отключите SSH.';
+
+  @override
+  String get uiQrCopyHint => 'Нажмите, чтобы скопировать ссылку';
+
+  @override
+  String get uiLinkCopied => 'Ссылка скопирована';
+
+  @override
+  String get uiCopyFailed =>
+      'Не удалось скопировать ссылку. Нажмите QR ещё раз.';
+
+  @override
+  String get uiPreviewYaml => 'Просмотр YAML';
+
+  @override
+  String get uiProfileDetails => 'Подробности профиля';
+
+  @override
+  String get uiOperationPending => 'Операция требует внимания';
 }

@@ -905,5 +905,18 @@
   "publicationWaiting": "Ожидает публикации",
   "publicationFailed": "Публикация не завершена. Проверьте настройки и повторите.",
   "publicationPublished": "Профиль опубликован",
-  "publicationCopyLink": "Копировать ссылку профиля"
+  "publicationCopyLink": "Копировать ссылку профиля",
+  "uiGoogleDrive": "Google Drive",
+  "uiAppearance": "Оформление",
+  "uiActions": "Действия",
+  "uiProtocols": "Протоколы",
+  "uiMaintenance": "Обслуживание",
+  "uiConnection": "Подключение",
+  "uiDisconnectBeforeDelete": "Перед удалением завершите операции и отключите SSH.",
+  "uiQrCopyHint": "Нажмите, чтобы скопировать ссылку",
+  "uiLinkCopied": "Ссылка скопирована",
+  "uiCopyFailed": "Не удалось скопировать ссылку. Нажмите QR ещё раз.",
+  "uiPreviewYaml": "Просмотр YAML",
+  "uiProfileDetails": "Подробности профиля",
+  "uiOperationPending": "Операция требует внимания"
 }

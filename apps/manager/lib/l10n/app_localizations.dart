@@ -4351,6 +4351,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Copy profile link'**
   String get publicationCopyLink;
+
+  /// No description provided for @uiGoogleDrive.
+  ///
+  /// In en, this message translates to:
+  /// **'Google Drive'**
+  String get uiGoogleDrive;
+
+  /// No description provided for @uiAppearance.
+  ///
+  /// In en, this message translates to:
+  /// **'Appearance'**
+  String get uiAppearance;
+
+  /// No description provided for @uiActions.
+  ///
+  /// In en, this message translates to:
+  /// **'Actions'**
+  String get uiActions;
+
+  /// No description provided for @uiProtocols.
+  ///
+  /// In en, this message translates to:
+  /// **'Protocols'**
+  String get uiProtocols;
+
+  /// No description provided for @uiMaintenance.
+  ///
+  /// In en, this message translates to:
+  /// **'Maintenance'**
+  String get uiMaintenance;
+
+  /// No description provided for @uiConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection'**
+  String get uiConnection;
+
+  /// No description provided for @uiDisconnectBeforeDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Finish active operations and disconnect SSH before deleting.'**
+  String get uiDisconnectBeforeDelete;
+
+  /// No description provided for @uiQrCopyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to copy the link'**
+  String get uiQrCopyHint;
+
+  /// No description provided for @uiLinkCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Link copied'**
+  String get uiLinkCopied;
+
+  /// No description provided for @uiCopyFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not copy the link. Tap the QR code to retry.'**
+  String get uiCopyFailed;
+
+  /// No description provided for @uiPreviewYaml.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview YAML'**
+  String get uiPreviewYaml;
+
+  /// No description provided for @uiProfileDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile details'**
+  String get uiProfileDetails;
+
+  /// No description provided for @uiOperationPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Operation needs attention'**
+  String get uiOperationPending;
 }
 
 class _AppLocalizationsDelegate

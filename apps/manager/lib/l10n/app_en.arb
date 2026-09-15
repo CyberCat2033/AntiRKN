@@ -905,5 +905,18 @@
   "publicationWaiting": "Waiting to publish",
   "publicationFailed": "Publication is incomplete. Check settings and retry.",
   "publicationPublished": "Profile published",
-  "publicationCopyLink": "Copy profile link"
+  "publicationCopyLink": "Copy profile link",
+  "uiGoogleDrive": "Google Drive",
+  "uiAppearance": "Appearance",
+  "uiActions": "Actions",
+  "uiProtocols": "Protocols",
+  "uiMaintenance": "Maintenance",
+  "uiConnection": "Connection",
+  "uiDisconnectBeforeDelete": "Finish active operations and disconnect SSH before deleting.",
+  "uiQrCopyHint": "Tap to copy the link",
+  "uiLinkCopied": "Link copied",
+  "uiCopyFailed": "Could not copy the link. Tap the QR code to retry.",
+  "uiPreviewYaml": "Preview YAML",
+  "uiProfileDetails": "Profile details",
+  "uiOperationPending": "Operation needs attention"
 }

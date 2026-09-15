@@ -382,12 +382,7 @@ class _ManagerShellState extends State<ManagerShell>
   PublicationController? _publications;
   bool _applyingSync = false;
   int _syncRevision = 0;
-  static const _icons = [
-    Icons.space_dashboard_outlined,
-    Icons.dns_outlined,
-    Icons.tune,
-    Icons.people_outline,
-  ];
+  static const _icons = [Icons.dns_outlined, Icons.people_outline, Icons.tune];
 
   @override
   void initState() {
@@ -398,7 +393,6 @@ class _ManagerShellState extends State<ManagerShell>
     widget.autoSync?.addListener(_syncChanged);
     if (widget.ssh case final ssh?) {
       if (widget.servers case final repository?) {
-        _index = 1;
         _catalog = ServerCatalogController(
           repository: repository,
           connector: ssh.connector,
@@ -523,7 +517,7 @@ class _ManagerShellState extends State<ManagerShell>
   Future<bool> _applyReceived(Future<void> Function() receive) async {
     if (!mounted ||
         _applyingSync ||
-        _index == 3 ||
+        _index == 1 ||
         _catalog?.selectedId != null ||
         (_catalog?.hasActiveWork ?? false) ||
         (_catalog?.hasUnsavedEdits ?? false) ||
@@ -562,6 +556,14 @@ class _ManagerShellState extends State<ManagerShell>
     }
   }
 
+  bool _canReplace() =>
+      !_applyingSync &&
+      !(_catalog?.hasActiveWork ?? false) &&
+      !(_vpn?.busy ?? false) &&
+      !(_publications?.busy ?? false) &&
+      !_controller.savingDraft &&
+      !_controller.importing;
+
   void _navigate(int value) {
     setState(() => _index = value);
     widget.autoSync?.request();
@@ -571,12 +573,7 @@ class _ManagerShellState extends State<ManagerShell>
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final l = AppLocalizations.of(context);
-      final labels = [
-        l.overview,
-        l.server,
-        l.settings,
-        if (_vpn != null) l.vpnUsers,
-      ];
+      final labels = [l.server, l.vpnUsers, l.settings];
       final rail =
           constraints.maxWidth >= AppLayout.compact &&
           constraints.maxHeight >= 400;
@@ -586,9 +583,9 @@ class _ManagerShellState extends State<ManagerShell>
           canPop: !_applyingSync,
           child: Scaffold(
             appBar: AppBar(
-              title: Text(AppLocalizations.of(context).appName),
+              title: Text(labels[_index]),
               actions: [
-                if (_index == 1 && _catalog != null)
+                if (_index == 0 && _catalog != null)
                   ListenableBuilder(
                     listenable: _catalog!,
                     builder: (context, _) => _catalog!.selectedId != null
@@ -605,23 +602,34 @@ class _ManagerShellState extends State<ManagerShell>
                             icon: const Icon(Icons.add),
                           ),
                   ),
-                if (_index != 1 || _catalog == null)
-                  Padding(
-                    padding: EdgeInsets.only(right: AppLayout.gap),
-                    child:
-                        constraints.maxWidth < AppLayout.compact ||
-                            MediaQuery.textScalerOf(context).scale(14) > 20
-                        ? Tooltip(
-                            message: AppLocalizations.of(context).prototype,
-                            child: Semantics(
-                              label: AppLocalizations.of(context).prototype,
-                              child: Icon(Icons.science_outlined),
-                            ),
-                          )
-                        : StatusChip(
-                            label: AppLocalizations.of(context).prototype,
-                            icon: Icons.science_outlined,
-                          ),
+                if (_index == 1 && _vpn != null)
+                  ListenableBuilder(
+                    listenable: _vpn!,
+                    builder: (context, _) => IconButton(
+                      key: const ValueKey('vpn-user-add'),
+                      tooltip: l.vpnAddUser,
+                      onPressed: _vpn!.busy || !_vpn!.loaded
+                          ? null
+                          : () => UsersPage.edit(context, _vpn!, widget.motion),
+                      icon: const Icon(Icons.add),
+                    ),
+                  ),
+                if (widget.autoSync case final sync?)
+                  ListenableBuilder(
+                    listenable: sync,
+                    builder: (context, _) => IconButton(
+                      key: const ValueKey('sync-status'),
+                      tooltip: syncStatusLabel(l, sync),
+                      onPressed: () => _navigate(2),
+                      icon: Icon(switch (sync.phase) {
+                        AutoSyncPhase.syncing => Icons.cloud_sync_outlined,
+                        AutoSyncPhase.synced => Icons.cloud_done_outlined,
+                        AutoSyncPhase.error ||
+                        AutoSyncPhase.conflict ||
+                        AutoSyncPhase.incomplete => Icons.cloud_off_outlined,
+                        _ => Icons.cloud_outlined,
+                      }),
+                    ),
                   ),
               ],
             ),
@@ -663,207 +671,24 @@ class _ManagerShellState extends State<ManagerShell>
                       child: IndexedStack(
                         index: _index,
                         children: [
-                          ListView(
-                            padding: AppLayout.padding,
-                            children: [
-                              SectionCard(
-                                title: AppLocalizations.of(context).prototype,
-                                child: Text(
-                                  AppLocalizations.of(context).overviewText,
-                                ),
-                              ),
-                              SizedBox(height: AppLayout.gap),
-                              SectionCard(
-                                title: AppLocalizations.of(context).appName,
-                                child: Text(AppLocalizations.of(context).scope),
-                              ),
-                            ],
-                          ),
                           if (_catalog != null)
                             ServerCatalog(
                               controller: _catalog!,
                               motion: widget.motion,
                               vpn: _vpn,
                             )
-                          else
+                          else if (_sshController != null)
                             NetworkWorkbench(
                               controller: _networkController,
                               motion: widget.motion,
                               ssh: _sshController,
-                            ),
-                          ListView(
-                            padding: AppLayout.padding,
-                            children: [
-                              TemplateSettings(controller: _controller),
-                              const SizedBox(height: AppLayout.gap),
-                              if (widget.settingsError)
-                                Text(l.settingsSaveError),
-                              if (widget.googleAccount?.supported == true) ...[
-                                GoogleAccountPanel(
-                                  service: widget.googleAccount!,
-                                  sync: widget.autoSync,
-                                  beforeAccountChange: _publications?.suspend,
-                                  afterAccountChange: () =>
-                                      _publications?.resume(),
-                                ),
-                                const SizedBox(height: AppLayout.gap),
-                              ],
-                              if (_publications != null) ...[
-                                PublicationSettingsPanel(
-                                  controller: _publications!,
-                                ),
-                                const SizedBox(height: AppLayout.gap),
-                              ],
-                              if (widget.backups != null &&
-                                  widget.backupFiles != null &&
-                                  widget.onRestored != null) ...[
-                                BackupPanel(
-                                  store: widget.backups!,
-                                  files: widget.backupFiles!,
-                                  onRestored: widget.onRestored!,
-                                  canRestore: () =>
-                                      !_applyingSync &&
-                                      !(_catalog?.hasActiveWork ?? false) &&
-                                      !(_vpn?.busy ?? false) &&
-                                      !(_publications?.busy ?? false) &&
-                                      !_controller.savingDraft &&
-                                      !_controller.importing,
-                                ),
-                                const SizedBox(height: AppLayout.gap),
-                              ],
-                              if (widget.servers is SyncMergeStore &&
-                                  widget.onRestored != null) ...[
-                                SyncConflictsPanel(
-                                  key: ValueKey(_syncRevision),
-                                  store: widget.servers as SyncMergeStore,
-                                  canResolve: () =>
-                                      !_applyingSync &&
-                                      !(_catalog?.hasActiveWork ?? false) &&
-                                      !(_vpn?.busy ?? false) &&
-                                      !(_publications?.busy ?? false) &&
-                                      !_controller.savingDraft &&
-                                      !_controller.importing,
-                                  onResolved: widget.onRestored!,
-                                ),
-                                const SizedBox(height: AppLayout.gap),
-                              ],
-                              const ComponentUpdateSettings(),
-                              const SizedBox(height: AppLayout.gap),
-                              SectionCard(
-                                title: l.language,
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    Wrap(
-                                      spacing: AppLayout.smallGap,
-                                      children: [
-                                        for (final item in [
-                                          (
-                                            AppLanguage.system,
-                                            l.languageSystem,
-                                          ),
-                                          (AppLanguage.ru, l.languageRussian),
-                                          (AppLanguage.en, l.languageEnglish),
-                                        ])
-                                          ChoiceChip(
-                                            key: ValueKey(
-                                              'language-${item.$1.name}',
-                                            ),
-                                            label: Text(item.$2),
-                                            selected:
-                                                widget.languages.language ==
-                                                item.$1,
-                                            onSelected: widget.languages.saving
-                                                ? null
-                                                : (_) => widget.languages
-                                                      .select(item.$1),
-                                          ),
-                                      ],
-                                    ),
-                                    SizedBox(height: AppLayout.smallGap),
-                                    Text(l.languageHelp),
-                                    if (widget.languages.savingFailed)
-                                      Text(l.localeSaveError),
-                                    if (widget.languages.loadingFailed)
-                                      Text(l.localeLoadError),
-                                  ],
-                                ),
-                              ),
-                              SizedBox(height: AppLayout.gap),
-                              SectionCard(
-                                title: AppLocalizations.of(context).theme,
-                                child: Wrap(
-                                  spacing: AppLayout.smallGap,
-                                  children: [
-                                    for (final item in [
-                                      (
-                                        ThemeMode.system,
-                                        AppLocalizations.of(context).system,
-                                      ),
-                                      (
-                                        ThemeMode.light,
-                                        AppLocalizations.of(context).light,
-                                      ),
-                                      (
-                                        ThemeMode.dark,
-                                        AppLocalizations.of(context).dark,
-                                      ),
-                                    ])
-                                      ChoiceChip(
-                                        label: Text(item.$2),
-                                        selected: widget.theme == item.$1,
-                                        onSelected: (_) =>
-                                            widget.onTheme(item.$1),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                              SizedBox(height: AppLayout.gap),
-                              SectionCard(
-                                title: AppLocalizations.of(context).motion,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Wrap(
-                                      spacing: AppLayout.smallGap,
-                                      children: [
-                                        for (final item in [
-                                          (
-                                            MotionPreference.system,
-                                            AppLocalizations.of(context).system,
-                                          ),
-                                          (
-                                            MotionPreference.reduced,
-                                            AppLocalizations.of(
-                                              context,
-                                            ).reduced,
-                                          ),
-                                          (
-                                            MotionPreference.off,
-                                            AppLocalizations.of(context).off,
-                                          ),
-                                        ])
-                                          ChoiceChip(
-                                            label: Text(item.$2),
-                                            selected: widget.motion == item.$1,
-                                            onSelected: (_) =>
-                                                widget.onMotion(item.$1),
-                                          ),
-                                      ],
-                                    ),
-                                    SizedBox(height: AppLayout.gap),
-                                    Text(
-                                      AppLocalizations.of(context).motionHelp,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
+                            )
+                          else
+                            Center(child: Text(l.noServers)),
                           if (_vpn != null)
                             UsersPage(
                               controller: _vpn!,
+                              showAddAction: false,
                               publications: _publications,
                               serverName: (id) =>
                                   _catalog?.servers
@@ -874,7 +699,183 @@ class _ManagerShellState extends State<ManagerShell>
                                   id,
                               exporter: SystemProfileExporter(),
                               motion: widget.motion,
-                            ),
+                            )
+                          else
+                            Center(child: Text(l.vpnNoUsers)),
+                          ListView(
+                            key: const PageStorageKey('settings'),
+                            padding: AppLayout.screenPadding(context),
+                            children: [
+                              if (widget.settingsError)
+                                Text(l.settingsSaveError),
+                              if (widget.googleAccount?.supported == true ||
+                                  _publications != null)
+                                ListenableBuilder(
+                                  listenable: Listenable.merge([
+                                    widget.autoSync,
+                                    _publications,
+                                  ]),
+                                  builder: (context, _) => SettingsGroup(
+                                    key: const PageStorageKey('settings-drive'),
+                                    title: l.uiGoogleDrive,
+                                    subtitle: widget.autoSync == null
+                                        ? null
+                                        : syncStatusLabel(l, widget.autoSync!),
+                                    attention:
+                                        widget.autoSync?.phase ==
+                                            AutoSyncPhase.error ||
+                                        widget.autoSync?.phase ==
+                                            AutoSyncPhase.conflict ||
+                                        _publications?.error != null ||
+                                        _publications?.accountError != null ||
+                                        (_publications?.queues.values.any(
+                                              (queue) => queue['issue'] != null,
+                                            ) ??
+                                            false),
+                                    child: Column(
+                                      children: [
+                                        if (widget.googleAccount?.supported ==
+                                            true)
+                                          GoogleAccountPanel(
+                                            service: widget.googleAccount!,
+                                            sync: widget.autoSync,
+                                            beforeAccountChange:
+                                                _publications?.suspend,
+                                            afterAccountChange: () =>
+                                                _publications?.resume(),
+                                          ),
+                                        if (_publications != null)
+                                          PublicationSettingsPanel(
+                                            controller: _publications!,
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              if (widget.servers is SyncMergeStore &&
+                                  widget.onRestored != null)
+                                SyncConflictsPanel(
+                                  key: ValueKey(_syncRevision),
+                                  store: widget.servers as SyncMergeStore,
+                                  canResolve: _canReplace,
+                                  onResolved: widget.onRestored!,
+                                ),
+                              if (widget.backups != null &&
+                                  widget.backupFiles != null &&
+                                  widget.onRestored != null)
+                                SettingsGroup(
+                                  key: const PageStorageKey('settings-backup'),
+                                  title: l.backupTitle,
+                                  child: BackupPanel(
+                                    store: widget.backups!,
+                                    files: widget.backupFiles!,
+                                    onRestored: widget.onRestored!,
+                                    canRestore: _canReplace,
+                                  ),
+                                ),
+                              ListenableBuilder(
+                                listenable: _controller,
+                                builder: (context, _) => SettingsGroup(
+                                  key: const PageStorageKey(
+                                    'settings-template',
+                                  ),
+                                  title: l.source,
+                                  subtitle:
+                                      _controller.importedName ??
+                                      (_controller.source.isEmpty
+                                          ? l.vpnEmptyTemplate
+                                          : l.templateReady),
+                                  attention:
+                                      _controller.draftSaveFailed ||
+                                      _controller.importError != null ||
+                                      _controller.failed ||
+                                      (!_controller.stale &&
+                                          _controller
+                                                  .result
+                                                  ?.hasBlockingErrors ==
+                                              true),
+                                  child: TemplateSettings(
+                                    controller: _controller,
+                                    showTitle: false,
+                                  ),
+                                ),
+                              ),
+                              SettingsGroup(
+                                key: const PageStorageKey(
+                                  'settings-appearance',
+                                ),
+                                title: l.uiAppearance,
+                                attention:
+                                    widget.languages.savingFailed ||
+                                    widget.languages.loadingFailed,
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    SectionCard(
+                                      title: l.language,
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [
+                                          AppChoice<AppLanguage>(
+                                            value: widget.languages.language,
+                                            keyPrefix: 'language',
+                                            options: [
+                                              (
+                                                AppLanguage.system,
+                                                l.languageSystem,
+                                              ),
+                                              (
+                                                AppLanguage.ru,
+                                                l.languageRussian,
+                                              ),
+                                              (
+                                                AppLanguage.en,
+                                                l.languageEnglish,
+                                              ),
+                                            ],
+                                            onChanged: widget.languages.saving
+                                                ? null
+                                                : widget.languages.select,
+                                          ),
+                                          if (widget.languages.savingFailed)
+                                            Text(l.localeSaveError),
+                                          if (widget.languages.loadingFailed)
+                                            Text(l.localeLoadError),
+                                        ],
+                                      ),
+                                    ),
+                                    SectionCard(
+                                      title: l.theme,
+                                      child: AppChoice<ThemeMode>(
+                                        value: widget.theme,
+                                        options: [
+                                          (ThemeMode.system, l.system),
+                                          (ThemeMode.light, l.light),
+                                          (ThemeMode.dark, l.dark),
+                                        ],
+                                        onChanged: widget.onTheme,
+                                      ),
+                                    ),
+                                    SectionCard(
+                                      title: l.motion,
+                                      child: AppChoice<MotionPreference>(
+                                        value: widget.motion,
+                                        options: [
+                                          (MotionPreference.system, l.system),
+                                          (MotionPreference.reduced, l.reduced),
+                                          (MotionPreference.off, l.off),
+                                        ],
+                                        onChanged: widget.onMotion,
+                                      ),
+                                    ),
+                                    const ComponentUpdateSettings(),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ),

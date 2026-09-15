@@ -92,7 +92,7 @@ class _NetworkWorkbenchState extends State<NetworkWorkbench> {
         controller: _scroll,
         shrinkWrap: diagnosticsOnly,
         physics: diagnosticsOnly ? const NeverScrollableScrollPhysics() : null,
-        padding: AppLayout.padding,
+        padding: AppLayout.screenPadding(context),
         children: [
           if (ssh != null) ...[
             SshPanel(controller: ssh!, motion: motion),

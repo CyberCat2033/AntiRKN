@@ -1,7 +1,6 @@
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../l10n/app_localizations.dart';
 import 'publication_controller.dart';
 
@@ -151,10 +150,12 @@ class _PublicationSettingsState extends State<PublicationSettingsPanel> {
                   value: settings.enabled,
                   onChanged: c.editing ? null : c.setEnabled,
                 ),
-              TextButton(
-                onPressed: c.busy ? null : () => c.request(force: true),
-                child: Text(l.runnerRetry),
-              ),
+              if (c.error != null ||
+                  c.queues.values.any((q) => q['status'] == 'error'))
+                TextButton(
+                  onPressed: c.busy ? null : () => c.request(force: true),
+                  child: Text(l.runnerRetry),
+                ),
             ],
           ],
         ),
@@ -194,13 +195,6 @@ class UserPublicationView extends StatelessWidget {
                 ? publicationMessage(l, queue?['issue'] as String?)
                 : l.publicationWaiting,
           ),
-          if (result?['url'] case final String url
-              when result?['access'] == 'link')
-            TextButton.icon(
-              onPressed: () => Clipboard.setData(ClipboardData(text: url)),
-              icon: const Icon(Icons.copy),
-              label: Text(l.publicationCopyLink),
-            ),
           if (queue?['status'] == 'error')
             TextButton(
               onPressed: controller.busy

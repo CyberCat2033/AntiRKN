@@ -8,6 +8,9 @@ abstract final class AppLayout {
   static const smallGap = 8.0;
   static const contentWidth = 1440.0;
   static const padding = EdgeInsets.all(24);
+
+  static EdgeInsets screenPadding(BuildContext context) =>
+      EdgeInsets.all(MediaQuery.sizeOf(context).width < compact ? 16 : 24);
 }
 
 enum MotionPreference { system, reduced, off }
@@ -108,9 +111,9 @@ class SectionCard extends StatelessWidget {
   final Widget? trailing;
 
   @override
-  Widget build(BuildContext context) => Card.outlined(
-    child: Padding(
-      padding: AppLayout.padding,
+  Widget build(BuildContext context) {
+    final content = Padding(
+      padding: const EdgeInsets.all(AppLayout.gap),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -133,6 +136,90 @@ class SectionCard extends StatelessWidget {
           child,
         ],
       ),
-    ),
+    );
+    return context.findAncestorWidgetOfExactType<SectionCard>() != null
+        ? content
+        : Card.filled(child: content);
+  }
+}
+
+/// Keeps settings and their draft state mounted while showing a short summary.
+class SettingsGroup extends StatelessWidget {
+  const SettingsGroup({
+    required this.title,
+    required this.child,
+    this.subtitle,
+    this.attention = false,
+    super.key,
+  });
+  final String title;
+  final Widget child;
+  final String? subtitle;
+  final bool attention;
+
+  @override
+  Widget build(BuildContext context) => ExpansionTile(
+    maintainState: true,
+    title: Text(title),
+    subtitle: subtitle == null ? null : Text(subtitle!),
+    leading: attention
+        ? Icon(Icons.error_outline, color: Theme.of(context).colorScheme.error)
+        : null,
+    children: [child],
+  );
+}
+
+/// Short option sets use M3 segments; large text uses a vertical arrangement.
+class AppChoice<T> extends StatelessWidget {
+  const AppChoice({
+    required this.value,
+    required this.options,
+    required this.onChanged,
+    this.keyPrefix,
+    super.key,
+  });
+  final T value;
+  final List<(T, String)> options;
+  final ValueChanged<T>? onChanged;
+  final String? keyPrefix;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, size) {
+      final style = Theme.of(context).textTheme.labelLarge!;
+      final requiredWidth = options.fold<double>(0, (total, option) {
+        final text = TextPainter(
+          text: TextSpan(text: option.$2, style: style),
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+        )..layout();
+        final width = text.width;
+        text.dispose();
+        return total + width + 64;
+      });
+      return SegmentedButton<T>(
+        direction: requiredWidth > size.maxWidth
+            ? Axis.vertical
+            : Axis.horizontal,
+        segments: [
+          for (final option in options)
+            ButtonSegment<T>(
+              value: option.$1,
+              label: Text(
+                option.$2,
+                key: keyPrefix == null
+                    ? null
+                    : ValueKey(
+                        '$keyPrefix-${option.$1 is Enum ? (option.$1 as Enum).name : option.$1}',
+                      ),
+              ),
+            ),
+        ],
+        selected: {value},
+        onSelectionChanged: onChanged == null
+            ? null
+            : (values) => onChanged!(values.single),
+      );
+    },
   );
 }

@@ -1,7 +1,7 @@
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_manager/language_controller.dart';
-import 'package:antirkn_manager/main.dart';
+import 'package:antirkn_manager/network/network_workbench.dart';
 import 'package:antirkn_manager/network/sample_inventory_reader.dart';
 import 'package:antirkn_manager/network/network_controller.dart';
 import 'package:antirkn_manager/l10n/app_localizations.dart';
@@ -33,11 +33,25 @@ void main() {
     final languages = LanguageController(_LanguageStore());
     await languages.load();
     if (language == 'ru') await languages.select(AppLanguage.ru);
+    final controller = NetworkController(reader: reader);
+    addTearDown(controller.dispose);
+    addTearDown(languages.dispose);
     await tester.pumpWidget(
-      AntiRknApp(source: '', languages: languages, networkReader: reader),
+      ListenableBuilder(
+        listenable: languages,
+        builder: (context, _) => MaterialApp(
+          locale: Locale(languages.language.name),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: Scaffold(
+            body: NetworkWorkbench(
+              controller: controller,
+              motion: MotionPreference.system,
+            ),
+          ),
+        ),
+      ),
     );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text(language == 'en' ? 'Servers' : 'Серверы'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('load-network-sample')));
     await tester.pumpAndSettle();

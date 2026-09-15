@@ -124,7 +124,7 @@ class ServerAddressPicker extends StatelessWidget {
               ),
               if (!choices.any((choice) => choice.enabled))
                 Padding(
-                  padding: AppLayout.padding,
+                  padding: AppLayout.screenPadding(context),
                   child: Text(l.networkNoCandidates),
                 ),
               Expanded(
@@ -135,7 +135,7 @@ class ServerAddressPicker extends StatelessWidget {
                     final row = rows[index];
                     if (row is AddressClass) {
                       return Padding(
-                        padding: AppLayout.padding,
+                        padding: AppLayout.screenPadding(context),
                         child: Text(
                           row == AddressClass.external
                               ? l.networkExternal

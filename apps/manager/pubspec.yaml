@@ -1,5 +1,5 @@
 name: antirkn_manager
-description: AntiRKN infrastructure manager — P0 template workbench.
+description: AntiRKN infrastructure manager.
 publish_to: none
 version: 0.1.0+1
 resolution: workspace
@@ -20,6 +20,7 @@ dependencies:
   antirkn_ssh_transport:
     path: ../../packages/ssh_transport
   dynamic_color: 1.8.1
+  qr_flutter: 4.1.0
   antirkn_design_system:
     path: ../../packages/design_system
   antirkn_domain:

@@ -2,7 +2,7 @@ import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
-import '../network/network_workbench.dart';
+import 'server_detail_view.dart';
 import 'server_catalog_controller.dart';
 import 'ssh_controller.dart';
 import 'ssh_panel.dart';
@@ -62,11 +62,14 @@ class _ServerCatalogState extends State<ServerCatalog> {
                 ),
               ),
               Expanded(
-                child: NetworkWorkbench(
+                child: ServerDetailView(
                   key: ValueKey(c.selectedId),
-                  controller: session.network,
-                  ssh: session,
+                  session: session,
                   motion: widget.motion,
+                  canDelete: () =>
+                      !(widget.vpn?.busy ?? false) &&
+                      !(widget.vpn?.hasRunning ?? false),
+                  onDeleted: c.showList,
                   protocols: widget.vpn == null
                       ? null
                       : Column(
@@ -130,7 +133,7 @@ class _ServerCatalogState extends State<ServerCatalog> {
       }
       return ListView(
         key: const PageStorageKey('server-list'),
-        padding: AppLayout.padding,
+        padding: AppLayout.screenPadding(context),
         children: [
           if (c.loading) const LinearProgressIndicator(),
           if (c.error case final issue?) ...[
@@ -173,7 +176,7 @@ class _ServerCatalogState extends State<ServerCatalog> {
           for (final server in c.servers)
             Padding(
               padding: const EdgeInsets.only(bottom: AppLayout.smallGap),
-              child: Card(
+              child: Card.filled(
                 child: ListTile(
                   key: ValueKey('server-${server.id}'),
                   leading: const Icon(Icons.dns_outlined),
@@ -181,7 +184,6 @@ class _ServerCatalogState extends State<ServerCatalog> {
                   subtitle: Text(
                     [
                       '${server.profile.host}:${server.profile.port}',
-                      ?c.osFor(server.id),
                       switch (c.stageFor(server.id)) {
                         SshStage.connected => l.sshConnected,
                         SshStage.connecting => l.sshConnecting,
@@ -190,7 +192,7 @@ class _ServerCatalogState extends State<ServerCatalog> {
                         SshStage.checkingPrivileges => l.privilegesChecking,
                         SshStage.idle => l.sshIdle,
                       },
-                    ].join('\n'),
+                    ].join(' · '),
                   ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => c.select(server.id),

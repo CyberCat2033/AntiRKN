@@ -188,6 +188,10 @@ void main() {
         }
 
         Future<void> tap(String key) async {
+          if (key == 'ssh-delete') {
+            await tester.tap(find.byKey(const ValueKey('server-actions')));
+            await tester.pumpAndSettle();
+          }
           final target = find.byKey(ValueKey(key));
           await tester.ensureVisible(target);
           await tester.pumpAndSettle();
@@ -245,6 +249,7 @@ void main() {
         await tester.pumpWidget(const SizedBox());
         await launch();
         await tap('server-$firstId');
+        await tap('server-tab-connection');
         expect(
           find.text(language == 'en' ? 'Connect' : 'Подключиться'),
           findsOneWidget,
@@ -307,8 +312,12 @@ void main() {
         expect(repository.servers[firstId]!.lastInfo!.os, 'Ubuntu 24.04');
         await tester.pumpWidget(const SizedBox());
         await launch();
+        await tap('server-$firstId');
+        await tap('server-tab-connection');
         expect(find.textContaining('Ubuntu 24.04'), findsOneWidget);
+        await tap('server-list-back');
         await tap('server-$secondId');
+        await tap('server-tab-connection');
         await tap('ssh-edit');
         final deleteText = language == 'en'
             ? 'Delete saved connection'
@@ -319,7 +328,7 @@ void main() {
         expect(confirm, findsOneWidget, reason: deleteText);
         await tester.tap(confirm);
         await tester.pumpAndSettle();
-        await tap('server-list-back');
+        expect(find.byKey(const ValueKey('server-list-back')), findsNothing);
         expect(repository.servers.keys, [firstId]);
         expect(find.text('VPS B'), findsNothing);
         tester.platformDispatcher.textScaleFactorTestValue = 2;

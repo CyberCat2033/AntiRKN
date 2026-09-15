@@ -134,30 +134,35 @@ void main() {
       await tester.pumpAndSettle();
     },
   );
-  testWidgets(
-    'actual app Settings navigation contains Google sign-in at the top',
-    (tester) async {
-      final languages = LanguageController(Languages());
-      await languages.load();
-      addTearDown(languages.dispose);
-      await tester.pumpWidget(
-        AntiRknApp(
-          source: '',
-          languages: languages,
-          googleAccount: AccountService(),
-        ),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Настройки').last);
-      await tester.pumpAndSettle();
-      expect(
-        find.byKey(const ValueKey('google-sign-in')).hitTestable(),
-        findsOneWidget,
-      );
-      expect(find.text('Войти в Google'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    },
-  );
+  testWidgets('actual app Settings reveals Google sign-in in its Drive group', (
+    tester,
+  ) async {
+    final languages = LanguageController(Languages());
+    await languages.load();
+    addTearDown(languages.dispose);
+    await tester.pumpWidget(
+      AntiRknApp(
+        source: '',
+        languages: languages,
+        googleAccount: AccountService(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Настройки').last);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('google-sign-in')).hitTestable(),
+      findsNothing,
+    );
+    await tester.tap(find.text('Google Drive').first);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('google-sign-in')).hitTestable(),
+      findsOneWidget,
+    );
+    expect(find.text('Войти в Google'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   for (final locale in ['ru', 'en']) {
     testWidgets(

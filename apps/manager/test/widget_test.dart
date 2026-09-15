@@ -21,6 +21,16 @@ class TestLanguageStore implements LanguagePreferenceStore {
   }
 }
 
+Future<void> openGroup(WidgetTester tester, String key) async {
+  final group = find.byKey(PageStorageKey(key));
+  await tester.ensureVisible(group);
+  final title = tester.widget<SettingsGroup>(group).title;
+  await tester.tap(
+    find.descendant(of: group, matching: find.text(title)).first,
+  );
+  await tester.pumpAndSettle();
+}
+
 void main() {
   final source = File('../../base.yml').readAsStringSync();
   Future<void> start(
@@ -47,11 +57,16 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    expect(find.text('P0'), findsNothing);
+    expect(find.byKey(const ValueKey('load-network-sample')), findsNothing);
     final settings = find.text('Settings');
     await tester.tap(
-      settings.evaluate().isNotEmpty ? settings : find.text('Настройки'),
+      settings.evaluate().isNotEmpty
+          ? settings.last
+          : find.text('Настройки').last,
     );
     await tester.pumpAndSettle();
+    await openGroup(tester, 'settings-template');
   }
 
   testWidgets(
@@ -120,14 +135,17 @@ void main() {
           .widget<TemplateSettings>(find.byType(TemplateSettings))
           .controller;
       c.edit('proxies: []\n# retained copy');
+      if (find.byKey(const ValueKey('language-en')).evaluate().isEmpty) {
+        await openGroup(tester, 'settings-appearance');
+      }
       await tester.ensureVisible(find.byKey(const ValueKey('language-en')));
       await tester.tap(find.byKey(const ValueKey('language-en')));
       await tester.pumpAndSettle();
       expect(store.value, AppLanguage.en);
       expect(find.text('Interface language'), findsOneWidget);
-      await tester.tap(find.text('Overview'));
+      await tester.tap(find.text('Clients').last);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Settings'));
+      await tester.tap(find.text('Settings').last);
       await tester.pumpAndSettle();
       expect(c.source, 'proxies: []\n# retained copy');
       tester.platformDispatcher.localesTestValue = [const Locale('ru', 'RU')];
@@ -135,8 +153,11 @@ void main() {
       expect(find.text('Interface language'), findsOneWidget);
       await start(tester, LanguageController(store), key: UniqueKey());
       expect(find.text('Base configuration'), findsOneWidget);
-      await tester.tap(find.text('Settings'));
+      await tester.tap(find.text('Settings').last);
       await tester.pumpAndSettle();
+      if (find.byKey(const ValueKey('language-en')).evaluate().isEmpty) {
+        await openGroup(tester, 'settings-appearance');
+      }
       await tester.ensureVisible(find.byKey(const ValueKey('language-system')));
       await tester.tap(find.byKey(const ValueKey('language-system')));
       await tester.pumpAndSettle();
@@ -155,8 +176,11 @@ void main() {
       addTearDown(tester.platformDispatcher.clearLocalesTestValue);
       final store = TestLanguageStore()..fail = true;
       await start(tester, LanguageController(store));
-      await tester.tap(find.text('Settings'));
+      await tester.tap(find.text('Settings').last);
       await tester.pumpAndSettle();
+      if (find.byKey(const ValueKey('language-en')).evaluate().isEmpty) {
+        await openGroup(tester, 'settings-appearance');
+      }
       await tester.ensureVisible(find.byKey(const ValueKey('language-ru')));
       await tester.tap(find.byKey(const ValueKey('language-ru')));
       await tester.pumpAndSettle();
@@ -180,6 +204,13 @@ void main() {
           size: const Size(390, 844),
         );
         expect(find.byType(NavigationBar), findsOneWidget);
+        expect(
+          tester
+              .widget<NavigationBar>(find.byType(NavigationBar))
+              .destinations
+              .length,
+          3,
+        );
         final c = tester
             .widget<TemplateSettings>(find.byType(TemplateSettings))
             .controller;
@@ -192,6 +223,23 @@ void main() {
         ]) {
           tester.view.physicalSize = size;
           await tester.pumpAndSettle();
+          if (size.width < AppLayout.compact) {
+            expect(
+              tester
+                  .widget<NavigationBar>(find.byType(NavigationBar))
+                  .destinations
+                  .length,
+              3,
+            );
+          } else {
+            expect(
+              tester
+                  .widget<NavigationRail>(find.byType(NavigationRail))
+                  .destinations
+                  .length,
+              3,
+            );
+          }
           expect(c.source, 'proxies: []\n# retained');
           expect(tester.takeException(), isNull);
         }

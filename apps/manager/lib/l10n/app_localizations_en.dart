@@ -2443,4 +2443,45 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get publicationCopyLink => 'Copy profile link';
+
+  @override
+  String get uiGoogleDrive => 'Google Drive';
+
+  @override
+  String get uiAppearance => 'Appearance';
+
+  @override
+  String get uiActions => 'Actions';
+
+  @override
+  String get uiProtocols => 'Protocols';
+
+  @override
+  String get uiMaintenance => 'Maintenance';
+
+  @override
+  String get uiConnection => 'Connection';
+
+  @override
+  String get uiDisconnectBeforeDelete =>
+      'Finish active operations and disconnect SSH before deleting.';
+
+  @override
+  String get uiQrCopyHint => 'Tap to copy the link';
+
+  @override
+  String get uiLinkCopied => 'Link copied';
+
+  @override
+  String get uiCopyFailed =>
+      'Could not copy the link. Tap the QR code to retry.';
+
+  @override
+  String get uiPreviewYaml => 'Preview YAML';
+
+  @override
+  String get uiProfileDetails => 'Profile details';
+
+  @override
+  String get uiOperationPending => 'Operation needs attention';
 }

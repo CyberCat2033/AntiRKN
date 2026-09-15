@@ -43,6 +43,42 @@ class PublicationController extends ChangeNotifier {
   String? _profileStamp;
   int _reloadGeneration = 0;
   bool get busy => editing || _running != null;
+
+  /// Results are written by the coordinator only after public readback succeeds.
+  /// A failed update may retain the previous verified URL, but a revoked or
+  /// conflicting destination must never be presented as a working subscription.
+  String? verifiedLinkFor(String userId) {
+    final user = vpn.workspace.users.where((u) => u.id == userId).firstOrNull;
+    final result = results[userId], issue = queues[userId]?['issue'];
+    const invalidLinkIssues = {
+      'missing',
+      'conflict',
+      'invalid',
+      'readback',
+      'linkUnavailable',
+      'accountChanged',
+    };
+    if (user?.enabled != true ||
+        settings?.access != PublicationAccess.link ||
+        result?['access'] != 'link' ||
+        result?['fileId'] is! String ||
+        _suspended ||
+        invalidLinkIssues.contains(error?.name) ||
+        invalidLinkIssues.contains(issue)) {
+      return null;
+    }
+    try {
+      if (settings!.accountKey != account.accountKey) return null;
+    } catch (_) {
+      return null;
+    }
+    final url = result?['url'];
+    final parsed = url is String ? Uri.tryParse(url) : null;
+    return parsed?.scheme == 'https' && parsed!.host.isNotEmpty
+        ? url as String
+        : null;
+  }
+
   bool get authorized =>
       account is GooglePublicationAuthorization &&
       (account as GooglePublicationAuthorization).publicationAuthorized;
