@@ -33,20 +33,12 @@ class TemplateController extends ChangeNotifier {
   String? importedName;
   String? importError;
   bool importing = false;
-  List<ProxyDescriptor> _nodes = mixedNodes;
-  List<ProxyDescriptor> get nodes => List.unmodifiable(_nodes);
   ProfileResult? result;
   bool busy = false;
   bool stale = true;
   bool failed = false;
   int _revision = 0;
   bool _disposed = false;
-
-  static const mixedNodes = [
-    ProxyDescriptor('VLESS_EU', 'VLESS'),
-    ProxyDescriptor('Trust_RU', 'TrustTunnel'),
-    ProxyDescriptor('WG_EU', 'WireGuard'),
-  ];
 
   void edit(String value) {
     source = value;
@@ -106,30 +98,6 @@ class TemplateController extends ChangeNotifier {
     return _draftWrites;
   }
 
-  void selectNodes(List<ProxyDescriptor> value) {
-    _nodes = List.of(value);
-    _changed();
-  }
-
-  void removeNode(int index) {
-    _nodes = List.of(_nodes)..removeAt(index);
-    _changed();
-  }
-
-  bool addNode(String name, String type) {
-    name = name.trim();
-    if (name.isEmpty ||
-        name.length > 120 ||
-        name.contains(RegExp(r'[\x00-\x1f]')) ||
-        _nodes.any((n) => n.name == name) ||
-        _nodes.length >= 256) {
-      return false;
-    }
-    _nodes = [..._nodes, ProxyDescriptor(name, type)];
-    _changed();
-    return true;
-  }
-
   void _changed() {
     _revision++;
     stale = true;
@@ -143,7 +111,7 @@ class TemplateController extends ChangeNotifier {
     final revision = _revision;
     notifyListeners();
     try {
-      final next = await previewTemplate(source, nodes);
+      final next = await previewTemplate(source, const []);
       if (!_disposed && revision == _revision) {
         result = next;
         stale = false;

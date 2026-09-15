@@ -15,13 +15,19 @@ class AppLocalizationsRu extends AppLocalizations {
   String get overview => 'Обзор';
 
   @override
-  String get templates => 'Шаблоны';
+  String get templateReady => 'Базовый конфиг загружен.';
+
+  @override
+  String get templateLoading => 'Чтение базового конфига…';
+
+  @override
+  String get profileWarning => 'Предупреждение';
+
+  @override
+  String get profileError => 'Ошибка';
 
   @override
   String get settings => 'Настройки';
-
-  @override
-  String get workbench => 'Проверка базового профиля';
 
   @override
   String get prototype => 'Прототип P0';
@@ -30,11 +36,11 @@ class AppLocalizationsRu extends AppLocalizations {
   String get intro => 'Проверьте, какие узлы попадут в группы вашего шаблона.';
 
   @override
-  String get source => 'Базовый YAML';
+  String get source => 'Базовый конфиг';
 
   @override
   String get sourceHelp =>
-      'Выберите .yml или .yaml. Приложение сохраняет собственную копию на устройстве; исходный файл не изменяется.';
+      'Выберите .yml или .yaml для профилей клиентов. Приложение сохраняет свою копию, исходный файл не изменяется.';
 
   @override
   String get preview => 'Проверить состав групп';
@@ -90,7 +96,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get overviewText =>
-      'Управляйте сохранёнными серверами по SSH, просматривайте их ПО и IP-адреса, редактируйте шаблоны. Установка ПО, настройки протоколов и синхронизация Google Drive запланированы на следующие стадии.';
+      'Управляйте серверами и VPN-клиентами, создавайте персональные профили Mihomo и синхронизируйте рабочее пространство через Google Drive. Базовый конфиг выбирается в настройках.';
 
   @override
   String get scope =>
@@ -119,7 +125,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get motionHelp =>
-      'Системное отключение анимаций имеет приоритет. Настройки прототипа действуют до закрытия приложения.';
+      'Системные ограничения анимации имеют приоритет. Выбор сохраняется на устройстве.';
 
   @override
   String get invalidName => 'Введите уникальное непустое имя';
@@ -167,7 +173,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get diagnosticEmptyGroupRequiresPolicy =>
-      'Пустая группа: перед публикацией нужно выбрать политику.';
+      'Группа пуста. Mihomo использует своё поведение для пустой группы; при необходимости проверьте маршрутизацию.';
 
   @override
   String get diagnosticChainHasExtraNodes =>
@@ -179,7 +185,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get diagnosticBaseContainsProxies =>
-      'В шаблоне уже есть прокси. Нужен отдельный выбор способа импорта.';
+      'Прокси из базового конфига сохранены и включены в профили клиентов.';
 
   @override
   String get diagnosticInvalidYaml =>
@@ -1351,7 +1357,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get vpnLastProfile =>
-      'Предыдущая корректная ревизия сохранена. Перед экспортом исправьте шаблон или завершите ожидающие изменения доступов.';
+      'Не удалось сформировать текущий профиль. Предыдущая сохранённая версия остаётся в истории.';
 
   @override
   String get vpnInvalid =>
@@ -1420,8 +1426,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get vpnChanged => 'Изменения ожидают подтверждения';
 
   @override
-  String get vpnEmptyTemplate =>
-      'Сначала выберите базовый YAML в разделе шаблонов.';
+  String get vpnEmptyTemplate => 'Выберите базовый YAML в настройках.';
 
   @override
   String get vpnNoAccess =>

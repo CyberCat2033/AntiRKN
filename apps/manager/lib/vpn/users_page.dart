@@ -256,9 +256,7 @@ class _ProfileDialogState extends State<_ProfileDialog> {
       final usable =
           widget.user.enabled &&
           result?.yaml != null &&
-          result?.hasBlockingErrors == false &&
-          (c.workspace.inbounds.any((r) => r.enabled && !r.deleted) ||
-              c.workspace.awgInterfaces.any((r) => r.enabled && !r.deleted));
+          result?.hasBlockingErrors == false;
       return AlertDialog(
         title: Text('${l.vpnProfile} · ${widget.user.name}'),
         content: SizedBox(
@@ -277,7 +275,11 @@ class _ProfileDialogState extends State<_ProfileDialog> {
                   ),
                 if (result != null)
                   for (final d in result.diagnostics)
-                    Text(vpnMessage(l, d.code)),
+                    Text(
+                      '${d.severity == DiagnosticSeverity.error ? l.profileError : l.profileWarning}: '
+                      '${vpnMessage(l, d.code)}'
+                      '${d.subject == null ? '' : ' (${d.subject})'}',
+                    ),
                 if (result != null)
                   for (final group in result.groups)
                     Text('${group.name}: ${group.members.join(', ')}'),

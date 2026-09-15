@@ -8,13 +8,86 @@ import 'package:antirkn_manager/vpn/users_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'vpn_controller_test.dart' as fixtures;
+import 'tt_test.dart' as tt;
 
 class Export implements ProfileExporter {
+  String? yaml;
   @override
-  Future<bool> save(String n, String source) async => true;
+  Future<bool> save(String n, String source) async {
+    yaml = source;
+    return true;
+  }
 }
 
 void main() {
+  testWidgets(
+    'TrustTunnel-only profile with empty groups can be viewed and exported',
+    (tester) async {
+      tester.view.physicalSize = const Size(1200, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final store = fixtures.MemoryVpn();
+      final remote = tt.TtRemote(store)..busyOnce = false;
+      final c = fixtures.controller(
+        store,
+        {ttTarget('one'): remote},
+        source: () =>
+            'proxy-groups: [{name: WG, type: select, include-all-proxies: true, filter: WireGuard}]',
+      );
+      addTearDown(c.dispose);
+      await tester.runAsync(() async {
+        await c.load();
+        await c.saveUser(
+          VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice'),
+        );
+        await c.saveTt(TrustTunnelEndpoint(serverId: 'one', spec: tt.spec()));
+        await c.prepare();
+        await c.apply();
+      });
+      expect(c.error, isNull);
+      expect(c.workspace.inbounds, isEmpty);
+      expect(c.workspace.awgInterfaces, isEmpty);
+      expect(
+        c.workspace.profiles[fixtures.alice]!['yaml'],
+        contains('trusttunnel'),
+      );
+      final exporter = Export();
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: Scaffold(
+            body: UsersPage(
+              controller: c,
+              serverName: (id) => id,
+              exporter: exporter,
+              motion: MotionPreference.off,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.runAsync(() async {
+        await tester.tap(find.text('Personal Mihomo profile'));
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      });
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('Warning: The group is empty'),
+        findsOneWidget,
+      );
+      final save = find.widgetWithText(FilledButton, 'Save YAML');
+      expect(save, findsOneWidget);
+      await tester.tap(save);
+      await tester.pumpAndSettle();
+      expect(exporter.yaml, c.results[fixtures.alice]!.yaml);
+      expect(exporter.yaml, contains('trusttunnel'));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final locale in ['ru', 'en']) {
     for (final width in [390.0, 1400.0]) {
       testWidgets('client and inbound forms $locale width $width text x2', (

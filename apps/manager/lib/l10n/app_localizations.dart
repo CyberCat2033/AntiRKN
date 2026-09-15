@@ -110,23 +110,35 @@ abstract class AppLocalizations {
   /// **'Overview'**
   String get overview;
 
-  /// No description provided for @templates.
+  /// No description provided for @templateReady.
   ///
   /// In en, this message translates to:
-  /// **'Templates'**
-  String get templates;
+  /// **'Base configuration loaded.'**
+  String get templateReady;
+
+  /// No description provided for @templateLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Reading the base configuration…'**
+  String get templateLoading;
+
+  /// No description provided for @profileWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Warning'**
+  String get profileWarning;
+
+  /// No description provided for @profileError.
+  ///
+  /// In en, this message translates to:
+  /// **'Error'**
+  String get profileError;
 
   /// No description provided for @settings.
   ///
   /// In en, this message translates to:
   /// **'Settings'**
   String get settings;
-
-  /// No description provided for @workbench.
-  ///
-  /// In en, this message translates to:
-  /// **'Base profile check'**
-  String get workbench;
 
   /// No description provided for @prototype.
   ///
@@ -143,13 +155,13 @@ abstract class AppLocalizations {
   /// No description provided for @source.
   ///
   /// In en, this message translates to:
-  /// **'Base YAML'**
+  /// **'Base configuration'**
   String get source;
 
   /// No description provided for @sourceHelp.
   ///
   /// In en, this message translates to:
-  /// **'Choose a .yml or .yaml file. The app saves its own copy on this device; the source file is not modified.'**
+  /// **'Choose a .yml or .yaml file for client profiles. The app saves its own copy; the source file is not modified.'**
   String get sourceHelp;
 
   /// No description provided for @preview.
@@ -257,7 +269,7 @@ abstract class AppLocalizations {
   /// No description provided for @overviewText.
   ///
   /// In en, this message translates to:
-  /// **'Manage saved servers over SSH, inspect their software and IP addresses, and edit templates. Server installation, protocol configuration and Google Drive sync are planned for later stages.'**
+  /// **'Manage servers and VPN clients, generate personal Mihomo profiles, and sync your workspace through Google Drive. Choose the base configuration in Settings.'**
   String get overviewText;
 
   /// No description provided for @scope.
@@ -311,7 +323,7 @@ abstract class AppLocalizations {
   /// No description provided for @motionHelp.
   ///
   /// In en, this message translates to:
-  /// **'System animation restrictions take priority. Prototype theme and motion settings last until the app closes.'**
+  /// **'System animation restrictions take priority. Your preference is saved on this device.'**
   String get motionHelp;
 
   /// No description provided for @invalidName.
@@ -389,7 +401,7 @@ abstract class AppLocalizations {
   /// No description provided for @diagnosticEmptyGroupRequiresPolicy.
   ///
   /// In en, this message translates to:
-  /// **'Empty group: choose a policy before publishing.'**
+  /// **'The group is empty. Mihomo will use its empty-group behavior; review the routing if needed.'**
   String get diagnosticEmptyGroupRequiresPolicy;
 
   /// No description provided for @diagnosticChainHasExtraNodes.
@@ -407,7 +419,7 @@ abstract class AppLocalizations {
   /// No description provided for @diagnosticBaseContainsProxies.
   ///
   /// In en, this message translates to:
-  /// **'The template already contains proxies. Choose how to import them first.'**
+  /// **'Proxies from the base configuration are preserved and included in client profiles.'**
   String get diagnosticBaseContainsProxies;
 
   /// No description provided for @diagnosticInvalidYaml.
@@ -2471,7 +2483,7 @@ abstract class AppLocalizations {
   /// No description provided for @vpnLastProfile.
   ///
   /// In en, this message translates to:
-  /// **'The previous valid revision is retained. Fix the template or complete pending access changes before export.'**
+  /// **'Could not generate the current profile. The previous saved version is retained.'**
   String get vpnLastProfile;
 
   /// No description provided for @vpnInvalid.
@@ -2585,7 +2597,7 @@ abstract class AppLocalizations {
   /// No description provided for @vpnEmptyTemplate.
   ///
   /// In en, this message translates to:
-  /// **'Choose a base YAML in Templates first.'**
+  /// **'Choose a base YAML file in Settings.'**
   String get vpnEmptyTemplate;
 
   /// No description provided for @vpnNoAccess.

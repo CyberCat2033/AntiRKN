@@ -1,0 +1,41 @@
+{
+  "stage": "P3-PROFILE-UX",
+  "date": "2026-09-15",
+  "compiler_tests": 24,
+  "app_tests": {
+    "initial_passed": 172,
+    "initial_failed": 1,
+    "failed_test": "backup_reload: new Settings card requires scrolling",
+    "corrected_test_passed": 1,
+    "full_suite_repeated": false
+  },
+  "checks": {
+    "analyze": "PASS",
+    "format": "PASS",
+    "architecture_l10n_base_hash": "PASS",
+    "ru_en_messages": 680,
+    "diff_whitespace": "PASS"
+  },
+  "builds": {
+    "linux": {
+      "path": "apps/manager/build/linux/x64/debug/bundle/antirkn_manager",
+      "sha256": "fe29c4e441b1b86708e344bf267dd2af24f28771a97e297156c7bfe446b34cc7",
+      "build": "debug",
+      "runtime_tested": false
+    },
+    "android": {
+      "path": "apps/manager/build/app/outputs/flutter-apk/app-debug.apk",
+      "sha256": "2ce50550556b3ad7397616d021a0f43d248bdbd66fd8d57363165610ca2d92c1",
+      "build": "debug",
+      "runtime_tested": false
+    }
+  },
+  "android_google_project_id_included": true,
+  "adb_used": false,
+  "unverified": [
+    "Windows build/runtime",
+    "Linux/Android manual GUI runtime",
+    "Mihomo config/network with arbitrary owner base",
+    "Full suite after test-only scroll fix"
+  ]
+}

@@ -54,7 +54,7 @@ final class ProfileResult {
 /// Stateless, shared by the GUI and command-line/integration probes.
 final class ProfileCompiler {
   const ProfileCompiler();
-  static const version = '0.1.0';
+  static const version = '0.2.0';
   static const targetCore = 'mihomo-v1.19.30';
 
   ProfileResult preview({
@@ -99,186 +99,51 @@ final class ProfileCompiler {
   ) {
     try {
       final root = parseTemplate(template);
-      final existing = root['proxies'];
-      if (existing != null && (existing is! List || existing.isNotEmpty)) {
-        return _failure('base_contains_proxies');
-      }
-      final diagnostics = <ProfileDiagnostic>[];
-      void error(String code, [String? subject]) => diagnostics.add(
-        ProfileDiagnostic(code, DiagnosticSeverity.error, subject: subject),
-      );
-      final names = <String>{..._builtins};
-      final types = <String, String>{
-        for (final n in _builtins)
-          n: n == 'DIRECT' || n == 'COMPATIBLE' ? 'Direct' : 'Reject',
-      };
-      for (final proxy in proxies) {
-        if (proxy.name.isEmpty || !names.add(proxy.name)) {
-          error('duplicate_proxy_name', proxy.name);
-        }
-        if (!{'VLESS', 'TrustTunnel', 'WireGuard'}.contains(proxy.type)) {
-          error('unsupported_proxy_type', proxy.name);
-        }
-        types[proxy.name] = proxy.type;
-      }
-      final rawGroups = root['proxy-groups'] ?? <Object?>[];
-      if (rawGroups is! List) return _failure('invalid_proxy_groups');
-      if (rawGroups.length > 512 || proxies.length > 5000) {
+      final existing = root['proxies'] ?? <Object?>[];
+      if (existing is! List) return _failure('invalid_proxies');
+      if (proxies.length + existing.length > 5000) {
         return _failure('template_node_limit');
-      }
-      final groups = <String, Map<String, Object?>>{};
-      final providers = _mapping(
-        root['proxy-providers'] ?? <String, Object?>{},
-      );
-      for (final value in rawGroups) {
-        final group = _mapping(value);
-        final name = group['name'];
-        if (name is! String || name.isEmpty) {
-          return _failure('invalid_group_name');
-        }
-        if (!names.add(name)) error('duplicate_group_name', name);
-        if (providers.containsKey(name)) {
-          error('group_provider_name_conflict', name);
-        }
-        if (!{
-          'select',
-          'fallback',
-          'url-test',
-          'load-balance',
-        }.contains(group['type'])) {
-          error('unsupported_group_type', name);
-        }
-        groups[name] = group;
-        types[name] = switch (group['type']) {
-          'fallback' => 'Fallback',
-          'url-test' => 'URLTest',
-          'load-balance' => 'LoadBalance',
-          _ => 'Selector',
-        };
-      }
-      final previews = <GroupPreview>[];
-      final orderedProxies = proxies.toList()
-        ..sort((a, b) => a.name.compareTo(b.name));
-      for (final entry in groups.entries) {
-        final name = entry.key;
-        final group = entry.value;
-        var complete = true;
-        final explicit = _strings(group['proxies']);
-        final use = _strings(group['use']);
-        for (final reference in explicit) {
-          if (!names.contains(reference)) {
-            error('unknown_proxy_reference', name);
-          }
-        }
-        for (final reference in use) {
-          if (!providers.containsKey(reference)) {
-            error('unknown_provider_reference', name);
-          }
-        }
-        if (use.isNotEmpty ||
-            group['include-all-providers'] == true ||
-            group['include-all'] == true) {
-          complete = false;
-          error('provider_snapshot_required', name);
-        }
-        for (final key in [
-          'include-all',
-          'include-all-proxies',
-          'include-all-providers',
-        ]) {
-          if (group[key] != null && group[key] is! bool) {
-            error('invalid_group_option', name);
-          }
-        }
-        var members = [...explicit];
-        try {
-          final include = _filter(group['filter']);
-          final exclude = _filter(group['exclude-filter']);
-          if (group['include-all-proxies'] == true ||
-              group['include-all'] == true) {
-            members.addAll(
-              orderedProxies
-                  .where((p) => include == null || include.hasMatch(p.name))
-                  .map((p) => p.name),
-            );
-          }
-          final excludedTypes = group['exclude-type'];
-          if (excludedTypes != null && excludedTypes is! String) {
-            throw const FormatException('invalid_group_option');
-          }
-          final excluded = (excludedTypes as String? ?? '').toLowerCase().split(
-            '|',
-          );
-          members = members
-              .where(
-                (n) =>
-                    !(exclude?.hasMatch(n) ?? false) &&
-                    !excluded.contains(types[n]?.toLowerCase()),
-              )
-              .toList();
-        } on FormatException catch (e) {
-          complete = false;
-          error(e.message, name);
-        }
-        final fallback = group['empty-fallback'] ?? 'COMPATIBLE';
-        if (fallback is! String ||
-            !names.contains(fallback) ||
-            groups.containsKey(fallback)) {
-          error('invalid_empty_fallback', name);
-        }
-        final empty = complete && members.isEmpty;
-        if (empty) error('empty_group_requires_policy', name);
-        previews.add(
-          GroupPreview(
-            name: name,
-            members: members,
-            fallback: empty && fallback is String ? fallback : null,
-            complete: complete,
-          ),
-        );
-      }
-      _checkCycles(groups, error);
-      _checkRules(root, names, error);
-      final remote = previews
-          .where((g) => g.name == 'RemoteBalancer')
-          .firstOrNull;
-      final chain = previews.where((g) => g.name == 'Proxy_Chain').firstOrNull;
-      if (remote != null &&
-          chain != null &&
-          chain.members.any(
-            (n) => !groups.containsKey(n) && !remote.members.contains(n),
-          )) {
-        diagnostics.add(
-          const ProfileDiagnostic(
-            'chain_has_extra_nodes',
-            DiagnosticSeverity.warning,
-            subject: 'Proxy_Chain',
-          ),
-        );
-      }
-      if (groups.containsKey('WG_Auto') &&
-          !groups.values.any(
-            (g) => _strings(g['proxies']).contains('WG_Auto'),
-          ) &&
-          !_strings(
-            root['rules'],
-          ).any((r) => r.split(',').contains('WG_Auto'))) {
-        diagnostics.add(
-          const ProfileDiagnostic(
-            'unreferenced_group',
-            DiagnosticSeverity.info,
-            subject: 'WG_Auto',
-          ),
-        );
       }
       String? yaml;
       if (selected != null) {
         final editor = YamlEditor(template);
         editor.update(
           ['proxies'],
-          [for (final node in selected) canonicalValue(node.fields)],
+          [
+            ...existing,
+            for (final node in selected) canonicalValue(node.fields),
+          ],
         );
         yaml = editor.toString();
+      }
+      final diagnostics = <ProfileDiagnostic>[];
+      void warn(String code, [String? subject]) => diagnostics.add(
+        ProfileDiagnostic(code, DiagnosticSeverity.warning, subject: subject),
+      );
+      final descriptors = [...proxies];
+      if (existing.isNotEmpty) {
+        warn('base_contains_proxies');
+        for (final value in existing) {
+          if (value is Map && value['name'] is String) {
+            descriptors.add(
+              ProxyDescriptor(value['name'] as String, switch (value['type']) {
+                'vless' => 'VLESS',
+                'trusttunnel' => 'TrustTunnel',
+                'wireguard' => 'WireGuard',
+                _ => value['type'] is String ? value['type'] as String : '',
+              }),
+            );
+          } else {
+            warn('invalid_proxies');
+          }
+        }
+      }
+      var previews = <GroupPreview>[];
+      try {
+        previews = _inspect(root, descriptors, warn);
+      } on FormatException catch (e) {
+        // Preview limitations never prevent issuing a parseable base profile.
+        warn(e.message);
       }
       return ProfileResult(
         groups: previews,
@@ -294,6 +159,160 @@ final class ProfileCompiler {
     } on FormatException catch (e) {
       return _failure(e.message);
     }
+  }
+
+  List<GroupPreview> _inspect(
+    Map<String, Object?> root,
+    List<ProxyDescriptor> proxies,
+    void Function(String, [String?]) warn,
+  ) {
+    final names = <String>{..._builtins};
+    final types = <String, String>{
+      for (final n in _builtins)
+        n: n == 'DIRECT' || n == 'COMPATIBLE' ? 'Direct' : 'Reject',
+    };
+    for (final proxy in proxies) {
+      if (proxy.name.isEmpty || !names.add(proxy.name)) {
+        warn('duplicate_proxy_name', proxy.name);
+      }
+      if (!{'VLESS', 'TrustTunnel', 'WireGuard'}.contains(proxy.type)) {
+        warn('unsupported_proxy_type', proxy.name);
+      }
+      types[proxy.name] = proxy.type;
+    }
+    final rawGroups = root['proxy-groups'] ?? <Object?>[];
+    if (rawGroups is! List) throw const FormatException('invalid_proxy_groups');
+    if (rawGroups.length > 512 || proxies.length > 5000) {
+      throw const FormatException('template_node_limit');
+    }
+    final groups = <String, Map<String, Object?>>{};
+    final providers = _mapping(root['proxy-providers'] ?? <String, Object?>{});
+    for (final value in rawGroups) {
+      final group = _mapping(value);
+      final name = group['name'];
+      if (name is! String || name.isEmpty) {
+        throw const FormatException('invalid_group_name');
+      }
+      if (!names.add(name)) warn('duplicate_group_name', name);
+      if (providers.containsKey(name)) {
+        warn('group_provider_name_conflict', name);
+      }
+      if (!{
+        'select',
+        'fallback',
+        'url-test',
+        'load-balance',
+      }.contains(group['type'])) {
+        warn('unsupported_group_type', name);
+      }
+      groups[name] = group;
+      types[name] = switch (group['type']) {
+        'fallback' => 'Fallback',
+        'url-test' => 'URLTest',
+        'load-balance' => 'LoadBalance',
+        _ => 'Selector',
+      };
+    }
+    final previews = <GroupPreview>[];
+    final orderedProxies = proxies.toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+    for (final entry in groups.entries) {
+      final name = entry.key;
+      final group = entry.value;
+      var complete = true;
+      final explicit = _strings(group['proxies']);
+      final use = _strings(group['use']);
+      for (final reference in explicit) {
+        if (!names.contains(reference)) {
+          warn('unknown_proxy_reference', name);
+        }
+      }
+      for (final reference in use) {
+        if (!providers.containsKey(reference)) {
+          warn('unknown_provider_reference', name);
+        }
+      }
+      if (use.isNotEmpty ||
+          group['include-all-providers'] == true ||
+          group['include-all'] == true) {
+        complete = false;
+        warn('provider_snapshot_required', name);
+      }
+      for (final key in [
+        'include-all',
+        'include-all-proxies',
+        'include-all-providers',
+      ]) {
+        if (group[key] != null && group[key] is! bool) {
+          warn('invalid_group_option', name);
+        }
+      }
+      var members = [...explicit];
+      try {
+        final include = _filter(group['filter']);
+        final exclude = _filter(group['exclude-filter']);
+        if (group['include-all-proxies'] == true ||
+            group['include-all'] == true) {
+          members.addAll(
+            orderedProxies
+                .where((p) => include == null || include.hasMatch(p.name))
+                .map((p) => p.name),
+          );
+        }
+        final excludedTypes = group['exclude-type'];
+        if (excludedTypes != null && excludedTypes is! String) {
+          throw const FormatException('invalid_group_option');
+        }
+        final excluded = (excludedTypes as String? ?? '').toLowerCase().split(
+          '|',
+        );
+        members = members
+            .where(
+              (n) =>
+                  !(exclude?.hasMatch(n) ?? false) &&
+                  !excluded.contains(types[n]?.toLowerCase()),
+            )
+            .toList();
+      } on FormatException catch (e) {
+        complete = false;
+        warn(e.message, name);
+      }
+      final fallback = group['empty-fallback'] ?? 'COMPATIBLE';
+      if (fallback is! String ||
+          !names.contains(fallback) ||
+          groups.containsKey(fallback)) {
+        warn('invalid_empty_fallback', name);
+      }
+      final empty = complete && members.isEmpty;
+      if (empty) warn('empty_group_requires_policy', name);
+      previews.add(
+        GroupPreview(
+          name: name,
+          members: members,
+          fallback: empty && fallback is String ? fallback : null,
+          complete: complete,
+        ),
+      );
+    }
+    _checkCycles(groups, warn);
+    _checkRules(root, names, warn);
+    final remote = previews
+        .where((g) => g.name == 'RemoteBalancer')
+        .firstOrNull;
+    final chain = previews.where((g) => g.name == 'Proxy_Chain').firstOrNull;
+    if (remote != null &&
+        chain != null &&
+        chain.members.any(
+          (n) => !groups.containsKey(n) && !remote.members.contains(n),
+        )) {
+      warn('chain_has_extra_nodes', 'Proxy_Chain');
+    }
+    if (groups.containsKey('WG_Auto') &&
+        !groups.values.any((g) => _strings(g['proxies']).contains('WG_Auto')) &&
+        !_strings(root['rules']).any((r) => r.split(',').contains('WG_Auto'))) {
+      warn('unreferenced_group', 'WG_Auto');
+    }
+    return previews;
   }
 }
 
@@ -320,7 +339,7 @@ List<String> _strings(Object? value) {
 }
 
 /// Deliberately bounded subset shared by this P0 preview. Reject complex .NET
-/// regexes instead of pretending Dart RegExp implements all Mihomo semantics.
+/// regexes with a warning; they remain unchanged in the exported YAML.
 RegExp? _filter(Object? input) {
   if (input == null || input == '') return null;
   if (input is! String || input.length > 256) {

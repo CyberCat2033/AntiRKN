@@ -83,7 +83,11 @@ void main() {
       await settle();
       await tester.tap(find.text('Settings').last);
       await settle();
-      await tester.ensureVisible(find.byKey(const ValueKey('backup-import')));
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('backup-import')),
+        250,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.pump();
       await tester.tap(find.byKey(const ValueKey('backup-import')));
       await tester.pumpAndSettle();

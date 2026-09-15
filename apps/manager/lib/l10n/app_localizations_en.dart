@@ -15,13 +15,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get overview => 'Overview';
 
   @override
-  String get templates => 'Templates';
+  String get templateReady => 'Base configuration loaded.';
+
+  @override
+  String get templateLoading => 'Reading the base configuration…';
+
+  @override
+  String get profileWarning => 'Warning';
+
+  @override
+  String get profileError => 'Error';
 
   @override
   String get settings => 'Settings';
-
-  @override
-  String get workbench => 'Base profile check';
 
   @override
   String get prototype => 'P0 prototype';
@@ -30,11 +36,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get intro => 'Check which nodes are selected by your template groups.';
 
   @override
-  String get source => 'Base YAML';
+  String get source => 'Base configuration';
 
   @override
   String get sourceHelp =>
-      'Choose a .yml or .yaml file. The app saves its own copy on this device; the source file is not modified.';
+      'Choose a .yml or .yaml file for client profiles. The app saves its own copy; the source file is not modified.';
 
   @override
   String get preview => 'Preview group members';
@@ -90,7 +96,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get overviewText =>
-      'Manage saved servers over SSH, inspect their software and IP addresses, and edit templates. Server installation, protocol configuration and Google Drive sync are planned for later stages.';
+      'Manage servers and VPN clients, generate personal Mihomo profiles, and sync your workspace through Google Drive. Choose the base configuration in Settings.';
 
   @override
   String get scope =>
@@ -119,7 +125,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get motionHelp =>
-      'System animation restrictions take priority. Prototype theme and motion settings last until the app closes.';
+      'System animation restrictions take priority. Your preference is saved on this device.';
 
   @override
   String get invalidName => 'Enter a unique, non-empty name';
@@ -167,7 +173,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get diagnosticEmptyGroupRequiresPolicy =>
-      'Empty group: choose a policy before publishing.';
+      'The group is empty. Mihomo will use its empty-group behavior; review the routing if needed.';
 
   @override
   String get diagnosticChainHasExtraNodes =>
@@ -179,7 +185,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get diagnosticBaseContainsProxies =>
-      'The template already contains proxies. Choose how to import them first.';
+      'Proxies from the base configuration are preserved and included in client profiles.';
 
   @override
   String get diagnosticInvalidYaml => 'Invalid YAML syntax or a duplicate key.';
@@ -1347,7 +1353,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get vpnLastProfile =>
-      'The previous valid revision is retained. Fix the template or complete pending access changes before export.';
+      'Could not generate the current profile. The previous saved version is retained.';
 
   @override
   String get vpnInvalid =>
@@ -1415,7 +1421,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get vpnChanged => 'Changes awaiting approval';
 
   @override
-  String get vpnEmptyTemplate => 'Choose a base YAML in Templates first.';
+  String get vpnEmptyTemplate => 'Choose a base YAML file in Settings.';
 
   @override
   String get vpnNoAccess =>

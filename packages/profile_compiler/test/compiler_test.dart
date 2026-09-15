@@ -69,13 +69,15 @@ void main() {
     expect(result.hasBlockingErrors, isFalse);
   });
 
-  test('empty RU/WG groups expose fallback and block policy approval', () {
+  test('empty RU/WG groups warn without blocking profile issuance', () {
     final result = compiler.compile(
       template: template,
       userId: 'user-a',
       accesses: [fixtureNode('a', 'vless')],
     );
-    expect(result.hasBlockingErrors, isTrue);
+    expect(result.hasBlockingErrors, isFalse);
+    expect(result.yaml, isNotNull);
+    expect(codes(result), contains('empty_group_requires_policy'));
     expect(
       result.groups.singleWhere((g) => g.name == 'RuZone').fallback,
       'COMPATIBLE',
@@ -104,11 +106,20 @@ void main() {
     expect(result.toString(), isNot(contains('fixture-password')));
   });
 
-  test('an existing proxy collection requires an explicit import decision', () {
-    expect(
-      codes(preview('proxies: [{name: old}]')),
-      contains('base_contains_proxies'),
+  test('an existing proxy collection is preserved with a warning', () {
+    final result = compiler.compile(
+      template:
+          'proxies: [{name: old, type: socks5, server: example.com, port: 1080}]',
+      userId: 'user-a',
+      accesses: [fixtureNode('a', 'vless')],
     );
+    expect(codes(result), contains('base_contains_proxies'));
+    expect(result.hasBlockingErrors, isFalse);
+    final proxies = (loadYaml(result.yaml!) as Map)['proxies'] as List;
+    expect(proxies, hasLength(2));
+    expect(proxies.first['name'], 'old');
+    expect(proxies.first['type'], 'socks5');
+    expect(proxies.last['type'], 'vless');
   });
 
   for (final input in [
@@ -147,6 +158,7 @@ proxy-groups:
  - {name: B, type: select, proxies: [A]}
 rules: ["MATCH,missing", "RULE-SET,missing,A"]
 ''');
+    expect(result.hasBlockingErrors, isFalse);
     expect(
       codes(result),
       containsAll([
@@ -168,6 +180,7 @@ proxy-providers:
  remote: {type: http, url: "https://example.com/nodes.yml"}
 ''');
       expect(result.groups.every((g) => !g.complete), isTrue);
+      expect(result.hasBlockingErrors, isFalse);
       expect(
         codes(result),
         containsAll([
@@ -190,6 +203,29 @@ proxy-groups:
       expect(result.groups.last.members, isEmpty);
     },
   );
+
+  test('unsupported base options are retained and never gate generation', () {
+    for (final source in [
+      'proxy-groups: [{name: G, type: relay, proxies: [DIRECT]}]',
+      'proxy-groups: [{name: G, type: select, filter: "(a+)+", include-all-proxies: true}]',
+      'proxy-groups: [{name: G, type: select, use: [remote]}]',
+      'rules: ["AND,((NETWORK,UDP),(DST-PORT,443)),REJECT"]',
+      'proxy-groups: {}',
+      'dns: {nameserver-policy: [unknown]}',
+    ]) {
+      final result = compiler.compile(
+        template: source,
+        userId: 'user-a',
+        accesses: [fixtureNode('a', 'vless')],
+      );
+      expect(result.hasBlockingErrors, isFalse, reason: source);
+      expect(result.diagnostics, isNotEmpty, reason: source);
+      final output = loadYaml(result.yaml!) as Map;
+      for (final entry in (loadYaml(source) as Map).entries) {
+        expect(output[entry.key], entry.value, reason: source);
+      }
+    }
+  });
 
   test('unsupported protocols and invalid VLESS combinations are rejected', () {
     final base = fixtureNode('a', 'vless');
