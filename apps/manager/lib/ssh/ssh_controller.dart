@@ -223,6 +223,7 @@ class SshController extends ChangeNotifier {
   bool get editing =>
       unlocked && !busy && !runner.busy && !vaultBusy && !picking;
   bool get hasSavedProfile => unlocked && _vault!.profile != null;
+  SshProfile? get profile => unlocked ? _vault?.profile : null;
   String get displayName =>
       unlocked ? _vault!.profile?.displayName ?? host.text : '';
   bool get hasKey => _pem != null;
@@ -527,6 +528,45 @@ class SshController extends ChangeNotifier {
     settingsExpanded = false;
     _notify();
     return true;
+  }
+
+  Future<bool> applyHardenedCredentials({
+    required String username,
+    required int port,
+    required String sudoPasswordText,
+  }) async {
+    final current = _vault?.profile;
+    if (current == null) return false;
+    final updated = current.withHardenedAccess(
+      user: username,
+      port: port,
+      sudoPassword: sudoPasswordText,
+    );
+    this.username.text = username;
+    this.port.text = port.toString();
+    sudoPassword.text = sudoPasswordText;
+    vaultBusy = true;
+    _notify();
+    try {
+      jumpCandidates = await repository?.listServers() ?? [];
+      resolveSshRoute(updated, jumpCandidates.map((s) => s.profile));
+      await _vault!.saveProfile(updated);
+      disconnect();
+      observation = null;
+      network.clear();
+      settingsExpanded = false;
+      _notify();
+      return true;
+    } on VaultFailure catch (e) {
+      if (!_disposed) vaultError = e.issue;
+      return false;
+    } catch (_) {
+      if (!_disposed) vaultError = VaultIssue.writeFailed;
+      return false;
+    } finally {
+      vaultBusy = false;
+      _notify();
+    }
   }
 
   Future<bool> _saveDraft() async {

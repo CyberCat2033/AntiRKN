@@ -1062,6 +1062,108 @@ class RunnerController extends ChangeNotifier {
     return submitted;
   }
 
+  Future<SshHardenPlan?> prepareSshHarden({
+    required String username,
+    required int port,
+  }) async {
+    if (!canStart) return null;
+    SshHardenPlan? result;
+    await _run((remote, token) async {
+      final response = await remote.request(
+        RunnerRequest.sshHardenPlan({
+          'username': username,
+          'port': port,
+        }),
+        token,
+        sudoPassword: password(),
+      );
+      responseCode = response.code;
+      if (response.code != 'ok') {
+        throw const RunnerFailure(RunnerIssue.conflict);
+      }
+      result = response.sshHardenPlan;
+    });
+    return result;
+  }
+
+  Future<String?> submitSshHarden({
+    required SshHardenPlan plan,
+    required String username,
+    required int port,
+    required String sudoPassword,
+    String? publicKey,
+    int deadlineSeconds = 300,
+  }) async {
+    if (!canStart) return null;
+    String? jobId;
+    await _run((remote, token) async {
+      final response = await remote.request(
+        RunnerRequest.sshHardenPlan({
+          'username': username,
+          'port': port,
+        }),
+        token,
+        sudoPassword: password(),
+      );
+      if (response.code != 'ok' ||
+          response.sshHardenPlan?.fingerprint != plan.fingerprint) {
+        throw const RunnerFailure(RunnerIssue.conflict);
+      }
+      token.check();
+      final random = Random.secure();
+      final id = List.generate(
+        16,
+        (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+      ).join();
+      pending = RunnerRequest.sshHarden(
+        id,
+        {
+          'username': username,
+          'port': port,
+          'sudoPassword': sudoPassword,
+          if (publicKey != null && publicKey.isNotEmpty) 'publicKey': publicKey,
+          'disableRootLogin': true,
+          'deadlineSeconds': deadlineSeconds,
+        },
+        plan.fingerprint,
+      );
+      selected = null;
+      cursor = 0;
+      await _save();
+      await _submit(remote, token);
+      jobId = id;
+    });
+    return jobId;
+  }
+
+  Future<SshHardenResult?> confirmSshHarden(String jobId) async {
+    SshHardenResult? result;
+    await _run((remote, token) async {
+      final response = await remote.request(
+        RunnerRequest.sshHardenConfirm(jobId),
+        token,
+        sudoPassword: password(),
+      );
+      responseCode = response.code;
+      result = response.sshHardenResult;
+    });
+    return result;
+  }
+
+  Future<SshHardenResult?> abortSshHarden(String jobId) async {
+    SshHardenResult? result;
+    await _run((remote, token) async {
+      final response = await remote.request(
+        RunnerRequest.sshHardenAbort(jobId),
+        token,
+        sudoPassword: password(),
+      );
+      responseCode = response.code;
+      result = response.sshHardenResult;
+    });
+    return result;
+  }
+
   bool get canApplyComponent =>
       connected &&
       !busy &&
@@ -1319,6 +1421,7 @@ class RunnerController extends ChangeNotifier {
           'awg_external_edit',
           'tt_external_edit',
           'tt_certificate',
+          'ssh_harden',
         }.contains(job.kind) &&
         (selected?.id != job.id || selected?.status != 'succeeded')) {
       _softwareRefreshPending = true;

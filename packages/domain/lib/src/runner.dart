@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'runner_contract.g.dart';
 import 'ssh.dart';
+import 'ssh_harden.dart';
 export 'runner_contract.g.dart'
     show validateRunnerRequest, verifiedComponentVersions;
 
@@ -215,6 +216,39 @@ final class RunnerRequest {
     'count': count,
     'interval': interval,
   });
+  factory RunnerRequest.sshHardenPlan(Map<String, Object?> payload) =>
+      RunnerRequest.fromJson({
+        'version': 1,
+        'action': 'ssh_harden_plan',
+        'payload': jsonEncode(payload),
+      });
+  factory RunnerRequest.sshHarden(
+    String id,
+    Map<String, Object?> payload,
+    String fingerprint,
+  ) =>
+      RunnerRequest.fromJson({
+        'version': 1,
+        'action': 'submit',
+        'id': id,
+        'kind': 'ssh_harden',
+        'count': 7,
+        'interval': 1,
+        'payload': jsonEncode(payload),
+        'fingerprint': fingerprint,
+      });
+  factory RunnerRequest.sshHardenConfirm(String id) =>
+      RunnerRequest.fromJson({
+        'version': 1,
+        'action': 'ssh_harden_confirm',
+        'id': id,
+      });
+  factory RunnerRequest.sshHardenAbort(String id) =>
+      RunnerRequest.fromJson({
+        'version': 1,
+        'action': 'ssh_harden_abort',
+        'id': id,
+      });
   final Map<String, Object?> json;
   String? get id => json['id'] as String?;
 }
@@ -283,6 +317,7 @@ final class RunnerJob {
           'inbound_update',
           'apt_update',
           'apt_upgrade',
+          'ssh_harden',
         }.contains(kind) ||
         (kind == 'panel_install' && (count != 6 || interval != 1)) ||
         !(runnerSchema['states'] as List).contains(status) ||
@@ -409,6 +444,16 @@ final class RunnerResponse {
                 (e) => Map<String, dynamic>.from(e as Map),
               ),
             ),
+      sshHardenPlan = value['sshHardenPlan'] == null
+          ? null
+          : SshHardenPlan.fromJson(
+              Map<String, dynamic>.from(value['sshHardenPlan'] as Map),
+            ),
+      sshHardenResult = value['sshHardenResult'] == null
+          ? null
+          : SshHardenResult.fromJson(
+              Map<String, dynamic>.from(value['sshHardenResult'] as Map),
+            ),
       alive = value['alive'] as bool,
       jobs = List.unmodifiable(
         (value['jobs'] as List).map(
@@ -436,6 +481,8 @@ final class RunnerResponse {
   final bool panelVerified;
   final Map<String, dynamic>? vlessPlan;
   final List<Map<String, dynamic>>? vlessState;
+  final SshHardenPlan? sshHardenPlan;
+  final SshHardenResult? sshHardenResult;
   final bool alive;
   final List<RunnerJob> jobs;
 }

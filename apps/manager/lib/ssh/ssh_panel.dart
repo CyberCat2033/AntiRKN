@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../l10n/app_localizations.dart';
 import 'ssh_controller.dart';
+import 'ssh_harden_wizard.dart';
 
 class SshPanel extends StatefulWidget {
   const SshPanel({
@@ -437,6 +438,14 @@ class _SshPanelState extends State<SshPanel> {
                             : privilegeStatusLabel(l, c.privileges!.status),
                       ),
                     ),
+                    if (c.isRoot) ...[
+                      const SizedBox(height: AppLayout.gap),
+                      FilledButton.tonalIcon(
+                        icon: const Icon(Icons.shield_outlined),
+                        label: Text(l.sshHardenBannerAction),
+                        onPressed: () => showSshHardenWizard(context, c),
+                      ),
+                    ],
                     if (!c.isRoot) ...[
                       const SizedBox(height: AppLayout.gap),
                       _field(

@@ -5227,6 +5227,204 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Connect to the server over SSH, then tap the protocol again to install it.'**
   String get uiInstallProtocolConnect;
+
+  /// No description provided for @sshHardenBannerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Root access is not hardened'**
+  String get sshHardenBannerTitle;
+
+  /// No description provided for @sshHardenBannerSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'It is recommended to create a sudo user, change the SSH port to 2222, and disable root login.'**
+  String get sshHardenBannerSubtitle;
+
+  /// No description provided for @sshHardenBannerAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Secure server'**
+  String get sshHardenBannerAction;
+
+  /// No description provided for @sshHardenDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'SSH Hardening Wizard'**
+  String get sshHardenDialogTitle;
+
+  /// No description provided for @sshHardenDialogDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Safe access transition: creates a non-root user with sudo privileges, switches SSH to a new port (2222), and disables direct root login. Both ports remain active during verification. If the test fails, automatic rollback triggers after 5 minutes.'**
+  String get sshHardenDialogDescription;
+
+  /// No description provided for @sshHardenUsername.
+  ///
+  /// In en, this message translates to:
+  /// **'New username'**
+  String get sshHardenUsername;
+
+  /// No description provided for @sshHardenPort.
+  ///
+  /// In en, this message translates to:
+  /// **'New SSH port'**
+  String get sshHardenPort;
+
+  /// No description provided for @sshHardenSudoPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Sudo password for new user'**
+  String get sshHardenSudoPassword;
+
+  /// No description provided for @sshHardenSudoPasswordConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm sudo password'**
+  String get sshHardenSudoPasswordConfirm;
+
+  /// No description provided for @sshHardenPasswordMismatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Passwords do not match'**
+  String get sshHardenPasswordMismatch;
+
+  /// No description provided for @sshHardenPasswordRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Please enter a sudo password'**
+  String get sshHardenPasswordRequired;
+
+  /// No description provided for @sshHardenFirewallWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Notice: If a Cloud Firewall is enabled in your hosting panel (Hetzner, Timeweb, Selectel, etc.), make sure port {port}/TCP is open before confirming.'**
+  String sshHardenFirewallWarning(int port);
+
+  /// No description provided for @sshHardenStartAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Start hardening'**
+  String get sshHardenStartAction;
+
+  /// No description provided for @sshHardenPreparing.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing and verifying configuration...'**
+  String get sshHardenPreparing;
+
+  /// No description provided for @sshHardenUserCreated.
+  ///
+  /// In en, this message translates to:
+  /// **'User created and SSH keys configured...'**
+  String get sshHardenUserCreated;
+
+  /// No description provided for @sshHardenSudoersConfigured.
+  ///
+  /// In en, this message translates to:
+  /// **'Sudo privileges configured and validated...'**
+  String get sshHardenSudoersConfigured;
+
+  /// No description provided for @sshHardenPortsConfigured.
+  ///
+  /// In en, this message translates to:
+  /// **'SSH ports configured (dual-port listening)...'**
+  String get sshHardenPortsConfigured;
+
+  /// No description provided for @sshHardenFirewallConfigured.
+  ///
+  /// In en, this message translates to:
+  /// **'Firewall (UFW) configured...'**
+  String get sshHardenFirewallConfigured;
+
+  /// No description provided for @sshHardenWatchdogStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'Safety watchdog started...'**
+  String get sshHardenWatchdogStarted;
+
+  /// No description provided for @sshHardenTesting.
+  ///
+  /// In en, this message translates to:
+  /// **'Verifying new user connection...'**
+  String get sshHardenTesting;
+
+  /// No description provided for @sshHardenTestingCountdown.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-rollback in {time}'**
+  String sshHardenTestingCountdown(String time);
+
+  /// No description provided for @sshHardenTestSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Verification successful! User {user} connected on port {port} and confirmed sudo privileges.'**
+  String sshHardenTestSuccess(String user, int port);
+
+  /// No description provided for @sshHardenTestFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not connect to port {port} as the new user. Check your cloud firewall rules.'**
+  String sshHardenTestFailed(int port);
+
+  /// No description provided for @sshHardenConfirmAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm & disable root'**
+  String get sshHardenConfirmAction;
+
+  /// No description provided for @sshHardenAbortAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Roll back changes'**
+  String get sshHardenAbortAction;
+
+  /// No description provided for @sshHardenRetryAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry verification'**
+  String get sshHardenRetryAction;
+
+  /// No description provided for @sshHardenConfirmed.
+  ///
+  /// In en, this message translates to:
+  /// **'Hardening applied. Direct root login disabled.'**
+  String get sshHardenConfirmed;
+
+  /// No description provided for @sshHardenAborted.
+  ///
+  /// In en, this message translates to:
+  /// **'Changes rolled back. Root access preserved.'**
+  String get sshHardenAborted;
+
+  /// No description provided for @sshHardenConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'SSH configuration changed during hardening.'**
+  String get sshHardenConflict;
+
+  /// No description provided for @sshHardenInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid username or port.'**
+  String get sshHardenInvalid;
+
+  /// No description provided for @sshHardenPortBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'The selected port is already in use.'**
+  String get sshHardenPortBusy;
+
+  /// No description provided for @sshHardenFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'SSH hardening failed. Rolled back to previous state.'**
+  String get sshHardenFailed;
+
+  /// No description provided for @sshHardenRandomUser.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a random character'**
+  String get sshHardenRandomUser;
 }
 
 class _AppLocalizationsDelegate

@@ -33,7 +33,9 @@ class RunnerPanel extends StatelessWidget {
           job != null &&
           (active ||
               failed ||
-              ((job.kind.startsWith('apt_') || job.kind == 'protocol_remove') &&
+              ((job.kind.startsWith('apt_') ||
+                      job.kind == 'protocol_remove' ||
+                      job.kind == 'ssh_harden') &&
                   c.dismissedJobId != job.id));
       return AppAnimatedSize(
         motion: motion,
@@ -157,6 +159,10 @@ String runnerCodeLabel(AppLocalizations l, String code) => switch (code) {
   'protocol_remove_conflict' => l.uiRemoveProtocolConflict,
   'protocol_remove_unsupported' => l.uiRemoveProtocolUnsupported,
   'protocol_remove_failed' => l.uiRemoveProtocolFailed,
+  'ssh_harden_conflict' => l.sshHardenConflict,
+  'ssh_harden_invalid' => l.sshHardenInvalid,
+  'ssh_harden_port_busy' => l.sshHardenPortBusy,
+  'ssh_harden_failed' => l.sshHardenFailed,
   'sync_conflict' => l.syncEffectsBlocked,
   final String v when v.startsWith('tt_') => vpnMessage(l, v),
   'panel_auth_failed' => l.panelAuthFailed,
@@ -188,6 +194,18 @@ String runnerEventLabel(AppLocalizations l, String code) => switch (code) {
   'protocol_remove_conflict' => l.uiRemoveProtocolConflict,
   'protocol_remove_unsupported' => l.uiRemoveProtocolUnsupported,
   'protocol_remove_failed' => l.uiRemoveProtocolFailed,
+  'ssh_harden_conflict' => l.sshHardenConflict,
+  'ssh_harden_invalid' => l.sshHardenInvalid,
+  'ssh_harden_port_busy' => l.sshHardenPortBusy,
+  'ssh_harden_failed' => l.sshHardenFailed,
+  'ssh_harden_preparing' => l.sshHardenPreparing,
+  'ssh_harden_user_created' => l.sshHardenUserCreated,
+  'ssh_harden_sudoers_configured' => l.sshHardenSudoersConfigured,
+  'ssh_harden_ports_configured' => l.sshHardenPortsConfigured,
+  'ssh_harden_firewall_configured' => l.sshHardenFirewallConfigured,
+  'ssh_harden_testing' => l.sshHardenTesting,
+  'ssh_harden_confirmed' => l.sshHardenConfirmed,
+  'ssh_harden_aborted' => l.sshHardenAborted,
   final String v when v.startsWith('tt_') => vpnMessage(l, v),
   'apt_updating' => l.aptUpdating,
   'apt_upgrading' => l.aptUpgrading,

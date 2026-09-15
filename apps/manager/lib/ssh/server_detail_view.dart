@@ -7,6 +7,7 @@ import '../runner/component_updates_controller.dart';
 import '../runner/runner_panel.dart';
 import 'server_about_view.dart';
 import 'ssh_controller.dart';
+import 'ssh_harden_wizard.dart';
 import 'ssh_panel.dart';
 
 class ServerProtocolSection {
@@ -269,6 +270,48 @@ class _ServerDetailViewState extends State<ServerDetailView> {
             ),
           ),
         ),
+        if (widget.session.isRoot && widget.session.stage == SshStage.connected) ...[
+          const SizedBox(height: 16),
+          Card(
+            color: Theme.of(context).colorScheme.errorContainer.withAlpha(80),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.security_outlined,
+                    color: Theme.of(context).colorScheme.error,
+                    size: 32,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          l.sshHardenBannerTitle,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          l.sshHardenBannerSubtitle,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  FilledButton.tonal(
+                    onPressed: () => showSshHardenWizard(context, widget.session),
+                    child: Text(l.sshHardenBannerAction),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 24),
         AppTwoColumn(
           first: Column(

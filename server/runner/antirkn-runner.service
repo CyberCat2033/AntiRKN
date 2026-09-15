@@ -6,7 +6,7 @@ StartLimitBurst=5
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 -I /usr/local/lib/antirkn-runner/v17/runner.py daemon
+ExecStart=/usr/bin/python3 -I /usr/local/lib/antirkn-runner/v18/runner.py daemon
 Restart=on-failure
 RestartSec=2
 TimeoutStopSec=180
@@ -15,12 +15,12 @@ StateDirectoryMode=0700
 UMask=0077
 NoNewPrivileges=yes
 ProtectSystem=strict
-ProtectHome=read-only
+ProtectHome=no
 PrivateTmp=yes
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectControlGroups=yes
-ReadWritePaths=/var/lib/antirkn-runner /usr/local /etc /usr/bin /opt -/usr/lib/systemd/system -/var/lib/docker/volumes
+ReadWritePaths=/var/lib/antirkn-runner /usr/local /etc /usr/bin /opt /home -/usr/lib/systemd/system -/var/lib/docker/volumes
 StandardOutput=null
 StandardError=null
 

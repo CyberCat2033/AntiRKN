@@ -1117,5 +1117,69 @@
   "uiRemoveProtocolUnsupported": "This installation has a nonstandard configuration. Automatic removal is unavailable.",
   "uiNotInstalled": "Not installed",
   "uiInstallProtocolHelp": "This protocol is not installed on the server. Prepare installation? You will see the changes before starting.",
-  "uiInstallProtocolConnect": "Connect to the server over SSH, then tap the protocol again to install it."
+  "uiInstallProtocolConnect": "Connect to the server over SSH, then tap the protocol again to install it.",
+  "sshHardenBannerTitle": "Root access is not hardened",
+  "sshHardenBannerSubtitle": "It is recommended to create a sudo user, change the SSH port to 2222, and disable root login.",
+  "sshHardenBannerAction": "Secure server",
+  "sshHardenDialogTitle": "SSH Hardening Wizard",
+  "sshHardenDialogDescription": "Safe access transition: creates a non-root user with sudo privileges, switches SSH to a new port (2222), and disables direct root login. Both ports remain active during verification. If the test fails, automatic rollback triggers after 5 minutes.",
+  "sshHardenUsername": "New username",
+  "sshHardenPort": "New SSH port",
+  "sshHardenSudoPassword": "Sudo password for new user",
+  "sshHardenSudoPasswordConfirm": "Confirm sudo password",
+  "sshHardenPasswordMismatch": "Passwords do not match",
+  "sshHardenPasswordRequired": "Please enter a sudo password",
+  "sshHardenFirewallWarning": "Notice: If a Cloud Firewall is enabled in your hosting panel (Hetzner, Timeweb, Selectel, etc.), make sure port {port}/TCP is open before confirming.",
+  "@sshHardenFirewallWarning": {
+    "placeholders": {
+      "port": {
+        "type": "int"
+      }
+    }
+  },
+  "sshHardenStartAction": "Start hardening",
+  "sshHardenPreparing": "Preparing and verifying configuration...",
+  "sshHardenUserCreated": "User created and SSH keys configured...",
+  "sshHardenSudoersConfigured": "Sudo privileges configured and validated...",
+  "sshHardenPortsConfigured": "SSH ports configured (dual-port listening)...",
+  "sshHardenFirewallConfigured": "Firewall (UFW) configured...",
+  "sshHardenWatchdogStarted": "Safety watchdog started...",
+  "sshHardenTesting": "Verifying new user connection...",
+  "sshHardenTestingCountdown": "Auto-rollback in {time}",
+  "@sshHardenTestingCountdown": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "sshHardenTestSuccess": "Verification successful! User {user} connected on port {port} and confirmed sudo privileges.",
+  "@sshHardenTestSuccess": {
+    "placeholders": {
+      "user": {
+        "type": "String"
+      },
+      "port": {
+        "type": "int"
+      }
+    }
+  },
+  "sshHardenTestFailed": "Could not connect to port {port} as the new user. Check your cloud firewall rules.",
+  "@sshHardenTestFailed": {
+    "placeholders": {
+      "port": {
+        "type": "int"
+      }
+    }
+  },
+  "sshHardenConfirmAction": "Confirm & disable root",
+  "sshHardenAbortAction": "Roll back changes",
+  "sshHardenRetryAction": "Retry verification",
+  "sshHardenConfirmed": "Hardening applied. Direct root login disabled.",
+  "sshHardenAborted": "Changes rolled back. Root access preserved.",
+  "sshHardenConflict": "SSH configuration changed during hardening.",
+  "sshHardenInvalid": "Invalid username or port.",
+  "sshHardenPortBusy": "The selected port is already in use.",
+  "sshHardenFailed": "SSH hardening failed. Rolled back to previous state.",
+  "sshHardenRandomUser": "Pick a random character"
 }

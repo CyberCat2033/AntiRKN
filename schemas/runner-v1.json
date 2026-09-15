@@ -49,7 +49,10 @@
           "tt_external_plan",
           "tt_certificates",
           "tt_certificate_plan",
-          "protocol_remove_plan"
+          "protocol_remove_plan",
+          "ssh_harden_plan",
+          "ssh_harden_confirm",
+          "ssh_harden_abort"
         ]
       },
       "id": {
@@ -72,7 +75,8 @@
           "tt_apply",
           "tt_external_edit",
           "tt_certificate",
-          "protocol_remove"
+          "protocol_remove",
+          "ssh_harden"
         ]
       },
       "count": {
@@ -305,6 +309,21 @@
         "version",
         "action",
         "protocol"
+      ],
+      "ssh_harden_plan": [
+        "version",
+        "action",
+        "payload"
+      ],
+      "ssh_harden_confirm": [
+        "version",
+        "action",
+        "id"
+      ],
+      "ssh_harden_abort": [
+        "version",
+        "action",
+        "id"
       ]
     },
     "submissions": {
@@ -442,6 +461,16 @@
         "interval",
         "protocol",
         "fingerprint"
+      ],
+      "ssh_harden": [
+        "version",
+        "action",
+        "id",
+        "kind",
+        "count",
+        "interval",
+        "payload",
+        "fingerprint"
       ]
     },
     "kindConstants": {
@@ -483,6 +512,10 @@
       },
       "protocol_remove": {
         "count": 4,
+        "interval": 1
+      },
+      "ssh_harden": {
+        "count": 7,
         "interval": 1
       }
     }
@@ -597,7 +630,15 @@
     "tt_applying",
     "tt_checking",
     "tt_certificate_ready",
-    "tt_restarting"
+    "tt_restarting",
+    "ssh_harden_preparing",
+    "ssh_harden_user_created",
+    "ssh_harden_sudoers_configured",
+    "ssh_harden_ports_configured",
+    "ssh_harden_firewall_configured",
+    "ssh_harden_testing",
+    "ssh_harden_confirmed",
+    "ssh_harden_aborted"
   ],
   "codes": [
     "ok",
@@ -642,7 +683,11 @@
     "tt_acme_failed",
     "protocol_remove_conflict",
     "protocol_remove_unsupported",
-    "protocol_remove_failed"
+    "protocol_remove_failed",
+    "ssh_harden_conflict",
+    "ssh_harden_invalid",
+    "ssh_harden_port_busy",
+    "ssh_harden_failed"
   ],
   "maxRequestBytes": 524288,
   "maxEvents": 256,

@@ -1,0 +1,32 @@
+{
+  "suite": "ssh_harden_vm_test",
+  "timestamp": 1789511689.124033,
+  "results": {
+    "vm_supported": true,
+    "runner_v18_installed": true,
+    "runner_v18_active": true,
+    "ssh_harden_plan_ok": true,
+    "plan_supported": true,
+    "plan_proposed_user": true,
+    "plan_user_available": true,
+    "plan_has_fingerprint": true,
+    "submit_ssh_harden_ok": true,
+    "ssh_harden_reached_testing_checkpoint": true,
+    "user_mustang_created": true,
+    "sudoers_file_created": true,
+    "watchdog_active": true,
+    "ssh_harden_aborted_ok": true,
+    "user_mustang_deleted_after_abort": true,
+    "sudoers_deleted_after_abort": true,
+    "dropin_deleted_after_abort": true,
+    "edward_user_available": true,
+    "submit_edward_ok": true,
+    "user_edward_created": true,
+    "edward_ssh_and_sudo_verified": true,
+    "edward_confirmed_ok": true,
+    "edward_access_preserved_after_confirm": true,
+    "permit_root_login_disabled": true,
+    "port_2223_in_sshd_config": true,
+    "root_login_rejected_on_port_2223": true
+  }
+}

@@ -2934,4 +2934,117 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get uiInstallProtocolConnect =>
       'Connect to the server over SSH, then tap the protocol again to install it.';
+
+  @override
+  String get sshHardenBannerTitle => 'Root access is not hardened';
+
+  @override
+  String get sshHardenBannerSubtitle =>
+      'It is recommended to create a sudo user, change the SSH port to 2222, and disable root login.';
+
+  @override
+  String get sshHardenBannerAction => 'Secure server';
+
+  @override
+  String get sshHardenDialogTitle => 'SSH Hardening Wizard';
+
+  @override
+  String get sshHardenDialogDescription =>
+      'Safe access transition: creates a non-root user with sudo privileges, switches SSH to a new port (2222), and disables direct root login. Both ports remain active during verification. If the test fails, automatic rollback triggers after 5 minutes.';
+
+  @override
+  String get sshHardenUsername => 'New username';
+
+  @override
+  String get sshHardenPort => 'New SSH port';
+
+  @override
+  String get sshHardenSudoPassword => 'Sudo password for new user';
+
+  @override
+  String get sshHardenSudoPasswordConfirm => 'Confirm sudo password';
+
+  @override
+  String get sshHardenPasswordMismatch => 'Passwords do not match';
+
+  @override
+  String get sshHardenPasswordRequired => 'Please enter a sudo password';
+
+  @override
+  String sshHardenFirewallWarning(int port) {
+    return 'Notice: If a Cloud Firewall is enabled in your hosting panel (Hetzner, Timeweb, Selectel, etc.), make sure port $port/TCP is open before confirming.';
+  }
+
+  @override
+  String get sshHardenStartAction => 'Start hardening';
+
+  @override
+  String get sshHardenPreparing => 'Preparing and verifying configuration...';
+
+  @override
+  String get sshHardenUserCreated => 'User created and SSH keys configured...';
+
+  @override
+  String get sshHardenSudoersConfigured =>
+      'Sudo privileges configured and validated...';
+
+  @override
+  String get sshHardenPortsConfigured =>
+      'SSH ports configured (dual-port listening)...';
+
+  @override
+  String get sshHardenFirewallConfigured => 'Firewall (UFW) configured...';
+
+  @override
+  String get sshHardenWatchdogStarted => 'Safety watchdog started...';
+
+  @override
+  String get sshHardenTesting => 'Verifying new user connection...';
+
+  @override
+  String sshHardenTestingCountdown(String time) {
+    return 'Auto-rollback in $time';
+  }
+
+  @override
+  String sshHardenTestSuccess(String user, int port) {
+    return 'Verification successful! User $user connected on port $port and confirmed sudo privileges.';
+  }
+
+  @override
+  String sshHardenTestFailed(int port) {
+    return 'Could not connect to port $port as the new user. Check your cloud firewall rules.';
+  }
+
+  @override
+  String get sshHardenConfirmAction => 'Confirm & disable root';
+
+  @override
+  String get sshHardenAbortAction => 'Roll back changes';
+
+  @override
+  String get sshHardenRetryAction => 'Retry verification';
+
+  @override
+  String get sshHardenConfirmed =>
+      'Hardening applied. Direct root login disabled.';
+
+  @override
+  String get sshHardenAborted => 'Changes rolled back. Root access preserved.';
+
+  @override
+  String get sshHardenConflict => 'SSH configuration changed during hardening.';
+
+  @override
+  String get sshHardenInvalid => 'Invalid username or port.';
+
+  @override
+  String get sshHardenPortBusy => 'The selected port is already in use.';
+
+  @override
+  String get sshHardenFailed =>
+      'SSH hardening failed. Rolled back to previous state.';
+
+  @override
+  String get sshHardenRandomUser => 'Pick a random character';
 }

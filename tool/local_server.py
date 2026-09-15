@@ -58,6 +58,7 @@ def main():
             '--property=UMask=0077', '--working-directory=' + str(ROOT),
             '--setenv=ANTIRKN_VM_DIRECTORY=' + str(DIRECTORY),
             '--setenv=ANTIRKN_VM_REUSE=1', '--setenv=ANTIRKN_VM_SSH_PORT=2222',
+            '--setenv=ANTIRKN_VM_FORWARDS={"2223":2223}',
             sys.executable, str(ROOT / 'tool/runner_vm.py')], check=True)
         print('Downloading/booting Ubuntu; status: journalctl --user -u ' + UNIT, flush=True)
         deadline = time.monotonic() + 900

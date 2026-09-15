@@ -42,14 +42,15 @@ final class VpnUser {
         throw const FormatException('vpn_user_invalid');
       }
       for (final target in (deletion!['targets'] as Map).values) {
-        if (target is! Map ||
-            target['connectionAttempts'] != null &&
-                (target['connectionAttempts'] is! int ||
-                    target['connectionAttempts'] < 0 ||
-                    target['connectionAttempts'] > 3) ||
-            target['connectAfter'] != null &&
-                (target['connectAfter'] is! int ||
-                    target['connectAfter'] < 0) ||
+        if (target is! Map) {
+          throw const FormatException('vpn_user_invalid');
+        }
+        final attempts = target['connectionAttempts'];
+        final connectAfter = target['connectAfter'];
+        if (attempts != null &&
+                (attempts is! int || attempts < 0 || attempts > 3) ||
+            connectAfter != null &&
+                (connectAfter is! int || connectAfter < 0) ||
             ![
               'waiting',
               'running',

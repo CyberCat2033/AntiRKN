@@ -2940,4 +2940,117 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get uiInstallProtocolConnect =>
       'Подключитесь к серверу по SSH, затем снова нажмите на протокол для установки.';
+
+  @override
+  String get sshHardenBannerTitle => 'Вход от root не защищён';
+
+  @override
+  String get sshHardenBannerSubtitle =>
+      'Рекомендуется создать пользователя с sudo, сменить порт SSH на 2222 и отключить вход root.';
+
+  @override
+  String get sshHardenBannerAction => 'Защитить сервер';
+
+  @override
+  String get sshHardenDialogTitle => 'Мастер защиты SSH';
+
+  @override
+  String get sshHardenDialogDescription =>
+      'Безопасный перенос доступа: создаётся непривилегированный пользователь с правами sudo, SSH переключается на новый порт (2222), а прямой вход root отключается. Во время проверки сохраняется доступ по обоим портам. Если проверка не пройдёт, через 5 минут сработает автоматический откат.';
+
+  @override
+  String get sshHardenUsername => 'Имя нового пользователя';
+
+  @override
+  String get sshHardenPort => 'Новый SSH порт';
+
+  @override
+  String get sshHardenSudoPassword => 'Пароль sudo для нового пользователя';
+
+  @override
+  String get sshHardenSudoPasswordConfirm => 'Повторите пароль sudo';
+
+  @override
+  String get sshHardenPasswordMismatch => 'Пароли не совпадают';
+
+  @override
+  String get sshHardenPasswordRequired => 'Введите пароль sudo для защиты';
+
+  @override
+  String sshHardenFirewallWarning(int port) {
+    return 'Внимание: если в панели хостинга (Hetzner, Timeweb, Selectel и др.) включен Cloud Firewall, обязательно откройте порт $port/TCP до подтверждения.';
+  }
+
+  @override
+  String get sshHardenStartAction => 'Начать настройку';
+
+  @override
+  String get sshHardenPreparing => 'Подготовка и проверка настроек...';
+
+  @override
+  String get sshHardenUserCreated =>
+      'Пользователь создан, SSH-ключи скопированы...';
+
+  @override
+  String get sshHardenSudoersConfigured =>
+      'Права sudo настроены и проверены...';
+
+  @override
+  String get sshHardenPortsConfigured => 'Порты SSH настроены (dual-port)...';
+
+  @override
+  String get sshHardenFirewallConfigured => 'Firewall (UFW) настроен...';
+
+  @override
+  String get sshHardenWatchdogStarted => 'Таймер безопасности запущен...';
+
+  @override
+  String get sshHardenTesting =>
+      'Проверка подключения от нового пользователя...';
+
+  @override
+  String sshHardenTestingCountdown(String time) {
+    return 'Автооткат через $time';
+  }
+
+  @override
+  String sshHardenTestSuccess(String user, int port) {
+    return 'Проверка успешна! Пользователь $user подключился по порту $port и подтвердил права sudo.';
+  }
+
+  @override
+  String sshHardenTestFailed(int port) {
+    return 'Не удалось подключиться к порту $port с новым пользователем. Проверьте Firewall в панели хостинга.';
+  }
+
+  @override
+  String get sshHardenConfirmAction => 'Подтвердить и отключить root';
+
+  @override
+  String get sshHardenAbortAction => 'Откатить изменения';
+
+  @override
+  String get sshHardenRetryAction => 'Повторить проверку';
+
+  @override
+  String get sshHardenConfirmed => 'Защита применена. Вход от root отключен.';
+
+  @override
+  String get sshHardenAborted => 'Изменения откатаны. Доступ от root сохранён.';
+
+  @override
+  String get sshHardenConflict =>
+      'Конфигурация SSH изменилась во время работы мастера.';
+
+  @override
+  String get sshHardenInvalid => 'Недопустимое имя пользователя или порт.';
+
+  @override
+  String get sshHardenPortBusy => 'Выбранный порт уже занят другой службой.';
+
+  @override
+  String get sshHardenFailed => 'Ошибка настройки SSH. Произведён откат.';
+
+  @override
+  String get sshHardenRandomUser => 'Выбрать случайного персонажа';
 }

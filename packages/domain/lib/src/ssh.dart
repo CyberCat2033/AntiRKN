@@ -91,6 +91,28 @@ final class SshProfile {
     jumpServerId: jumpServerId,
   );
 
+  SshProfile withHardenedAccess({
+    required String user,
+    required int port,
+    required String sudoPassword,
+  }) {
+    final nextSecrets = Map<ServerSecret, String>.from(secrets);
+    nextSecrets[ServerSecret.sudoPassword] = sudoPassword;
+    return SshProfile(
+      id: id,
+      name: name,
+      host: host,
+      port: port,
+      username: user,
+      authMethod: authMethod,
+      secrets: nextSecrets,
+      keyName: keyName,
+      hostKey: hostKey,
+      lastInfo: lastInfo,
+      jumpServerId: jumpServerId,
+    );
+  }
+
   /// Display metadata and inactive credentials do not affect a live session.
   bool hasSameConnectionSettings(SshProfile other) =>
       host == other.host &&

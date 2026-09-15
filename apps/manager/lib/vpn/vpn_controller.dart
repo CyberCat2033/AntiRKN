@@ -379,7 +379,7 @@ class VpnController extends ChangeNotifier {
               'paused': true,
               'authorizedPayload': null,
               'pending': null,
-              'observed': [],
+              'observed': <dynamic>[],
               'verifiedAt': null,
             },
           },

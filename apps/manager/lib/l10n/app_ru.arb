@@ -1117,5 +1117,69 @@
   "uiRemoveProtocolUnsupported": "Эта установка имеет нестандартную конфигурацию. Автоматическое удаление недоступно.",
   "uiNotInstalled": "Не установлен",
   "uiInstallProtocolHelp": "Протокол не установлен на сервере. Подготовить установку? Перед запуском появится план изменений.",
-  "uiInstallProtocolConnect": "Подключитесь к серверу по SSH, затем снова нажмите на протокол для установки."
+  "uiInstallProtocolConnect": "Подключитесь к серверу по SSH, затем снова нажмите на протокол для установки.",
+  "sshHardenBannerTitle": "Вход от root не защищён",
+  "sshHardenBannerSubtitle": "Рекомендуется создать пользователя с sudo, сменить порт SSH на 2222 и отключить вход root.",
+  "sshHardenBannerAction": "Защитить сервер",
+  "sshHardenDialogTitle": "Мастер защиты SSH",
+  "sshHardenDialogDescription": "Безопасный перенос доступа: создаётся непривилегированный пользователь с правами sudo, SSH переключается на новый порт (2222), а прямой вход root отключается. Во время проверки сохраняется доступ по обоим портам. Если проверка не пройдёт, через 5 минут сработает автоматический откат.",
+  "sshHardenUsername": "Имя нового пользователя",
+  "sshHardenPort": "Новый SSH порт",
+  "sshHardenSudoPassword": "Пароль sudo для нового пользователя",
+  "sshHardenSudoPasswordConfirm": "Повторите пароль sudo",
+  "sshHardenPasswordMismatch": "Пароли не совпадают",
+  "sshHardenPasswordRequired": "Введите пароль sudo для защиты",
+  "sshHardenFirewallWarning": "Внимание: если в панели хостинга (Hetzner, Timeweb, Selectel и др.) включен Cloud Firewall, обязательно откройте порт {port}/TCP до подтверждения.",
+  "@sshHardenFirewallWarning": {
+    "placeholders": {
+      "port": {
+        "type": "int"
+      }
+    }
+  },
+  "sshHardenStartAction": "Начать настройку",
+  "sshHardenPreparing": "Подготовка и проверка настроек...",
+  "sshHardenUserCreated": "Пользователь создан, SSH-ключи скопированы...",
+  "sshHardenSudoersConfigured": "Права sudo настроены и проверены...",
+  "sshHardenPortsConfigured": "Порты SSH настроены (dual-port)...",
+  "sshHardenFirewallConfigured": "Firewall (UFW) настроен...",
+  "sshHardenWatchdogStarted": "Таймер безопасности запущен...",
+  "sshHardenTesting": "Проверка подключения от нового пользователя...",
+  "sshHardenTestingCountdown": "Автооткат через {time}",
+  "@sshHardenTestingCountdown": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "sshHardenTestSuccess": "Проверка успешна! Пользователь {user} подключился по порту {port} и подтвердил права sudo.",
+  "@sshHardenTestSuccess": {
+    "placeholders": {
+      "user": {
+        "type": "String"
+      },
+      "port": {
+        "type": "int"
+      }
+    }
+  },
+  "sshHardenTestFailed": "Не удалось подключиться к порту {port} с новым пользователем. Проверьте Firewall в панели хостинга.",
+  "@sshHardenTestFailed": {
+    "placeholders": {
+      "port": {
+        "type": "int"
+      }
+    }
+  },
+  "sshHardenConfirmAction": "Подтвердить и отключить root",
+  "sshHardenAbortAction": "Откатить изменения",
+  "sshHardenRetryAction": "Повторить проверку",
+  "sshHardenConfirmed": "Защита применена. Вход от root отключен.",
+  "sshHardenAborted": "Изменения откатаны. Доступ от root сохранён.",
+  "sshHardenConflict": "Конфигурация SSH изменилась во время работы мастера.",
+  "sshHardenInvalid": "Недопустимое имя пользователя или порт.",
+  "sshHardenPortBusy": "Выбранный порт уже занят другой службой.",
+  "sshHardenFailed": "Ошибка настройки SSH. Произведён откат.",
+  "sshHardenRandomUser": "Выбрать случайного персонажа"
 }
