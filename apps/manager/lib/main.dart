@@ -471,6 +471,7 @@ class _ManagerShellState extends State<ManagerShell>
           repository: widget.servers! as PublicationRepository,
           account: account,
           remote: () => GoogleDrivePublisher(tokens: account),
+          picker: createPublicationFilePicker(account),
           vpn: _vpn!,
           sync: widget.autoSync,
           canPublish: () =>

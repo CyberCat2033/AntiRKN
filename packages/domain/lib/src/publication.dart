@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 enum PublicationAccess { private, link }
@@ -138,10 +139,13 @@ final class PublicationSettings {
     required this.access,
     this.enabled = true,
     this.folderReady = true,
+    this.pickerApiKey,
+    this.pickerAppId,
   });
   final String accountKey, folderId, folderName;
   final PublicationAccess access;
   final bool enabled, folderReady;
+  final String? pickerApiKey, pickerAppId;
   Map<String, Object?> toJson() => {
     'version': 1,
     'accountKey': accountKey,
@@ -150,6 +154,8 @@ final class PublicationSettings {
     'access': access.name,
     'enabled': enabled,
     'folderReady': folderReady,
+    'pickerApiKey': ?pickerApiKey,
+    'pickerAppId': ?pickerAppId,
   };
   factory PublicationSettings.fromJson(Map<String, dynamic> value) {
     if (value['version'] != 1 ||
@@ -157,7 +163,17 @@ final class PublicationSettings {
         value['folderId'] is! String ||
         value['folderName'] is! String ||
         value['enabled'] is! bool ||
-        value['folderReady'] is! bool) {
+        value['folderReady'] is! bool ||
+        value['pickerApiKey'] != null &&
+            (value['pickerApiKey'] is! String ||
+                !RegExp(
+                  r'^[A-Za-z0-9_-]{20,256}$',
+                ).hasMatch(value['pickerApiKey'] as String)) ||
+        value['pickerAppId'] != null &&
+            (value['pickerAppId'] is! String ||
+                !RegExp(
+                  r'^[0-9]{1,30}$',
+                ).hasMatch(value['pickerAppId'] as String))) {
       throw const PublicationFailure(PublicationIssue.invalid);
     }
     return PublicationSettings(
@@ -167,12 +183,16 @@ final class PublicationSettings {
       access: PublicationAccess.values.byName(value['access'] as String),
       enabled: value['enabled'] as bool,
       folderReady: value['folderReady'] as bool,
+      pickerApiKey: value['pickerApiKey'] as String?,
+      pickerAppId: value['pickerAppId'] as String?,
     );
   }
   PublicationSettings copy({
     bool? enabled,
     bool? folderReady,
     PublicationAccess? access,
+    String? pickerApiKey,
+    String? pickerAppId,
   }) => PublicationSettings(
     accountKey: accountKey,
     folderId: folderId,
@@ -180,5 +200,114 @@ final class PublicationSettings {
     access: access ?? this.access,
     enabled: enabled ?? this.enabled,
     folderReady: folderReady ?? this.folderReady,
+    pickerApiKey: pickerApiKey ?? this.pickerApiKey,
+    pickerAppId: pickerAppId ?? this.pickerAppId,
+  );
+}
+
+/// A Drive URL is a locator, not an authorization grant.
+final class PublicationTarget {
+  PublicationTarget(this.fileId, {this.resourceKey}) {
+    if (!_id(fileId) || resourceKey != null && !_id(resourceKey!)) {
+      throw const PublicationFailure(PublicationIssue.invalid);
+    }
+  }
+  final String fileId;
+  final String? resourceKey;
+  static bool _id(String value) =>
+      RegExp(r'^[A-Za-z0-9_-]{1,256}$').hasMatch(value);
+  factory PublicationTarget.parse(String input) {
+    final value = input.trim();
+    if (_id(value)) return PublicationTarget(value);
+    final uri = Uri.tryParse(value);
+    if (uri == null ||
+        uri.scheme != 'https' ||
+        uri.userInfo.isNotEmpty ||
+        uri.port != 443 ||
+        ![
+          'drive.google.com',
+          'drive.usercontent.google.com',
+        ].contains(uri.host)) {
+      throw const PublicationFailure(PublicationIssue.invalid);
+    }
+    String? id;
+    if (uri.host == 'drive.google.com' &&
+        uri.pathSegments.length >= 3 &&
+        uri.pathSegments[0] == 'file' &&
+        uri.pathSegments[1] == 'd') {
+      id = uri.pathSegments[2];
+    } else if (['/open', '/uc', '/download'].contains(uri.path)) {
+      if (uri.queryParametersAll['id']?.length != 1) {
+        throw const PublicationFailure(PublicationIssue.invalid);
+      }
+      id = uri.queryParameters['id'];
+    }
+    if (id == null ||
+        (uri.queryParametersAll['resourcekey']?.length ?? 0) > 1) {
+      throw const PublicationFailure(PublicationIssue.invalid);
+    }
+    return PublicationTarget(
+      id,
+      resourceKey: uri.queryParameters['resourcekey'],
+    );
+  }
+  @override
+  String toString() => 'PublicationTarget(<private>)';
+}
+
+abstract interface class PublicationResourceKeys {
+  void useResourceKey(PublicationTarget target);
+}
+
+abstract interface class PublicationFilePicker {
+  Future<PublicationTarget?> pick({
+    required String apiKey,
+    required String appId,
+  });
+  void cancel();
+}
+
+final class PublicationBindingPreview {
+  const PublicationBindingPreview({
+    required this.file,
+    required this.content,
+    required this.hash,
+    required this.draft,
+    required this.settingsSource,
+    required this.intentSource,
+    required this.registryId,
+    required this.entry,
+  });
+  final PublicationFile file;
+  final String content, hash, settingsSource;
+  final String? intentSource, registryId;
+  final Map<String, dynamic>? entry;
+  final PublicationDraft draft;
+  @override
+  String toString() => 'PublicationBindingPreview(<private>)';
+}
+
+/// Encrypted shared consent. Contains identity/revision only; profile secrets
+/// remain in the existing profile storage. Consent includes later auto updates.
+void validatePublicationBinding(Map<String, dynamic> value) {
+  if (value['version'] != 1 ||
+      ![
+        'id',
+        'workspaceId',
+        'userId',
+        'accountKey',
+        'fileId',
+        'etag',
+        'hash',
+      ].every((k) => value[k] is String && (value[k] as String).isNotEmpty) ||
+      !RegExp(r'^[a-f0-9]{32}$').hasMatch(value['id'] as String) ||
+      value['previous'] != null && value['previous'] is! Map ||
+      !['private', 'link'].contains(value['access']) ||
+      utf8.encode(jsonEncode(value)).length > 32768) {
+    throw const PublicationFailure(PublicationIssue.invalid);
+  }
+  PublicationTarget(
+    value['fileId'] as String,
+    resourceKey: value['resourceKey'] as String?,
   );
 }

@@ -1,3 +1,4 @@
+export 'src/publication_picker.dart';
 export 'src/android_google_account.dart';
 export 'src/desktop_google_account.dart';
 export 'src/google_account_factory.dart';

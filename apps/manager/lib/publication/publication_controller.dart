@@ -15,6 +15,7 @@ class PublicationController extends ChangeNotifier {
     required this.remote,
     required this.vpn,
     this.sync,
+    this.picker,
     this.canPublish,
   }) {
     vpn.addListener(_vpnChanged);
@@ -25,11 +26,13 @@ class PublicationController extends ChangeNotifier {
   final PublicationRemoteStore Function() remote;
   final VpnController vpn;
   final AutoSyncController? sync;
+  final PublicationFilePicker? picker;
   final bool Function()? canPublish;
   late final Future<void> ready;
   PublicationSettings? settings;
   String? settingsSource;
   final queues = <String, Map<String, dynamic>>{};
+  final bindings = <String, Map<String, dynamic>>{};
   final results = <String, Map<String, dynamic>>{};
   PublicationIssue? error;
   GoogleAccountIssue? accountError;
@@ -56,6 +59,8 @@ class PublicationController extends ChangeNotifier {
       'registryId': result['registryId'],
       'accountKey': destination.accountKey,
       'folderId': destination.folderId,
+      'owner': ?result['owner'],
+      'resourceKey': ?result['resourceKey'],
     };
   }
 
@@ -87,10 +92,19 @@ class PublicationController extends ChangeNotifier {
     }
 
     await check();
+    if (store case final PublicationResourceKeys keys) {
+      keys.useResourceKey(
+        PublicationTarget(
+          target['fileId'] as String,
+          resourceKey: target['resourceKey'] as String?,
+        ),
+      );
+    }
     final file = await store.getFile(target['fileId'] as String);
     if (!file.binary ||
         file.properties['antirknWorkspace'] != vpn.workspace.id ||
-        file.properties['antirknUser'] != user.id) {
+        (file.properties['antirknUser'] != (target['owner'] ?? user.id) &&
+            file.properties['antirknUser'] != 'retired:${user.id}')) {
       throw const PublicationFailure(PublicationIssue.conflict);
     }
     if (file.trashed) return;
@@ -123,7 +137,7 @@ class PublicationController extends ChangeNotifier {
         result?['fileId'] is! String ||
         _suspended ||
         invalidLinkIssues.contains(error?.name) ||
-        invalidLinkIssues.contains(issue)) {
+        (!bindingPending(userId) && invalidLinkIssues.contains(issue))) {
       return null;
     }
     try {
@@ -163,10 +177,17 @@ class PublicationController extends ChangeNotifier {
               jsonDecode(source) as Map<String, dynamic>,
             );
       final nextQueues = <String, Map<String, dynamic>>{},
-          nextResults = <String, Map<String, dynamic>>{};
+          nextResults = <String, Map<String, dynamic>>{},
+          nextBindings = <String, Map<String, dynamic>>{};
       for (final user in vpn.workspace.users) {
         final q = await repository.readPublicationQueue(user.id),
             r = await repository.readPublicationDocument('result/${user.id}');
+        final b = await repository.readPublicationDocument(
+          'binding/${user.id}',
+        );
+        if (b != null) {
+          nextBindings[user.id] = jsonDecode(b) as Map<String, dynamic>;
+        }
         if (q != null) {
           nextQueues[user.id] = jsonDecode(q) as Map<String, dynamic>;
         }
@@ -180,6 +201,9 @@ class PublicationController extends ChangeNotifier {
       queues
         ..clear()
         ..addAll(nextQueues);
+      bindings
+        ..clear()
+        ..addAll(nextBindings);
       results
         ..clear()
         ..addAll(nextResults);
@@ -332,6 +356,89 @@ class PublicationController extends ChangeNotifier {
     }
   }
 
+  String get pickerApiKey =>
+      settings?.pickerApiKey ??
+      const String.fromEnvironment('ANTIRKN_GOOGLE_PICKER_API_KEY');
+  String get pickerAppId =>
+      settings?.pickerAppId ??
+      const String.fromEnvironment('ANTIRKN_GOOGLE_PICKER_APP_ID');
+  bool get pickerReady =>
+      picker != null && pickerApiKey.isNotEmpty && pickerAppId.isNotEmpty;
+  bool bindingPending(String userId) =>
+      bindings[userId] != null &&
+      bindings[userId]?['id'] != results[userId]?['binding'];
+  bool _bindingEligible(PublicationDraft draft) =>
+      !_disposed &&
+      !vpn.busy &&
+      canPublish?.call() != false &&
+      vpn.results[draft.userId]?.hasBlockingErrors == false &&
+      vpn.results[draft.userId]?.sha256Hash == draft.hash;
+
+  Future<T> _bindingEdit<T>(Future<T> Function() action) async {
+    if (editing || _disposed) {
+      throw const PublicationFailure(PublicationIssue.conflict);
+    }
+    editing = true;
+    _notify();
+    try {
+      await suspend();
+      return await action();
+    } finally {
+      editing = false;
+      resume();
+    }
+  }
+
+  Future<void> configurePicker(String apiKey, String appId) =>
+      _bindingEdit(() async {
+        if (settings == null) {
+          throw const PublicationFailure(PublicationIssue.invalid);
+        }
+        final next = settings!.copy(
+          pickerApiKey: apiKey.trim(),
+          pickerAppId: appId.trim(),
+        );
+        PublicationSettings.fromJson(next.toJson());
+        await _saveSettings(next);
+      });
+
+  Future<PublicationTarget?> pickFile() => _bindingEdit(() async {
+    if (!authorized || !pickerReady) {
+      throw const PublicationFailure(PublicationIssue.unauthorized);
+    }
+    return picker!.pick(apiKey: pickerApiKey, appId: pickerAppId);
+  });
+
+  Future<PublicationBindingPreview> inspectFile(
+    String userId,
+    PublicationTarget target,
+  ) => _bindingEdit(() async {
+    if (!authorized) {
+      throw const PublicationFailure(PublicationIssue.unauthorized);
+    }
+    return PublicationCoordinator(
+      repository: repository,
+      remote: remote(),
+      eligible: (d) async => _bindingEligible(d),
+    ).inspectBinding(userId, target);
+  });
+
+  Future<void> bindFile(
+    PublicationBindingPreview preview,
+  ) => _bindingEdit(() async {
+    if (!authorized) {
+      throw const PublicationFailure(PublicationIssue.unauthorized);
+    }
+    final coordinator = PublicationCoordinator(
+      repository: repository,
+      remote: remote(),
+      eligible: (d) async => _bindingEligible(d),
+    );
+    await coordinator.acceptBinding(preview);
+    await reload();
+    // The ordinary worker resumes persisted consent after this editor releases.
+  });
+
   Future<List<PublicationFile>> folders() => remote().listFolders();
 
   Future<void> configure(
@@ -439,6 +546,7 @@ class PublicationController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    picker?.cancel();
     _timer?.cancel();
     _cancel?.cancel();
     vpn.removeListener(_vpnChanged);

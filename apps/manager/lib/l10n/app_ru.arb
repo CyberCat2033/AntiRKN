@@ -942,5 +942,25 @@
         "type": "int"
       }
     }
-  }
+  },
+  "publicationBindTitle": "Файл конфигурации клиента",
+  "publicationBindHelp": "Вставьте прежнюю ссылку Google Drive или выберите файл. Для чужих приложению файлов сначала разрешите доступ через выбор Google.",
+  "publicationFileLink": "Ссылка Google Drive или ID файла",
+  "publicationInspect": "Проверить файл",
+  "publicationPickFile": "Выбрать в Google Drive",
+  "publicationPickerSetupHelp": "Настройте Google Picker в Настройки → Drive: API key и числовой Project number того же Google Cloud проекта. В проекте должны быть включены Drive API и Picker API.",
+  "publicationPickerWaiting": "Выберите файл в браузере и вернитесь в AntiRKN. Отмена завершает ожидание.",
+  "publicationFileAccessHelp": "Файл не найден или Google ещё не разрешил AntiRKN доступ. Выберите его через Google Drive и убедитесь, что текущий аккаунт может редактировать файл.",
+  "publicationBindReplace": "Подтверждение заменит содержимое этого файла профилем клиента и включит последующие обновления по тому же ID. Старый файл не удаляется: его содержимое и доступ сохраняются, автоматическое обновление прекращается. При незавершённой замене можно повторно проверить файл или выбрать другой.",
+  "publicationOldContent": "Текущее содержимое файла",
+  "publicationNewContent": "Профиль для замены",
+  "publicationBindConfirm": "Заменить и привязать",
+  "publicationPickerSettings": "Настройка Google Picker",
+  "publicationPickerApiKey": "Публичный API key",
+  "publicationPickerProject": "Project number (числовой)",
+  "publicationBindPending": "Перепривязка ожидает завершения. До проверки новой ссылки доступна прежняя.",
+  "publicationChangeFile": "Изменить файл / ссылку",
+  "publicationSaveClientFirst": "Для смены ссылки сначала сохраните изменения клиента.",
+  "publicationBindSetupHelp": "Сначала настройте и включите публикацию в Настройки → Drive.",
+  "publicationBindInvalid": "Нужна ссылка Google Drive на обычный текстовый файл UTF-8, доступный для редактирования. Папки, Google Документы и файлы другого клиента не подходят."
 }

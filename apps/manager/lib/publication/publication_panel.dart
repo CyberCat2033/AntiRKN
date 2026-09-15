@@ -133,6 +133,17 @@ class _PublicationSettingsState extends State<PublicationSettingsPanel> {
             ],
             if (settings != null) ...[
               Text('${l.publicationFolder}: ${settings.folderName}'),
+              TextButton.icon(
+                key: const ValueKey('publication-picker-settings'),
+                onPressed: c.editing
+                    ? null
+                    : () => showDialog<void>(
+                        context: context,
+                        builder: (_) => _PickerSettingsDialog(controller: c),
+                      ),
+                icon: const Icon(Icons.folder_open),
+                label: Text(l.publicationPickerSettings),
+              ),
               Text(
                 settings.access == PublicationAccess.link
                     ? l.publicationLink
@@ -188,6 +199,7 @@ class UserPublicationView extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (controller.bindingPending(userId)) Text(l.publicationBindPending),
           Text(
             published
                 ? l.publicationPublished
@@ -206,4 +218,96 @@ class UserPublicationView extends StatelessWidget {
       );
     },
   );
+}
+
+class _PickerSettingsDialog extends StatefulWidget {
+  const _PickerSettingsDialog({required this.controller});
+  final PublicationController controller;
+  @override
+  State<_PickerSettingsDialog> createState() => _PickerSettingsDialogState();
+}
+
+class _PickerSettingsDialogState extends State<_PickerSettingsDialog> {
+  late final apiKey = TextEditingController(
+    text: widget.controller.pickerApiKey,
+  );
+  late final appId = TextEditingController(text: widget.controller.pickerAppId);
+  bool busy = false, invalid = false;
+  @override
+  void dispose() {
+    apiKey.dispose();
+    appId.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return PopScope(
+      canPop: !busy,
+      child: AlertDialog(
+        title: Text(l.publicationPickerSettings),
+        content: SizedBox(
+          width: 560,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(l.publicationPickerSetupHelp),
+                TextField(
+                  key: const ValueKey('picker-api-key'),
+                  controller: apiKey,
+                  enabled: !busy,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  decoration: InputDecoration(
+                    labelText: l.publicationPickerApiKey,
+                  ),
+                ),
+                TextField(
+                  key: const ValueKey('picker-project-number'),
+                  controller: appId,
+                  enabled: !busy,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: l.publicationPickerProject,
+                  ),
+                ),
+                if (invalid) Text(l.publicationFailed),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: busy ? null : () => Navigator.pop(context),
+            child: Text(l.runnerNotNow),
+          ),
+          FilledButton(
+            key: const ValueKey('picker-settings-save'),
+            onPressed: busy
+                ? null
+                : () async {
+                    setState(() {
+                      busy = true;
+                      invalid = false;
+                    });
+                    try {
+                      await widget.controller.configurePicker(
+                        apiKey.text,
+                        appId.text,
+                      );
+                      if (context.mounted) Navigator.pop(context);
+                    } catch (_) {
+                      if (mounted) setState(() => invalid = true);
+                    } finally {
+                      if (mounted) setState(() => busy = false);
+                    }
+                  },
+            child: Text(l.vpnSave),
+          ),
+        ],
+      ),
+    );
+  }
 }

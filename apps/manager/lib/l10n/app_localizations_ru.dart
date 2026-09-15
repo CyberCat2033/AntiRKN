@@ -2549,4 +2549,73 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get catalogServerDeleteBlocked =>
       'Не удалось удалить выбранные серверы. Отключитесь от них и завершите ожидающие операции. Сервер, который используется как SSH-переход для невыбранного сервера, необходимо сохранить. Если список изменился, выберите записи заново.';
+
+  @override
+  String get publicationBindTitle => 'Файл конфигурации клиента';
+
+  @override
+  String get publicationBindHelp =>
+      'Вставьте прежнюю ссылку Google Drive или выберите файл. Для чужих приложению файлов сначала разрешите доступ через выбор Google.';
+
+  @override
+  String get publicationFileLink => 'Ссылка Google Drive или ID файла';
+
+  @override
+  String get publicationInspect => 'Проверить файл';
+
+  @override
+  String get publicationPickFile => 'Выбрать в Google Drive';
+
+  @override
+  String get publicationPickerSetupHelp =>
+      'Настройте Google Picker в Настройки → Drive: API key и числовой Project number того же Google Cloud проекта. В проекте должны быть включены Drive API и Picker API.';
+
+  @override
+  String get publicationPickerWaiting =>
+      'Выберите файл в браузере и вернитесь в AntiRKN. Отмена завершает ожидание.';
+
+  @override
+  String get publicationFileAccessHelp =>
+      'Файл не найден или Google ещё не разрешил AntiRKN доступ. Выберите его через Google Drive и убедитесь, что текущий аккаунт может редактировать файл.';
+
+  @override
+  String get publicationBindReplace =>
+      'Подтверждение заменит содержимое этого файла профилем клиента и включит последующие обновления по тому же ID. Старый файл не удаляется: его содержимое и доступ сохраняются, автоматическое обновление прекращается. При незавершённой замене можно повторно проверить файл или выбрать другой.';
+
+  @override
+  String get publicationOldContent => 'Текущее содержимое файла';
+
+  @override
+  String get publicationNewContent => 'Профиль для замены';
+
+  @override
+  String get publicationBindConfirm => 'Заменить и привязать';
+
+  @override
+  String get publicationPickerSettings => 'Настройка Google Picker';
+
+  @override
+  String get publicationPickerApiKey => 'Публичный API key';
+
+  @override
+  String get publicationPickerProject => 'Project number (числовой)';
+
+  @override
+  String get publicationBindPending =>
+      'Перепривязка ожидает завершения. До проверки новой ссылки доступна прежняя.';
+
+  @override
+  String get publicationChangeFile => 'Изменить файл / ссылку';
+
+  @override
+  String get publicationSaveClientFirst =>
+      'Для смены ссылки сначала сохраните изменения клиента.';
+
+  @override
+  String get publicationBindSetupHelp =>
+      'Сначала настройте и включите публикацию в Настройки → Drive.';
+
+  @override
+  String get publicationBindInvalid =>
+      'Нужна ссылка Google Drive на обычный текстовый файл UTF-8, доступный для редактирования. Папки, Google Документы и файлы другого клиента не подходят.';
 }

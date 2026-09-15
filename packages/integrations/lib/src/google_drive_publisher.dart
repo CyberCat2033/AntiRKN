@@ -8,13 +8,22 @@ import 'package:cryptography/cryptography.dart';
 import 'drive_http.dart';
 
 /// Ordinary Drive files, separate from the encrypted appData sync transport.
-final class GoogleDrivePublisher implements PublicationRemoteStore {
+final class GoogleDrivePublisher
+    implements PublicationRemoteStore, PublicationResourceKeys {
   GoogleDrivePublisher({required this.tokens, DriveHttp? http})
     : _http = http ?? NativeDriveHttp(),
       _accountKey = tokens.accountKey;
   final SyncAccessTokenProvider tokens;
   final DriveHttp _http;
   final String _accountKey;
+  final _resourceKeys = <String, String>{};
+  @override
+  void useResourceKey(PublicationTarget target) {
+    if (target.resourceKey != null) {
+      _resourceKeys[target.fileId] = target.resourceKey!;
+    }
+  }
+
   @override
   String get accountKey => _accountKey;
   static const _v2Fields =
@@ -54,10 +63,21 @@ final class GoogleDrivePublisher implements PublicationRemoteStore {
     try {
       token = await tokens.accessToken();
       _account();
+      final segments = uri.pathSegments;
+      final filesIndex = segments.indexOf('files');
+      final resourceId = filesIndex >= 0 && filesIndex + 1 < segments.length
+          ? segments[filesIndex + 1]
+          : null;
       final response = await _http.send(
         method,
         uri,
-        headers: {'Authorization': 'Bearer $token', ...headers},
+        headers: {
+          'Authorization': 'Bearer $token',
+          if (_resourceKeys.containsKey(resourceId))
+            'X-Goog-Drive-Resource-Keys':
+                '$resourceId/${_resourceKeys[resourceId]}',
+          ...headers,
+        },
         body: body,
         responseLimit: limit,
       );

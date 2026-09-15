@@ -1,0 +1,54 @@
+{
+  "date": "2026-09-15",
+  "stage": "existing-drive-links",
+  "tests": {
+    "integrations": 23,
+    "sync": 32,
+    "storage": 117,
+    "ssh": 36,
+    "network": 24,
+    "compiler": 24,
+    "manager": 211,
+    "python": 92,
+    "total": 559
+  },
+  "verification": {
+    "full_verify_tests": 557,
+    "full_verify": "PASS",
+    "affected_final_checks": "PASS",
+    "analyze": "PASS",
+    "ru_en_messages": 758,
+    "architecture_base_hash": "PASS",
+    "owner_config_outside_git": true,
+    "public_picker_defaults_in_linux_android": true,
+    "desktop_secret_absent_from_dart_artifacts": true
+  },
+  "artifacts": {
+    "apps/manager/build/app/outputs/flutter-apk/app-debug.apk": {
+      "sha256": "bc12048176b38a0f9e7f00b75b46449f8b3c750e0b4ecfe1e7ac14a2ad6b4a48",
+      "bytes": 145158198
+    },
+    "apps/manager/build/linux/x64/debug/bundle/data/flutter_assets/kernel_blob.bin": {
+      "sha256": "d9abafa9386fc1dbc7bb9446f7856e86682ba95b2a479fa95cb7d6203e6c071a",
+      "bytes": 84031688
+    },
+    "apps/manager/build/linux/x64/debug/bundle/antirkn_manager": {
+      "sha256": "fe29c4e441b1b86708e344bf267dd2af24f28771a97e297156c7bfe446b34cc7",
+      "bytes": 53888
+    }
+  },
+  "installation": {
+    "status": "PASS",
+    "device": "OnePlus HD1911",
+    "method": "adb install -r",
+    "preserve_data": true,
+    "installed_apk_sha256": "bc12048176b38a0f9e7f00b75b46449f8b3c750e0b4ecfe1e7ac14a2ad6b4a48",
+    "matches_built_apk": true
+  },
+  "unverified": [
+    "live Google Picker JavaScript and owner file migration",
+    "Windows build/runtime",
+    "physical two-device publication failures",
+    "manual GUI and physical haptics"
+  ]
+}

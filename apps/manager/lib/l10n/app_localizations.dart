@@ -4531,6 +4531,126 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not delete the selection. Disconnect these servers and finish pending operations. A server used as an SSH jump by an unselected server must be kept. If the list changed, select it again.'**
   String get catalogServerDeleteBlocked;
+
+  /// No description provided for @publicationBindTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Client configuration file'**
+  String get publicationBindTitle;
+
+  /// No description provided for @publicationBindHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste the existing Google Drive link or choose a file. Grant access through Google’s picker for files this app cannot access yet.'**
+  String get publicationBindHelp;
+
+  /// No description provided for @publicationFileLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Google Drive link or file ID'**
+  String get publicationFileLink;
+
+  /// No description provided for @publicationInspect.
+  ///
+  /// In en, this message translates to:
+  /// **'Check file'**
+  String get publicationInspect;
+
+  /// No description provided for @publicationPickFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose in Google Drive'**
+  String get publicationPickFile;
+
+  /// No description provided for @publicationPickerSetupHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure Google Picker in Settings → Drive: API key and numeric Project number from the same Google Cloud project. Enable Drive API and Picker API in that project.'**
+  String get publicationPickerSetupHelp;
+
+  /// No description provided for @publicationPickerWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a file in your browser, then return to AntiRKN. Cancel ends the session.'**
+  String get publicationPickerWaiting;
+
+  /// No description provided for @publicationFileAccessHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'File not found or not yet accessible to AntiRKN. Choose it through Google Drive and ensure the current account can edit it.'**
+  String get publicationFileAccessHelp;
+
+  /// No description provided for @publicationBindReplace.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirmation replaces this file with the client profile and enables future updates to the same ID. The previous file keeps its contents and access, and stops receiving updates. An interrupted replacement can be reviewed again or changed to another file.'**
+  String get publicationBindReplace;
+
+  /// No description provided for @publicationOldContent.
+  ///
+  /// In en, this message translates to:
+  /// **'Current file contents'**
+  String get publicationOldContent;
+
+  /// No description provided for @publicationNewContent.
+  ///
+  /// In en, this message translates to:
+  /// **'Replacement profile'**
+  String get publicationNewContent;
+
+  /// No description provided for @publicationBindConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace and bind'**
+  String get publicationBindConfirm;
+
+  /// No description provided for @publicationPickerSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Google Picker setup'**
+  String get publicationPickerSettings;
+
+  /// No description provided for @publicationPickerApiKey.
+  ///
+  /// In en, this message translates to:
+  /// **'Public API key'**
+  String get publicationPickerApiKey;
+
+  /// No description provided for @publicationPickerProject.
+  ///
+  /// In en, this message translates to:
+  /// **'Project number (numeric)'**
+  String get publicationPickerProject;
+
+  /// No description provided for @publicationBindPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Rebinding is pending. The previous link remains available until the new link is verified.'**
+  String get publicationBindPending;
+
+  /// No description provided for @publicationChangeFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Change file / link'**
+  String get publicationChangeFile;
+
+  /// No description provided for @publicationSaveClientFirst.
+  ///
+  /// In en, this message translates to:
+  /// **'Save client changes before changing the link.'**
+  String get publicationSaveClientFirst;
+
+  /// No description provided for @publicationBindSetupHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'First configure and enable publication in Settings → Drive.'**
+  String get publicationBindSetupHelp;
+
+  /// No description provided for @publicationBindInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose an editable UTF-8 text file using a Google Drive link. Folders, Google Docs and another client’s files cannot be used.'**
+  String get publicationBindInvalid;
 }
 
 class _AppLocalizationsDelegate

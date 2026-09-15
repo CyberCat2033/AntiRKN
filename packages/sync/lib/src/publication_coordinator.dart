@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:cryptography/cryptography.dart';
 
+part 'publication_binding.dart';
+
 /// Coordinates one agreed Drive folder. Conditional writes serialize registry
 /// allocation and profile updates; local clocks never grant ownership.
 final class PublicationCoordinator {
@@ -62,14 +64,27 @@ final class PublicationCoordinator {
       queue = next;
     }
 
+    final intentSource = await repository.readPublicationDocument(
+      'binding/$userId',
+    );
+    (String, String)? registryFence;
     Future<void> guard() async {
       cancel.check();
       if (await repository.readPublicationDocument('settings') !=
               settingsSource ||
+          await repository.readPublicationDocument('binding/$userId') !=
+              intentSource ||
           eligible != null && !await eligible!(draft)) {
         throw const SyncMergeFailure(SyncMergeIssue.changed);
       }
       await repository.checkPublicationDraft(draft);
+      if (registryFence case final fence?) {
+        final snapshot = await _snapshot(fence.$1);
+        final value = _decodeRegistry(snapshot.$2, draft.workspaceId);
+        if (canonicalJson((value['users'] as Map)[userId]) != fence.$2) {
+          throw const PublicationFailure(PublicationIssue.conflict);
+        }
+      }
       cancel.check();
     }
 
@@ -86,7 +101,21 @@ final class PublicationCoordinator {
     try {
       await guard();
       final registryId = await _registry(settings, draft, guard);
+      if (intentSource != null) {
+        await _startBinding(
+          registryId,
+          draft,
+          jsonDecode(intentSource) as Map<String, dynamic>,
+          guard,
+        );
+      }
       final entry = await _reserve(registryId, draft, guard);
+      // Uncreated automatic entries change in _markCreated; bound entries are
+      // already final and can be fenced for the whole publication.
+      if (entry['binding'] != null) {
+        registryFence = (registryId, canonicalJson(entry));
+      }
+      _resourceKey(entry);
       final fileId = entry['fileId'] as String;
       await saveQueue({...queue, 'fileId': fileId, 'registryId': registryId});
       PublicationFile? file;
@@ -118,7 +147,8 @@ final class PublicationCoordinator {
           final snapshot = await _snapshot(fileId);
           file = snapshot.$1;
           if (file.properties['antirknWorkspace'] != draft.workspaceId ||
-              file.properties['antirknUser'] != draft.userId ||
+              file.properties['antirknUser'] !=
+                  (entry['owner'] ?? draft.userId) ||
               !file.editable ||
               file.properties['antirknDeleted'] != null ||
               !file.binary ||
@@ -166,7 +196,9 @@ final class PublicationCoordinator {
       final previous = beforeSource == null
           ? <String, dynamic>{}
           : jsonDecode(beforeSource) as Map<String, dynamic>;
-      String? permissionId = previous['permissionId'] as String?;
+      String? permissionId = previous['fileId'] == fileId
+          ? previous['permissionId'] as String?
+          : null;
       String? url = previous['fileId'] == fileId
           ? previous['url'] as String?
           : null;
@@ -191,7 +223,10 @@ final class PublicationCoordinator {
         throw const PublicationFailure(PublicationIssue.conflict);
       }
       final result = <String, dynamic>{
-        'version': 1,
+        'version': entry['binding'] == null ? 1 : 2,
+        'binding': ?entry['binding'],
+        'owner': ?entry['owner'],
+        'resourceKey': ?entry['resourceKey'],
         'fileId': fileId,
         'registryId': registryId,
         'head': draft.headId,
@@ -321,6 +356,15 @@ final class PublicationCoordinator {
       final value = _decodeRegistry(snapshot.$2, draft.workspaceId);
       final users = value['users'] as Map<String, dynamic>;
       if (users[draft.userId] case final Map existing) {
+        if (existing['pending'] == true) {
+          await _finishBinding(
+            registryId,
+            draft,
+            Map<String, dynamic>.from(existing),
+            guard,
+          );
+          continue;
+        }
         return Map<String, dynamic>.from(existing);
       }
       candidate ??= await remote.generateFileId();
@@ -385,7 +429,7 @@ final class PublicationCoordinator {
   Map<String, dynamic> _decodeRegistry(Uint8List bytes, String workspaceId) {
     try {
       final value = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
-      if (value['version'] != 1 ||
+      if (![1, 2].contains(value['version']) ||
           value['workspaceId'] != workspaceId ||
           value['users'] is! Map ||
           (value['users'] as Map).length > 1000) {
@@ -398,6 +442,17 @@ final class PublicationCoordinator {
             e.value['fileId'] is! String ||
             e.value['created'] is! bool) {
           throw const FormatException();
+        }
+      }
+      final ids = <String>{};
+      for (final entry in (value['users'] as Map).values) {
+        if (!ids.add((entry as Map)['fileId'] as String)) {
+          throw const FormatException();
+        }
+        if (entry['pending'] == true) {
+          validatePublicationBinding(
+            Map<String, dynamic>.from(entry['consent'] as Map),
+          );
         }
       }
       return value;

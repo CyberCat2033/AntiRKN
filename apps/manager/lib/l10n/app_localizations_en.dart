@@ -2544,4 +2544,73 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get catalogServerDeleteBlocked =>
       'Could not delete the selection. Disconnect these servers and finish pending operations. A server used as an SSH jump by an unselected server must be kept. If the list changed, select it again.';
+
+  @override
+  String get publicationBindTitle => 'Client configuration file';
+
+  @override
+  String get publicationBindHelp =>
+      'Paste the existing Google Drive link or choose a file. Grant access through Google’s picker for files this app cannot access yet.';
+
+  @override
+  String get publicationFileLink => 'Google Drive link or file ID';
+
+  @override
+  String get publicationInspect => 'Check file';
+
+  @override
+  String get publicationPickFile => 'Choose in Google Drive';
+
+  @override
+  String get publicationPickerSetupHelp =>
+      'Configure Google Picker in Settings → Drive: API key and numeric Project number from the same Google Cloud project. Enable Drive API and Picker API in that project.';
+
+  @override
+  String get publicationPickerWaiting =>
+      'Choose a file in your browser, then return to AntiRKN. Cancel ends the session.';
+
+  @override
+  String get publicationFileAccessHelp =>
+      'File not found or not yet accessible to AntiRKN. Choose it through Google Drive and ensure the current account can edit it.';
+
+  @override
+  String get publicationBindReplace =>
+      'Confirmation replaces this file with the client profile and enables future updates to the same ID. The previous file keeps its contents and access, and stops receiving updates. An interrupted replacement can be reviewed again or changed to another file.';
+
+  @override
+  String get publicationOldContent => 'Current file contents';
+
+  @override
+  String get publicationNewContent => 'Replacement profile';
+
+  @override
+  String get publicationBindConfirm => 'Replace and bind';
+
+  @override
+  String get publicationPickerSettings => 'Google Picker setup';
+
+  @override
+  String get publicationPickerApiKey => 'Public API key';
+
+  @override
+  String get publicationPickerProject => 'Project number (numeric)';
+
+  @override
+  String get publicationBindPending =>
+      'Rebinding is pending. The previous link remains available until the new link is verified.';
+
+  @override
+  String get publicationChangeFile => 'Change file / link';
+
+  @override
+  String get publicationSaveClientFirst =>
+      'Save client changes before changing the link.';
+
+  @override
+  String get publicationBindSetupHelp =>
+      'First configure and enable publication in Settings → Drive.';
+
+  @override
+  String get publicationBindInvalid =>
+      'Choose an editable UTF-8 text file using a Google Drive link. Folders, Google Docs and another client’s files cannot be used.';
 }

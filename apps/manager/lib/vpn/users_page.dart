@@ -1,3 +1,4 @@
+import '../publication/publication_binding_dialog.dart';
 import '../drag_select_list.dart';
 import '../catalog_selection.dart';
 import 'package:antirkn_design_system/antirkn_design_system.dart';
@@ -412,6 +413,57 @@ class _UserFormState extends State<_UserForm> {
               value: enabled,
               onChanged: (v) => setState(() => enabled = v),
             ),
+            if (widget.user != null && widget.publications != null)
+              ListenableBuilder(
+                listenable: Listenable.merge([
+                  login,
+                  name,
+                  widget.publications!,
+                ]),
+                builder: (context, _) {
+                  final c = widget.publications!;
+                  final unchanged =
+                      login.text.trim() == widget.user!.login &&
+                      name.text.trim() == widget.user!.name &&
+                      enabled == widget.user!.enabled;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Divider(),
+                      if (c.results[widget.user!.id]?['fileId']
+                          case final String id)
+                        SelectableText(id),
+                      UserPublicationView(
+                        controller: c,
+                        userId: widget.user!.id,
+                      ),
+                      OutlinedButton.icon(
+                        key: const ValueKey('client-change-file'),
+                        onPressed:
+                            !unchanged ||
+                                c.editing ||
+                                !enabled ||
+                                c.settings?.folderReady != true ||
+                                c.settings?.enabled != true
+                            ? null
+                            : () => showDialog<void>(
+                                context: context,
+                                builder: (_) => PublicationBindingDialog(
+                                  controller: c,
+                                  user: widget.user!,
+                                ),
+                              ),
+                        icon: const Icon(Icons.edit_outlined),
+                        label: Text(l.publicationChangeFile),
+                      ),
+                      if (c.settings?.folderReady != true ||
+                          c.settings?.enabled != true)
+                        Text(l.publicationBindSetupHelp),
+                      if (!unchanged) Text(l.publicationSaveClientFirst),
+                    ],
+                  );
+                },
+              ),
             if (error != null) Text(l.vpnInvalid),
           ],
         ),

@@ -113,6 +113,23 @@ void main() {
         '{"attempt":4}',
         expectedSource: null,
       );
+      final binding = canonicalJson({
+        'version': 1,
+        'id': '2' * 32,
+        'workspaceId': (await db.readWorkspaceIdentity()).workspaceId,
+        'userId': user,
+        'accountKey': 'fixture-account',
+        'fileId': 'private-existing-fixture',
+        'etag': 'old-etag',
+        'hash': 'fixture-hash',
+        'access': 'link',
+        'previous': null,
+      });
+      await db.writePublicationDocument(
+        'binding/$user',
+        binding,
+        expectedSource: null,
+      );
       final backup = await db.createBackup(password);
       SecretKeyData otherKey() => SecretKeyData(List.filled(32, 51));
       var other = WorkspaceDatabase.open(
@@ -125,18 +142,28 @@ void main() {
         other = WorkspaceDatabase.open('${dir.path}/b.sqlite', key: otherKey());
         expect(await other.readPublicationDocument('settings'), settings);
         expect(await other.readPublicationQueue(user), isNull);
+        expect(await other.readPublicationDocument('binding/$user'), binding);
         final baseline = (await db.readChanges()).last.header.sequence;
         const result =
-            '{"version":1,"fileId":"private-published-fixture","registryId":"registry","head":"fixture-head","hash":"fixture","executor":"fixture-device","access":"link","url":"https://drive.google.com/uc?id=fixture","permissionId":"anyone"}';
+            '{"version":2,"binding":"fixture-operation","fileId":"private-published-fixture","registryId":"registry","head":"fixture-head","hash":"fixture","executor":"fixture-device","access":"link","url":"https://drive.google.com/uc?id=fixture","permissionId":"anyone"}';
         await db.writePublicationDocument(
           'result/$user',
           result,
           expectedSource: null,
         );
+        final newerBinding = canonicalJson({
+          ...jsonDecode(binding) as Map<String, dynamic>,
+          'etag': 'new-etag',
+        });
+        await db.writePublicationDocument(
+          'binding/$user',
+          newerBinding,
+          expectedSource: binding,
+        );
         final packets = await db.preparePendingPackets(afterSequence: baseline);
-        expect(packets, hasLength(1));
+        expect(packets, hasLength(2));
         expect(
-          utf8.decode(packets.single.bytes, allowMalformed: true),
+          utf8.decode(packets.first.bytes, allowMalformed: true),
           isNot(contains('private-published-fixture')),
         );
         final pending = (await other.readPendingChanges()).length;
@@ -147,6 +174,10 @@ void main() {
           isEmpty,
         );
         expect(await other.readPublicationDocument('result/$user'), result);
+        expect(
+          await other.readPublicationDocument('binding/$user'),
+          newerBinding,
+        );
         expect((await other.readPendingChanges()).length, pending);
       } finally {
         await other.close();

@@ -942,5 +942,25 @@
         "type": "int"
       }
     }
-  }
+  },
+  "publicationBindTitle": "Client configuration file",
+  "publicationBindHelp": "Paste the existing Google Drive link or choose a file. Grant access through Google’s picker for files this app cannot access yet.",
+  "publicationFileLink": "Google Drive link or file ID",
+  "publicationInspect": "Check file",
+  "publicationPickFile": "Choose in Google Drive",
+  "publicationPickerSetupHelp": "Configure Google Picker in Settings → Drive: API key and numeric Project number from the same Google Cloud project. Enable Drive API and Picker API in that project.",
+  "publicationPickerWaiting": "Choose a file in your browser, then return to AntiRKN. Cancel ends the session.",
+  "publicationFileAccessHelp": "File not found or not yet accessible to AntiRKN. Choose it through Google Drive and ensure the current account can edit it.",
+  "publicationBindReplace": "Confirmation replaces this file with the client profile and enables future updates to the same ID. The previous file keeps its contents and access, and stops receiving updates. An interrupted replacement can be reviewed again or changed to another file.",
+  "publicationOldContent": "Current file contents",
+  "publicationNewContent": "Replacement profile",
+  "publicationBindConfirm": "Replace and bind",
+  "publicationPickerSettings": "Google Picker setup",
+  "publicationPickerApiKey": "Public API key",
+  "publicationPickerProject": "Project number (numeric)",
+  "publicationBindPending": "Rebinding is pending. The previous link remains available until the new link is verified.",
+  "publicationChangeFile": "Change file / link",
+  "publicationSaveClientFirst": "Save client changes before changing the link.",
+  "publicationBindSetupHelp": "First configure and enable publication in Settings → Drive.",
+  "publicationBindInvalid": "Choose an editable UTF-8 text file using a Google Drive link. Folders, Google Docs and another client’s files cannot be used."
 }
