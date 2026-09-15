@@ -11,16 +11,14 @@ class ServerDetailView extends StatefulWidget {
   const ServerDetailView({
     required this.session,
     required this.motion,
-    required this.canDelete,
-    required this.onDeleted,
+    this.onBack,
     this.protocols,
     super.key,
   });
   final SshController session;
   final MotionPreference motion;
   final Widget? protocols;
-  final bool Function() canDelete;
-  final Future<void> Function() onDeleted;
+  final VoidCallback? onBack;
   @override
   State<ServerDetailView> createState() => _ServerDetailViewState();
 }
@@ -59,16 +57,33 @@ class _ServerDetailViewState extends State<ServerDetailView>
       return Column(
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppLayout.gap),
+            padding: AppLayout.screenPadding(
+              context,
+            ).copyWith(bottom: AppLayout.smallGap),
             child: Row(
               children: [
+                if (widget.onBack != null) ...[
+                  IconButton(
+                    key: const ValueKey('server-list-back'),
+                    tooltip: l.server,
+                    onPressed: c.vaultBusy || c.picking ? null : widget.onBack,
+                    icon: const Icon(Icons.arrow_back),
+                  ),
+                  const SizedBox(width: AppLayout.smallGap),
+                ],
                 Expanded(
                   child: Text(
                     c.displayName,
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                 ),
-                Flexible(
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth:
+                        MediaQuery.sizeOf(context).width < AppLayout.compact
+                        ? 160
+                        : 240,
+                  ),
                   child: FilledButton.tonal(
                     key: ValueKey(
                       c.busy
@@ -93,34 +108,6 @@ class _ServerDetailViewState extends State<ServerDetailView>
                     ),
                   ),
                 ),
-                if (c.hasSavedProfile)
-                  PopupMenuButton<String>(
-                    key: const ValueKey('server-actions'),
-                    tooltip: l.uiActions,
-                    onSelected: (_) async {
-                      if (!c.editing ||
-                          c.stage != SshStage.idle ||
-                          c.runner.busy ||
-                          !widget.canDelete()) {
-                        tabs.animateTo(2);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(l.uiDisconnectBeforeDelete)),
-                        );
-                        return;
-                      }
-                      await confirmSshProfileDeletion(context, c);
-                      if (mounted && !c.hasSavedProfile) {
-                        await widget.onDeleted();
-                      }
-                    },
-                    itemBuilder: (_) => [
-                      PopupMenuItem(
-                        key: const ValueKey('ssh-delete'),
-                        value: 'delete',
-                        child: Text(l.uiDeleteServer),
-                      ),
-                    ],
-                  ),
               ],
             ),
           ),

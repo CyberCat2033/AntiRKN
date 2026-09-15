@@ -1,3 +1,4 @@
+import 'catalog_selection.dart';
 import 'dart:async';
 import 'package:antirkn_integrations/antirkn_integrations.dart';
 import 'publication/publication_controller.dart';
@@ -374,6 +375,10 @@ class ManagerShell extends StatefulWidget {
 class _ManagerShellState extends State<ManagerShell>
     with WidgetsBindingObserver {
   int _index = 0;
+  final _serverSelection = CatalogSelection();
+  final _clientSelection = CatalogSelection();
+  CatalogSelection get _selection =>
+      _index == 0 ? _serverSelection : _clientSelection;
   late final TemplateController _controller;
   late final NetworkController _networkController;
   SshController? _sshController;
@@ -387,6 +392,8 @@ class _ManagerShellState extends State<ManagerShell>
   @override
   void initState() {
     super.initState();
+    _serverSelection.addListener(_syncChanged);
+    _clientSelection.addListener(_syncChanged);
     _networkController = NetworkController(reader: widget.networkReader);
     WidgetsBinding.instance.addObserver(this);
     widget.autoSync?.apply = _applyReceived;
@@ -479,6 +486,8 @@ class _ManagerShellState extends State<ManagerShell>
 
   @override
   void dispose() {
+    _serverSelection.dispose();
+    _clientSelection.dispose();
     WidgetsBinding.instance.removeObserver(this);
     widget.autoSync?.removeListener(_syncChanged);
     widget.autoSync?.apply = (_) async => false;
@@ -519,6 +528,7 @@ class _ManagerShellState extends State<ManagerShell>
     if (!mounted ||
         _applyingSync ||
         _index == 1 ||
+        _serverSelection.active ||
         _catalog?.selectedId != null ||
         (_catalog?.hasActiveWork ?? false) ||
         (_catalog?.hasUnsavedEdits ?? false) ||
@@ -566,6 +576,10 @@ class _ManagerShellState extends State<ManagerShell>
       !_controller.importing;
 
   void _navigate(int value) {
+    if (value != _index) {
+      _serverSelection.exit();
+      _clientSelection.exit();
+    }
     setState(() => _index = value);
     widget.autoSync?.request();
   }
@@ -581,63 +595,84 @@ class _ManagerShellState extends State<ManagerShell>
       return AbsorbPointer(
         absorbing: _applyingSync,
         child: PopScope(
-          canPop: !_applyingSync,
+          canPop: !_applyingSync && !(_index < 2 && _selection.active),
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop && !_applyingSync && _index < 2 && _selection.active) {
+              _selection.exit();
+            }
+          },
           child: Scaffold(
             appBar: AppBar(
-              title: Text(labels[_index]),
+              title: Text(
+                _index < 2 && _selection.active
+                    ? l.catalogSelected(_selection.ids.length)
+                    : labels[_index],
+              ),
               actions: [
                 if (_index == 0 && _catalog != null)
                   ListenableBuilder(
-                    listenable: _catalog!,
+                    listenable: Listenable.merge([_catalog!, _vpn]),
                     builder: (context, _) => _catalog!.selectedId != null
                         ? const SizedBox.shrink()
-                        : IconButton(
-                            key: const ValueKey('server-add'),
-                            tooltip: l.addServer,
-                            onPressed:
-                                _catalog!.loading ||
-                                    (_catalog!.selected?.vaultBusy ?? false) ||
-                                    (_catalog!.selected?.picking ?? false)
-                                ? null
-                                : _catalog!.add,
-                            icon: const Icon(Icons.add),
+                        : CatalogActions(
+                            selection: _serverSelection,
+                            available: _catalog!.servers.map((s) => s.id),
+                            prefix: 'server',
+                            busy: _catalog!.loading || (_vpn?.busy ?? false),
+                            addLabel: l.addServer,
+                            onAdd: _catalog!.add,
+                            onDelete: () => ServerCatalog.deleteSelected(
+                              context,
+                              _catalog!,
+                              _serverSelection,
+                              _vpn,
+                            ),
                           ),
                   ),
                 if (_index == 1 && _vpn != null)
                   ListenableBuilder(
                     listenable: _vpn!,
-                    builder: (context, _) => IconButton(
-                      key: const ValueKey('vpn-user-add'),
-                      tooltip: l.vpnAddUser,
-                      onPressed: _vpn!.busy || !_vpn!.loaded
-                          ? null
-                          : () => UsersPage.edit(
-                              context,
-                              _vpn!,
-                              widget.motion,
-                              null,
-                              _publications,
-                            ),
-                      icon: const Icon(Icons.add),
+                    builder: (context, _) => CatalogActions(
+                      selection: _clientSelection,
+                      available: _vpn!.workspace.users
+                          .where((u) => !u.deleted)
+                          .map((u) => u.id),
+                      prefix: 'vpn-user',
+                      busy: _vpn!.busy || !_vpn!.loaded,
+                      addLabel: l.vpnAddUser,
+                      onAdd: () => UsersPage.edit(
+                        context,
+                        _vpn!,
+                        widget.motion,
+                        null,
+                        _publications,
+                      ),
+                      onDelete: () => UsersPage.deleteSelected(
+                        context,
+                        _vpn!,
+                        _clientSelection,
+                        _publications,
+                      ),
                     ),
                   ),
-                if (widget.autoSync case final sync?)
-                  ListenableBuilder(
-                    listenable: sync,
-                    builder: (context, _) => IconButton(
-                      key: const ValueKey('sync-status'),
-                      tooltip: syncStatusLabel(l, sync),
-                      onPressed: () => _navigate(2),
-                      icon: Icon(switch (sync.phase) {
-                        AutoSyncPhase.syncing => Icons.cloud_sync_outlined,
-                        AutoSyncPhase.synced => Icons.cloud_done_outlined,
-                        AutoSyncPhase.error ||
-                        AutoSyncPhase.conflict ||
-                        AutoSyncPhase.incomplete => Icons.cloud_off_outlined,
-                        _ => Icons.cloud_outlined,
-                      }),
+                if (!(_index < 2 && _selection.active))
+                  if (widget.autoSync case final sync?)
+                    ListenableBuilder(
+                      listenable: sync,
+                      builder: (context, _) => IconButton(
+                        key: const ValueKey('sync-status'),
+                        tooltip: syncStatusLabel(l, sync),
+                        onPressed: () => _navigate(2),
+                        icon: Icon(switch (sync.phase) {
+                          AutoSyncPhase.syncing => Icons.cloud_sync_outlined,
+                          AutoSyncPhase.synced => Icons.cloud_done_outlined,
+                          AutoSyncPhase.error ||
+                          AutoSyncPhase.conflict ||
+                          AutoSyncPhase.incomplete => Icons.cloud_off_outlined,
+                          _ => Icons.cloud_outlined,
+                        }),
+                      ),
                     ),
-                  ),
               ],
             ),
             bottomNavigationBar: rail
@@ -681,6 +716,7 @@ class _ManagerShellState extends State<ManagerShell>
                           if (_catalog != null)
                             ServerCatalog(
                               controller: _catalog!,
+                              selection: _serverSelection,
                               motion: widget.motion,
                               vpn: _vpn,
                             )
@@ -696,6 +732,7 @@ class _ManagerShellState extends State<ManagerShell>
                             UsersPage(
                               controller: _vpn!,
                               showAddAction: false,
+                              selection: _clientSelection,
                               publications: _publications,
                               serverName: (id) =>
                                   _catalog?.servers

@@ -74,6 +74,43 @@ void main() {
   });
 
   test(
+    'batch server deletion is atomic, checks revisions and protects unselected jumps',
+    () async {
+      final db = open();
+      final a = db.newServerId(), b = db.newServerId(), c = db.newServerId();
+      final one = await db.openServer(a),
+          two = await db.openServer(b),
+          three = await db.openServer(c);
+      await one.saveProfile(profile('one.test'));
+      await two.saveProfile(profile('two.test', jump: a));
+      await three.saveProfile(profile('three.test'));
+      var reviewed = await db.listServers();
+      await expectLater(
+        db.deleteServers(reviewed.where((s) => s.id == a).toList()),
+        throwsA(isA<VaultFailure>()),
+      );
+      expect(await db.listServers(), hasLength(3));
+      final other = open();
+      await (await other.openServer(
+        b,
+      )).saveProfile(profile('two.changed', jump: a));
+      await expectLater(
+        db.deleteServers(reviewed.where((s) => s.id != c).toList()),
+        throwsA(isA<VaultFailure>()),
+      );
+      expect(await db.listServers(), hasLength(3));
+      reviewed = await db.listServers();
+      await db.deleteServers(reviewed.where((s) => s.id != c).toList());
+      expect((await db.listServers()).map((s) => s.id), [c]);
+      await expectLater(
+        one.saveProfile(profile('stale.test')),
+        throwsA(isA<VaultFailure>()),
+      );
+      expect((await other.listServers()).map((s) => s.id), [c]);
+    },
+  );
+
+  test(
     'runner request and cursor survive restart encrypted and isolated by server',
     () async {
       final db = open();

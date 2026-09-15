@@ -4489,6 +4489,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Delete server'**
   String get uiDeleteServer;
+
+  /// No description provided for @vpnConnectToManage.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect to manage inbounds and client access.'**
+  String get vpnConnectToManage;
+
+  /// No description provided for @catalogEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit list'**
+  String get catalogEdit;
+
+  /// No description provided for @catalogSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'Selected: {count}'**
+  String catalogSelected(int count);
+
+  /// No description provided for @catalogDeleteSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete selected'**
+  String get catalogDeleteSelected;
+
+  /// No description provided for @catalogSelectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Select all / clear selection'**
+  String get catalogSelectAll;
+
+  /// No description provided for @catalogExitEditing.
+  ///
+  /// In en, this message translates to:
+  /// **'Exit editing'**
+  String get catalogExitEditing;
+
+  /// No description provided for @catalogServerDeleteBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not delete the selection. Disconnect these servers and finish pending operations. A server used as an SSH jump by an unselected server must be kept. If the list changed, select it again.'**
+  String get catalogServerDeleteBlocked;
 }
 
 class _AppLocalizationsDelegate

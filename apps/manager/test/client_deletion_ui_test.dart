@@ -151,13 +151,13 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('vpn-user-edit')));
+        await tester.pumpAndSettle();
         await tester.tap(find.text('Alice'));
         await tester.pumpAndSettle();
         Future<void> openDelete() async {
-          await tester.tap(find.byKey(const ValueKey('client-actions')));
-          await tester.pumpAndSettle();
           await tester.tap(
-            find.text(locale == 'ru' ? 'Удалить клиента' : 'Delete client'),
+            find.byKey(const ValueKey('vpn-user-delete-selected')),
           );
           await tester.pumpAndSettle();
         }

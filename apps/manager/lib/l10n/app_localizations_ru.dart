@@ -2524,4 +2524,29 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get uiDeleteServer => 'Удалить сервер';
+
+  @override
+  String get vpnConnectToManage =>
+      'Подключитесь, чтобы управлять подключениями и доступами клиентов.';
+
+  @override
+  String get catalogEdit => 'Редактировать список';
+
+  @override
+  String catalogSelected(int count) {
+    return 'Выбрано: $count';
+  }
+
+  @override
+  String get catalogDeleteSelected => 'Удалить выбранные';
+
+  @override
+  String get catalogSelectAll => 'Выбрать все / снять выбор';
+
+  @override
+  String get catalogExitEditing => 'Выйти из редактирования';
+
+  @override
+  String get catalogServerDeleteBlocked =>
+      'Не удалось удалить выбранные серверы. Отключитесь от них и завершите ожидающие операции. Сервер, который используется как SSH-переход для невыбранного сервера, необходимо сохранить. Если список изменился, выберите записи заново.';
 }

@@ -1,3 +1,5 @@
+import '../drag_select_list.dart';
+import '../catalog_selection.dart';
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
@@ -9,7 +11,7 @@ import 'vpn_controller.dart';
 import 'vpn_plan_view.dart';
 import 'vpn_strings.dart';
 
-class UsersPage extends StatelessWidget {
+class UsersPage extends StatefulWidget {
   const UsersPage({
     required this.controller,
     required this.serverName,
@@ -17,6 +19,7 @@ class UsersPage extends StatelessWidget {
     required this.motion,
     this.publications,
     this.showAddAction = true,
+    this.selection,
     super.key,
   });
   final VpnController controller;
@@ -25,6 +28,9 @@ class UsersPage extends StatelessWidget {
   final ProfileExporter exporter;
   final MotionPreference motion;
   final bool showAddAction;
+  final CatalogSelection? selection;
+  @override
+  State<UsersPage> createState() => _UsersPageState();
 
   static Future<void> edit(
     BuildContext context,
@@ -41,19 +47,91 @@ class UsersPage extends StatelessWidget {
       ),
     );
     if (result == null) return;
-    if (result is _DeleteUserRequest) {
-      await publications?.suspend();
-      try {
-        await controller.deleteUser(result.user, file: result.file);
-      } finally {
-        publications?.resume();
-      }
-      return;
-    }
     await controller.saveUser(result as VpnUser);
     if (controller.error == null && controller.workspace.serverIds.isNotEmpty) {
       await controller.prepare();
     }
+  }
+
+  static Future<void> deleteSelected(
+    BuildContext context,
+    VpnController controller,
+    CatalogSelection selection,
+    PublicationController? publications,
+  ) async {
+    final users = controller.workspace.users
+        .where((u) => !u.deleted && selection.ids.contains(u.id))
+        .toList();
+    if (users.isEmpty || controller.busy) return;
+    final l = AppLocalizations.of(context);
+    final files = <String, Map<String, dynamic>>{
+      for (final user in users)
+        user.id: ?publications?.deletionFileFor(user.id),
+    };
+    var deleteFiles = false;
+    final accepted = await confirmCatalogDeletion(
+      context,
+      explanation: l.vpnDeleteExplanation,
+      names: users.map((u) => u.name).toList(),
+      confirmKey: 'client-delete-confirm',
+      extra: files.isEmpty
+          ? null
+          : StatefulBuilder(
+              builder: (context, update) => CheckboxListTile(
+                key: const ValueKey('client-delete-file'),
+                contentPadding: EdgeInsets.zero,
+                value: deleteFiles,
+                onChanged: (value) => update(() => deleteFiles = value!),
+                title: Text(l.vpnDeleteFile),
+                subtitle: Text(
+                  [
+                    for (final user in users)
+                      if (files.containsKey(user.id))
+                        '${user.name}: ${files[user.id]!['fileId']}',
+                  ].join('\n'),
+                ),
+              ),
+            ),
+    );
+    if (!accepted || !context.mounted) return;
+    await publications?.suspend();
+    try {
+      // Check every approved destination again before committing tombstones.
+      if (deleteFiles &&
+          files.entries.any(
+            (e) =>
+                canonicalJson(publications?.deletionFileFor(e.key)) !=
+                canonicalJson(e.value),
+          )) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l.vpnConflict)));
+        return;
+      }
+      await controller.deleteUsers(
+        users,
+        files: deleteFiles ? files : const {},
+      );
+      if (controller.error == null) selection.exit();
+    } finally {
+      publications?.resume();
+    }
+  }
+}
+
+class _UsersPageState extends State<UsersPage> {
+  final ownSelection = CatalogSelection();
+  CatalogSelection get selection => widget.selection ?? ownSelection;
+  VpnController get controller => widget.controller;
+  PublicationController? get publications => widget.publications;
+  ProfileExporter get exporter => widget.exporter;
+  MotionPreference get motion => widget.motion;
+  bool get showAddAction => widget.showAddAction;
+  String Function(String) get serverName => widget.serverName;
+  @override
+  void dispose() {
+    ownSelection.dispose();
+    super.dispose();
   }
 
   Future<void> _profile(BuildContext context, VpnUser user) async {
@@ -109,146 +187,175 @@ class UsersPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: controller,
+    listenable: Listenable.merge([controller, selection]),
     builder: (context, _) {
       final c = controller, l = AppLocalizations.of(context);
-      return ListView(
-        key: const PageStorageKey('vpn-users'),
-        padding: AppLayout.screenPadding(context),
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              PopupMenuButton<String>(
-                tooltip: l.uiActions,
-                onSelected: (action) {
-                  if (action == 'prepare') {
-                    c.prepare();
-                  } else {
-                    c.load();
-                  }
-                },
-                itemBuilder: (_) => [
-                  PopupMenuItem(
-                    value: 'prepare',
-                    enabled: !c.busy && c.workspace.serverIds.isNotEmpty,
-                    child: Text(l.vpnPrepare),
+      return DragSelectList(
+        selection: selection,
+        ids: c.workspace.users
+            .where((u) => !u.deleted)
+            .map((u) => u.id)
+            .toList(),
+        enabled: !c.busy && c.loaded,
+        builder: (scroll, item) => ListView(
+          controller: scroll,
+          key: const PageStorageKey('vpn-users'),
+          padding: AppLayout.screenPadding(context),
+          children: [
+            if (showAddAction)
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      selection.active
+                          ? l.catalogSelected(selection.ids.length)
+                          : l.vpnUsers,
+                    ),
                   ),
-                  PopupMenuItem(
-                    value: 'reload',
-                    enabled: !c.busy,
-                    child: Text(l.sshRefresh),
+                  CatalogActions(
+                    selection: selection,
+                    available: c.workspace.users
+                        .where((u) => !u.deleted)
+                        .map((u) => u.id),
+                    prefix: 'vpn-user',
+                    busy: c.busy || !c.loaded,
+                    addLabel: l.vpnAddUser,
+                    onAdd: () =>
+                        UsersPage.edit(context, c, motion, null, publications),
+                    onDelete: () => UsersPage.deleteSelected(
+                      context,
+                      c,
+                      selection,
+                      publications,
+                    ),
                   ),
                 ],
               ),
-              if (showAddAction)
-                IconButton(
-                  key: const ValueKey('vpn-user-add'),
-                  tooltip: l.vpnAddUser,
-                  onPressed: c.busy || !c.loaded
-                      ? null
-                      : () => edit(context, c, motion, null, publications),
-                  icon: const Icon(Icons.add),
-                ),
-            ],
-          ),
-          VpnPlanView(controller: c, serverName: serverName),
-          if (!c.workspace.users.any((u) => !u.deleted)) Text(l.vpnNoUsers),
-          for (final user in c.workspace.users.where((u) => !u.deleted))
-            Padding(
-              padding: const EdgeInsets.only(bottom: AppLayout.smallGap),
-              child: Card.filled(
-                child: ListTile(
-                  title: Text(user.name),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${user.login} · ${user.enabled ? l.vpnEnabled : l.vpnDisabled}',
-                      ),
-                      if (publications != null)
-                        UserPublicationView(
-                          controller: publications!,
-                          userId: user.id,
-                        ),
-                      if (c.results[user.id]?.hasBlockingErrors == true)
-                        Text(
-                          vpnMessage(
-                            l,
-                            c.results[user.id]!.diagnostics.first.code,
+            VpnPlanView(controller: c, serverName: serverName),
+            if (!c.workspace.users.any((u) => !u.deleted)) Text(l.vpnNoUsers),
+            for (final user in c.workspace.users.where((u) => !u.deleted))
+              item(
+                user.id,
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppLayout.smallGap),
+                  child: Card.filled(
+                    child: ListTile(
+                      key: ValueKey('client-${user.id}'),
+                      selected:
+                          selection.active && selection.ids.contains(user.id),
+                      leading: selection.active
+                          ? Checkbox(
+                              key: ValueKey('client-select-${user.id}'),
+                              value: selection.ids.contains(user.id),
+                              onChanged: c.busy
+                                  ? null
+                                  : (_) => selection.toggle(user.id),
+                            )
+                          : null,
+                      title: Text(user.name),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${user.login} · ${user.enabled ? l.vpnEnabled : l.vpnDisabled}',
                           ),
-                        ),
-                    ],
-                  ),
-                  onTap: c.busy
-                      ? null
-                      : () => edit(context, c, motion, user, publications),
-                  trailing: IconButton(
-                    tooltip: l.vpnProfile,
-                    onPressed: c.busy ? null : () => _profile(context, user),
-                    icon: const Icon(Icons.ios_share_outlined),
-                  ),
-                ),
-              ),
-            ),
-          for (final user in c.pendingDeletions)
-            ExpansionTile(
-              key: PageStorageKey('client-deletion-${user.id}'),
-              leading: const Icon(Icons.person_remove_outlined),
-              title: Text(user.name),
-              subtitle: Text(
-                user.revocationComplete
-                    ? l.vpnDeleteFilePending
-                    : l.vpnRevocationPending,
-              ),
-              children: [
-                for (final entry in (user.deletion!['targets'] as Map).entries)
-                  ListTile(
-                    title: Text(serverName(vpnServerId(entry.key as String))),
-                    subtitle: Text(
-                      entry.value['status'] == 'revoked'
-                          ? l.vpnAccessRevoked
-                          : entry.value['error'] != null
-                          ? vpnMessage(l, entry.value['error'] as String)
-                          : l.vpnRevocationPending,
+                          if (publications != null)
+                            UserPublicationView(
+                              controller: publications!,
+                              userId: user.id,
+                            ),
+                          if (c.results[user.id]?.hasBlockingErrors == true)
+                            Text(
+                              vpnMessage(
+                                l,
+                                c.results[user.id]!.diagnostics.first.code,
+                              ),
+                            ),
+                        ],
+                      ),
+                      onTap: c.busy
+                          ? null
+                          : selection.active
+                          ? () => selection.toggle(user.id)
+                          : () => UsersPage.edit(
+                              context,
+                              c,
+                              motion,
+                              user,
+                              publications,
+                            ),
+                      trailing: selection.active
+                          ? null
+                          : IconButton(
+                              tooltip: l.vpnProfile,
+                              onPressed: c.busy
+                                  ? null
+                                  : () => _profile(context, user),
+                              icon: const Icon(Icons.ios_share_outlined),
+                            ),
                     ),
                   ),
-                if (user.deletion!['file']?['error'] case final String issue)
-                  Padding(
-                    padding: const EdgeInsets.all(AppLayout.gap),
-                    child: Text(publicationMessage(l, issue)),
-                  ),
-                TextButton(
-                  key: ValueKey('client-deletion-retry-${user.id}'),
-                  onPressed: c.busy ? null : () => c.retryDeletion(user.id),
-                  child: Text(
-                    c.ownsDeletion(user) ? l.runnerRetry : l.operationTakeOver,
-                  ),
                 ),
-              ],
-            ),
-          for (final id in c.workspace.serverIds.where(_needsAttention))
-            ExpansionTile(
-              key: PageStorageKey('vpn-operation-$id'),
-              leading: const Icon(Icons.pending_actions),
-              title: Text(serverName(vpnServerId(id))),
-              subtitle: Text(
-                c.workspace.servers[id]?['error'] != null
-                    ? vpnMessage(l, c.workspace.servers[id]!['error'] as String)
-                    : l.uiOperationPending,
               ),
-              children: [VpnJobView(controller: c, serverId: id)],
-            ),
-        ],
+            for (final user in c.pendingDeletions)
+              ExpansionTile(
+                key: PageStorageKey('client-deletion-${user.id}'),
+                leading: const Icon(Icons.person_remove_outlined),
+                title: Text(user.name),
+                subtitle: Text(
+                  user.revocationComplete
+                      ? l.vpnDeleteFilePending
+                      : l.vpnRevocationPending,
+                ),
+                children: [
+                  for (final entry
+                      in (user.deletion!['targets'] as Map).entries)
+                    ListTile(
+                      title: Text(serverName(vpnServerId(entry.key as String))),
+                      subtitle: Text(
+                        entry.value['status'] == 'revoked'
+                            ? l.vpnAccessRevoked
+                            : entry.value['error'] != null
+                            ? vpnMessage(l, entry.value['error'] as String)
+                            : l.vpnRevocationPending,
+                      ),
+                    ),
+                  if (user.deletion!['file']?['error'] case final String issue)
+                    Padding(
+                      padding: const EdgeInsets.all(AppLayout.gap),
+                      child: Text(publicationMessage(l, issue)),
+                    ),
+                  TextButton(
+                    key: ValueKey('client-deletion-retry-${user.id}'),
+                    onPressed: c.busy ? null : () => c.retryDeletion(user.id),
+                    child: Text(
+                      c.ownsDeletion(user)
+                          ? l.runnerRetry
+                          : l.operationTakeOver,
+                    ),
+                  ),
+                ],
+              ),
+            for (final id in c.workspace.serverIds.where(_needsAttention))
+              ExpansionTile(
+                key: PageStorageKey('vpn-operation-$id'),
+                leading: const Icon(Icons.pending_actions),
+                title: Text(serverName(vpnServerId(id))),
+                subtitle: Text(
+                  c.workspace.servers[id]?['error'] != null
+                      ? vpnMessage(
+                          l,
+                          c.workspace.servers[id]!['error'] as String,
+                        )
+                      : l.uiOperationPending,
+                ),
+                children: [VpnJobView(controller: c, serverId: id)],
+              ),
+          ],
+        ),
       );
     },
   );
-}
-
-class _DeleteUserRequest {
-  const _DeleteUserRequest(this.user, this.file);
-  final VpnUser user;
-  final Map<String, dynamic>? file;
 }
 
 class _UserForm extends StatefulWidget {
@@ -277,65 +384,7 @@ class _UserFormState extends State<_UserForm> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     return AlertDialog(
-      title: Row(
-        children: [
-          Expanded(child: Text(widget.user == null ? l.vpnAddUser : l.vpnEdit)),
-          if (widget.user != null)
-            PopupMenuButton<String>(
-              key: const ValueKey('client-actions'),
-              tooltip: l.uiActions,
-              itemBuilder: (_) => [
-                PopupMenuItem(value: 'delete', child: Text(l.vpnDeleteUser)),
-              ],
-              onSelected: (_) async {
-                final user = widget.user!;
-                final file = widget.publications?.deletionFileFor(user.id);
-                var deleteFile = false;
-                final accepted = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => StatefulBuilder(
-                    builder: (context, setDialogState) => AlertDialog(
-                      title: Text(l.vpnDeleteUser),
-                      content: SingleChildScrollView(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(l.vpnDeleteExplanation),
-                            if (file != null)
-                              CheckboxListTile(
-                                key: const ValueKey('client-delete-file'),
-                                value: deleteFile,
-                                onChanged: (value) =>
-                                    setDialogState(() => deleteFile = value!),
-                                title: Text(l.vpnDeleteFile),
-                              ),
-                          ],
-                        ),
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: Text(l.sshCancel),
-                        ),
-                        FilledButton(
-                          key: const ValueKey('client-delete-confirm'),
-                          onPressed: () => Navigator.pop(context, true),
-                          child: Text(l.vpnDeleteUser),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-                if (accepted == true && context.mounted) {
-                  Navigator.pop(
-                    context,
-                    _DeleteUserRequest(user, deleteFile ? file : null),
-                  );
-                }
-              },
-            ),
-        ],
-      ),
+      title: Text(widget.user == null ? l.vpnAddUser : l.vpnEdit),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,

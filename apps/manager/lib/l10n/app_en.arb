@@ -928,5 +928,19 @@
   "vpnRevocationFailed": "Revocation is incomplete. Check the server and retry.",
   "vpnUserDeleted": "This client record was deleted. You can create a new client with the same name and login.",
   "vpnNodeName": "Node name",
-  "uiDeleteServer": "Delete server"
+  "uiDeleteServer": "Delete server",
+  "vpnConnectToManage": "Connect to manage inbounds and client access.",
+  "catalogEdit": "Edit list",
+  "catalogSelected": "Selected: {count}",
+  "catalogDeleteSelected": "Delete selected",
+  "catalogSelectAll": "Select all / clear selection",
+  "catalogExitEditing": "Exit editing",
+  "catalogServerDeleteBlocked": "Could not delete the selection. Disconnect these servers and finish pending operations. A server used as an SSH jump by an unselected server must be kept. If the list changed, select it again.",
+  "@catalogSelected": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

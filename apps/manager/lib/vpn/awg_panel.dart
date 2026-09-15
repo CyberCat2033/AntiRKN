@@ -51,28 +51,28 @@ class AwgPanel extends StatelessWidget {
       );
       final observed = (c.workspace.servers[target]?['observed'] as List? ?? [])
           .whereType<Map>();
-      return SectionCard(
+      return ContentSection(
         title: 'AmneziaWG',
+        actions: Wrap(
+          spacing: AppLayout.smallGap,
+          children: [
+            TextButton.icon(
+              key: const ValueKey('awg-add'),
+              onPressed: c.busy || !c.loaded ? null : () => edit(context),
+              icon: const Icon(Icons.add),
+              label: Text(l.awgAdd),
+            ),
+            OutlinedButton(
+              onPressed: c.busy || c.remote(target) == null
+                  ? null
+                  : () => c.refreshServer(target),
+              child: Text(l.awgRefresh),
+            ),
+          ],
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Wrap(
-              spacing: AppLayout.smallGap,
-              children: [
-                FilledButton.icon(
-                  key: const ValueKey('awg-add'),
-                  onPressed: c.busy || !c.loaded ? null : () => edit(context),
-                  icon: const Icon(Icons.add),
-                  label: Text(l.awgAdd),
-                ),
-                OutlinedButton(
-                  onPressed: c.busy || c.remote(target) == null
-                      ? null
-                      : () => c.refreshServer(target),
-                  child: Text(l.awgRefresh),
-                ),
-              ],
-            ),
             if (interfaces.isEmpty) Text(l.awgEmpty),
             for (final r in interfaces) ...[
               const SizedBox(height: AppLayout.gap),

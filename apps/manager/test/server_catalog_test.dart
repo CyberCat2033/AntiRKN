@@ -13,6 +13,13 @@ class _Repository
   final settings = <String, String>{};
   int sequence = 0;
   @override
+  Future<void> deleteServers(List<SavedServer> expected) async {
+    for (final server in expected) {
+      servers.remove(server.id);
+    }
+  }
+
+  @override
   bool get needsLegacyPassword => false;
   @override
   Future<void> migrateLegacy({String? password}) async {}
@@ -188,10 +195,6 @@ void main() {
         }
 
         Future<void> tap(String key) async {
-          if (key == 'ssh-delete') {
-            await tester.tap(find.byKey(const ValueKey('server-actions')));
-            await tester.pumpAndSettle();
-          }
           final target = find.byKey(ValueKey(key));
           await tester.ensureVisible(target);
           await tester.pumpAndSettle();
@@ -326,12 +329,13 @@ void main() {
         await tap('server-tab-connection');
         expect(find.textContaining('Ubuntu 24.04'), findsOneWidget);
         await tap('server-list-back');
-        await tap('server-$secondId');
+        await tap('server-edit');
+        await tap('server-select-$secondId');
         final deleteText = language == 'en'
             ? 'Delete saved connection'
             : 'Удалить сохранённое подключение';
         // Locate the actual localized action by its stable key.
-        await tap('ssh-delete');
+        await tap('server-delete-selected');
         final confirm = find.byKey(const ValueKey('ssh-delete-confirm'));
         expect(confirm, findsOneWidget, reason: deleteText);
         await tester.tap(confirm);

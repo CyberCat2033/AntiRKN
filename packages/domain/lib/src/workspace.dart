@@ -20,6 +20,9 @@ abstract interface class TemplateDraftStore {
 
 abstract interface class ServerRepository {
   Future<List<SavedServer>> listServers();
+
+  /// Removes the reviewed revisions together, including their secret records.
+  Future<void> deleteServers(List<SavedServer> expected);
   Future<SecretVault> openServer(String id);
   String newServerId();
   bool get needsLegacyPassword;

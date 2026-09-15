@@ -2519,4 +2519,29 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get uiDeleteServer => 'Delete server';
+
+  @override
+  String get vpnConnectToManage =>
+      'Connect to manage inbounds and client access.';
+
+  @override
+  String get catalogEdit => 'Edit list';
+
+  @override
+  String catalogSelected(int count) {
+    return 'Selected: $count';
+  }
+
+  @override
+  String get catalogDeleteSelected => 'Delete selected';
+
+  @override
+  String get catalogSelectAll => 'Select all / clear selection';
+
+  @override
+  String get catalogExitEditing => 'Exit editing';
+
+  @override
+  String get catalogServerDeleteBlocked =>
+      'Could not delete the selection. Disconnect these servers and finish pending operations. A server used as an SSH jump by an unselected server must be kept. If the list changed, select it again.';
 }

@@ -375,6 +375,58 @@ final class WorkspaceDatabase
   });
 
   @override
+  Future<void> deleteServers(List<SavedServer> expected) => _serial(() async {
+    _checkSyncEffectsNow();
+    final ids = expected.map((s) => s.id).toSet();
+    if (ids.isEmpty || ids.length != expected.length) {
+      throw const VaultFailure(VaultIssue.busy);
+    }
+    final rows = _db.select('SELECT * FROM servers');
+    final stamp = canonicalJson({
+      for (final row in rows) row['id'] as String: row['revision'],
+    });
+    final sources = <String, String>{};
+    for (final row in rows) {
+      final id = row['id'] as String;
+      final source = await _decrypt(
+        'server:$id',
+        row['revision'] as int,
+        row['payload'] as Uint8List,
+      );
+      final profile = decodeProfile(jsonDecode(source) as Map<String, dynamic>);
+      if (!ids.contains(id) && ids.contains(profile.jumpServerId)) {
+        throw const VaultFailure(VaultIssue.busy);
+      }
+      if (ids.contains(id)) sources[id] = source;
+    }
+    for (final server in expected) {
+      _checkRevision('servers', server.id, server.revision);
+      if (!sources.containsKey(server.id) ||
+          _journal.serverWasDeleted(server.id)) {
+        throw const VaultFailure(VaultIssue.busy);
+      }
+    }
+    final changes = await _journal.prepare({
+      for (final e in sources.entries) ..._serverEntities(e.key, e.value),
+    }, {});
+    _transaction(() {
+      final currentStamp = canonicalJson({
+        for (final row in _db.select('SELECT id, revision FROM servers'))
+          row['id'] as String: row['revision'],
+      });
+      if (stamp != currentStamp) throw const VaultFailure(VaultIssue.busy);
+      _checkSyncEffectsNow();
+      for (final server in expected) {
+        _checkRevision('servers', server.id, server.revision);
+      }
+      for (final id in ids) {
+        _db.execute('DELETE FROM servers WHERE id=?', [id]);
+      }
+      _journal.commit(changes);
+    });
+  });
+
+  @override
   Future<String?> readSetting(String key) => _serial(() {
     final rows = _db.select('SELECT value FROM settings WHERE key = ?', [key]);
     return rows.isEmpty ? null : rows.single['value'] as String;

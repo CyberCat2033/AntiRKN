@@ -40,29 +40,27 @@ class InboundsPanel extends StatelessWidget {
           inbounds = c.workspace.inbounds.where(
             (r) => r.serverId == serverId && !r.deleted,
           );
-      return SectionCard(
+      return ContentSection(
         title: l.vpnInbounds,
+        actions: TextButton.icon(
+          key: const ValueKey('vpn-inbound-add'),
+          onPressed: c.busy || !c.loaded ? null : () => _edit(context),
+          icon: const Icon(Icons.add),
+          label: Text(l.vpnAddInbound),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Wrap(
-              spacing: AppLayout.smallGap,
-              children: [
-                FilledButton.icon(
-                  key: const ValueKey('vpn-inbound-add'),
-                  onPressed: c.busy || !c.loaded ? null : () => _edit(context),
-                  icon: const Icon(Icons.add),
-                  label: Text(l.vpnAddInbound),
+            if (c.remote(serverId) == null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppLayout.gap),
+                child: Text(
+                  l.vpnConnectToManage,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
-                OutlinedButton(
-                  onPressed: c.busy || c.workspace.inbounds.isEmpty
-                      ? null
-                      : c.prepare,
-                  child: Text(l.vpnPrepare),
-                ),
-              ],
-            ),
-            if (c.remote(serverId) == null) Text(l.vpnPanelRequired),
+              ),
             if (runner?.panelDetected == true &&
                 (runner?.panels.isEmpty ?? true))
               Text(l.panelDiscoveryFailed),
@@ -105,48 +103,63 @@ class InboundsPanel extends StatelessWidget {
                   ),
             for (final r in inbounds)
               Padding(
-                padding: const EdgeInsets.only(top: AppLayout.gap),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(inboundSummary(r.spec)),
-                    Text(r.enabled ? l.vpnEnabled : l.vpnDisabled),
-                    Text(r.internal ? l.vpnInternal : l.vpnClientAccess),
-                    Align(
-                      alignment: AlignmentDirectional.centerStart,
-                      child: Wrap(
-                        children: [
-                          IconButton(
-                            key: ValueKey('vpn-internal-${r.id}'),
-                            tooltip: r.internal
-                                ? l.vpnInternal
-                                : l.vpnClientAccess,
-                            icon: Icon(
-                              r.internal ? Icons.lock : Icons.lock_open,
-                            ),
-                            onPressed: c.busy
-                                ? null
-                                : () async {
-                                    await c.saveInbound(
-                                      VlessInbound(
-                                        serverId: r.serverId,
-                                        spec: {
-                                          ...r.spec,
-                                          'internal': !r.internal,
-                                        },
-                                      ),
-                                    );
-                                    if (c.error == null) await c.prepare();
-                                  },
-                          ),
-                          TextButton(
-                            onPressed: c.busy ? null : () => _edit(context, r),
-                            child: Text(l.vpnEdit),
-                          ),
-                        ],
-                      ),
+                padding: const EdgeInsets.only(bottom: AppLayout.smallGap),
+                child: ResourceTile(
+                  key: ValueKey('inbound-summary-${r.id}'),
+                  title: r.spec['name'] as String,
+                  subtitle:
+                      '${r.spec['endpoint']}:${r.spec['externalPort']} · ${r.spec['transport'].toString().toUpperCase()} / ${r.spec['security'].toString().toUpperCase()}',
+                  details: [
+                    Text(
+                      '${l.vpnListen}: ${r.spec['listen']}:${r.spec['port']}',
                     ),
+                    Text('${l.vpnSni}: ${r.spec['sni']}'),
+                    if (r.spec['security'] == 'reality')
+                      Text('${l.vpnTarget}: ${r.spec['target']}'),
+                    if (r.spec['transport'] == 'xhttp')
+                      Text(
+                        '${r.spec['path']} · ${r.spec['mode']} · Host: ${r.spec['host']}',
+                      ),
                   ],
+                  actions: Wrap(
+                    spacing: AppLayout.smallGap,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppLayout.smallGap,
+                        ),
+                        child: Text(r.enabled ? l.vpnEnabled : l.vpnDisabled),
+                      ),
+                      TextButton.icon(
+                        key: ValueKey('vpn-internal-${r.id}'),
+                        icon: Icon(
+                          r.internal
+                              ? Icons.lock_outline
+                              : Icons.people_outline,
+                        ),
+                        label: Text(
+                          r.internal ? l.vpnInternal : l.vpnClientAccess,
+                        ),
+                        onPressed: c.busy
+                            ? null
+                            : () async {
+                                await c.saveInbound(
+                                  VlessInbound(
+                                    serverId: r.serverId,
+                                    spec: {...r.spec, 'internal': !r.internal},
+                                  ),
+                                );
+                                if (c.error == null) await c.prepare();
+                              },
+                      ),
+                      TextButton.icon(
+                        onPressed: c.busy ? null : () => _edit(context, r),
+                        icon: const Icon(Icons.edit_outlined),
+                        label: Text(l.vpnEdit),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             VpnJobView(controller: c, serverId: serverId),

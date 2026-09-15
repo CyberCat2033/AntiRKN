@@ -143,6 +143,96 @@ class SectionCard extends StatelessWidget {
   }
 }
 
+/// A section heading whose actions move below the title on narrow layouts.
+class ContentSection extends StatelessWidget {
+  const ContentSection({
+    required this.title,
+    required this.child,
+    this.actions,
+    super.key,
+  });
+  final String title;
+  final Widget child;
+  final Widget? actions;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      LayoutBuilder(
+        builder: (context, constraints) {
+          final titleWidget = Text(
+            title,
+            style: Theme.of(context).textTheme.titleMedium,
+          );
+          if (constraints.maxWidth < AppLayout.compact ||
+              MediaQuery.textScalerOf(context).scale(14) > 21) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [titleWidget, ?actions],
+            );
+          }
+          return Row(
+            children: [
+              Expanded(child: titleWidget),
+              ?actions,
+            ],
+          );
+        },
+      ),
+      const SizedBox(height: AppLayout.smallGap),
+      child,
+    ],
+  );
+}
+
+/// One resource with a short summary and optional technical details.
+class ResourceTile extends StatelessWidget {
+  const ResourceTile({
+    required this.title,
+    required this.subtitle,
+    required this.details,
+    this.actions,
+    super.key,
+  });
+  final String title, subtitle;
+  final List<Widget> details;
+  final Widget? actions;
+
+  @override
+  Widget build(BuildContext context) => Card.filled(
+    color: Theme.of(context).colorScheme.surfaceContainerLow,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ExpansionTile(
+          maintainState: true,
+          shape: const Border(),
+          collapsedShape: const Border(),
+          title: Text(title),
+          subtitle: Text(subtitle),
+          childrenPadding: const EdgeInsets.symmetric(
+            horizontal: AppLayout.gap,
+            vertical: AppLayout.smallGap,
+          ),
+          expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+          children: details,
+        ),
+        if (actions != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppLayout.smallGap,
+              0,
+              AppLayout.smallGap,
+              AppLayout.smallGap,
+            ),
+            child: actions!,
+          ),
+      ],
+    ),
+  );
+}
+
 /// Keeps settings and their draft state mounted while showing a short summary.
 class SettingsGroup extends StatelessWidget {
   const SettingsGroup({

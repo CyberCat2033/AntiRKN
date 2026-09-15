@@ -73,6 +73,45 @@ class ServerCatalogController extends ChangeNotifier {
 
   void add() => select(repository.newServerId());
 
+  Future<void> deleteServers(
+    List<SavedServer> expected, {
+    required bool Function(String) canDelete,
+  }) async {
+    if (loading || _disposed) return;
+    loading = true;
+    error = null;
+    notifyListeners();
+    try {
+      for (final server in expected) {
+        final s = _sessions[server.id];
+        if (!canDelete(server.id) ||
+            s != null &&
+                (s.stage != SshStage.idle ||
+                    s.runner.busy ||
+                    s.vaultBusy ||
+                    s.picking ||
+                    !s.saved)) {
+          throw const VaultFailure(VaultIssue.busy);
+        }
+      }
+      await repository.deleteServers(expected);
+      for (final server in expected) {
+        final s = _sessions.remove(server.id);
+        s?.removeListener(_sessionChanged);
+        s?.dispose();
+        s?.network.dispose();
+      }
+      servers = await repository.listServers();
+    } on VaultFailure catch (e) {
+      error = e.issue;
+    } catch (_) {
+      error = VaultIssue.writeFailed;
+    } finally {
+      loading = false;
+      if (!_disposed) notifyListeners();
+    }
+  }
+
   void select(String id) {
     if (_disposed || loading) return;
     selectedId = id;

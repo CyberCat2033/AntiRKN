@@ -165,11 +165,19 @@ class VpnJobView extends StatelessWidget {
         ],
         if (record['error'] case final String error) Text(vpnMessage(l, error)),
         if (job != null) ...[
-          Text(runnerStateLabel(l, job.status)),
-          if (job.events.isNotEmpty) Text(vpnMessage(l, job.events.last.code)),
-          if (!job.terminal)
-            LinearProgressIndicator(value: job.checkpoint / job.count),
-          Text('${job.checkpoint} / ${job.count}'),
+          if (job.status != 'succeeded') ...[
+            Text(runnerStateLabel(l, job.status)),
+            if (job.events.isNotEmpty &&
+                vpnMessage(l, job.events.last.code) !=
+                    runnerStateLabel(l, job.status))
+              Text(vpnMessage(l, job.events.last.code)),
+            if (!job.terminal) ...[
+              LinearProgressIndicator(
+                value: job.count > 0 ? job.checkpoint / job.count : null,
+              ),
+              Text('${job.checkpoint} / ${job.count}'),
+            ],
+          ],
         ],
         if (record['pending'] == null &&
             record['paused'] != true &&
@@ -198,7 +206,21 @@ class VpnJobView extends StatelessWidget {
             ],
           ),
         if (record['verifiedAt'] case final String at)
-          Text('${l.vpnSnapshot}: ${DateTime.tryParse(at)?.toLocal() ?? at}'),
+          ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            title: Text(
+              l.vpnSnapshot,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            children: [
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: Text('${DateTime.tryParse(at)?.toLocal() ?? at}'),
+              ),
+              if (job?.status == 'succeeded')
+                Text(runnerStateLabel(l, job!.status)),
+            ],
+          ),
       ],
     );
   }

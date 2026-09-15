@@ -23,6 +23,34 @@ void main() {
       c.workspace.users.singleWhere((u) => u.id == f.alice);
 
   test(
+    'batch deletion validates the complete selection and commits before offline revocation',
+    () async {
+      final store = f.MemoryVpn();
+      final c = f.controller(store, {});
+      addTearDown(c.dispose);
+      await f.setup(c);
+      final reviewed = c.workspace.users.toList();
+      await c.saveUser(VpnUser(id: f.bob, login: 'bob', name: 'Changed'));
+      await c.deleteUsers(reviewed);
+      expect(c.error, 'vpn_conflict');
+      expect(c.workspace.users.every((u) => !u.deleted), true);
+      final current = c.workspace.users.toList();
+      store.fail = true;
+      await c.deleteUsers(current);
+      expect(c.error, 'vpn_storage');
+      expect(c.workspace.users.every((u) => !u.deleted), true);
+      store.fail = false;
+      await c.deleteUsers(current);
+      expect(c.workspace.users.every((u) => u.deleted), true);
+      expect(c.pendingRevocations, hasLength(2));
+      final restored = f.controller(store, {});
+      addTearDown(restored.dispose);
+      await restored.load();
+      expect(restored.pendingRevocations, hasLength(2));
+    },
+  );
+
+  test(
     'offline deletion persists; restart revokes both servers; same login can be added again',
     () async {
       final store = f.MemoryVpn(), remotes = <String, f.Remote>{};
@@ -327,12 +355,15 @@ void main() {
       expect(c.error, isNull);
       expect(
         awgUserAccesses(c.workspace, f.alice).single.name,
-        'Alice_Amnezia',
+        'AmneziaWG-Alice_Amnezia',
       );
-      expect(ttUserAccesses(c.workspace, f.alice).single.name, 'Alice_Trust');
+      expect(
+        ttUserAccesses(c.workspace, f.alice).single.name,
+        'TrustTunnel-Alice_Trust',
+      );
       final vless = vlessUserAccesses(c.workspace, f.alice);
       final expected = {
-        for (final r in c.workspace.inbounds) 'Alice_${r.name}',
+        for (final r in c.workspace.inbounds) 'VLESS-Alice_${r.name}',
       };
       expect(vless.map((p) => p.name).toSet(), expected);
       final before = awgUserAccesses(c.workspace, f.alice).single.fields;
@@ -343,7 +374,7 @@ void main() {
         ],
       );
       final after = awgUserAccesses(renamed, f.alice).single.fields;
-      expect(after, {...before, 'name': 'USER_Amnezia'});
+      expect(after, {...before, 'name': 'AmneziaWG-USER_Amnezia'});
       final nodes = c.workspace.inbounds
           .map(
             (r) => VlessInbound(
@@ -375,7 +406,7 @@ void main() {
         f.alice,
       ).map((p) => p.name).toSet();
       expect(names.length, nodes.length);
-      expect(names, containsAll(['Alice_Same', 'Alice_Same_2']));
+      expect(names, containsAll(['VLESS-Alice_Same', 'VLESS-Alice_Same_2']));
       expect(
         vlessUserAccesses(
           duplicate.copy(inbounds: nodes.reversed.toList()),

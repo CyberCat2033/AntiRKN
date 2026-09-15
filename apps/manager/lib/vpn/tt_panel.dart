@@ -107,29 +107,27 @@ class _TtPanelState extends State<TtPanel> {
       final endpoints = c.workspace.ttEndpoints.where(
         (e) => e.serverId == widget.serverId && !e.deleted,
       );
-      return SectionCard(
+      return ContentSection(
         title: 'TrustTunnel',
+        actions: Wrap(
+          spacing: AppLayout.smallGap,
+          children: [
+            TextButton.icon(
+              onPressed: c.busy || !c.loaded || r.busy ? null : () => edit(),
+              icon: const Icon(Icons.add),
+              label: Text(l.ttAdd),
+            ),
+            TextButton(
+              onPressed: c.busy || c.remote(target) == null
+                  ? null
+                  : () => c.refreshServer(target),
+              child: Text(l.awgRefresh),
+            ),
+          ],
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Wrap(
-              spacing: AppLayout.smallGap,
-              children: [
-                FilledButton.icon(
-                  onPressed: c.busy || !c.loaded || r.busy
-                      ? null
-                      : () => edit(),
-                  icon: const Icon(Icons.add),
-                  label: Text(l.ttAdd),
-                ),
-                TextButton(
-                  onPressed: c.busy || c.remote(target) == null
-                      ? null
-                      : () => c.refreshServer(target),
-                  child: Text(l.awgRefresh),
-                ),
-              ],
-            ),
             if (endpoints.isEmpty) Text(l.ttEmpty),
             for (final e in endpoints)
               ListTile(
@@ -152,8 +150,14 @@ class _TtPanelState extends State<TtPanel> {
               network: widget.network,
               motion: widget.motion,
             ),
-            const Divider(),
-            Text(l.awgObserved, style: Theme.of(context).textTheme.titleMedium),
+            if ((r.ttDiscovery?['issues'] as List? ?? []).isNotEmpty ||
+                (r.ttDiscovery?['resources'] as List? ?? []).isNotEmpty) ...[
+              const Divider(),
+              Text(
+                l.awgObserved,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ],
             for (final issue
                 in (r.ttDiscovery?['issues'] as List? ?? []).whereType<Map>())
               ListTile(
