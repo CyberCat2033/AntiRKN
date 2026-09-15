@@ -52,6 +52,27 @@ class RunnerTests(unittest.TestCase):
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
             self.assertEqual(sorted(pool.map(request, [1,2])), ['busy', 'ok'])
 
+    def test_two_devices_retry_same_id_create_one_job_and_one_event(self):
+        def request(_):
+            store = Store(self.directory)
+            try:
+                return store.request(submit())['code']
+            finally:
+                store.close()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            self.assertEqual(list(pool.map(request, range(2))), ['ok', 'ok'])
+        self.assertEqual(self.store.db.execute('SELECT COUNT(*) FROM jobs').fetchone()[0], 1)
+        self.assertEqual(self.store.db.execute('SELECT COUNT(*) FROM events').fetchone()[0], 1)
+        self.store.tick()
+        second = Store(self.directory)
+        try:
+            observed = second.request(dict(version=1, action='status', id=submit()['id'], cursor=0))
+            repeated = second.request(submit())
+            self.assertEqual(observed['jobs'], repeated['jobs'])
+            self.assertEqual(observed['jobs'][0]['checkpoint'], 1)
+        finally:
+            second.close()
+
     def test_cancel_and_replay_terminal(self):
         req = submit()
         self.store.request(req)

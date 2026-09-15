@@ -497,8 +497,7 @@ class _ManagerShellState extends State<ManagerShell>
   Future<bool> _applyReceived(Future<void> Function() receive) async {
     if (!mounted ||
         _applyingSync ||
-        _index == 1 ||
-        _index == 4 ||
+        _index == 3 ||
         _catalog?.selectedId != null ||
         (_catalog?.hasActiveWork ?? false) ||
         (_catalog?.hasUnsavedEdits ?? false) ||

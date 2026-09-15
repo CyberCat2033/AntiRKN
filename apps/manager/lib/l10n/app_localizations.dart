@@ -134,6 +134,24 @@ abstract class AppLocalizations {
   /// **'Error'**
   String get profileError;
 
+  /// No description provided for @operationObserving.
+  ///
+  /// In en, this message translates to:
+  /// **'This operation was approved on another device. Its status is read from the server.'**
+  String get operationObserving;
+
+  /// No description provided for @operationMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'The server has not reported this operation. Check its status before continuing here.'**
+  String get operationMissing;
+
+  /// No description provided for @operationTakeOver.
+  ///
+  /// In en, this message translates to:
+  /// **'Check and continue on this device'**
+  String get operationTakeOver;
+
   /// No description provided for @settings.
   ///
   /// In en, this message translates to:

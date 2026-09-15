@@ -1,0 +1,61 @@
+{
+  "stage": "P1-07 server operations",
+  "date": "2026-09-15",
+  "tests": {
+    "integrations": 11,
+    "sync": 10,
+    "storage": 109,
+    "ssh": 36,
+    "network": 24,
+    "compiler": 24,
+    "app": 181,
+    "python_runner": 82,
+    "python_tools": 5,
+    "total": 482
+  },
+  "commands": [
+    "bash tool/verify.sh",
+    "flutter analyze --no-pub",
+    "dart format --output=none --set-exit-if-changed apps packages tool/compile_fixtures.dart tool/compile_vless_fixture.dart tool/drive_smoke.dart",
+    "git diff --check",
+    "flutter build linux --debug --no-pub",
+    "python3 tool/google_drive_setup.py --client ~/.config/antirkn/google/desktop-client.json --build-android"
+  ],
+  "checks": {
+    "full_verify": "PASS",
+    "final_analyze": "PASS",
+    "format": "PASS",
+    "generators_architecture_l10n_base_hash": "PASS",
+    "ru_en_messages": 683
+  },
+  "builds": {
+    "linux": {
+      "path": "apps/manager/build/linux/x64/debug/bundle/antirkn_manager",
+      "sha256": "fe29c4e441b1b86708e344bf267dd2af24f28771a97e297156c7bfe446b34cc7",
+      "build": "debug",
+      "runtime_tested": false
+    },
+    "android": {
+      "path": "apps/manager/build/app/outputs/flutter-apk/app-debug.apk",
+      "sha256": "7aaaa221ad45e1df7ba855cda1e88bcda35c5544bb8ff23e0d7e6a488aed1db8",
+      "build": "debug",
+      "runtime_tested": false
+    }
+  },
+  "android_google_project_id_included": true,
+  "schema": {
+    "sqlite": 5,
+    "backup": 3,
+    "bundled_runner": 12
+  },
+  "unverified": [
+    "Physical Linux/Android handoff",
+    "Windows build/runtime",
+    "Manual final GUI runtime",
+    "Public VPS/Drive in this stage",
+    "Mixed GUI versions",
+    "Hardware failure matrix"
+  ],
+  "adb_used": false,
+  "push_used": false
+}

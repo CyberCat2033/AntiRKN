@@ -43,6 +43,11 @@ class RunnerController extends ChangeNotifier {
   bool _disposed = false;
   bool _loaded = false;
   String? _identity;
+  String? _journalSource;
+  String? _deviceId;
+  ServerOperation? operation;
+  bool get observesOperation =>
+      operation != null && operation!.executorDeviceId != _deviceId;
   bool busy = false;
   bool alive = false;
   bool connectionLost = false;
@@ -163,7 +168,12 @@ class RunnerController extends ChangeNotifier {
       choosingPanel = false;
       panelSelected = false;
     }
+    _deviceId = store is ChangeJournalStore
+        ? (await (store as ChangeJournalStore).readWorkspaceIdentity()).deviceId
+        : null;
     final raw = await store?.readRunnerJournal(serverId);
+    _journalSource = raw;
+    operation = null;
     selected = null;
     jobs = [];
     pending = null;
@@ -177,6 +187,10 @@ class RunnerController extends ChangeNotifier {
       final json = decodeRunnerObject(raw);
       if (json['version'] != 1) throw const RunnerFailure(RunnerIssue.storage);
       if (json['identity'] == current) {
+        if (json['operation'] case final Map metadata) {
+          operation = ServerOperation.fromJson(metadata);
+          operation!.validatePending(json['pending'] as Map?);
+        }
         if (json['panelDiscovery'] case final Map discovery) {
           panelDiscovery = Map<String, dynamic>.from(discovery);
         }
@@ -203,19 +217,64 @@ class RunnerController extends ChangeNotifier {
 
   Future<void> _save() async {
     if (store == null) throw const RunnerFailure(RunnerIssue.storage);
-    await store!.writeRunnerJournal(
-      serverId,
-      jsonEncode({
-        'version': 1,
-        'identity': _identity,
-        'pending': pending?.json,
-        'selected': selected?.toJson(),
-        'cursor': cursor,
-        'panelDiscovery': panelDiscovery,
-        'panelAccess': panelAccess?.toJson(),
-        'panelVerifiedAt': panelVerifiedAt?.toUtc().toIso8601String(),
-      }),
-    );
+    final previous = _journalSource == null
+        ? null
+        : decodeRunnerObject(_journalSource!);
+    // Only a newly approved ID establishes ownership here. Loading an old
+    // pending request (including legacy records) grants no automatic authority.
+    if (_deviceId != null &&
+        pending != null &&
+        pending!.id != operation?.operationId &&
+        pending!.id != (previous?['pending'] as Map?)?['id']) {
+      operation = ServerOperation(
+        operationId: pending!.id!,
+        executorDeviceId: _deviceId!,
+        expectedRevision: pending!.json['fingerprint'] as String?,
+      );
+    }
+    final source = jsonEncode({
+      'version': 1,
+      'identity': _identity,
+      'pending': observesOperation ? (previous?['pending']) : pending?.json,
+      'selected': observesOperation
+          ? (previous?['selected'])
+          : selected?.toJson(),
+      'cursor': observesOperation ? (previous?['cursor'] ?? 0) : cursor,
+      if (operation != null) 'operation': operation!.toJson(),
+      'panelDiscovery': panelDiscovery,
+      'panelAccess': panelAccess?.toJson(),
+      'panelVerifiedAt': panelVerifiedAt?.toUtc().toIso8601String(),
+    });
+    if (store case final ConditionalRunnerJournalStore conditional) {
+      await conditional.writeRunnerJournalIfUnchanged(
+        serverId,
+        source,
+        expectedSource: _journalSource,
+      );
+    } else {
+      await store!.writeRunnerJournal(serverId, source);
+    }
+    _journalSource = source;
+  }
+
+  Future<void> _checkCurrentOperation() async {
+    if (store case final SyncEffectGuard guard) await guard.checkSyncEffects();
+    if (store is ConditionalRunnerJournalStore &&
+        await store!.readRunnerJournal(serverId) != _journalSource) {
+      throw const SyncMergeFailure(SyncMergeIssue.changed);
+    }
+  }
+
+  Future<void> _claimOperation(RunnerRequest request) async {
+    if (_deviceId != null) {
+      operation = ServerOperation(
+        operationId: request.id!,
+        executorDeviceId: _deviceId!,
+        expectedRevision: request.json['fingerprint'] as String?,
+      );
+    }
+    await _save();
+    await _checkCurrentOperation();
   }
 
   Future<void> _run(
@@ -247,6 +306,7 @@ class RunnerController extends ChangeNotifier {
       if (!token.isCancelled && !_disposed) {
         error = RunnerIssue.conflict;
         responseCode = 'sync_conflict';
+        _loaded = false;
       }
     } on VaultFailure {
       if (!token.isCancelled && !_disposed) error = RunnerIssue.storage;
@@ -1005,6 +1065,18 @@ class RunnerController extends ChangeNotifier {
     final id = resumePlan;
     if (id == null) return Future.value();
     return _run((remote, token) async {
+      await _readJob(remote, token, id);
+      if (selected?.id != id ||
+          !const {'failed', 'partially_applied'}.contains(selected?.status)) {
+        throw const RunnerFailure(RunnerIssue.conflict);
+      }
+      if (_deviceId != null) {
+        operation = operation?.operationId == id
+            ? operation!.withExecutor(_deviceId!)
+            : ServerOperation(operationId: id, executorDeviceId: _deviceId!);
+      }
+      await _save();
+      await _checkCurrentOperation();
       final response = await remote.request(
         RunnerRequest.resume(id),
         token,
@@ -1088,11 +1160,11 @@ class RunnerController extends ChangeNotifier {
   Future<void> retryPending() {
     if (pending == null) return Future.value();
     return _run((remote, token) async {
-      // Persist again before retry, including after a previous disk failure.
-      await _save();
-      token.check();
-      await _readJob(remote, token, pending!.id!);
+      final request = pending!;
+      // Establish fate before taking over; a lost response is not a missing job.
+      await _readJob(remote, token, request.id!);
       if (pending != null && responseCode == 'missing') {
+        await _claimOperation(request);
         await _submit(remote, token);
       }
     });
@@ -1100,6 +1172,8 @@ class RunnerController extends ChangeNotifier {
 
   Future<void> _submit(RunnerTransport remote, CancellationToken token) async {
     final request = pending!;
+    if (observesOperation) throw const SyncMergeFailure(SyncMergeIssue.changed);
+    await _checkCurrentOperation();
     final response = await remote.request(
       request,
       token,
@@ -1187,6 +1261,9 @@ class RunnerController extends ChangeNotifier {
     final job = selected;
     if (job == null || job.terminal) return Future.value();
     return _run((remote, token) async {
+      await _readJob(remote, token, job.id);
+      if (selected?.id != job.id || selected!.terminal) return;
+      await _checkCurrentOperation();
       final response = await remote.request(
         RunnerRequest.cancel(job.id),
         token,

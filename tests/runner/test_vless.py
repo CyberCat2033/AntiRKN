@@ -50,6 +50,24 @@ class VlessTests(unittest.TestCase):
             self.store.tick()
             if self.job(req)['status'] in ('succeeded','failed','partially_applied','cancelled'):break
         return self.job(req)
+    def test_competing_prepared_revision_cannot_overwrite_first_devices_apply(self):
+        first_payload = payload()
+        other_payload = payload()
+        other_payload['users'][0]['enabled'] = False
+        other_preview = plan(self.store, dict(id=other_payload['panelId'], payload=json.dumps(other_payload)))
+        first = self.submit(first_payload)
+        self.assertEqual(self.finish(first)['status'], 'succeeded')
+        before = copy.deepcopy(self.api.rows)
+        effects = self.api.effects
+        stale = dict(version=1, action='submit', id='9'*32, kind='vless_apply',
+            count=len(other_payload['resources'])+2, interval=1,
+            payload=json.dumps(other_payload), fingerprint=other_preview['fingerprint'])
+        self.store.request(stale)
+        self.assertEqual(self.finish(stale)['status'], 'failed')
+        self.assertEqual(self.api.effects, effects)
+        self.assertEqual(self.api.rows, before)
+        self.assertIn('vless_conflict', [e['code'] for e in self.job(stale)['events']])
+
     def test_reality_client_version_is_zero_without_form_input(self):
         from vless import wanted_inbound
         p = payload()

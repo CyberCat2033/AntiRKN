@@ -133,12 +133,26 @@ class VpnJobView extends StatelessWidget {
         l = AppLocalizations.of(context),
         record = c.workspace.servers[serverId];
     if (record == null) return const SizedBox.shrink();
-    final job = record['job'] == null
-        ? null
-        : RunnerJob.fromJson(Map<String, dynamic>.from(record['job'] as Map));
+    final job = c.currentJob(serverId);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (c.observesOperation(serverId)) ...[
+          Text(l.operationObserving),
+          if (c.observedJobs.containsKey(serverId) && job == null)
+            Text(l.operationMissing),
+          if (c.observationErrors[serverId] case final String error)
+            Text(vpnMessage(l, error)),
+          if (job == null)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton(
+                key: ValueKey('operation-takeover-$serverId'),
+                onPressed: c.busy ? null : () => c.takeOver(serverId),
+                child: Text(l.operationTakeOver),
+              ),
+            ),
+        ],
         if (c.needsRestoreReview(serverId)) ...[
           Text(l.backupOperationReview),
           Align(
@@ -174,7 +188,7 @@ class VpnJobView extends StatelessWidget {
                   onPressed: c.busy ? null : () => c.cancel(serverId),
                   child: Text(l.runnerCancel),
                 ),
-              if (record['paused'] == true &&
+              if ((record['paused'] == true || c.observesOperation(serverId)) &&
                   (job?.status == 'failed' ||
                       job?.status == 'partially_applied'))
                 OutlinedButton(

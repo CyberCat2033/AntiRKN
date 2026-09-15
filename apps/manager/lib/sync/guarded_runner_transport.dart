@@ -35,7 +35,12 @@ final class GuardedRunnerTransport implements RunnerTransport {
     CancellationToken cancellation, {
     String? sudoPassword,
   }) async {
-    await _check(cancellation);
+    if (request.json['action'] != 'status' &&
+        request.json['action'] != 'list') {
+      await _check(cancellation);
+    } else {
+      cancellation.check();
+    }
     return delegate.request(request, cancellation, sudoPassword: sudoPassword);
   }
 }

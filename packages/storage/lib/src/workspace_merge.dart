@@ -508,7 +508,14 @@ final class _WorkspaceMerge {
           id,
         ]).isNotEmpty,
       )) {
-        targets.add(entry.key.$2);
+        final data = jsonDecode(entry.value.source) as Map;
+        if (data['operation'] == null) {
+          targets.add(entry.key.$2);
+        } else {
+          // New operation records carry explicit ownership. A receiver can
+          // observe them; execution still belongs to executorDeviceId.
+          targets.remove(entry.key.$2);
+        }
       }
     }
     db.execute(
@@ -630,7 +637,22 @@ void _validateSyncChange(LocalChange e) {
         if (data['version'] != 1 || data['cursor'] is! int || h.deleted) {
           throw const FormatException();
         }
+        if (data['operation'] case final Map operation) {
+          final parsed = ServerOperation.fromJson(operation);
+          final pending = data['pending'] as Map?;
+          parsed.validatePending(pending);
+        } else if (data['operation'] != null) {
+          throw const FormatException();
+        }
       case ChangeEntityKind.vpnServerState:
+        if (data['operation'] case final Map operation) {
+          final parsed = ServerOperation.fromJson(operation);
+          final pending = data['pending'] as Map?;
+          parsed.validatePending(pending);
+        } else if (data['operation'] != null) {
+          throw const FormatException();
+        }
+        if (h.deleted) throw const FormatException();
       case ChangeEntityKind.profile:
         if (h.deleted) throw const FormatException();
       case ChangeEntityKind.document:

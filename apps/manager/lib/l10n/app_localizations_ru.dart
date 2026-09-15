@@ -27,6 +27,17 @@ class AppLocalizationsRu extends AppLocalizations {
   String get profileError => 'Ошибка';
 
   @override
+  String get operationObserving =>
+      'Операция подтверждена на другом устройстве. Статус читается с сервера.';
+
+  @override
+  String get operationMissing =>
+      'Сервер пока не сообщил об этой операции. Перед продолжением здесь проверьте её статус.';
+
+  @override
+  String get operationTakeOver => 'Проверить и продолжить на этом устройстве';
+
+  @override
   String get settings => 'Настройки';
 
   @override

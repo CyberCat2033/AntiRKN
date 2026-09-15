@@ -116,6 +116,7 @@ final class WorkspaceDatabase
     implements
         ServerRepository,
         RunnerJournalStore,
+        ConditionalRunnerJournalStore,
         VpnRepository,
         ChangeJournalStore,
         SyncPacketStore,
@@ -482,6 +483,18 @@ final class WorkspaceDatabase
   Future<void> writeRunnerJournal(String serverId, String source) =>
       _writeDocument('runner/$serverId', source);
 
+  @override
+  Future<void> writeRunnerJournalIfUnchanged(
+    String serverId,
+    String source, {
+    required String? expectedSource,
+  }) => _writeDocument(
+    'runner/$serverId',
+    source,
+    conditional: true,
+    expectedSource: expectedSource,
+  );
+
   Future<String?> _readDocument(String id) => _serial(() async {
     final rows = _db.select('SELECT * FROM documents WHERE id=?', [id]);
     if (rows.isEmpty) return null;
@@ -491,7 +504,12 @@ final class WorkspaceDatabase
       rows.single['payload'] as Uint8List,
     );
   });
-  Future<void> _writeDocument(String id, String source) => _serial(() async {
+  Future<void> _writeDocument(
+    String id,
+    String source, {
+    bool conditional = false,
+    String? expectedSource,
+  }) => _serial(() async {
     if (utf8.encode(source).length > 256 * 1024) {
       throw const VaultFailure(VaultIssue.writeFailed);
     }
@@ -500,6 +518,9 @@ final class WorkspaceDatabase
     final oldSource = rows.isEmpty
         ? null
         : await _decrypt(id, expected, rows.single['payload'] as Uint8List);
+    if (conditional && oldSource != expectedSource) {
+      throw const SyncMergeFailure(SyncMergeIssue.changed);
+    }
     if (oldSource == source) {
       _transaction(() => _checkRevision('documents', id, expected));
       return;

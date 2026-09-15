@@ -102,12 +102,17 @@ class RunnerPanel extends StatelessWidget {
                     ),
                   ),
               ],
+              if (c.observesOperation) Text(l.operationObserving),
               if (c.pending != null) ...[
-                Text(l.runnerPending),
+                Text(
+                  c.observesOperation ? l.operationMissing : l.runnerPending,
+                ),
                 TextButton(
                   key: const ValueKey('runner-retry'),
                   onPressed: c.connected && !c.busy ? c.retryPending : null,
-                  child: Text(l.runnerRetry),
+                  child: Text(
+                    c.observesOperation ? l.operationTakeOver : l.runnerRetry,
+                  ),
                 ),
               ],
               if (failed &&

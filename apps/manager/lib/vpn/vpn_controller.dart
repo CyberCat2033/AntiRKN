@@ -78,6 +78,28 @@ class VpnController extends ChangeNotifier {
   final String Function() template;
   final Iterable<String> Function()? serverIds;
   final Map<String, String> _observedConnections = {};
+  String? _deviceId;
+  final observedJobs = <String, RunnerJob?>{};
+  final observationErrors = <String, String>{};
+  ServerOperation? operation(String id) {
+    final value = workspace.servers[id]?['operation'];
+    if (value == null) return null;
+    final parsed = ServerOperation.fromJson(value as Map);
+    parsed.validatePending(workspace.servers[id]?['pending'] as Map?);
+    return parsed;
+  }
+
+  bool observesOperation(String id) =>
+      operation(id) != null && operation(id)!.executorDeviceId != _deviceId;
+  RunnerJob? currentJob(String id) =>
+      observesOperation(id) && observedJobs.containsKey(id)
+      ? observedJobs[id]
+      : workspace.servers[id]?['job'] == null
+      ? null
+      : RunnerJob.fromJson(
+          Map<String, dynamic>.from(workspace.servers[id]!['job'] as Map),
+        );
+
   Timer? _timer;
   CancellationToken? _token;
   bool _disposed = false;
@@ -142,6 +164,12 @@ class VpnController extends ChangeNotifier {
 
   Future<void> load() => _run((token) async {
     _restoredTargets = await recovery?.readRestoredTargets() ?? {};
+    _deviceId = repository is ChangeJournalStore
+        ? (await (repository as ChangeJournalStore).readWorkspaceIdentity())
+              .deviceId
+        : null;
+    observedJobs.clear();
+    observationErrors.clear();
     final saved = await repository.readVpn();
     token.check();
     revision = saved.revision;
@@ -153,8 +181,12 @@ class VpnController extends ChangeNotifier {
     plans = [];
     await _profiles();
   });
-  bool get hasRunning => workspace.servers.values.any(
-    (r) => r['pending'] != null && r['paused'] != true,
+  bool get hasRunning => workspace.servers.entries.any(
+    (e) =>
+        !observesOperation(e.key) &&
+        !_restoredTargets.contains(e.key) &&
+        e.value['pending'] != null &&
+        e.value['paused'] != true,
   );
   Future<void> saveUser(VpnUser user) => _run((token) async {
     if (!loaded) return;
@@ -273,7 +305,16 @@ class VpnController extends ChangeNotifier {
     bool allowMissing = false,
   }) async {
     try {
-      await checkProfileEffects();
+      if (request.json['action'] != 'status') await checkProfileEffects();
+      if (const {
+        'submit',
+        'resume',
+        'cancel',
+      }.contains(request.json['action'])) {
+        if ((await repository.readVpn()).revision != revision) {
+          throw const SyncMergeFailure(SyncMergeIssue.changed);
+        }
+      }
       token.check();
       final response = await r.transport.request(
         request,
@@ -358,8 +399,15 @@ class VpnController extends ChangeNotifier {
         throw const FormatException('vpn_conflict');
       }
       final previous = records[plan.serverId] ?? <String, dynamic>{};
+      final operationId = newVpnId();
       records[plan.serverId] = {
         ...previous,
+        if (_deviceId != null)
+          'operation': ServerOperation(
+            operationId: operationId,
+            executorDeviceId: _deviceId!,
+            expectedRevision: plan.preview?['fingerprint'] as String?,
+          ).toJson(),
         'panelId': plan.payload['panelId'],
         'identity': plan.identity,
         'authorizedPayload': jsonEncode(plan.payload),
@@ -369,7 +417,7 @@ class VpnController extends ChangeNotifier {
             ? null
             : _applyRequest(
                 plan.serverId,
-                newVpnId(),
+                operationId,
                 plan.payload,
                 plan.preview!['fingerprint'] as String,
               ).json,
@@ -386,15 +434,19 @@ class VpnController extends ChangeNotifier {
   });
   Future<void> reconcile() async {
     if (!loaded || busy || _disposed) return;
-    final work = workspace.servers.values.any(
-      (r) =>
-          r['cancelRequested'] == true ||
-          r['observingCancel'] == true ||
-          (r['paused'] != true &&
-              (r['pending'] != null ||
-                  r['authorizedPayload'] != null &&
-                      r['authorizedPayload'] != r['appliedPayload'])),
-    );
+    final work =
+        workspace.servers.keys.any(
+          (id) => observesOperation(id) && currentJob(id)?.terminal != true,
+        ) ||
+        workspace.servers.values.any(
+          (r) =>
+              r['cancelRequested'] == true ||
+              r['observingCancel'] == true ||
+              (r['paused'] != true &&
+                  (r['pending'] != null ||
+                      r['authorizedPayload'] != null &&
+                          r['authorizedPayload'] != r['appliedPayload'])),
+        );
     final fresh = (serverIds?.call() ?? const <String>[]).where((id) {
       final connection = remote(id);
       return connection?.observationKey != null &&
@@ -405,7 +457,7 @@ class VpnController extends ChangeNotifier {
       for (final id in fresh) {
         final connection = remote(id);
         if (connection == null) continue;
-        await _refreshServer(id, token);
+        if (!observesOperation(id)) await _refreshServer(id, token);
         _observedConnections[id] = connection.observationKey!;
       }
       if (work) await _reconcile(token);
@@ -417,6 +469,10 @@ class VpnController extends ChangeNotifier {
     _restoredTargets = await recovery?.readRestoredTargets() ?? {};
     var changed = false;
     for (final id in workspace.serverIds) {
+      if (observesOperation(id)) {
+        await _observeOperation(id, token);
+        continue;
+      }
       if (_restoredTargets.contains(id)) continue;
       final connection = remote(id);
       if (connection == null) continue;
@@ -453,13 +509,19 @@ class VpnController extends ChangeNotifier {
           );
           final request = _applyRequest(
             id,
-            newVpnId(),
+            operation(id)?.operationId ?? newVpnId(),
             payload,
             _preview(preview, id)!['fingerprint'] as String,
           );
           record = {
             ...record,
             'pending': request.json,
+            if (_deviceId != null)
+              'operation': ServerOperation(
+                operationId: request.id!,
+                executorDeviceId: _deviceId!,
+                expectedRevision: request.json['fingerprint'] as String?,
+              ).toJson(),
             'identity': connection.identity,
             'panelId': connection.panelId,
           };
@@ -498,13 +560,24 @@ class VpnController extends ChangeNotifier {
           final request = RunnerRequest.fromJson(
             Map<String, Object?>.from(pending as Map),
           );
-          final response = await _request(
+          // After an uncertain response, establish the existing job's fate
+          // before any retry. Never issue a new ID to bypass a conflict.
+          var response = await _request(
             connection,
-            record['observingCancel'] == true
-                ? RunnerRequest.status(request.id!, 0)
-                : request,
+            RunnerRequest.status(request.id!, 0),
             token,
+            allowMissing: true,
           );
+          if (response.code == 'missing' && record['observingCancel'] != true) {
+            final payload = Map<String, Object?>.from(
+              jsonDecode(request.json['payload'] as String) as Map,
+            );
+            if (canonicalJson(payload) !=
+                canonicalJson(workspace.desired(id, connection.panelId))) {
+              throw const FormatException('vpn_conflict');
+            }
+            response = await _request(connection, request, token);
+          }
           if (response.jobs.isEmpty) throw const FormatException('vpn_failed');
           final before = record['job'] == null
               ? null
@@ -663,6 +736,76 @@ class VpnController extends ChangeNotifier {
     await _profiles();
   }
 
+  Future<void> _observeOperation(String id, CancellationToken token) async {
+    final connection = remote(id), op = operation(id);
+    if (connection == null || op == null) {
+      observationErrors[id] = 'vpn_connection';
+      return;
+    }
+    if (workspace.servers[id]?['identity'] != null &&
+        workspace.servers[id]!['identity'] != connection.identity) {
+      observationErrors[id] = 'vpn_identity';
+      return;
+    }
+    try {
+      final response = await _request(
+        connection,
+        RunnerRequest.status(op.operationId, 0),
+        token,
+        allowMissing: true,
+      );
+      if (response.code != 'missing' &&
+          (response.jobs.length != 1 ||
+              response.jobs.single.id != op.operationId)) {
+        throw const FormatException('vpn_failed');
+      }
+      observedJobs[id] = response.code == 'missing'
+          ? null
+          : response.jobs.single;
+      observationErrors.remove(id);
+      // Observation is local UI state; do not create competing sync events
+      // for every poll of another device's operation.
+    } on SshFailure {
+      observationErrors[id] = 'vpn_connection';
+    } on FormatException catch (e) {
+      observationErrors[id] = e.message;
+    }
+  }
+
+  /// Explicit handoff. Query the previous operation ID first, preserve its
+  /// request/precondition and commit ownership before contacting the runner.
+  Future<void> takeOver(String id) => _run((token) async {
+    final op = operation(id), connection = remote(id);
+    if (op == null || _deviceId == null || connection == null) {
+      throw const FormatException('vpn_connection');
+    }
+    await _observeOperation(id, token);
+    if (observationErrors[id] case final String error) {
+      throw FormatException(error);
+    }
+    final record = workspace.servers[id]!;
+    final job = observedJobs[id];
+    if (job != null) {
+      // Existing work is observed; failed jobs have a separate resume action.
+      return;
+    }
+    final payload = record['authorizedPayload'] as String?;
+    if (payload != null &&
+        canonicalJson(jsonDecode(payload)) !=
+            canonicalJson(workspace.desired(id, connection.panelId))) {
+      throw const FormatException('vpn_conflict');
+    }
+    await checkProfileEffects();
+    await _record(id, {
+      ...record,
+      'operation': op.withExecutor(_deviceId!).toJson(),
+    });
+    await _approveRestored([id]);
+    observedJobs.remove(id);
+    observationErrors.remove(id);
+    await _reconcile(token);
+  });
+
   Future<void> cancel(String id) => _run((token) async {
     final record = workspace.servers[id];
     if (record == null) return;
@@ -674,7 +817,19 @@ class VpnController extends ChangeNotifier {
     }
     // Remember cancellation while offline and send it before any further
     // resubmission when the server becomes reachable.
-    await _record(id, {...record, 'paused': true, 'cancelRequested': true});
+    if (observesOperation(id)) {
+      await _observeOperation(id, token);
+      if (!observedJobs.containsKey(id) || observationErrors.containsKey(id)) {
+        throw const FormatException('vpn_connection');
+      }
+    }
+    await _record(id, {
+      ...record,
+      'paused': true,
+      'cancelRequested': true,
+      if (operation(id) != null && _deviceId != null)
+        'operation': operation(id)!.withExecutor(_deviceId!).toJson(),
+    });
     await _approveRestored([id]);
     final r = remote(id);
     if (r == null) return;
@@ -737,9 +892,27 @@ class VpnController extends ChangeNotifier {
     if (record['identity'] != null && record['identity'] != r.identity) {
       throw const FormatException('vpn_identity');
     }
-    await _request(r, RunnerRequest.resume(request['id'] as String), token);
+    final status = await _request(
+      r,
+      RunnerRequest.status(request['id'] as String, 0),
+      token,
+    );
+    if (status.jobs.length != 1 ||
+        status.jobs.single.id != request['id'] ||
+        !const {
+          'failed',
+          'partially_applied',
+        }.contains(status.jobs.single.status)) {
+      throw const FormatException('vpn_conflict');
+    }
     await _record(id, {
       ...record,
+      if (operation(id) != null && _deviceId != null)
+        'operation': operation(id)!.withExecutor(_deviceId!).toJson(),
+    });
+    await _request(r, RunnerRequest.resume(request['id'] as String), token);
+    await _record(id, {
+      ...workspace.servers[id]!,
       'paused': false,
       'cancelRequested': false,
       'error': null,

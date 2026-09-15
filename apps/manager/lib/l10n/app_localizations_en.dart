@@ -27,6 +27,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileError => 'Error';
 
   @override
+  String get operationObserving =>
+      'This operation was approved on another device. Its status is read from the server.';
+
+  @override
+  String get operationMissing =>
+      'The server has not reported this operation. Check its status before continuing here.';
+
+  @override
+  String get operationTakeOver => 'Check and continue on this device';
+
+  @override
   String get settings => 'Settings';
 
   @override

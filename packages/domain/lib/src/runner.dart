@@ -594,6 +594,16 @@ abstract interface class RunnerJournalStore {
   Future<void> writeRunnerJournal(String serverId, String source);
 }
 
+/// Prevents an old controller from overwriting a journal received through sync
+/// or changed by another local process. Compare and write are one transaction.
+abstract interface class ConditionalRunnerJournalStore {
+  Future<void> writeRunnerJournalIfUnchanged(
+    String serverId,
+    String source, {
+    required String? expectedSource,
+  });
+}
+
 Map<String, dynamic> decodeRunnerObject(String source) =>
     Map<String, dynamic>.from(jsonDecode(source) as Map);
 

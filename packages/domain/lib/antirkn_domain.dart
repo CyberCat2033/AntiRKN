@@ -9,6 +9,7 @@ export 'src/sync.dart';
 export 'src/tt.dart';
 export 'src/awg.dart';
 export 'src/runner.dart';
+export 'src/server_operation.dart';
 export 'src/component_updates.dart';
 export 'src/vpn.dart';
 export 'src/privileges.dart';
