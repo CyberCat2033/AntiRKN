@@ -2236,4 +2236,96 @@ class AppLocalizationsRu extends AppLocalizations {
   String syncRejectedCount(int count) {
     return 'Отклонённых групп с нарушенной историей изменений: $count. Рабочие данные сохранены.';
   }
+
+  @override
+  String get googleAccountTitle => 'Аккаунт Google';
+
+  @override
+  String get googleAccountHelp =>
+      'Войдите в Google, чтобы подключить Google Drive.';
+
+  @override
+  String get googleSignIn => 'Войти в Google';
+
+  @override
+  String get googleSwitchAccount => 'Сменить аккаунт';
+
+  @override
+  String get googleSignOut => 'Выйти';
+
+  @override
+  String get googleConnected => 'Google Drive подключён.';
+
+  @override
+  String get googleWorking => 'Подключение к Google…';
+
+  @override
+  String get googleConfigurationError =>
+      'Google-вход не настроен для этой сборки. Проверьте Android-клиент и сертификат приложения.';
+
+  @override
+  String get googleDenied =>
+      'Доступ к Google Drive не предоставлен. Повторите вход и разрешите доступ.';
+
+  @override
+  String get googleNetworkError =>
+      'Не удалось связаться с Google. Проверьте подключение и повторите вход.';
+
+  @override
+  String get googleStorageError =>
+      'Не удалось сохранить данные аккаунта в защищённом хранилище. Повторите попытку.';
+
+  @override
+  String get googleReauthorize => 'Нужно снова войти в Google.';
+
+  @override
+  String get googleUnavailable =>
+      'Вход Google недоступен. Проверьте Google Play services и повторите попытку.';
+
+  @override
+  String get autoSyncTitle => 'Автосинхронизация';
+
+  @override
+  String get autoSyncHelp =>
+      'После сохранения, при открытии и каждые 30 секунд, пока приложение на экране.';
+
+  @override
+  String get autoSyncDisabled => 'Автосинхронизация выключена.';
+
+  @override
+  String get autoSyncWaiting => 'Изменения ожидают обмена.';
+
+  @override
+  String get autoSyncWorking => 'Обмен с Google Drive…';
+
+  @override
+  String get autoSyncDone => 'Обмен с Google Drive завершён.';
+
+  @override
+  String get autoSyncEditing =>
+      'Данные получены. Закройте редактор сервера и перейдите в настройки или список серверов для применения. Текущие операции должны завершиться.';
+
+  @override
+  String get autoSyncConflict =>
+      'Получены разные версии. Выберите нужную в разделе конфликтов ниже.';
+
+  @override
+  String get autoSyncIncomplete =>
+      'Часть данных ожидает связанных изменений или не прошла проверку. Проверьте раздел конфликтов.';
+
+  @override
+  String get autoSyncError =>
+      'Не удалось завершить обмен. Данные сохранены; приложение повторит попытку автоматически.';
+
+  @override
+  String get autoSyncNow => 'Синхронизировать сейчас';
+
+  @override
+  String autoSyncLast(String time) {
+    return 'Последний обмен: $time';
+  }
+
+  @override
+  String get autoSyncPairing =>
+      'Второе устройство: один раз экспортируйте зашифрованную резервную копию ниже и восстановите её на втором устройстве, затем войдите в тот же Google-аккаунт. Копия передаёт общий ключ: доверяйте всем устройствам, которым её передаёте. При полностью закрытом приложении обмен не выполняется.';
 }

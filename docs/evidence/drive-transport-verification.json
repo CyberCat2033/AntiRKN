@@ -1,0 +1,94 @@
+{
+  "date": "2026-09-15T10:25:12.783482+00:00",
+  "stage": "P1-06a",
+  "tests": {
+    "app": 169,
+    "storage": 101,
+    "sync": 10,
+    "integrations": 6,
+    "oauth_setup_python": 5,
+    "total": 291,
+    "status": "PASS"
+  },
+  "static": {
+    "analyze": "PASS",
+    "format": "PASS",
+    "architecture": "PASS",
+    "localizationMessages": 673,
+    "generatedContracts": "PASS",
+    "baseYmlUnchanged": true
+  },
+  "realGoogleDrive": {
+    "status": "PASS",
+    "evidence": "drive-live.json",
+    "checks": 9,
+    "syntheticOnly": true,
+    "cleanup": "PASS"
+  },
+  "builds": {
+    "linux": {
+      "status": "PASS",
+      "path": "apps/manager/build/linux/x64/debug/bundle/antirkn_manager",
+      "sha256": "9fffcfee576434e574553b9b3cc8214dffa856e18bc973d1a78545ecfddd3d13",
+      "bytes": 53696,
+      "configuration": "debug"
+    },
+    "android": {
+      "status": "PASS",
+      "path": "apps/manager/build/app/outputs/flutter-apk/app-debug.apk",
+      "sha256": "5668198bba47d89f78c6e951c0760e2a81642fbd491a87a91a9604116d3a6098",
+      "bytes": 117995367,
+      "configuration": "debug"
+    }
+  },
+  "androidInstall": {
+    "status": "PASS",
+    "model": "OnePlus HD1911",
+    "package": "org.antirkn.antirkn_manager",
+    "method": "adb install -r",
+    "dataPreserved": true,
+    "installedApkSha256": "5668198bba47d89f78c6e951c0760e2a81642fbd491a87a91a9604116d3a6098",
+    "matchesBuild": true,
+    "autoSyncClassesPackaged": true,
+    "runtimeAutoSyncTested": false
+  },
+  "oauthConfiguration": {
+    "desktopSystemBrowserPkce": "PASS",
+    "androidClientIdSavedLocally": true,
+    "androidSettingsButton": true,
+    "androidAuthorizationSdk": "22.0.0",
+    "androidRuntimeSignIn": "confirmed manually by owner before auto-sync update",
+    "tokensPersisted": false,
+    "configurationCommitted": false,
+    "androidProjectCompiled": true,
+    "nativeAuthorizationClassesPackaged": true,
+    "desktopClientSecretAbsentFromApk": true
+  },
+  "automaticSync": {
+    "scope": "Android foreground",
+    "defaultEnabled": true,
+    "localChangeDebounceSeconds": 1,
+    "pollIntervalSeconds": 30,
+    "startupAndResume": true,
+    "accountScopedDurableQueue": true,
+    "safeEditorGate": true,
+    "pairedWorkspaceLoopbackTests": "PASS",
+    "membership": "trusted owners holding the explicitly transferred workspace key",
+    "pairing": "one-time encrypted backup restore",
+    "individualDeviceSignaturesAndRevocation": false
+  },
+  "notTested": [
+    "two real devices through Drive",
+    "automatic sync runtime on physical phone",
+    "individual device signatures/recovery/revoke/rotation",
+    "Desktop GUI OAuth and automatic sync",
+    "Android process-dead background sync/WorkManager",
+    "Windows",
+    "physical power-loss/disk-full",
+    "load",
+    "real Google quota and failure scenarios",
+    "server/backend regression (unchanged)"
+  ],
+  "computer": "left on",
+  "push": false
+}

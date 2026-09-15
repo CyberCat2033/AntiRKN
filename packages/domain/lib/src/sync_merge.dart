@@ -46,7 +46,9 @@ final class SyncMergeStatus {
 
 /// Internal receive boundary for a workspace already authorized by its caller.
 /// AEAD proves possession of the workspace key, not a device signature. The
-/// future device/transport layer must authorize senders before calling this.
+/// caller must establish workspace membership before calling this. The owner
+/// mode uses explicitly transferred workspace keys as membership credentials;
+/// it does not claim per-device author signatures or revocation.
 abstract interface class SyncMergeStore {
   Future<SyncMergeStatus> receiveSyncPackets(List<Uint8List> packets);
   Future<SyncMergeStatus> readSyncMergeStatus();

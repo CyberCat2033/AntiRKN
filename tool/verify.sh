@@ -8,12 +8,17 @@ python3 tool/generate_sync.py --check
 python3 tool/generate_vless.py --check
 python3 tool/generate_runner.py --check
 python3 -m unittest discover -s tests/runner -v
+python3 -m unittest discover -s tests/tools -v
 (
   cd apps/manager
   flutter gen-l10n
 )
-dart format --output=none --set-exit-if-changed apps packages tool/compile_fixtures.dart tool/compile_vless_fixture.dart
+dart format --output=none --set-exit-if-changed apps packages tool/compile_fixtures.dart tool/compile_vless_fixture.dart tool/drive_smoke.dart
 flutter analyze --no-pub
+(
+  cd packages/integrations
+  dart test
+)
 (
   cd packages/sync
   dart test

@@ -6,12 +6,18 @@ workspace:
   - apps/manager
   - packages/storage
   - packages/sync
+  - packages/integrations
   - packages/ssh_transport
   - packages/domain
   - packages/network_inventory
   - packages/design_system
   - packages/profile_compiler
 dev_dependencies:
+  antirkn_integrations:
+    path: packages/integrations
+  antirkn_sync:
+    path: packages/sync
+  cryptography: 2.9.0
   antirkn_domain:
     path: packages/domain
   antirkn_profile_compiler:

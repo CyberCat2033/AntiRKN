@@ -26,3 +26,8 @@ device-key.json
 
 __pycache__/
 *.pyc
+
+# OAuth configuration and token exports stay outside the repository.
+client_secret_*.json
+google-oauth*.json
+desktop-client.json

@@ -3985,6 +3985,162 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Rejected groups with inconsistent change history: {count}. Working data is preserved.'**
   String syncRejectedCount(int count);
+
+  /// No description provided for @googleAccountTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Google account'**
+  String get googleAccountTitle;
+
+  /// No description provided for @googleAccountHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to Google to connect Google Drive.'**
+  String get googleAccountHelp;
+
+  /// No description provided for @googleSignIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to Google'**
+  String get googleSignIn;
+
+  /// No description provided for @googleSwitchAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch account'**
+  String get googleSwitchAccount;
+
+  /// No description provided for @googleSignOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out'**
+  String get googleSignOut;
+
+  /// No description provided for @googleConnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Google Drive connected.'**
+  String get googleConnected;
+
+  /// No description provided for @googleWorking.
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting to Google…'**
+  String get googleWorking;
+
+  /// No description provided for @googleConfigurationError.
+  ///
+  /// In en, this message translates to:
+  /// **'Google sign-in is not configured for this build. Check the Android client and app certificate.'**
+  String get googleConfigurationError;
+
+  /// No description provided for @googleDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'Google Drive access was not granted. Sign in again and allow access.'**
+  String get googleDenied;
+
+  /// No description provided for @googleNetworkError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not reach Google. Check your connection and sign in again.'**
+  String get googleNetworkError;
+
+  /// No description provided for @googleStorageError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save the account in secure storage. Try again.'**
+  String get googleStorageError;
+
+  /// No description provided for @googleReauthorize.
+  ///
+  /// In en, this message translates to:
+  /// **'Please sign in to Google again.'**
+  String get googleReauthorize;
+
+  /// No description provided for @googleUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Google sign-in is unavailable. Check Google Play services and try again.'**
+  String get googleUnavailable;
+
+  /// No description provided for @autoSyncTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic sync'**
+  String get autoSyncTitle;
+
+  /// No description provided for @autoSyncHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'After saving, on opening, and every 30 seconds while the app is in the foreground.'**
+  String get autoSyncHelp;
+
+  /// No description provided for @autoSyncDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic sync is off.'**
+  String get autoSyncDisabled;
+
+  /// No description provided for @autoSyncWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Changes are waiting to sync.'**
+  String get autoSyncWaiting;
+
+  /// No description provided for @autoSyncWorking.
+  ///
+  /// In en, this message translates to:
+  /// **'Exchanging data with Google Drive…'**
+  String get autoSyncWorking;
+
+  /// No description provided for @autoSyncDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Google Drive exchange completed.'**
+  String get autoSyncDone;
+
+  /// No description provided for @autoSyncEditing.
+  ///
+  /// In en, this message translates to:
+  /// **'Data received. Close the server editor and open settings or the server list to apply it. Current operations must finish first.'**
+  String get autoSyncEditing;
+
+  /// No description provided for @autoSyncConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'Different versions received. Choose a version in the conflicts section below.'**
+  String get autoSyncConflict;
+
+  /// No description provided for @autoSyncIncomplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Some data is waiting for related changes or failed validation. Check the conflicts section.'**
+  String get autoSyncIncomplete;
+
+  /// No description provided for @autoSyncError.
+  ///
+  /// In en, this message translates to:
+  /// **'The exchange did not finish. Your data is saved; the app will retry automatically.'**
+  String get autoSyncError;
+
+  /// No description provided for @autoSyncNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync now'**
+  String get autoSyncNow;
+
+  /// No description provided for @autoSyncLast.
+  ///
+  /// In en, this message translates to:
+  /// **'Last exchange: {time}'**
+  String autoSyncLast(String time);
+
+  /// No description provided for @autoSyncPairing.
+  ///
+  /// In en, this message translates to:
+  /// **'Second device: export an encrypted backup below once and restore it on the other device, then sign in to the same Google account. The backup transfers the shared key: trust every device you share it with. Sync does not run when the app is fully closed.'**
+  String get autoSyncPairing;
 }
 
 class _AppLocalizationsDelegate

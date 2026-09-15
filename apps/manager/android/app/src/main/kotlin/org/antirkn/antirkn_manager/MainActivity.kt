@@ -15,6 +15,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.Future
 
 class MainActivity : FlutterActivity() {
+    private var googleAuthorization: GoogleAuthorizationBridge? = null
     private val reader = Executors.newSingleThreadExecutor()
     private var pending: MethodChannel.Result? = null
     private var pickingKey = false
@@ -28,6 +29,7 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        googleAuthorization = GoogleAuthorizationBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "org.antirkn/template_picker")
             .setMethodCallHandler { call, result ->
                 if (call.method == "cancelKey") {
@@ -67,6 +69,7 @@ class MainActivity : FlutterActivity() {
     @Deprecated("Activity result bridge for the Flutter host")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (googleAuthorization?.onActivityResult(requestCode, resultCode, data) == true) return
         if (requestCode != requestId || pending == null) return
         if (resultCode != Activity.RESULT_OK) {
             finishPick(requestCode)
@@ -157,6 +160,8 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        googleAuthorization?.dispose()
+        googleAuthorization = null
         finishPick(requestId, error = "template_read_error")
         reader.shutdownNow()
         super.onDestroy()

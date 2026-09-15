@@ -1,0 +1,15 @@
+{
+  "kind": "real-google-drive-synthetic-probe",
+  "status": "PASS",
+  "checks": {
+    "startToken": true,
+    "generatedAppDataId": true,
+    "resumableUpload": true,
+    "exactCiphertextAndDecrypt": true,
+    "privateAppDataMetadata": true,
+    "sameIdRetry409": true,
+    "appDataListing": true,
+    "appDataChangesAndCursor": true,
+    "syntheticFilesRemoved": true
+  }
+}

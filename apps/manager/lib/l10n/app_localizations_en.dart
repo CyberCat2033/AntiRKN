@@ -2230,4 +2230,95 @@ class AppLocalizationsEn extends AppLocalizations {
   String syncRejectedCount(int count) {
     return 'Rejected groups with inconsistent change history: $count. Working data is preserved.';
   }
+
+  @override
+  String get googleAccountTitle => 'Google account';
+
+  @override
+  String get googleAccountHelp => 'Sign in to Google to connect Google Drive.';
+
+  @override
+  String get googleSignIn => 'Sign in to Google';
+
+  @override
+  String get googleSwitchAccount => 'Switch account';
+
+  @override
+  String get googleSignOut => 'Sign out';
+
+  @override
+  String get googleConnected => 'Google Drive connected.';
+
+  @override
+  String get googleWorking => 'Connecting to Google…';
+
+  @override
+  String get googleConfigurationError =>
+      'Google sign-in is not configured for this build. Check the Android client and app certificate.';
+
+  @override
+  String get googleDenied =>
+      'Google Drive access was not granted. Sign in again and allow access.';
+
+  @override
+  String get googleNetworkError =>
+      'Could not reach Google. Check your connection and sign in again.';
+
+  @override
+  String get googleStorageError =>
+      'Could not save the account in secure storage. Try again.';
+
+  @override
+  String get googleReauthorize => 'Please sign in to Google again.';
+
+  @override
+  String get googleUnavailable =>
+      'Google sign-in is unavailable. Check Google Play services and try again.';
+
+  @override
+  String get autoSyncTitle => 'Automatic sync';
+
+  @override
+  String get autoSyncHelp =>
+      'After saving, on opening, and every 30 seconds while the app is in the foreground.';
+
+  @override
+  String get autoSyncDisabled => 'Automatic sync is off.';
+
+  @override
+  String get autoSyncWaiting => 'Changes are waiting to sync.';
+
+  @override
+  String get autoSyncWorking => 'Exchanging data with Google Drive…';
+
+  @override
+  String get autoSyncDone => 'Google Drive exchange completed.';
+
+  @override
+  String get autoSyncEditing =>
+      'Data received. Close the server editor and open settings or the server list to apply it. Current operations must finish first.';
+
+  @override
+  String get autoSyncConflict =>
+      'Different versions received. Choose a version in the conflicts section below.';
+
+  @override
+  String get autoSyncIncomplete =>
+      'Some data is waiting for related changes or failed validation. Check the conflicts section.';
+
+  @override
+  String get autoSyncError =>
+      'The exchange did not finish. Your data is saved; the app will retry automatically.';
+
+  @override
+  String get autoSyncNow => 'Sync now';
+
+  @override
+  String autoSyncLast(String time) {
+    return 'Last exchange: $time';
+  }
+
+  @override
+  String get autoSyncPairing =>
+      'Second device: export an encrypted backup below once and restore it on the other device, then sign in to the same Google account. The backup transfers the shared key: trust every device you share it with. Sync does not run when the app is fully closed.';
 }

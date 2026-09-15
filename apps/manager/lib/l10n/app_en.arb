@@ -837,5 +837,38 @@
         "type": "int"
       }
     }
+  },
+  "googleAccountTitle": "Google account",
+  "googleAccountHelp": "Sign in to Google to connect Google Drive.",
+  "googleSignIn": "Sign in to Google",
+  "googleSwitchAccount": "Switch account",
+  "googleSignOut": "Sign out",
+  "googleConnected": "Google Drive connected.",
+  "googleWorking": "Connecting to Google…",
+  "googleConfigurationError": "Google sign-in is not configured for this build. Check the Android client and app certificate.",
+  "googleDenied": "Google Drive access was not granted. Sign in again and allow access.",
+  "googleNetworkError": "Could not reach Google. Check your connection and sign in again.",
+  "googleStorageError": "Could not save the account in secure storage. Try again.",
+  "googleReauthorize": "Please sign in to Google again.",
+  "googleUnavailable": "Google sign-in is unavailable. Check Google Play services and try again.",
+  "autoSyncTitle": "Automatic sync",
+  "autoSyncHelp": "After saving, on opening, and every 30 seconds while the app is in the foreground.",
+  "autoSyncDisabled": "Automatic sync is off.",
+  "autoSyncWaiting": "Changes are waiting to sync.",
+  "autoSyncWorking": "Exchanging data with Google Drive…",
+  "autoSyncDone": "Google Drive exchange completed.",
+  "autoSyncEditing": "Data received. Close the server editor and open settings or the server list to apply it. Current operations must finish first.",
+  "autoSyncConflict": "Different versions received. Choose a version in the conflicts section below.",
+  "autoSyncIncomplete": "Some data is waiting for related changes or failed validation. Check the conflicts section.",
+  "autoSyncError": "The exchange did not finish. Your data is saved; the app will retry automatically.",
+  "autoSyncNow": "Sync now",
+  "autoSyncLast": "Last exchange: {time}",
+  "autoSyncPairing": "Second device: export an encrypted backup below once and restore it on the other device, then sign in to the same Google account. The backup transfers the shared key: trust every device you share it with. Sync does not run when the app is fully closed.",
+  "@autoSyncLast": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
   }
 }

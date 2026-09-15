@@ -1,3 +1,6 @@
+export 'src/auto_sync.dart';
+export 'src/google_account.dart';
+export 'src/sync_transport.dart';
 export 'src/sync_merge.dart';
 export 'src/canonical_json.dart';
 export 'src/backup.dart';

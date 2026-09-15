@@ -26,6 +26,13 @@ class ServerCatalogController extends ChangeNotifier {
   SshController? get selected => _sessions[selectedId];
   SshController? sessionFor(String id) => _sessions[id];
   bool get needsLegacyPassword => repository.needsLegacyPassword;
+  bool get hasUnsavedEdits => _sessions.values.any(
+    (s) =>
+        !s.saved &&
+        (s.hasSavedProfile ||
+            s.host.text.trim().isNotEmpty ||
+            s.serverName.text.trim().isNotEmpty),
+  );
   bool get hasActiveWork =>
       loading ||
       _sessions.values.any(
@@ -117,6 +124,17 @@ class ServerCatalogController extends ChangeNotifier {
         session.network.dispose();
       }
     }
+  }
+
+  Future<void> reloadAfterSync() async {
+    if (selectedId != null || hasActiveWork || hasUnsavedEdits) return;
+    for (final session in _sessions.values) {
+      session.removeListener(_sessionChanged);
+      session.dispose();
+      session.network.dispose();
+    }
+    _sessions.clear();
+    await load();
   }
 
   SshStage stageFor(String id) => _sessions[id]?.stage ?? SshStage.idle;

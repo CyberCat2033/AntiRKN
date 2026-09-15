@@ -15,11 +15,14 @@ import 'package:sqlite3/sqlite3.dart';
 import 'profile_codec.dart';
 import 'backup_envelope.dart';
 import 'secret_vault.dart';
+import 'sync_transport_database.dart';
+import 'package:antirkn_integrations/antirkn_integrations.dart';
 
 part 'workspace_journal.dart';
 part 'workspace_backup.dart';
 part 'workspace_sync.dart';
 part 'workspace_merge.dart';
+part 'workspace_auto_sync.dart';
 
 Future<WorkspaceDatabase> openLocalWorkspace() async {
   final support = await getApplicationSupportDirectory();
@@ -122,7 +125,7 @@ final class WorkspaceDatabase
         SettingsStore,
         TemplateDraftStore,
         LanguagePreferenceStore {
-  WorkspaceDatabase._(this._db, this._key, this._legacy);
+  WorkspaceDatabase._(this._db, this._key, this._legacy, this._path);
   factory WorkspaceDatabase.open(
     String path, {
     required SecretKeyData key,
@@ -156,13 +159,16 @@ final class WorkspaceDatabase
           rethrow;
         }
       }
-      return WorkspaceDatabase._(db, key, legacy);
+      return WorkspaceDatabase._(db, key, legacy, path);
     } catch (_) {
       db.dispose();
       key.destroy();
       rethrow;
     }
   }
+  final String _path;
+  final _localChanges = StreamController<void>.broadcast();
+  Stream<void> get localChanges => _localChanges.stream;
   final Database _db;
   final SecretKeyData _key;
   final SecretVault? _legacy;
@@ -203,6 +209,9 @@ final class WorkspaceDatabase
     _db.execute('BEGIN IMMEDIATE');
     try {
       _journal.checkIdentity();
+      final sequence = _db
+          .select('SELECT sequence FROM sync_identity')
+          .single['sequence'];
       _db.execute(
         'UPDATE sync_identity SET write_guard=1, writer_device=?, writer_version=5 WHERE singleton=1',
         [_journal.identity.deviceId],
@@ -212,6 +221,10 @@ final class WorkspaceDatabase
         'UPDATE sync_identity SET write_guard=0, writer_device=NULL, writer_version=0 WHERE singleton=1',
       );
       _db.execute('COMMIT');
+      if (_db.select('SELECT sequence FROM sync_identity').single['sequence'] !=
+          sequence) {
+        _localChanges.add(null);
+      }
       return result;
     } catch (_) {
       _db.execute('ROLLBACK');
@@ -722,6 +735,7 @@ final class WorkspaceDatabase
     _closed = true;
     _db.dispose();
     _key.destroy();
+    await _localChanges.close();
   }
 }
 
