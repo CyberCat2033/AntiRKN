@@ -6,7 +6,7 @@
   "templateLoading": "Чтение базового конфига…",
   "profileWarning": "Предупреждение",
   "profileError": "Ошибка",
-  "operationObserving": "Операция подтверждена на другом устройстве. Статус читается с сервера.",
+  "operationObserving": "Изменение с вашего устройства. Статус обновляется автоматически.",
   "operationMissing": "Сервер пока не сообщил об этой операции. Перед продолжением здесь проверьте её статус.",
   "operationTakeOver": "Проверить и продолжить на этом устройстве",
   "settings": "Настройки",
@@ -913,7 +913,7 @@
   "uiMaintenance": "Обслуживание",
   "uiConnection": "Подключение",
   "uiDisconnectBeforeDelete": "Перед удалением завершите операции и отключите SSH.",
-  "uiQrCopyHint": "Нажмите, чтобы скопировать ссылку",
+  "uiQrCopyHint": "Сканируйте для импорта в Clash Mi / Meta. Нажмите на QR, чтобы скопировать прямую ссылку на YAML.",
   "uiLinkCopied": "Ссылка скопирована",
   "uiCopyFailed": "Не удалось скопировать ссылку. Нажмите QR ещё раз.",
   "uiPreviewYaml": "Просмотр YAML",
@@ -955,7 +955,7 @@
   "publicationOldContent": "Текущее содержимое файла",
   "publicationNewContent": "Профиль для замены",
   "publicationBindConfirm": "Заменить и привязать",
-  "publicationPickerSettings": "Настройка Google Picker",
+  "publicationPickerSettings": "Выбор файлов Google Drive",
   "publicationPickerApiKey": "Публичный API key",
   "publicationPickerProject": "Project number (числовой)",
   "publicationBindPending": "Перепривязка ожидает завершения. До проверки новой ссылки доступна прежняя.",
@@ -968,12 +968,154 @@
   "uiSystemUpdate": "Обновить систему",
   "uiSystemUpdateHelp": "Список пакетов обновится перед выбором обновлений.",
   "uiCheck": "Проверить",
-  "uiShareProfile": "Поделиться профилем",
+  "uiShareProfile": "QR подключения",
   "uiPublicAddresses": "Публичные IP-адреса",
   "uiNoPublicAddresses": "Публичные адреса не обнаружены",
   "uiOffline": "Не подключён",
   "uiProtocolClients": "Доступы клиентов",
   "uiServices": "Службы и обновления",
   "uiNetworkSsh": "Сеть и SSH",
-  "uiAccount": "Аккаунт"
+  "uiAccount": "Аккаунт",
+  "uiInterface": "Интерфейс",
+  "uiInterfaceHelp": "Тема и язык приложения",
+  "uiSynchronization": "Синхронизация",
+  "uiSyncHelp": "Google Drive и ваши устройства",
+  "uiClientProfiles": "Клиентские профили",
+  "uiClientProfilesHelp": "Базовый YAML, папка и ссылки",
+  "uiBackupHelp": "Сохранение и восстановление данных",
+  "uiComponentUpdates": "Обновления",
+  "uiUpdatesHelp": "Проверка версий компонентов",
+  "uiAppSettings": "Настройки приложения",
+  "uiMyData": "Мои данные",
+  "uiPersonalWorkspace": "Личное пространство",
+  "uiBack": "Назад",
+  "uiSshAccess": "Доступ SSH",
+  "uiActivity": "История действий",
+  "uiActivityHelp": "Действия со всех ваших устройств",
+  "uiServerAbout": "О сервере",
+  "uiServerAboutSummary": "Внешние IP, трафик и место на диске",
+  "uiServerAboutHelp": "Данные сервера при последнем обновлении",
+  "uiNoActivity": "Действий пока нет",
+  "uiServerChanges": "Изменение сервера",
+  "uiNotConfigured": "Не настроен",
+  "uiNoClientAccess": "Доступ ещё не настроен",
+  "uiDiskCapacity": "Объём диска",
+  "uiTraffic": "Трафик сервера",
+  "uiTrafficReceived": "Загрузка",
+  "uiTrafficSent": "Выгрузка",
+  "uiTrafficReset": "Сбросить отсчёт",
+  "uiTrafficSinceBoot": "С текущего запуска сервера",
+  "uiTrafficResetHelp": "Отсчёт сохраняется на этом устройстве. Учитываются интерфейсы с маршрутом по умолчанию. После перезапуска сервера отсчёт начинается заново.",
+  "uiDiskSpace": "Место на системном диске",
+  "uiDiskFree": "Свободно",
+  "uiCopyAddress": "Скопировать адрес",
+  "uiClashRefreshHint": "Clash Mi: при новом импорте интервал обновления — 24 часа. Клиент обновляет профиль, когда запущен и доступна сеть.",
+  "uiConnectionCount": "Подключений: {count}",
+  "@uiConnectionCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "uiObservedAt": "Обновлено: {time}",
+  "@uiObservedAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "uiTrafficSince": "После сброса {time}",
+  "@uiTrafficSince": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "uiDiskTotal": "Всего: {size}",
+  "@uiDiskTotal": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "uiAddressCopied": "IP-адрес скопирован",
+  "uiServersIntro": "Ваши серверы и подключения",
+  "uiMyServers": "Мои серверы",
+  "uiClientsIntro": "Доступы и профили ваших клиентов",
+  "uiClientsEmptyHelp": "Добавьте клиента, чтобы настроить доступ и выдать профиль подключения.",
+  "uiBackupExportHelp": "Сохранить данные приложения в файл",
+  "uiBackupImportHelp": "Перенести данные на это устройство",
+  "uiApplicationData": "Данные приложения",
+  "uiUpdatesShort": "Обновления",
+  "uiUpdatesAutomaticHelp": "Новые версии компонентов на серверах",
+  "uiUpdatesSuggestionsHelp": "Сообщать о доступных обновлениях",
+  "uiSyncAutomaticHelp": "Изменения на всех ваших устройствах",
+  "uiPairDeviceHelp": "Перенести личное пространство и включить обмен изменениями",
+  "uiPublicProfileHelp": "Профиль доступен по прямой ссылке. QR-код и ссылку можно получить в карточке клиента.",
+  "uiPublicationAutoHelp": "Сохранять изменения по прежним ссылкам",
+  "uiVlessIntro": "Подключения VLESS на этом сервере",
+  "uiAwgIntro": "Интерфейсы AmneziaWG на этом сервере",
+  "uiInterfaces": "Интерфейсы",
+  "uiTtIntro": "Точки подключения TrustTunnel",
+  "uiConnections": "Подключения",
+  "uiTtSetup": "Настроить TrustTunnel",
+  "uiPeerCount": "Подключений: {count}",
+  "@uiPeerCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "uiForceDeleteClient": "Удалить принудительно",
+  "uiForceDeleteWarning": "Клиент «{name}» исчезнет из приложения. На недоступных серверах ({servers}) доступ может ещё работать. Приложение завершит отзыв при следующем подключении.",
+  "@uiForceDeleteWarning": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "servers": {
+        "type": "String"
+      }
+    }
+  },
+  "uiDeletingClients": "Удаление клиентов: {count}",
+  "@uiDeletingClients": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "uiDeletingClientsHelp": "Приложение подключается к серверам и отзывает доступ",
+  "uiDeletionProgress": "Удаление клиентов",
+  "uiForceDeleteOffer": "Не удалось подключиться к серверу за 3 попытки. Клиента «{name}» можно удалить, не дожидаясь сервера.",
+  "@uiForceDeleteOffer": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "uiClashImport": "Профиль подключения для Clash Mi",
+  "uiConnectionSettings": "Подключение",
+  "uiAuthentication": "Данные для входа",
+  "uiInstalledComponents": "Компоненты, установленные на сервере",
+  "uiOtherComponents": "Остальные компоненты",
+  "uiRemoveProtocol": "Удалить протокол",
+  "uiRemoveProtocolHelp": "Службы и все подключения этого протокола будут удалены с сервера, включая созданные вне AntiRKN. Клиенты потеряют доступ через этот протокол.",
+  "uiRemoveVlessHelp": "Удаляется 3x-ui / Xray целиком. Все инбаунды этой службы, в том числе других протоколов, перестанут работать.",
+  "uiRemoveProtocolBusy": "Дождитесь завершения текущей операции на сервере.",
+  "uiRemoveProtocolConnect": "Сначала подключитесь по SSH. После подключения снова удерживайте плитку протокола.",
+  "uiRemoveProtocolStarted": "Удаление запущено. Результат появится в обслуживании сервера.",
+  "uiRemoveProtocolFailed": "Не удалось удалить протокол. Проверьте состояние сервера и повторите.",
+  "uiRemoveProtocolConflict": "Установка изменилась. Обновите сервер и подтвердите новый план удаления.",
+  "uiRemoveProtocolUnsupported": "Эта установка имеет нестандартную конфигурацию. Автоматическое удаление недоступно.",
+  "uiNotInstalled": "Не установлен",
+  "uiInstallProtocolHelp": "Протокол не установлен на сервере. Подготовить установку? Перед запуском появится план изменений.",
+  "uiInstallProtocolConnect": "Подключитесь к серверу по SSH, затем снова нажмите на протокол для установки."
 }

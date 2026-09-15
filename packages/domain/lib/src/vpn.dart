@@ -28,6 +28,7 @@ final class VpnUser {
     }
     if (deletion != null) {
       if (enabled ||
+          deletion!['hidden'] != null && deletion!['hidden'] is! bool ||
           deletion!['version'] != 1 ||
           !RegExp(
             r'^[a-f0-9]{32}$',
@@ -42,6 +43,13 @@ final class VpnUser {
       }
       for (final target in (deletion!['targets'] as Map).values) {
         if (target is! Map ||
+            target['connectionAttempts'] != null &&
+                (target['connectionAttempts'] is! int ||
+                    target['connectionAttempts'] < 0 ||
+                    target['connectionAttempts'] > 3) ||
+            target['connectAfter'] != null &&
+                (target['connectAfter'] is! int ||
+                    target['connectAfter'] < 0) ||
             ![
               'waiting',
               'running',

@@ -19,16 +19,17 @@ class PublicationSettingsPanel extends StatefulWidget {
   const PublicationSettingsPanel({
     required this.controller,
     this.showTitle = true,
+    this.configuration = false,
     super.key,
   });
-  final bool showTitle;
+  final bool showTitle, configuration;
   final PublicationController controller;
   @override
   State<PublicationSettingsPanel> createState() => _PublicationSettingsState();
 }
 
 class _PublicationSettingsState extends State<PublicationSettingsPanel> {
-  PublicationAccess access = PublicationAccess.private;
+  static const access = PublicationAccess.link;
   List<PublicationFile>? folders;
   PublicationFile? folder;
   bool loading = false;
@@ -40,6 +41,35 @@ class _PublicationSettingsState extends State<PublicationSettingsPanel> {
       final c = widget.controller,
           l = AppLocalizations.of(context),
           settings = c.settings;
+      if (settings == null && !widget.configuration) {
+        final setup = ListTile(
+          leading: const Icon(Icons.folder_outlined),
+          title: Text(l.publicationTitle),
+          subtitle: Text(l.publicationHelp),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => showDialog<void>(
+            context: context,
+            builder: (context) => AppFormDialog(
+              title: Text(l.publicationTitle),
+              content: PublicationSettingsPanel(
+                controller: c,
+                showTitle: false,
+                configuration: true,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(l.networkClose),
+                ),
+              ],
+            ),
+          ),
+        );
+        return widget.showTitle
+            ? AppSettingsSection(title: l.uiClientProfiles, child: setup)
+            : setup;
+      }
+
       final content = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -56,26 +86,7 @@ class _PublicationSettingsState extends State<PublicationSettingsPanel> {
           if (c.accountError != null) Text(l.publicationAuthorizeHelp),
           if (c.error != null) Text(publicationMessage(l, c.error!.name)),
           if (settings == null && c.authorized) ...[
-            DropdownButtonFormField<PublicationAccess>(
-              initialValue: access,
-              decoration: InputDecoration(labelText: l.publicationAccess),
-              items: [
-                DropdownMenuItem(
-                  value: PublicationAccess.private,
-                  child: Text(l.publicationPrivate),
-                ),
-                DropdownMenuItem(
-                  value: PublicationAccess.link,
-                  child: Text(l.publicationLink),
-                ),
-              ],
-              onChanged: c.editing ? null : (v) => setState(() => access = v!),
-            ),
-            Text(
-              access == PublicationAccess.link
-                  ? l.publicationLinkHelp
-                  : l.publicationPrivateHelp,
-            ),
+            Text(l.publicationLinkHelp),
             if (folders != null)
               DropdownButtonFormField<String>(
                 initialValue: folder?.id ?? '',
@@ -133,23 +144,29 @@ class _PublicationSettingsState extends State<PublicationSettingsPanel> {
             ),
           ],
           if (settings != null) ...[
-            Text('${l.publicationFolder}: ${settings.folderName}'),
-            TextButton.icon(
-              key: const ValueKey('publication-picker-settings'),
-              onPressed: c.editing
-                  ? null
-                  : () => showDialog<void>(
-                      context: context,
-                      builder: (_) => _PickerSettingsDialog(controller: c),
-                    ),
-              icon: const Icon(Icons.folder_open),
-              label: Text(l.publicationPickerSettings),
+            ListTile(
+              leading: const Icon(Icons.folder_outlined),
+              title: Text(l.publicationFolder),
+              subtitle: Text(settings.folderName),
+              onTap: () => showAppDetails(
+                context,
+                title: l.publicationFolder,
+                children: [SelectableText(settings.folderName)],
+              ),
             ),
-            Text(
-              settings.access == PublicationAccess.link
-                  ? l.publicationLink
-                  : l.publicationPrivate,
-            ),
+            if (!c.pickerReady)
+              TextButton.icon(
+                key: const ValueKey('publication-picker-settings'),
+                onPressed: c.editing
+                    ? null
+                    : () => showDialog<void>(
+                        context: context,
+                        builder: (_) => _PickerSettingsDialog(controller: c),
+                      ),
+                icon: const Icon(Icons.folder_open),
+                label: Text(l.publicationPickerSettings),
+              ),
+            const Divider(indent: 17, endIndent: 17),
             if (!settings.folderReady)
               FilledButton(
                 onPressed: c.editing ? null : c.completeSetup,
@@ -157,10 +174,15 @@ class _PublicationSettingsState extends State<PublicationSettingsPanel> {
               )
             else
               SwitchListTile(
-                contentPadding: EdgeInsets.zero,
                 title: Text(l.publicationAuto),
+                subtitle: Text(l.uiPublicationAutoHelp),
                 value: settings.enabled,
-                onChanged: c.editing ? null : c.setEnabled,
+                onChanged: c.editing
+                    ? null
+                    : (value) {
+                        AppHaptics.selection();
+                        c.setEnabled(value);
+                      },
               ),
             if (c.error != null ||
                 c.queues.values.any((q) => q['status'] == 'error'))
@@ -172,7 +194,7 @@ class _PublicationSettingsState extends State<PublicationSettingsPanel> {
         ],
       );
       return widget.showTitle
-          ? SectionCard(title: l.publicationTitle, child: content)
+          ? AppSettingsSection(title: l.publicationTitle, child: content)
           : content;
     },
   );
@@ -248,7 +270,7 @@ class _PickerSettingsDialogState extends State<_PickerSettingsDialog> {
     final l = AppLocalizations.of(context);
     return PopScope(
       canPop: !busy,
-      child: AlertDialog(
+      child: AppFormDialog(
         title: Text(l.publicationPickerSettings),
         content: SizedBox(
           width: 560,

@@ -28,7 +28,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get operationObserving =>
-      'Операция подтверждена на другом устройстве. Статус читается с сервера.';
+      'Изменение с вашего устройства. Статус обновляется автоматически.';
 
   @override
   String get operationMissing =>
@@ -2473,7 +2473,8 @@ class AppLocalizationsRu extends AppLocalizations {
       'Перед удалением завершите операции и отключите SSH.';
 
   @override
-  String get uiQrCopyHint => 'Нажмите, чтобы скопировать ссылку';
+  String get uiQrCopyHint =>
+      'Сканируйте для импорта в Clash Mi / Meta. Нажмите на QR, чтобы скопировать прямую ссылку на YAML.';
 
   @override
   String get uiLinkCopied => 'Ссылка скопирована';
@@ -2592,7 +2593,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get publicationBindConfirm => 'Заменить и привязать';
 
   @override
-  String get publicationPickerSettings => 'Настройка Google Picker';
+  String get publicationPickerSettings => 'Выбор файлов Google Drive';
 
   @override
   String get publicationPickerApiKey => 'Публичный API key';
@@ -2636,7 +2637,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get uiCheck => 'Проверить';
 
   @override
-  String get uiShareProfile => 'Поделиться профилем';
+  String get uiShareProfile => 'QR подключения';
 
   @override
   String get uiPublicAddresses => 'Публичные IP-адреса';
@@ -2658,4 +2659,285 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get uiAccount => 'Аккаунт';
+
+  @override
+  String get uiInterface => 'Интерфейс';
+
+  @override
+  String get uiInterfaceHelp => 'Тема и язык приложения';
+
+  @override
+  String get uiSynchronization => 'Синхронизация';
+
+  @override
+  String get uiSyncHelp => 'Google Drive и ваши устройства';
+
+  @override
+  String get uiClientProfiles => 'Клиентские профили';
+
+  @override
+  String get uiClientProfilesHelp => 'Базовый YAML, папка и ссылки';
+
+  @override
+  String get uiBackupHelp => 'Сохранение и восстановление данных';
+
+  @override
+  String get uiComponentUpdates => 'Обновления';
+
+  @override
+  String get uiUpdatesHelp => 'Проверка версий компонентов';
+
+  @override
+  String get uiAppSettings => 'Настройки приложения';
+
+  @override
+  String get uiMyData => 'Мои данные';
+
+  @override
+  String get uiPersonalWorkspace => 'Личное пространство';
+
+  @override
+  String get uiBack => 'Назад';
+
+  @override
+  String get uiSshAccess => 'Доступ SSH';
+
+  @override
+  String get uiActivity => 'История действий';
+
+  @override
+  String get uiActivityHelp => 'Действия со всех ваших устройств';
+
+  @override
+  String get uiServerAbout => 'О сервере';
+
+  @override
+  String get uiServerAboutSummary => 'Внешние IP, трафик и место на диске';
+
+  @override
+  String get uiServerAboutHelp => 'Данные сервера при последнем обновлении';
+
+  @override
+  String get uiNoActivity => 'Действий пока нет';
+
+  @override
+  String get uiServerChanges => 'Изменение сервера';
+
+  @override
+  String get uiNotConfigured => 'Не настроен';
+
+  @override
+  String get uiNoClientAccess => 'Доступ ещё не настроен';
+
+  @override
+  String get uiDiskCapacity => 'Объём диска';
+
+  @override
+  String get uiTraffic => 'Трафик сервера';
+
+  @override
+  String get uiTrafficReceived => 'Загрузка';
+
+  @override
+  String get uiTrafficSent => 'Выгрузка';
+
+  @override
+  String get uiTrafficReset => 'Сбросить отсчёт';
+
+  @override
+  String get uiTrafficSinceBoot => 'С текущего запуска сервера';
+
+  @override
+  String get uiTrafficResetHelp =>
+      'Отсчёт сохраняется на этом устройстве. Учитываются интерфейсы с маршрутом по умолчанию. После перезапуска сервера отсчёт начинается заново.';
+
+  @override
+  String get uiDiskSpace => 'Место на системном диске';
+
+  @override
+  String get uiDiskFree => 'Свободно';
+
+  @override
+  String get uiCopyAddress => 'Скопировать адрес';
+
+  @override
+  String get uiClashRefreshHint =>
+      'Clash Mi: при новом импорте интервал обновления — 24 часа. Клиент обновляет профиль, когда запущен и доступна сеть.';
+
+  @override
+  String uiConnectionCount(int count) {
+    return 'Подключений: $count';
+  }
+
+  @override
+  String uiObservedAt(String time) {
+    return 'Обновлено: $time';
+  }
+
+  @override
+  String uiTrafficSince(String time) {
+    return 'После сброса $time';
+  }
+
+  @override
+  String uiDiskTotal(String size) {
+    return 'Всего: $size';
+  }
+
+  @override
+  String get uiAddressCopied => 'IP-адрес скопирован';
+
+  @override
+  String get uiServersIntro => 'Ваши серверы и подключения';
+
+  @override
+  String get uiMyServers => 'Мои серверы';
+
+  @override
+  String get uiClientsIntro => 'Доступы и профили ваших клиентов';
+
+  @override
+  String get uiClientsEmptyHelp =>
+      'Добавьте клиента, чтобы настроить доступ и выдать профиль подключения.';
+
+  @override
+  String get uiBackupExportHelp => 'Сохранить данные приложения в файл';
+
+  @override
+  String get uiBackupImportHelp => 'Перенести данные на это устройство';
+
+  @override
+  String get uiApplicationData => 'Данные приложения';
+
+  @override
+  String get uiUpdatesShort => 'Обновления';
+
+  @override
+  String get uiUpdatesAutomaticHelp => 'Новые версии компонентов на серверах';
+
+  @override
+  String get uiUpdatesSuggestionsHelp => 'Сообщать о доступных обновлениях';
+
+  @override
+  String get uiSyncAutomaticHelp => 'Изменения на всех ваших устройствах';
+
+  @override
+  String get uiPairDeviceHelp =>
+      'Перенести личное пространство и включить обмен изменениями';
+
+  @override
+  String get uiPublicProfileHelp =>
+      'Профиль доступен по прямой ссылке. QR-код и ссылку можно получить в карточке клиента.';
+
+  @override
+  String get uiPublicationAutoHelp => 'Сохранять изменения по прежним ссылкам';
+
+  @override
+  String get uiVlessIntro => 'Подключения VLESS на этом сервере';
+
+  @override
+  String get uiAwgIntro => 'Интерфейсы AmneziaWG на этом сервере';
+
+  @override
+  String get uiInterfaces => 'Интерфейсы';
+
+  @override
+  String get uiTtIntro => 'Точки подключения TrustTunnel';
+
+  @override
+  String get uiConnections => 'Подключения';
+
+  @override
+  String get uiTtSetup => 'Настроить TrustTunnel';
+
+  @override
+  String uiPeerCount(int count) {
+    return 'Подключений: $count';
+  }
+
+  @override
+  String get uiForceDeleteClient => 'Удалить принудительно';
+
+  @override
+  String uiForceDeleteWarning(String name, String servers) {
+    return 'Клиент «$name» исчезнет из приложения. На недоступных серверах ($servers) доступ может ещё работать. Приложение завершит отзыв при следующем подключении.';
+  }
+
+  @override
+  String uiDeletingClients(int count) {
+    return 'Удаление клиентов: $count';
+  }
+
+  @override
+  String get uiDeletingClientsHelp =>
+      'Приложение подключается к серверам и отзывает доступ';
+
+  @override
+  String get uiDeletionProgress => 'Удаление клиентов';
+
+  @override
+  String uiForceDeleteOffer(String name) {
+    return 'Не удалось подключиться к серверу за 3 попытки. Клиента «$name» можно удалить, не дожидаясь сервера.';
+  }
+
+  @override
+  String get uiClashImport => 'Профиль подключения для Clash Mi';
+
+  @override
+  String get uiConnectionSettings => 'Подключение';
+
+  @override
+  String get uiAuthentication => 'Данные для входа';
+
+  @override
+  String get uiInstalledComponents => 'Компоненты, установленные на сервере';
+
+  @override
+  String get uiOtherComponents => 'Остальные компоненты';
+
+  @override
+  String get uiRemoveProtocol => 'Удалить протокол';
+
+  @override
+  String get uiRemoveProtocolHelp =>
+      'Службы и все подключения этого протокола будут удалены с сервера, включая созданные вне AntiRKN. Клиенты потеряют доступ через этот протокол.';
+
+  @override
+  String get uiRemoveVlessHelp =>
+      'Удаляется 3x-ui / Xray целиком. Все инбаунды этой службы, в том числе других протоколов, перестанут работать.';
+
+  @override
+  String get uiRemoveProtocolBusy =>
+      'Дождитесь завершения текущей операции на сервере.';
+
+  @override
+  String get uiRemoveProtocolConnect =>
+      'Сначала подключитесь по SSH. После подключения снова удерживайте плитку протокола.';
+
+  @override
+  String get uiRemoveProtocolStarted =>
+      'Удаление запущено. Результат появится в обслуживании сервера.';
+
+  @override
+  String get uiRemoveProtocolFailed =>
+      'Не удалось удалить протокол. Проверьте состояние сервера и повторите.';
+
+  @override
+  String get uiRemoveProtocolConflict =>
+      'Установка изменилась. Обновите сервер и подтвердите новый план удаления.';
+
+  @override
+  String get uiRemoveProtocolUnsupported =>
+      'Эта установка имеет нестандартную конфигурацию. Автоматическое удаление недоступно.';
+
+  @override
+  String get uiNotInstalled => 'Не установлен';
+
+  @override
+  String get uiInstallProtocolHelp =>
+      'Протокол не установлен на сервере. Подготовить установку? Перед запуском появится план изменений.';
+
+  @override
+  String get uiInstallProtocolConnect =>
+      'Подключитесь к серверу по SSH, затем снова нажмите на протокол для установки.';
 }

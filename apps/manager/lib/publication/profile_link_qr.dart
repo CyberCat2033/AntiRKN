@@ -4,11 +4,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../l10n/app_localizations.dart';
+import 'clash_profile_link.dart';
 
-/// Encodes and copies the same verified download URL, with no duplicate action.
+/// Scanning imports into Clash; tapping copies the verified direct YAML URL.
 class ProfileLinkQr extends StatefulWidget {
-  const ProfileLinkQr({required this.url, required this.beforeCopy, super.key});
+  const ProfileLinkQr({
+    required this.url,
+    required this.beforeCopy,
+    this.profileName = '',
+    super.key,
+  });
   final String url;
+  final String profileName;
   final Future<void> Function() beforeCopy;
   @override
   State<ProfileLinkQr> createState() => _ProfileLinkQrState();
@@ -34,6 +41,7 @@ class _ProfileLinkQrState extends State<ProfileLinkQr> {
       await widget.beforeCopy();
       if (!mounted || widget.url != url) return;
       await Clipboard.setData(ClipboardData(text: url));
+      AppHaptics.confirm();
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -56,7 +64,7 @@ class _ProfileLinkQrState extends State<ProfileLinkQr> {
       children: [
         Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 256),
+            constraints: const BoxConstraints(maxWidth: 320),
             child: AspectRatio(
               aspectRatio: 1,
               child: Semantics(
@@ -70,13 +78,17 @@ class _ProfileLinkQrState extends State<ProfileLinkQr> {
                     borderRadius: BorderRadius.circular(16),
                     clipBehavior: Clip.antiAlias,
                     child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
                       key: const ValueKey('profile-link-qr'),
                       onTap: copying ? null : copy,
                       child: Padding(
                         padding: const EdgeInsets.all(AppLayout.gap),
                         child: ExcludeSemantics(
                           child: QrImageView(
-                            data: widget.url,
+                            data: clashProfileLink(
+                              widget.url,
+                              name: widget.profileName,
+                            ).toString(),
                             padding: const EdgeInsets.all(16),
                             backgroundColor: Colors.white,
                             errorCorrectionLevel: QrErrorCorrectLevel.M,
@@ -100,6 +112,12 @@ class _ProfileLinkQrState extends State<ProfileLinkQr> {
         ),
         const SizedBox(height: AppLayout.smallGap),
         Text(l.uiQrCopyHint, textAlign: TextAlign.center),
+        const SizedBox(height: AppLayout.smallGap),
+        Text(
+          l.uiClashRefreshHint,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
         if (error != null)
           Semantics(
             liveRegion: true,

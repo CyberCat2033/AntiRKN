@@ -12,12 +12,14 @@ class SshPanel extends StatefulWidget {
     this.motion = MotionPreference.system,
     this.showDelete = true,
     this.showConnectionActions = true,
+    this.editorOnly = false,
     super.key,
   });
   final SshController controller;
   final MotionPreference motion;
   final bool showDelete;
   final bool showConnectionActions;
+  final bool editorOnly;
   @override
   State<SshPanel> createState() => _SshPanelState();
 }
@@ -76,6 +78,7 @@ class _SshPanelState extends State<SshPanel> {
     listenable: widget.controller,
     builder: (context, _) {
       final c = widget.controller;
+      final expanded = widget.editorOnly || c.settingsExpanded;
       final l = AppLocalizations.of(context);
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -87,10 +90,10 @@ class _SshPanelState extends State<SshPanel> {
             OutlinedButton(onPressed: c.initialise, child: Text(l.vaultRetry)),
           if (c.unlocked) ...[
             SectionCard(
-              title: c.settingsExpanded || !widget.showDelete
+              title: expanded || !widget.showDelete
                   ? l.sshTitle
                   : c.displayName,
-              trailing: c.settingsExpanded
+              trailing: expanded
                   ? null
                   : IconButton(
                       key: const ValueKey('ssh-edit'),
@@ -103,9 +106,12 @@ class _SshPanelState extends State<SshPanel> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (c.settingsExpanded) ...[
-                      Text(l.sshReadOnly),
-                      const SizedBox(height: AppLayout.gap),
+                    if (expanded) ...[
+                      AppPageIntro(l.sshReadOnly),
+                      AppSectionHeading(
+                        title: l.uiConnectionSettings,
+                        uppercase: true,
+                      ),
                       _field(
                         c.serverName,
                         l.sshServerName,
@@ -171,6 +177,10 @@ class _SshPanelState extends State<SshPanel> {
                         Text(l.sshJumpHelp),
                         const SizedBox(height: AppLayout.gap),
                       ],
+                      AppSectionHeading(
+                        title: l.uiAuthentication,
+                        uppercase: true,
+                      ),
                       Wrap(
                         spacing: AppLayout.smallGap,
                         runSpacing: AppLayout.smallGap,
@@ -235,9 +245,9 @@ class _SshPanelState extends State<SshPanel> {
                         Text(l.sshAgentHelp),
                       if (c.stage == SshStage.connected) Text(l.sshEditHelp),
                     ],
-                    if (!c.settingsExpanded && widget.showConnectionActions)
+                    if (!expanded && widget.showConnectionActions)
                       Text(c.os ?? l.sshOsUnknown),
-                    if (!c.settingsExpanded)
+                    if (!expanded)
                       Text(
                         '${c.username.text} · ${c.port.text} · ${switch (c.authMethod) {
                           SshAuthMethod.password => l.sshAuthPassword,
@@ -245,7 +255,7 @@ class _SshPanelState extends State<SshPanel> {
                           SshAuthMethod.agent => l.sshAuthAgent,
                         }}',
                       ),
-                    if (c.settingsExpanded &&
+                    if (expanded &&
                         c.stage != SshStage.connected &&
                         c.lastInfo != null)
                       Text(
@@ -271,7 +281,7 @@ class _SshPanelState extends State<SshPanel> {
                           child: Text(l.sshReplaceServer),
                         ),
                       ),
-                    if (c.settingsExpanded && c.saved) Text(l.sshSaved),
+                    if (expanded && c.saved) Text(l.sshSaved),
                     const SizedBox(height: AppLayout.gap),
                     if (c.busy && c.stage != SshStage.verifying)
                       const LinearProgressIndicator(),
@@ -286,7 +296,7 @@ class _SshPanelState extends State<SshPanel> {
                         SshStage.connected => l.sshConnected,
                       }),
                     ),
-                    if (c.settingsExpanded && c.observation != null) ...[
+                    if (expanded && c.observation != null) ...[
                       Text(
                         '${c.observation!.os} · ${c.observation!.architecture}',
                       ),
@@ -323,7 +333,7 @@ class _SshPanelState extends State<SshPanel> {
                           ),
                         ],
                       ),
-                    ] else if (c.settingsExpanded && c.trustedKey != null) ...[
+                    ] else if (expanded && c.trustedKey != null) ...[
                       Text(l.sshTrustedKey),
                       SelectableText(
                         '${c.trustedKey!.algorithm}\n${c.trustedKey!.fingerprint}',
@@ -334,8 +344,7 @@ class _SshPanelState extends State<SshPanel> {
                       spacing: AppLayout.smallGap,
                       runSpacing: AppLayout.smallGap,
                       children: [
-                        if (c.stage == SshStage.connected &&
-                            !c.settingsExpanded) ...[
+                        if (c.stage == SshStage.connected && !expanded) ...[
                           if (widget.showConnectionActions)
                             TextButton(
                               onPressed: c.refresh,
@@ -362,13 +371,13 @@ class _SshPanelState extends State<SshPanel> {
                                 c.saved ? l.sshConnect : l.sshSaveAndConnect,
                               ),
                             ),
-                          if (c.settingsExpanded)
+                          if (expanded)
                             OutlinedButton(
                               key: const ValueKey('ssh-save'),
                               onPressed: c.editing && !c.saved ? c.save : null,
                               child: Text(l.sshSave),
                             ),
-                          if (c.settingsExpanded && c.hasSavedProfile)
+                          if (expanded && c.hasSavedProfile)
                             TextButton(
                               key: const ValueKey('ssh-edit-cancel'),
                               onPressed: c.editing ? c.cancelEditing : null,
@@ -376,7 +385,7 @@ class _SshPanelState extends State<SshPanel> {
                             ),
                         ],
                         if (widget.showDelete &&
-                            c.settingsExpanded &&
+                            expanded &&
                             c.editing &&
                             c.hasSavedProfile &&
                             c.stage != SshStage.connected)
@@ -392,7 +401,7 @@ class _SshPanelState extends State<SshPanel> {
                 ),
               ),
             ),
-            if (!c.settingsExpanded &&
+            if (!expanded &&
                 c.showPrivilegePrompt &&
                 (c.stage == SshStage.connected ||
                     c.stage == SshStage.checkingPrivileges ||
@@ -506,7 +515,7 @@ Future<void> confirmSshProfileDeletion(
   final l = AppLocalizations.of(context);
   final accepted = await showDialog<bool>(
     context: context,
-    builder: (context) => AlertDialog(
+    builder: (context) => AppFormDialog(
       title: Text(l.uiDeleteServer),
       content: Text(l.sshDeleteHelp),
       actions: [

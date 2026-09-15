@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'catalog_selection.dart';
 
 typedef SelectableItem = Widget Function(String id, Widget child);
@@ -72,16 +71,12 @@ class _DragSelectListState extends State<DragSelectList> {
     return candidate;
   }
 
-  void _haptic() {
-    unawaited(HapticFeedback.selectionClick().catchError((Object _) {}));
-  }
-
   void _start(LongPressStartDetails details) {
     if (!widget.enabled) return;
     final index = _indexAt(details.globalPosition);
     if (index == null) return;
     before = widget.selection.active ? Set.of(widget.selection.ids) : {};
-    if (!widget.selection.active) widget.selection.start();
+    if (!widget.selection.active) widget.selection.start(feedback: false);
     anchor = index;
     pointer = details.globalPosition;
     _range(index);
@@ -92,12 +87,7 @@ class _DragSelectListState extends State<DragSelectList> {
     final start = anchor;
     if (start == null) return;
     final lo = start < end ? start : end, hi = start > end ? start : end;
-    if (widget.selection.replace({
-      ...before,
-      ...widget.ids.sublist(lo, hi + 1),
-    })) {
-      _haptic();
-    }
+    widget.selection.replace({...before, ...widget.ids.sublist(lo, hi + 1)});
   }
 
   void _move(LongPressMoveUpdateDetails details) {

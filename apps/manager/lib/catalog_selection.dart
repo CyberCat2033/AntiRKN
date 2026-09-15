@@ -13,10 +13,12 @@ class CatalogSelection extends ChangeNotifier {
       ..clear()
       ..addAll(values);
     notifyListeners();
+    AppHaptics.selection();
     return true;
   }
 
-  void start() {
+  void start({bool feedback = true}) {
+    if (feedback) AppHaptics.selection();
     active = true;
     ids.clear();
     notifyListeners();
@@ -29,11 +31,13 @@ class CatalogSelection extends ChangeNotifier {
   }
 
   void toggle(String id) {
+    AppHaptics.selection();
     if (!ids.remove(id)) ids.add(id);
     notifyListeners();
   }
 
   void selectAll(Iterable<String> available) {
+    AppHaptics.selection();
     final next = available.toSet();
     if (next.isNotEmpty && ids.containsAll(next)) {
       ids.clear();
@@ -69,46 +73,51 @@ class CatalogActions extends StatelessWidget {
     listenable: selection,
     builder: (context, _) {
       final l = AppLocalizations.of(context);
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (selection.active) ...[
-            IconButton(
-              key: ValueKey('$prefix-delete-selected'),
-              tooltip: l.catalogDeleteSelected,
-              onPressed: busy || selection.ids.isEmpty ? null : onDelete,
-              icon: const Icon(Icons.delete_outline),
-            ),
-            IconButton(
-              key: ValueKey('$prefix-select-all'),
-              tooltip: l.catalogSelectAll,
-              onPressed: busy || available.isEmpty
-                  ? null
-                  : () => selection.selectAll(available),
-              icon: const Icon(Icons.select_all),
-            ),
-            IconButton(
-              key: ValueKey('$prefix-edit-exit'),
-              tooltip: l.catalogExitEditing,
-              onPressed: busy ? null : selection.exit,
-              icon: const Icon(Icons.close),
-            ),
-          ] else ...[
-            if (addLabel != null)
+      return AnimatedSwitcher(
+        duration: AppMotion.duration(context, MotionPreference.system),
+        switchInCurve: AppMotion.curve,
+        child: Row(
+          key: ValueKey(selection.active),
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (selection.active) ...[
               IconButton(
-                key: ValueKey('$prefix-add'),
-                tooltip: addLabel,
-                onPressed: busy ? null : onAdd,
-                icon: const Icon(Icons.add),
+                key: ValueKey('$prefix-delete-selected'),
+                tooltip: l.catalogDeleteSelected,
+                onPressed: busy || selection.ids.isEmpty ? null : onDelete,
+                icon: const Icon(Icons.delete_outline),
               ),
-            IconButton(
-              key: ValueKey('$prefix-edit'),
-              tooltip: l.catalogEdit,
-              onPressed: busy || available.isEmpty ? null : selection.start,
-              icon: const Icon(Icons.edit_outlined),
-            ),
+              IconButton(
+                key: ValueKey('$prefix-select-all'),
+                tooltip: l.catalogSelectAll,
+                onPressed: busy || available.isEmpty
+                    ? null
+                    : () => selection.selectAll(available),
+                icon: const Icon(Icons.select_all),
+              ),
+              IconButton(
+                key: ValueKey('$prefix-edit-exit'),
+                tooltip: l.catalogExitEditing,
+                onPressed: busy ? null : selection.exit,
+                icon: const Icon(Icons.close),
+              ),
+            ] else ...[
+              if (addLabel != null)
+                IconButton(
+                  key: ValueKey('$prefix-add'),
+                  tooltip: addLabel,
+                  onPressed: busy ? null : onAdd,
+                  icon: const Icon(Icons.add),
+                ),
+              IconButton(
+                key: ValueKey('$prefix-edit'),
+                tooltip: l.catalogEdit,
+                onPressed: busy || available.isEmpty ? null : selection.start,
+                icon: const Icon(Icons.edit_outlined),
+              ),
+            ],
           ],
-        ],
+        ),
       );
     },
   );
@@ -124,7 +133,7 @@ Future<bool> confirmCatalogDeletion(
   final l = AppLocalizations.of(context);
   return await showDialog<bool>(
         context: context,
-        builder: (context) => AlertDialog(
+        builder: (context) => AppFormDialog(
           title: Text(l.catalogDeleteSelected),
           content: SingleChildScrollView(
             child: Column(
@@ -145,7 +154,10 @@ Future<bool> confirmCatalogDeletion(
             ),
             FilledButton(
               key: ValueKey(confirmKey),
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: () {
+                AppHaptics.confirm();
+                Navigator.pop(context, true);
+              },
               child: Text(l.catalogDeleteSelected),
             ),
           ],

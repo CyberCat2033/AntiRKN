@@ -24,32 +24,26 @@ class TemplateSettings extends StatelessWidget {
       final content = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: FilledButton.icon(
-              key: const ValueKey('import-template'),
-              onPressed:
-                  controller.importing ||
-                      controller.busy ||
-                      controller.pickTemplate == null
-                  ? null
-                  : controller.importFile,
-              icon: const Icon(Icons.file_open_outlined),
-              label: Text(l.selectTemplate),
-            ),
-          ),
-          const SizedBox(height: AppLayout.smallGap),
-          Semantics(
-            liveRegion: true,
-            child: Text(
+          ListTile(
+            key: const ValueKey('import-template'),
+            leading: const Icon(Icons.description_outlined),
+            title: Text(l.source),
+            subtitle: Text(
               controller.importing
                   ? l.templateLoading
-                  : controller.importedName != null
-                  ? l.importedTemplate(controller.importedName!)
-                  : hasSource
-                  ? l.templateReady
-                  : l.vpnEmptyTemplate,
+                  : controller.importedName ??
+                        (hasSource ? l.templateReady : l.vpnEmptyTemplate),
             ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap:
+                controller.importing ||
+                    controller.busy ||
+                    controller.pickTemplate == null
+                ? null
+                : () {
+                    AppHaptics.selection();
+                    controller.importFile();
+                  },
           ),
           if (hasSource &&
               controller.draftStore != null &&
@@ -80,11 +74,8 @@ class TemplateSettings extends StatelessWidget {
         ],
       );
       return showTitle
-          ? SectionCard(title: l.source, child: content)
-          : Padding(
-              padding: const EdgeInsets.all(AppLayout.gap),
-              child: content,
-            );
+          ? AppSettingsSection(title: l.uiClientProfiles, child: content)
+          : content;
     },
   );
 }

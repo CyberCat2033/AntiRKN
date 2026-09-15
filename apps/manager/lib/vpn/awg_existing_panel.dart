@@ -53,38 +53,45 @@ class _AwgExistingPanelState extends State<AwgExistingPanel> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(l.awgObserved, style: Theme.of(context).textTheme.titleMedium),
+          AppSectionHeading(title: l.awgObserved),
           for (final item
               in (r.awgDiscovery?['resources'] as List? ?? []).whereType<Map>())
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text('${item['name']} · AWG ${item['version']}'),
-              subtitle: Text(
-                '${item['source']} · UDP ${(item['values'] as Map)['ListenPort']} · ${item['peers']} peers\n${item['active'] == true ? l.vpnEnabled : l.vpnDisabled}',
-              ),
-              trailing: IconButton(
-                icon: const Icon(Icons.edit_outlined),
-                tooltip: l.vpnEdit,
-                onPressed: r.busy || !r.installed || !r.connected
-                    ? null
-                    : () async {
-                        final snapshot = await r.awgRequest(
-                          'awg_external_read',
-                          id: item['id'] as String,
-                        );
-                        if (snapshot == null || !context.mounted) return;
-                        await showDialog<void>(
-                          context: context,
-                          builder: (_) =>
-                              _EditExistingAwg(runner: r, snapshot: snapshot),
-                          animationStyle: AnimationStyle(
-                            duration: AppMotion.duration(
-                              context,
-                              widget.motion,
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: ResourceTile(
+                storageId: 'awg-existing-${item['id']}',
+                title: '${item['name']}',
+                subtitle: l.uiPeerCount(item['peers'] as int),
+                badge: item['active'] == true ? l.vpnEnabled : l.vpnDisabled,
+                detailsLabel: l.componentsDetails,
+                details: [
+                  Text('${item['source']} · AWG ${item['version']}'),
+                  Text('UDP ${(item['values'] as Map)['ListenPort']}'),
+                ],
+                actions: IconButton(
+                  icon: const Icon(Icons.edit_outlined),
+                  tooltip: l.vpnEdit,
+                  onPressed: r.busy || !r.installed || !r.connected
+                      ? null
+                      : () async {
+                          final snapshot = await r.awgRequest(
+                            'awg_external_read',
+                            id: item['id'] as String,
+                          );
+                          if (snapshot == null || !context.mounted) return;
+                          await showDialog<void>(
+                            context: context,
+                            builder: (_) =>
+                                _EditExistingAwg(runner: r, snapshot: snapshot),
+                            animationStyle: AnimationStyle(
+                              duration: AppMotion.duration(
+                                context,
+                                widget.motion,
+                              ),
                             ),
-                          ),
-                        );
-                      },
+                          );
+                        },
+                ),
               ),
             ),
           Align(
@@ -132,7 +139,7 @@ class _EditExistingAwgState extends State<_EditExistingAwg> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context), snapshot = widget.snapshot;
-    return AlertDialog(
+    return AppFormDialog(
       title: Text('${l.vpnEdit} · ${snapshot['name']}'),
       content: SizedBox(
         width: 650,

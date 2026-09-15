@@ -149,7 +149,7 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
     final currentMode = xsettings['mode']?.toString() ?? '';
     final modes = <String>{'auto', 'packet-up', 'stream-up', 'stream-one'};
     if (currentMode.isNotEmpty) modes.add(currentMode);
-    return AlertDialog(
+    return AppFormDialog(
       title: Text(needsAccess ? l.panelConnectTitle : l.vpnEdit),
       content: SizedBox(
         width: 650,

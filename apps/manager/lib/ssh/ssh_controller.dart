@@ -230,6 +230,93 @@ class SshController extends ChangeNotifier {
   String? get os => observation?.os ?? lastInfo?.os;
   ServerSoftwareInventory? get software =>
       observation?.software ?? lastInfo?.software;
+  Map<String, dynamic>? _trafficBaseline;
+  bool trafficStorageFailed = false;
+  bool resettingTraffic = false;
+  SettingsStore? get _trafficStore =>
+      repository is SettingsStore ? repository as SettingsStore : null;
+  bool get canResetTraffic => _trafficStore != null;
+  ServerTrafficSnapshot? get trafficSample {
+    final raw = observation?.software?.facts[ServerFact.networkTraffic]?.value;
+    if (raw == null) return null;
+    try {
+      return ServerTrafficSnapshot.parse(raw);
+    } on FormatException {
+      return null;
+    }
+  }
+
+  ServerTrafficSnapshot? get _matchingTrafficBaseline {
+    final current = trafficSample, stored = _trafficBaseline;
+    if (current == null ||
+        stored == null ||
+        stored['identity'] != runner.identity())
+      return null;
+    try {
+      final baseline = ServerTrafficSnapshot.parse(stored['sample'] as String);
+      if (baseline.bootId != current.bootId ||
+          baseline.interfaces != current.interfaces ||
+          current.counters.entries.any(
+            (e) =>
+                e.value.$1 < baseline.counters[e.key]!.$1 ||
+                e.value.$2 < baseline.counters[e.key]!.$2,
+          ))
+        return null;
+      return baseline;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  (int, int)? get trafficBytes {
+    final current = trafficSample;
+    if (current == null || trafficStorageFailed) return null;
+    final baseline = _matchingTrafficBaseline;
+    return (
+      current.received - (baseline?.received ?? 0),
+      current.sent - (baseline?.sent ?? 0),
+    );
+  }
+
+  DateTime? get trafficResetAt => _matchingTrafficBaseline == null
+      ? null
+      : DateTime.tryParse(_trafficBaseline?['resetAt'] as String? ?? '');
+
+  Future<void> resetTraffic() async {
+    if (resettingTraffic ||
+        stage != SshStage.connected ||
+        busy ||
+        runner.busy ||
+        _trafficStore == null)
+      return;
+    resettingTraffic = true;
+    _notify();
+    try {
+      await refresh();
+      if (_disposed || stage != SshStage.connected || trafficSample == null)
+        return;
+      final next = <String, dynamic>{
+        'identity': runner.identity(),
+        'sample':
+            observation!.software!.facts[ServerFact.networkTraffic]!.value!,
+        'resetAt': DateTime.now().toUtc().toIso8601String(),
+      };
+      await _trafficStore!.writeSetting(
+        'serverTrafficBaseline:$serverId',
+        jsonEncode(next),
+      );
+      if (!_disposed) {
+        _trafficBaseline = next;
+        trafficStorageFailed = false;
+      }
+    } catch (_) {
+      if (!_disposed) trafficStorageFailed = true;
+    } finally {
+      resettingTraffic = false;
+      _notify();
+    }
+  }
+
   TrustedHostKey? get trustedKey =>
       unlocked && _vault!.profile?.host == host.text.trim()
       ? _vault!.profile?.hostKey
@@ -270,6 +357,19 @@ class SshController extends ChangeNotifier {
           return;
         }
         _restore();
+        try {
+          final value = await _trafficStore?.readSetting(
+            'serverTrafficBaseline:$serverId',
+          );
+          _trafficBaseline = value == null
+              ? null
+              : Map<String, dynamic>.from(jsonDecode(value) as Map);
+          if (_trafficBaseline != null)
+            ServerTrafficSnapshot.parse(_trafficBaseline!['sample'] as String);
+          trafficStorageFailed = false;
+        } catch (_) {
+          trafficStorageFailed = true;
+        }
         await runner.restoreLocal();
         jumpCandidates = await repository?.listServers() ?? [];
         initialised = true;
@@ -303,8 +403,15 @@ class SshController extends ChangeNotifier {
   }
 
   void editSettings() {
-    if (!editing) return;
+    // Opening the form is independent from whether its fields are writable.
+    if (!unlocked) return;
     settingsExpanded = true;
+    _notify();
+  }
+
+  void closeSettings() {
+    if (!unlocked || !saved) return;
+    settingsExpanded = false;
     _notify();
   }
 
@@ -462,13 +569,33 @@ class SshController extends ChangeNotifier {
 
   Future<void> connect() => _connect();
 
+  Future<bool?> connectForDeletion() async {
+    if (_disposed || busy || vaultBusy || picking || runner.busy) return null;
+    if (stage == SshStage.connected) return true;
+    if (!hasSavedProfile || !saved) return false;
+    try {
+      await _connect(interactive: false).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          disconnect();
+        },
+      );
+      return !_disposed && stage == SshStage.connected;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// An explicit server replacement still requires fingerprint confirmation.
   Future<void> replaceServer() async {
     if (error != SshIssue.hostKeyChanged) return;
     await _connect(replaceServer: true);
   }
 
-  Future<void> _connect({bool replaceServer = false}) async {
+  Future<void> _connect({
+    bool replaceServer = false,
+    bool interactive = true,
+  }) async {
     if (!editing || _connection != null) return;
     error = null;
     replacingServer = replaceServer;
@@ -518,6 +645,7 @@ class SshController extends ChangeNotifier {
           jumpVaults[jump.id]!,
           cancellation,
           isJump: true,
+          interactive: interactive,
         ),
         verifyHostKey: (key) => _verifyKey(
           profile,
@@ -525,6 +653,7 @@ class SshController extends ChangeNotifier {
           _vault!,
           cancellation,
           replaceServer: replaceServer,
+          interactive: interactive,
         ),
       );
       if (_disposed || generation != _generation || cancellation.isCancelled) {
@@ -593,6 +722,7 @@ class SshController extends ChangeNotifier {
     CancellationToken cancellation, {
     bool replaceServer = false,
     bool isJump = false,
+    bool interactive = true,
   }) async {
     cancellation.check();
     if (profile.hostKey != null && !replaceServer) {
@@ -603,6 +733,7 @@ class SshController extends ChangeNotifier {
       }
       return true;
     }
+    if (!interactive) throw const SshFailure(SshIssue.hostKeyRejected);
     stage = SshStage.verifying;
     verifyingProfile = profile;
     challenge = key;

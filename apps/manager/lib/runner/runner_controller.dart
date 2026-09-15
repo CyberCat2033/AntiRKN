@@ -994,6 +994,74 @@ class RunnerController extends ChangeNotifier {
     _notify();
   }
 
+  Future<Map<String, dynamic>?> prepareProtocolRemoval(String protocol) async {
+    if (!canStart) return null;
+    Map<String, dynamic>? result;
+    await _run((remote, token) async {
+      final response = await remote.request(
+        RunnerRequest.fromJson({
+          'version': 1,
+          'action': 'protocol_remove_plan',
+          'protocol': protocol,
+        }),
+        token,
+        sudoPassword: password(),
+      );
+      responseCode = response.code;
+      if (response.code != 'ok')
+        throw const RunnerFailure(RunnerIssue.conflict);
+      result = response.removalPlan;
+    });
+    return result;
+  }
+
+  Future<bool> removeProtocol(
+    Map<String, dynamic> plan,
+    Future<bool> Function() retireConnections,
+  ) async {
+    if (!canStart) return false;
+    var submitted = false;
+    await _run((remote, token) async {
+      final response = await remote.request(
+        RunnerRequest.fromJson({
+          'version': 1,
+          'action': 'protocol_remove_plan',
+          'protocol': plan['protocol'],
+        }),
+        token,
+        sudoPassword: password(),
+      );
+      if (response.code != 'ok' ||
+          response.removalPlan?['fingerprint'] != plan['fingerprint']) {
+        throw const RunnerFailure(RunnerIssue.conflict);
+      }
+      // Persist the local tombstones/paused desired state before sending the
+      // job, so reconnect or background reconciliation cannot recreate peers.
+      if (!await retireConnections())
+        throw const RunnerFailure(RunnerIssue.storage);
+      token.check();
+      pending = RunnerRequest.fromJson({
+        'version': 1,
+        'action': 'submit',
+        'id': List.generate(
+          16,
+          (_) => Random.secure().nextInt(256).toRadixString(16).padLeft(2, '0'),
+        ).join(),
+        'kind': 'protocol_remove',
+        'count': 4,
+        'interval': 1,
+        'protocol': plan['protocol'],
+        'fingerprint': plan['fingerprint'],
+      });
+      selected = null;
+      cursor = 0;
+      await _save();
+      await _submit(remote, token);
+      submitted = selected?.kind == 'protocol_remove' || pending != null;
+    });
+    return submitted;
+  }
+
   bool get canApplyComponent =>
       connected &&
       !busy &&
@@ -1056,6 +1124,7 @@ class RunnerController extends ChangeNotifier {
           'panel_install',
           'panel_update',
           'component_install',
+          'protocol_remove',
           'inbound_update',
           'awg_external_edit',
           'tt_external_edit',
@@ -1244,6 +1313,7 @@ class RunnerController extends ChangeNotifier {
           'panel_install',
           'panel_update',
           'component_install',
+          'protocol_remove',
           'apt_upgrade',
           'inbound_update',
           'awg_external_edit',
@@ -1273,6 +1343,9 @@ class RunnerController extends ChangeNotifier {
         aptPlan = plan.aptPlan;
         dismissedJobId = job.id;
       }
+    }
+    if (job.kind == 'protocol_remove' && job.status == 'succeeded') {
+      await _discoverPanel(remote, token);
     }
     if (job.kind == 'panel_update' &&
         job.status == 'succeeded' &&

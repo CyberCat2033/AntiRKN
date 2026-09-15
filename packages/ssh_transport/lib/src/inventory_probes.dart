@@ -13,10 +13,23 @@ abstract final class InventoryProbes {
     ServerFact.availableMemoryKiB:
         "awk '/^MemAvailable:/ {print \$2}' /proc/meminfo",
     ServerFact.freeDiskKiB: "df -Pk / | awk 'NR==2 {print \$4}'",
+    ServerFact.totalDiskKiB: "df -Pk / | awk 'NR==2 {print \$2}'",
+    ServerFact.networkTraffic: traffic,
     ServerFact.uid: 'id -u',
     ServerFact.tools:
         'for t in apt-get dpkg-query systemctl docker sudo; do if command -v "\$t" >/dev/null 2>&1; then printf "%s\\n" "\$t"; fi; done',
   };
+  // Read each default-route interface once. Tunnel/bridge peer counters are
+  // not added independently, avoiding counting the same packet twice.
+  static const traffic = r'''cat /proc/sys/kernel/random/boot_id
+{ ip -o -4 route show default; ip -o -6 route show default; } |
+awk '{for (i=1;i<NF;i++) if ($i=="dev") print $(i+1)}' | sort -u |
+while IFS= read -r iface; do
+case "$iface" in ''|lo|*[!a-zA-Z0-9_.:-]*) continue;; esac
+rx=$(cat "/sys/class/net/$iface/statistics/rx_bytes") || exit 1
+tx=$(cat "/sys/class/net/$iface/statistics/tx_bytes") || exit 1
+printf '%s %s %s\n' "$iface" "$rx" "$tx"
+done''';
   static const patterns =
       "'x-ui*.service' 'xray*.service' 'trusttunnel*.service' 'awg-quick@*.service' 'amneziawg*.service' 'antirkn-trusttunnel.service' 'antirkn-awg@*.service'";
   static const services =

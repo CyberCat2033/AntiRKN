@@ -14,6 +14,84 @@ extension ClientDeletion on VpnController {
   );
   bool ownsDeletion(VpnUser user) => user.deletion?['executor'] == _deviceId;
 
+  Iterable<VpnUser> get visibleDeletions =>
+      pendingDeletions.where((u) => u.deletion?['hidden'] != true);
+
+  bool canForceDelete(VpnUser user) =>
+      user.deleted &&
+      !user.deletionComplete &&
+      (user.deletion!['targets'] as Map).values.any(
+        (t) =>
+            t['status'] != 'revoked' &&
+            (t['connectionAttempts'] as int? ?? 0) >= 3,
+      );
+
+  /// Hide the tombstone, never claim that an unreachable server revoked access.
+  Future<void> forceDeleteClient(String userId) => _run((token) async {
+    await checkProfileEffects();
+    final user = workspace.users.singleWhere((u) => u.id == userId);
+    if (!canForceDelete(user)) throw const FormatException('vpn_conflict');
+    await _saveDeletion(userId, {...user.deletion!, 'hidden': true});
+  });
+
+  Future<void> _connectDeletionServers(
+    CancellationToken token, {
+    String? only,
+    bool manual = false,
+  }) async {
+    final connect = connectForDeletion;
+    if (connect == null) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final targets = <String, List<(String, String)>>{};
+    for (final user in pendingRevocations) {
+      if (only != null && user.id != only ||
+          !manual && (!ownsDeletion(user) || user.deletion?['hidden'] == true))
+        continue;
+      for (final entry in (user.deletion!['targets'] as Map).entries) {
+        final record = entry.value as Map;
+        final target = entry.key as String;
+        if (record['status'] == 'revoked' ||
+            remote(target) != null ||
+            !manual &&
+                ((record['connectionAttempts'] as int? ?? 0) >= 3 ||
+                    (record['connectAfter'] as int? ?? 0) > now))
+          continue;
+        (targets[vpnServerId(target)] ??= []).add((user.id, target));
+      }
+    }
+    // Each physical server is contacted once per round, even with many clients
+    // and protocols. Persist failures before another automatic round can run.
+    for (final entry in targets.entries) {
+      token.check();
+      await checkProfileEffects();
+      bool? connected;
+      try {
+        connected = await connect(entry.key);
+      } catch (_) {
+        connected = false;
+      }
+      token.check();
+      if (connected == null) continue;
+      for (final target in entry.value) {
+        final user = workspace.users.singleWhere((u) => u.id == target.$1);
+        final record = Map<String, dynamic>.from(
+          user.deletion!['targets'][target.$2] as Map,
+        );
+        if (record['status'] == 'revoked') continue;
+        await _deletionTarget(user.id, target.$2, {
+          ...record,
+          'connectionAttempts': connected
+              ? 0
+              : ((manual ? 0 : record['connectionAttempts'] as int? ?? 0) + 1)
+                    .clamp(0, 3),
+          'connectAfter': DateTime.now().millisecondsSinceEpoch + 5000,
+          if (!connected) 'error': 'vpn_connection',
+          if (connected && record['error'] == 'vpn_connection') 'error': null,
+        });
+      }
+    }
+  }
+
   Future<void> _saveDeletion(
     String userId,
     Map<String, dynamic> deletion,
@@ -150,6 +228,7 @@ extension ClientDeletion on VpnController {
   /// Another device may continue only after looking up every existing job ID.
   /// Running work stays with its executor; an offline server cannot be guessed.
   Future<void> retryDeletion(String userId) => _run((token) async {
+    await _connectDeletionServers(token, only: userId, manual: true);
     final user = workspace.users.singleWhere(
       (u) => u.id == userId && u.deleted,
     );
@@ -191,12 +270,14 @@ extension ClientDeletion on VpnController {
     bool force = false,
   }) async {
     _restoredTargets = await recovery?.readRestoredTargets() ?? {};
+    await _connectDeletionServers(token, only: only);
     var refreshProfiles = false;
     for (final original in pendingDeletions.toList()) {
       if (only != null && original.id != only || !ownsDeletion(original)) {
         continue;
       }
       final deletionId = original.deletion!['id'] as String;
+      final resumeHidden = force || original.deletion?['hidden'] == true;
       for (final target
           in (original.deletion!['targets'] as Map).keys.cast<String>()) {
         if (_restoredTargets.contains(target)) continue;
@@ -347,7 +428,7 @@ extension ClientDeletion on VpnController {
             record = {...record, 'status': 'revoked'};
             refreshProfiles = true;
           } else if (job.terminal) {
-            if (force && job.status == 'failed' && job.checkpoint == 0) {
+            if (resumeHidden && job.status == 'failed' && job.checkpoint == 0) {
               // No resource was applied. A fresh plan can recover a stale
               // fingerprint; resuming the same immutable preview cannot.
               record = {
@@ -356,12 +437,12 @@ extension ClientDeletion on VpnController {
                 'request': null,
                 'generation': (record['generation'] as int? ?? 0) + 1,
               };
-            } else if (force &&
+            } else if (resumeHidden &&
                 ['failed', 'partially_applied'].contains(job.status)) {
               await _deletionGuard(original.id, deletionId);
               await _request(r, RunnerRequest.resume(request.id!), token);
               record = {...record, 'status': 'running'};
-            } else if (force && job.status == 'cancelled') {
+            } else if (resumeHidden && job.status == 'cancelled') {
               record = {
                 ...record,
                 'status': 'waiting',

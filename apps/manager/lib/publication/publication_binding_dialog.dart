@@ -92,7 +92,7 @@ class _PublicationBindingDialogState extends State<PublicationBindingDialog> {
         value = preview;
     return PopScope(
       canPop: !busy,
-      child: AlertDialog(
+      child: AppFormDialog(
         title: Text(l.publicationBindTitle),
         content: SizedBox(
           width: 620,

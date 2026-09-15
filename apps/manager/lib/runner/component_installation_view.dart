@@ -95,25 +95,34 @@ class ComponentUpdateSettings extends StatelessWidget {
     final c = ComponentUpdatesScope.of(context),
         l = AppLocalizations.of(context);
     if (c == null) return const SizedBox.shrink();
-    return SectionCard(
-      title: l.protocolSoftware,
+    return AppSettingsSection(
+      title: l.uiUpdatesShort,
       child: Column(
         children: [
           SwitchListTile(
-            contentPadding: EdgeInsets.zero,
             title: Text(l.updatesAutomatic),
+            subtitle: Text(l.uiUpdatesAutomaticHelp),
             value: c.automatic,
-            onChanged: (v) => c.setPreference(automatic: v),
+            onChanged: (v) {
+              AppHaptics.selection();
+              c.setPreference(automatic: v);
+            },
           ),
           SwitchListTile(
-            contentPadding: EdgeInsets.zero,
             title: Text(l.updatesSuggestions),
+            subtitle: Text(l.uiUpdatesSuggestionsHelp),
             value: c.suggestions,
-            onChanged: (v) => c.setPreference(suggestions: v),
+            onChanged: (v) {
+              AppHaptics.selection();
+              c.setPreference(suggestions: v);
+            },
           ),
-          TextButton(
-            onPressed: c.busy ? null : c.check,
-            child: Text(l.updatesCheck),
+          const Divider(indent: 17, endIndent: 17),
+          ListTile(
+            leading: const Icon(Icons.refresh),
+            title: Text(l.updatesCheck),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: c.busy ? null : c.check,
           ),
           if (c.busy) const LinearProgressIndicator(),
           if (c.failed) Text(l.updatesFailed),

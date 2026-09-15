@@ -165,6 +165,8 @@ String factLabel(AppLocalizations l, ServerFact f) => switch (f) {
   ServerFact.memoryKiB => l.inventoryMemory,
   ServerFact.availableMemoryKiB => l.inventoryAvailableMemory,
   ServerFact.freeDiskKiB => l.inventoryDisk,
+  ServerFact.totalDiskKiB => l.uiDiskCapacity,
+  ServerFact.networkTraffic => l.uiTraffic,
   ServerFact.uid => l.inventoryUid,
   ServerFact.tools => l.inventoryTools,
 };

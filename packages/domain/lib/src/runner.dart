@@ -279,6 +279,7 @@ final class RunnerJob {
           'tt_external_edit',
           'tt_certificate',
           'component_install',
+          'protocol_remove',
           'inbound_update',
           'apt_update',
           'apt_upgrade',
@@ -341,7 +342,10 @@ final class RunnerJob {
 
 final class RunnerResponse {
   RunnerResponse.fromJson(Map<String, dynamic> value)
-    : tt = value['tt'] == null
+    : removalPlan = value['removalPlan'] == null
+          ? null
+          : Map<String, dynamic>.from(value['removalPlan'] as Map),
+      tt = value['tt'] == null
           ? null
           : Map<String, dynamic>.from(value['tt'] as Map),
       awgExternal = value['awgExternal'] == null
@@ -418,6 +422,7 @@ final class RunnerResponse {
     }
   }
   final String code;
+  final Map<String, dynamic>? removalPlan;
   final Map<String, dynamic>? awgDefaults, awgPlan, awgExternal, tt;
   final List<Map<String, dynamic>>? awgState;
   final PanelUpdatePlan? panelUpdatePlan;

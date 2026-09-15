@@ -14,6 +14,7 @@ import subprocess
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from panel_discovery import discover as discover_panel, connect_existing, external_access
 from components import ComponentInstaller, ComponentError
+from protocol_remove import ProtocolRemoval, RemovalError, plan as removal_plan
 from observed_inbounds import ObservedInboundEdit, snapshot as inbound_snapshot, plan as inbound_plan, stage_payload
 from apt import AptJob, AptError, plan as apt_plan
 from contract import SCHEMA, validate_request
@@ -86,6 +87,8 @@ class Store:
     def request(self, request):
         req = validate_request(request)
         action = req['action']
+        if action == 'protocol_remove_plan':
+            return {**self.response('ok'), 'removalPlan': removal_plan(req['protocol'])}
         if action == 'panel_update_plan':
             return {**self.response('ok'), 'panelUpdatePlan': panel_update_plan(self, req['id'])}
         if action == 'panel_connect':
@@ -190,7 +193,7 @@ class Store:
                 code = 'missing'
             elif action == 'resume':
                 original = json.loads(row['request'])
-                if original['kind'] not in ('panel_install', 'panel_update', 'vless_apply', 'awg_apply', 'awg_external_edit', 'tt_apply', 'tt_external_edit', 'tt_certificate', 'component_install', 'inbound_update') or row['status'] not in ('failed', 'partially_applied'):
+                if original['kind'] not in ('panel_install', 'panel_update', 'vless_apply', 'awg_apply', 'awg_external_edit', 'tt_apply', 'tt_external_edit', 'tt_certificate', 'component_install', 'protocol_remove', 'inbound_update') or row['status'] not in ('failed', 'partially_applied'):
                     code = 'conflict'
                 elif self.db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running')").fetchone():
                     code = 'busy'
@@ -277,6 +280,24 @@ class Store:
                 if isinstance(error, TtError) and error.code == 'tt_busy':
                     return 0.5  # The independent certificate watcher owns the lock.
                 code = error.code if isinstance(error, VlessError) else 'tt_failed' if req['kind'].startswith('tt_') else 'awg_failed' if req['kind'] in ('awg_apply', 'awg_external_edit') else 'vless_api_failed'
+                status = 'partially_applied' if row['checkpoint'] > 0 else 'failed'
+            with self.db:
+                progress = self.db.execute('SELECT checkpoint FROM jobs WHERE id=?', (job_id,)).fetchone()[0]
+                self.db.execute('UPDATE jobs SET status=? WHERE id=?', (status, job_id))
+                self.event(job_id, code, progress, req['count'])
+            return 0.1
+        if req['kind'] == 'protocol_remove':
+            try:
+                if row['cancel']:
+                    status = 'partially_applied' if row['checkpoint'] > 0 else 'cancelled'
+                    code = 'cancelled'
+                else:
+                    ProtocolRemoval(self, req).step(row['checkpoint'])
+                    if row['checkpoint'] + 1 < req['count']:
+                        return 0.1
+                    status, code = 'succeeded', 'succeeded'
+            except (RemovalError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
+                code = error.code if isinstance(error, RemovalError) else 'protocol_remove_failed'
                 status = 'partially_applied' if row['checkpoint'] > 0 else 'failed'
             with self.db:
                 progress = self.db.execute('SELECT checkpoint FROM jobs WHERE id=?', (job_id,)).fetchone()[0]

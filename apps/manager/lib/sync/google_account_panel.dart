@@ -9,12 +9,13 @@ class GoogleAccountPanel extends StatefulWidget {
     required this.service,
     this.sync,
     this.showTitle = true,
+    this.accountDetails = false,
     this.beforeAccountChange,
     this.afterAccountChange,
     super.key,
   });
   final GoogleAccountService service;
-  final bool showTitle;
+  final bool showTitle, accountDetails;
   final AutoSyncController? sync;
   final Future<void> Function()? beforeAccountChange;
   final void Function()? afterAccountChange;
@@ -129,24 +130,35 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (account == null)
-          Text(l.googleAccountHelp)
-        else ...[
-          if (account.displayName.isNotEmpty)
-            Text(
-              account.displayName,
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
-          SelectableText(
-            account.email,
-            key: const ValueKey('google-account-email'),
+        if (_busy) const LinearProgressIndicator(),
+        if (error != null)
+          AppNotice(
+            key: const ValueKey('google-account-error'),
+            message: error,
+            error: true,
           ),
-        ],
-        if (_busy) ...[
-          const SizedBox(height: AppLayout.smallGap),
-          const LinearProgressIndicator(),
+        if (widget.accountDetails) ...[
+          ListTile(
+            leading: const AppIconTile(icon: Icons.account_circle_outlined),
+            title: Text(account?.displayName ?? l.uiGoogleDrive),
+            subtitle: account == null
+                ? Text(l.googleAccountHelp)
+                : SelectableText(
+                    account.email,
+                    key: const ValueKey('google-account-email'),
+                  ),
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            key: const ValueKey('google-sign-in'),
+            onPressed: _busy ? null : () => _act(true),
+            icon: const Icon(Icons.account_circle_outlined),
+            label: Text(
+              account == null ? l.googleSignIn : l.googleSwitchAccount,
+            ),
+          ),
           if (_signingIn && desktop) ...[
-            Text(l.googleDesktopWaiting),
+            AppNotice(message: l.googleDesktopWaiting),
             TextButton(
               key: const ValueKey('google-cancel-sign-in'),
               onPressed: () =>
@@ -154,112 +166,107 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
               child: Text(l.googleCancelSignIn),
             ),
           ],
-        ],
-        if (error != null)
-          Text(
-            error,
-            key: const ValueKey('google-account-error'),
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
-          ),
-        if (account != null && sync != null) ...[
-          const SizedBox(height: AppLayout.smallGap),
-          Text(
-            syncStatusLabel(l, sync),
-            key: const ValueKey('google-sync-status'),
-          ),
-          if ((sync.result?.otherWorkspaces ?? 0) > 0)
-            Text(
-              l.autoSyncOtherWorkspaces,
-              key: const ValueKey('google-other-workspaces'),
+          if (account != null)
+            TextButton(
+              key: const ValueKey('google-sign-out'),
+              onPressed: _busy ? null : () => _act(false),
+              child: Text(l.googleSignOut),
             ),
-          if (sync.phase == AutoSyncPhase.syncing)
-            const LinearProgressIndicator(),
-        ],
-        const SizedBox(height: AppLayout.smallGap),
-        Wrap(
-          spacing: AppLayout.smallGap,
-          runSpacing: AppLayout.smallGap,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            OutlinedButton.icon(
-              key: const ValueKey('google-sign-in'),
-              onPressed: _busy ? null : () => _act(true),
-              icon: const Icon(Icons.account_circle_outlined),
-              label: Text(
-                account == null ? l.googleSignIn : l.googleSwitchAccount,
+        ] else ...[
+          if (account != null && sync != null) ...[
+            ListTile(
+              leading: const AppIconTile(icon: Icons.cloud_done_outlined),
+              title: Text(
+                syncStatusLabel(l, sync),
+                key: const ValueKey('google-sync-status'),
               ),
-            ),
-            if (account != null && sync != null && sync.enabled)
-              IconButton(
+              subtitle: Text(account.email),
+              trailing: IconButton(
                 key: const ValueKey('google-sync-now'),
                 tooltip: l.autoSyncNow,
-                onPressed: _busy || sync.phase == AutoSyncPhase.syncing
+                onPressed:
+                    _busy ||
+                        !sync.enabled ||
+                        sync.phase == AutoSyncPhase.syncing
                     ? null
                     : () => sync.request(immediate: true),
                 icon: const Icon(Icons.sync),
               ),
-          ],
-        ),
-        if (account != null)
-          AppExpansionTile(
-            key: const PageStorageKey('google-account-options'),
-            title: Text(l.uiSyncOptions),
-            tilePadding: EdgeInsets.zero,
-            expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
-            maintainState: true,
-            children: [
-              if (sync != null)
-                SwitchListTile.adaptive(
-                  key: const ValueKey('google-auto-sync'),
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l.autoSyncTitle),
-                  value: sync.enabled,
-                  onChanged: _busy
-                      ? null
-                      : (value) async {
-                          try {
-                            await sync.setEnabled(value);
-                          } catch (_) {
-                            if (mounted) {
-                              setState(
-                                () => _error = GoogleAccountIssue.storage,
-                              );
-                            }
-                          }
-                        },
-                ),
-              Wrap(
-                spacing: AppLayout.smallGap,
-                children: [
-                  TextButton(
-                    onPressed: () => showDialog<void>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: Text(l.uiPairDevice),
-                        content: Text(l.autoSyncPairing),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: Text(l.networkClose),
-                          ),
-                        ],
-                      ),
-                    ),
-                    child: Text(l.uiPairDevice),
-                  ),
-                  TextButton(
-                    key: const ValueKey('google-sign-out'),
-                    onPressed: _busy ? null : () => _act(false),
-                    child: Text(l.googleSignOut),
-                  ),
-                ],
+            ),
+            const Divider(indent: 17, endIndent: 17),
+            if ((sync.result?.otherWorkspaces ?? 0) > 0)
+              AppNotice(
+                key: const ValueKey('google-other-workspaces'),
+                message: l.autoSyncOtherWorkspaces,
               ),
-            ],
+          ],
+          ListTile(
+            leading: const Icon(Icons.cloud_outlined),
+            title: Text(l.uiGoogleDrive),
+            subtitle: Text(
+              account?.displayName.isNotEmpty == true
+                  ? account!.displayName
+                  : account?.email ?? l.googleSignIn,
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _busy
+                ? null
+                : () async {
+                    AppHaptics.selection();
+                    await showDialog<void>(
+                      context: context,
+                      builder: (_) => AppFormDialog(
+                        title: Text(l.uiGoogleDrive),
+                        content: GoogleAccountPanel(
+                          service: widget.service,
+                          sync: sync,
+                          showTitle: false,
+                          accountDetails: true,
+                          beforeAccountChange: widget.beforeAccountChange,
+                          afterAccountChange: widget.afterAccountChange,
+                        ),
+                      ),
+                    );
+                    if (mounted) await _load();
+                  },
           ),
+          if (account != null && sync != null) ...[
+            const Divider(indent: 17, endIndent: 17),
+            SwitchListTile(
+              key: const ValueKey('google-auto-sync'),
+              title: Text(l.autoSyncTitle),
+              subtitle: Text(l.uiSyncAutomaticHelp),
+              value: sync.enabled,
+              onChanged: _busy
+                  ? null
+                  : (value) async {
+                      AppHaptics.selection();
+                      try {
+                        await sync.setEnabled(value);
+                      } catch (_) {
+                        if (mounted)
+                          setState(() => _error = GoogleAccountIssue.storage);
+                      }
+                    },
+            ),
+            const Divider(indent: 17, endIndent: 17),
+            ListTile(
+              leading: const Icon(Icons.devices_outlined),
+              title: Text(l.uiPairDevice),
+              subtitle: Text(l.uiPairDeviceHelp),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => showAppDetails(
+                context,
+                title: l.uiPairDevice,
+                children: [Text(l.autoSyncPairing)],
+              ),
+            ),
+          ],
+        ],
       ],
     );
     return widget.showTitle
-        ? SectionCard(title: l.uiGoogleDrive, child: content)
+        ? AppSettingsSection(title: l.uiSynchronization, child: content)
         : content;
   }
 }

@@ -37,30 +37,34 @@ class BackupPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final content = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Wrap(
-          spacing: AppLayout.smallGap,
-          runSpacing: AppLayout.smallGap,
-          children: [
-            OutlinedButton.icon(
-              key: const ValueKey('backup-export'),
-              onPressed: () => _open(context, false),
-              icon: const Icon(Icons.save_alt),
-              label: Text(l.backupExport),
-            ),
-            OutlinedButton.icon(
-              key: const ValueKey('backup-import'),
-              onPressed: () => _open(context, true),
-              icon: const Icon(Icons.restore),
-              label: Text(l.backupImport),
-            ),
-          ],
+        ListTile(
+          key: const ValueKey('backup-export'),
+          leading: const Icon(Icons.save_alt),
+          title: Text(l.backupExport),
+          subtitle: Text(l.uiBackupExportHelp),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () {
+            AppHaptics.selection();
+            _open(context, false);
+          },
+        ),
+        const Divider(indent: 17, endIndent: 17),
+        ListTile(
+          key: const ValueKey('backup-import'),
+          leading: const Icon(Icons.history),
+          title: Text(l.backupImport),
+          subtitle: Text(l.uiBackupImportHelp),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () {
+            AppHaptics.selection();
+            _open(context, true);
+          },
         ),
       ],
     );
     return showTitle
-        ? SectionCard(title: l.backupTitle, child: content)
+        ? AppSettingsSection(title: l.uiApplicationData, child: content)
         : content;
   }
 }
@@ -144,7 +148,7 @@ class _BackupDialogState extends State<_BackupDialog> {
       };
       return PopScope(
         canPop: !c.busy,
-        child: AlertDialog(
+        child: AppFormDialog(
           title: Text(widget.importing ? l.backupImport : l.backupExport),
           content: SizedBox(
             width: 440,

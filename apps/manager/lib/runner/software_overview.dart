@@ -23,7 +23,9 @@ class SoftwareOverview extends StatelessWidget {
     final updates = ComponentUpdatesScope.of(context);
     final inventory = c.software?.call();
     final content = <Widget>[];
-    if (!c.connected) content.add(Text(l.inventoryStale));
+    final available = <Widget>[];
+    final others = <Widget>[];
+    if (!c.connected) content.add(AppNotice(message: l.inventoryStale));
     for (final component in [
       VpnComponent.panel,
       VpnComponent.trustTunnel,
@@ -123,44 +125,59 @@ class SoftwareOverview extends StatelessWidget {
                     : l.uiCheck,
               ),
             );
-      content.add(
-        Padding(
-          padding: const EdgeInsets.only(bottom: AppLayout.smallGap),
-          child: SummaryCard(
-            title: name,
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(status),
-                if (changes.isNotEmpty)
-                  Text('${l.softwareUpdateAvailable}: ${changes.join(', ')}'),
-                if (changes.isNotEmpty && !canUpdate)
-                  TextButton(
-                    onPressed: () => showDialog<void>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: Text(l.softwareUpdateAvailable),
-                        content: Text(
-                          isPanel
-                              ? l.panelUpdateCompatibility
-                              : l.componentUpdateUnverified,
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: Text(l.networkClose),
-                          ),
-                        ],
-                      ),
-                    ),
-                    child: Text(l.componentsDetails),
+      final summary = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(status),
+          if (changes.isNotEmpty)
+            Text('${l.softwareUpdateAvailable}: ${changes.join(', ')}'),
+          if (changes.isNotEmpty && !canUpdate)
+            TextButton(
+              onPressed: () => showAppDetails(
+                context,
+                title: l.softwareUpdateAvailable,
+                children: [
+                  Text(
+                    isPanel
+                        ? l.panelUpdateCompatibility
+                        : l.componentUpdateUnverified,
                   ),
-              ],
+                ],
+              ),
+              child: Text(l.componentsDetails),
             ),
-            action: action,
-          ),
-        ),
+        ],
       );
+      if (changes.isNotEmpty || canUpdate) {
+        available.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: SummaryCard(
+              leading: AppIconTile(
+                icon: isPanel
+                    ? Icons.inventory_2_outlined
+                    : Icons.shield_outlined,
+              ),
+              title: name,
+              subtitle: summary,
+              action: action,
+            ),
+          ),
+        );
+      } else {
+        if (others.isNotEmpty)
+          others.add(const Divider(indent: 17, endIndent: 17));
+        others.add(
+          ListTile(
+            leading: AppIconTile(
+              icon: isPanel ? Icons.dns_outlined : Icons.shield_outlined,
+            ),
+            title: Text(name),
+            subtitle: summary,
+            trailing: action,
+          ),
+        );
+      }
       if (isPanel) {
         for (final panel in c.panels) {
           if (panel['source'] == 'systemd' &&
@@ -186,7 +203,29 @@ class SoftwareOverview extends StatelessWidget {
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: content,
+      children: [
+        AppPageIntro(l.uiInstalledComponents),
+        if (available.isNotEmpty) ...[
+          AppSectionHeading(title: l.softwareUpdateAvailable, uppercase: true),
+          ...available,
+          const SizedBox(height: 16),
+        ],
+        if (others.isNotEmpty)
+          AppSettingsSection(
+            title: l.uiOtherComponents,
+            child: Column(children: others),
+          ),
+        ...content,
+        if (updates != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 24),
+            child: OutlinedButton.icon(
+              onPressed: updates.busy ? null : updates.check,
+              icon: const Icon(Icons.refresh),
+              label: Text(l.updatesCheck),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -198,6 +237,18 @@ class AptMaintenanceView extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = controller, l = AppLocalizations.of(context);
     final packages = c.aptPlan?['packages'] as List?;
+    if (!c.choosingAptUpdate && c.aptPlan == null)
+      return AppSettingsSection(
+        title: l.aptTitle,
+        child: ListTile(
+          key: const ValueKey('system-update'),
+          leading: const AppIconTile(icon: Icons.dns_outlined),
+          title: Text(l.uiSystemUpdate),
+          subtitle: Text(l.uiSystemUpdateHelp),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: c.canStart ? c.updateSystem : null,
+        ),
+      );
     return SectionCard(
       title: l.aptTitle,
       child: Column(

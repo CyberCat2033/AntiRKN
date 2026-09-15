@@ -5,9 +5,11 @@ import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
+import '../runner/runner_panel.dart';
 import '../publication/publication_controller.dart';
 import '../publication/publication_panel.dart';
 import 'profile_share_sheet.dart';
+import 'client_deletion_panel.dart';
 import 'vpn_controller.dart';
 import 'vpn_plan_view.dart';
 import 'vpn_strings.dart';
@@ -136,6 +138,7 @@ class _UsersPageState extends State<UsersPage> {
   }
 
   Future<void> _profile(BuildContext context, VpnUser user) async {
+    AppHaptics.selection();
     await controller.refreshProfiles();
     if (!context.mounted) return;
     final content = ProfileShareSheet(
@@ -161,20 +164,47 @@ class _UsersPageState extends State<UsersPage> {
         animationStyle: AnimationStyle(
           duration: AppMotion.duration(context, motion),
         ),
-        builder: (_) => Dialog(child: content),
+        builder: (_) => Dialog(clipBehavior: Clip.antiAlias, child: content),
       );
     }
+  }
+
+  String _protocolSummary() {
+    final c = controller, l = AppLocalizations.of(context);
+    final names = <String>[
+      if (c.workspace.inbounds.any(
+        (r) => !r.deleted && r.enabled && r.spec['internal'] != true,
+      ))
+        'VLESS',
+      if (c.workspace.awgInterfaces.any((r) => !r.deleted && r.enabled))
+        'AmneziaWG',
+      if (c.workspace.ttEndpoints.any((r) => !r.deleted && r.enabled))
+        'TrustTunnel',
+    ];
+    return names.isEmpty ? l.uiNoClientAccess : names.join(' · ');
   }
 
   bool _needsAttention(String id) {
     final c = controller,
         record = c.workspace.servers[id],
         job = c.currentJob(id);
+    // A shared job is observed automatically. Only an actual failure needs
+    // attention here; a restored pending marker alone is not a warning.
+    if (c.observesOperation(id)) {
+      return c.observationErrors[id] != null ||
+          job != null &&
+              [
+                'failed',
+                'partially_applied',
+                'needs_attention',
+              ].contains(job.status);
+    }
     return record != null &&
         (record['error'] != null ||
-            record['pending'] != null ||
-            c.needsRestoreReview(id) ||
-            c.observesOperation(id) ||
+            record['pending'] != null &&
+                (!c.observesOperation(id) || job?.terminal != true) ||
+            c.needsRestoreReview(id) && !c.observesOperation(id) ||
+            c.observationErrors[id] != null ||
             job != null &&
                 (!job.terminal ||
                     [
@@ -182,13 +212,14 @@ class _UsersPageState extends State<UsersPage> {
                       'partially_applied',
                       'needs_attention',
                     ].contains(job.status)) ||
-            record['authorizedPayload'] != null &&
+            !c.observesOperation(id) &&
+                record['authorizedPayload'] != null &&
                 record['authorizedPayload'] != record['appliedPayload']);
   }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([controller, selection]),
+    listenable: Listenable.merge([controller, selection, publications]),
     builder: (context, _) {
       final c = controller, l = AppLocalizations.of(context);
       return DragSelectList(
@@ -203,6 +234,27 @@ class _UsersPageState extends State<UsersPage> {
           key: const PageStorageKey('vpn-users'),
           padding: AppLayout.screenPadding(context),
           children: [
+            AppPageIntro(l.uiClientsIntro),
+            if (!selection.active) ...[
+              FilledButton.icon(
+                onPressed: c.busy || !c.loaded
+                    ? null
+                    : () => UsersPage.edit(
+                        context,
+                        c,
+                        motion,
+                        null,
+                        publications,
+                      ),
+                icon: const Icon(Icons.add),
+                label: Text(l.vpnAddUser),
+              ),
+              const SizedBox(height: 20),
+            ],
+            AppSectionHeading(
+              title: l.vpnUsers,
+              count: c.workspace.users.where((u) => !u.deleted).length,
+            ),
             if (showAddAction)
               Row(
                 children: [
@@ -233,132 +285,168 @@ class _UsersPageState extends State<UsersPage> {
                 ],
               ),
             VpnPlanView(controller: c, serverName: serverName),
-            if (!c.workspace.users.any((u) => !u.deleted)) Text(l.vpnNoUsers),
-            for (final user in c.workspace.users.where((u) => !u.deleted))
-              item(
-                user.id,
-                Padding(
-                  padding: const EdgeInsets.only(bottom: AppLayout.smallGap),
-                  child: SummaryCard(
-                    key: ValueKey('client-${user.id}'),
-                    selected:
-                        selection.active && selection.ids.contains(user.id),
-                    leading: selection.active
-                        ? Checkbox(
-                            key: ValueKey('client-select-${user.id}'),
-                            value: selection.ids.contains(user.id),
-                            onChanged: c.busy
-                                ? null
-                                : (_) => selection.toggle(user.id),
-                          )
-                        : CircleAvatar(
-                            child: Text(
-                              user.name
-                                  .trim()
-                                  .split(RegExp(r'\s+'))
-                                  .where((v) => v.isNotEmpty)
-                                  .take(2)
-                                  .map((v) => v.characters.first.toUpperCase())
-                                  .join(),
-                            ),
-                          ),
-                    title: user.name,
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${user.login} · ${user.enabled ? l.vpnEnabled : l.vpnDisabled}',
-                        ),
-                        if (publications != null)
-                          UserPublicationView(
-                            controller: publications!,
-                            userId: user.id,
-                          ),
-                        if (c.results[user.id]?.hasBlockingErrors == true)
-                          Text(
-                            vpnMessage(
-                              l,
-                              c.results[user.id]!.diagnostics.first.code,
-                            ),
-                          ),
-                      ],
-                    ),
-                    onTap: c.busy
-                        ? null
-                        : selection.active
-                        ? () => selection.toggle(user.id)
-                        : () => UsersPage.edit(
-                            context,
-                            c,
-                            motion,
-                            user,
-                            publications,
-                          ),
-                    action: selection.active
-                        ? null
-                        : FilledButton.tonalIcon(
-                            label: Text(l.uiShareProfile),
-                            onPressed: c.busy
-                                ? null
-                                : () => _profile(context, user),
-                            icon: const Icon(Icons.ios_share_outlined),
-                          ),
-                  ),
-                ),
+            if (!c.workspace.users.any((u) => !u.deleted))
+              AppEmptyState(
+                title: l.vpnNoUsers,
+                icon: Icons.people_outline,
+                message: l.uiClientsEmptyHelp,
               ),
-            for (final user in c.pendingDeletions)
-              AppExpansionTile(
-                key: PageStorageKey('client-deletion-${user.id}'),
-                leading: const Icon(Icons.person_remove_outlined),
-                title: Text(user.name),
-                subtitle: Text(
-                  user.revocationComplete
-                      ? l.vpnDeleteFilePending
-                      : l.vpnRevocationPending,
-                ),
-                children: [
-                  for (final entry
-                      in (user.deletion!['targets'] as Map).entries)
-                    ListTile(
-                      title: Text(serverName(vpnServerId(entry.key as String))),
-                      subtitle: Text(
-                        entry.value['status'] == 'revoked'
-                            ? l.vpnAccessRevoked
-                            : entry.value['error'] != null
-                            ? vpnMessage(l, entry.value['error'] as String)
-                            : l.vpnRevocationPending,
+            Card.filled(
+              child: AppAnimatedCollection(
+                motion: motion,
+                items: {
+                  for (final user in c.workspace.users.where((u) => !u.deleted))
+                    user.id: item(
+                      user.id,
+                      Padding(
+                        padding: EdgeInsets.zero,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            border: Border(
+                              top: BorderSide(
+                                color:
+                                    user.id ==
+                                        c.workspace.users
+                                            .firstWhere((u) => !u.deleted)
+                                            .id
+                                    ? Colors.transparent
+                                    : Theme.of(context)
+                                          .colorScheme
+                                          .outlineVariant
+                                          .withValues(alpha: .55),
+                              ),
+                            ),
+                            color:
+                                selection.active &&
+                                    selection.ids.contains(user.id)
+                                ? Theme.of(
+                                    context,
+                                  ).colorScheme.secondaryContainer
+                                : null,
+                          ),
+                          child: Material(
+                            type: MaterialType.transparency,
+                            clipBehavior: Clip.hardEdge,
+                            child: ListTile(
+                              key: ValueKey('client-${user.id}'),
+                              leading: AnimatedSwitcher(
+                                duration: AppMotion.duration(context, motion),
+                                child: selection.active
+                                    ? Checkbox(
+                                        key: ValueKey(
+                                          'client-select-${user.id}',
+                                        ),
+                                        value: selection.ids.contains(user.id),
+                                        onChanged: c.busy
+                                            ? null
+                                            : (_) => selection.toggle(user.id),
+                                      )
+                                    : AppIconTile(
+                                        round: true,
+                                        key: ValueKey(
+                                          'client-avatar-${user.id}',
+                                        ),
+                                        text: user.name
+                                            .trim()
+                                            .characters
+                                            .first
+                                            .toUpperCase(),
+                                      ),
+                              ),
+                              title: Text(user.name),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    user.enabled
+                                        ? _protocolSummary()
+                                        : l.vpnDisabled,
+                                  ),
+                                  if (publications?.queues[user
+                                          .id]?['status'] ==
+                                      'error')
+                                    Text(
+                                      publicationMessage(
+                                        l,
+                                        publications!.queues[user.id]?['issue']
+                                            as String?,
+                                      ),
+                                    ),
+                                  if (c.results[user.id]?.hasBlockingErrors ==
+                                      true)
+                                    Text(
+                                      vpnMessage(
+                                        l,
+                                        c
+                                            .results[user.id]!
+                                            .diagnostics
+                                            .first
+                                            .code,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              onTap: c.busy
+                                  ? null
+                                  : selection.active
+                                  ? () => selection.toggle(user.id)
+                                  : () => UsersPage.edit(
+                                      context,
+                                      c,
+                                      motion,
+                                      user,
+                                      publications,
+                                    ),
+                              trailing: selection.active
+                                  ? null
+                                  : IconButton(
+                                      key: ValueKey('client-qr-${user.id}'),
+                                      tooltip: l.uiShareProfile,
+                                      onPressed: c.busy
+                                          ? null
+                                          : () => _profile(context, user),
+                                      icon: const Icon(Icons.qr_code_2),
+                                    ),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  if (user.deletion!['file']?['error'] case final String issue)
-                    Padding(
-                      padding: const EdgeInsets.all(AppLayout.gap),
-                      child: Text(publicationMessage(l, issue)),
+                },
+              ),
+            ),
+            ClientDeletionPanel(controller: c, serverName: serverName),
+            for (final id in c.workspace.serverIds.where(_needsAttention))
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Card.filled(
+                  child: ListTile(
+                    leading: const AppIconTile(icon: Icons.pending_actions),
+                    title: Text(serverName(vpnServerId(id))),
+                    subtitle: Text(
+                      c.workspace.servers[id]?['error'] != null
+                          ? vpnMessage(
+                              l,
+                              c.workspace.servers[id]!['error'] as String,
+                            )
+                          : c.currentJob(id) != null
+                          ? runnerStateLabel(l, c.currentJob(id)!.status)
+                          : l.uiOperationPending,
                     ),
-                  TextButton(
-                    key: ValueKey('client-deletion-retry-${user.id}'),
-                    onPressed: c.busy ? null : () => c.retryDeletion(user.id),
-                    child: Text(
-                      c.ownsDeletion(user)
-                          ? l.runnerRetry
-                          : l.operationTakeOver,
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => showAppDetails(
+                      context,
+                      title: serverName(vpnServerId(id)),
+                      children: [
+                        ListenableBuilder(
+                          listenable: c,
+                          builder: (context, _) =>
+                              VpnJobView(controller: c, serverId: id),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            for (final id in c.workspace.serverIds.where(_needsAttention))
-              AppExpansionTile(
-                key: PageStorageKey('vpn-operation-$id'),
-                leading: const Icon(Icons.pending_actions),
-                title: Text(serverName(vpnServerId(id))),
-                subtitle: Text(
-                  c.workspace.servers[id]?['error'] != null
-                      ? vpnMessage(
-                          l,
-                          c.workspace.servers[id]!['error'] as String,
-                        )
-                      : l.uiOperationPending,
                 ),
-                children: [VpnJobView(controller: c, serverId: id)],
               ),
           ],
         ),
@@ -392,7 +480,7 @@ class _UserFormState extends State<_UserForm> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    return AlertDialog(
+    return AppFormDialog(
       title: Text(widget.user == null ? l.vpnAddUser : l.vpnEdit),
       content: SingleChildScrollView(
         child: Column(
@@ -419,7 +507,10 @@ class _UserFormState extends State<_UserForm> {
               contentPadding: EdgeInsets.zero,
               title: Text(l.vpnEnabled),
               value: enabled,
-              onChanged: (v) => setState(() => enabled = v),
+              onChanged: (v) {
+                AppHaptics.selection();
+                setState(() => enabled = v);
+              },
             ),
             if (widget.user != null && widget.publications != null)
               ListenableBuilder(
@@ -438,9 +529,7 @@ class _UserFormState extends State<_UserForm> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       const Divider(),
-                      if (c.results[widget.user!.id]?['fileId']
-                          case final String id)
-                        SelectableText(id),
+
                       UserPublicationView(
                         controller: c,
                         userId: widget.user!.id,

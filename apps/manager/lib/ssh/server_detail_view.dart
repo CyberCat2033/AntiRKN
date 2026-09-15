@@ -1,12 +1,29 @@
 import 'package:antirkn_design_system/antirkn_design_system.dart';
-import 'package:flutter/material.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
+import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
-import '../network/network_workbench.dart';
+import '../runner/component_installation_view.dart';
+import '../runner/component_updates_controller.dart';
 import '../runner/runner_panel.dart';
-import 'server_inventory_panel.dart';
+import 'server_about_view.dart';
 import 'ssh_controller.dart';
 import 'ssh_panel.dart';
+
+class ServerProtocolSection {
+  const ServerProtocolSection({
+    required this.name,
+    required this.count,
+    required this.mark,
+    required this.child,
+    this.detected = false,
+    this.onRemove,
+  });
+  final String name, mark;
+  final int count;
+  final bool detected;
+  final Widget child;
+  final Future<bool> Function()? onRemove;
+}
 
 class ServerDetailView extends StatefulWidget {
   const ServerDetailView({
@@ -14,45 +31,485 @@ class ServerDetailView extends StatefulWidget {
     required this.motion,
     this.onBack,
     this.protocols,
+    this.sections = const [],
+    this.plans,
+    this.activity,
+    this.clientCount = 0,
     super.key,
   });
   final SshController session;
   final MotionPreference motion;
-  final Widget? protocols;
   final VoidCallback? onBack;
+  final Widget? protocols, plans, activity;
+  final List<ServerProtocolSection> sections;
+  final int clientCount;
   @override
   State<ServerDetailView> createState() => _ServerDetailViewState();
 }
 
-class PublicServerAddresses extends StatelessWidget {
-  const PublicServerAddresses({required this.controller, super.key});
-  final SshController controller;
+class _ServerDetailViewState extends State<ServerDetailView> {
+  int selected = 0;
+  final visited = <int>{0};
+  Future<void> openProtocol(int index) async {
+    final section = widget.sections[index];
+    if (section.detected) {
+      open(5 + index);
+      return;
+    }
+    final l = AppLocalizations.of(context);
+    final install = await showDialog<bool>(
+      context: context,
+      builder: (context) => AppFormDialog(
+        title: Text('${l.softwareInstall} · ${section.name}'),
+        content: Text(l.uiInstallProtocolHelp),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(l.runnerNotNow),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(l.softwareInstall),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || install != true) return;
+    final c = widget.session;
+    c.closeSettings();
+    if (!c.runner.connected) {
+      open(1);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l.uiInstallProtocolConnect)));
+      return;
+    }
+    open(2);
+    if (section.name == 'VLESS') {
+      await c.runner.openPanelPlan();
+    } else {
+      await c.runner.prepareComponent(
+        section.name == 'AmneziaWG' ? 'amneziawg' : 'trusttunnel',
+      );
+    }
+  }
+
+  void open(int index) {
+    if (index == 1) widget.session.editSettings();
+    if (index != 1 && selected == 1) widget.session.closeSettings();
+    AppHaptics.selection();
+    setState(() {
+      selected = index;
+      visited.add(index);
+    });
+  }
+
+  Future<void> refresh() async {
+    AppHaptics.selection();
+    await widget.session.refresh();
+    await widget.session.runner.refresh();
+  }
+
+  Widget page(String id, List<Widget> children) => RefreshIndicator(
+    onRefresh: refresh,
+    child: ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      key: PageStorageKey('${widget.session.serverId}-$id'),
+      padding: AppLayout.screenPadding(context),
+      children: [
+        Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1000),
+            child: AppAnimatedSize(
+              motion: widget.motion,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: children,
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+  int updateCount(ComponentUpdatesController? updates) {
+    if (updates == null) return 0;
+    final versions = <String, String>{};
+    for (final component
+        in widget.session.software?.components ?? <ComponentObservation>[]) {
+      for (final installation in component.installations) {
+        if (installation.version?.value case final version?) {
+          versions[releaseKey(component.component, installation.identity)] =
+              version;
+        }
+      }
+    }
+    return versions.entries
+        .where(
+          (entry) =>
+              updates.latest[entry.key] != null &&
+              updates.latest[entry.key] != entry.value,
+        )
+        .length;
+  }
+
+  Widget overview(BuildContext context) {
+    final c = widget.session, l = AppLocalizations.of(context);
+    final connected = c.stage == SshStage.connected;
+    final updates = updateCount(ComponentUpdatesScope.of(context));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Card.filled(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    AppIconTile(
+                      size: 52,
+                      text: c.displayName.characters
+                          .take(2)
+                          .toString()
+                          .toUpperCase(),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            c.os ?? l.server,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 4),
+                          SelectableText(
+                            c.host.text,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            connected
+                                ? l.sshConnected
+                                : c.busy
+                                ? l.sshConnecting
+                                : l.uiOffline,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                AppActionRow(
+                  children: [
+                    FilledButton.tonalIcon(
+                      key: ValueKey(
+                        c.busy
+                            ? 'ssh-cancel'
+                            : connected
+                            ? 'ssh-disconnect'
+                            : 'ssh-connect',
+                      ),
+                      onPressed: c.busy || connected
+                          ? () {
+                              AppHaptics.selection();
+                              c.disconnect();
+                            }
+                          : c.editing
+                          ? () {
+                              AppHaptics.selection();
+                              c.connect();
+                            }
+                          : null,
+                      icon: const Icon(Icons.key_outlined),
+                      label: Text(
+                        c.busy
+                            ? l.sshCancel
+                            : connected
+                            ? l.sshDisconnect
+                            : l.sshConnect,
+                      ),
+                    ),
+                    OutlinedButton(
+                      onPressed: () => open(1),
+                      child: Text(l.uiSshAccess),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Divider(height: 1),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    _Count(
+                      value:
+                          '${widget.sections.where((s) => s.count > 0 || s.detected).length}',
+                      label: l.uiProtocols,
+                    ),
+                    const SizedBox(
+                      height: 40,
+                      child: VerticalDivider(width: 20),
+                    ),
+                    _Count(value: '${widget.clientCount}', label: l.vpnUsers),
+                    const SizedBox(
+                      height: 40,
+                      child: VerticalDivider(width: 20),
+                    ),
+                    _Count(value: '$updates', label: l.uiUpdatesShort),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+        AppTwoColumn(
+          first: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AppSectionHeading(title: l.uiProtocols),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final scale = MediaQuery.textScalerOf(context).scale(16) / 16;
+                  final columns = constraints.maxWidth >= 740
+                      ? 3
+                      : constraints.maxWidth >= 300 && scale < 1.5
+                      ? 2
+                      : 1;
+                  final width =
+                      (constraints.maxWidth - (columns - 1) * 12) / columns;
+                  return Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      for (var i = 0; i < widget.sections.length; i++)
+                        SizedBox(
+                          width: width,
+                          child: _ProtocolTile(
+                            section: widget.sections[i],
+                            onTap: () => openProtocol(i),
+                            onLongPress:
+                                widget.sections[i].onRemove == null ||
+                                    !widget.sections[i].detected
+                                ? null
+                                : () async {
+                                    AppHaptics.confirm();
+                                    final submitted =
+                                        await widget.sections[i].onRemove!();
+                                    if (mounted && submitted) open(2);
+                                  },
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+              if (widget.sections.isEmpty && widget.protocols != null)
+                widget.protocols!,
+            ],
+          ),
+          second: AppSettingsSection(
+            title: l.uiMaintenance,
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.system_update_alt),
+                  title: Text(l.uiUpdatesShort),
+                  subtitle: Text(
+                    updates > 0 ? l.softwareUpdateAvailable : l.uiUpdatesHelp,
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => open(2),
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                ListTile(
+                  leading: const Icon(Icons.history),
+                  title: Text(l.uiActivity),
+                  subtitle: Text(l.uiActivityHelp),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => open(3),
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                ListTile(
+                  key: const ValueKey('server-about'),
+                  leading: const Icon(Icons.info_outline),
+                  title: Text(l.uiServerAbout),
+                  subtitle: Text(l.uiServerAboutSummary),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => open(4),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (widget.plans != null)
+          AppAnimatedSize(motion: widget.motion, child: widget.plans!),
+      ],
+    );
+  }
+
+  Widget history(BuildContext context) {
+    final c = widget.session.runner, l = AppLocalizations.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppPageIntro(l.uiActivityHelp),
+        if (c.jobs.isEmpty && widget.activity == null)
+          AppEmptyState(title: l.uiNoActivity, icon: Icons.history),
+        if (c.jobs.isNotEmpty)
+          Card.filled(
+            child: Column(
+              children: [
+                for (final job in c.jobs)
+                  ListTile(
+                    leading: Icon(
+                      job.status == 'succeeded'
+                          ? Icons.check_circle_outline
+                          : job.terminal
+                          ? Icons.info_outline
+                          : Icons.pending_outlined,
+                    ),
+                    title: Text(switch (job.kind) {
+                      'apt_update' || 'apt_upgrade' => l.aptTitle,
+                      'panel_update' || 'panel_install' => '3x-ui',
+                      'component_install' => l.protocolSoftware,
+                      'protocol_remove' => l.uiRemoveProtocol,
+                      _ => l.uiServerChanges,
+                    }),
+                    subtitle: Text(runnerStateLabel(l, job.status)),
+                  ),
+              ],
+            ),
+          ),
+        ?widget.activity,
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: controller.network,
+    listenable: Listenable.merge([widget.session, widget.session.runner]),
     builder: (context, _) {
-      final l = AppLocalizations.of(context);
-      final addresses =
-          controller.network.inventory?.addresses
-              .where((a) => a.addressClass == AddressClass.external)
-              .toList() ??
-          [];
-      return SectionCard(
-        title: l.uiPublicAddresses,
-        trailing: IconButton(
-          tooltip: l.sshRefresh,
-          onPressed: controller.stage == SshStage.connected && !controller.busy
-              ? controller.refresh
-              : null,
-          icon: const Icon(Icons.refresh),
-        ),
+      final c = widget.session, l = AppLocalizations.of(context);
+      final active = AppPageVisibility.of(context);
+      if (!c.initialised)
+        return const Center(child: CircularProgressIndicator());
+      final requiresConnection =
+          !c.hasSavedProfile || c.challenge != null || c.showPrivilegePrompt;
+      final index = requiresConnection ? 1 : selected;
+      visited.add(index);
+      final titles = [
+        c.displayName,
+        l.uiSshAccess,
+        l.uiComponentUpdates,
+        l.uiActivity,
+        l.uiServerAbout,
+        ...widget.sections.map((s) => s.name),
+      ];
+      return PopScope(
+        canPop: !active,
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop || !active || c.vaultBusy || c.picking) return;
+          if (index == 0 || requiresConnection) {
+            widget.onBack?.call();
+          } else {
+            open(0);
+          }
+        },
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (addresses.isEmpty) Text(l.uiNoPublicAddresses),
-            for (final a in addresses) SelectableText(a.address.canonical),
-            if (controller.stage != SshStage.connected && addresses.isNotEmpty)
-              Text(l.inventoryStale),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+              child: Row(
+                children: [
+                  IconButton(
+                    key: const ValueKey('server-list-back'),
+                    tooltip: l.uiBack,
+                    onPressed: c.vaultBusy || c.picking
+                        ? null
+                        : index == 0 || requiresConnection
+                        ? widget.onBack
+                        : () => open(0),
+                    icon: const Icon(Icons.arrow_back),
+                  ),
+                  Expanded(child: AppAnimatedTitle(titles[index])),
+                  if (index == 0)
+                    IconButton(
+                      tooltip: l.uiSshAccess,
+                      onPressed: () => open(1),
+                      icon: const Icon(Icons.more_vert),
+                    ),
+                ],
+              ),
+            ),
+            if (c.error != null)
+              ListTile(
+                leading: const Icon(Icons.error_outline),
+                title: Text(sshIssueLabel(l, c.error!)),
+                onTap: () => open(1),
+              ),
+            if (c.runner.error != null ||
+                c.runner.selected != null &&
+                    [
+                      'failed',
+                      'partially_applied',
+                      'needs_attention',
+                    ].contains(c.runner.selected!.status))
+              ListTile(
+                leading: const Icon(Icons.error_outline),
+                title: Text(l.runnerAttention),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => open(2),
+              ),
+            Expanded(
+              child: AppPageSwitch(
+                index: index,
+                motion: widget.motion,
+                children: [
+                  page('overview', [overview(context)]),
+                  visited.contains(1)
+                      ? page('ssh', [
+                          SshPanel(
+                            controller: c,
+                            motion: widget.motion,
+                            showDelete: false,
+                            editorOnly: true,
+                            showConnectionActions: true,
+                          ),
+                        ])
+                      : const SizedBox.shrink(),
+                  visited.contains(2)
+                      ? page('updates', [
+                          RunnerPanel(
+                            controller: c.runner,
+                            motion: widget.motion,
+                          ),
+                        ])
+                      : const SizedBox.shrink(),
+                  visited.contains(3)
+                      ? page('activity', [history(context)])
+                      : const SizedBox.shrink(),
+                  visited.contains(4)
+                      ? page('about', [ServerAboutView(controller: c)])
+                      : const SizedBox.shrink(),
+                  for (var i = 0; i < widget.sections.length; i++)
+                    visited.contains(5 + i)
+                        ? page('protocol-$i', [
+                            widget.sections[i].child,
+                            if (widget.plans != null) widget.plans!,
+                          ])
+                        : const SizedBox.shrink(),
+                ],
+              ),
+            ),
           ],
         ),
       );
@@ -60,209 +517,94 @@ class PublicServerAddresses extends StatelessWidget {
   );
 }
 
-class _ServerDetailViewState extends State<ServerDetailView>
-    with SingleTickerProviderStateMixin {
-  late final tabs = TabController(length: 3, vsync: this);
+class _Count extends StatelessWidget {
+  const _Count({required this.value, required this.label});
+  final String value, label;
   @override
-  void dispose() {
-    tabs.dispose();
-    super.dispose();
-  }
-
-  Widget _page(String key, List<Widget> children) => ListView(
-    key: PageStorageKey('${widget.session.serverId}-$key'),
-    padding: AppLayout.screenPadding(context),
-    children: children,
-  );
-
-  @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: widget.session,
-    builder: (context, _) {
-      final c = widget.session, l = AppLocalizations.of(context);
-      if (!c.initialised) {
-        return const Center(child: CircularProgressIndicator());
-      }
-      // First-time credentials, host trust and sudo challenges remain directly reachable.
-      final connectionRequired =
-          !c.hasSavedProfile || c.challenge != null || c.showPrivilegePrompt;
-      if (connectionRequired && tabs.index != 2) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && tabs.index != 2) tabs.index = 2;
-        });
-      }
-      return Column(
+  Widget build(BuildContext context) => Expanded(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: AppLayout.screenPadding(
-              context,
-            ).copyWith(bottom: AppLayout.smallGap),
-            child: Row(
-              children: [
-                if (widget.onBack != null) ...[
-                  IconButton(
-                    key: const ValueKey('server-list-back'),
-                    tooltip: l.server,
-                    onPressed: c.vaultBusy || c.picking ? null : widget.onBack,
-                    icon: const Icon(Icons.arrow_back),
+          Text(value, style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 4),
+          Text(label, style: Theme.of(context).textTheme.bodySmall),
+        ],
+      ),
+    ),
+  );
+}
+
+class _ProtocolTile extends StatelessWidget {
+  const _ProtocolTile({
+    required this.section,
+    required this.onTap,
+    this.onLongPress,
+  });
+  final ServerProtocolSection section;
+  final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context),
+        colors = Theme.of(context).colorScheme;
+    return Card.filled(
+      color: section.count == 0 && !section.detected
+          ? Theme.of(context).scaffoldBackgroundColor
+          : null,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppLayout.radius),
+        side: section.count == 0 && !section.detected
+            ? BorderSide(color: colors.outlineVariant)
+            : BorderSide.none,
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppLayout.radius),
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: Padding(
+          padding: const EdgeInsets.all(17),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    section.mark,
+                    style: TextStyle(
+                      color: colors.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                  const SizedBox(width: AppLayout.smallGap),
+                  const Spacer(),
+                  Icon(
+                    section.count == 0 && !section.detected
+                        ? Icons.add
+                        : Icons.arrow_forward,
+                    size: 19,
+                  ),
                 ],
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        c.displayName,
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      if (c.os != null)
-                        Text(
-                          c.os!,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
-                        ),
-                      if (c.serverName.text.isNotEmpty)
-                        Text(
-                          c.host.text,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                    ],
-                  ),
-                ),
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth:
-                        MediaQuery.sizeOf(context).width < AppLayout.compact
-                        ? 160
-                        : 240,
-                  ),
-                  child: FilledButton.tonal(
-                    key: ValueKey(
-                      c.busy
-                          ? 'ssh-cancel'
-                          : c.stage == SshStage.connected
-                          ? 'ssh-disconnect'
-                          : 'ssh-connect',
-                    ),
-                    onPressed: c.busy || c.stage == SshStage.connected
-                        ? c.disconnect
-                        : c.editing
-                        ? c.connect
-                        : null,
-                    child: Text(
-                      c.busy
-                          ? l.sshCancel
-                          : c.stage == SshStage.connected
-                          ? l.sshDisconnect
-                          : c.saved
-                          ? l.sshConnect
-                          : l.sshSaveAndConnect,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          TabBar(
-            controller: tabs,
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
-            tabs: [
-              Tab(text: l.uiProtocols),
-              Tab(text: l.uiServices),
-              Tab(
-                key: const ValueKey('server-tab-connection'),
-                text: l.uiNetworkSsh,
+              ),
+              const SizedBox(height: 22),
+              Text(
+                section.name,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                !section.detected
+                    ? l.uiNotInstalled
+                    : section.count > 0
+                    ? l.uiConnectionCount(section.count)
+                    : l.uiNotConfigured,
+                style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
           ),
-          if (c.error != null)
-            ListTile(
-              leading: const Icon(Icons.error_outline),
-              title: Text(sshIssueLabel(l, c.error!)),
-              onTap: () => tabs.animateTo(2),
-            ),
-          ListenableBuilder(
-            listenable: c.runner,
-            builder: (context, _) {
-              final job = c.runner.selected;
-              final attention =
-                  c.runner.error != null ||
-                  c.runner.pending != null ||
-                  job != null &&
-                      (!job.terminal ||
-                          [
-                            'failed',
-                            'partially_applied',
-                            'needs_attention',
-                          ].contains(job.status));
-              if (!attention) return const SizedBox.shrink();
-              return ListTile(
-                leading: const Icon(Icons.pending_actions),
-                title: Text(
-                  job == null
-                      ? l.runnerAttention
-                      : runnerStateLabel(l, job.status),
-                ),
-                onTap: () => tabs.animateTo(1),
-              );
-            },
-          ),
-          Expanded(
-            child: ListenableBuilder(
-              listenable: tabs,
-              builder: (context, _) => IndexedStack(
-                index: connectionRequired ? 2 : tabs.index,
-                children: [
-                  _page('protocols', [
-                    if (c.hasSavedProfile && widget.protocols != null)
-                      widget.protocols!
-                    else
-                      Text(l.sshConnect),
-                  ]),
-                  _page('maintenance', [
-                    RunnerPanel(controller: c.runner, motion: widget.motion),
-                  ]),
-                  _page('connection', [
-                    PublicServerAddresses(controller: c),
-                    const SizedBox(height: AppLayout.gap),
-                    SshPanel(
-                      controller: c,
-                      motion: widget.motion,
-                      showDelete: false,
-                      showConnectionActions: false,
-                    ),
-                    AppExpansionTile(
-                      key: PageStorageKey('server-details-${c.serverId}'),
-                      title: Text(l.serverDetails),
-                      children: [
-                        if (c.software case final software?)
-                          ServerInventoryPanel(
-                            inventory: software,
-                            current: c.stage == SshStage.connected,
-                            motion: widget.motion,
-                          ),
-                        NetworkWorkbench(
-                          controller: c.network,
-                          motion: widget.motion,
-                          diagnosticsOnly: true,
-                        ),
-                      ],
-                    ),
-                  ]),
-                ],
-              ),
-            ),
-          ),
-        ],
-      );
-    },
-  );
+        ),
+      ),
+    );
+  }
 }

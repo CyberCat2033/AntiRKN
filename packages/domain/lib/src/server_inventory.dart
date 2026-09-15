@@ -39,8 +39,47 @@ enum ServerFact {
   memoryKiB,
   availableMemoryKiB,
   freeDiskKiB,
+  totalDiskKiB,
+  networkTraffic,
   uid,
   tools,
+}
+
+/// One bounded, read-only sample of the server's default-route interfaces.
+final class ServerTrafficSnapshot {
+  const ServerTrafficSnapshot({required this.bootId, required this.counters});
+  final String bootId;
+  final Map<String, (int received, int sent)> counters;
+  String get interfaces => (counters.keys.toList()..sort()).join(', ');
+  int get received => counters.values.fold(0, (sum, v) => sum + v.$1);
+  int get sent => counters.values.fold(0, (sum, v) => sum + v.$2);
+
+  factory ServerTrafficSnapshot.parse(String text) {
+    final lines = text.trim().split('\n');
+    if (lines.length < 2 ||
+        lines.length > 65 ||
+        !RegExp(r'^[a-f0-9-]{36}$').hasMatch(lines.first)) {
+      throw const FormatException('traffic_sample');
+    }
+    final counters = <String, (int, int)>{};
+    for (final line in lines.skip(1)) {
+      final match = RegExp(
+        r'^([a-zA-Z0-9_.:-]{1,32}) ([0-9]{1,19}) ([0-9]{1,19})$',
+      ).firstMatch(line);
+      if (match == null || counters.containsKey(match[1])) {
+        throw const FormatException('traffic_counter');
+      }
+      final rx = int.tryParse(match[2]!), tx = int.tryParse(match[3]!);
+      if (rx == null || tx == null || rx < 0 || tx < 0) {
+        throw const FormatException('traffic_counter');
+      }
+      counters[match[1]!] = (rx, tx);
+    }
+    return ServerTrafficSnapshot(
+      bootId: lines.first,
+      counters: Map.unmodifiable(counters),
+    );
+  }
 }
 
 enum VpnComponent { panel, xray, trustTunnel, amneziaWg }

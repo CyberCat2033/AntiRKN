@@ -250,6 +250,10 @@ final class ServerInventoryReader {
 
 String parseFact(ServerFact fact, String raw) {
   final value = raw.trim();
+  if (fact == ServerFact.networkTraffic) {
+    ServerTrafficSnapshot.parse(value);
+    return value;
+  }
   if (fact == ServerFact.tools) {
     final lines = const LineSplitter().convert(value);
     if (lines.any(

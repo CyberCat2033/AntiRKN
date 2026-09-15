@@ -137,7 +137,7 @@ abstract class AppLocalizations {
   /// No description provided for @operationObserving.
   ///
   /// In en, this message translates to:
-  /// **'This operation was approved on another device. Its status is read from the server.'**
+  /// **'An action from your device. Its status updates automatically.'**
   String get operationObserving;
 
   /// No description provided for @operationMissing.
@@ -4397,7 +4397,7 @@ abstract class AppLocalizations {
   /// No description provided for @uiQrCopyHint.
   ///
   /// In en, this message translates to:
-  /// **'Tap to copy the link'**
+  /// **'Scan to import into Clash Mi / Meta. Tap the QR to copy the direct YAML link.'**
   String get uiQrCopyHint;
 
   /// No description provided for @uiLinkCopied.
@@ -4607,7 +4607,7 @@ abstract class AppLocalizations {
   /// No description provided for @publicationPickerSettings.
   ///
   /// In en, this message translates to:
-  /// **'Google Picker setup'**
+  /// **'Google Drive file selection'**
   String get publicationPickerSettings;
 
   /// No description provided for @publicationPickerApiKey.
@@ -4685,7 +4685,7 @@ abstract class AppLocalizations {
   /// No description provided for @uiShareProfile.
   ///
   /// In en, this message translates to:
-  /// **'Share profile'**
+  /// **'Connection QR'**
   String get uiShareProfile;
 
   /// No description provided for @uiPublicAddresses.
@@ -4729,6 +4729,504 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Account'**
   String get uiAccount;
+
+  /// No description provided for @uiInterface.
+  ///
+  /// In en, this message translates to:
+  /// **'Interface'**
+  String get uiInterface;
+
+  /// No description provided for @uiInterfaceHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Theme and app language'**
+  String get uiInterfaceHelp;
+
+  /// No description provided for @uiSynchronization.
+  ///
+  /// In en, this message translates to:
+  /// **'Synchronization'**
+  String get uiSynchronization;
+
+  /// No description provided for @uiSyncHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Google Drive and your devices'**
+  String get uiSyncHelp;
+
+  /// No description provided for @uiClientProfiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Client profiles'**
+  String get uiClientProfiles;
+
+  /// No description provided for @uiClientProfilesHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Base YAML, folder and links'**
+  String get uiClientProfilesHelp;
+
+  /// No description provided for @uiBackupHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Save and restore your data'**
+  String get uiBackupHelp;
+
+  /// No description provided for @uiComponentUpdates.
+  ///
+  /// In en, this message translates to:
+  /// **'Updates'**
+  String get uiComponentUpdates;
+
+  /// No description provided for @uiUpdatesHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Check component versions'**
+  String get uiUpdatesHelp;
+
+  /// No description provided for @uiAppSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'App settings'**
+  String get uiAppSettings;
+
+  /// No description provided for @uiMyData.
+  ///
+  /// In en, this message translates to:
+  /// **'My data'**
+  String get uiMyData;
+
+  /// No description provided for @uiPersonalWorkspace.
+  ///
+  /// In en, this message translates to:
+  /// **'Personal workspace'**
+  String get uiPersonalWorkspace;
+
+  /// No description provided for @uiBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get uiBack;
+
+  /// No description provided for @uiSshAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'SSH access'**
+  String get uiSshAccess;
+
+  /// No description provided for @uiActivity.
+  ///
+  /// In en, this message translates to:
+  /// **'Activity history'**
+  String get uiActivity;
+
+  /// No description provided for @uiActivityHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Actions from all your devices'**
+  String get uiActivityHelp;
+
+  /// No description provided for @uiServerAbout.
+  ///
+  /// In en, this message translates to:
+  /// **'About server'**
+  String get uiServerAbout;
+
+  /// No description provided for @uiServerAboutSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Public IPs, traffic and disk space'**
+  String get uiServerAboutSummary;
+
+  /// No description provided for @uiServerAboutHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Server data from the latest refresh'**
+  String get uiServerAboutHelp;
+
+  /// No description provided for @uiNoActivity.
+  ///
+  /// In en, this message translates to:
+  /// **'No actions yet'**
+  String get uiNoActivity;
+
+  /// No description provided for @uiServerChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Server change'**
+  String get uiServerChanges;
+
+  /// No description provided for @uiNotConfigured.
+  ///
+  /// In en, this message translates to:
+  /// **'Not configured'**
+  String get uiNotConfigured;
+
+  /// No description provided for @uiNoClientAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Access is not configured yet'**
+  String get uiNoClientAccess;
+
+  /// No description provided for @uiDiskCapacity.
+  ///
+  /// In en, this message translates to:
+  /// **'Disk capacity'**
+  String get uiDiskCapacity;
+
+  /// No description provided for @uiTraffic.
+  ///
+  /// In en, this message translates to:
+  /// **'Server traffic'**
+  String get uiTraffic;
+
+  /// No description provided for @uiTrafficReceived.
+  ///
+  /// In en, this message translates to:
+  /// **'Download'**
+  String get uiTrafficReceived;
+
+  /// No description provided for @uiTrafficSent.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload'**
+  String get uiTrafficSent;
+
+  /// No description provided for @uiTrafficReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset counter'**
+  String get uiTrafficReset;
+
+  /// No description provided for @uiTrafficSinceBoot.
+  ///
+  /// In en, this message translates to:
+  /// **'Since the current server boot'**
+  String get uiTrafficSinceBoot;
+
+  /// No description provided for @uiTrafficResetHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'The counter is saved on this device. Default-route interfaces are counted. It starts again after the server reboots.'**
+  String get uiTrafficResetHelp;
+
+  /// No description provided for @uiDiskSpace.
+  ///
+  /// In en, this message translates to:
+  /// **'System disk space'**
+  String get uiDiskSpace;
+
+  /// No description provided for @uiDiskFree.
+  ///
+  /// In en, this message translates to:
+  /// **'Available'**
+  String get uiDiskFree;
+
+  /// No description provided for @uiCopyAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy address'**
+  String get uiCopyAddress;
+
+  /// No description provided for @uiClashRefreshHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Clash Mi defaults to a 24-hour refresh interval for newly imported profiles. Updates require the client to be running and online.'**
+  String get uiClashRefreshHint;
+
+  /// No description provided for @uiConnectionCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Connections: {count}'**
+  String uiConnectionCount(int count);
+
+  /// No description provided for @uiObservedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Updated: {time}'**
+  String uiObservedAt(String time);
+
+  /// No description provided for @uiTrafficSince.
+  ///
+  /// In en, this message translates to:
+  /// **'Since reset on {time}'**
+  String uiTrafficSince(String time);
+
+  /// No description provided for @uiDiskTotal.
+  ///
+  /// In en, this message translates to:
+  /// **'Total: {size}'**
+  String uiDiskTotal(String size);
+
+  /// No description provided for @uiAddressCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'IP address copied'**
+  String get uiAddressCopied;
+
+  /// No description provided for @uiServersIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Your servers and connections'**
+  String get uiServersIntro;
+
+  /// No description provided for @uiMyServers.
+  ///
+  /// In en, this message translates to:
+  /// **'My servers'**
+  String get uiMyServers;
+
+  /// No description provided for @uiClientsIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Access and profiles for your clients'**
+  String get uiClientsIntro;
+
+  /// No description provided for @uiClientsEmptyHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a client to set up access and share a connection profile.'**
+  String get uiClientsEmptyHelp;
+
+  /// No description provided for @uiBackupExportHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Save application data to a file'**
+  String get uiBackupExportHelp;
+
+  /// No description provided for @uiBackupImportHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Move your data to this device'**
+  String get uiBackupImportHelp;
+
+  /// No description provided for @uiApplicationData.
+  ///
+  /// In en, this message translates to:
+  /// **'Application data'**
+  String get uiApplicationData;
+
+  /// No description provided for @uiUpdatesShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Updates'**
+  String get uiUpdatesShort;
+
+  /// No description provided for @uiUpdatesAutomaticHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'New versions of server components'**
+  String get uiUpdatesAutomaticHelp;
+
+  /// No description provided for @uiUpdatesSuggestionsHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Notify about available updates'**
+  String get uiUpdatesSuggestionsHelp;
+
+  /// No description provided for @uiSyncAutomaticHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Changes across all your devices'**
+  String get uiSyncAutomaticHelp;
+
+  /// No description provided for @uiPairDeviceHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Transfer your workspace and sync changes'**
+  String get uiPairDeviceHelp;
+
+  /// No description provided for @uiPublicProfileHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'The profile is available by direct link. Open the client to get its QR code and link.'**
+  String get uiPublicProfileHelp;
+
+  /// No description provided for @uiPublicationAutoHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Save changes at the same profile links'**
+  String get uiPublicationAutoHelp;
+
+  /// No description provided for @uiVlessIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'VLESS connections on this server'**
+  String get uiVlessIntro;
+
+  /// No description provided for @uiAwgIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'AmneziaWG interfaces on this server'**
+  String get uiAwgIntro;
+
+  /// No description provided for @uiInterfaces.
+  ///
+  /// In en, this message translates to:
+  /// **'Interfaces'**
+  String get uiInterfaces;
+
+  /// No description provided for @uiTtIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'TrustTunnel connection endpoints'**
+  String get uiTtIntro;
+
+  /// No description provided for @uiConnections.
+  ///
+  /// In en, this message translates to:
+  /// **'Connections'**
+  String get uiConnections;
+
+  /// No description provided for @uiTtSetup.
+  ///
+  /// In en, this message translates to:
+  /// **'Set up TrustTunnel'**
+  String get uiTtSetup;
+
+  /// No description provided for @uiPeerCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Connections: {count}'**
+  String uiPeerCount(int count);
+
+  /// No description provided for @uiForceDeleteClient.
+  ///
+  /// In en, this message translates to:
+  /// **'Force delete'**
+  String get uiForceDeleteClient;
+
+  /// No description provided for @uiForceDeleteWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'“{name}” will disappear from the app. Access may still work on unavailable servers ({servers}). Revocation will finish when they reconnect.'**
+  String uiForceDeleteWarning(String name, String servers);
+
+  /// No description provided for @uiDeletingClients.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleting clients: {count}'**
+  String uiDeletingClients(int count);
+
+  /// No description provided for @uiDeletingClientsHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting to servers and revoking access'**
+  String get uiDeletingClientsHelp;
+
+  /// No description provided for @uiDeletionProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Client removal'**
+  String get uiDeletionProgress;
+
+  /// No description provided for @uiForceDeleteOffer.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not connect to a server after 3 attempts. You can remove “{name}” without waiting for the server.'**
+  String uiForceDeleteOffer(String name);
+
+  /// No description provided for @uiClashImport.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection profile for Clash Mi'**
+  String get uiClashImport;
+
+  /// No description provided for @uiConnectionSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection'**
+  String get uiConnectionSettings;
+
+  /// No description provided for @uiAuthentication.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign-in credentials'**
+  String get uiAuthentication;
+
+  /// No description provided for @uiInstalledComponents.
+  ///
+  /// In en, this message translates to:
+  /// **'Components installed on this server'**
+  String get uiInstalledComponents;
+
+  /// No description provided for @uiOtherComponents.
+  ///
+  /// In en, this message translates to:
+  /// **'Other components'**
+  String get uiOtherComponents;
+
+  /// No description provided for @uiRemoveProtocol.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove protocol'**
+  String get uiRemoveProtocol;
+
+  /// No description provided for @uiRemoveProtocolHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'The services and all connections for this protocol will be removed from the server, including connections created outside AntiRKN. Clients will lose access through this protocol.'**
+  String get uiRemoveProtocolHelp;
+
+  /// No description provided for @uiRemoveVlessHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'This removes the whole 3x-ui / Xray installation. All its inbounds, including other protocols, will stop working.'**
+  String get uiRemoveVlessHelp;
+
+  /// No description provided for @uiRemoveProtocolBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'Wait for the current server operation to finish.'**
+  String get uiRemoveProtocolBusy;
+
+  /// No description provided for @uiRemoveProtocolConnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect over SSH first, then hold the protocol tile again.'**
+  String get uiRemoveProtocolConnect;
+
+  /// No description provided for @uiRemoveProtocolStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'Removal started. The result will appear in server maintenance.'**
+  String get uiRemoveProtocolStarted;
+
+  /// No description provided for @uiRemoveProtocolFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not remove the protocol. Check the server state and retry.'**
+  String get uiRemoveProtocolFailed;
+
+  /// No description provided for @uiRemoveProtocolConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'The installation changed. Refresh the server and confirm a new removal plan.'**
+  String get uiRemoveProtocolConflict;
+
+  /// No description provided for @uiRemoveProtocolUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This installation has a nonstandard configuration. Automatic removal is unavailable.'**
+  String get uiRemoveProtocolUnsupported;
+
+  /// No description provided for @uiNotInstalled.
+  ///
+  /// In en, this message translates to:
+  /// **'Not installed'**
+  String get uiNotInstalled;
+
+  /// No description provided for @uiInstallProtocolHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'This protocol is not installed on the server. Prepare installation? You will see the changes before starting.'**
+  String get uiInstallProtocolHelp;
+
+  /// No description provided for @uiInstallProtocolConnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect to the server over SSH, then tap the protocol again to install it.'**
+  String get uiInstallProtocolConnect;
 }
 
 class _AppLocalizationsDelegate

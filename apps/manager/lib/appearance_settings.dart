@@ -21,55 +21,63 @@ class AppearanceSettings extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    return SectionCard(
+    return AppSettingsSection(
       title: l.uiAppearance,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(l.theme),
-          const SizedBox(height: AppLayout.smallGap),
-          AppChoice<ThemeMode>(
-            value: theme,
-            options: [
-              (ThemeMode.system, l.system),
-              (ThemeMode.light, l.light),
-              (ThemeMode.dark, l.dark),
-            ],
-            onChanged: onTheme,
-          ),
-          const SizedBox(height: AppLayout.gap),
-          Text(l.language),
-          const SizedBox(height: AppLayout.smallGap),
-          AppChoice<AppLanguage>(
-            value: languages.language,
-            keyPrefix: 'language',
-            options: [
-              (AppLanguage.system, l.languageSystem),
-              (AppLanguage.ru, l.languageRussian),
-              (AppLanguage.en, l.languageEnglish),
-            ],
-            onChanged: languages.saving ? null : languages.select,
-          ),
-          if (languages.savingFailed) Text(l.localeSaveError),
-          if (languages.loadingFailed) Text(l.localeLoadError),
-          const SizedBox(height: AppLayout.smallGap),
-          AppExpansionTile(
-            key: const PageStorageKey('appearance-motion'),
-            tilePadding: EdgeInsets.zero,
-            title: Text(l.motion),
-            expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              AppChoice<MotionPreference>(
-                value: motion,
+          ListTile(
+            leading: const Icon(Icons.palette_outlined),
+            title: Text(l.theme),
+            subtitle: Text(switch (theme) {
+              ThemeMode.system => l.system,
+              ThemeMode.light => l.light,
+              ThemeMode.dark => l.dark,
+            }),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () async {
+              final value = await showAppChoice<ThemeMode>(
+                context,
+                title: l.theme,
+                value: theme,
                 options: [
-                  (MotionPreference.system, l.system),
-                  (MotionPreference.reduced, l.reduced),
-                  (MotionPreference.off, l.off),
+                  (ThemeMode.system, l.system),
+                  (ThemeMode.light, l.light),
+                  (ThemeMode.dark, l.dark),
                 ],
-                onChanged: onMotion,
-              ),
-            ],
+              );
+              if (value != null) onTheme(value);
+            },
           ),
+          const Divider(indent: 17, endIndent: 17),
+          ListTile(
+            leading: const Icon(Icons.language),
+            title: Text(l.language),
+            subtitle: Text(switch (languages.language) {
+              AppLanguage.system => l.languageSystem,
+              AppLanguage.ru => l.languageRussian,
+              AppLanguage.en => l.languageEnglish,
+            }),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: languages.saving
+                ? null
+                : () async {
+                    final value = await showAppChoice<AppLanguage>(
+                      context,
+                      title: l.language,
+                      value: languages.language,
+                      options: [
+                        (AppLanguage.system, l.languageSystem),
+                        (AppLanguage.ru, l.languageRussian),
+                        (AppLanguage.en, l.languageEnglish),
+                      ],
+                    );
+                    if (value != null) languages.select(value);
+                  },
+          ),
+          if (languages.savingFailed)
+            AppNotice(message: l.localeSaveError, error: true),
+          if (languages.loadingFailed)
+            AppNotice(message: l.localeLoadError, error: true),
         ],
       ),
     );

@@ -73,6 +73,39 @@ class ServerCatalogController extends ChangeNotifier {
 
   void add() => select(repository.newServerId());
 
+  Future<void> refresh() async {
+    await load();
+    for (final session in _sessions.values.toList()) {
+      if (_disposed) return;
+      if (session.stage != SshStage.connected) continue;
+      await session.refresh();
+      await session.runner.refresh();
+    }
+  }
+
+  /// Open saved sessions for revocation without moving away from the catalogue.
+  Future<bool?> connectForDeletion(String id) async {
+    if (_disposed || loading) return null;
+    if (!servers.any((s) => s.id == id)) return false;
+    var session = _sessions[id];
+    if (session == null) {
+      session = SshController(
+        repository: repository,
+        serverId: id,
+        openVault: () => repository.openServer(id),
+        connector: connector,
+        picker: picker,
+        agentAvailable: agentAvailable,
+        network: NetworkController(reader: reader),
+      );
+      _sessions[id] = session;
+      session.addListener(_sessionChanged);
+      await session.initialise();
+    }
+    if (_disposed) return null;
+    return session.connectForDeletion();
+  }
+
   Future<void> deleteServers(
     List<SavedServer> expected, {
     required bool Function(String) canDelete,
@@ -147,6 +180,7 @@ class ServerCatalogController extends ChangeNotifier {
   }
 
   Future<void> showList() async {
+    selected?.closeSettings();
     selectedId = null;
     notifyListeners();
     await load();

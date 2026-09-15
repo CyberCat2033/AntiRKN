@@ -33,7 +33,8 @@ class RunnerPanel extends StatelessWidget {
           job != null &&
           (active ||
               failed ||
-              (job.kind.startsWith('apt_') && c.dismissedJobId != job.id));
+              ((job.kind.startsWith('apt_') || job.kind == 'protocol_remove') &&
+                  c.dismissedJobId != job.id));
       return AppAnimatedSize(
         motion: motion,
         child: Column(
@@ -43,14 +44,20 @@ class RunnerPanel extends StatelessWidget {
             if (c.error case final issue?)
               Semantics(
                 liveRegion: true,
-                child: Text(runnerIssueLabel(l, issue)),
+                child: AppNotice(
+                  message: runnerIssueLabel(l, issue),
+                  error: true,
+                ),
               ),
             if (c.responseCode != null && c.responseCode != 'ok')
-              Text(runnerCodeLabel(l, c.responseCode!)),
+              AppNotice(
+                message: runnerCodeLabel(l, c.responseCode!),
+                error: true,
+              ),
             if (c.connectionLost || !c.connected && active)
-              Text(l.runnerConnectionLost),
+              AppNotice(message: l.runnerConnectionLost),
             if (c.panelDiscovery?['failed'] == true)
-              Text(l.panelDiscoveryFailed),
+              AppNotice(message: l.panelDiscoveryFailed, error: true),
             if (c.installed && !c.alive) Text(l.runnerNotRunning),
             if (c.error != null || c.installed && !c.alive)
               TextButton(
@@ -110,7 +117,8 @@ class RunnerPanel extends StatelessWidget {
               ),
             ],
             if (failed &&
-                (job.kind == 'inbound_update' ||
+                (job.kind == 'protocol_remove' ||
+                    job.kind == 'inbound_update' ||
                     job.kind == 'awg_external_edit' ||
                     job.kind == 'tt_external_edit' ||
                     job.kind == 'tt_certificate'))
@@ -146,6 +154,9 @@ String runnerIssueLabel(AppLocalizations l, RunnerIssue issue) =>
       RunnerIssue.storage => l.runnerStorage,
     };
 String runnerCodeLabel(AppLocalizations l, String code) => switch (code) {
+  'protocol_remove_conflict' => l.uiRemoveProtocolConflict,
+  'protocol_remove_unsupported' => l.uiRemoveProtocolUnsupported,
+  'protocol_remove_failed' => l.uiRemoveProtocolFailed,
   'sync_conflict' => l.syncEffectsBlocked,
   final String v when v.startsWith('tt_') => vpnMessage(l, v),
   'panel_auth_failed' => l.panelAuthFailed,
@@ -174,6 +185,9 @@ String runnerStateLabel(AppLocalizations l, String state) => switch (state) {
   _ => l.runnerAttention,
 };
 String runnerEventLabel(AppLocalizations l, String code) => switch (code) {
+  'protocol_remove_conflict' => l.uiRemoveProtocolConflict,
+  'protocol_remove_unsupported' => l.uiRemoveProtocolUnsupported,
+  'protocol_remove_failed' => l.uiRemoveProtocolFailed,
   final String v when v.startsWith('tt_') => vpnMessage(l, v),
   'apt_updating' => l.aptUpdating,
   'apt_upgrading' => l.aptUpgrading,

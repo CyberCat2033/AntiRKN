@@ -28,7 +28,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get operationObserving =>
-      'This operation was approved on another device. Its status is read from the server.';
+      'An action from your device. Its status updates automatically.';
 
   @override
   String get operationMissing =>
@@ -2467,7 +2467,8 @@ class AppLocalizationsEn extends AppLocalizations {
       'Finish active operations and disconnect SSH before deleting.';
 
   @override
-  String get uiQrCopyHint => 'Tap to copy the link';
+  String get uiQrCopyHint =>
+      'Scan to import into Clash Mi / Meta. Tap the QR to copy the direct YAML link.';
 
   @override
   String get uiLinkCopied => 'Link copied';
@@ -2587,7 +2588,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get publicationBindConfirm => 'Replace and bind';
 
   @override
-  String get publicationPickerSettings => 'Google Picker setup';
+  String get publicationPickerSettings => 'Google Drive file selection';
 
   @override
   String get publicationPickerApiKey => 'Public API key';
@@ -2631,7 +2632,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get uiCheck => 'Check';
 
   @override
-  String get uiShareProfile => 'Share profile';
+  String get uiShareProfile => 'Connection QR';
 
   @override
   String get uiPublicAddresses => 'Public IP addresses';
@@ -2653,4 +2654,284 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get uiAccount => 'Account';
+
+  @override
+  String get uiInterface => 'Interface';
+
+  @override
+  String get uiInterfaceHelp => 'Theme and app language';
+
+  @override
+  String get uiSynchronization => 'Synchronization';
+
+  @override
+  String get uiSyncHelp => 'Google Drive and your devices';
+
+  @override
+  String get uiClientProfiles => 'Client profiles';
+
+  @override
+  String get uiClientProfilesHelp => 'Base YAML, folder and links';
+
+  @override
+  String get uiBackupHelp => 'Save and restore your data';
+
+  @override
+  String get uiComponentUpdates => 'Updates';
+
+  @override
+  String get uiUpdatesHelp => 'Check component versions';
+
+  @override
+  String get uiAppSettings => 'App settings';
+
+  @override
+  String get uiMyData => 'My data';
+
+  @override
+  String get uiPersonalWorkspace => 'Personal workspace';
+
+  @override
+  String get uiBack => 'Back';
+
+  @override
+  String get uiSshAccess => 'SSH access';
+
+  @override
+  String get uiActivity => 'Activity history';
+
+  @override
+  String get uiActivityHelp => 'Actions from all your devices';
+
+  @override
+  String get uiServerAbout => 'About server';
+
+  @override
+  String get uiServerAboutSummary => 'Public IPs, traffic and disk space';
+
+  @override
+  String get uiServerAboutHelp => 'Server data from the latest refresh';
+
+  @override
+  String get uiNoActivity => 'No actions yet';
+
+  @override
+  String get uiServerChanges => 'Server change';
+
+  @override
+  String get uiNotConfigured => 'Not configured';
+
+  @override
+  String get uiNoClientAccess => 'Access is not configured yet';
+
+  @override
+  String get uiDiskCapacity => 'Disk capacity';
+
+  @override
+  String get uiTraffic => 'Server traffic';
+
+  @override
+  String get uiTrafficReceived => 'Download';
+
+  @override
+  String get uiTrafficSent => 'Upload';
+
+  @override
+  String get uiTrafficReset => 'Reset counter';
+
+  @override
+  String get uiTrafficSinceBoot => 'Since the current server boot';
+
+  @override
+  String get uiTrafficResetHelp =>
+      'The counter is saved on this device. Default-route interfaces are counted. It starts again after the server reboots.';
+
+  @override
+  String get uiDiskSpace => 'System disk space';
+
+  @override
+  String get uiDiskFree => 'Available';
+
+  @override
+  String get uiCopyAddress => 'Copy address';
+
+  @override
+  String get uiClashRefreshHint =>
+      'Clash Mi defaults to a 24-hour refresh interval for newly imported profiles. Updates require the client to be running and online.';
+
+  @override
+  String uiConnectionCount(int count) {
+    return 'Connections: $count';
+  }
+
+  @override
+  String uiObservedAt(String time) {
+    return 'Updated: $time';
+  }
+
+  @override
+  String uiTrafficSince(String time) {
+    return 'Since reset on $time';
+  }
+
+  @override
+  String uiDiskTotal(String size) {
+    return 'Total: $size';
+  }
+
+  @override
+  String get uiAddressCopied => 'IP address copied';
+
+  @override
+  String get uiServersIntro => 'Your servers and connections';
+
+  @override
+  String get uiMyServers => 'My servers';
+
+  @override
+  String get uiClientsIntro => 'Access and profiles for your clients';
+
+  @override
+  String get uiClientsEmptyHelp =>
+      'Add a client to set up access and share a connection profile.';
+
+  @override
+  String get uiBackupExportHelp => 'Save application data to a file';
+
+  @override
+  String get uiBackupImportHelp => 'Move your data to this device';
+
+  @override
+  String get uiApplicationData => 'Application data';
+
+  @override
+  String get uiUpdatesShort => 'Updates';
+
+  @override
+  String get uiUpdatesAutomaticHelp => 'New versions of server components';
+
+  @override
+  String get uiUpdatesSuggestionsHelp => 'Notify about available updates';
+
+  @override
+  String get uiSyncAutomaticHelp => 'Changes across all your devices';
+
+  @override
+  String get uiPairDeviceHelp => 'Transfer your workspace and sync changes';
+
+  @override
+  String get uiPublicProfileHelp =>
+      'The profile is available by direct link. Open the client to get its QR code and link.';
+
+  @override
+  String get uiPublicationAutoHelp => 'Save changes at the same profile links';
+
+  @override
+  String get uiVlessIntro => 'VLESS connections on this server';
+
+  @override
+  String get uiAwgIntro => 'AmneziaWG interfaces on this server';
+
+  @override
+  String get uiInterfaces => 'Interfaces';
+
+  @override
+  String get uiTtIntro => 'TrustTunnel connection endpoints';
+
+  @override
+  String get uiConnections => 'Connections';
+
+  @override
+  String get uiTtSetup => 'Set up TrustTunnel';
+
+  @override
+  String uiPeerCount(int count) {
+    return 'Connections: $count';
+  }
+
+  @override
+  String get uiForceDeleteClient => 'Force delete';
+
+  @override
+  String uiForceDeleteWarning(String name, String servers) {
+    return '“$name” will disappear from the app. Access may still work on unavailable servers ($servers). Revocation will finish when they reconnect.';
+  }
+
+  @override
+  String uiDeletingClients(int count) {
+    return 'Deleting clients: $count';
+  }
+
+  @override
+  String get uiDeletingClientsHelp =>
+      'Connecting to servers and revoking access';
+
+  @override
+  String get uiDeletionProgress => 'Client removal';
+
+  @override
+  String uiForceDeleteOffer(String name) {
+    return 'Could not connect to a server after 3 attempts. You can remove “$name” without waiting for the server.';
+  }
+
+  @override
+  String get uiClashImport => 'Connection profile for Clash Mi';
+
+  @override
+  String get uiConnectionSettings => 'Connection';
+
+  @override
+  String get uiAuthentication => 'Sign-in credentials';
+
+  @override
+  String get uiInstalledComponents => 'Components installed on this server';
+
+  @override
+  String get uiOtherComponents => 'Other components';
+
+  @override
+  String get uiRemoveProtocol => 'Remove protocol';
+
+  @override
+  String get uiRemoveProtocolHelp =>
+      'The services and all connections for this protocol will be removed from the server, including connections created outside AntiRKN. Clients will lose access through this protocol.';
+
+  @override
+  String get uiRemoveVlessHelp =>
+      'This removes the whole 3x-ui / Xray installation. All its inbounds, including other protocols, will stop working.';
+
+  @override
+  String get uiRemoveProtocolBusy =>
+      'Wait for the current server operation to finish.';
+
+  @override
+  String get uiRemoveProtocolConnect =>
+      'Connect over SSH first, then hold the protocol tile again.';
+
+  @override
+  String get uiRemoveProtocolStarted =>
+      'Removal started. The result will appear in server maintenance.';
+
+  @override
+  String get uiRemoveProtocolFailed =>
+      'Could not remove the protocol. Check the server state and retry.';
+
+  @override
+  String get uiRemoveProtocolConflict =>
+      'The installation changed. Refresh the server and confirm a new removal plan.';
+
+  @override
+  String get uiRemoveProtocolUnsupported =>
+      'This installation has a nonstandard configuration. Automatic removal is unavailable.';
+
+  @override
+  String get uiNotInstalled => 'Not installed';
+
+  @override
+  String get uiInstallProtocolHelp =>
+      'This protocol is not installed on the server. Prepare installation? You will see the changes before starting.';
+
+  @override
+  String get uiInstallProtocolConnect =>
+      'Connect to the server over SSH, then tap the protocol again to install it.';
 }

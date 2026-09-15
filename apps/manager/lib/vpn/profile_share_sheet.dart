@@ -68,8 +68,12 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                   ),
                 ],
               ),
+              Text(
+                l.uiClashImport,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
               const SizedBox(height: AppLayout.gap),
-              if (publication != null)
+              if (publication != null && link == null)
                 UserPublicationView(
                   controller: publication,
                   userId: widget.user.id,
@@ -78,6 +82,7 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                 const SizedBox(height: AppLayout.gap),
                 ProfileLinkQr(
                   url: link,
+                  profileName: user?.name ?? widget.user.name,
                   beforeCopy: () async {
                     await c.checkProfileEffects();
                     if (publication!.verifiedLinkFor(widget.user.id) != link) {
@@ -98,20 +103,43 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                     '${d.severity == DiagnosticSeverity.error ? l.profileError : l.profileWarning}: '
                     '${vpnMessage(l, d.code)}${d.subject == null ? '' : ' (${d.subject})'}',
                   ),
+              const SizedBox(height: 20),
               if (usable)
-                AppExpansionTile(
-                  title: Text(l.uiPreviewYaml),
-                  children: [SelectableText(result!.yaml!)],
+                Card.filled(
+                  child: Column(
+                    children: [
+                      ListTile(
+                        leading: const Icon(Icons.description_outlined),
+                        title: Text(l.uiPreviewYaml),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => showAppDetails(
+                          context,
+                          title: l.uiPreviewYaml,
+                          children: [SelectableText(result!.yaml!)],
+                        ),
+                      ),
+                      const Divider(indent: 17, endIndent: 17),
+                      ListTile(
+                        leading: const Icon(Icons.info_outline),
+                        title: Text(l.uiProfileDetails),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => showAppDetails(
+                          context,
+                          title: l.uiProfileDetails,
+                          children: [
+                            Text(l.vpnProfileValidation),
+                            for (final group in result!.groups)
+                              ListTile(
+                                title: Text(group.name),
+                                subtitle: Text(group.members.join(', ')),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              if (result != null)
-                AppExpansionTile(
-                  title: Text(l.uiProfileDetails),
-                  children: [
-                    Text(l.vpnProfileValidation),
-                    for (final group in result.groups)
-                      Text('${group.name}: ${group.members.join(', ')}'),
-                  ],
-                ),
+              const SizedBox(height: 12),
               if (message != null)
                 Semantics(liveRegion: true, child: Text(message!)),
               if (usable)

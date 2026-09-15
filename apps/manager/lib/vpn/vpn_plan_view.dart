@@ -24,8 +24,11 @@ class VpnPlanView extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (c.busy) const LinearProgressIndicator(),
-        if (c.error case final error?)
-          Semantics(liveRegion: true, child: Text(vpnMessage(l, error))),
+        if (c.visibleError case final error?)
+          Semantics(
+            liveRegion: true,
+            child: AppNotice(message: vpnMessage(l, error), error: true),
+          ),
         if (c.plans.isNotEmpty)
           SectionCard(
             title: l.vpnPlan,
@@ -145,7 +148,7 @@ class VpnJobView extends StatelessWidget {
             Text(l.operationMissing),
           if (c.observationErrors[serverId] case final String error)
             Text(vpnMessage(l, error)),
-          if (job == null)
+          if (c.observedJobs.containsKey(serverId) && job == null)
             Align(
               alignment: Alignment.centerLeft,
               child: OutlinedButton(
@@ -155,7 +158,8 @@ class VpnJobView extends StatelessWidget {
               ),
             ),
         ],
-        if (c.needsRestoreReview(serverId)) ...[
+        if (c.needsRestoreReview(serverId) &&
+            !c.observesOperation(serverId)) ...[
           Text(l.backupOperationReview),
           Align(
             alignment: Alignment.centerLeft,

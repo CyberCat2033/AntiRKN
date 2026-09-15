@@ -1,3 +1,5 @@
+import 'settings_hub.dart';
+import 'desktop_back_gesture.dart';
 import 'catalog_selection.dart';
 import 'dart:async';
 import 'package:antirkn_integrations/antirkn_integrations.dart';
@@ -227,7 +229,7 @@ class AntiRknApp extends StatefulWidget {
 
 class _AntiRknAppState extends State<AntiRknApp> {
   late ThemeMode _theme = widget.initialTheme;
-  late MotionPreference _motion = widget.initialMotion;
+  final MotionPreference _motion = MotionPreference.system;
   bool _settingsError = false;
   late final ComponentUpdatesController _updates;
   @override
@@ -319,8 +321,7 @@ class _AntiRknAppState extends State<AntiRknApp> {
                   motion: _motion,
                   onTheme: (value) =>
                       _saveSetting('theme', value.name, () => _theme = value),
-                  onMotion: (value) =>
-                      _saveSetting('motion', value.name, () => _motion = value),
+                  onMotion: (_) {},
                 ),
               ),
       ),
@@ -376,6 +377,7 @@ class ManagerShell extends StatefulWidget {
 class _ManagerShellState extends State<ManagerShell>
     with WidgetsBindingObserver {
   int _index = 0;
+  final _settingsKey = GlobalKey<SettingsHubState>();
   final _serverSelection = CatalogSelection();
   final _clientSelection = CatalogSelection();
   CatalogSelection get _selection =>
@@ -427,6 +429,8 @@ class _ManagerShellState extends State<ManagerShell>
     if (widget.source.trim().isNotEmpty) _controller.refresh();
     if (widget.servers is VpnRepository) {
       _vpn = VpnController(
+        connectForDeletion: (id) async =>
+            _catalog == null ? false : await _catalog!.connectForDeletion(id),
         repository: widget.servers as VpnRepository,
         recovery: widget.servers is WorkspaceRecoveryStore
             ? widget.servers as WorkspaceRecoveryStore
@@ -578,7 +582,15 @@ class _ManagerShellState extends State<ManagerShell>
       !_controller.importing;
 
   void _navigate(int value) {
+    if (value == _index) {
+      AppHaptics.selection();
+      _serverSelection.exit();
+      _clientSelection.exit();
+      if (value == 0) _catalog?.showList();
+      if (value == 2) _settingsKey.currentState?.showRoot();
+    }
     if (value != _index) {
+      AppHaptics.selection();
       _serverSelection.exit();
       _clientSelection.exit();
     }
@@ -594,296 +606,296 @@ class _ManagerShellState extends State<ManagerShell>
       final rail =
           constraints.maxWidth >= AppLayout.compact &&
           constraints.maxHeight >= 400;
-      return AbsorbPointer(
-        absorbing: _applyingSync,
-        child: PopScope(
-          canPop: !_applyingSync && !(_index < 2 && _selection.active),
-          onPopInvokedWithResult: (didPop, _) {
-            if (!didPop && !_applyingSync && _index < 2 && _selection.active) {
-              _selection.exit();
-            }
-          },
-          child: Scaffold(
-            appBar: AppBar(
-              title: Text(
-                _index < 2 && _selection.active
-                    ? l.catalogSelected(_selection.ids.length)
-                    : labels[_index],
-              ),
-              actions: [
-                if (_index == 0 && _catalog != null)
-                  ListenableBuilder(
-                    listenable: Listenable.merge([_catalog!, _vpn]),
-                    builder: (context, _) => _catalog!.selectedId != null
-                        ? const SizedBox.shrink()
-                        : CatalogActions(
-                            selection: _serverSelection,
-                            available: _catalog!.servers.map((s) => s.id),
-                            prefix: 'server',
-                            busy: _catalog!.loading || (_vpn?.busy ?? false),
-                            addLabel: l.addServer,
-                            onAdd: _catalog!.add,
-                            onDelete: () => ServerCatalog.deleteSelected(
-                              context,
-                              _catalog!,
-                              _serverSelection,
-                              _vpn,
+      return ListenableBuilder(
+        listenable: Listenable.merge([
+          _catalog,
+          _serverSelection,
+          _clientSelection,
+        ]),
+        builder: (context, _) => AbsorbPointer(
+          absorbing: _applyingSync,
+          child: PopScope(
+            canPop: !_applyingSync && !(_index < 2 && _selection.active),
+            onPopInvokedWithResult: (didPop, _) {
+              if (!didPop &&
+                  !_applyingSync &&
+                  _index < 2 &&
+                  _selection.active) {
+                _selection.exit();
+              }
+            },
+            child: Scaffold(
+              appBar: _index == 2 || _index == 0 && _catalog?.selectedId != null
+                  ? null
+                  : AppBar(
+                      title: Text(
+                        _index < 2 && _selection.active
+                            ? l.catalogSelected(_selection.ids.length)
+                            : labels[_index],
+                      ),
+                      actions: [
+                        if (_index == 0 && _catalog != null)
+                          ListenableBuilder(
+                            listenable: Listenable.merge([_catalog!, _vpn]),
+                            builder: (context, _) =>
+                                _catalog!.selectedId != null
+                                ? const SizedBox.shrink()
+                                : CatalogActions(
+                                    selection: _serverSelection,
+                                    available: _catalog!.servers.map(
+                                      (s) => s.id,
+                                    ),
+                                    prefix: 'server',
+                                    busy:
+                                        _catalog!.loading ||
+                                        (_vpn?.busy ?? false),
+
+                                    onAdd: _catalog!.add,
+                                    onDelete: () =>
+                                        ServerCatalog.deleteSelected(
+                                          context,
+                                          _catalog!,
+                                          _serverSelection,
+                                          _vpn,
+                                        ),
+                                  ),
+                          ),
+                        if (_index == 1 && _vpn != null)
+                          ListenableBuilder(
+                            listenable: _vpn!,
+                            builder: (context, _) => CatalogActions(
+                              selection: _clientSelection,
+                              available: _vpn!.workspace.users
+                                  .where((u) => !u.deleted)
+                                  .map((u) => u.id),
+                              prefix: 'vpn-user',
+                              busy: _vpn!.busy || !_vpn!.loaded,
+
+                              onAdd: () => UsersPage.edit(
+                                context,
+                                _vpn!,
+                                widget.motion,
+                                null,
+                                _publications,
+                              ),
+                              onDelete: () => UsersPage.deleteSelected(
+                                context,
+                                _vpn!,
+                                _clientSelection,
+                                _publications,
+                              ),
                             ),
                           ),
-                  ),
-                if (_index == 1 && _vpn != null)
-                  ListenableBuilder(
-                    listenable: _vpn!,
-                    builder: (context, _) => CatalogActions(
-                      selection: _clientSelection,
-                      available: _vpn!.workspace.users
-                          .where((u) => !u.deleted)
-                          .map((u) => u.id),
-                      prefix: 'vpn-user',
-                      busy: _vpn!.busy || !_vpn!.loaded,
-                      addLabel: l.vpnAddUser,
-                      onAdd: () => UsersPage.edit(
-                        context,
-                        _vpn!,
-                        widget.motion,
-                        null,
-                        _publications,
-                      ),
-                      onDelete: () => UsersPage.deleteSelected(
-                        context,
-                        _vpn!,
-                        _clientSelection,
-                        _publications,
-                      ),
+                      ],
                     ),
-                  ),
-                if (!(_index < 2 && _selection.active))
-                  if (widget.autoSync case final sync?)
-                    ListenableBuilder(
-                      listenable: sync,
-                      builder: (context, _) => IconButton(
-                        key: const ValueKey('sync-status'),
-                        tooltip: syncStatusLabel(l, sync),
-                        onPressed: () => _navigate(2),
-                        icon: Icon(switch (sync.phase) {
-                          AutoSyncPhase.syncing => Icons.cloud_sync_outlined,
-                          AutoSyncPhase.synced => Icons.cloud_done_outlined,
-                          AutoSyncPhase.error ||
-                          AutoSyncPhase.conflict ||
-                          AutoSyncPhase.incomplete => Icons.cloud_off_outlined,
-                          _ => Icons.cloud_outlined,
-                        }),
-                      ),
+              bottomNavigationBar: rail
+                  ? null
+                  : NavigationBar(
+                      selectedIndex: _index,
+                      onDestinationSelected: (value) => _navigate(value),
+                      destinations: [
+                        for (var i = 0; i < labels.length; i++)
+                          NavigationDestination(
+                            icon: Icon(_icons[i]),
+                            label: labels[i],
+                          ),
+                      ],
                     ),
-              ],
-            ),
-            bottomNavigationBar: rail
-                ? null
-                : NavigationBar(
-                    selectedIndex: _index,
-                    onDestinationSelected: (value) => _navigate(value),
-                    destinations: [
-                      for (var i = 0; i < labels.length; i++)
-                        NavigationDestination(
-                          icon: Icon(_icons[i]),
-                          label: labels[i],
+              body: DesktopBackGesture(
+                canGoBack: () =>
+                    !_applyingSync &&
+                    (Navigator.of(context).canPop() ||
+                        _index == 0 && _catalog?.selectedId != null ||
+                        _index == 2 &&
+                            (_settingsKey.currentState?.canGoBack ?? false) ||
+                        _index < 2 && _selection.active),
+                onBack: () => Navigator.of(context).maybePop(),
+                child: SafeArea(
+                  child: Row(
+                    children: [
+                      if (rail)
+                        NavigationRail(
+                          selectedIndex: _index,
+                          extended: constraints.maxWidth >= AppLayout.large,
+                          labelType: constraints.maxWidth >= AppLayout.large
+                              ? NavigationRailLabelType.none
+                              : NavigationRailLabelType.all,
+                          onDestinationSelected: (value) => _navigate(value),
+                          destinations: [
+                            for (var i = 0; i < labels.length; i++)
+                              NavigationRailDestination(
+                                icon: Icon(_icons[i]),
+                                label: Text(labels[i]),
+                              ),
+                          ],
                         ),
-                    ],
-                  ),
-            body: Listener(
-              child: SafeArea(
-                child: Row(
-                  children: [
-                    if (rail)
-                      NavigationRail(
-                        selectedIndex: _index,
-                        extended: constraints.maxWidth >= AppLayout.large,
-                        labelType: constraints.maxWidth >= AppLayout.large
-                            ? NavigationRailLabelType.none
-                            : NavigationRailLabelType.all,
-                        onDestinationSelected: (value) => _navigate(value),
-                        destinations: [
-                          for (var i = 0; i < labels.length; i++)
-                            NavigationRailDestination(
-                              icon: Icon(_icons[i]),
-                              label: Text(labels[i]),
-                            ),
-                        ],
-                      ),
-                    Expanded(
-                      key: ValueKey('content'),
-                      child: IndexedStack(
-                        index: _index,
-                        children: [
-                          if (_catalog != null)
-                            ServerCatalog(
-                              controller: _catalog!,
-                              selection: _serverSelection,
+                      Expanded(
+                        key: ValueKey('content'),
+                        child: AppPageSwitch(
+                          motion: widget.motion,
+                          index: _index,
+                          children: [
+                            if (_catalog != null)
+                              ServerCatalog(
+                                controller: _catalog!,
+                                selection: _serverSelection,
+                                motion: widget.motion,
+                                vpn: _vpn,
+                              )
+                            else if (_sshController != null)
+                              NetworkWorkbench(
+                                controller: _networkController,
+                                motion: widget.motion,
+                                ssh: _sshController,
+                              )
+                            else
+                              Center(child: Text(l.noServers)),
+                            if (_vpn != null)
+                              UsersPage(
+                                controller: _vpn!,
+                                showAddAction: false,
+                                selection: _clientSelection,
+                                publications: _publications,
+                                serverName: (id) =>
+                                    _catalog?.servers
+                                        .where((s) => s.id == id)
+                                        .firstOrNull
+                                        ?.profile
+                                        .displayName ??
+                                    id,
+                                exporter: SystemProfileExporter(),
+                                motion: widget.motion,
+                              )
+                            else
+                              Center(child: Text(l.vpnNoUsers)),
+                            SettingsHub(
+                              key: _settingsKey,
                               motion: widget.motion,
-                              vpn: _vpn,
-                            )
-                          else if (_sshController != null)
-                            NetworkWorkbench(
-                              controller: _networkController,
-                              motion: widget.motion,
-                              ssh: _sshController,
-                            )
-                          else
-                            Center(child: Text(l.noServers)),
-                          if (_vpn != null)
-                            UsersPage(
-                              controller: _vpn!,
-                              showAddAction: false,
-                              selection: _clientSelection,
-                              publications: _publications,
-                              serverName: (id) =>
-                                  _catalog?.servers
-                                      .where((s) => s.id == id)
-                                      .firstOrNull
-                                      ?.profile
-                                      .displayName ??
-                                  id,
-                              exporter: SystemProfileExporter(),
-                              motion: widget.motion,
-                            )
-                          else
-                            Center(child: Text(l.vpnNoUsers)),
-                          ListView(
-                            key: const PageStorageKey('settings'),
-                            padding: AppLayout.screenPadding(context),
-                            children: [
-                              Align(
-                                alignment: Alignment.topCenter,
-                                child: ConstrainedBox(
-                                  constraints: const BoxConstraints(
-                                    maxWidth: 960,
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      if (widget.settingsError)
-                                        Text(l.settingsSaveError),
-                                      if (widget.googleAccount?.supported ==
-                                              true ||
-                                          _publications != null) ...[
-                                        SectionCard(
-                                          key: const PageStorageKey(
-                                            'settings-drive',
-                                          ),
-                                          title: l.uiGoogleDrive,
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.stretch,
-                                            children: [
-                                              if (widget
-                                                      .googleAccount
-                                                      ?.supported ==
-                                                  true)
-                                                GoogleAccountPanel(
-                                                  showTitle: false,
-                                                  service:
-                                                      widget.googleAccount!,
-                                                  sync: widget.autoSync,
-                                                  beforeAccountChange:
-                                                      _publications?.suspend,
-                                                  afterAccountChange: () =>
-                                                      _publications?.resume(),
-                                                ),
-                                              if (widget.backups != null &&
-                                                  widget.backupFiles != null &&
-                                                  widget.onRestored != null)
-                                                BackupPanel(
-                                                  showTitle: false,
-                                                  store: widget.backups!,
-                                                  files: widget.backupFiles!,
-                                                  onRestored:
-                                                      widget.onRestored!,
-                                                  canRestore: _canReplace,
-                                                ),
-                                              if (_publications != null)
-                                                ListenableBuilder(
-                                                  listenable: _publications!,
-                                                  builder: (context, _) => SettingsGroup(
-                                                    key: const PageStorageKey(
-                                                      'settings-publications',
-                                                    ),
-                                                    title: l.publicationTitle,
-                                                    attention:
-                                                        _publications!.error !=
-                                                            null ||
-                                                        _publications!
-                                                                .accountError !=
-                                                            null ||
-                                                        _publications!
-                                                            .queues
-                                                            .values
-                                                            .any(
-                                                              (q) =>
-                                                                  q['issue'] !=
-                                                                  null,
-                                                            ),
-                                                    child:
-                                                        PublicationSettingsPanel(
-                                                          controller:
-                                                              _publications!,
-                                                          showTitle: false,
-                                                        ),
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
+                              error: widget.settingsError
+                                  ? Text(l.settingsSaveError)
+                                  : null,
+                              status: widget.autoSync == null
+                                  ? null
+                                  : ListenableBuilder(
+                                      listenable: widget.autoSync!,
+                                      builder: (context, _) => ListTile(
+                                        leading: const Icon(
+                                          Icons.cloud_done_outlined,
                                         ),
-                                        const SizedBox(height: AppLayout.gap),
-                                      ] else if (widget.backups != null &&
-                                          widget.backupFiles != null &&
-                                          widget.onRestored != null) ...[
-                                        BackupPanel(
-                                          store: widget.backups!,
-                                          files: widget.backupFiles!,
-                                          onRestored: widget.onRestored!,
-                                          canRestore: _canReplace,
+                                        title: Text(l.uiPersonalWorkspace),
+                                        trailing: const Icon(
+                                          Icons.chevron_right,
                                         ),
-                                        const SizedBox(height: AppLayout.gap),
-                                      ],
-                                      if (widget.servers is SyncMergeStore &&
-                                          widget.onRestored != null)
-                                        SyncConflictsPanel(
-                                          key: ValueKey(_syncRevision),
-                                          store:
-                                              widget.servers as SyncMergeStore,
-                                          canResolve: _canReplace,
-                                          onResolved: widget.onRestored!,
+                                        subtitle: Text(
+                                          syncStatusLabel(l, widget.autoSync!),
                                         ),
-                                      TemplateSettings(
-                                        key: const PageStorageKey(
-                                          'settings-template',
-                                        ),
-                                        controller: _controller,
                                       ),
-                                      const SizedBox(height: AppLayout.gap),
-                                      AppearanceSettings(
-                                        key: const PageStorageKey(
-                                          'settings-appearance',
-                                        ),
-                                        languages: widget.languages,
-                                        theme: widget.theme,
-                                        motion: widget.motion,
-                                        onTheme: widget.onTheme,
-                                        onMotion: widget.onMotion,
-                                      ),
-                                      const SizedBox(height: AppLayout.gap),
-                                      const ComponentUpdateSettings(),
-                                    ],
+                                    ),
+                              destinations: [
+                                SettingsDestination(
+                                  title: l.uiInterface,
+                                  subtitle:
+                                      '${switch (widget.theme) {
+                                        ThemeMode.system => l.system,
+                                        ThemeMode.light => l.light,
+                                        ThemeMode.dark => l.dark,
+                                      }} · ${switch (widget.languages.language) {
+                                        AppLanguage.system => l.languageSystem,
+                                        AppLanguage.ru => l.languageRussian,
+                                        AppLanguage.en => l.languageEnglish,
+                                      }}',
+                                  icon: Icons.palette_outlined,
+                                  content: AppearanceSettings(
+                                    languages: widget.languages,
+                                    theme: widget.theme,
+                                    motion: widget.motion,
+                                    onTheme: widget.onTheme,
+                                    onMotion: widget.onMotion,
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ],
+                                if (widget.googleAccount?.supported == true)
+                                  SettingsDestination(
+                                    title: l.uiSynchronization,
+                                    subtitle: l.uiSyncHelp,
+                                    icon: Icons.sync,
+                                    content: Column(
+                                      children: [
+                                        GoogleAccountPanel(
+                                          service: widget.googleAccount!,
+                                          sync: widget.autoSync,
+                                          beforeAccountChange:
+                                              _publications?.suspend,
+                                          afterAccountChange: () =>
+                                              _publications?.resume(),
+                                        ),
+                                        if (widget.servers is SyncMergeStore &&
+                                            widget.onRestored != null)
+                                          SyncConflictsPanel(
+                                            key: ValueKey(_syncRevision),
+                                            store:
+                                                widget.servers
+                                                    as SyncMergeStore,
+                                            canResolve: _canReplace,
+                                            onResolved: widget.onRestored!,
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                SettingsDestination(
+                                  title: l.uiClientProfiles,
+                                  subtitle: l.uiClientProfilesHelp,
+                                  icon: Icons.description_outlined,
+                                  content: AppSettingsSection(
+                                    title: l.uiClientProfiles,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        TemplateSettings(
+                                          controller: _controller,
+                                          showTitle: false,
+                                        ),
+                                        if (_publications != null) ...[
+                                          const Divider(
+                                            indent: 17,
+                                            endIndent: 17,
+                                          ),
+                                          PublicationSettingsPanel(
+                                            controller: _publications!,
+                                            showTitle: false,
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                if (widget.backups != null &&
+                                    widget.backupFiles != null &&
+                                    widget.onRestored != null)
+                                  SettingsDestination(
+                                    title: l.backupTitle,
+                                    subtitle: l.uiBackupHelp,
+                                    icon: Icons.history,
+                                    content: BackupPanel(
+                                      store: widget.backups!,
+                                      files: widget.backupFiles!,
+                                      onRestored: widget.onRestored!,
+                                      canRestore: _canReplace,
+                                    ),
+                                  ),
+                                SettingsDestination(
+                                  title: l.uiUpdatesShort,
+                                  subtitle: l.uiUpdatesHelp,
+                                  icon: Icons.system_update_alt,
+                                  content: const ComponentUpdateSettings(),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

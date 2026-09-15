@@ -252,7 +252,7 @@ class _TtCertificateState extends State<TtCertificateDialog>
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    return AlertDialog(
+    return AppFormDialog(
       title: Text(widget.certificate == null ? l.ttAddCertificate : l.vpnEdit),
       content: SizedBox(
         width: 650,

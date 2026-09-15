@@ -107,17 +107,20 @@ class _TtPanelState extends State<TtPanel> {
       final endpoints = c.workspace.ttEndpoints.where(
         (e) => e.serverId == widget.serverId && !e.deleted,
       );
-      return ContentSection(
-        title: 'TrustTunnel',
-        actions: Wrap(
-          spacing: AppLayout.smallGap,
-          children: [
-            IconButton.filledTonal(
-              onPressed: c.busy || !c.loaded || r.busy ? null : () => edit(),
-              icon: const Icon(Icons.add),
-              tooltip: l.ttAdd,
-            ),
-            IconButton(
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppPageIntro(l.uiTtIntro),
+          FilledButton.icon(
+            onPressed: c.busy || !c.loaded || r.busy ? null : () => edit(),
+            icon: const Icon(Icons.add),
+            label: Text(l.ttAdd),
+          ),
+          const SizedBox(height: 20),
+          AppSectionHeading(
+            title: l.uiConnections,
+            count: endpoints.length,
+            action: IconButton(
               tooltip: l.awgRefresh,
               onPressed: c.busy || r.busy || c.remote(target) == null
                   ? null
@@ -127,117 +130,133 @@ class _TtPanelState extends State<TtPanel> {
                     },
               icon: const Icon(Icons.refresh),
             ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (endpoints.isEmpty) Text(l.ttEmpty),
-            for (final e in endpoints)
-              Padding(
-                padding: const EdgeInsets.only(bottom: AppLayout.smallGap),
-                child: ResourceTile(
-                  storageId: 'tt-${e.id}',
-                  title: e.name,
-                  subtitle:
-                      '${e.spec['domain']}:${e.spec['port']}\n${e.enabled ? l.vpnEnabled : l.vpnDisabled}',
-                  actions: IconButton(
-                    onPressed: c.busy || r.busy ? null : () => edit(e),
-                    icon: const Icon(Icons.edit_outlined),
-                    tooltip: l.vpnEdit,
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (endpoints.isEmpty)
+                AppEmptyState(
+                  title: l.uiTtSetup,
+                  message: l.ttEmpty,
+                  icon: Icons.shield_outlined,
+                ),
+              for (final e in endpoints)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppLayout.smallGap),
+                  child: ResourceTile(
+                    storageId: 'tt-${e.id}',
+                    title: e.name,
+                    subtitle: '${e.spec['domain']}',
+                    badge: e.enabled ? l.vpnEnabled : l.vpnDisabled,
+                    detailsLabel: l.componentsDetails,
+                    actions: IconButton(
+                      onPressed: c.busy || r.busy ? null : () => edit(e),
+                      icon: const Icon(Icons.edit_outlined),
+                      tooltip: l.vpnEdit,
+                    ),
+                    details: [
+                      Text(
+                        '${l.vpnListen}: ${e.spec['listen']}:${e.spec['port']}',
+                      ),
+                      Text(
+                        e.spec['outbound'] == 'socks5'
+                            ? 'SOCKS5 ${e.spec['socksAddress']}'
+                            : l.ttDirect,
+                      ),
+                    ],
                   ),
-                  details: [
-                    Text(
-                      '${l.vpnListen}: ${e.spec['listen']}:${e.spec['port']}',
-                    ),
-                    Text(
-                      e.spec['outbound'] == 'socks5'
-                          ? 'SOCKS5 ${e.spec['socksAddress']}'
-                          : l.ttDirect,
-                    ),
-                  ],
+                ),
+              VpnJobView(showSnapshot: false, controller: c, serverId: target),
+              for (final cert
+                  in (r.ttCertificates?['certificates'] as List? ?? [])
+                      .whereType<Map>()) ...[
+                if (cert['error'] case final String issue)
+                  Text('${cert['domain']}: ${vpnMessage(l, issue)}'),
+                if ((cert['expiresAt'] as num) <
+                    DateTime.now().millisecondsSinceEpoch / 1000 + 21 * 86400)
+                  Text('${cert['domain']}: ${l.ttExpirySoon}'),
+              ],
+              const SizedBox(height: 20),
+              AppSettingsSection(
+                title: l.ttCertificates,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: TtCertificates(
+                    runner: r,
+                    picker: widget.picker,
+                    network: widget.network,
+                    motion: widget.motion,
+                    showTitle: false,
+                  ),
                 ),
               ),
-            VpnJobView(showSnapshot: false, controller: c, serverId: target),
-            for (final cert
-                in (r.ttCertificates?['certificates'] as List? ?? [])
-                    .whereType<Map>()) ...[
-              if (cert['error'] case final String issue)
-                Text('${cert['domain']}: ${vpnMessage(l, issue)}'),
-              if ((cert['expiresAt'] as num) <
-                  DateTime.now().millisecondsSinceEpoch / 1000 + 21 * 86400)
-                Text('${cert['domain']}: ${l.ttExpirySoon}'),
-            ],
-            AppExpansionTile(
-              key: const PageStorageKey('tt-certificate-management'),
-              title: Text(l.ttCertificates),
-              expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TtCertificates(
-                  runner: r,
-                  picker: widget.picker,
-                  network: widget.network,
-                  motion: widget.motion,
-                  showTitle: false,
+              if ((r.ttDiscovery?['issues'] as List? ?? []).isNotEmpty ||
+                  (r.ttDiscovery?['resources'] as List? ?? []).isNotEmpty) ...[
+                const Divider(),
+                Text(
+                  l.awgObserved,
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
               ],
-            ),
-            if ((r.ttDiscovery?['issues'] as List? ?? []).isNotEmpty ||
-                (r.ttDiscovery?['resources'] as List? ?? []).isNotEmpty) ...[
-              const Divider(),
-              Text(
-                l.awgObserved,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
+              for (final issue
+                  in (r.ttDiscovery?['issues'] as List? ?? []).whereType<Map>())
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('${issue['name']}'),
+                  subtitle: Text(vpnMessage(l, issue['code'] as String)),
+                  leading: const Icon(Icons.info_outline),
+                ),
+              for (final item
+                  in (r.ttDiscovery?['resources'] as List? ?? [])
+                      .whereType<Map>())
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: ResourceTile(
+                    storageId: 'tt-existing-${item['id']}',
+                    title: '${item['name']}',
+                    subtitle: (item['hosts'] as List)
+                        .map((h) => (h as Map)['domain'])
+                        .join(', '),
+                    note: l.uiPeerCount((item['users'] as List).length),
+                    detailsLabel: l.componentsDetails,
+                    details: [
+                      Text(
+                        '${item['values']['listen']}:${item['values']['port']}',
+                      ),
+                    ],
+                    actions: IconButton(
+                      icon: const Icon(Icons.edit_outlined),
+                      tooltip: l.vpnEdit,
+                      onPressed: r.busy
+                          ? null
+                          : () async {
+                              final snapshot = await r.ttRequest(
+                                'tt_external_read',
+                                id: item['id'] as String,
+                              );
+                              if (snapshot == null || !context.mounted) return;
+                              await showDialog<bool>(
+                                context: context,
+                                builder: (_) => _ExistingTtDialog(
+                                  runner: r,
+                                  snapshot: snapshot,
+                                  network: widget.network,
+                                  motion: widget.motion,
+                                ),
+                                animationStyle: AnimationStyle(
+                                  duration: AppMotion.duration(
+                                    context,
+                                    widget.motion,
+                                  ),
+                                ),
+                              );
+                            },
+                    ),
+                  ),
+                ),
             ],
-            for (final issue
-                in (r.ttDiscovery?['issues'] as List? ?? []).whereType<Map>())
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text('${issue['name']}'),
-                subtitle: Text(vpnMessage(l, issue['code'] as String)),
-                leading: const Icon(Icons.info_outline),
-              ),
-            for (final item
-                in (r.ttDiscovery?['resources'] as List? ?? [])
-                    .whereType<Map>())
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text('${item['name']}'),
-                subtitle: Text(
-                  '${item['values']['listen']}:${item['values']['port']} · ${(item['users'] as List).length} ${l.vpnUsers}\n${(item['hosts'] as List).map((h) => (h as Map)['domain']).join(', ')}',
-                ),
-                trailing: IconButton(
-                  icon: const Icon(Icons.edit_outlined),
-                  tooltip: l.vpnEdit,
-                  onPressed: r.busy
-                      ? null
-                      : () async {
-                          final snapshot = await r.ttRequest(
-                            'tt_external_read',
-                            id: item['id'] as String,
-                          );
-                          if (snapshot == null || !context.mounted) return;
-                          await showDialog<bool>(
-                            context: context,
-                            builder: (_) => _ExistingTtDialog(
-                              runner: r,
-                              snapshot: snapshot,
-                              network: widget.network,
-                              motion: widget.motion,
-                            ),
-                            animationStyle: AnimationStyle(
-                              duration: AppMotion.duration(
-                                context,
-                                widget.motion,
-                              ),
-                            ),
-                          );
-                        },
-                ),
-              ),
-          ],
-        ),
+          ),
+        ],
       );
     },
   );
@@ -510,7 +529,7 @@ class _ManagedTtState extends State<ManagedTtDialog> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    return AlertDialog(
+    return AppFormDialog(
       title: const Text('TrustTunnel'),
       content: SizedBox(
         width: 650,
@@ -680,7 +699,7 @@ class _ExistingTtState extends State<_ExistingTtDialog>
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    return AlertDialog(
+    return AppFormDialog(
       title: Text('${l.vpnEdit} · ${widget.snapshot['name']}'),
       content: SizedBox(
         width: 650,

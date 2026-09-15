@@ -48,7 +48,8 @@
           "tt_external_read",
           "tt_external_plan",
           "tt_certificates",
-          "tt_certificate_plan"
+          "tt_certificate_plan",
+          "protocol_remove_plan"
         ]
       },
       "id": {
@@ -70,7 +71,8 @@
           "awg_external_edit",
           "tt_apply",
           "tt_external_edit",
-          "tt_certificate"
+          "tt_certificate",
+          "protocol_remove"
         ]
       },
       "count": {
@@ -121,6 +123,14 @@
       "panelId": {
         "type": "string",
         "pattern": "^[a-f0-9]{32}$"
+      },
+      "protocol": {
+        "type": "string",
+        "enum": [
+          "vless",
+          "amneziawg",
+          "trusttunnel"
+        ]
       }
     },
     "actions": {
@@ -290,6 +300,11 @@
         "version",
         "action",
         "payload"
+      ],
+      "protocol_remove_plan": [
+        "version",
+        "action",
+        "protocol"
       ]
     },
     "submissions": {
@@ -417,6 +432,16 @@
         "interval",
         "payload",
         "fingerprint"
+      ],
+      "protocol_remove": [
+        "version",
+        "action",
+        "id",
+        "kind",
+        "count",
+        "interval",
+        "protocol",
+        "fingerprint"
       ]
     },
     "kindConstants": {
@@ -453,6 +478,10 @@
         "interval": 1
       },
       "tt_certificate": {
+        "count": 4,
+        "interval": 1
+      },
+      "protocol_remove": {
         "count": 4,
         "interval": 1
       }
@@ -610,7 +639,10 @@
     "tt_dns_mismatch",
     "tt_acme_port_busy",
     "tt_certbot_required",
-    "tt_acme_failed"
+    "tt_acme_failed",
+    "protocol_remove_conflict",
+    "protocol_remove_unsupported",
+    "protocol_remove_failed"
   ],
   "maxRequestBytes": 524288,
   "maxEvents": 256,

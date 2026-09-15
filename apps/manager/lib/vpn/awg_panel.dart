@@ -51,70 +51,80 @@ class AwgPanel extends StatelessWidget {
       );
       final observed = (c.workspace.servers[target]?['observed'] as List? ?? [])
           .whereType<Map>();
-      return ContentSection(
-        title: 'AmneziaWG',
-        actions: Wrap(
-          spacing: AppLayout.smallGap,
-          children: [
-            IconButton.filledTonal(
-              key: const ValueKey('awg-add'),
-              onPressed: c.busy || !c.loaded ? null : () => edit(context),
-              icon: const Icon(Icons.add),
-              tooltip: l.awgAdd,
-            ),
-            IconButton(
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppPageIntro(l.uiAwgIntro),
+          FilledButton.icon(
+            key: const ValueKey('awg-add'),
+            onPressed: c.busy || !c.loaded ? null : () => edit(context),
+            icon: const Icon(Icons.add),
+            label: Text(l.awgAdd),
+          ),
+          const SizedBox(height: 20),
+          AppSectionHeading(
+            title: l.uiInterfaces,
+            count: interfaces.length,
+            action: IconButton(
               tooltip: l.awgRefresh,
               onPressed: c.busy || c.remote(target) == null
                   ? null
                   : () => c.refreshServer(target),
               icon: const Icon(Icons.refresh),
             ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (interfaces.isEmpty) Text(l.awgEmpty),
-            for (final r in interfaces)
-              Padding(
-                padding: const EdgeInsets.only(bottom: AppLayout.smallGap),
-                child: ResourceTile(
-                  storageId: 'awg-${r.id}',
-                  title: r.name,
-                  subtitle:
-                      'UDP ${r.spec['externalPort']} · ${r.spec['pool']}\n${r.enabled ? l.vpnEnabled : l.vpnDisabled}'
-                      '${observed.any((s) => s['id'] == r.id && s['confirmed'] != true) ? '\n${l.vpnConflict}' : ''}',
-                  actions: IconButton(
-                    tooltip: l.vpnEdit,
-                    onPressed: c.busy ? null : () => edit(context, r),
-                    icon: const Icon(Icons.edit_outlined),
-                  ),
-                  details: [
-                    Text(
-                      '${r.spec['endpoint']}:${r.spec['externalPort']} · MTU ${r.spec['mtu']}',
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (interfaces.isEmpty)
+                AppEmptyState(title: l.awgEmpty, icon: Icons.shield_outlined),
+              for (final r in interfaces)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppLayout.smallGap),
+                  child: ResourceTile(
+                    storageId: 'awg-${r.id}',
+                    title: r.name,
+                    subtitle: '${r.spec['pool']}',
+                    badge: r.enabled ? l.vpnEnabled : l.vpnDisabled,
+                    note:
+                        observed.any(
+                          (s) => s['id'] == r.id && s['confirmed'] != true,
+                        )
+                        ? l.vpnConflict
+                        : null,
+                    detailsLabel: l.componentsDetails,
+                    actions: IconButton(
+                      tooltip: l.vpnEdit,
+                      onPressed: c.busy ? null : () => edit(context, r),
+                      icon: const Icon(Icons.edit_outlined),
                     ),
-                    for (final state in observed.where(
-                      (o) => o['id'] == r.id,
-                    )) ...[
-                      for (final client
-                          in (state['clients'] as List).whereType<Map>().where(
-                            (p) => p['enabled'] == true,
-                          ))
-                        Padding(
-                          padding: const EdgeInsets.only(
-                            top: AppLayout.smallGap,
+                    details: [
+                      Text(
+                        '${r.spec['endpoint']}:${r.spec['externalPort']} · MTU ${r.spec['mtu']}',
+                      ),
+                      for (final state in observed.where(
+                        (o) => o['id'] == r.id,
+                      )) ...[
+                        for (final client
+                            in (state['clients'] as List)
+                                .whereType<Map>()
+                                .where((p) => p['enabled'] == true))
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              top: AppLayout.smallGap,
+                            ),
+                            child: Text(
+                              '${c.workspace.users.where((u) => u.id == client['id']).firstOrNull?.name ?? client['id']} · ${client['address']}\n${l.awgHandshake}: ${(client['handshake'] as int? ?? 0) == 0 ? l.awgNoHandshake : DateTime.fromMillisecondsSinceEpoch((client['handshake'] as int) * 1000).toLocal()}\nRX ${client['rx'] ?? 0} B · TX ${client['tx'] ?? 0} B',
+                            ),
                           ),
-                          child: Text(
-                            '${c.workspace.users.where((u) => u.id == client['id']).firstOrNull?.name ?? client['id']} · ${client['address']}\n${l.awgHandshake}: ${(client['handshake'] as int? ?? 0) == 0 ? l.awgNoHandshake : DateTime.fromMillisecondsSinceEpoch((client['handshake'] as int) * 1000).toLocal()}\nRX ${client['rx'] ?? 0} B · TX ${client['tx'] ?? 0} B',
-                          ),
-                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-            VpnJobView(showSnapshot: false, controller: c, serverId: target),
-          ],
-        ),
+              VpnJobView(showSnapshot: false, controller: c, serverId: target),
+            ],
+          ),
+        ],
       );
     },
   );
@@ -188,7 +198,7 @@ class _AwgFormState extends State<AwgForm> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final choices = widget.network.choices(AddressRole.endpoint);
-    return AlertDialog(
+    return AppFormDialog(
       title: Text('AmneziaWG 3.1'),
       content: SizedBox(
         width: 650,

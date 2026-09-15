@@ -40,118 +40,163 @@ class InboundsPanel extends StatelessWidget {
           inbounds = c.workspace.inbounds.where(
             (r) => r.serverId == serverId && !r.deleted,
           );
-      return ContentSection(
-        title: l.vpnInbounds,
-        actions: IconButton.filledTonal(
-          key: const ValueKey('vpn-inbound-add'),
-          onPressed: c.busy || !c.loaded ? null : () => _edit(context),
-          icon: const Icon(Icons.add),
-          tooltip: l.vpnAddInbound,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (runner?.panelDetected == true &&
-                (runner?.panels.isEmpty ?? true))
-              Text(l.panelDiscoveryFailed),
-            if (inbounds.isEmpty &&
-                runner?.panelDiscovery?['failed'] != true &&
-                !(runner?.panelDetected == true &&
-                    (runner?.panels.isEmpty ?? true)) &&
-                (runner?.panels.every((p) => (p['inbounds'] as List).isEmpty) ??
-                    true))
-              Text(l.vpnNoInbounds),
-            for (final panel in runner?.panels ?? <Map<String, dynamic>>[])
-              for (final observed in panel['inbounds'] as List)
-                if (!inbounds.any(
-                  (r) =>
-                      observed['name'] == 'AntiRKN:${c.workspace.id}:${r.id}',
-                ))
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      '${observed['name']} · ${observed['protocol']}',
-                    ),
-                    subtitle: Text(
-                      '${observed['listen']}:${observed['port']} · ${observed['transport']} / ${observed['security']}\n${observed['enabled'] == true ? l.vpnEnabled : l.vpnDisabled} · ${l.vpnObserved}',
-                    ),
-                    trailing: IconButton(
-                      tooltip: l.vpnEdit,
-                      icon: const Icon(Icons.edit_outlined),
-                      onPressed: runner?.canPlan != true
-                          ? null
-                          : () => showDialog<void>(
-                              context: context,
-                              builder: (context) => ObservedInboundDialog(
-                                controller: runner!,
-                                inboundId: observed['id'] as int,
-                                port: panel['port'] as int,
-                                motion: motion,
-                              ),
-                            ),
-                    ),
-                  ),
-            for (final r in inbounds)
-              Padding(
-                padding: const EdgeInsets.only(bottom: AppLayout.smallGap),
-                child: ResourceTile(
-                  key: ValueKey('inbound-summary-${r.id}'),
-                  storageId: r.id,
-                  title: r.spec['name'] as String,
-                  subtitle:
-                      '${r.spec['transport'].toString().toUpperCase()} / ${r.spec['security'].toString().toUpperCase()} · ${r.spec['externalPort']}\n${r.enabled ? l.vpnEnabled : l.vpnDisabled}',
-                  details: [
-                    Text(
-                      '${l.vpnListen}: ${r.spec['listen']}:${r.spec['port']}',
-                    ),
-                    Text('${l.vpnSni}: ${r.spec['sni']}'),
-                    if (r.spec['security'] == 'reality')
-                      Text('${l.vpnTarget}: ${r.spec['target']}'),
-                    if (r.spec['transport'] == 'xhttp')
-                      Text(
-                        '${r.spec['path']} · ${r.spec['mode']} · Host: ${r.spec['host']}',
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppPageIntro(l.uiVlessIntro),
+          FilledButton.icon(
+            key: const ValueKey('vpn-inbound-add'),
+            onPressed: c.busy || !c.loaded ? null : () => _edit(context),
+            icon: const Icon(Icons.add),
+            label: Text(l.vpnAddInbound),
+          ),
+          const SizedBox(height: 20),
+          AppSectionHeading(title: l.vpnInbounds),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (runner?.panelDetected == true &&
+                  (runner?.panels.isEmpty ?? true))
+                Text(l.panelDiscoveryFailed),
+              if (inbounds.isEmpty &&
+                  runner?.panelDiscovery?['failed'] != true &&
+                  !(runner?.panelDetected == true &&
+                      (runner?.panels.isEmpty ?? true)) &&
+                  (runner?.panels.every(
+                        (p) => (p['inbounds'] as List).isEmpty,
+                      ) ??
+                      true))
+                AppEmptyState(title: l.vpnNoInbounds, icon: Icons.hub_outlined),
+              for (final panel in runner?.panels ?? <Map<String, dynamic>>[])
+                for (final observed in panel['inbounds'] as List)
+                  if (!inbounds.any(
+                    (r) =>
+                        observed['name'] == 'AntiRKN:${c.workspace.id}:${r.id}',
+                  ))
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        bottom: AppLayout.smallGap,
                       ),
-                  ],
-                  actions: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        key: ValueKey('vpn-internal-${r.id}'),
-                        tooltip: r.internal ? l.vpnInternal : l.vpnClientAccess,
-                        icon: Icon(
-                          r.internal
-                              ? Icons.lock_outline
-                              : Icons.people_outline,
-                        ),
-                        onPressed: c.busy
-                            ? null
-                            : () async {
-                                await c.saveInbound(
-                                  VlessInbound(
-                                    serverId: r.serverId,
-                                    spec: {...r.spec, 'internal': !r.internal},
+                      child: ResourceTile(
+                        storageId:
+                            'observed-$serverId-${panel['port']}-${observed['id']}',
+                        title: '${observed['name'] ?? ''}'.trim().isEmpty
+                            ? '${observed['protocol']}'.toUpperCase() +
+                                  ' · ${observed['port']}'
+                            : '${observed['name']}',
+                        subtitle:
+                            '${observed['transport']} · ${observed['security']}',
+                        badge: observed['enabled'] == true
+                            ? l.vpnEnabled
+                            : l.vpnDisabled,
+                        note: l.vpnObserved,
+                        detailsLabel: l.componentsDetails,
+                        details: [
+                          Text(
+                            '${l.vpnListen}: ${observed['listen']}:${observed['port']}',
+                          ),
+                          Text(
+                            '${observed['transport']} / ${observed['security']}',
+                          ),
+                        ],
+                        actions: IconButton(
+                          tooltip: l.vpnEdit,
+                          icon: const Icon(Icons.edit_outlined),
+                          onPressed: runner?.canPlan != true
+                              ? null
+                              : () => showDialog<void>(
+                                  context: context,
+                                  animationStyle: AnimationStyle(
+                                    duration: AppMotion.duration(
+                                      context,
+                                      motion,
+                                    ),
                                   ),
-                                );
-                                if (c.error == null) await c.prepare();
-                              },
+                                  builder: (context) => ObservedInboundDialog(
+                                    controller: runner!,
+                                    inboundId: observed['id'] as int,
+                                    port: panel['port'] as int,
+                                    motion: motion,
+                                  ),
+                                ),
+                        ),
                       ),
-                      IconButton(
-                        tooltip: l.vpnEdit,
-                        onPressed: c.busy ? null : () => _edit(context, r),
-                        icon: const Icon(Icons.edit_outlined),
+                    ),
+              for (final r in inbounds)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppLayout.smallGap),
+                  child: ResourceTile(
+                    key: ValueKey('inbound-summary-${r.id}'),
+                    storageId: r.id,
+                    title: r.spec['name'] as String,
+                    subtitle:
+                        '${r.spec['transport'].toString().toUpperCase()} · ${r.spec['security'].toString().toUpperCase()}',
+                    badge: r.enabled ? l.vpnEnabled : l.vpnDisabled,
+                    note: r.internal ? l.vpnInternal : l.vpnClientAccess,
+                    detailsLabel: l.componentsDetails,
+                    details: [
+                      Text(
+                        '${l.vpnListen}: ${r.spec['listen']}:${r.spec['port']}',
                       ),
+                      Text('${l.vpnSni}: ${r.spec['sni']}'),
+                      if (r.spec['security'] == 'reality')
+                        Text('${l.vpnTarget}: ${r.spec['target']}'),
+                      if (r.spec['transport'] == 'xhttp')
+                        Text(
+                          '${r.spec['path']} · ${r.spec['mode']} · Host: ${r.spec['host']}',
+                        ),
                     ],
+                    actions: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          key: ValueKey('vpn-internal-${r.id}'),
+                          tooltip: r.internal
+                              ? l.vpnInternal
+                              : l.vpnClientAccess,
+                          icon: Icon(
+                            r.internal
+                                ? Icons.lock_outline
+                                : Icons.people_outline,
+                          ),
+                          onPressed: c.busy
+                              ? null
+                              : () async {
+                                  await c.saveInbound(
+                                    VlessInbound(
+                                      serverId: r.serverId,
+                                      spec: {
+                                        ...r.spec,
+                                        'internal': !r.internal,
+                                      },
+                                    ),
+                                  );
+                                  if (c.error == null) await c.prepare();
+                                },
+                        ),
+                        IconButton(
+                          tooltip: l.vpnEdit,
+                          onPressed: c.busy ? null : () => _edit(context, r),
+                          icon: const Icon(Icons.edit_outlined),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
+              VpnJobView(
+                showSnapshot: false,
+                controller: c,
+                serverId: serverId,
               ),
-            VpnJobView(showSnapshot: false, controller: c, serverId: serverId),
-            if (showPlan) VpnPlanView(controller: c, serverName: serverName),
-          ],
-        ),
+              if (showPlan) VpnPlanView(controller: c, serverName: serverName),
+            ],
+          ),
+        ],
       );
     },
   );
   Future<void> _edit(BuildContext context, [VlessInbound? inbound]) async {
+    AppHaptics.selection();
     final result = await showDialog<VlessInbound>(
       context: context,
       builder: (context) => InboundForm(
@@ -305,7 +350,7 @@ class _InboundFormState extends State<InboundForm> {
     final l = AppLocalizations.of(context),
         xhttp = spec['transport'] == 'xhttp',
         tls = spec['security'] == 'tls';
-    return AlertDialog(
+    return AppFormDialog(
       title: Text(widget.inbound == null ? l.vpnAddInbound : l.vpnEdit),
       content: SizedBox(
         width: 650,

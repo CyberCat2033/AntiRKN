@@ -58,6 +58,7 @@ class VpnController extends ChangeNotifier {
     required this.remote,
     required this.template,
     this.serverIds,
+    this.connectForDeletion,
     this.recovery,
     Timer Function(Duration, void Function(Timer))? timer,
   }) {
@@ -79,6 +80,9 @@ class VpnController extends ChangeNotifier {
   final VpnRemote? Function(String) remote;
   final String Function() template;
   final Iterable<String> Function()? serverIds;
+
+  /// true: connected, false: connection failed, null: another action is busy.
+  final Future<bool?> Function(String serverId)? connectForDeletion;
   final Map<String, String> _observedConnections = {};
   String? _deviceId;
   Future<void> Function(VpnUser, Future<void> Function())? deletePublishedFile;
@@ -108,6 +112,10 @@ class VpnController extends ChangeNotifier {
   bool _disposed = false;
   bool busy = false, loaded = false;
   String? error;
+  Timer? _identityNoticeTimer;
+  bool _identityNoticeExpired = false;
+  String? get visibleError =>
+      error == 'vpn_identity' && _identityNoticeExpired ? null : error;
   VpnWorkspace workspace = VpnWorkspace.empty();
   int revision = 0;
   List<VpnPlan> plans = [];
@@ -159,6 +167,12 @@ class VpnController extends ChangeNotifier {
     } catch (_) {
       error = 'vpn_failed';
     } finally {
+      if (error == 'vpn_identity' && _identityNoticeTimer == null) {
+        _identityNoticeTimer = Timer(const Duration(seconds: 15), () {
+          _identityNoticeExpired = true;
+          _notify();
+        });
+      }
       busy = false;
       _token = null;
       _notify();
@@ -313,6 +327,71 @@ class VpnController extends ChangeNotifier {
     plans = [];
     await _profiles();
   });
+
+  Future<bool> retireProtocol(String serverId, String protocol) async {
+    if (busy || hasRunning || !loaded) return false;
+    var saved = false;
+    await _run((token) async {
+      await checkProfileEffects();
+      final target = protocol == 'amneziawg'
+          ? awgTarget(serverId)
+          : protocol == 'trusttunnel'
+          ? ttTarget(serverId)
+          : serverId;
+      final record = workspace.servers[target];
+      if (record?['pending'] != null) throw const FormatException('vpn_busy');
+      await _write(
+        workspace.copy(
+          inbounds: [
+            for (final r in workspace.inbounds)
+              if (protocol == 'vless' && r.serverId == serverId)
+                VlessInbound.fromJson({
+                  ...r.toJson(),
+                  'spec': {...r.spec, 'deleted': true, 'enabled': false},
+                })
+              else
+                r,
+          ],
+          awgInterfaces: [
+            for (final r in workspace.awgInterfaces)
+              if (protocol == 'amneziawg' && r.serverId == serverId)
+                AwgInterface.fromJson({
+                  ...r.toJson(),
+                  'spec': {...r.spec, 'deleted': true, 'enabled': false},
+                })
+              else
+                r,
+          ],
+          ttEndpoints: [
+            for (final r in workspace.ttEndpoints)
+              if (protocol == 'trusttunnel' && r.serverId == serverId)
+                TrustTunnelEndpoint.fromJson({
+                  ...r.toJson(),
+                  'spec': {...r.spec, 'deleted': true, 'enabled': false},
+                })
+              else
+                r,
+          ],
+          servers: {
+            ...workspace.servers,
+            target: {
+              if (record != null) ...record,
+              'paused': true,
+              'authorizedPayload': null,
+              'pending': null,
+              'observed': [],
+              'verifiedAt': null,
+            },
+          },
+        ),
+      );
+      plans = [];
+      await _profiles();
+      saved = true;
+    });
+    return saved;
+  }
+
   Future<RunnerResponse> _request(
     VpnRemote r,
     RunnerRequest request,
@@ -470,20 +549,22 @@ class VpnController extends ChangeNotifier {
           _observedConnections[id] != connection!.observationKey;
     }).toList();
     if (!work &&
+        !_restoredTargets.any((id) => remote(id) != null) &&
         fresh.isEmpty &&
         template() == _lastTemplate &&
         pendingDeletions.isEmpty) {
       return;
     }
     await _run((token) async {
+      await _reconcileDeletions(token);
       for (final id in fresh) {
         final connection = remote(id);
         if (connection == null) continue;
         if (!observesOperation(id)) await _refreshServer(id, token);
         _observedConnections[id] = connection.observationKey!;
       }
-      if (work) await _reconcile(token);
-      await _reconcileDeletions(token);
+      if (work || _restoredTargets.any((id) => remote(id) != null))
+        await _reconcile(token);
       if (template() != _lastTemplate) await _profiles();
     });
   }
@@ -496,7 +577,10 @@ class VpnController extends ChangeNotifier {
         await _observeOperation(id, token);
         continue;
       }
-      if (_restoredTargets.contains(id)) continue;
+      if (_restoredTargets.contains(id)) {
+        if (remote(id) != null) await _reviewRestored(id, token);
+        continue;
+      }
       final connection = remote(id);
       if (connection == null) continue;
       var record = Map<String, dynamic>.from(workspace.servers[id] ?? {});
@@ -863,7 +947,10 @@ class VpnController extends ChangeNotifier {
   });
 
   /// A restored request is only inspected here. Missing jobs are not submitted.
-  Future<void> reviewRestored(String id) => _run((token) async {
+  Future<void> reviewRestored(String id) =>
+      _run((token) => _reviewRestored(id, token));
+
+  Future<void> _reviewRestored(String id, CancellationToken token) async {
     if (!_restoredTargets.contains(id)) return;
     final connection = remote(id);
     if (connection == null) throw const FormatException('vpn_connection');
@@ -904,7 +991,9 @@ class VpnController extends ChangeNotifier {
       'job': job?.toJson(),
       'error': null,
     });
-  });
+    await _approveRestored([id]);
+  }
+
   Future<void> resume(String id) => _run((token) async {
     if (pendingRevocations.isNotEmpty) throw const FormatException('vpn_busy');
     final r = remote(id), record = workspace.servers[id];
@@ -990,6 +1079,7 @@ class VpnController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _identityNoticeTimer?.cancel();
     _disposed = true;
     _timer?.cancel();
     _token?.cancel();

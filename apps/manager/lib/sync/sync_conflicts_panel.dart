@@ -219,7 +219,7 @@ class _ConflictDialogState extends State<_ConflictDialog> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context), c = widget.conflict;
-    return AlertDialog(
+    return AppFormDialog(
       title: Text(_kindLabel(l, c.kind)),
       content: SizedBox(
         width: 680,
