@@ -106,6 +106,7 @@ class InboundsPanel extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: AppLayout.smallGap),
                 child: ResourceTile(
                   key: ValueKey('inbound-summary-${r.id}'),
+                  storageId: r.id,
                   title: r.spec['name'] as String,
                   subtitle:
                       '${r.spec['endpoint']}:${r.spec['externalPort']} · ${r.spec['transport'].toString().toUpperCase()} / ${r.spec['security'].toString().toUpperCase()}',

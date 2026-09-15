@@ -134,6 +134,7 @@ class _SyncConflictsPanelState extends State<SyncConflictsPanel> {
               Text(l.syncRejectedCount(current.rejectedGroups)),
             for (final change in current.blockedChanges)
               ExpansionTile(
+                key: PageStorageKey('blocked-change-${change.header.changeId}'),
                 title: Text(_kindLabel(l, change.header.entityKind)),
                 subtitle: Text(change.header.entityId),
                 children: [_PendingChangeDetails(change: change)],

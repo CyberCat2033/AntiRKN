@@ -192,10 +192,11 @@ class ResourceTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.details,
+    required this.storageId,
     this.actions,
     super.key,
   });
-  final String title, subtitle;
+  final String title, subtitle, storageId;
   final List<Widget> details;
   final Widget? actions;
 
@@ -206,6 +207,7 @@ class ResourceTile extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ExpansionTile(
+          key: PageStorageKey('resource-details-$storageId'),
           maintainState: true,
           shape: const Border(),
           collapsedShape: const Border(),

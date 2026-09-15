@@ -207,6 +207,7 @@ class VpnJobView extends StatelessWidget {
           ),
         if (record['verifiedAt'] case final String at)
           ExpansionTile(
+            key: PageStorageKey('vpn-snapshot-$serverId'),
             tilePadding: EdgeInsets.zero,
             title: Text(
               l.vpnSnapshot,
