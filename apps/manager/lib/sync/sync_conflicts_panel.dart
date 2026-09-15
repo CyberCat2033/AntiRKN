@@ -103,12 +103,21 @@ class _SyncConflictsPanelState extends State<SyncConflictsPanel> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    final current = status;
+    if (!busy &&
+        error == null &&
+        current != null &&
+        current.conflicts.isEmpty &&
+        current.waitingGroups == 0 &&
+        current.blockedGroups == 0 &&
+        current.rejectedGroups == 0) {
+      return const SizedBox.shrink();
+    }
     return SectionCard(
       title: l.syncConflictsTitle,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(l.syncLocalHelp),
           if (busy) const LinearProgressIndicator(),
           if (error != null)
             Semantics(
@@ -120,7 +129,8 @@ class _SyncConflictsPanelState extends State<SyncConflictsPanel> {
               ),
             ),
           if (status case final current?) ...[
-            Text(l.syncConflictCount(current.conflicts.length)),
+            if (current.conflicts.isNotEmpty)
+              Text(l.syncConflictCount(current.conflicts.length)),
             if (current.waitingGroups > 0)
               Text(
                 l.syncWaitingCount(

@@ -239,62 +239,70 @@ class _UsersPageState extends State<UsersPage> {
                 user.id,
                 Padding(
                   padding: const EdgeInsets.only(bottom: AppLayout.smallGap),
-                  child: Card.filled(
-                    child: ListTile(
-                      key: ValueKey('client-${user.id}'),
-                      selected:
-                          selection.active && selection.ids.contains(user.id),
-                      leading: selection.active
-                          ? Checkbox(
-                              key: ValueKey('client-select-${user.id}'),
-                              value: selection.ids.contains(user.id),
-                              onChanged: c.busy
-                                  ? null
-                                  : (_) => selection.toggle(user.id),
-                            )
-                          : null,
-                      title: Text(user.name),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${user.login} · ${user.enabled ? l.vpnEnabled : l.vpnDisabled}',
+                  child: SummaryCard(
+                    key: ValueKey('client-${user.id}'),
+                    selected:
+                        selection.active && selection.ids.contains(user.id),
+                    leading: selection.active
+                        ? Checkbox(
+                            key: ValueKey('client-select-${user.id}'),
+                            value: selection.ids.contains(user.id),
+                            onChanged: c.busy
+                                ? null
+                                : (_) => selection.toggle(user.id),
+                          )
+                        : CircleAvatar(
+                            child: Text(
+                              user.name
+                                  .trim()
+                                  .split(RegExp(r'\s+'))
+                                  .where((v) => v.isNotEmpty)
+                                  .take(2)
+                                  .map((v) => v.characters.first.toUpperCase())
+                                  .join(),
+                            ),
                           ),
-                          if (publications != null)
-                            UserPublicationView(
-                              controller: publications!,
-                              userId: user.id,
+                    title: user.name,
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${user.login} · ${user.enabled ? l.vpnEnabled : l.vpnDisabled}',
+                        ),
+                        if (publications != null)
+                          UserPublicationView(
+                            controller: publications!,
+                            userId: user.id,
+                          ),
+                        if (c.results[user.id]?.hasBlockingErrors == true)
+                          Text(
+                            vpnMessage(
+                              l,
+                              c.results[user.id]!.diagnostics.first.code,
                             ),
-                          if (c.results[user.id]?.hasBlockingErrors == true)
-                            Text(
-                              vpnMessage(
-                                l,
-                                c.results[user.id]!.diagnostics.first.code,
-                              ),
-                            ),
-                        ],
-                      ),
-                      onTap: c.busy
-                          ? null
-                          : selection.active
-                          ? () => selection.toggle(user.id)
-                          : () => UsersPage.edit(
-                              context,
-                              c,
-                              motion,
-                              user,
-                              publications,
-                            ),
-                      trailing: selection.active
-                          ? null
-                          : IconButton(
-                              tooltip: l.vpnProfile,
-                              onPressed: c.busy
-                                  ? null
-                                  : () => _profile(context, user),
-                              icon: const Icon(Icons.ios_share_outlined),
-                            ),
+                          ),
+                      ],
                     ),
+                    onTap: c.busy
+                        ? null
+                        : selection.active
+                        ? () => selection.toggle(user.id)
+                        : () => UsersPage.edit(
+                            context,
+                            c,
+                            motion,
+                            user,
+                            publications,
+                          ),
+                    action: selection.active
+                        ? null
+                        : FilledButton.tonalIcon(
+                            label: Text(l.uiShareProfile),
+                            onPressed: c.busy
+                                ? null
+                                : () => _profile(context, user),
+                            icon: const Icon(Icons.ios_share_outlined),
+                          ),
                   ),
                 ),
               ),

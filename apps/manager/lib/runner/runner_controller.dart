@@ -87,6 +87,7 @@ class RunnerController extends ChangeNotifier {
   int? panelPort = 0;
   Map<String, dynamic>? aptPlan;
   bool choosingAptUpdate = false;
+  bool _systemUpdate = false;
   String? dismissedJobId;
   List<RunnerJob> jobs = [];
   RunnerJob? selected;
@@ -733,6 +734,7 @@ class RunnerController extends ChangeNotifier {
 
   void dismissApt() {
     if (busy) return;
+    _systemUpdate = false;
     aptPlan = null;
     choosingAptUpdate = false;
     _notify();
@@ -761,6 +763,17 @@ class RunnerController extends ChangeNotifier {
       }
       aptPlan = response.aptPlan;
     });
+  }
+
+  /// The explicit system-update action refreshes indexes. Package installation
+  /// still requires review of the resulting, fingerprinted plan.
+  Future<void> updateSystem() async {
+    if (!canStart) return;
+    await prepareApt(upgrade: false);
+    if (!choosingAptUpdate || !canStart) return;
+    _systemUpdate = true;
+    await applyApt();
+    if (error != null && pending == null) _systemUpdate = false;
   }
 
   Future<void> applyApt() {
@@ -1245,6 +1258,22 @@ class RunnerController extends ChangeNotifier {
     if (pending?.id == id) pending = null;
     jobs = [selected!, ...jobs.where((j) => j.id != id)];
     await _save();
+    if (_systemUpdate && job.kind == 'apt_update' && job.terminal) {
+      _systemUpdate = false;
+      if (job.status == 'succeeded') {
+        final plan = await remote.request(
+          RunnerRequest.aptPlan(),
+          token,
+          sudoPassword: password(),
+        );
+        token.check();
+        if (plan.code != 'ok' || plan.aptPlan == null) {
+          throw const RunnerFailure(RunnerIssue.invalidResponse);
+        }
+        aptPlan = plan.aptPlan;
+        dismissedJobId = job.id;
+      }
+    }
     if (job.kind == 'panel_update' &&
         job.status == 'succeeded' &&
         panelAccess != null) {

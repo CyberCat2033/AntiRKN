@@ -232,18 +232,28 @@ class _ServerCatalogState extends State<ServerCatalog> {
                                   ? null
                                   : (_) => selection.toggle(server.id),
                             )
-                          : const Icon(Icons.dns_outlined),
+                          : Icon(
+                              c.stageFor(server.id) == SshStage.connected
+                                  ? Icons.check_circle
+                                  : Icons.dns_outlined,
+                              color: c.stageFor(server.id) == SshStage.connected
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                            ),
                       title: Text(server.profile.displayName),
                       subtitle: Text(
                         [
                           '${server.profile.host}:${server.profile.port}',
+                          ?c.osFor(server.id),
                           switch (c.stageFor(server.id)) {
                             SshStage.connected => l.sshConnected,
                             SshStage.connecting => l.sshConnecting,
                             SshStage.verifying => l.sshTrustTitle,
                             SshStage.reading => l.sshReading,
                             SshStage.checkingPrivileges => l.privilegesChecking,
-                            SshStage.idle => l.sshIdle,
+                            SshStage.idle => l.uiOffline,
                           },
                         ].join(' · '),
                       ),

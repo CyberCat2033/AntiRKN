@@ -86,7 +86,6 @@ class _SshPanelState extends State<SshPanel> {
           if (!c.initialised && !c.vaultBusy)
             OutlinedButton(onPressed: c.initialise, child: Text(l.vaultRetry)),
           if (c.unlocked) ...[
-            const SizedBox(height: AppLayout.gap),
             SectionCard(
               title: c.settingsExpanded || !widget.showDelete
                   ? l.sshTitle
@@ -236,8 +235,19 @@ class _SshPanelState extends State<SshPanel> {
                         Text(l.sshAgentHelp),
                       if (c.stage == SshStage.connected) Text(l.sshEditHelp),
                     ],
-                    if (!c.settingsExpanded) Text(c.os ?? l.sshOsUnknown),
-                    if (c.stage != SshStage.connected && c.lastInfo != null)
+                    if (!c.settingsExpanded && widget.showConnectionActions)
+                      Text(c.os ?? l.sshOsUnknown),
+                    if (!c.settingsExpanded)
+                      Text(
+                        '${c.username.text} · ${c.port.text} · ${switch (c.authMethod) {
+                          SshAuthMethod.password => l.sshAuthPassword,
+                          SshAuthMethod.privateKey => l.sshAuthKey,
+                          SshAuthMethod.agent => l.sshAuthAgent,
+                        }}',
+                      ),
+                    if (c.settingsExpanded &&
+                        c.stage != SshStage.connected &&
+                        c.lastInfo != null)
                       Text(
                         l.networkObservedAt(
                           DateFormat.yMd(
@@ -326,10 +336,11 @@ class _SshPanelState extends State<SshPanel> {
                       children: [
                         if (c.stage == SshStage.connected &&
                             !c.settingsExpanded) ...[
-                          FilledButton(
-                            onPressed: c.refresh,
-                            child: Text(l.sshRefresh),
-                          ),
+                          if (widget.showConnectionActions)
+                            TextButton(
+                              onPressed: c.refresh,
+                              child: Text(l.sshRefresh),
+                            ),
                           if (widget.showConnectionActions)
                             OutlinedButton(
                               onPressed: c.disconnect,

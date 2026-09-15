@@ -54,6 +54,7 @@ abstract final class AppTheme {
           seedColor: const Color(0xff386a57),
           brightness: brightness,
         );
+    final typography = ThemeData(brightness: brightness).textTheme;
     return ThemeData(
       useMaterial3: true,
       colorScheme: colors,
@@ -61,7 +62,31 @@ abstract final class AppTheme {
       inputDecorationTheme: const InputDecorationTheme(
         border: OutlineInputBorder(),
       ),
-      cardTheme: const CardThemeData(margin: EdgeInsets.zero),
+      appBarTheme: AppBarTheme(
+        backgroundColor: colors.surface,
+        scrolledUnderElevation: 0,
+        titleTextStyle: typography.titleLarge?.copyWith(
+          color: colors.onSurface,
+          fontSize: 22,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      cardTheme: CardThemeData(
+        margin: EdgeInsets.zero,
+        elevation: 0,
+        color: colors.surfaceContainerLow,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+      listTileTheme: ListTileThemeData(
+        titleTextStyle: typography.titleMedium?.copyWith(
+          fontWeight: FontWeight.w600,
+        ),
+        subtitleTextStyle: typography.bodyMedium,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      ),
+      dividerTheme: DividerThemeData(
+        color: colors.outlineVariant.withValues(alpha: .5),
+      ),
       navigationRailTheme: const NavigationRailThemeData(groupAlignment: -1),
     );
   }
@@ -123,7 +148,9 @@ class SectionCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: Theme.of(context).textTheme.titleLarge,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               if (trailing case final action?) ...[
@@ -141,6 +168,84 @@ class SectionCard extends StatelessWidget {
         ? content
         : Card.filled(child: content);
   }
+}
+
+/// A shared card row; long labels and large text put actions below the summary.
+class SummaryCard extends StatelessWidget {
+  const SummaryCard({
+    required this.title,
+    required this.subtitle,
+    this.leading,
+    this.action,
+    this.onTap,
+    this.selected = false,
+    super.key,
+  });
+  final String title;
+  final Widget subtitle;
+  final Widget? leading, action;
+  final VoidCallback? onTap;
+  final bool selected;
+  @override
+  Widget build(BuildContext context) => Card.filled(
+    color: selected ? Theme.of(context).colorScheme.secondaryContainer : null,
+    clipBehavior: Clip.antiAlias,
+    child: InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.all(AppLayout.gap),
+        child: LayoutBuilder(
+          builder: (context, size) {
+            final stacked =
+                size.maxWidth < 480 ||
+                MediaQuery.textScalerOf(context).scale(14) > 21;
+            final summary = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                DefaultTextStyle.merge(
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  child: subtitle,
+                ),
+              ],
+            );
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    if (leading != null) ...[
+                      leading!,
+                      const SizedBox(width: AppLayout.gap),
+                    ],
+                    Expanded(child: summary),
+                    if (!stacked && action != null) ...[
+                      const SizedBox(width: AppLayout.gap),
+                      action!,
+                    ],
+                  ],
+                ),
+                if (stacked && action != null)
+                  Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: action!,
+                  ),
+              ],
+            );
+          },
+        ),
+      ),
+    ),
+  );
 }
 
 /// A section heading whose actions move below the title on narrow layouts.
@@ -165,7 +270,7 @@ class ContentSection extends StatelessWidget {
             title,
             style: Theme.of(context).textTheme.titleMedium,
           );
-          if (constraints.maxWidth < AppLayout.compact ||
+          if (constraints.maxWidth < 280 ||
               MediaQuery.textScalerOf(context).scale(14) > 21) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -213,6 +318,7 @@ class ResourceTile extends StatelessWidget {
           collapsedShape: const Border(),
           title: Text(title),
           subtitle: Text(subtitle),
+          trailing: actions,
           childrenPadding: const EdgeInsets.symmetric(
             horizontal: AppLayout.gap,
             vertical: AppLayout.smallGap,
@@ -220,16 +326,6 @@ class ResourceTile extends StatelessWidget {
           expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
           children: details,
         ),
-        if (actions != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppLayout.smallGap,
-              0,
-              AppLayout.smallGap,
-              AppLayout.smallGap,
-            ),
-            child: actions!,
-          ),
       ],
     ),
   );
@@ -245,6 +341,7 @@ class AppExpansionTile extends StatefulWidget {
     this.children = const [],
     this.subtitle,
     this.leading,
+    this.trailing,
     this.maintainState = false,
     this.childrenPadding,
     this.tilePadding,
@@ -257,7 +354,7 @@ class AppExpansionTile extends StatefulWidget {
   });
   final Widget title;
   final List<Widget> children;
-  final Widget? subtitle, leading;
+  final Widget? subtitle, leading, trailing;
   final bool maintainState;
   final EdgeInsetsGeometry? childrenPadding, tilePadding;
   final CrossAxisAlignment? expandedCrossAxisAlignment;
@@ -277,6 +374,7 @@ class _AppExpansionTileState extends State<AppExpansionTile> {
     title: widget.title,
     subtitle: widget.subtitle,
     leading: widget.leading,
+    trailing: widget.trailing,
     maintainState: widget.maintainState,
     tilePadding: widget.tilePadding,
     childrenPadding: widget.childrenPadding,
@@ -351,9 +449,18 @@ class AppChoice<T> extends StatelessWidget {
         )..layout();
         final width = text.width;
         text.dispose();
-        return total + width + 64;
+        return total + width + 32;
       });
       return SegmentedButton<T>(
+        showSelectedIcon: false,
+        style: ButtonStyle(
+          padding: const WidgetStatePropertyAll(
+            EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          ),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
         direction: requiredWidth > size.maxWidth
             ? Axis.vertical
             : Axis.horizontal,

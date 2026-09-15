@@ -112,16 +112,20 @@ class _TtPanelState extends State<TtPanel> {
         actions: Wrap(
           spacing: AppLayout.smallGap,
           children: [
-            TextButton.icon(
+            IconButton.filledTonal(
               onPressed: c.busy || !c.loaded || r.busy ? null : () => edit(),
               icon: const Icon(Icons.add),
-              label: Text(l.ttAdd),
+              tooltip: l.ttAdd,
             ),
-            TextButton(
-              onPressed: c.busy || c.remote(target) == null
+            IconButton(
+              tooltip: l.awgRefresh,
+              onPressed: c.busy || r.busy || c.remote(target) == null
                   ? null
-                  : () => c.refreshServer(target),
-              child: Text(l.awgRefresh),
+                  : () async {
+                      await c.refreshServer(target);
+                      await refresh();
+                    },
+              icon: const Icon(Icons.refresh),
             ),
           ],
         ),
@@ -130,25 +134,53 @@ class _TtPanelState extends State<TtPanel> {
           children: [
             if (endpoints.isEmpty) Text(l.ttEmpty),
             for (final e in endpoints)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(e.name),
-                subtitle: Text(
-                  '${e.spec['domain']} · ${e.spec['listen']}:${e.spec['port']}\n${e.spec['outbound'] == 'socks5' ? 'SOCKS5 ${e.spec['socksAddress']}' : l.ttDirect} · ${e.enabled ? l.vpnEnabled : l.vpnDisabled}',
-                ),
-                trailing: IconButton(
-                  onPressed: c.busy || r.busy ? null : () => edit(e),
-                  icon: const Icon(Icons.edit_outlined),
-                  tooltip: l.vpnEdit,
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppLayout.smallGap),
+                child: ResourceTile(
+                  storageId: 'tt-${e.id}',
+                  title: e.name,
+                  subtitle:
+                      '${e.spec['domain']}:${e.spec['port']}\n${e.enabled ? l.vpnEnabled : l.vpnDisabled}',
+                  actions: IconButton(
+                    onPressed: c.busy || r.busy ? null : () => edit(e),
+                    icon: const Icon(Icons.edit_outlined),
+                    tooltip: l.vpnEdit,
+                  ),
+                  details: [
+                    Text(
+                      '${l.vpnListen}: ${e.spec['listen']}:${e.spec['port']}',
+                    ),
+                    Text(
+                      e.spec['outbound'] == 'socks5'
+                          ? 'SOCKS5 ${e.spec['socksAddress']}'
+                          : l.ttDirect,
+                    ),
+                  ],
                 ),
               ),
-            VpnJobView(controller: c, serverId: target),
-            const Divider(),
-            TtCertificates(
-              runner: r,
-              picker: widget.picker,
-              network: widget.network,
-              motion: widget.motion,
+            VpnJobView(showSnapshot: false, controller: c, serverId: target),
+            for (final cert
+                in (r.ttCertificates?['certificates'] as List? ?? [])
+                    .whereType<Map>()) ...[
+              if (cert['error'] case final String issue)
+                Text('${cert['domain']}: ${vpnMessage(l, issue)}'),
+              if ((cert['expiresAt'] as num) <
+                  DateTime.now().millisecondsSinceEpoch / 1000 + 21 * 86400)
+                Text('${cert['domain']}: ${l.ttExpirySoon}'),
+            ],
+            AppExpansionTile(
+              key: const PageStorageKey('tt-certificate-management'),
+              title: Text(l.ttCertificates),
+              expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TtCertificates(
+                  runner: r,
+                  picker: widget.picker,
+                  network: widget.network,
+                  motion: widget.motion,
+                  showTitle: false,
+                ),
+              ],
             ),
             if ((r.ttDiscovery?['issues'] as List? ?? []).isNotEmpty ||
                 (r.ttDiscovery?['resources'] as List? ?? []).isNotEmpty) ...[
@@ -204,13 +236,6 @@ class _TtPanelState extends State<TtPanel> {
                         },
                 ),
               ),
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: TextButton(
-                onPressed: r.busy || !r.installed ? null : refresh,
-                child: Text(l.awgRefresh),
-              ),
-            ),
           ],
         ),
       );

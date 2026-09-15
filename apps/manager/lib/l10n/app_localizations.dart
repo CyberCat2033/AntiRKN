@@ -2303,7 +2303,7 @@ abstract class AppLocalizations {
   /// No description provided for @vpnInbounds.
   ///
   /// In en, this message translates to:
-  /// **'VLESS inbounds'**
+  /// **'VLESS'**
   String get vpnInbounds;
 
   /// No description provided for @vpnAddInbound.
@@ -2627,7 +2627,7 @@ abstract class AppLocalizations {
   /// No description provided for @protocolSoftware.
   ///
   /// In en, this message translates to:
-  /// **'Protocol updates'**
+  /// **'Component updates'**
   String get protocolSoftware;
 
   /// No description provided for @protocolExisting.
@@ -2711,13 +2711,13 @@ abstract class AppLocalizations {
   /// No description provided for @updatesAutomatic.
   ///
   /// In en, this message translates to:
-  /// **'Automatically check protocol versions'**
+  /// **'Check for new versions'**
   String get updatesAutomatic;
 
   /// No description provided for @updatesSuggestions.
   ///
   /// In en, this message translates to:
-  /// **'Show update suggestions'**
+  /// **'Suggest updates'**
   String get updatesSuggestions;
 
   /// No description provided for @updatesFailed.
@@ -2741,7 +2741,7 @@ abstract class AppLocalizations {
   /// No description provided for @updatesCompatibility.
   ///
   /// In en, this message translates to:
-  /// **'New releases are checked for 3x-ui, Xray, TrustTunnel and AmneziaWG. Applying verified TrustTunnel/AmneziaWG updates is available through their plans; applying 3x-ui/Xray updates is not available yet.'**
+  /// **'The new version has not been verified for compatibility yet.'**
   String get updatesCompatibility;
 
   /// No description provided for @updatesAvailable.
@@ -3707,13 +3707,13 @@ abstract class AppLocalizations {
   /// No description provided for @backupExport.
   ///
   /// In en, this message translates to:
-  /// **'Create backup'**
+  /// **'Back up'**
   String get backupExport;
 
   /// No description provided for @backupImport.
   ///
   /// In en, this message translates to:
-  /// **'Restore backup'**
+  /// **'Restore'**
   String get backupImport;
 
   /// No description provided for @backupPassword.
@@ -4031,7 +4031,7 @@ abstract class AppLocalizations {
   /// No description provided for @googleAccountHelp.
   ///
   /// In en, this message translates to:
-  /// **'Sign in to Google to connect Google Drive.'**
+  /// **'Sign in to Google to sync your devices.'**
   String get googleAccountHelp;
 
   /// No description provided for @googleSignIn.
@@ -4121,7 +4121,7 @@ abstract class AppLocalizations {
   /// No description provided for @autoSyncWaiting.
   ///
   /// In en, this message translates to:
-  /// **'Changes are waiting to sync.'**
+  /// **'Waiting to sync'**
   String get autoSyncWaiting;
 
   /// No description provided for @autoSyncWorking.
@@ -4133,7 +4133,7 @@ abstract class AppLocalizations {
   /// No description provided for @autoSyncDone.
   ///
   /// In en, this message translates to:
-  /// **'Google Drive exchange completed.'**
+  /// **'Synced'**
   String get autoSyncDone;
 
   /// No description provided for @autoSyncEditing.
@@ -4175,7 +4175,7 @@ abstract class AppLocalizations {
   /// No description provided for @autoSyncPairing.
   ///
   /// In en, this message translates to:
-  /// **'Connect a second device: export an encrypted backup from your main device and restore it here using Backups below. Then sign in to the same Google account. Google sign-in alone does not transfer the encryption key. Only share the backup with trusted devices. Sync runs while the app is open.'**
+  /// **'Create an encrypted backup on your main device. On the new device, choose Restore, select the backup and sign in to the same Google account. The backup transfers the encryption key; share it only with trusted devices. Sync runs while the app is open.'**
   String get autoSyncPairing;
 
   /// No description provided for @googleDesktopConfigurationError.
@@ -4361,7 +4361,7 @@ abstract class AppLocalizations {
   /// No description provided for @uiAppearance.
   ///
   /// In en, this message translates to:
-  /// **'Appearance'**
+  /// **'Appearance & language'**
   String get uiAppearance;
 
   /// No description provided for @uiActions.
@@ -4651,6 +4651,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Choose an editable UTF-8 text file using a Google Drive link. Folders, Google Docs and another client’s files cannot be used.'**
   String get publicationBindInvalid;
+
+  /// No description provided for @uiSyncOptions.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync options'**
+  String get uiSyncOptions;
+
+  /// No description provided for @uiPairDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect another device'**
+  String get uiPairDevice;
+
+  /// No description provided for @uiSystemUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'Update system'**
+  String get uiSystemUpdate;
+
+  /// No description provided for @uiSystemUpdateHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh the package list, then review available updates.'**
+  String get uiSystemUpdateHelp;
+
+  /// No description provided for @uiCheck.
+  ///
+  /// In en, this message translates to:
+  /// **'Check'**
+  String get uiCheck;
+
+  /// No description provided for @uiShareProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Share profile'**
+  String get uiShareProfile;
+
+  /// No description provided for @uiPublicAddresses.
+  ///
+  /// In en, this message translates to:
+  /// **'Public IP addresses'**
+  String get uiPublicAddresses;
+
+  /// No description provided for @uiNoPublicAddresses.
+  ///
+  /// In en, this message translates to:
+  /// **'No public addresses found'**
+  String get uiNoPublicAddresses;
+
+  /// No description provided for @uiOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnected'**
+  String get uiOffline;
+
+  /// No description provided for @uiProtocolClients.
+  ///
+  /// In en, this message translates to:
+  /// **'Client access'**
+  String get uiProtocolClients;
+
+  /// No description provided for @uiServices.
+  ///
+  /// In en, this message translates to:
+  /// **'Services & updates'**
+  String get uiServices;
+
+  /// No description provided for @uiNetworkSsh.
+  ///
+  /// In en, this message translates to:
+  /// **'Network & SSH'**
+  String get uiNetworkSsh;
+
+  /// No description provided for @uiAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Account'**
+  String get uiAccount;
 }
 
 class _AppLocalizationsDelegate

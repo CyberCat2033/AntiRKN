@@ -1,5 +1,6 @@
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:flutter/material.dart';
+import 'package:antirkn_domain/antirkn_domain.dart';
 import '../l10n/app_localizations.dart';
 import '../network/network_workbench.dart';
 import '../runner/runner_panel.dart';
@@ -21,6 +22,42 @@ class ServerDetailView extends StatefulWidget {
   final VoidCallback? onBack;
   @override
   State<ServerDetailView> createState() => _ServerDetailViewState();
+}
+
+class PublicServerAddresses extends StatelessWidget {
+  const PublicServerAddresses({required this.controller, super.key});
+  final SshController controller;
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: controller.network,
+    builder: (context, _) {
+      final l = AppLocalizations.of(context);
+      final addresses =
+          controller.network.inventory?.addresses
+              .where((a) => a.addressClass == AddressClass.external)
+              .toList() ??
+          [];
+      return SectionCard(
+        title: l.uiPublicAddresses,
+        trailing: IconButton(
+          tooltip: l.sshRefresh,
+          onPressed: controller.stage == SshStage.connected && !controller.busy
+              ? controller.refresh
+              : null,
+          icon: const Icon(Icons.refresh),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (addresses.isEmpty) Text(l.uiNoPublicAddresses),
+            for (final a in addresses) SelectableText(a.address.canonical),
+            if (controller.stage != SshStage.connected && addresses.isNotEmpty)
+              Text(l.inventoryStale),
+          ],
+        ),
+      );
+    },
+  );
 }
 
 class _ServerDetailViewState extends State<ServerDetailView>
@@ -72,9 +109,31 @@ class _ServerDetailViewState extends State<ServerDetailView>
                   const SizedBox(width: AppLayout.smallGap),
                 ],
                 Expanded(
-                  child: Text(
-                    c.displayName,
-                    style: Theme.of(context).textTheme.titleLarge,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        c.displayName,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      if (c.os != null)
+                        Text(
+                          c.os!,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      if (c.serverName.text.isNotEmpty)
+                        Text(
+                          c.host.text,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                    ],
                   ),
                 ),
                 ConstrainedBox(
@@ -117,10 +176,10 @@ class _ServerDetailViewState extends State<ServerDetailView>
             tabAlignment: TabAlignment.start,
             tabs: [
               Tab(text: l.uiProtocols),
-              Tab(text: l.uiMaintenance),
+              Tab(text: l.uiServices),
               Tab(
                 key: const ValueKey('server-tab-connection'),
-                text: l.uiConnection,
+                text: l.uiNetworkSsh,
               ),
             ],
           ),
@@ -172,6 +231,8 @@ class _ServerDetailViewState extends State<ServerDetailView>
                     RunnerPanel(controller: c.runner, motion: widget.motion),
                   ]),
                   _page('connection', [
+                    PublicServerAddresses(controller: c),
+                    const SizedBox(height: AppLayout.gap),
                     SshPanel(
                       controller: c,
                       motion: widget.motion,

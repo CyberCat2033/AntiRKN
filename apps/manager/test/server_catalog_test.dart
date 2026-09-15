@@ -260,7 +260,7 @@ void main() {
         await tap('server-tab-connection');
         expect(find.byKey(const ValueKey('ssh-connect')), findsOneWidget);
         expect(
-          find.text(language == 'en' ? 'Connection' : 'Подключение'),
+          find.text(language == 'en' ? 'Network & SSH' : 'Сеть и SSH'),
           findsOneWidget,
         );
         expect(

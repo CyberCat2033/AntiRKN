@@ -83,8 +83,6 @@ void main() {
       await settle();
       await tester.tap(find.text('Settings').last);
       await settle();
-      await tester.tap(find.text('Backups').first);
-      await settle();
       await tester.scrollUntilVisible(
         find.byKey(const ValueKey('backup-import')),
         250,

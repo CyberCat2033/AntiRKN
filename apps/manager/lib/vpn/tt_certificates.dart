@@ -14,8 +14,10 @@ class TtCertificates extends StatelessWidget {
     required this.picker,
     required this.network,
     required this.motion,
+    this.showTitle = true,
     super.key,
   });
+  final bool showTitle;
   final RunnerController runner;
   final PrivateKeyFilePicker picker;
   final NetworkController network;
@@ -28,10 +30,11 @@ class TtCertificates extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            l.ttCertificates,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+          if (showTitle)
+            Text(
+              l.ttCertificates,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
           for (final c
               in (runner.ttCertificates?['certificates'] as List? ?? [])
                   .whereType<Map>()) ...[

@@ -1260,7 +1260,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get vpnSave => 'Сохранить и подготовить план доступов';
 
   @override
-  String get vpnInbounds => 'VLESS inbounds';
+  String get vpnInbounds => 'VLESS';
 
   @override
   String get vpnAddInbound => 'Добавить inbound';
@@ -1444,7 +1444,7 @@ class AppLocalizationsRu extends AppLocalizations {
       'Для этого клиента пока нет настроенных активных inbounds.';
 
   @override
-  String get protocolSoftware => 'Обновления протоколов';
+  String get protocolSoftware => 'Обновления компонентов';
 
   @override
   String get protocolExisting =>
@@ -1494,10 +1494,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String get updatesCheck => 'Проверить обновления';
 
   @override
-  String get updatesAutomatic => 'Автоматически проверять версии протоколов';
+  String get updatesAutomatic => 'Проверять новые версии';
 
   @override
-  String get updatesSuggestions => 'Показывать предложения обновлений';
+  String get updatesSuggestions => 'Предлагать обновления';
 
   @override
   String get updatesFailed =>
@@ -1513,7 +1513,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get updatesCompatibility =>
-      'Новые релизы проверяются для 3x-ui, Xray, TrustTunnel и AmneziaWG. Проверенные обновления TrustTunnel/AmneziaWG применяются через их планы; применение обновлений 3x-ui/Xray пока недоступно.';
+      'Новая версия пока не прошла проверку совместимости.';
 
   @override
   String updatesAvailable(String component, String current, String latest) {
@@ -2069,10 +2069,10 @@ class AppLocalizationsRu extends AppLocalizations {
       'Сохраните серверы, клиентов, ключи, шаблоны и историю изменений в зашифрованный файл для восстановления на другой установке.';
 
   @override
-  String get backupExport => 'Создать копию';
+  String get backupExport => 'Резервная копия';
 
   @override
-  String get backupImport => 'Восстановить из копии';
+  String get backupImport => 'Восстановить';
 
   @override
   String get backupPassword => 'Пароль резервной копии';
@@ -2262,7 +2262,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get googleAccountHelp =>
-      'Войдите в Google, чтобы подключить Google Drive.';
+      'Войдите в Google для синхронизации устройств.';
 
   @override
   String get googleSignIn => 'Войти в Google';
@@ -2313,13 +2313,13 @@ class AppLocalizationsRu extends AppLocalizations {
   String get autoSyncDisabled => 'Автосинхронизация выключена.';
 
   @override
-  String get autoSyncWaiting => 'Изменения ожидают обмена.';
+  String get autoSyncWaiting => 'Ожидание синхронизации';
 
   @override
   String get autoSyncWorking => 'Обмен с Google Drive…';
 
   @override
-  String get autoSyncDone => 'Обмен с Google Drive завершён.';
+  String get autoSyncDone => 'Синхронизировано';
 
   @override
   String get autoSyncEditing =>
@@ -2347,7 +2347,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get autoSyncPairing =>
-      'Подключение второго устройства: экспортируйте зашифрованную копию с основного устройства и восстановите её здесь в разделе «Резервные копии» ниже. Затем войдите в тот же Google-аккаунт. Один вход в Google не переносит ключ шифрования. Передавайте копию только доверенным устройствам. Обмен работает при открытом приложении.';
+      'На основном устройстве создайте зашифрованную резервную копию. На новом устройстве нажмите «Восстановить», выберите копию и войдите в тот же Google-аккаунт. Копия передаёт ключ шифрования, поэтому отправляйте её только доверенным устройствам. Синхронизация работает при открытом приложении.';
 
   @override
   String get googleDesktopConfigurationError =>
@@ -2454,7 +2454,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get uiGoogleDrive => 'Google Drive';
 
   @override
-  String get uiAppearance => 'Оформление';
+  String get uiAppearance => 'Внешний вид и язык';
 
   @override
   String get uiActions => 'Действия';
@@ -2618,4 +2618,44 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get publicationBindInvalid =>
       'Нужна ссылка Google Drive на обычный текстовый файл UTF-8, доступный для редактирования. Папки, Google Документы и файлы другого клиента не подходят.';
+
+  @override
+  String get uiSyncOptions => 'Параметры синхронизации';
+
+  @override
+  String get uiPairDevice => 'Подключить другое устройство';
+
+  @override
+  String get uiSystemUpdate => 'Обновить систему';
+
+  @override
+  String get uiSystemUpdateHelp =>
+      'Список пакетов обновится перед выбором обновлений.';
+
+  @override
+  String get uiCheck => 'Проверить';
+
+  @override
+  String get uiShareProfile => 'Поделиться профилем';
+
+  @override
+  String get uiPublicAddresses => 'Публичные IP-адреса';
+
+  @override
+  String get uiNoPublicAddresses => 'Публичные адреса не обнаружены';
+
+  @override
+  String get uiOffline => 'Не подключён';
+
+  @override
+  String get uiProtocolClients => 'Доступы клиентов';
+
+  @override
+  String get uiServices => 'Службы и обновления';
+
+  @override
+  String get uiNetworkSsh => 'Сеть и SSH';
+
+  @override
+  String get uiAccount => 'Аккаунт';
 }

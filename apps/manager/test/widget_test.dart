@@ -24,10 +24,7 @@ class TestLanguageStore implements LanguagePreferenceStore {
 Future<void> openGroup(WidgetTester tester, String key) async {
   final group = find.byKey(PageStorageKey(key));
   await tester.ensureVisible(group);
-  final title = tester.widget<SettingsGroup>(group).title;
-  await tester.tap(
-    find.descendant(of: group, matching: find.text(title)).first,
-  );
+  // Main settings are visible cards; only advanced options are disclosures.
   await tester.pumpAndSettle();
 }
 

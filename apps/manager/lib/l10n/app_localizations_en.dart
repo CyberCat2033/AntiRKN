@@ -1257,7 +1257,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get vpnSave => 'Save and prepare access plan';
 
   @override
-  String get vpnInbounds => 'VLESS inbounds';
+  String get vpnInbounds => 'VLESS';
 
   @override
   String get vpnAddInbound => 'Add inbound';
@@ -1439,7 +1439,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'No active inbounds are configured for this client yet.';
 
   @override
-  String get protocolSoftware => 'Protocol updates';
+  String get protocolSoftware => 'Component updates';
 
   @override
   String get protocolExisting =>
@@ -1488,10 +1488,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get updatesCheck => 'Check for updates';
 
   @override
-  String get updatesAutomatic => 'Automatically check protocol versions';
+  String get updatesAutomatic => 'Check for new versions';
 
   @override
-  String get updatesSuggestions => 'Show update suggestions';
+  String get updatesSuggestions => 'Suggest updates';
 
   @override
   String get updatesFailed =>
@@ -1507,7 +1507,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get updatesCompatibility =>
-      'New releases are checked for 3x-ui, Xray, TrustTunnel and AmneziaWG. Applying verified TrustTunnel/AmneziaWG updates is available through their plans; applying 3x-ui/Xray updates is not available yet.';
+      'The new version has not been verified for compatibility yet.';
 
   @override
   String updatesAvailable(String component, String current, String latest) {
@@ -2064,10 +2064,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Save servers, clients, keys, templates and change history in an encrypted file to restore on another installation.';
 
   @override
-  String get backupExport => 'Create backup';
+  String get backupExport => 'Back up';
 
   @override
-  String get backupImport => 'Restore backup';
+  String get backupImport => 'Restore';
 
   @override
   String get backupPassword => 'Backup password';
@@ -2256,7 +2256,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get googleAccountTitle => 'Google account';
 
   @override
-  String get googleAccountHelp => 'Sign in to Google to connect Google Drive.';
+  String get googleAccountHelp => 'Sign in to Google to sync your devices.';
 
   @override
   String get googleSignIn => 'Sign in to Google';
@@ -2307,13 +2307,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get autoSyncDisabled => 'Automatic sync is off.';
 
   @override
-  String get autoSyncWaiting => 'Changes are waiting to sync.';
+  String get autoSyncWaiting => 'Waiting to sync';
 
   @override
   String get autoSyncWorking => 'Exchanging data with Google Drive…';
 
   @override
-  String get autoSyncDone => 'Google Drive exchange completed.';
+  String get autoSyncDone => 'Synced';
 
   @override
   String get autoSyncEditing =>
@@ -2341,7 +2341,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get autoSyncPairing =>
-      'Connect a second device: export an encrypted backup from your main device and restore it here using Backups below. Then sign in to the same Google account. Google sign-in alone does not transfer the encryption key. Only share the backup with trusted devices. Sync runs while the app is open.';
+      'Create an encrypted backup on your main device. On the new device, choose Restore, select the backup and sign in to the same Google account. The backup transfers the encryption key; share it only with trusted devices. Sync runs while the app is open.';
 
   @override
   String get googleDesktopConfigurationError =>
@@ -2448,7 +2448,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get uiGoogleDrive => 'Google Drive';
 
   @override
-  String get uiAppearance => 'Appearance';
+  String get uiAppearance => 'Appearance & language';
 
   @override
   String get uiActions => 'Actions';
@@ -2613,4 +2613,44 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get publicationBindInvalid =>
       'Choose an editable UTF-8 text file using a Google Drive link. Folders, Google Docs and another client’s files cannot be used.';
+
+  @override
+  String get uiSyncOptions => 'Sync options';
+
+  @override
+  String get uiPairDevice => 'Connect another device';
+
+  @override
+  String get uiSystemUpdate => 'Update system';
+
+  @override
+  String get uiSystemUpdateHelp =>
+      'Refresh the package list, then review available updates.';
+
+  @override
+  String get uiCheck => 'Check';
+
+  @override
+  String get uiShareProfile => 'Share profile';
+
+  @override
+  String get uiPublicAddresses => 'Public IP addresses';
+
+  @override
+  String get uiNoPublicAddresses => 'No public addresses found';
+
+  @override
+  String get uiOffline => 'Disconnected';
+
+  @override
+  String get uiProtocolClients => 'Client access';
+
+  @override
+  String get uiServices => 'Services & updates';
+
+  @override
+  String get uiNetworkSsh => 'Network & SSH';
+
+  @override
+  String get uiAccount => 'Account';
 }

@@ -1,7 +1,6 @@
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../l10n/app_localizations.dart';
 import 'runner_controller.dart';
 import 'component_updates_controller.dart';
@@ -89,43 +88,6 @@ class ComponentInstallationView extends StatelessWidget {
   }
 }
 
-class UpdatesResult extends StatelessWidget {
-  const UpdatesResult({
-    required this.controller,
-    this.showVersions = false,
-    super.key,
-  });
-  final ComponentUpdatesController controller;
-  final bool showVersions;
-  @override
-  Widget build(BuildContext context) {
-    final c = controller, l = AppLocalizations.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (c.busy) const LinearProgressIndicator(),
-        if (c.failed) Text(l.updatesFailed),
-        if (c.storageFailed) Text(l.settingsSaveError),
-        if (c.checkedAt != null)
-          Text(
-            l.updatesChecked(
-              DateFormat.yMd(
-                l.localeName,
-              ).add_Hm().format(c.checkedAt!.toLocal()),
-            ),
-          ),
-        if (showVersions) ...[
-          for (final entry in c.latest.entries)
-            Text(
-              '${componentName(entry.key)} · ${l.updatesLatest}: ${entry.value}',
-            ),
-          if (c.latest.isNotEmpty) Text(l.updatesCompatibility),
-        ],
-      ],
-    );
-  }
-}
-
 class ComponentUpdateSettings extends StatelessWidget {
   const ComponentUpdateSettings({super.key});
   @override
@@ -138,11 +100,13 @@ class ComponentUpdateSettings extends StatelessWidget {
       child: Column(
         children: [
           SwitchListTile(
+            contentPadding: EdgeInsets.zero,
             title: Text(l.updatesAutomatic),
             value: c.automatic,
             onChanged: (v) => c.setPreference(automatic: v),
           ),
           SwitchListTile(
+            contentPadding: EdgeInsets.zero,
             title: Text(l.updatesSuggestions),
             value: c.suggestions,
             onChanged: (v) => c.setPreference(suggestions: v),
@@ -151,7 +115,9 @@ class ComponentUpdateSettings extends StatelessWidget {
             onPressed: c.busy ? null : c.check,
             child: Text(l.updatesCheck),
           ),
-          UpdatesResult(controller: c, showVersions: true),
+          if (c.busy) const LinearProgressIndicator(),
+          if (c.failed) Text(l.updatesFailed),
+          if (c.storageFailed) Text(l.settingsSaveError),
         ],
       ),
     );

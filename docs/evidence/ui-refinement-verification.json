@@ -1,0 +1,136 @@
+{
+  "date": "2026-09-15",
+  "stage": "UI refinement after PageStorage fix",
+  "crash_fix_commit": "2059da7",
+  "verification": {
+    "command": "bash tool/verify.sh",
+    "result": "PASS",
+    "tests": 569,
+    "dart_flutter_groups": [
+      23,
+      32,
+      117,
+      36,
+      24,
+      24,
+      221
+    ],
+    "python_groups": [
+      87,
+      5
+    ],
+    "analyze": "PASS",
+    "format": "248 files; 0 changed",
+    "localization": "771 RU/EN",
+    "architecture_generators_base_yml": "PASS"
+  },
+  "final_awg_warning_and_visual_checks": {
+    "result": "PASS",
+    "tests": 9,
+    "files": [
+      "settings_design_test.dart",
+      "server_design_test.dart",
+      "awg_test.dart"
+    ],
+    "command": "ANTIRKN_UI_EVIDENCE=/tmp/antirkn-ui-redesign flutter test --no-pub test/settings_design_test.dart test/server_design_test.dart test/awg_test.dart"
+  },
+  "builds": {
+    "linux": {
+      "path": "apps/manager/build/linux/x64/debug/bundle/antirkn_manager",
+      "bytes": 53888,
+      "sha256": "fe29c4e441b1b86708e344bf267dd2af24f28771a97e297156c7bfe446b34cc7"
+    },
+    "linux_dart_kernel": {
+      "path": "apps/manager/build/linux/x64/debug/bundle/data/flutter_assets/kernel_blob.bin",
+      "bytes": 84062088,
+      "sha256": "4d1adf7ba0c0caebf42816a05dce74630f169e9614e033e637e6b824d3792769"
+    },
+    "android_arm64": {
+      "path": "apps/manager/build/app/outputs/flutter-apk/app-debug.apk",
+      "bytes": 145172499,
+      "sha256": "c12acb56f038ed1bafaf488e0762de7913a8ac98db717686fb14b2e78d6228e1"
+    },
+    "mode": "debug",
+    "public_google_picker_defines_present": {
+      "linux": true,
+      "android": true
+    },
+    "desktop_client_secret_absent": "PASS; all Linux bundle files and all APK entries"
+  },
+  "visual_evidence": {
+    "renderer": "Flutter widget-test rendering; synthetic fixtures; AdwaitaSans as Roboto and MaterialIcons loaded locally",
+    "screenshots": [
+      {
+        "path": "docs/evidence/ui-refinement-server-1000.png",
+        "bytes": 27939,
+        "sha256": "4dc6d90eb85ca5b732490d3ebcd2f56e53d2d267d81d27cc1d04f13e1ab0fd67"
+      },
+      {
+        "path": "docs/evidence/ui-refinement-server-390.png",
+        "bytes": 24578,
+        "sha256": "c96797b7113690aeb2e0bba8cdf1055120f9b4d84c1b5a55293d4c8bec5b23a2"
+      },
+      {
+        "path": "docs/evidence/ui-refinement-settings-1200-ru.png",
+        "bytes": 75759,
+        "sha256": "2c350ea1651e6b2baa7c78ceefef2fb09dfe1870b02a44437a3f7dd9bda8f2e6"
+      },
+      {
+        "path": "docs/evidence/ui-refinement-settings-390-ru.png",
+        "bytes": 58238,
+        "sha256": "4a15e106d34d4a53d0840e97a155ab7b5e1f14d6e1f6bd66efe3416630f05583"
+      }
+    ],
+    "settings_locales": [
+      "ru",
+      "en"
+    ],
+    "settings_widths": [
+      390,
+      1200
+    ],
+    "server_widths": [
+      390,
+      1000
+    ],
+    "large_text_scale": 2
+  },
+  "system_update_checks": [
+    "persist before apt_update submit",
+    "duplicate action does not submit twice",
+    "only successful index task requests apt_plan",
+    "failed/cancelled index task does not request apt_plan",
+    "only explicit plan approval submits apt_upgrade with fingerprint",
+    "lost response restores exact task without automatic upgrade"
+  ],
+  "unverified": [
+    "manual runtime of final Linux/Android builds",
+    "physical phone gestures and haptics",
+    "Windows",
+    "screen reader",
+    "performance",
+    "real Google/Picker in this stage",
+    "APT and VPN component updates on real VPS in this stage",
+    "secondary assertion from original screenshot independently"
+  ],
+  "not_performed": [
+    "push",
+    "new working GUI launch",
+    "shutdown"
+  ],
+  "limits": [
+    "Local automatic transition from apt_update success to package plan is not persisted across a full app restart; existing task observation is restored.",
+    "P1-08 wide split-view and long full-screen forms remain separate work."
+  ],
+  "android_installation": {
+    "authorization": "Owner requested installation in this session: залей на телефон",
+    "device": "OnePlus HD1911",
+    "command": "adb install -r",
+    "result": "Success",
+    "preserve_data": true,
+    "package": "org.antirkn.antirkn_manager",
+    "installed_apk_sha256": "c12acb56f038ed1bafaf488e0762de7913a8ac98db717686fb14b2e78d6228e1",
+    "matches_build": true,
+    "manual_runtime": "not verified"
+  }
+}

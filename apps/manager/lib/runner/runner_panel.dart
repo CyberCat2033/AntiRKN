@@ -34,108 +34,101 @@ class RunnerPanel extends StatelessWidget {
           (active ||
               failed ||
               (job.kind.startsWith('apt_') && c.dismissedJobId != job.id));
-      return SectionCard(
-        title: l.softwareTitle,
-        child: AppAnimatedSize(
-          motion: motion,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (c.busy && !active) const LinearProgressIndicator(),
-              if (c.error case final issue?)
-                Semantics(
-                  liveRegion: true,
-                  child: Text(runnerIssueLabel(l, issue)),
+      return AppAnimatedSize(
+        motion: motion,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (c.busy && !active) const LinearProgressIndicator(),
+            if (c.error case final issue?)
+              Semantics(
+                liveRegion: true,
+                child: Text(runnerIssueLabel(l, issue)),
+              ),
+            if (c.responseCode != null && c.responseCode != 'ok')
+              Text(runnerCodeLabel(l, c.responseCode!)),
+            if (c.connectionLost || !c.connected && active)
+              Text(l.runnerConnectionLost),
+            if (c.panelDiscovery?['failed'] == true)
+              Text(l.panelDiscoveryFailed),
+            if (c.installed && !c.alive) Text(l.runnerNotRunning),
+            if (c.error != null || c.installed && !c.alive)
+              TextButton(
+                key: const ValueKey('runner-refresh'),
+                onPressed: c.connected && !c.busy
+                    ? () => c.refresh(prepare: true)
+                    : null,
+                child: Text(l.runnerRetry),
+              ),
+            if (showJob) ...[
+              const SizedBox(height: AppLayout.gap),
+              Semantics(
+                liveRegion: true,
+                child: Text(
+                  active && event != null
+                      ? runnerEventLabel(l, event.code)
+                      : runnerStateLabel(l, job.status),
                 ),
-              if (c.responseCode != null && c.responseCode != 'ok')
-                Text(runnerCodeLabel(l, c.responseCode!)),
-              if (c.connectionLost || !c.connected && active)
-                Text(l.runnerConnectionLost),
-              if (c.panelDiscovery?['failed'] == true)
-                Text(l.panelDiscoveryFailed),
-              if (c.installed && !c.alive) Text(l.runnerNotRunning),
-              if (c.error != null || c.installed && !c.alive)
-                TextButton(
-                  key: const ValueKey('runner-refresh'),
-                  onPressed: c.connected && !c.busy
-                      ? () => c.refresh(prepare: true)
-                      : null,
-                  child: Text(l.runnerRetry),
-                ),
-              if (showJob) ...[
-                const SizedBox(height: AppLayout.gap),
-                Semantics(
-                  liveRegion: true,
-                  child: Text(
-                    active && event != null
-                        ? runnerEventLabel(l, event.code)
-                        : runnerStateLabel(l, job.status),
+              ),
+              if (active)
+                LinearProgressIndicator(value: job.checkpoint / job.count),
+              if (failed && event != null)
+                Text(runnerEventLabel(l, event.code)),
+              if (job.events.any((e) => e.code == 'apt_reboot_required'))
+                Text(l.aptReboot),
+              if (active && job.kind.startsWith('apt_')) Text(l.aptRunningHelp),
+              if (job.cancelRequested && active) Text(l.runnerCancelRequested),
+              if (active)
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: TextButton(
+                    key: const ValueKey('runner-cancel'),
+                    onPressed: c.connected && !c.busy && !job.cancelRequested
+                        ? c.cancelJob
+                        : null,
+                    child: Text(l.runnerCancel),
                   ),
                 ),
-                if (active)
-                  LinearProgressIndicator(value: job.checkpoint / job.count),
-                if (failed && event != null)
-                  Text(runnerEventLabel(l, event.code)),
-                if (job.events.any((e) => e.code == 'apt_reboot_required'))
-                  Text(l.aptReboot),
-                if (active && job.kind.startsWith('apt_'))
-                  Text(l.aptRunningHelp),
-                if (job.cancelRequested && active)
-                  Text(l.runnerCancelRequested),
-                if (active)
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: TextButton(
-                      key: const ValueKey('runner-cancel'),
-                      onPressed: c.connected && !c.busy && !job.cancelRequested
-                          ? c.cancelJob
-                          : null,
-                      child: Text(l.runnerCancel),
-                    ),
-                  ),
-                if (job.terminal && !failed)
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: TextButton(
-                      onPressed: c.dismissJob,
-                      child: Text(l.networkClose),
-                    ),
-                  ),
-              ],
-              if (c.observesOperation) Text(l.operationObserving),
-              if (c.pending != null) ...[
-                Text(
-                  c.observesOperation ? l.operationMissing : l.runnerPending,
-                ),
-                TextButton(
-                  key: const ValueKey('runner-retry'),
-                  onPressed: c.connected && !c.busy ? c.retryPending : null,
-                  child: Text(
-                    c.observesOperation ? l.operationTakeOver : l.runnerRetry,
+              if (job.terminal && !failed)
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: TextButton(
+                    onPressed: c.dismissJob,
+                    child: Text(l.networkClose),
                   ),
                 ),
-              ],
-              if (failed &&
-                  (job.kind == 'inbound_update' ||
-                      job.kind == 'awg_external_edit' ||
-                      job.kind == 'tt_external_edit' ||
-                      job.kind == 'tt_certificate'))
-                TextButton(
-                  onPressed: c.canPlan
-                      ? (c.resumePlan == null ? c.prepareResume : c.applyResume)
-                      : null,
-                  child: Text(
-                    c.resumePlan == null ? l.runnerRetry : l.runnerApply,
-                  ),
-                ),
-              SoftwareOverview(controller: c, motion: motion),
-              if (c.componentPlan == null &&
-                  failed &&
-                  job.kind == 'component_install')
-                ComponentInstallationView(controller: c),
-              AptMaintenanceView(controller: c),
             ],
-          ),
+            if (c.observesOperation) Text(l.operationObserving),
+            if (c.pending != null) ...[
+              Text(c.observesOperation ? l.operationMissing : l.runnerPending),
+              TextButton(
+                key: const ValueKey('runner-retry'),
+                onPressed: c.connected && !c.busy ? c.retryPending : null,
+                child: Text(
+                  c.observesOperation ? l.operationTakeOver : l.runnerRetry,
+                ),
+              ),
+            ],
+            if (failed &&
+                (job.kind == 'inbound_update' ||
+                    job.kind == 'awg_external_edit' ||
+                    job.kind == 'tt_external_edit' ||
+                    job.kind == 'tt_certificate'))
+              TextButton(
+                onPressed: c.canPlan
+                    ? (c.resumePlan == null ? c.prepareResume : c.applyResume)
+                    : null,
+                child: Text(
+                  c.resumePlan == null ? l.runnerRetry : l.runnerApply,
+                ),
+              ),
+            SoftwareOverview(controller: c, motion: motion),
+            if (c.componentPlan == null &&
+                failed &&
+                job.kind == 'component_install')
+              ComponentInstallationView(controller: c),
+            AptMaintenanceView(controller: c),
+          ],
         ),
       );
     },

@@ -95,6 +95,15 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('fixture@example.com'), findsOneWidget);
         await tester.ensureVisible(
+          find.byKey(const PageStorageKey('google-account-options')),
+        );
+        await tester.tap(
+          find.text(
+            locale == 'ru' ? 'Параметры синхронизации' : 'Sync options',
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(
           find.byKey(const ValueKey('google-sign-out')),
         );
         await tester.tap(find.byKey(const ValueKey('google-sign-out')));
@@ -134,7 +143,7 @@ void main() {
       await tester.pumpAndSettle();
     },
   );
-  testWidgets('actual app Settings reveals Google sign-in in its Drive group', (
+  testWidgets('actual app Settings shows Google sign-in directly', (
     tester,
   ) async {
     final languages = LanguageController(Languages());
@@ -152,12 +161,6 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       find.byKey(const ValueKey('google-sign-in')).hitTestable(),
-      findsNothing,
-    );
-    await tester.tap(find.text('Google Drive').first);
-    await tester.pumpAndSettle();
-    expect(
-      find.byKey(const ValueKey('google-sign-in')).hitTestable(),
       findsOneWidget,
     );
     expect(find.text('Войти в Google'), findsOneWidget);
@@ -165,7 +168,7 @@ void main() {
   });
 
   testWidgets(
-    'signing in inside an expanded Drive group keeps account visible',
+    'signing in from Settings keeps account visible across navigation',
     (tester) async {
       final languages = LanguageController(Languages());
       await languages.load();

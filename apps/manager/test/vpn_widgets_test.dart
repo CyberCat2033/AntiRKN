@@ -70,7 +70,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.runAsync(() async {
-        await tester.tap(find.byTooltip('Personal Mihomo profile'));
+        await tester.tap(find.text('Share profile'));
         await Future<void>.delayed(const Duration(milliseconds: 100));
       });
       await tester.pumpAndSettle();

@@ -47,6 +47,9 @@ class _AwgExistingPanelState extends State<AwgExistingPanel> {
     listenable: widget.runner,
     builder: (context, _) {
       final r = widget.runner, l = AppLocalizations.of(context);
+      if ((r.awgDiscovery?['resources'] as List? ?? []).isEmpty) {
+        return const SizedBox.shrink();
+      }
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

@@ -56,17 +56,18 @@ class AwgPanel extends StatelessWidget {
         actions: Wrap(
           spacing: AppLayout.smallGap,
           children: [
-            TextButton.icon(
+            IconButton.filledTonal(
               key: const ValueKey('awg-add'),
               onPressed: c.busy || !c.loaded ? null : () => edit(context),
               icon: const Icon(Icons.add),
-              label: Text(l.awgAdd),
+              tooltip: l.awgAdd,
             ),
-            OutlinedButton(
+            IconButton(
+              tooltip: l.awgRefresh,
               onPressed: c.busy || c.remote(target) == null
                   ? null
                   : () => c.refreshServer(target),
-              child: Text(l.awgRefresh),
+              icon: const Icon(Icons.refresh),
             ),
           ],
         ),
@@ -74,37 +75,44 @@ class AwgPanel extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (interfaces.isEmpty) Text(l.awgEmpty),
-            for (final r in interfaces) ...[
-              const SizedBox(height: AppLayout.gap),
-              Text(
-                '${r.name} · ${r.spec['endpoint']}:${r.spec['externalPort']} · UDP',
-              ),
-              Text('${r.spec['pool']} · MTU ${r.spec['mtu']}'),
-              Text(r.enabled ? l.vpnEnabled : l.vpnDisabled),
-              for (final state in observed.where((o) => o['id'] == r.id)) ...[
-                Text(
-                  state['confirmed'] == true ? l.awgConfirmed : l.vpnConflict,
-                ),
-                for (final client
-                    in (state['clients'] as List).whereType<Map>().where(
-                      (p) => p['enabled'] == true,
-                    ))
-                  Padding(
-                    padding: const EdgeInsets.only(top: AppLayout.smallGap),
-                    child: Text(
-                      '${c.workspace.users.where((u) => u.id == client['id']).firstOrNull?.name ?? client['id']} · ${client['address']}\n${l.awgHandshake}: ${(client['handshake'] as int? ?? 0) == 0 ? l.awgNoHandshake : DateTime.fromMillisecondsSinceEpoch((client['handshake'] as int) * 1000).toLocal()}\nRX ${client['rx'] ?? 0} B · TX ${client['tx'] ?? 0} B',
-                    ),
+            for (final r in interfaces)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppLayout.smallGap),
+                child: ResourceTile(
+                  storageId: 'awg-${r.id}',
+                  title: r.name,
+                  subtitle:
+                      'UDP ${r.spec['externalPort']} · ${r.spec['pool']}\n${r.enabled ? l.vpnEnabled : l.vpnDisabled}'
+                      '${observed.any((s) => s['id'] == r.id && s['confirmed'] != true) ? '\n${l.vpnConflict}' : ''}',
+                  actions: IconButton(
+                    tooltip: l.vpnEdit,
+                    onPressed: c.busy ? null : () => edit(context, r),
+                    icon: const Icon(Icons.edit_outlined),
                   ),
-              ],
-              Align(
-                alignment: AlignmentDirectional.centerStart,
-                child: TextButton(
-                  onPressed: c.busy ? null : () => edit(context, r),
-                  child: Text(l.vpnEdit),
+                  details: [
+                    Text(
+                      '${r.spec['endpoint']}:${r.spec['externalPort']} · MTU ${r.spec['mtu']}',
+                    ),
+                    for (final state in observed.where(
+                      (o) => o['id'] == r.id,
+                    )) ...[
+                      for (final client
+                          in (state['clients'] as List).whereType<Map>().where(
+                            (p) => p['enabled'] == true,
+                          ))
+                        Padding(
+                          padding: const EdgeInsets.only(
+                            top: AppLayout.smallGap,
+                          ),
+                          child: Text(
+                            '${c.workspace.users.where((u) => u.id == client['id']).firstOrNull?.name ?? client['id']} · ${client['address']}\n${l.awgHandshake}: ${(client['handshake'] as int? ?? 0) == 0 ? l.awgNoHandshake : DateTime.fromMillisecondsSinceEpoch((client['handshake'] as int) * 1000).toLocal()}\nRX ${client['rx'] ?? 0} B · TX ${client['tx'] ?? 0} B',
+                          ),
+                        ),
+                    ],
+                  ],
                 ),
               ),
-            ],
-            VpnJobView(controller: c, serverId: target),
+            VpnJobView(showSnapshot: false, controller: c, serverId: target),
           ],
         ),
       );

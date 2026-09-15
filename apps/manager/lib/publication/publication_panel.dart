@@ -16,7 +16,12 @@ String publicationMessage(AppLocalizations l, String? issue) => switch (issue) {
 };
 
 class PublicationSettingsPanel extends StatefulWidget {
-  const PublicationSettingsPanel({required this.controller, super.key});
+  const PublicationSettingsPanel({
+    required this.controller,
+    this.showTitle = true,
+    super.key,
+  });
+  final bool showTitle;
   final PublicationController controller;
   @override
   State<PublicationSettingsPanel> createState() => _PublicationSettingsState();
@@ -35,142 +40,140 @@ class _PublicationSettingsState extends State<PublicationSettingsPanel> {
       final c = widget.controller,
           l = AppLocalizations.of(context),
           settings = c.settings;
-      return SectionCard(
-        title: l.publicationTitle,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(l.publicationHelp),
-            if (c.needsAuthorization ||
-                ['unauthorized', 'forbidden'].contains(folderError))
-              FilledButton.icon(
-                key: const ValueKey('publication-authorize'),
-                onPressed: c.editing ? null : c.authorize,
-                icon: const Icon(Icons.add_link),
-                label: Text(l.publicationAuthorize),
-              ),
-            if (c.editing) const LinearProgressIndicator(),
-            if (c.accountError != null) Text(l.publicationAuthorizeHelp),
-            if (c.error != null) Text(publicationMessage(l, c.error!.name)),
-            if (settings == null && c.authorized) ...[
-              DropdownButtonFormField<PublicationAccess>(
-                initialValue: access,
-                decoration: InputDecoration(labelText: l.publicationAccess),
+      final content = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (settings == null) Text(l.publicationHelp),
+          if (c.needsAuthorization ||
+              ['unauthorized', 'forbidden'].contains(folderError))
+            FilledButton.icon(
+              key: const ValueKey('publication-authorize'),
+              onPressed: c.editing ? null : c.authorize,
+              icon: const Icon(Icons.add_link),
+              label: Text(l.publicationAuthorize),
+            ),
+          if (c.editing) const LinearProgressIndicator(),
+          if (c.accountError != null) Text(l.publicationAuthorizeHelp),
+          if (c.error != null) Text(publicationMessage(l, c.error!.name)),
+          if (settings == null && c.authorized) ...[
+            DropdownButtonFormField<PublicationAccess>(
+              initialValue: access,
+              decoration: InputDecoration(labelText: l.publicationAccess),
+              items: [
+                DropdownMenuItem(
+                  value: PublicationAccess.private,
+                  child: Text(l.publicationPrivate),
+                ),
+                DropdownMenuItem(
+                  value: PublicationAccess.link,
+                  child: Text(l.publicationLink),
+                ),
+              ],
+              onChanged: c.editing ? null : (v) => setState(() => access = v!),
+            ),
+            Text(
+              access == PublicationAccess.link
+                  ? l.publicationLinkHelp
+                  : l.publicationPrivateHelp,
+            ),
+            if (folders != null)
+              DropdownButtonFormField<String>(
+                initialValue: folder?.id ?? '',
+                isExpanded: true,
+                decoration: InputDecoration(labelText: l.publicationFolder),
                 items: [
                   DropdownMenuItem(
-                    value: PublicationAccess.private,
-                    child: Text(l.publicationPrivate),
+                    value: '',
+                    child: Text(l.publicationNewFolder),
                   ),
-                  DropdownMenuItem(
-                    value: PublicationAccess.link,
-                    child: Text(l.publicationLink),
-                  ),
+                  for (final f in folders!)
+                    DropdownMenuItem(value: f.id, child: Text(f.name)),
                 ],
                 onChanged: c.editing
                     ? null
-                    : (v) => setState(() => access = v!),
-              ),
-              Text(
-                access == PublicationAccess.link
-                    ? l.publicationLinkHelp
-                    : l.publicationPrivateHelp,
-              ),
-              if (folders != null)
-                DropdownButtonFormField<String>(
-                  initialValue: folder?.id ?? '',
-                  isExpanded: true,
-                  decoration: InputDecoration(labelText: l.publicationFolder),
-                  items: [
-                    DropdownMenuItem(
-                      value: '',
-                      child: Text(l.publicationNewFolder),
-                    ),
-                    for (final f in folders!)
-                      DropdownMenuItem(value: f.id, child: Text(f.name)),
-                  ],
-                  onChanged: c.editing
-                      ? null
-                      : (id) => setState(
-                          () => folder = folders!
-                              .where((f) => f.id == id)
-                              .firstOrNull,
-                        ),
-                ),
-              if (folders == null) Text(l.publicationNewFolder),
-              if (folderError != null) Text(publicationMessage(l, folderError)),
-              TextButton(
-                onPressed: c.editing || loading
-                    ? null
-                    : () async {
-                        setState(() => loading = true);
-                        try {
-                          final result = await c.folders();
-                          if (mounted) {
-                            setState(() {
-                              folders = result;
-                              folderError = null;
-                            });
-                          }
-                        } on PublicationFailure catch (e) {
-                          if (mounted) {
-                            setState(() => folderError = e.issue.name);
-                          }
-                        } catch (_) {
-                          if (mounted) setState(() => folderError = 'network');
-                        } finally {
-                          if (mounted) setState(() => loading = false);
-                        }
-                      },
-                child: Text(l.publicationChooseFolder),
-              ),
-              FilledButton(
-                key: const ValueKey('publication-configure'),
-                onPressed: c.editing
-                    ? null
-                    : () => c.configure(access, folder: folder),
-                child: Text(l.publicationEnable),
-              ),
-            ],
-            if (settings != null) ...[
-              Text('${l.publicationFolder}: ${settings.folderName}'),
-              TextButton.icon(
-                key: const ValueKey('publication-picker-settings'),
-                onPressed: c.editing
-                    ? null
-                    : () => showDialog<void>(
-                        context: context,
-                        builder: (_) => _PickerSettingsDialog(controller: c),
+                    : (id) => setState(
+                        () => folder = folders!
+                            .where((f) => f.id == id)
+                            .firstOrNull,
                       ),
-                icon: const Icon(Icons.folder_open),
-                label: Text(l.publicationPickerSettings),
               ),
-              Text(
-                settings.access == PublicationAccess.link
-                    ? l.publicationLink
-                    : l.publicationPrivate,
-              ),
-              if (!settings.folderReady)
-                FilledButton(
-                  onPressed: c.editing ? null : c.completeSetup,
-                  child: Text(l.publicationCompleteSetup),
-                )
-              else
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l.publicationAuto),
-                  value: settings.enabled,
-                  onChanged: c.editing ? null : c.setEnabled,
-                ),
-              if (c.error != null ||
-                  c.queues.values.any((q) => q['status'] == 'error'))
-                TextButton(
-                  onPressed: c.busy ? null : () => c.request(force: true),
-                  child: Text(l.runnerRetry),
-                ),
-            ],
+            if (folders == null) Text(l.publicationNewFolder),
+            if (folderError != null) Text(publicationMessage(l, folderError)),
+            TextButton(
+              onPressed: c.editing || loading
+                  ? null
+                  : () async {
+                      setState(() => loading = true);
+                      try {
+                        final result = await c.folders();
+                        if (mounted) {
+                          setState(() {
+                            folders = result;
+                            folderError = null;
+                          });
+                        }
+                      } on PublicationFailure catch (e) {
+                        if (mounted) {
+                          setState(() => folderError = e.issue.name);
+                        }
+                      } catch (_) {
+                        if (mounted) setState(() => folderError = 'network');
+                      } finally {
+                        if (mounted) setState(() => loading = false);
+                      }
+                    },
+              child: Text(l.publicationChooseFolder),
+            ),
+            FilledButton(
+              key: const ValueKey('publication-configure'),
+              onPressed: c.editing
+                  ? null
+                  : () => c.configure(access, folder: folder),
+              child: Text(l.publicationEnable),
+            ),
           ],
-        ),
+          if (settings != null) ...[
+            Text('${l.publicationFolder}: ${settings.folderName}'),
+            TextButton.icon(
+              key: const ValueKey('publication-picker-settings'),
+              onPressed: c.editing
+                  ? null
+                  : () => showDialog<void>(
+                      context: context,
+                      builder: (_) => _PickerSettingsDialog(controller: c),
+                    ),
+              icon: const Icon(Icons.folder_open),
+              label: Text(l.publicationPickerSettings),
+            ),
+            Text(
+              settings.access == PublicationAccess.link
+                  ? l.publicationLink
+                  : l.publicationPrivate,
+            ),
+            if (!settings.folderReady)
+              FilledButton(
+                onPressed: c.editing ? null : c.completeSetup,
+                child: Text(l.publicationCompleteSetup),
+              )
+            else
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(l.publicationAuto),
+                value: settings.enabled,
+                onChanged: c.editing ? null : c.setEnabled,
+              ),
+            if (c.error != null ||
+                c.queues.values.any((q) => q['status'] == 'error'))
+              TextButton(
+                onPressed: c.busy ? null : () => c.request(force: true),
+                child: Text(l.runnerRetry),
+              ),
+          ],
+        ],
       );
+      return widget.showTitle
+          ? SectionCard(title: l.publicationTitle, child: content)
+          : content;
     },
   );
 }

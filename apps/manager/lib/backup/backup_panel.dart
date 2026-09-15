@@ -10,8 +10,10 @@ class BackupPanel extends StatelessWidget {
     required this.files,
     required this.onRestored,
     required this.canRestore,
+    this.showTitle = true,
     super.key,
   });
+  final bool showTitle;
   final WorkspaceBackupStore store;
   final BackupFileStore files;
   final Future<void> Function() onRestored;
@@ -34,34 +36,32 @@ class BackupPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    return SectionCard(
-      title: l.backupTitle,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(l.backupHelp),
-          const SizedBox(height: AppLayout.smallGap),
-          Wrap(
-            spacing: AppLayout.smallGap,
-            runSpacing: AppLayout.smallGap,
-            children: [
-              OutlinedButton.icon(
-                key: const ValueKey('backup-export'),
-                onPressed: () => _open(context, false),
-                icon: const Icon(Icons.save_alt),
-                label: Text(l.backupExport),
-              ),
-              OutlinedButton.icon(
-                key: const ValueKey('backup-import'),
-                onPressed: () => _open(context, true),
-                icon: const Icon(Icons.restore),
-                label: Text(l.backupImport),
-              ),
-            ],
-          ),
-        ],
-      ),
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Wrap(
+          spacing: AppLayout.smallGap,
+          runSpacing: AppLayout.smallGap,
+          children: [
+            OutlinedButton.icon(
+              key: const ValueKey('backup-export'),
+              onPressed: () => _open(context, false),
+              icon: const Icon(Icons.save_alt),
+              label: Text(l.backupExport),
+            ),
+            OutlinedButton.icon(
+              key: const ValueKey('backup-import'),
+              onPressed: () => _open(context, true),
+              icon: const Icon(Icons.restore),
+              label: Text(l.backupImport),
+            ),
+          ],
+        ),
+      ],
     );
+    return showTitle
+        ? SectionCard(title: l.backupTitle, child: content)
+        : content;
   }
 }
 

@@ -42,25 +42,15 @@ class InboundsPanel extends StatelessWidget {
           );
       return ContentSection(
         title: l.vpnInbounds,
-        actions: TextButton.icon(
+        actions: IconButton.filledTonal(
           key: const ValueKey('vpn-inbound-add'),
           onPressed: c.busy || !c.loaded ? null : () => _edit(context),
           icon: const Icon(Icons.add),
-          label: Text(l.vpnAddInbound),
+          tooltip: l.vpnAddInbound,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (c.remote(serverId) == null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: AppLayout.gap),
-                child: Text(
-                  l.vpnConnectToManage,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
             if (runner?.panelDetected == true &&
                 (runner?.panels.isEmpty ?? true))
               Text(l.panelDiscoveryFailed),
@@ -109,7 +99,7 @@ class InboundsPanel extends StatelessWidget {
                   storageId: r.id,
                   title: r.spec['name'] as String,
                   subtitle:
-                      '${r.spec['endpoint']}:${r.spec['externalPort']} · ${r.spec['transport'].toString().toUpperCase()} / ${r.spec['security'].toString().toUpperCase()}',
+                      '${r.spec['transport'].toString().toUpperCase()} / ${r.spec['security'].toString().toUpperCase()} · ${r.spec['externalPort']}\n${r.enabled ? l.vpnEnabled : l.vpnDisabled}',
                   details: [
                     Text(
                       '${l.vpnListen}: ${r.spec['listen']}:${r.spec['port']}',
@@ -122,25 +112,16 @@ class InboundsPanel extends StatelessWidget {
                         '${r.spec['path']} · ${r.spec['mode']} · Host: ${r.spec['host']}',
                       ),
                   ],
-                  actions: Wrap(
-                    spacing: AppLayout.smallGap,
-                    crossAxisAlignment: WrapCrossAlignment.center,
+                  actions: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppLayout.smallGap,
-                        ),
-                        child: Text(r.enabled ? l.vpnEnabled : l.vpnDisabled),
-                      ),
-                      TextButton.icon(
+                      IconButton(
                         key: ValueKey('vpn-internal-${r.id}'),
+                        tooltip: r.internal ? l.vpnInternal : l.vpnClientAccess,
                         icon: Icon(
                           r.internal
                               ? Icons.lock_outline
                               : Icons.people_outline,
-                        ),
-                        label: Text(
-                          r.internal ? l.vpnInternal : l.vpnClientAccess,
                         ),
                         onPressed: c.busy
                             ? null
@@ -154,16 +135,16 @@ class InboundsPanel extends StatelessWidget {
                                 if (c.error == null) await c.prepare();
                               },
                       ),
-                      TextButton.icon(
+                      IconButton(
+                        tooltip: l.vpnEdit,
                         onPressed: c.busy ? null : () => _edit(context, r),
                         icon: const Icon(Icons.edit_outlined),
-                        label: Text(l.vpnEdit),
                       ),
                     ],
                   ),
                 ),
               ),
-            VpnJobView(controller: c, serverId: serverId),
+            VpnJobView(showSnapshot: false, controller: c, serverId: serverId),
             if (showPlan) VpnPlanView(controller: c, serverName: serverName),
           ],
         ),

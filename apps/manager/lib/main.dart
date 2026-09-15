@@ -14,6 +14,7 @@ import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
 
 import 'template_settings.dart';
+import 'appearance_settings.dart';
 import 'backup/backup_panel.dart';
 import 'runner/component_updates_controller.dart';
 import 'runner/component_installation_view.dart';
@@ -751,172 +752,130 @@ class _ManagerShellState extends State<ManagerShell>
                             key: const PageStorageKey('settings'),
                             padding: AppLayout.screenPadding(context),
                             children: [
-                              if (widget.settingsError)
-                                Text(l.settingsSaveError),
-                              if (widget.googleAccount?.supported == true ||
-                                  _publications != null)
-                                ListenableBuilder(
-                                  listenable: Listenable.merge([
-                                    widget.autoSync,
-                                    _publications,
-                                  ]),
-                                  builder: (context, _) => SettingsGroup(
-                                    key: const PageStorageKey('settings-drive'),
-                                    title: l.uiGoogleDrive,
-                                    subtitle: widget.autoSync == null
-                                        ? null
-                                        : syncStatusLabel(l, widget.autoSync!),
-                                    attention:
-                                        widget.autoSync?.phase ==
-                                            AutoSyncPhase.error ||
-                                        widget.autoSync?.phase ==
-                                            AutoSyncPhase.conflict ||
-                                        _publications?.error != null ||
-                                        _publications?.accountError != null ||
-                                        (_publications?.queues.values.any(
-                                              (queue) => queue['issue'] != null,
-                                            ) ??
-                                            false),
-                                    child: Column(
-                                      children: [
-                                        if (widget.googleAccount?.supported ==
-                                            true)
-                                          GoogleAccountPanel(
-                                            service: widget.googleAccount!,
-                                            sync: widget.autoSync,
-                                            beforeAccountChange:
-                                                _publications?.suspend,
-                                            afterAccountChange: () =>
-                                                _publications?.resume(),
+                              Align(
+                                alignment: Alignment.topCenter,
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 960,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      if (widget.settingsError)
+                                        Text(l.settingsSaveError),
+                                      if (widget.googleAccount?.supported ==
+                                              true ||
+                                          _publications != null) ...[
+                                        SectionCard(
+                                          key: const PageStorageKey(
+                                            'settings-drive',
                                           ),
-                                        if (_publications != null)
-                                          PublicationSettingsPanel(
-                                            controller: _publications!,
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              if (widget.servers is SyncMergeStore &&
-                                  widget.onRestored != null)
-                                SyncConflictsPanel(
-                                  key: ValueKey(_syncRevision),
-                                  store: widget.servers as SyncMergeStore,
-                                  canResolve: _canReplace,
-                                  onResolved: widget.onRestored!,
-                                ),
-                              if (widget.backups != null &&
-                                  widget.backupFiles != null &&
-                                  widget.onRestored != null)
-                                SettingsGroup(
-                                  key: const PageStorageKey('settings-backup'),
-                                  title: l.backupTitle,
-                                  child: BackupPanel(
-                                    store: widget.backups!,
-                                    files: widget.backupFiles!,
-                                    onRestored: widget.onRestored!,
-                                    canRestore: _canReplace,
-                                  ),
-                                ),
-                              ListenableBuilder(
-                                listenable: _controller,
-                                builder: (context, _) => SettingsGroup(
-                                  key: const PageStorageKey(
-                                    'settings-template',
-                                  ),
-                                  title: l.source,
-                                  subtitle:
-                                      _controller.importedName ??
-                                      (_controller.source.isEmpty
-                                          ? l.vpnEmptyTemplate
-                                          : l.templateReady),
-                                  attention:
-                                      _controller.draftSaveFailed ||
-                                      _controller.importError != null ||
-                                      _controller.failed ||
-                                      (!_controller.stale &&
-                                          _controller
-                                                  .result
-                                                  ?.hasBlockingErrors ==
-                                              true),
-                                  child: TemplateSettings(
-                                    controller: _controller,
-                                    showTitle: false,
-                                  ),
-                                ),
-                              ),
-                              SettingsGroup(
-                                key: const PageStorageKey(
-                                  'settings-appearance',
-                                ),
-                                title: l.uiAppearance,
-                                attention:
-                                    widget.languages.savingFailed ||
-                                    widget.languages.loadingFailed,
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    SectionCard(
-                                      title: l.language,
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.stretch,
-                                        children: [
-                                          AppChoice<AppLanguage>(
-                                            value: widget.languages.language,
-                                            keyPrefix: 'language',
-                                            options: [
-                                              (
-                                                AppLanguage.system,
-                                                l.languageSystem,
-                                              ),
-                                              (
-                                                AppLanguage.ru,
-                                                l.languageRussian,
-                                              ),
-                                              (
-                                                AppLanguage.en,
-                                                l.languageEnglish,
-                                              ),
+                                          title: l.uiGoogleDrive,
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.stretch,
+                                            children: [
+                                              if (widget
+                                                      .googleAccount
+                                                      ?.supported ==
+                                                  true)
+                                                GoogleAccountPanel(
+                                                  showTitle: false,
+                                                  service:
+                                                      widget.googleAccount!,
+                                                  sync: widget.autoSync,
+                                                  beforeAccountChange:
+                                                      _publications?.suspend,
+                                                  afterAccountChange: () =>
+                                                      _publications?.resume(),
+                                                ),
+                                              if (widget.backups != null &&
+                                                  widget.backupFiles != null &&
+                                                  widget.onRestored != null)
+                                                BackupPanel(
+                                                  showTitle: false,
+                                                  store: widget.backups!,
+                                                  files: widget.backupFiles!,
+                                                  onRestored:
+                                                      widget.onRestored!,
+                                                  canRestore: _canReplace,
+                                                ),
+                                              if (_publications != null)
+                                                ListenableBuilder(
+                                                  listenable: _publications!,
+                                                  builder: (context, _) => SettingsGroup(
+                                                    key: const PageStorageKey(
+                                                      'settings-publications',
+                                                    ),
+                                                    title: l.publicationTitle,
+                                                    attention:
+                                                        _publications!.error !=
+                                                            null ||
+                                                        _publications!
+                                                                .accountError !=
+                                                            null ||
+                                                        _publications!
+                                                            .queues
+                                                            .values
+                                                            .any(
+                                                              (q) =>
+                                                                  q['issue'] !=
+                                                                  null,
+                                                            ),
+                                                    child:
+                                                        PublicationSettingsPanel(
+                                                          controller:
+                                                              _publications!,
+                                                          showTitle: false,
+                                                        ),
+                                                  ),
+                                                ),
                                             ],
-                                            onChanged: widget.languages.saving
-                                                ? null
-                                                : widget.languages.select,
                                           ),
-                                          if (widget.languages.savingFailed)
-                                            Text(l.localeSaveError),
-                                          if (widget.languages.loadingFailed)
-                                            Text(l.localeLoadError),
-                                        ],
+                                        ),
+                                        const SizedBox(height: AppLayout.gap),
+                                      ] else if (widget.backups != null &&
+                                          widget.backupFiles != null &&
+                                          widget.onRestored != null) ...[
+                                        BackupPanel(
+                                          store: widget.backups!,
+                                          files: widget.backupFiles!,
+                                          onRestored: widget.onRestored!,
+                                          canRestore: _canReplace,
+                                        ),
+                                        const SizedBox(height: AppLayout.gap),
+                                      ],
+                                      if (widget.servers is SyncMergeStore &&
+                                          widget.onRestored != null)
+                                        SyncConflictsPanel(
+                                          key: ValueKey(_syncRevision),
+                                          store:
+                                              widget.servers as SyncMergeStore,
+                                          canResolve: _canReplace,
+                                          onResolved: widget.onRestored!,
+                                        ),
+                                      TemplateSettings(
+                                        key: const PageStorageKey(
+                                          'settings-template',
+                                        ),
+                                        controller: _controller,
                                       ),
-                                    ),
-                                    SectionCard(
-                                      title: l.theme,
-                                      child: AppChoice<ThemeMode>(
-                                        value: widget.theme,
-                                        options: [
-                                          (ThemeMode.system, l.system),
-                                          (ThemeMode.light, l.light),
-                                          (ThemeMode.dark, l.dark),
-                                        ],
-                                        onChanged: widget.onTheme,
+                                      const SizedBox(height: AppLayout.gap),
+                                      AppearanceSettings(
+                                        key: const PageStorageKey(
+                                          'settings-appearance',
+                                        ),
+                                        languages: widget.languages,
+                                        theme: widget.theme,
+                                        motion: widget.motion,
+                                        onTheme: widget.onTheme,
+                                        onMotion: widget.onMotion,
                                       ),
-                                    ),
-                                    SectionCard(
-                                      title: l.motion,
-                                      child: AppChoice<MotionPreference>(
-                                        value: widget.motion,
-                                        options: [
-                                          (MotionPreference.system, l.system),
-                                          (MotionPreference.reduced, l.reduced),
-                                          (MotionPreference.off, l.off),
-                                        ],
-                                        onChanged: widget.onMotion,
-                                      ),
-                                    ),
-                                    const ComponentUpdateSettings(),
-                                  ],
+                                      const SizedBox(height: AppLayout.gap),
+                                      const ComponentUpdateSettings(),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ],

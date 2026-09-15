@@ -123,10 +123,12 @@ class VpnJobView extends StatelessWidget {
   const VpnJobView({
     required this.controller,
     required this.serverId,
+    this.showSnapshot = true,
     super.key,
   });
   final VpnController controller;
   final String serverId;
+  final bool showSnapshot;
   @override
   Widget build(BuildContext context) {
     final c = controller,
@@ -205,22 +207,27 @@ class VpnJobView extends StatelessWidget {
                 ),
             ],
           ),
-        if (record['verifiedAt'] case final String at)
-          AppExpansionTile(
-            key: PageStorageKey('vpn-snapshot-$serverId'),
-            tilePadding: EdgeInsets.zero,
-            title: Text(
-              l.vpnSnapshot,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            children: [
-              Align(
-                alignment: AlignmentDirectional.centerStart,
-                child: Text('${DateTime.tryParse(at)?.toLocal() ?? at}'),
-              ),
-              if (job?.status == 'succeeded')
-                Text(runnerStateLabel(l, job!.status)),
-            ],
+        if (showSnapshot && record['verifiedAt'] is String)
+          Builder(
+            builder: (context) {
+              final at = record['verifiedAt'] as String;
+              return AppExpansionTile(
+                key: PageStorageKey('vpn-snapshot-$serverId'),
+                tilePadding: EdgeInsets.zero,
+                title: Text(
+                  l.vpnSnapshot,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                children: [
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text('${DateTime.tryParse(at)?.toLocal() ?? at}'),
+                  ),
+                  if (job?.status == 'succeeded')
+                    Text(runnerStateLabel(l, job!.status)),
+                ],
+              );
+            },
           ),
       ],
     );
