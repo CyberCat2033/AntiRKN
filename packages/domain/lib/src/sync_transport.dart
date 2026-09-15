@@ -43,6 +43,11 @@ abstract interface class SyncAccessTokenProvider {
   Future<String> accessToken();
 }
 
+/// A rejected cached token is refreshed on the next durable transport retry.
+abstract interface class RefreshableSyncAccessTokenProvider {
+  Future<void> invalidateAccessToken(String rejected);
+}
+
 final class SyncRemoteFile {
   const SyncRemoteFile({
     required this.id,

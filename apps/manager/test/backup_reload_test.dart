@@ -83,6 +83,8 @@ void main() {
       await settle();
       await tester.tap(find.text('Settings').last);
       await settle();
+      await tester.ensureVisible(find.byKey(const ValueKey('backup-import')));
+      await tester.pump();
       await tester.tap(find.byKey(const ValueKey('backup-import')));
       await tester.pumpAndSettle();
       await tester.enterText(

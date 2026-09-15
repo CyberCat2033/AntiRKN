@@ -15,6 +15,7 @@ import 'package:sqlite3/sqlite3.dart';
 import 'profile_codec.dart';
 import 'backup_envelope.dart';
 import 'secret_vault.dart';
+import 'google_session_store.dart';
 import 'sync_transport_database.dart';
 import 'package:antirkn_integrations/antirkn_integrations.dart';
 
@@ -167,6 +168,13 @@ final class WorkspaceDatabase
     }
   }
   final String _path;
+
+  /// Uses the device key and a separate file, so restore keeps this device's
+  /// login and portable backup / E2EE never contains Google OAuth credentials.
+  GoogleSessionStore googleSessionStore() => EncryptedGoogleSessionStore(
+    file: File('$_path.google-session'),
+    key: _key,
+  );
   final _localChanges = StreamController<void>.broadcast();
   Stream<void> get localChanges => _localChanges.stream;
   final Database _db;

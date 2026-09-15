@@ -16,6 +16,7 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
   GoogleDriveAccount? _account;
   GoogleAccountIssue? _error;
   bool _busy = true;
+  bool _signingIn = false;
   @override
   void initState() {
     super.initState();
@@ -45,6 +46,7 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
     if (_busy) return;
     setState(() {
       _busy = true;
+      _signingIn = signIn;
       _error = null;
     });
     try {
@@ -62,7 +64,12 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
       _error = GoogleAccountIssue.unavailable;
     } finally {
       await widget.sync?.accountChanged(_account);
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _signingIn = false;
+        });
+      }
     }
   }
 
@@ -72,6 +79,10 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
 
   @override
   void dispose() {
+    if (widget.service case final CancelableGoogleSignIn service
+        when _signingIn) {
+      service.cancelSignIn();
+    }
     widget.sync?.removeListener(_syncChanged);
     super.dispose();
   }
@@ -102,15 +113,20 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    final desktop = widget.service is CancelableGoogleSignIn;
     final account = _account;
     final error = switch (_error) {
-      GoogleAccountIssue.configuration => l.googleConfigurationError,
+      GoogleAccountIssue.configuration =>
+        desktop
+            ? l.googleDesktopConfigurationError
+            : l.googleConfigurationError,
       GoogleAccountIssue.denied => l.googleDenied,
       GoogleAccountIssue.network => l.googleNetworkError,
       GoogleAccountIssue.storage => l.googleStorageError,
       GoogleAccountIssue.reauthorize => l.googleReauthorize,
       GoogleAccountIssue.busy => l.googleWorking,
-      GoogleAccountIssue.unavailable => l.googleUnavailable,
+      GoogleAccountIssue.unavailable =>
+        desktop ? l.googleDesktopUnavailable : l.googleUnavailable,
       null => null,
     };
     return SectionCard(
@@ -132,6 +148,15 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
             const SizedBox(height: AppLayout.smallGap),
             const LinearProgressIndicator(),
             Text(l.googleWorking),
+            if (_signingIn && desktop) ...[
+              Text(l.googleDesktopWaiting),
+              TextButton(
+                key: const ValueKey('google-cancel-sign-in'),
+                onPressed: () =>
+                    (widget.service as CancelableGoogleSignIn).cancelSignIn(),
+                child: Text(l.googleCancelSignIn),
+              ),
+            ],
           ],
           if (error != null) ...[
             const SizedBox(height: AppLayout.smallGap),
@@ -183,6 +208,11 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
                     },
             ),
             Text(_syncStatus(l), key: const ValueKey('google-sync-status')),
+            if ((widget.sync!.result?.otherWorkspaces ?? 0) > 0)
+              Text(
+                l.autoSyncOtherWorkspaces,
+                key: const ValueKey('google-other-workspaces'),
+              ),
             if (widget.sync!.phase == AutoSyncPhase.syncing)
               const LinearProgressIndicator(),
             if (widget.sync!.result?.lastSuccess case final last?)

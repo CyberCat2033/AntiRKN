@@ -2320,5 +2320,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get autoSyncPairing =>
-      'Second device: export an encrypted backup below once and restore it on the other device, then sign in to the same Google account. The backup transfers the shared key: trust every device you share it with. Sync does not run when the app is fully closed.';
+      'Connect a second device: export an encrypted backup from your main device and restore it here using Backups below. Then sign in to the same Google account. Google sign-in alone does not transfer the encryption key. Only share the backup with trusted devices. Sync runs while the app is open.';
+
+  @override
+  String get googleDesktopConfigurationError =>
+      'Google sign-in is not configured. Select a Desktop OAuth client JSON from your Google project when prompted.';
+
+  @override
+  String get googleDesktopUnavailable =>
+      'Could not open Google sign-in in the system browser. Check your default browser and try again.';
+
+  @override
+  String get googleDesktopWaiting =>
+      'Complete sign-in in your browser, then return here. On first setup, select your Google Desktop client file if prompted.';
+
+  @override
+  String get googleCancelSignIn => 'Cancel sign-in';
+
+  @override
+  String get autoSyncOtherWorkspaces =>
+      'Drive contains another workspace. To use its servers and clients here, restore an encrypted backup from the device that already has them.';
 }

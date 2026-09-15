@@ -4,6 +4,7 @@ extension WorkspaceAutomaticSync on WorkspaceDatabase {
   Future<AutoSyncSession> openAutoSync(
     SyncAccessTokenProvider tokens, {
     SyncRemoteStore? remote,
+    DriveHttp? http,
   }) async {
     final identity = await readWorkspaceIdentity();
     final account = tokens.accountKey;
@@ -26,7 +27,7 @@ extension WorkspaceAutomaticSync on WorkspaceDatabase {
     return _WorkspaceAutoSync(
       this,
       journal,
-      remote ?? GoogleDriveSyncStore(tokens: cycleTokens),
+      remote ?? GoogleDriveSyncStore(tokens: cycleTokens, http: http),
       cycleTokens,
     );
   }
@@ -258,13 +259,22 @@ final class _WorkspaceAutoSync
 
 // One identity-checked token per bounded cycle, never persisted. Checking the
 // source binding on every request still fences account changes immediately.
-final class _CycleTokens implements SyncAccessTokenProvider {
+final class _CycleTokens
+    implements SyncAccessTokenProvider, RefreshableSyncAccessTokenProvider {
   _CycleTokens(this.source) : accountKey = source.accountKey;
   final SyncAccessTokenProvider source;
   @override
   final String accountKey;
   String? _token;
   void clear() => _token = null;
+  @override
+  Future<void> invalidateAccessToken(String rejected) async {
+    if (_token == rejected) clear();
+    if (source case final RefreshableSyncAccessTokenProvider refreshable) {
+      await refreshable.invalidateAccessToken(rejected);
+    }
+  }
+
   @override
   Future<String> accessToken() async {
     if (source.accountKey != accountKey) {

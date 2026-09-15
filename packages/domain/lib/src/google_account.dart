@@ -1,3 +1,5 @@
+import 'sync_transport.dart';
+
 final class GoogleDriveAccount {
   const GoogleDriveAccount({
     required this.permissionId,
@@ -58,4 +60,13 @@ abstract interface class GoogleAccountService {
 
   /// Disconnects this installation; does not erase Drive or other devices.
   Future<void> signOut();
+}
+
+abstract interface class GoogleSyncAccountService
+    implements GoogleAccountService, SyncAccessTokenProvider {}
+
+/// Desktop browser authorization can outlive the settings screen.
+abstract interface class CancelableGoogleSignIn {
+  void cancelSignIn();
+  Future<void> close();
 }

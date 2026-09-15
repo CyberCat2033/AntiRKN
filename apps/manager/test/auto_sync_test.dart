@@ -19,6 +19,7 @@ class Settings implements SettingsStore {
 
 class Session implements AutoSyncSession {
   int calls = 0, closed = 0, active = 0, maxActive = 0;
+  int otherWorkspaces = 0;
   bool fail = false, receive = false;
   Completer<void>? hold;
   SyncCancellation? cancellation;
@@ -37,6 +38,7 @@ class Session implements AutoSyncSession {
       if (fail) throw const SyncTransportFailure(SyncTransportIssue.network);
       final accepted = !receive || await apply(() async {});
       return AutoSyncResult(
+        otherWorkspaces: otherWorkspaces,
         waitingForEditor: !accepted,
         lastSuccess: DateTime(2026, 9, 15, 12),
       );
@@ -161,7 +163,9 @@ void main() {
         final account = AccountService();
         await account.signIn();
         final changes = StreamController<void>.broadcast();
-        final session = Session()..receive = true;
+        final session = Session()
+          ..receive = true
+          ..otherWorkspaces = 1;
         final controller = AutoSyncController(
           accountService: account,
           settings: Settings(),
@@ -186,6 +190,10 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.byKey(const ValueKey('google-auto-sync')), findsOneWidget);
         expect(controller.phase, AutoSyncPhase.editing);
+        expect(
+          find.byKey(const ValueKey('google-other-workspaces')),
+          findsOneWidget,
+        );
         await tester.ensureVisible(
           find.byKey(const ValueKey('google-sync-now')),
         );

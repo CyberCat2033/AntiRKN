@@ -47,16 +47,23 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher> {
   late Future<Widget> _app = _load();
   WorkspaceDatabase? _database;
   AutoSyncController? _sync;
+  GoogleSyncAccountService? _google;
   LanguageController? _languages;
   int _generation = 0;
 
   Future<void> _reopen() async {
-    final old = _database, languages = _languages, sync = _sync;
+    final old = _database,
+        languages = _languages,
+        sync = _sync,
+        google = _google;
     Future<Widget> restart() async {
       // Dispose the previous shell and its SSH sessions before reopening data.
       await WidgetsBinding.instance.endOfFrame;
       await sync?.stop();
       sync?.dispose();
+      if (google case final CancelableGoogleSignIn lifecycle) {
+        await lifecycle.close();
+      }
       await old?.close();
       languages?.dispose();
       return _load();
@@ -78,7 +85,8 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher> {
       final motion = await database.readSetting('motion');
       _database = database;
       _languages = languages;
-      final google = AndroidGoogleAccountService();
+      final google = localGoogleAccountService(database);
+      _google = google;
       _sync = google.supported
           ? AutoSyncController(
               accountService: google,
@@ -124,10 +132,16 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher> {
 
   @override
   void dispose() {
-    final sync = _sync, database = _database, languages = _languages;
+    final sync = _sync,
+        database = _database,
+        languages = _languages,
+        google = _google;
     sync?.dispose();
     unawaited(() async {
       if (sync != null) await sync.stop();
+      if (google case final CancelableGoogleSignIn lifecycle) {
+        await lifecycle.close();
+      }
       if (database != null) await database.close();
       languages?.dispose();
     }());
@@ -465,7 +479,13 @@ class _ManagerShellState extends State<ManagerShell>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    widget.autoSync?.foreground(state == AppLifecycleState.resumed);
+    // An unfocused desktop window is still visible (e.g. beside a browser).
+    // Android retains its existing foreground-only scheduling policy.
+    widget.autoSync?.foreground(
+      state == AppLifecycleState.resumed ||
+          (state == AppLifecycleState.inactive &&
+              widget.googleAccount is CancelableGoogleSignIn),
+    );
     if (state == AppLifecycleState.resumed) {
       _networkController.tick();
       if (!(_sshController?.unlocked ?? true)) _sshController?.initialise();

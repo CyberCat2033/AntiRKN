@@ -1,0 +1,9 @@
+{
+  "kind": "interrupted-synthetic-probe-cleanup",
+  "status": "PASS",
+  "ownedProbeDirectories": 2,
+  "authenticatedReceiptFiles": 5,
+  "removedOrAbsent": 5,
+  "refreshRequest": "PASS",
+  "scope": "Only file IDs recovered from authenticated receipts in two task-created synthetic databases. No user workspace files selected."
+}

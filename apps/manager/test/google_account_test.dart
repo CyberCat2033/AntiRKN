@@ -41,6 +41,19 @@ class Languages implements LanguagePreferenceStore {
   Future<void> writeLanguage(AppLanguage value) async {}
 }
 
+class DesktopAccountService extends AccountService
+    implements CancelableGoogleSignIn {
+  int cancellations = 0;
+  @override
+  void cancelSignIn() {
+    cancellations++;
+    if (wait != null && !wait!.isCompleted) wait!.complete(null);
+  }
+
+  @override
+  Future<void> close() async => cancelSignIn();
+}
+
 void main() {
   Future<void> mount(
     WidgetTester tester,
@@ -145,4 +158,49 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  for (final locale in ['ru', 'en']) {
+    testWidgets(
+      '$locale desktop cancellation and platform-specific errors at text x2',
+      (tester) async {
+        final service = DesktopAccountService();
+        await service.signIn();
+        await mount(tester, service, locale: locale, scale: 2);
+        service.wait = Completer();
+        await tester.tap(find.byKey(const ValueKey('google-sign-in')));
+        await tester.pump();
+        final cancel = find.byKey(const ValueKey('google-cancel-sign-in'));
+        await tester.ensureVisible(cancel);
+        await tester.pump();
+        expect(cancel.hitTestable(), findsOneWidget);
+        await tester.tap(cancel);
+        await tester.pumpAndSettle();
+        expect(service.cancellations, 1);
+        expect(find.text('fixture@example.com'), findsOneWidget);
+        service.wait = null;
+        service.error = GoogleAccountIssue.configuration;
+        await tester.ensureVisible(
+          find.byKey(const ValueKey('google-sign-in')),
+        );
+        await tester.pump();
+        await tester.tap(find.byKey(const ValueKey('google-sign-in')));
+        await tester.pumpAndSettle();
+        expect(find.textContaining('Desktop OAuth'), findsOneWidget);
+        expect(find.textContaining('Google Play services'), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+  testWidgets('leaving settings cancels pending desktop authorization', (
+    tester,
+  ) async {
+    final service = DesktopAccountService()..wait = Completer();
+    await mount(tester, service);
+    await tester.tap(find.byKey(const ValueKey('google-sign-in')));
+    await tester.pump();
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+    expect(service.cancellations, 1);
+    expect(tester.takeException(), isNull);
+  });
 }

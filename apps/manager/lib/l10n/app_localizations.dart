@@ -4139,8 +4139,38 @@ abstract class AppLocalizations {
   /// No description provided for @autoSyncPairing.
   ///
   /// In en, this message translates to:
-  /// **'Second device: export an encrypted backup below once and restore it on the other device, then sign in to the same Google account. The backup transfers the shared key: trust every device you share it with. Sync does not run when the app is fully closed.'**
+  /// **'Connect a second device: export an encrypted backup from your main device and restore it here using Backups below. Then sign in to the same Google account. Google sign-in alone does not transfer the encryption key. Only share the backup with trusted devices. Sync runs while the app is open.'**
   String get autoSyncPairing;
+
+  /// No description provided for @googleDesktopConfigurationError.
+  ///
+  /// In en, this message translates to:
+  /// **'Google sign-in is not configured. Select a Desktop OAuth client JSON from your Google project when prompted.'**
+  String get googleDesktopConfigurationError;
+
+  /// No description provided for @googleDesktopUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open Google sign-in in the system browser. Check your default browser and try again.'**
+  String get googleDesktopUnavailable;
+
+  /// No description provided for @googleDesktopWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Complete sign-in in your browser, then return here. On first setup, select your Google Desktop client file if prompted.'**
+  String get googleDesktopWaiting;
+
+  /// No description provided for @googleCancelSignIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel sign-in'**
+  String get googleCancelSignIn;
+
+  /// No description provided for @autoSyncOtherWorkspaces.
+  ///
+  /// In en, this message translates to:
+  /// **'Drive contains another workspace. To use its servers and clients here, restore an encrypted backup from the device that already has them.'**
+  String get autoSyncOtherWorkspaces;
 }
 
 class _AppLocalizationsDelegate

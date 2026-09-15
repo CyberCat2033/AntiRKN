@@ -4,6 +4,7 @@ resolution: workspace
 environment:
   sdk: '>=3.11.0 <4.0.0'
 dependencies:
+  url_launcher: 6.3.2
   antirkn_integrations:
     path: ../integrations
   flutter:

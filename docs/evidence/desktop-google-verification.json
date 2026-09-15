@@ -1,0 +1,83 @@
+{
+  "stage": "P1-06b",
+  "date": "2026-09-15",
+  "status": "PASS_WITH_DOCUMENTED_LIMITS",
+  "verification": {
+    "command": "bash tool/verify.sh",
+    "status": "PASS",
+    "dartFlutter": {
+      "integrations": 11,
+      "sync": 10,
+      "storage": 109,
+      "sshTransport": 36,
+      "networkInventory": 24,
+      "profileCompiler": 23,
+      "app": 172
+    },
+    "dartFlutterTotal": 385,
+    "pythonRunner": 80,
+    "pythonSetup": 5,
+    "total": 470,
+    "analyze": "PASS",
+    "format": "PASS",
+    "architecture": "PASS",
+    "generatedContracts": "PASS",
+    "baseYamlUnchanged": true,
+    "localizedMessages": 678
+  },
+  "builds": {
+    "android": {
+      "build": "debug-arm64",
+      "sha256": "c8de8ac6b676773040bad6a24dda6d7ad27a64e1c9e5735f9fd1dd4b53691503",
+      "googleProjectConfigured": true,
+      "desktopClientSecretAbsent": true,
+      "installedThisStage": false
+    },
+    "linux": {
+      "build": "debug-x64",
+      "runnerSha256": "fe29c4e441b1b86708e344bf267dd2af24f28771a97e297156c7bfe446b34cc7",
+      "kernelSha256": "1159990c0b3d60028b20a1c0bda290c35660933fcd62c8bd78cfa90027af137f",
+      "desktopClientSecretAbsent": true,
+      "entrypoint": "lib/main.dart"
+    },
+    "windows": {
+      "build": "NOT_RUN",
+      "runtime": "NOT_RUN"
+    }
+  },
+  "manualAcceptance": {
+    "linuxGoogleSignIn": "OWNER_CONFIRMED",
+    "androidToPcBackupAndSync": "OWNER_CONFIRMED",
+    "scope": "Owner confirmed Google account appeared, then reported synchronization works after the one-time backup/restore step. Development Linux build and existing Android installation; the final APK was not installed or retested on the phone."
+  },
+  "newAutomatedCoverage": [
+    "loopback host/path/method/state and duplicate callback rejection",
+    "PKCE S256 and fresh nonce for each attempt",
+    "cancel/timeout/browser failure and late response",
+    "encrypted local session and wrong-key/corruption/CAS rejection",
+    "restart/cache/refresh rotation and persistent invalid_grant",
+    "account readback, successful switch and atomic failure",
+    "local logout fences a second process and same-account relogin",
+    "production sync cycle forwards 401 invalidation and authorization errors",
+    "Desktop/Android account binding, backup without OAuth session, two-way exchange",
+    "offline/restart/conflict and explicit resolution across two local keys",
+    "RU/EN cancellation, enlarged text, foreign-workspace notice and backup UI restoration"
+  ],
+  "additionalLiveProbe": {
+    "status": "INTERRUPTED_NOT_ACCEPTED",
+    "cleanupEvidence": "desktop-google-probe-cleanup.json"
+  },
+  "notVerified": [
+    "Windows build/runtime",
+    "full real-phone failure matrix",
+    "final APK runtime/install",
+    "background exchange with fully closed Android",
+    "individual device signatures/revoke/key rotation"
+  ],
+  "actions": {
+    "adbUsed": false,
+    "push": false,
+    "shutdown": false,
+    "additionalGuiLaunchesStopped": true
+  }
+}

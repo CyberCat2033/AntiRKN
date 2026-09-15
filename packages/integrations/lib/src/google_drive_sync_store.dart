@@ -68,6 +68,10 @@ final class GoogleDriveSyncStore implements SyncRemoteStore {
         throw const SyncTransportFailure(SyncTransportIssue.limit);
       }
       if (response.status >= 200 && response.status < 300) return response;
+      if (_tokens case final RefreshableSyncAccessTokenProvider refreshable
+          when response.status == 401) {
+        await refreshable.invalidateAccessToken(token);
+      }
       final issue = switch (response.status) {
         401 => SyncTransportIssue.unauthorized,
         403 =>
@@ -86,6 +90,9 @@ final class GoogleDriveSyncStore implements SyncRemoteStore {
         issue,
         retryAfter: _retryAfter(response.headers['retry-after']),
       );
+    } on GoogleAccountFailure {
+      // Typed, sanitized authorization failures remain actionable in the UI.
+      rethrow;
     } on SyncTransportFailure {
       rethrow;
     } catch (_) {

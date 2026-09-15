@@ -51,8 +51,7 @@ final class _Token implements SyncAccessTokenProvider {
 
 /// Only account metadata is persisted in the platform's encrypted SecretStore.
 /// Google Play services obtains/renews access tokens; our tokens stay in memory.
-final class AndroidGoogleAccountService
-    implements GoogleAccountService, SyncAccessTokenProvider {
+final class AndroidGoogleAccountService implements GoogleSyncAccountService {
   AndroidGoogleAccountService({
     this.projectId = const String.fromEnvironment('ANTIRKN_GOOGLE_PROJECT_ID'),
     VaultKeyStore keys = const PlatformVaultKeyStore(),
