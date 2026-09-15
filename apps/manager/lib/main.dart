@@ -1,3 +1,4 @@
+import 'sync/sync_conflicts_panel.dart';
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_profile_compiler/antirkn_profile_compiler.dart';
@@ -567,6 +568,19 @@ class _ManagerShellState extends State<ManagerShell>
                                   !(_vpn?.busy ?? false) &&
                                   !_controller.savingDraft &&
                                   !_controller.importing,
+                            ),
+                            const SizedBox(height: AppLayout.gap),
+                          ],
+                          if (widget.servers is SyncMergeStore &&
+                              widget.onRestored != null) ...[
+                            SyncConflictsPanel(
+                              store: widget.servers as SyncMergeStore,
+                              canResolve: () =>
+                                  !(_catalog?.hasActiveWork ?? false) &&
+                                  !(_vpn?.busy ?? false) &&
+                                  !_controller.savingDraft &&
+                                  !_controller.importing,
+                              onResolved: widget.onRestored!,
                             ),
                             const SizedBox(height: AppLayout.gap),
                           ],

@@ -1,3 +1,4 @@
+export 'src/sync_merge.dart';
 export 'src/canonical_json.dart';
 export 'src/backup.dart';
 export 'src/change_journal.dart';

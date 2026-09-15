@@ -365,7 +365,9 @@ void main() {
       final legacy = Map<String, dynamic>.from(data)
         ..['version'] = 1
         ..remove('syncKey')
-        ..remove('syncPackets');
+        ..remove('syncPackets')
+        ..remove('incoming')
+        ..remove('heads');
       final second = open('second', 42);
       final bytes = await BackupEnvelope.seal(jsonEncode(legacy), password);
       await second.restoreBackup(await second.prepareRestore(bytes, password));
@@ -441,6 +443,14 @@ void main() {
     raw.execute('ALTER TABLE sync_identity DROP COLUMN writer_version');
     raw.execute('DROP TABLE sync_packets');
     raw.execute('DROP TABLE sync_keys');
+    for (final table in [
+      'sync_incoming',
+      'sync_branches',
+      'sync_conflicts',
+      'sync_merge_meta',
+    ]) {
+      raw.execute('DROP TABLE $table');
+    }
     raw.userVersion = 3;
   });
 
@@ -477,7 +487,7 @@ void main() {
         (await failed.readWorkspaceIdentity()).deviceId,
         identity.deviceId,
       );
-      expect(sql('first', (raw) => raw.userVersion), 4);
+      expect(sql('first', (raw) => raw.userVersion), 5);
       expect(
         sql('first', (raw) => jsonEncode(raw.select('SELECT * FROM servers'))),
         records,

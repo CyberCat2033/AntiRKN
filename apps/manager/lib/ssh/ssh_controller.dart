@@ -1,3 +1,4 @@
+import '../sync/guarded_runner_transport.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -49,7 +50,7 @@ class SshController extends ChangeNotifier {
               !settingsExpanded &&
               !vaultBusy &&
               !needsPrivilegeInput
-          ? _connection?.runner
+          ? _guardRunner(_connection?.runner)
           : null,
       identity: () => unlocked && _vault!.profile?.hostKey != null
           ? '${_vault!.profile!.host}|${_vault!.profile!.hostKey!.fingerprint}'
@@ -72,6 +73,10 @@ class SshController extends ChangeNotifier {
     });
     _clock = Timer.periodic(const Duration(seconds: 10), (_) => network.tick());
   }
+  RunnerTransport? _guardRunner(RunnerTransport? transport) =>
+      transport != null && repository is SyncEffectGuard
+      ? GuardedRunnerTransport(transport, repository as SyncEffectGuard)
+      : transport;
   final Future<SecretVault> Function() openVault;
   final SshConnector connector;
   final PrivateKeyFilePicker picker;

@@ -77,7 +77,8 @@ final class _PreparedChange {
 }
 
 final class _ChangeBatch {
-  const _ChangeBatch(this.expectedSequence, this.changes);
+  const _ChangeBatch(this.expectedSequence, this.changes, [this.expectedEpoch]);
+  final int? expectedEpoch;
   final int expectedSequence;
   final List<_PreparedChange> changes;
 }
@@ -237,7 +238,8 @@ final class _LocalChangeJournal {
         db.userVersion = 2;
       } else if (db.userVersion != 2 &&
           db.userVersion != 3 &&
-          db.userVersion != 4) {
+          db.userVersion != 4 &&
+          db.userVersion != 5) {
         throw const VaultFailure(VaultIssue.corrupt);
       }
       db.execute('COMMIT');
@@ -275,6 +277,9 @@ final class _LocalChangeJournal {
           ..sort(
             (a, b) => '${a.$1.name}:${a.$2}'.compareTo('${b.$1.name}:${b.$2}'),
           );
+    final epoch = !bootstrap && db.userVersion >= 5
+        ? db.select('SELECT epoch FROM sync_merge_meta').single['epoch'] as int
+        : null;
     final transactionId = newVpnId();
     final changes = <_PreparedChange>[];
     // Capture all heads before the first await. The sequence CAS in commit
@@ -293,7 +298,60 @@ final class _LocalChangeJournal {
       if (!bootstrap && before.containsKey(key) && head == null) {
         throw const VaultFailure(VaultIssue.corrupt);
       }
-      final base = head?['revision'] as int? ?? 0;
+      if (!bootstrap &&
+          db.userVersion >= 5 &&
+          db.select(
+            'SELECT 1 FROM sync_conflicts WHERE entity_kind=? AND entity_id=?',
+            [key.$1.name, key.$2],
+          ).isNotEmpty) {
+        throw const VaultFailure(VaultIssue.busy);
+      }
+      if (head?['deleted'] == 1 && after[key] != null && !after[key]!.deleted) {
+        throw const VaultFailure(VaultIssue.busy);
+      }
+      final branches = !bootstrap && db.userVersion >= 5
+          ? db
+                .select(
+                  'SELECT change_id FROM sync_branches WHERE entity_kind=? AND entity_id=? ORDER BY change_id',
+                  [key.$1.name, key.$2],
+                )
+                .map((r) => r['change_id'] as String)
+                .toList()
+          : <String>[];
+      // Equivalent/automatically merged branches are all acknowledged by edits.
+      // The base must carry the highest parent revision.
+      if (branches.length > 1) {
+        final revisions = {
+          for (final id in branches)
+            id: ChangeHeader.fromJson(
+              jsonDecode(
+                    db.select(
+                          'SELECT header FROM sync_changes WHERE change_id=? UNION ALL SELECT header FROM sync_incoming WHERE change_id=?',
+                          [id, id],
+                        ).single['header']
+                        as String,
+                  )
+                  as Map<String, dynamic>,
+            ).revision,
+        };
+        branches.sort(
+          (a, b) => revisions[b] == revisions[a]
+              ? a.compareTo(b)
+              : revisions[b]!.compareTo(revisions[a]!),
+        );
+      }
+      final base = branches.isNotEmpty
+          ? ChangeHeader.fromJson(
+              jsonDecode(
+                    db.select(
+                          'SELECT header FROM sync_changes WHERE change_id=? UNION ALL SELECT header FROM sync_incoming WHERE change_id=?',
+                          [branches.first, branches.first],
+                        ).single['header']
+                        as String,
+                  )
+                  as Map<String, dynamic>,
+            ).revision
+          : head?['revision'] as int? ?? 0;
       final next = after[key];
       final header = ChangeHeader(
         workspaceId: owner.workspaceId,
@@ -305,7 +363,11 @@ final class _LocalChangeJournal {
         transactionSize: keys.length,
         entityKind: key.$1,
         entityId: key.$2,
-        baseChangeId: head?['change_id'] as String?,
+        baseChangeId: branches.isNotEmpty
+            ? branches.first
+            : head?['change_id'] as String?,
+        schemaVersion: bootstrap ? 1 : 2,
+        mergeParents: branches.skip(1).toList(),
         baseRevision: base,
         revision: base + 1,
         deleted: next == null || next.deleted,
@@ -317,7 +379,7 @@ final class _LocalChangeJournal {
       );
       changes.add(_PreparedChange(header, payload));
     }
-    return _ChangeBatch(sequence, changes);
+    return _ChangeBatch(sequence, changes, epoch);
   }
 
   static String _scope(ChangeHeader header) =>
@@ -329,7 +391,10 @@ final class _LocalChangeJournal {
     final current = db
         .select('SELECT sequence FROM sync_identity WHERE singleton=1')
         .single['sequence'];
-    if (current != batch.expectedSequence) {
+    if (current != batch.expectedSequence ||
+        (batch.expectedEpoch != null &&
+            db.select('SELECT epoch FROM sync_merge_meta').single['epoch'] !=
+                batch.expectedEpoch)) {
       throw const VaultFailure(VaultIssue.busy);
     }
     for (final change in batch.changes) {
@@ -351,6 +416,17 @@ final class _LocalChangeJournal {
         ],
       );
       db.execute('INSERT INTO sync_outbox VALUES (?)', [h.changeId]);
+      if (db.userVersion >= 5) {
+        db.execute(
+          'DELETE FROM sync_branches WHERE entity_kind=? AND entity_id=?',
+          [h.entityKind.name, h.entityId],
+        );
+        db.execute('INSERT INTO sync_branches VALUES (?,?,?)', [
+          h.entityKind.name,
+          h.entityId,
+          h.changeId,
+        ]);
+      }
     }
     db.execute('UPDATE sync_identity SET sequence=? WHERE singleton=1', [
       batch.changes.last.header.sequence,

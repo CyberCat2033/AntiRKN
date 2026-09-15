@@ -97,7 +97,7 @@ void main() {
         );
         await db.close();
         final after = sqlite3.open(path);
-        expect(after.userVersion, 4);
+        expect(after.userVersion, 5);
         expect(after.select('SELECT * FROM servers').single, oldServer);
         expect(
           after.select('SELECT * FROM documents ORDER BY id'),
@@ -206,6 +206,14 @@ void main() {
         raw.execute('ALTER TABLE sync_identity DROP COLUMN writer_version');
         raw.execute('DROP TABLE sync_packets');
         raw.execute('DROP TABLE sync_keys');
+        for (final table in [
+          'sync_incoming',
+          'sync_branches',
+          'sync_conflicts',
+          'sync_merge_meta',
+        ]) {
+          raw.execute('DROP TABLE $table');
+        }
         raw.userVersion = 2;
         final wrong = WorkspaceDatabase.open(
           path,
@@ -222,7 +230,7 @@ void main() {
           (await migrated.readWorkspaceIdentity()).deviceId,
           identity.deviceId,
         );
-        expect(raw.userVersion, 4);
+        expect(raw.userVersion, 5);
         expect(raw.select('SELECT * FROM servers').single, ciphertext);
         expect(ids(await migrated.readPendingChanges()), events);
         expect(
@@ -467,7 +475,7 @@ void main() {
       );
       expect(await db.readDraft(), 'private-template-fixture');
       raw = sqlite3.open(path);
-      expect(raw.userVersion, 4);
+      expect(raw.userVersion, 5);
       raw.dispose();
     },
   );

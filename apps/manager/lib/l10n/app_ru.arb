@@ -752,7 +752,7 @@
   "backupCancel": "Отмена",
   "backupReplace": "Заменить и восстановить",
   "backupSelect": "Выбрать файл",
-  "backupOperationReview": "Операция восстановлена из резервной копии и автоматически не отправляется. Проверьте сервер и подтвердите новый план либо выберите отмену или повтор существующего задания.",
+  "backupOperationReview": "Операция получена с другого устройства или восстановлена из резервной копии и автоматически не отправляется. Проверьте сервер и подтвердите новый план либо выберите отмену или повтор существующего задания.",
   "@backupSummary": {
     "placeholders": {
       "date": {
@@ -772,5 +772,70 @@
       }
     }
   },
-  "backupReviewServer": "Проверить состояние сервера"
+  "backupReviewServer": "Проверить состояние сервера",
+  "syncConflictsTitle": "Конфликты изменений",
+  "syncLocalHelp": "Здесь можно разрешить сохранённые конфликты. Обмен через Google Drive ещё не подключён.",
+  "syncConflictCount": "Конфликтов: {count}",
+  "syncWaitingCount": "Ожидающих групп: {groups}. Недостающих предыдущих изменений: {missing}.",
+  "syncBlockedCount": "Групп с несовместимыми данными: {count}. Исправьте локальные данные, затем повторите применение.",
+  "syncChanged": "Состав конфликта изменился. Откройте его заново и повторите выбор.",
+  "syncStorageError": "Не удалось применить выбранную версию. Обновите список и проверьте совместимость данных.",
+  "syncEffectsBlocked": "Сначала разрешите конфликты изменений в настройках. Серверные действия и выдача профилей приостановлены.",
+  "syncRefresh": "Обновить список",
+  "syncRetry": "Повторить применение",
+  "syncChooseHelp": "Просмотрите версии и выберите одну. Содержимое может включать пароли и ключи. Решение сохранится как новое изменение; серверные операции требуют отдельного действия.",
+  "syncVariant": "Версия {number}",
+  "syncDeleted": "Удаление ресурса",
+  "syncReveal": "Показать содержимое и секреты",
+  "syncHide": "Скрыть содержимое",
+  "syncSelect": "Выбрать эту версию",
+  "syncResolve": "Сохранить решение",
+  "syncKindServer": "Сервер",
+  "syncKindTemplate": "Базовый шаблон",
+  "syncKindUser": "VPN-клиент",
+  "syncKindVless": "VLESS inbound",
+  "syncKindAwg": "Интерфейс AmneziaWG",
+  "syncKindTt": "TrustTunnel endpoint",
+  "syncKindOperation": "Состояние сервера и операций",
+  "syncKindProfile": "История профиля",
+  "syncKindWorkspace": "Рабочее пространство",
+  "@syncConflictCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@syncWaitingCount": {
+    "placeholders": {
+      "groups": {
+        "type": "int"
+      },
+      "missing": {
+        "type": "int"
+      }
+    }
+  },
+  "@syncBlockedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@syncVariant": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "syncRejectedCount": "Отклонённых групп с нарушенной историей изменений: {count}. Рабочие данные сохранены.",
+  "@syncRejectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

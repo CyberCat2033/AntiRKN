@@ -752,7 +752,7 @@
   "backupCancel": "Cancel",
   "backupReplace": "Replace and restore",
   "backupSelect": "Select file",
-  "backupOperationReview": "This operation was restored from a backup and will not be sent automatically. Check the server and confirm a new plan, or choose to cancel or retry the existing job.",
+  "backupOperationReview": "This operation came from another device or a backup and is not submitted automatically. Check the server and approve a new plan, or choose to cancel or retry the existing job.",
   "@backupSummary": {
     "placeholders": {
       "date": {
@@ -772,5 +772,70 @@
       }
     }
   },
-  "backupReviewServer": "Check server state"
+  "backupReviewServer": "Check server state",
+  "syncConflictsTitle": "Change conflicts",
+  "syncLocalHelp": "Resolve stored conflicts here. Google Drive exchange is not connected yet.",
+  "syncConflictCount": "Conflicts: {count}",
+  "syncWaitingCount": "Waiting groups: {groups}. Missing earlier changes: {missing}.",
+  "syncBlockedCount": "Groups with incompatible data: {count}. Correct the local data, then retry applying changes.",
+  "syncChanged": "The conflict has changed. Open it again and review the versions.",
+  "syncStorageError": "Could not apply the selected version. Refresh the list and check data compatibility.",
+  "syncEffectsBlocked": "Resolve change conflicts in Settings first. Server actions and profile export are paused.",
+  "syncRefresh": "Refresh list",
+  "syncRetry": "Retry applying changes",
+  "syncChooseHelp": "Review the versions and choose one. Contents may include passwords and keys. Your decision is saved as a new change; server operations require a separate action.",
+  "syncVariant": "Version {number}",
+  "syncDeleted": "Resource deletion",
+  "syncReveal": "Show contents and secrets",
+  "syncHide": "Hide contents",
+  "syncSelect": "Choose this version",
+  "syncResolve": "Save decision",
+  "syncKindServer": "Server",
+  "syncKindTemplate": "Base template",
+  "syncKindUser": "VPN client",
+  "syncKindVless": "VLESS inbound",
+  "syncKindAwg": "AmneziaWG interface",
+  "syncKindTt": "TrustTunnel endpoint",
+  "syncKindOperation": "Server and operation state",
+  "syncKindProfile": "Profile history",
+  "syncKindWorkspace": "Workspace",
+  "@syncConflictCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@syncWaitingCount": {
+    "placeholders": {
+      "groups": {
+        "type": "int"
+      },
+      "missing": {
+        "type": "int"
+      }
+    }
+  },
+  "@syncBlockedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@syncVariant": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "syncRejectedCount": "Rejected groups with inconsistent change history: {count}. Working data is preserved.",
+  "@syncRejectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

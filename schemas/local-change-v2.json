@@ -1,0 +1,40 @@
+{
+  "version": 2,
+  "description": "Causal journal header. mergeParents adds other acknowledged entity branches to baseChangeId.",
+  "entityKinds": [
+    "workspace",
+    "server",
+    "template",
+    "vpnWorkspace",
+    "vpnUser",
+    "vlessInbound",
+    "awgInterface",
+    "ttEndpoint",
+    "vpnServerState",
+    "profile",
+    "runnerState",
+    "document"
+  ],
+  "fields": {
+    "workspaceId": "id",
+    "deviceId": "id",
+    "changeId": "id",
+    "sequence": "positive",
+    "transactionId": "id",
+    "transactionIndex": "nonnegative",
+    "transactionSize": "positive",
+    "entityKind": "kind",
+    "entityId": "entityId",
+    "baseChangeId": "nullableId",
+    "baseRevision": "nonnegative",
+    "revision": "positive",
+    "deleted": "boolean"
+  },
+  "extensionFields": {
+    "mergeParents": {
+      "type": "idList",
+      "maxItems": 64,
+      "uniqueItems": true
+    }
+  }
+}

@@ -2,6 +2,7 @@ import '../l10n/app_localizations.dart';
 import '../app_strings.dart';
 
 String vpnMessage(AppLocalizations l, String code) => switch (code) {
+  'sync_conflict' => l.syncEffectsBlocked,
   'succeeded' => l.runnerSucceeded,
   'planned' => l.runnerPlanned,
   'running' => l.runnerRunning,

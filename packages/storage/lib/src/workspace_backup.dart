@@ -37,6 +37,10 @@ String _backupStamp(WorkspaceDatabase store) => jsonEncode([
   ...store._db.select('SELECT change_id FROM sync_outbox ORDER BY change_id'),
   ...store._db.select('SELECT hex(payload) AS key_stamp FROM sync_keys'),
   ...store._db.select('SELECT COUNT(*) AS packets FROM sync_packets'),
+  ...store._db.select('SELECT epoch FROM sync_merge_meta'),
+  ...store._db.select(
+    'SELECT change_id,state FROM sync_incoming ORDER BY change_id',
+  ),
 ]);
 
 Future<Uint8List> _createBackup(
@@ -54,7 +58,8 @@ Future<Uint8List> _createBackup(
         final size = store._db.select('''
           SELECT (SELECT COALESCE(SUM(length(payload)),0) FROM servers)
             + (SELECT COALESCE(SUM(length(payload)),0) FROM documents)
-            + (SELECT COALESCE(SUM(length(payload)+length(header)),0) FROM sync_changes) AS bytes,
+            + (SELECT COALESCE(SUM(length(payload)+length(header)),0) FROM sync_changes)
+            + (SELECT COALESCE(SUM(length(payload)+length(header)),0) FROM sync_incoming) AS bytes,
             (SELECT COUNT(*) FROM sync_changes) AS changes
         ''').single;
         final packetBytes =
@@ -77,6 +82,7 @@ Future<Uint8List> _createBackup(
           ('heads', 'SELECT * FROM sync_heads ORDER BY entity_kind,entity_id'),
           ('syncKey', 'SELECT payload FROM sync_keys WHERE singleton=1'),
           ('syncPackets', 'SELECT * FROM sync_packets ORDER BY change_id'),
+          ('incoming', 'SELECT * FROM sync_incoming ORDER BY change_id'),
         ]) {
           captured[name] = store._db.select(sql);
         }
@@ -86,12 +92,16 @@ Future<Uint8List> _createBackup(
         rethrow;
       }
       final data = <String, dynamic>{
-        'version': 2,
+        'version': 3,
         'createdAt': DateTime.now().toUtc().toIso8601String(),
         'workspaceId': store._journal.identity.workspaceId,
         'servers': <Object?>[],
         'documents': <Object?>[],
         'changes': <Object?>[],
+        'incoming': <Object?>[],
+        'heads': [
+          for (final row in captured['heads']!) Map<String, dynamic>.from(row),
+        ],
         'outbox': [for (final row in captured['outbox']!) row['change_id']],
         'syncKey': jsonDecode(
           await store._decrypt(
@@ -157,6 +167,30 @@ Future<Uint8List> _createBackup(
         (data['changes'] as List).add({
           'header': header.toJson(),
           'source': source,
+        });
+      }
+      for (final row in captured['incoming']!) {
+        final h = ChangeHeader.fromJson(
+          jsonDecode(row['header'] as String) as Map<String, dynamic>,
+        );
+        final body =
+            jsonDecode(
+                  await store._decrypt(
+                    _LocalChangeJournal._scope(h),
+                    1,
+                    row['payload'] as Uint8List,
+                  ),
+                )
+                as Map;
+        if (h.changeId != row['change_id'] ||
+            body.length != 1 ||
+            !body.containsKey('source')) {
+          throw const BackupFailure(BackupIssue.invalid);
+        }
+        (data['incoming'] as List).add({
+          'header': h.toJson(),
+          'source': body['source'],
+          'state': row['state'],
         });
       }
       final source = jsonEncode(data);
@@ -235,6 +269,7 @@ Future<void> _restoreBackup(
         'servers': [],
         'documents': [],
         'changes': [],
+        'incoming': [],
       };
       final syncKeyPayload = await store._encrypt(
         _WorkspaceSync.keyScope(snapshot.summary.workspaceId),
@@ -269,6 +304,19 @@ Future<void> _restoreBackup(
           ),
         ]);
       }
+      for (final dynamic row in snapshot.data['incoming'] as List? ?? []) {
+        final h = ChangeHeader.fromJson(row['header'] as Map<String, dynamic>);
+        records['incoming']!.add([
+          h.changeId,
+          canonicalJson(h.toJson()),
+          await store._encrypt(
+            _LocalChangeJournal._scope(h),
+            1,
+            jsonEncode({'source': row['source']}),
+          ),
+          row['state'],
+        ]);
+      }
       store._transaction(() {
         if (_backupStamp(store) != plan.stamp || plan._snapshot == null) {
           throw const BackupFailure(BackupIssue.changed);
@@ -281,6 +329,10 @@ Future<void> _restoreBackup(
           }
         }
         for (final table in [
+          'sync_incoming',
+          'sync_branches',
+          'sync_conflicts',
+          'sync_merge_meta',
           'sync_packets',
           'sync_keys',
           'sync_outbox',
@@ -303,11 +355,12 @@ Future<void> _restoreBackup(
           }
         }
         _WorkspaceSync.installSchema(store._db);
+        _WorkspaceMerge.installSchema(store._db);
         store._db.execute('INSERT INTO sync_keys VALUES (1,?)', [
           syncKeyPayload,
         ]);
         store._db.execute(
-          'INSERT INTO sync_identity VALUES (1, ?, ?, ?, ?, 1, ?, 4)',
+          'INSERT INTO sync_identity VALUES (1, ?, ?, ?, ?, 1, ?, 5)',
           [
             snapshot.summary.workspaceId,
             deviceId,
@@ -316,10 +369,14 @@ Future<void> _restoreBackup(
             deviceId,
           ],
         );
-        for (final table in ['servers', 'documents', 'changes']) {
+        for (final table in ['servers', 'documents', 'changes', 'incoming']) {
           for (final row in records[table]!) {
             store._db.execute(
-              'INSERT INTO ${table == 'changes' ? 'sync_changes' : table} VALUES (${List.filled(row.length, '?').join(',')})',
+              'INSERT INTO ${table == 'changes'
+                  ? 'sync_changes'
+                  : table == 'incoming'
+                  ? 'sync_incoming'
+                  : table} VALUES (${List.filled(row.length, '?').join(',')})',
               row,
             );
           }
@@ -331,6 +388,25 @@ Future<void> _restoreBackup(
             h.revision,
             h.changeId,
             h.deleted ? 1 : 0,
+          ]);
+        }
+        final restoredGraph = _snapshotGraph(snapshot.data);
+        final restoredProjection = _projectMerge(restoredGraph, {
+          for (final e in snapshot.heads.entries) e.key: e.value.changeId,
+        });
+        for (final entry in restoredGraph.tips.entries) {
+          for (final id in entry.value) {
+            store._db.execute('INSERT INTO sync_branches VALUES (?,?,?)', [
+              entry.key.$1.name,
+              entry.key.$2,
+              id,
+            ]);
+          }
+        }
+        for (final key in restoredProjection.conflicts) {
+          store._db.execute('INSERT INTO sync_conflicts VALUES (?,?)', [
+            key.$1.name,
+            key.$2,
           ]);
         }
         for (final id in snapshot.outbox) {
@@ -367,7 +443,7 @@ Future<void> _restoreBackup(
           "INSERT INTO settings VALUES ('backupRestoredTargets',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
           [jsonEncode(restoredTargets.toList()..sort())],
         );
-        store._db.userVersion = 4;
+        store._db.userVersion = 5;
       });
       store._restored = true;
       store.needsLegacyPassword = false;
@@ -465,10 +541,15 @@ _BackupSnapshot _validateBackup(String source) {
       throw const BackupFailure(BackupIssue.tooLarge);
     }
     final data = _backupJson(source) as Map<String, dynamic>;
-    if (data['version'] != 1 && data['version'] != 2) {
+    if (![1, 2, 3].contains(data['version'])) {
       throw const BackupFailure(BackupIssue.version);
     }
-    if (data.length != (data['version'] == 1 ? 7 : 9)) {
+    if (data.length !=
+        (data['version'] == 1
+            ? 7
+            : data['version'] == 2
+            ? 9
+            : 11)) {
       throw const FormatException();
     }
     final workspaceId = data['workspaceId'] as String;
@@ -528,6 +609,9 @@ _BackupSnapshot _validateBackup(String source) {
           entities.addAll(_documentEntities(id, text));
         }
       }
+    }
+    if (data['version'] == 3) {
+      return _validateMergeBackup(data, entities, createdAt, users);
     }
     final heads = <_EntityKey, ChangeHeader>{};
     final latest = <_EntityKey, _EntitySnapshot>{};
@@ -609,4 +693,118 @@ _BackupSnapshot _validateBackup(String source) {
   } catch (_) {
     throw const BackupFailure(BackupIssue.invalid);
   }
+}
+
+LocalChange _snapshotEvent(dynamic row) => LocalChange(
+  header: ChangeHeader.fromJson(row['header'] as Map<String, dynamic>),
+  source: row['source'] as String?,
+);
+CausalGraph _snapshotGraph(Map<String, dynamic> data) => CausalGraph([
+  for (final row in data['changes'] as List) _snapshotEvent(row),
+  for (final dynamic row in data['incoming'] as List? ?? [])
+    if (row['state'] == 1) _snapshotEvent(row),
+]);
+
+_BackupSnapshot _validateMergeBackup(
+  Map<String, dynamic> data,
+  _Entities actual,
+  DateTime createdAt,
+  int users,
+) {
+  final local = data['changes'] as List, remote = data['incoming'] as List;
+  if (local.isEmpty || local.length + remote.length > 200000) {
+    throw const FormatException();
+  }
+  final all = <String, LocalChange>{}, accepted = <String, LocalChange>{};
+  for (final (rows, incoming) in [(local, false), (remote, true)]) {
+    for (var i = 0; i < rows.length; i++) {
+      final row = rows[i] as Map<String, dynamic>,
+          event = _snapshotEvent(rows[i]),
+          h = event.header;
+      if (row.length != (incoming ? 3 : 2) ||
+          !row.containsKey('source') ||
+          h.workspaceId != data['workspaceId'] ||
+          all.containsKey(h.changeId) ||
+          (!incoming && h.sequence != i + 1) ||
+          (incoming && ![0, 1, 2, 3].contains(row['state']))) {
+        throw const FormatException();
+      }
+      _validateSyncChange(event);
+      all[h.changeId] = event;
+      if (!incoming || row['state'] == 1) accepted[h.changeId] = event;
+    }
+  }
+  _validateEventIdentities(all.values);
+  final groups = <String, List<LocalChange>>{};
+  for (final e in accepted.values) {
+    groups.putIfAbsent(e.header.transactionId, () => []).add(e);
+  }
+  if (groups.values.any((g) => g.length != g.first.header.transactionSize)) {
+    throw const FormatException();
+  }
+  final graph = CausalGraph(accepted.values);
+  final preferred = <_EntityKey, String>{};
+  for (final dynamic row in data['heads'] as List) {
+    final key = (
+          ChangeEntityKind.values.byName(row['entity_kind'] as String),
+          row['entity_id'] as String,
+        ),
+        id = row['change_id'] as String;
+    final h = graph.events[id]?.header;
+    if (row.length != 5 ||
+        preferred.containsKey(key) ||
+        h == null ||
+        !graph.tips[key]!.contains(id) ||
+        h.revision != row['revision'] ||
+        (h.deleted ? 1 : 0) != row['deleted']) {
+      throw const FormatException();
+    }
+    preferred[key] = id;
+  }
+  if (preferred.length != graph.tips.length) throw const FormatException();
+  final projection = _projectMerge(graph, preferred);
+  final docs = _materializedDocuments(
+    projection.entities,
+    data['workspaceId'] as String,
+    projection.heads,
+  );
+  final expected = <_EntityKey, _EntitySnapshot>{
+    (ChangeEntityKind.workspace, data['workspaceId'] as String):
+        _EntitySnapshot(canonicalJson({'id': data['workspaceId']})),
+    for (final e in projection.entities.entries.where(
+      (e) => e.key.$1 == ChangeEntityKind.server,
+    ))
+      e.key: e.value,
+    for (final e in docs.entries) ..._documentEntities(e.key, e.value),
+  };
+  if (expected.length != actual.length) throw const FormatException();
+  for (final e in expected.entries) {
+    final found = actual[e.key];
+    if (found == null ||
+        found.deleted != e.value.deleted ||
+        (e.key.$1 == ChangeEntityKind.template
+            ? found.source != e.value.source
+            : canonicalJson(_backupJson(found.source)) !=
+                  canonicalJson(_backupJson(e.value.source)))) {
+      throw const FormatException();
+    }
+  }
+  final outbox = data['outbox'] as List,
+      localIds = local.map((dynamic row) => row['header']['changeId']).toSet();
+  if (outbox.toSet().length != outbox.length ||
+      outbox.any((id) => !localIds.contains(id))) {
+    throw const FormatException();
+  }
+  return _BackupSnapshot(
+    data,
+    BackupSummary(
+      createdAt: createdAt,
+      workspaceId: data['workspaceId'] as String,
+      servers: (data['servers'] as List).length,
+      users: users,
+      changes: all.length,
+      pending: outbox.length,
+    ),
+    projection.heads,
+  );
 }

@@ -118,7 +118,7 @@ final class SyncPacketCodec {
           throw const SyncPacketFailure(SyncPacketIssue.invalid);
         }
         final h = value['header'] as Map<String, dynamic>;
-        if (h['version'] != localChangeSchemaVersion) {
+        if (![1, localChangeSchemaVersion].contains(h['version'])) {
           throw const SyncPacketFailure(SyncPacketIssue.version);
         }
         final change = LocalChange(

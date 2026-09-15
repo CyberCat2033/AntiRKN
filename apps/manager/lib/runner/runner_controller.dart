@@ -243,6 +243,11 @@ class RunnerController extends ChangeNotifier {
       }
     } on RunnerFailure catch (e) {
       if (!token.isCancelled && !_disposed) error = e.issue;
+    } on SyncMergeFailure {
+      if (!token.isCancelled && !_disposed) {
+        error = RunnerIssue.conflict;
+        responseCode = 'sync_conflict';
+      }
     } on VaultFailure {
       if (!token.isCancelled && !_disposed) error = RunnerIssue.storage;
     } catch (_) {

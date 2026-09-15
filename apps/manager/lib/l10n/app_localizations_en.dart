@@ -2130,8 +2130,104 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get backupOperationReview =>
-      'This operation was restored from a backup and will not be sent automatically. Check the server and confirm a new plan, or choose to cancel or retry the existing job.';
+      'This operation came from another device or a backup and is not submitted automatically. Check the server and approve a new plan, or choose to cancel or retry the existing job.';
 
   @override
   String get backupReviewServer => 'Check server state';
+
+  @override
+  String get syncConflictsTitle => 'Change conflicts';
+
+  @override
+  String get syncLocalHelp =>
+      'Resolve stored conflicts here. Google Drive exchange is not connected yet.';
+
+  @override
+  String syncConflictCount(int count) {
+    return 'Conflicts: $count';
+  }
+
+  @override
+  String syncWaitingCount(int groups, int missing) {
+    return 'Waiting groups: $groups. Missing earlier changes: $missing.';
+  }
+
+  @override
+  String syncBlockedCount(int count) {
+    return 'Groups with incompatible data: $count. Correct the local data, then retry applying changes.';
+  }
+
+  @override
+  String get syncChanged =>
+      'The conflict has changed. Open it again and review the versions.';
+
+  @override
+  String get syncStorageError =>
+      'Could not apply the selected version. Refresh the list and check data compatibility.';
+
+  @override
+  String get syncEffectsBlocked =>
+      'Resolve change conflicts in Settings first. Server actions and profile export are paused.';
+
+  @override
+  String get syncRefresh => 'Refresh list';
+
+  @override
+  String get syncRetry => 'Retry applying changes';
+
+  @override
+  String get syncChooseHelp =>
+      'Review the versions and choose one. Contents may include passwords and keys. Your decision is saved as a new change; server operations require a separate action.';
+
+  @override
+  String syncVariant(int number) {
+    return 'Version $number';
+  }
+
+  @override
+  String get syncDeleted => 'Resource deletion';
+
+  @override
+  String get syncReveal => 'Show contents and secrets';
+
+  @override
+  String get syncHide => 'Hide contents';
+
+  @override
+  String get syncSelect => 'Choose this version';
+
+  @override
+  String get syncResolve => 'Save decision';
+
+  @override
+  String get syncKindServer => 'Server';
+
+  @override
+  String get syncKindTemplate => 'Base template';
+
+  @override
+  String get syncKindUser => 'VPN client';
+
+  @override
+  String get syncKindVless => 'VLESS inbound';
+
+  @override
+  String get syncKindAwg => 'AmneziaWG interface';
+
+  @override
+  String get syncKindTt => 'TrustTunnel endpoint';
+
+  @override
+  String get syncKindOperation => 'Server and operation state';
+
+  @override
+  String get syncKindProfile => 'Profile history';
+
+  @override
+  String get syncKindWorkspace => 'Workspace';
+
+  @override
+  String syncRejectedCount(int count) {
+    return 'Rejected groups with inconsistent change history: $count. Working data is preserved.';
+  }
 }

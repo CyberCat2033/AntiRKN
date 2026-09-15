@@ -93,6 +93,12 @@ class VpnController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
+  Future<void> checkProfileEffects() async {
+    if (repository case final SyncEffectGuard guard) {
+      await guard.checkSyncEffects();
+    }
+  }
+
   Future<void> _write(VpnWorkspace next) async {
     final updated = await repository.writeVpn(
       next.encode(),
@@ -113,6 +119,8 @@ class VpnController extends ChangeNotifier {
     _notify();
     try {
       await action(token);
+    } on SyncMergeFailure {
+      error = 'sync_conflict';
     } on VaultFailure catch (e) {
       error = e.issue == VaultIssue.busy
           ? 'vpn_storage_conflict'
@@ -265,6 +273,8 @@ class VpnController extends ChangeNotifier {
     bool allowMissing = false,
   }) async {
     try {
+      await checkProfileEffects();
+      token.check();
       final response = await r.transport.request(
         request,
         token,
@@ -404,6 +414,7 @@ class VpnController extends ChangeNotifier {
   }
 
   Future<void> _reconcile(CancellationToken token) async {
+    _restoredTargets = await recovery?.readRestoredTargets() ?? {};
     var changed = false;
     for (final id in workspace.serverIds) {
       if (_restoredTargets.contains(id)) continue;

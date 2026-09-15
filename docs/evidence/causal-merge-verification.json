@@ -1,0 +1,106 @@
+{
+  "stage": "P1-05",
+  "date": "2026-09-15",
+  "validatedAt": "2026-09-15T08:55:46.400884+00:00",
+  "uniqueTests": 249,
+  "repeatedAffectedUiTests": 4,
+  "sdk": {
+    "frameworkVersion": "3.41.2",
+    "dartSdkVersion": "3.11.0"
+  },
+  "checks": [
+    {
+      "name": "sync",
+      "command": "dart test --reporter expanded",
+      "cwd": "packages/sync",
+      "result": "PASS",
+      "tests": 10,
+      "logSha256": "793b0f67c4d95db77ed52f398ccc021d53b69baa404a4a990ca858223ebbe29e"
+    },
+    {
+      "name": "storage-final",
+      "command": "flutter test --no-pub --reporter expanded",
+      "cwd": "packages/storage",
+      "result": "PASS",
+      "tests": 78,
+      "logSha256": "7f55ec86c0ee1570e542eeb407cca100a6f8e7c53a513d7a97e58aac32903aca"
+    },
+    {
+      "name": "app",
+      "command": "flutter test --no-pub --reporter expanded",
+      "cwd": "apps/manager",
+      "result": "PASS",
+      "tests": 161,
+      "logSha256": "ad1aafa1d345ee5293b6a685850038993feb04288c080ca7371d9d40b3c4cfc9"
+    },
+    {
+      "name": "conflict-ui-final",
+      "command": "flutter test --no-pub test/sync_conflicts_test.dart --reporter expanded",
+      "cwd": "apps/manager",
+      "result": "PASS",
+      "tests": 4,
+      "logSha256": "dcea4abac40d2d3c9e7643a8aadac560cba2458cd46dbba431a7c06d4e994d6c"
+    },
+    {
+      "name": "analyze",
+      "result": "PASS",
+      "logSha256": "ed2666f4e07075b6b7d21e059a79cbf4d5fe4dcc032d34965da968d439f45738"
+    },
+    {
+      "name": "format-final",
+      "result": "PASS",
+      "logSha256": "0db7e8da5f9d41269e0264a33cc7dc5706c1b357ee6af0cc26fd985aef1cb408"
+    },
+    {
+      "command": "python3 tool/check_workspace.py",
+      "result": "PASS",
+      "output": "Architecture boundaries, base.yml SHA-256 and 647 RU/EN messages: OK"
+    },
+    {
+      "command": "python3 tool/generate_changes.py --check",
+      "result": "PASS",
+      "output": "Local change generated contract: OK"
+    },
+    {
+      "command": "python3 tool/generate_sync.py --check",
+      "result": "PASS",
+      "output": "Sync packet generated contract: OK"
+    }
+  ],
+  "builds": [
+    {
+      "platform": "linux",
+      "command": "flutter build linux --debug --no-pub",
+      "cwd": "apps/manager",
+      "result": "PASS",
+      "artifact": "apps/manager/build/linux/x64/debug/bundle/antirkn_manager",
+      "sha256": "9fffcfee576434e574553b9b3cc8214dffa856e18bc973d1a78545ecfddd3d13",
+      "bytes": 53696
+    },
+    {
+      "platform": "android",
+      "command": "flutter build apk --debug --target-platform android-arm64 --no-pub",
+      "cwd": "apps/manager",
+      "result": "PASS",
+      "artifact": "apps/manager/build/app/outputs/flutter-apk/app-debug.apk",
+      "sha256": "d4b55f591ebf24001738d92fb982fcc751485b79fa9e5b7100ff80959c71736f",
+      "bytes": 117989790
+    }
+  ],
+  "notRun": [
+    "Windows build/runtime",
+    "Android device runtime/ADB",
+    "Full manual GUI/accessibility acceptance",
+    "Physical power-loss/disk-full",
+    "Maximum-size performance",
+    "Real Google Drive/OAuth/device authorization/pairing/revoke",
+    "Distributed server/publication coordination",
+    "Server backend regression (server code unchanged)"
+  ],
+  "notes": [
+    "Logs were recreated after the owner reported a power interruption; that interruption is not a controlled database crash test.",
+    "Crash worker intentionally exits 73 after COMMIT without SQLite close; the parent test verifies persistence, duplicate handling and restart.",
+    "Source events and both sides of conflicts remain encrypted at rest; fixture secrets absent from SQLite/WAL.",
+    "Full app suite passed; the affected conflict UI/guard suite was repeated after the final rejected-group presentation change."
+  ]
+}

@@ -2136,8 +2136,104 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get backupOperationReview =>
-      'Операция восстановлена из резервной копии и автоматически не отправляется. Проверьте сервер и подтвердите новый план либо выберите отмену или повтор существующего задания.';
+      'Операция получена с другого устройства или восстановлена из резервной копии и автоматически не отправляется. Проверьте сервер и подтвердите новый план либо выберите отмену или повтор существующего задания.';
 
   @override
   String get backupReviewServer => 'Проверить состояние сервера';
+
+  @override
+  String get syncConflictsTitle => 'Конфликты изменений';
+
+  @override
+  String get syncLocalHelp =>
+      'Здесь можно разрешить сохранённые конфликты. Обмен через Google Drive ещё не подключён.';
+
+  @override
+  String syncConflictCount(int count) {
+    return 'Конфликтов: $count';
+  }
+
+  @override
+  String syncWaitingCount(int groups, int missing) {
+    return 'Ожидающих групп: $groups. Недостающих предыдущих изменений: $missing.';
+  }
+
+  @override
+  String syncBlockedCount(int count) {
+    return 'Групп с несовместимыми данными: $count. Исправьте локальные данные, затем повторите применение.';
+  }
+
+  @override
+  String get syncChanged =>
+      'Состав конфликта изменился. Откройте его заново и повторите выбор.';
+
+  @override
+  String get syncStorageError =>
+      'Не удалось применить выбранную версию. Обновите список и проверьте совместимость данных.';
+
+  @override
+  String get syncEffectsBlocked =>
+      'Сначала разрешите конфликты изменений в настройках. Серверные действия и выдача профилей приостановлены.';
+
+  @override
+  String get syncRefresh => 'Обновить список';
+
+  @override
+  String get syncRetry => 'Повторить применение';
+
+  @override
+  String get syncChooseHelp =>
+      'Просмотрите версии и выберите одну. Содержимое может включать пароли и ключи. Решение сохранится как новое изменение; серверные операции требуют отдельного действия.';
+
+  @override
+  String syncVariant(int number) {
+    return 'Версия $number';
+  }
+
+  @override
+  String get syncDeleted => 'Удаление ресурса';
+
+  @override
+  String get syncReveal => 'Показать содержимое и секреты';
+
+  @override
+  String get syncHide => 'Скрыть содержимое';
+
+  @override
+  String get syncSelect => 'Выбрать эту версию';
+
+  @override
+  String get syncResolve => 'Сохранить решение';
+
+  @override
+  String get syncKindServer => 'Сервер';
+
+  @override
+  String get syncKindTemplate => 'Базовый шаблон';
+
+  @override
+  String get syncKindUser => 'VPN-клиент';
+
+  @override
+  String get syncKindVless => 'VLESS inbound';
+
+  @override
+  String get syncKindAwg => 'Интерфейс AmneziaWG';
+
+  @override
+  String get syncKindTt => 'TrustTunnel endpoint';
+
+  @override
+  String get syncKindOperation => 'Состояние сервера и операций';
+
+  @override
+  String get syncKindProfile => 'История профиля';
+
+  @override
+  String get syncKindWorkspace => 'Рабочее пространство';
+
+  @override
+  String syncRejectedCount(int count) {
+    return 'Отклонённых групп с нарушенной историей изменений: $count. Рабочие данные сохранены.';
+  }
 }

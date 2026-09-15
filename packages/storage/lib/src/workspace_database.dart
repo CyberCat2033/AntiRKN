@@ -19,6 +19,7 @@ import 'secret_vault.dart';
 part 'workspace_journal.dart';
 part 'workspace_backup.dart';
 part 'workspace_sync.dart';
+part 'workspace_merge.dart';
 
 Future<WorkspaceDatabase> openLocalWorkspace() async {
   final support = await getApplicationSupportDirectory();
@@ -114,6 +115,8 @@ final class WorkspaceDatabase
         VpnRepository,
         ChangeJournalStore,
         SyncPacketStore,
+        SyncMergeStore,
+        SyncEffectGuard,
         WorkspaceBackupStore,
         WorkspaceRecoveryStore,
         SettingsStore,
@@ -132,7 +135,7 @@ final class WorkspaceDatabase
       db.execute('PRAGMA journal_mode = WAL');
       db.execute('PRAGMA synchronous = FULL');
       final version = db.userVersion;
-      if (version > 4) throw const VaultFailure(VaultIssue.corrupt);
+      if (version > 5) throw const VaultFailure(VaultIssue.corrupt);
       if (version == 0) {
         db.execute('BEGIN IMMEDIATE');
         try {
@@ -171,6 +174,7 @@ final class WorkspaceDatabase
   );
   Future<void> _pending = Future.value();
   late final _WorkspaceSync _sync = _WorkspaceSync(this);
+  late final _WorkspaceMerge _merge = _WorkspaceMerge(this);
   bool _closed = false;
   bool _restored = false;
   @override
@@ -183,11 +187,12 @@ final class WorkspaceDatabase
       }
       // Receiving an untrusted packet must not create a workspace key or
       // migrate a database. Normal repository initialization prepares the key.
-      if (!migrate && _db.userVersion != 4) {
+      if (!migrate && _db.userVersion != 5) {
         throw const SyncPacketFailure(SyncPacketIssue.storage);
       }
       await _journal.initialize();
       await _sync.initialize();
+      await _merge.initialize();
       return action();
     });
     _pending = next.then<void>((_) {}, onError: (Object _, StackTrace _) {});
@@ -199,7 +204,7 @@ final class WorkspaceDatabase
     try {
       _journal.checkIdentity();
       _db.execute(
-        'UPDATE sync_identity SET write_guard=1, writer_device=?, writer_version=4 WHERE singleton=1',
+        'UPDATE sync_identity SET write_guard=1, writer_device=?, writer_version=5 WHERE singleton=1',
         [_journal.identity.deviceId],
       );
       final result = body();
@@ -579,6 +584,40 @@ final class WorkspaceDatabase
       needsLegacyPassword = false;
     } finally {
       legacy?.lock();
+    }
+  });
+
+  @override
+  Future<SyncMergeStatus> receiveSyncPackets(List<Uint8List> packets) {
+    if (packets.length > 100 ||
+        packets.fold<int>(0, (n, p) => n + p.length) > 32 * 1024 * 1024 ||
+        packets.any((p) => p.length > syncMaxPacketBytes)) {
+      return Future.error(const SyncMergeFailure(SyncMergeIssue.limit));
+    }
+    final owned = packets.map(Uint8List.fromList).toList();
+    return _serial(() => _merge.receive(owned), migrate: false);
+  }
+
+  @override
+  Future<SyncMergeStatus> readSyncMergeStatus() =>
+      _serial(() => _merge.status());
+  @override
+  Future<SyncMergeStatus> retrySyncMerge() => _serial(() async {
+    await _merge.drain();
+    return _merge.status();
+  });
+  @override
+  Future<void> resolveSyncConflict(
+    SyncConflict conflict,
+    String selectedChangeId,
+  ) => _serial(() => _merge.resolve(conflict, selectedChangeId));
+  @override
+  Future<void> checkSyncEffects() => _serial(() {
+    if (_db.select('SELECT 1 FROM sync_conflicts LIMIT 1').isNotEmpty ||
+        _db
+            .select('SELECT 1 FROM sync_incoming WHERE state=2 LIMIT 1')
+            .isNotEmpty) {
+      throw const SyncMergeFailure(SyncMergeIssue.conflict);
     }
   });
 

@@ -303,9 +303,16 @@ class _ProfileDialogState extends State<_ProfileDialog> {
               onPressed: saving
                   ? null
                   : () async {
-                      await Clipboard.setData(
-                        ClipboardData(text: result!.yaml!),
-                      );
+                      try {
+                        await c.checkProfileEffects();
+                        await Clipboard.setData(
+                          ClipboardData(text: result!.yaml!),
+                        );
+                      } on SyncMergeFailure {
+                        if (mounted) {
+                          setState(() => message = l.syncEffectsBlocked);
+                        }
+                      }
                     },
               child: Text(l.vpnCopyProfile),
             ),
@@ -316,12 +323,17 @@ class _ProfileDialogState extends State<_ProfileDialog> {
                   : () async {
                       setState(() => saving = true);
                       try {
+                        await c.checkProfileEffects();
                         final saved = await widget.exporter.save(
                           '${widget.user.id}.yml',
                           result!.yaml!,
                         );
                         if (mounted && saved) {
                           setState(() => message = l.vpnProfileSaved);
+                        }
+                      } on SyncMergeFailure {
+                        if (mounted) {
+                          setState(() => message = l.syncEffectsBlocked);
                         }
                       } catch (_) {
                         if (mounted) setState(() => message = l.vpnFailed);

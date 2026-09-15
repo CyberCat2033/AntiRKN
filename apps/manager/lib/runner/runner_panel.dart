@@ -148,6 +148,7 @@ String runnerIssueLabel(AppLocalizations l, RunnerIssue issue) =>
       RunnerIssue.storage => l.runnerStorage,
     };
 String runnerCodeLabel(AppLocalizations l, String code) => switch (code) {
+  'sync_conflict' => l.syncEffectsBlocked,
   final String v when v.startsWith('tt_') => vpnMessage(l, v),
   'panel_auth_failed' => l.panelAuthFailed,
   'panel_unreachable' => l.panelUnreachable,
