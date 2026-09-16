@@ -1,0 +1,18 @@
+{
+  "device": "OnePlus HD1911",
+  "androidApi": "36",
+  "mode": "release",
+  "abi": "arm64-v8a",
+  "install": "Success",
+  "preservedData": true,
+  "sha256": "a43e4993eafc5cfc41e88385ba9bffdee4cd8d10a10d91a9209f54c33822ebef",
+  "installedSha256": "a43e4993eafc5cfc41e88385ba9bffdee4cd8d10a10d91a9209f54c33822ebef",
+  "bytes": 29421020,
+  "debuggable": false,
+  "launch": "ok",
+  "processRunning": true,
+  "checkedAtUtc": "2026-09-16T10:28:16.732166+00:00",
+  "signing": "existing project debug key; release build mode",
+  "externalGoogleDefines": true,
+  "startupErrorMatches": 0
+}

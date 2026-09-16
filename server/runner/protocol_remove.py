@@ -5,6 +5,7 @@ paths come from server-side discovery. Removed native files are quarantined in
 the root-only job directory, so an interrupted step can be resumed safely.
 """
 import hashlib
+import errno
 import json
 import os
 from pathlib import Path
@@ -71,6 +72,64 @@ def path_state(path):
     return digest(result)
 
 
+def quarantine(path, backup):
+    marker = backup.with_name(backup.name + '.copied')
+    if exists(backup):
+        if exists(path):
+            # A completed cross-mount copy may survive a crash before unlink.
+            if not marker.exists() or marker.read_text() != path_state(path) or path_state(backup) != marker.read_text():
+                raise RemovalError()
+            if path.is_dir() and not path.is_symlink():
+                shutil.rmtree(path)
+            else:
+                path.unlink()
+        return
+    if not exists(path):
+        return
+    expected = path_state(path)
+    try:
+        os.rename(path, backup)
+        return
+    except OSError as error:
+        if error.errno != errno.EXDEV:
+            raise
+    # ProtectSystem/ReadWritePaths give /etc and /var separate bind mounts,
+    # even on a single disk. Preserve a verified copy before removing source.
+    staging = backup.with_name(backup.name + '.copying')
+    if exists(staging):
+        if staging.is_dir() and not staging.is_symlink():
+            shutil.rmtree(staging)
+        else:
+            staging.unlink()
+    if path.is_dir() and not path.is_symlink():
+        shutil.copytree(path, staging, symlinks=True)
+    else:
+        shutil.copy2(path, staging, follow_symlinks=False)
+    if path_state(path) != expected or path_state(staging) != expected:
+        raise RemovalError()
+    items = [staging]
+    if staging.is_dir() and not staging.is_symlink():
+        items.extend(staging.rglob('*'))
+    for item in reversed(items):
+        if item.is_file() and not item.is_symlink():
+            with item.open('rb') as stream:
+                os.fsync(stream.fileno())
+        elif item.is_dir() and not item.is_symlink():
+            fd = os.open(item, os.O_DIRECTORY)
+            try:
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+    atomic_file(marker, expected.encode(), 0o600)
+    os.rename(staging, backup)
+    fd = os.open(backup.parent, os.O_DIRECTORY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    quarantine(path, backup)
+
+
 def unit_matches(protocol, name):
     patterns = {
         'vless': r'(?:x-ui|3x-ui|xray|antirkn-x-ui-bootstrap)\.service',
@@ -78,6 +137,19 @@ def unit_matches(protocol, name):
         'trusttunnel': r'(?:antirkn-trusttunnel|antirkn-tt@[^/]*|trusttunnel[^/]*)\.service',
     }
     return re.fullmatch(patterns[protocol], name) is not None
+
+
+def unit_fragment(unit):
+    # systemctl show rejects uninstantiated templates (e.g. antirkn-awg@).
+    # Read their fixed unit-file locations in systemd's precedence order.
+    if '@.service' in unit:
+        for base in ('/etc/systemd/system', '/run/systemd/system', '/usr/local/lib/systemd/system', '/usr/lib/systemd/system'):
+            path = Path(base) / unit
+            if exists(path):
+                return path
+        return None
+    raw = run(['/usr/bin/systemctl', 'show', unit, '--property=FragmentPath', '--value']).stdout.decode().strip()
+    return Path(raw) if raw else None
 
 
 def discover(protocol):
@@ -108,9 +180,8 @@ def discover(protocol):
         if unit_matches(protocol, p.name):
             units.add(p.name)
     for unit in sorted(units):
-        raw = run(['/usr/bin/systemctl', 'show', unit, '--property=FragmentPath', '--value']).stdout.decode().strip()
-        if raw:
-            p = Path(raw)
+        p = unit_fragment(unit)
+        if p is not None:
             if p.parent.resolve() not in (Path('/etc/systemd/system'), Path('/usr/lib/systemd/system')):
                 raise RemovalError('protocol_remove_unsupported')
             paths.add(p)
@@ -240,17 +311,9 @@ class ProtocolRemoval:
                     if container['id'] in ids:
                         run(['docker', 'rm', '-f', container['id']])
             elif checkpoint == 2:
-                # Rename is atomic on the normal root filesystem. Resume knows
-                # exactly which paths have already moved; never expand a glob.
                 for index, source in enumerate(record['paths']):
                     path, backup = Path(source), self.directory / ('data-' + str(index))
-                    if exists(backup):
-                        if exists(path):
-                            raise RemovalError()  # External recreation: no overwrite.
-                        continue
-                    if exists(path):
-                        path_state(path)
-                        os.rename(path, backup)
+                    quarantine(path, backup)
                 run(['/usr/bin/systemctl', 'daemon-reload'])
             elif checkpoint == 3:
                 if any(exists(Path(p)) for p in record['paths']):

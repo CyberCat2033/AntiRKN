@@ -21,6 +21,10 @@ class AwgPanel extends StatelessWidget {
   final MotionPreference motion;
 
   Future<void> edit(BuildContext context, [AwgInterface? current]) async {
+    if (!await controller.ensureConnected(awgTarget(serverId)) ||
+        !context.mounted) {
+      return;
+    }
     final spec = current?.spec ?? await controller.awgDefaults(serverId);
     if (spec == null || !context.mounted) return;
     final result = await showDialog<AwgInterface>(
@@ -44,7 +48,9 @@ class AwgPanel extends StatelessWidget {
         AppHaptics.added();
       }
     }
-    if (controller.error == null) await controller.prepare();
+    if (controller.error == null) {
+      await controller.prepareAndApply(serverIds: {awgTarget(serverId)});
+    }
   }
 
   @override
@@ -74,9 +80,7 @@ class AwgPanel extends StatelessWidget {
             count: interfaces.length,
             action: IconButton(
               tooltip: l.awgRefresh,
-              onPressed: c.busy || c.remote(target) == null
-                  ? null
-                  : () => c.refreshServer(target),
+              onPressed: c.busy ? null : () => c.refreshServer(target),
               icon: const Icon(Icons.refresh),
             ),
           ),
@@ -210,6 +214,7 @@ class _AwgFormState extends State<AwgForm> {
       content: SizedBox(
         width: 650,
         child: SingleChildScrollView(
+          padding: const EdgeInsets.only(top: 8),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -321,7 +326,7 @@ class _AwgFormState extends State<AwgForm> {
               setState(() => invalid = true);
             }
           },
-          child: Text(l.vpnPrepare),
+          child: Text(l.vpnSave),
         ),
       ],
     );

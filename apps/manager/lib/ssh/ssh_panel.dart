@@ -14,6 +14,7 @@ class SshPanel extends StatefulWidget {
     this.showDelete = true,
     this.showConnectionActions = true,
     this.editorOnly = false,
+    this.onCancel,
     super.key,
   });
   final SshController controller;
@@ -21,6 +22,7 @@ class SshPanel extends StatefulWidget {
   final bool showDelete;
   final bool showConnectionActions;
   final bool editorOnly;
+  final VoidCallback? onCancel;
   @override
   State<SshPanel> createState() => _SshPanelState();
 }
@@ -396,7 +398,12 @@ class _SshPanelState extends State<SshPanel> {
                           if (expanded && c.hasSavedProfile)
                             TextButton(
                               key: const ValueKey('ssh-edit-cancel'),
-                              onPressed: c.editing ? c.cancelEditing : null,
+                              onPressed: c.editing
+                                  ? () {
+                                      c.cancelEditing();
+                                      widget.onCancel?.call();
+                                    }
+                                  : null,
                               child: Text(l.sshCancel),
                             ),
                         ],

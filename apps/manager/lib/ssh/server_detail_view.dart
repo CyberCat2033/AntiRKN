@@ -51,6 +51,28 @@ class ServerDetailView extends StatefulWidget {
 class _ServerDetailViewState extends State<ServerDetailView> {
   int selected = 0;
   final visited = <int>{0};
+  final workingProtocols = <int>{};
+  final protocolJobs = <int, String>{};
+
+  bool protocolBusy(int index) =>
+      workingProtocols.contains(index) ||
+      widget.session.runner.jobs.any(
+        (j) => j.id == protocolJobs[index] && !j.terminal,
+      );
+
+  Future<void> removeProtocol(int index) async {
+    if (protocolBusy(index)) return;
+    setState(() => workingProtocols.add(index));
+    try {
+      final submitted = await widget.sections[index].onRemove!();
+      if (submitted && widget.session.runner.selected != null) {
+        protocolJobs[index] = widget.session.runner.selected!.id;
+      }
+    } finally {
+      if (mounted) setState(() => workingProtocols.remove(index));
+    }
+  }
+
   Future<void> openProtocol(int index) async {
     final section = widget.sections[index];
     if (section.detected) {
@@ -78,19 +100,52 @@ class _ServerDetailViewState extends State<ServerDetailView> {
     if (!mounted || install != true) return;
     final c = widget.session;
     c.closeSettings();
-    if (!c.runner.connected) {
-      open(1);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(l.uiInstallProtocolConnect)));
-      return;
+    setState(() => workingProtocols.add(index));
+    await c.runner.installOrUpdate(
+      section.name == 'VLESS'
+          ? 'panel'
+          : section.name == 'AmneziaWG'
+          ? 'amneziawg'
+          : 'trusttunnel',
+    );
+    if (mounted) {
+      setState(() {
+        workingProtocols.remove(index);
+        if (c.runner.selected != null && !c.runner.selected!.terminal) {
+          protocolJobs[index] = c.runner.selected!.id;
+        }
+      });
     }
-    open(2);
-    if (section.name == 'VLESS') {
-      await c.runner.openPanelPlan();
-    } else {
-      await c.runner.prepareComponent(
-        section.name == 'AmneziaWG' ? 'amneziawg' : 'trusttunnel',
+    final componentPlan = c.runner.componentPlan;
+    final panelPlan = c.runner.panelPlan;
+    final blocked = componentPlan != null && !componentPlan.canApply
+        ? !componentPlan.supported
+              ? l.protocolPrerequisites
+              : componentPlan.state == 'current'
+              ? l.protocolCurrent
+              : componentPlan.state == 'incompatible'
+              ? l.runnerIncompatible
+              : l.protocolExisting
+        : panelPlan != null && !panelPlan.canApply
+        ? !panelPlan.supported
+              ? l.componentsPrerequisites
+              : !panelPlan.portAvailable
+              ? l.componentsPortBusy
+              : l.componentsExisting
+        : null;
+    if (mounted &&
+        (blocked != null ||
+            c.runner.error != null ||
+            c.runner.responseCode != null && c.runner.responseCode != 'ok')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            blocked ??
+                (c.runner.responseCode != null && c.runner.responseCode != 'ok'
+                    ? runnerCodeLabel(l, c.runner.responseCode!)
+                    : runnerIssueLabel(l, c.runner.error!)),
+          ),
+        ),
       );
     }
   }
@@ -105,6 +160,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
   }
 
   Future<void> refresh() async {
+    if (!await widget.session.ensureConnected()) return;
     await widget.session.refresh();
     await widget.session.runner.refresh();
   }
@@ -270,7 +326,8 @@ class _ServerDetailViewState extends State<ServerDetailView> {
             ),
           ),
         ),
-        if (widget.session.isRoot && widget.session.stage == SshStage.connected) ...[
+        if (widget.session.isRoot &&
+            widget.session.stage == SshStage.connected) ...[
           const SizedBox(height: 16),
           Card(
             color: Theme.of(context).colorScheme.errorContainer.withAlpha(80),
@@ -290,9 +347,8 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                       children: [
                         Text(
                           l.sshHardenBannerTitle,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -304,7 +360,8 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                   ),
                   const SizedBox(width: 16),
                   FilledButton.tonal(
-                    onPressed: () => showSshHardenWizard(context, widget.session),
+                    onPressed: () =>
+                        showSshHardenWizard(context, widget.session),
                     child: Text(l.sshHardenBannerAction),
                   ),
                 ],
@@ -337,16 +394,14 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                           width: width,
                           child: _ProtocolTile(
                             section: widget.sections[i],
+                            motion: widget.motion,
+                            busy: protocolBusy(i),
                             onTap: () => openProtocol(i),
                             onLongPress:
                                 widget.sections[i].onRemove == null ||
                                     !widget.sections[i].detected
                                 ? null
-                                : () async {
-                                    final submitted =
-                                        await widget.sections[i].onRemove!();
-                                    if (mounted && submitted) open(2);
-                                  },
+                                : () => removeProtocol(i),
                           ),
                         ),
                     ],
@@ -483,12 +538,6 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                     icon: const Icon(Icons.arrow_back),
                   ),
                   Expanded(child: AppAnimatedTitle(titles[index])),
-                  if (index == 0)
-                    IconButton(
-                      tooltip: l.uiSshAccess,
-                      onPressed: () => open(1),
-                      icon: const Icon(Icons.more_vert),
-                    ),
                 ],
               ),
             ),
@@ -525,6 +574,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                             motion: widget.motion,
                             showDelete: false,
                             editorOnly: true,
+                            onCancel: () => open(0),
                             showConnectionActions: true,
                           ),
                         ])
@@ -582,70 +632,95 @@ class _Count extends StatelessWidget {
 class _ProtocolTile extends StatelessWidget {
   const _ProtocolTile({
     required this.section,
+    required this.motion,
     required this.onTap,
     this.onLongPress,
+    this.busy = false,
   });
   final ServerProtocolSection section;
+  final MotionPreference motion;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
+  final bool busy;
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context),
         colors = Theme.of(context).colorScheme;
-    return Card.filled(
-      color: section.count == 0 && !section.detected
-          ? Theme.of(context).scaffoldBackgroundColor
-          : null,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppLayout.radius),
-        side: section.count == 0 && !section.detected
-            ? BorderSide(color: colors.outlineVariant)
-            : BorderSide.none,
+    return AnimatedSwitcher(
+      duration: AppMotion.duration(context, motion),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: .92, end: 1).animate(animation),
+          child: child,
+        ),
       ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppLayout.radius),
-        onTap: onTap,
-        onLongPress: onLongPress,
-        enableFeedback: false,
-        child: Padding(
-          padding: const EdgeInsets.all(17),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    section.mark,
-                    style: TextStyle(
-                      color: colors.primary,
-                      fontWeight: FontWeight.w600,
+      child: Card.filled(
+        key: ValueKey('${section.detected}-$busy'),
+        color: section.count == 0 && !section.detected
+            ? Theme.of(context).scaffoldBackgroundColor
+            : null,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppLayout.radius),
+          side: section.count == 0 && !section.detected
+              ? BorderSide(color: colors.outlineVariant)
+              : BorderSide.none,
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppLayout.radius),
+          onTap: busy ? null : onTap,
+          onLongPress: busy ? null : onLongPress,
+          enableFeedback: false,
+          child: Padding(
+            padding: const EdgeInsets.all(17),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      section.mark,
+                      style: TextStyle(
+                        color: colors.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                  const Spacer(),
-                  Icon(
-                    section.count == 0 && !section.detected
-                        ? Icons.add
-                        : Icons.arrow_forward,
-                    size: 19,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 22),
-              Text(
-                section.name,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 6),
-              Text(
-                !section.detected
-                    ? l.uiNotInstalled
-                    : section.count > 0
-                    ? l.uiConnectionCount(section.count)
-                    : l.uiNotConfigured,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
+                    const Spacer(),
+                    if (busy)
+                      const SizedBox.square(
+                        dimension: 19,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    else
+                      Icon(
+                        section.count == 0 && !section.detected
+                            ? Icons.add
+                            : Icons.arrow_forward,
+                        size: 19,
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 22),
+                Text(
+                  section.name,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  busy
+                      ? l.uiOperationPending
+                      : !section.detected
+                      ? l.uiNotInstalled
+                      : section.count > 0
+                      ? l.uiConnectionCount(section.count)
+                      : l.uiNotConfigured,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
           ),
         ),
       ),

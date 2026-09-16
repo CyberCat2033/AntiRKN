@@ -1,0 +1,18 @@
+{
+  "fixture": "isolated Ubuntu 24.04 with real systemd sandbox, synthetic AWG services/configs",
+  "runnerRelease": "c2eb8b5451d7cdb6761a008c6644ba40ed9f5203b7c36d8ec711a376b2fdbb43",
+  "results": {
+    "unconfigured_template": {
+      "status": "succeeded",
+      "checkpoints": 4,
+      "idempotent": true,
+      "unrelated_preserved": true
+    },
+    "active_instance": {
+      "status": "succeeded",
+      "checkpoints": 4,
+      "idempotent": true,
+      "unrelated_preserved": true
+    }
+  }
+}

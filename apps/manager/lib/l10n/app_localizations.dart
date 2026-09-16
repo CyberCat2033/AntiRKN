@@ -3131,7 +3131,7 @@ abstract class AppLocalizations {
   /// No description provided for @panelConnectTitle.
   ///
   /// In en, this message translates to:
-  /// **'Connect existing panel'**
+  /// **'Sign in to 3x-ui'**
   String get panelConnectTitle;
 
   /// No description provided for @panelAuthFailed.
@@ -4673,7 +4673,7 @@ abstract class AppLocalizations {
   /// No description provided for @uiSystemUpdateHelp.
   ///
   /// In en, this message translates to:
-  /// **'Refresh the package list, then review available updates.'**
+  /// **'Refresh the package list and install available Ubuntu package updates.'**
   String get uiSystemUpdateHelp;
 
   /// No description provided for @uiCheck.
@@ -5219,7 +5219,7 @@ abstract class AppLocalizations {
   /// No description provided for @uiInstallProtocolHelp.
   ///
   /// In en, this message translates to:
-  /// **'This protocol is not installed on the server. Prepare installation? You will see the changes before starting.'**
+  /// **'Install the protocol software and its required dependencies? The app will connect to the server and start the installation.'**
   String get uiInstallProtocolHelp;
 
   /// No description provided for @uiInstallProtocolConnect.

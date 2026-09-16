@@ -281,7 +281,7 @@ void main() {
     },
   );
   testWidgets(
-    'external inbound opens, previews only changed settings and explicitly applies',
+    'external inbound Save applies only changed settings in one action',
     (tester) async {
       final store = MemoryRunnerJournal();
       final remote = ObservedRemote(store)..installed = true;
@@ -326,7 +326,7 @@ void main() {
       await tester.ensureVisible(save);
       await tester.tap(save);
       await tester.pumpAndSettle();
-      expect(remote.submissions, 0);
+      expect(remote.submissions, 1);
       final planned =
           remote.requests
                   .lastWhere((r) => r.json['action'] == 'inbound_plan')
@@ -337,8 +337,6 @@ void main() {
       expect(planned, isNot(contains('existing-client')));
       expect(planned, isNot(contains('xPaddingPlacement')));
       expect(planned, isNot(contains('futureOption')));
-      await tester.tap(save);
-      await tester.pumpAndSettle();
       expect(remote.submissions, 1);
       expect(remote.submitWithoutPersistence, isFalse);
       expect(c.selected!.kind, 'inbound_update');
@@ -348,7 +346,7 @@ void main() {
     },
   );
   test(
-    'APT requires a reviewed plan and persists request before submission',
+    'APT internally requires a fresh fingerprint and persists before submission',
     () async {
       final store = MemoryRunnerJournal();
       final remote = FakeRunnerTransport(store)..installed = true;

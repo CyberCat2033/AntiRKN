@@ -21,31 +21,6 @@ Future<bool> removeServerProtocol(
     }
   }
 
-  if (vpn.busy || vpn.hasRunning || runner.busy || session.busy) {
-    notice(l.uiRemoveProtocolBusy);
-    return false;
-  }
-  if (!runner.connected) {
-    notice(l.uiRemoveProtocolConnect);
-    if (session.saved && session.editing) await session.connect();
-    return false; // Trust/privilege prompts are handled by the normal SSH page.
-  }
-  await runner.refresh(prepare: true);
-  if (!context.mounted) return false;
-  if (!runner.canStart) {
-    notice(
-      runner.error == null
-          ? l.uiRemoveProtocolBusy
-          : runnerIssueLabel(l, runner.error!),
-    );
-    return false;
-  }
-  final plan = await runner.prepareProtocolRemoval(protocol);
-  if (!context.mounted) return false;
-  if (plan == null) {
-    notice(runnerCodeLabel(l, runner.responseCode ?? 'protocol_remove_failed'));
-    return false;
-  }
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (context) => AppFormDialog(
@@ -64,16 +39,6 @@ Future<bool> removeServerProtocol(
             const SizedBox(height: 12),
             Text(l.uiRemoveVlessHelp),
           ],
-          for (final label in [
-            ...?plan['services'] as List?,
-            ...?plan['containers'] as List?,
-          ])
-            ListTile(
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.remove_circle_outline),
-              title: Text('$label'),
-            ),
         ],
       ),
       actions: [
@@ -90,6 +55,16 @@ Future<bool> removeServerProtocol(
   );
   if (confirmed != true || !context.mounted) return false;
   AppHaptics.deleted();
+  if (vpn.busy || vpn.hasRunning || !runner.canRequestAction) {
+    notice(l.uiRemoveProtocolBusy);
+    return false;
+  }
+  if (!await runner.ensureReady() || !context.mounted) return false;
+  final plan = await runner.prepareProtocolRemoval(protocol);
+  if (plan == null) {
+    notice(runnerCodeLabel(l, runner.responseCode ?? 'protocol_remove_failed'));
+    return false;
+  }
   final submitted = await runner.removeProtocol(
     plan,
     () => vpn.retireProtocol(session.serverId, protocol),

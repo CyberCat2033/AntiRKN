@@ -45,8 +45,10 @@ extension ClientDeletion on VpnController {
     final targets = <String, List<(String, String)>>{};
     for (final user in pendingRevocations) {
       if (only != null && user.id != only ||
-          !manual && (!ownsDeletion(user) || user.deletion?['hidden'] == true))
+          !manual &&
+              (!ownsDeletion(user) || user.deletion?['hidden'] == true)) {
         continue;
+      }
       for (final entry in (user.deletion!['targets'] as Map).entries) {
         final record = entry.value as Map;
         final target = entry.key as String;
@@ -54,8 +56,9 @@ extension ClientDeletion on VpnController {
             remote(target) != null ||
             !manual &&
                 ((record['connectionAttempts'] as int? ?? 0) >= 3 ||
-                    (record['connectAfter'] as int? ?? 0) > now))
+                    (record['connectAfter'] as int? ?? 0) > now)) {
           continue;
+        }
         (targets[vpnServerId(target)] ??= []).add((user.id, target));
       }
     }

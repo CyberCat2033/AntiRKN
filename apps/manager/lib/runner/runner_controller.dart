@@ -17,6 +17,7 @@ class RunnerController extends ChangeNotifier {
     this.store,
     this.software,
     this.refreshSoftware,
+    this.connectForAction,
   }) {
     _timer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (!busy &&
@@ -30,6 +31,58 @@ class RunnerController extends ChangeNotifier {
     });
   }
   final String serverId;
+  final Future<bool> Function()? connectForAction;
+  Completer<void>? _idle;
+  bool actionPending = false;
+  bool get canRequestAction =>
+      !busy &&
+      !actionPending &&
+      pending == null &&
+      (!connected || !jobs.any((job) => !job.terminal));
+
+  Future<void> waitUntilIdle() async {
+    while (_idle != null) {
+      await _idle!.future;
+    }
+  }
+
+  /// Explicit UI actions reconnect, then reuse the normal trust and sudo checks.
+  Future<bool> ensureReady() async {
+    if (_disposed) return false;
+    if (!connected && await connectForAction?.call() != true) return false;
+    await waitUntilIdle();
+    if (!connected || _disposed) return false;
+    if (!installed || !alive || error != null) await refresh(prepare: true);
+    return connected && installed && alive && error == null;
+  }
+
+  Future<void> requestAction(Future<void> Function() action) async {
+    if (!canRequestAction) return;
+    actionPending = true;
+    _notify();
+    try {
+      if (await ensureReady()) await action();
+    } finally {
+      actionPending = false;
+      _notify();
+    }
+  }
+
+  /// Install/Update is consent; preflight and fingerprint checks stay internal.
+  Future<void> installOrUpdate(String component) => requestAction(() async {
+    if (component == 'panel') {
+      if (panelDetected) {
+        await preparePanelUpdate();
+        await applyPanelUpdate();
+      } else {
+        await openPanelPlan();
+        await applyPanel();
+      }
+    } else {
+      await prepareComponent(component);
+      await applyComponent();
+    }
+  });
   final void Function()? refreshSoftware;
   bool _softwareRefreshPending = false;
   final ServerSoftwareInventory? Function()? software;
@@ -88,6 +141,7 @@ class RunnerController extends ChangeNotifier {
   Map<String, dynamic>? aptPlan;
   bool choosingAptUpdate = false;
   bool _systemUpdate = false;
+  bool _applySystemUpgrade = false;
   String? dismissedJobId;
   List<RunnerJob> jobs = [];
   RunnerJob? selected;
@@ -284,6 +338,8 @@ class RunnerController extends ChangeNotifier {
     final remote = transport();
     if (busy || remote == null || _disposed) return;
     busy = true;
+    final idle = Completer<void>();
+    _idle = idle;
     error = null;
     responseCode = null;
     final token = CancellationToken();
@@ -318,10 +374,16 @@ class RunnerController extends ChangeNotifier {
         busy = false;
         _token = null;
       }
+      if (_idle == idle) _idle = null;
+      idle.complete();
       _notify();
       if (_softwareRefreshPending && !_disposed) {
         _softwareRefreshPending = false;
         refreshSoftware?.call();
+      }
+      if (_applySystemUpgrade && !_disposed) {
+        _applySystemUpgrade = false;
+        await applyApt();
       }
     }
   }
@@ -473,6 +535,21 @@ class RunnerController extends ChangeNotifier {
     });
     return success;
   }
+
+  Future<void> setInboundEnabled(int id, bool enabled) =>
+      requestAction(() async {
+        final snapshot = await readInbound(id);
+        if (snapshot == null) return;
+        final payload = <String, Object?>{
+          'inboundId': id,
+          'observedHash': snapshot['fingerprint'],
+          'patch': {'enable': enabled},
+        };
+        final plan = await planInbound(payload);
+        if (plan != null) {
+          await applyInbound(payload, plan['fingerprint'] as String);
+        }
+      });
 
   Map<String, dynamic>? ttDiscovery, ttCertificates;
   Future<Map<String, dynamic>?> ttRequest(
@@ -765,8 +842,8 @@ class RunnerController extends ChangeNotifier {
     });
   }
 
-  /// The explicit system-update action refreshes indexes. Package installation
-  /// still requires review of the resulting, fingerprinted plan.
+  /// The explicit system-update action refreshes indexes and installs the
+  /// resulting, fingerprinted package set without a second confirmation.
   Future<void> updateSystem() async {
     if (!canStart) return;
     await prepareApt(upgrade: false);
@@ -775,6 +852,11 @@ class RunnerController extends ChangeNotifier {
     await applyApt();
     if (error != null && pending == null) _systemUpdate = false;
   }
+
+  Future<void> retryJob() => requestAction(() async {
+    prepareResume();
+    if (resumePlan != null) await applyResume();
+  });
 
   Future<void> applyApt() {
     if (!canStart ||
@@ -1008,8 +1090,13 @@ class RunnerController extends ChangeNotifier {
         sudoPassword: password(),
       );
       responseCode = response.code;
-      if (response.code != 'ok')
-        throw const RunnerFailure(RunnerIssue.conflict);
+      if (response.code != 'ok') {
+        throw RunnerFailure(
+          response.code == 'protocol_remove_conflict'
+              ? RunnerIssue.conflict
+              : RunnerIssue.unavailable,
+        );
+      }
       result = response.removalPlan;
     });
     return result;
@@ -1037,8 +1124,9 @@ class RunnerController extends ChangeNotifier {
       }
       // Persist the local tombstones/paused desired state before sending the
       // job, so reconnect or background reconciliation cannot recreate peers.
-      if (!await retireConnections())
+      if (!await retireConnections()) {
         throw const RunnerFailure(RunnerIssue.storage);
+      }
       token.check();
       pending = RunnerRequest.fromJson({
         'version': 1,
@@ -1070,10 +1158,7 @@ class RunnerController extends ChangeNotifier {
     SshHardenPlan? result;
     await _run((remote, token) async {
       final response = await remote.request(
-        RunnerRequest.sshHardenPlan({
-          'username': username,
-          'port': port,
-        }),
+        RunnerRequest.sshHardenPlan({'username': username, 'port': port}),
         token,
         sudoPassword: password(),
       );
@@ -1098,10 +1183,7 @@ class RunnerController extends ChangeNotifier {
     String? jobId;
     await _run((remote, token) async {
       final response = await remote.request(
-        RunnerRequest.sshHardenPlan({
-          'username': username,
-          'port': port,
-        }),
+        RunnerRequest.sshHardenPlan({'username': username, 'port': port}),
         token,
         sudoPassword: password(),
       );
@@ -1115,18 +1197,14 @@ class RunnerController extends ChangeNotifier {
         16,
         (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
       ).join();
-      pending = RunnerRequest.sshHarden(
-        id,
-        {
-          'username': username,
-          'port': port,
-          'sudoPassword': sudoPassword,
-          if (publicKey != null && publicKey.isNotEmpty) 'publicKey': publicKey,
-          'disableRootLogin': true,
-          'deadlineSeconds': deadlineSeconds,
-        },
-        plan.fingerprint,
-      );
+      pending = RunnerRequest.sshHarden(id, {
+        'username': username,
+        'port': port,
+        'sudoPassword': sudoPassword,
+        if (publicKey != null && publicKey.isNotEmpty) 'publicKey': publicKey,
+        'disableRootLogin': true,
+        'deadlineSeconds': deadlineSeconds,
+      }, plan.fingerprint);
       selected = null;
       cursor = 0;
       await _save();
@@ -1445,6 +1523,9 @@ class RunnerController extends ChangeNotifier {
         }
         aptPlan = plan.aptPlan;
         dismissedJobId = job.id;
+        _applySystemUpgrade =
+            !observesOperation &&
+            (aptPlan?['packages'] as List? ?? []).isNotEmpty;
       }
     }
     if (job.kind == 'protocol_remove' && job.status == 'succeeded') {

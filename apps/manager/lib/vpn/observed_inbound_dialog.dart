@@ -129,6 +129,15 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
       invalid = false;
       failed = false;
     });
+    if (!await widget.controller.ensureReady()) {
+      if (mounted) {
+        setState(() {
+          loading = false;
+          failed = true;
+        });
+      }
+      return;
+    }
     final result = await widget.controller.planInbound(payload!);
     if (!mounted) return;
     setState(() {
@@ -136,6 +145,23 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
       plan = result;
       failed = result == null;
     });
+    if (result != null) {
+      setState(() => loading = true);
+      final ok = await widget.controller.applyInbound(
+        payload!,
+        result['fingerprint'] as String,
+      );
+      if (!mounted) return;
+      if (ok) {
+        Navigator.pop(context);
+      } else {
+        setState(() {
+          loading = false;
+          failed = true;
+          plan = null;
+        });
+      }
+    }
   }
 
   @override
@@ -154,6 +180,7 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
       content: SizedBox(
         width: 650,
         child: SingleChildScrollView(
+          padding: const EdgeInsets.only(top: 8),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -349,11 +376,7 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
                   },
             child: Text(l.sshRefresh),
           ),
-        if (plan != null)
-          TextButton(
-            onPressed: loading ? null : () => setState(() => plan = null),
-            child: Text(l.vpnEdit),
-          ),
+
         if (!needsAccess)
           FilledButton(
             key: const ValueKey('observed-save'),
@@ -361,25 +384,8 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
                 ? null
                 : snapshot == null
                 ? null
-                : plan == null
-                ? prepare
-                : () async {
-                    setState(() => loading = true);
-                    final ok = await c.applyInbound(
-                      payload!,
-                      plan!['fingerprint'] as String,
-                    );
-                    if (!context.mounted) return;
-                    if (ok) {
-                      Navigator.pop(context);
-                    } else {
-                      setState(() {
-                        loading = false;
-                        failed = true;
-                      });
-                    }
-                  },
-            child: Text(plan == null ? l.componentsPrepare : l.runnerApply),
+                : prepare,
+            child: Text(l.vpnSave),
           ),
       ],
     );

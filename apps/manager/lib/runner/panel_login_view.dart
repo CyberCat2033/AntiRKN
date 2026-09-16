@@ -4,6 +4,43 @@ import '../l10n/app_localizations.dart';
 import 'runner_controller.dart';
 import 'runner_panel.dart';
 
+Future<bool> showPanelLogin(
+  BuildContext context,
+  RunnerController controller, {
+  int? port,
+}) async {
+  if (!await controller.ensureReady() || !context.mounted) return false;
+  port ??=
+      controller.panels
+              .where((p) => p['source'] == 'systemd')
+              .firstOrNull?['port']
+          as int? ??
+      controller.panelAccess?.port;
+  if (port == null) return false;
+  if (controller.panelAccess?.port == port && !controller.panelLoginRequired) {
+    return true;
+  }
+  final selectedPort = port;
+  return await showDialog<bool>(
+        context: context,
+        builder: (context) => AppFormDialog(
+          title: Text(AppLocalizations.of(context).panelConnectTitle),
+          content: PanelLoginView(
+            controller: controller,
+            port: selectedPort,
+            onConnected: () => Navigator.pop(context, true),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(AppLocalizations.of(context).sshCancel),
+            ),
+          ],
+        ),
+      ) ??
+      false;
+}
+
 /// Credentials are entered once; a successful login removes the form.
 class PanelLoginView extends StatefulWidget {
   const PanelLoginView({

@@ -153,14 +153,14 @@ void main() {
         }
         remote.planCode = 'tt_dns_mismatch';
         await tester.tap(
-          find.descendant(of: dialog, matching: find.text(l.vpnPrepare)),
+          find.descendant(of: dialog, matching: find.text(l.vpnSave)),
         );
         await tester.pumpAndSettle();
         expect(remote.submissions, 0);
         expect(find.text(l.ttDnsMismatch), findsOneWidget);
         remote.planCode = 'ok';
         await tester.tap(
-          find.descendant(of: dialog, matching: find.text(l.vpnPrepare)),
+          find.descendant(of: dialog, matching: find.text(l.vpnSave)),
         );
         await tester.pumpAndSettle();
         expect(remote.planned!['mode'], 'acme');
@@ -174,14 +174,11 @@ void main() {
         );
         expect(remote.planned!['autoDetectIps'], isTrue);
         expect(remote.planned!['email'], '');
-        await tester.tap(
-          find.descendant(of: dialog, matching: find.text(l.vpnApply)),
-        );
-        await tester.pumpAndSettle();
+        expect(find.text(l.vpnApply), findsNothing);
         expect(find.byType(TtCertificateDialog), findsNothing);
         expect(remote.submissions, 1);
         expect(remote.submitWithoutPersistence, isFalse);
-        await tester.tap(find.text(l.vpnPrepare));
+        await tester.tap(find.text(l.vpnSave));
         await tester.pumpAndSettle();
         expect(result!.spec['certificateId'], remote.certificates.single['id']);
         expect(result!.name, 'Preserved draft');

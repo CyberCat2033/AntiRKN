@@ -1741,7 +1741,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get serverDetails => 'Сведения о сервере и сети';
 
   @override
-  String get panelConnectTitle => 'Подключить существующую панель';
+  String get panelConnectTitle => 'Войти в 3x-ui';
 
   @override
   String get panelAuthFailed =>
@@ -2631,7 +2631,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get uiSystemUpdateHelp =>
-      'Список пакетов обновится перед выбором обновлений.';
+      'Обновить список пакетов и установить доступные обновления Ubuntu.';
 
   @override
   String get uiCheck => 'Проверить';
@@ -2935,7 +2935,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get uiInstallProtocolHelp =>
-      'Протокол не установлен на сервере. Подготовить установку? Перед запуском появится план изменений.';
+      'Установить ПО протокола и необходимые зависимости? Приложение подключится к серверу и начнёт установку.';
 
   @override
   String get uiInstallProtocolConnect =>

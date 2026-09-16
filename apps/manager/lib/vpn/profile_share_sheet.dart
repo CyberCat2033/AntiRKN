@@ -41,7 +41,7 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
           result?.yaml != null &&
           result?.hasBlockingErrors == false;
       final publication = widget.publications;
-      final link = usable ? publication?.verifiedLinkFor(widget.user.id) : null;
+      final link = publication?.verifiedLinkFor(widget.user.id);
       return ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: 600,

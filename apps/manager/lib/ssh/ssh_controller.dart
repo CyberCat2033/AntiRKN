@@ -59,6 +59,7 @@ class SshController extends ChangeNotifier {
       accessFailure: recordPrivilegeFailure,
       software: () => software,
       refreshSoftware: () => unawaited(refresh()),
+      connectForAction: ensureConnected,
     );
     runner.addListener(_notify);
     for (final field in fields) {
@@ -251,8 +252,9 @@ class SshController extends ChangeNotifier {
     final current = trafficSample, stored = _trafficBaseline;
     if (current == null ||
         stored == null ||
-        stored['identity'] != runner.identity())
+        stored['identity'] != runner.identity()) {
       return null;
+    }
     try {
       final baseline = ServerTrafficSnapshot.parse(stored['sample'] as String);
       if (baseline.bootId != current.bootId ||
@@ -261,8 +263,9 @@ class SshController extends ChangeNotifier {
             (e) =>
                 e.value.$1 < baseline.counters[e.key]!.$1 ||
                 e.value.$2 < baseline.counters[e.key]!.$2,
-          ))
+          )) {
         return null;
+      }
       return baseline;
     } catch (_) {
       return null;
@@ -288,14 +291,16 @@ class SshController extends ChangeNotifier {
         stage != SshStage.connected ||
         busy ||
         runner.busy ||
-        _trafficStore == null)
+        _trafficStore == null) {
       return;
+    }
     resettingTraffic = true;
     _notify();
     try {
       await refresh();
-      if (_disposed || stage != SshStage.connected || trafficSample == null)
+      if (_disposed || stage != SshStage.connected || trafficSample == null) {
         return;
+      }
       final next = <String, dynamic>{
         'identity': runner.identity(),
         'sample':
@@ -365,8 +370,9 @@ class SshController extends ChangeNotifier {
           _trafficBaseline = value == null
               ? null
               : Map<String, dynamic>.from(jsonDecode(value) as Map);
-          if (_trafficBaseline != null)
+          if (_trafficBaseline != null) {
             ServerTrafficSnapshot.parse(_trafficBaseline!['sample'] as String);
+          }
           trafficStorageFailed = false;
         } catch (_) {
           trafficStorageFailed = true;
@@ -608,6 +614,18 @@ class SshController extends ChangeNotifier {
   }
 
   Future<void> connect() => _connect();
+
+  Future<bool> ensureConnected() async {
+    if (_disposed || vaultBusy || picking) return false;
+    if (stage != SshStage.connected) {
+      if (!hasSavedProfile || !saved || busy) return false;
+      await _connect();
+    }
+    if (_disposed || stage != SshStage.connected) return false;
+    closeSettings();
+    await runner.waitUntilIdle();
+    return runner.connected;
+  }
 
   Future<bool?> connectForDeletion() async {
     if (_disposed || busy || vaultBusy || picking || runner.busy) return null;

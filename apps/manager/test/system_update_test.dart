@@ -5,7 +5,7 @@ import 'runner_support.dart';
 void main() {
   for (final outcome in ['succeeded', 'failed', 'cancelled']) {
     test(
-      'system update refreshes indexes and only prepares packages on $outcome',
+      'system update refreshes indexes and applies packages automatically on $outcome',
       () async {
         final store = MemoryRunnerJournal();
         final remote = FakeRunnerTransport(store)..installed = true;
@@ -43,21 +43,18 @@ void main() {
         );
         await c.refresh();
         expect(c.error, isNull);
-        expect(remote.submissions, 1);
+        expect(remote.submissions, outcome == 'succeeded' ? 2 : 1);
         expect(
           remote.requests.where((r) => r.json['action'] == 'apt_plan').length,
           outcome == 'succeeded' ? 1 : 0,
         );
         if (outcome == 'succeeded') {
-          expect(c.aptPlan!['packages'], hasLength(1));
+          expect(c.aptPlan, isNull);
           await c.refresh();
           expect(
             remote.requests.where((r) => r.json['action'] == 'apt_plan'),
             hasLength(1),
           );
-          // Explicit approval is the only transition that installs packages.
-          remote.job = null;
-          await c.applyApt();
           expect(remote.submissions, 2);
           final submit = remote.requests.lastWhere(
             (r) => r.json['action'] == 'submit',

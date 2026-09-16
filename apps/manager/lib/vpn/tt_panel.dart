@@ -74,6 +74,7 @@ class _TtPanelState extends State<TtPanel> {
   }
 
   Future<void> edit([TrustTunnelEndpoint? current]) async {
+    if (!await widget.runner.ensureReady() || !mounted) return;
     final spec =
         current?.spec ?? await widget.controller.ttDefaults(widget.serverId);
     if (spec == null || !mounted) return;
@@ -100,7 +101,11 @@ class _TtPanelState extends State<TtPanel> {
         AppHaptics.added();
       }
     }
-    if (widget.controller.error == null) await widget.controller.prepare();
+    if (widget.controller.error == null) {
+      await widget.controller.prepareAndApply(
+        serverIds: {ttTarget(widget.serverId)},
+      );
+    }
   }
 
   @override
@@ -129,7 +134,7 @@ class _TtPanelState extends State<TtPanel> {
             count: endpoints.length,
             action: IconButton(
               tooltip: l.awgRefresh,
-              onPressed: c.busy || r.busy || c.remote(target) == null
+              onPressed: c.busy || r.busy
                   ? null
                   : () async {
                       await c.refreshServer(target);
@@ -541,6 +546,7 @@ class _ManagedTtState extends State<ManagedTtDialog> {
       content: SizedBox(
         width: 650,
         child: SingleChildScrollView(
+          padding: const EdgeInsets.only(top: 8),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -636,7 +642,7 @@ class _ManagedTtState extends State<ManagedTtDialog> {
                     setState(() => invalid = true);
                   }
                 },
-          child: Text(l.vpnPrepare),
+          child: Text(l.vpnSave),
         ),
       ],
     );
@@ -711,6 +717,7 @@ class _ExistingTtState extends State<_ExistingTtDialog>
       content: SizedBox(
         width: 650,
         child: SingleChildScrollView(
+          padding: const EdgeInsets.only(top: 8),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,

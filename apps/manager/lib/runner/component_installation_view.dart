@@ -38,27 +38,6 @@ class ComponentInstallationView extends StatelessWidget {
             Text(l.protocolConfigurationSeparate),
             if (plan.activeUnits.isNotEmpty)
               Text(l.protocolRestart(plan.activeUnits.join(', '))),
-            AppExpansionTile(
-              key: PageStorageKey(
-                'component-plan-${c.serverId}-${plan.component}',
-              ),
-              title: Text(l.componentsDetails),
-              children: [
-                if (plan.component == 'amneziawg') Text(l.protocolGoDependency),
-                SelectableText(
-                  '/usr/local/lib/antirkn-components/${plan.component}/\n/usr/local/bin/\n/etc/antirkn-components/${plan.component}/\n/etc/systemd/system/\n/var/lib/antirkn-runner/',
-                ),
-                for (final entry in plan.archives.entries)
-                  SelectableText(
-                    '${entry.key} · ${((entry.value as Map)['bytes'] / 1048576).toStringAsFixed(1)} MiB\n${entry.value['url']}\nSHA-256: ${entry.value['sha256']}',
-                  ),
-              ],
-            ),
-            FilledButton(
-              key: const ValueKey('component-apply'),
-              onPressed: c.canApplyComponent ? c.applyComponent : null,
-              child: Text(l.runnerApply),
-            ),
           ],
           TextButton(
             onPressed: c.busy ? null : c.dismissComponent,
@@ -72,16 +51,10 @@ class ComponentInstallationView extends StatelessWidget {
             }.contains(c.selected?.status)) ...[
           if (c.selected?.status == 'partially_applied')
             Text(l.componentsPartial),
-          if (c.resumePlan == null)
-            TextButton(
-              onPressed: c.busy ? null : c.prepareResume,
-              child: Text(l.runnerRetry),
-            )
-          else
-            FilledButton(
-              onPressed: c.busy ? null : c.applyResume,
-              child: Text(l.runnerApply),
-            ),
+          TextButton(
+            onPressed: c.canRequestAction ? c.retryJob : null,
+            child: Text(l.runnerRetry),
+          ),
         ],
       ],
     );

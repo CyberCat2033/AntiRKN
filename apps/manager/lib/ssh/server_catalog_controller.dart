@@ -106,6 +106,11 @@ class ServerCatalogController extends ChangeNotifier {
     return session.connectForDeletion();
   }
 
+  Future<bool> connectForAction(String id) async {
+    if (_sessions[id] == null) await connectForDeletion(id);
+    return await _sessions[id]?.runner.ensureReady() == true;
+  }
+
   Future<void> deleteServers(
     List<SavedServer> expected, {
     required bool Function(String) canDelete,

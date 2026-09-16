@@ -111,10 +111,7 @@ class _SshHardenDialogState extends State<_SshHardenDialog> {
     });
 
     final runner = widget.session.runner;
-    final plan = await runner.prepareSshHarden(
-      username: username,
-      port: port,
-    );
+    final plan = await runner.prepareSshHarden(username: username, port: port);
 
     if (!mounted) return;
     if (plan == null || !plan.supported) {
@@ -169,7 +166,9 @@ class _SshHardenDialogState extends State<_SshHardenDialog> {
     final runner = widget.session.runner;
     void check() {
       if (!mounted || _stage != _HardenStage.staging) return;
-      final job = runner.jobs.where((j) => j.id == jobId).firstOrNull ?? runner.selected;
+      final job =
+          runner.jobs.where((j) => j.id == jobId).firstOrNull ??
+          runner.selected;
       if (job == null) {
         Future.delayed(const Duration(milliseconds: 500), check);
         return;
@@ -227,7 +226,11 @@ class _SshHardenDialogState extends State<_SshHardenDialog> {
     _runClientTest(port, username, password);
   }
 
-  Future<void> _runClientTest(int port, String username, String password) async {
+  Future<void> _runClientTest(
+    int port,
+    String username,
+    String password,
+  ) async {
     if (_testInProgress) return;
     final l = AppLocalizations.of(context);
     setState(() {
@@ -320,9 +323,9 @@ class _SshHardenDialogState extends State<_SshHardenDialog> {
     if (!mounted) return;
     if (saved) {
       AppHaptics.added();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l.sshHardenConfirmed)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l.sshHardenConfirmed)));
       Navigator.pop(context, true);
       unawaited(widget.session.connect());
     } else {
@@ -343,9 +346,9 @@ class _SshHardenDialogState extends State<_SshHardenDialog> {
       await widget.session.runner.abortSshHarden(_jobId!);
     }
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(l.sshHardenAborted)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(l.sshHardenAborted)));
     Navigator.pop(context, false);
   }
 
@@ -379,11 +382,16 @@ class _SshHardenDialogState extends State<_SshHardenDialog> {
                   padding: const EdgeInsets.all(12),
                   child: Row(
                     children: [
-                      Icon(Icons.shield_outlined, color: theme.colorScheme.tertiary),
+                      Icon(
+                        Icons.shield_outlined,
+                        color: theme.colorScheme.tertiary,
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          l.sshHardenFirewallWarning(int.tryParse(_portCtrl.text) ?? 2222),
+                          l.sshHardenFirewallWarning(
+                            int.tryParse(_portCtrl.text) ?? 2222,
+                          ),
                           style: theme.textTheme.bodySmall,
                         ),
                       ),
@@ -430,8 +438,13 @@ class _SshHardenDialogState extends State<_SshHardenDialog> {
                   labelText: l.sshHardenSudoPassword,
                   prefixIcon: const Icon(Icons.lock_outline),
                   suffixIcon: IconButton(
-                    icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
-                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                    ),
+                    onPressed: () =>
+                        setState(() => _obscurePassword = !_obscurePassword),
                   ),
                 ),
               ),
@@ -443,13 +456,17 @@ class _SshHardenDialogState extends State<_SshHardenDialog> {
                   labelText: l.sshHardenSudoPasswordConfirm,
                   prefixIcon: const Icon(Icons.lock_outline),
                   suffixIcon: IconButton(
-                    icon: Icon(_obscureConfirm ? Icons.visibility_off : Icons.visibility),
-                    onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                    icon: Icon(
+                      _obscureConfirm ? Icons.visibility_off : Icons.visibility,
+                    ),
+                    onPressed: () =>
+                        setState(() => _obscureConfirm = !_obscureConfirm),
                   ),
                 ),
               ),
             ],
-            if (_stage == _HardenStage.preparing || _stage == _HardenStage.staging) ...[
+            if (_stage == _HardenStage.preparing ||
+                _stage == _HardenStage.staging) ...[
               const Center(
                 child: Padding(
                   padding: EdgeInsets.symmetric(vertical: 24),
@@ -463,7 +480,8 @@ class _SshHardenDialogState extends State<_SshHardenDialog> {
                   style: theme.textTheme.bodyMedium,
                 ),
             ],
-            if (_stage == _HardenStage.testing || _stage == _HardenStage.testFailed) ...[
+            if (_stage == _HardenStage.testing ||
+                _stage == _HardenStage.testFailed) ...[
               Center(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -486,7 +504,9 @@ class _SshHardenDialogState extends State<_SshHardenDialog> {
                       Chip(
                         avatar: const Icon(Icons.timer_outlined, size: 18),
                         label: Text(
-                          l.sshHardenTestingCountdown(_formatTimer(_remainingSeconds)),
+                          l.sshHardenTestingCountdown(
+                            _formatTimer(_remainingSeconds),
+                          ),
                         ),
                       ),
                     ],
@@ -519,7 +539,8 @@ class _SshHardenDialogState extends State<_SshHardenDialog> {
                 ),
               ),
             ],
-            if (_stage == _HardenStage.confirming || _stage == _HardenStage.aborting) ...[
+            if (_stage == _HardenStage.confirming ||
+                _stage == _HardenStage.aborting) ...[
               const Center(
                 child: Padding(
                   padding: EdgeInsets.symmetric(vertical: 24),
@@ -545,7 +566,8 @@ class _SshHardenDialogState extends State<_SshHardenDialog> {
             child: Text(l.sshHardenStartAction),
           ),
         ],
-        if (_stage == _HardenStage.testing || _stage == _HardenStage.testFailed) ...[
+        if (_stage == _HardenStage.testing ||
+            _stage == _HardenStage.testFailed) ...[
           TextButton(
             onPressed: _abortHardening,
             child: Text(l.sshHardenAbortAction),
@@ -554,10 +576,10 @@ class _SshHardenDialogState extends State<_SshHardenDialog> {
             onPressed: _testInProgress
                 ? null
                 : () => _runClientTest(
-                      int.tryParse(_portCtrl.text) ?? 2222,
-                      _usernameCtrl.text.trim(),
-                      _passwordCtrl.text,
-                    ),
+                    int.tryParse(_portCtrl.text) ?? 2222,
+                    _usernameCtrl.text.trim(),
+                    _passwordCtrl.text,
+                  ),
             child: Text(l.sshHardenRetryAction),
           ),
         ],

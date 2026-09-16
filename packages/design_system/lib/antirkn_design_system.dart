@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:animations/animations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -46,8 +47,43 @@ abstract final class AppMotion {
   }
 }
 
-/// Feedback belongs to explicit additions and confirmed deletions only.
+/// Material container transform: the tapped surface becomes the details page.
+class AppOpenContainer extends StatelessWidget {
+  const AppOpenContainer({
+    required this.closedBuilder,
+    required this.openBuilder,
+    this.onClosed,
+    this.motion = MotionPreference.system,
+    super.key,
+  });
+  final Widget Function(BuildContext, VoidCallback) closedBuilder;
+  final Widget Function(BuildContext, VoidCallback) openBuilder;
+  final VoidCallback? onClosed;
+  final MotionPreference motion;
+  @override
+  Widget build(BuildContext context) => OpenContainer<void>(
+    tappable: false,
+    closedElevation: 0,
+    openElevation: 0,
+    closedColor: Theme.of(context).colorScheme.surfaceContainerLow,
+    openColor: Theme.of(context).scaffoldBackgroundColor,
+    closedShape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(AppLayout.radius),
+    ),
+    transitionType: ContainerTransitionType.fadeThrough,
+    transitionDuration:
+        AppMotion.duration(context, motion) == AppMotion.standard
+        ? const Duration(milliseconds: 300)
+        : AppMotion.duration(context, motion),
+    closedBuilder: closedBuilder,
+    openBuilder: (context, close) => openBuilder(context, () => close()),
+    onClosed: (_) => onClosed?.call(),
+  );
+}
+
+/// Deliberate edit-mode entry, additions and confirmed deletions.
 abstract final class AppHaptics {
+  static void selection() => _impact(HapticFeedback.selectionClick);
   static void added() => _impact(HapticFeedback.lightImpact);
   static void deleted() => _impact(HapticFeedback.mediumImpact);
 
@@ -97,7 +133,16 @@ class AppPageVisibility extends InheritedWidget {
 }
 
 class _AppPageSwitchState extends State<AppPageSwitch>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
+  final primaryAnimations = <AnimationController>[];
+  final secondaryAnimations = <AnimationController>[];
+  void ensureAnimations() {
+    while (primaryAnimations.length < widget.children.length) {
+      primaryAnimations.add(AnimationController(vsync: this, value: 1));
+      secondaryAnimations.add(AnimationController(vsync: this));
+    }
+  }
+
   late final animation = AnimationController(vsync: this, value: 1)
     ..addStatusListener((status) {
       if (status == AnimationStatus.completed && mounted && previous != null) {
@@ -109,8 +154,18 @@ class _AppPageSwitchState extends State<AppPageSwitch>
   bool hierarchical = false;
 
   void updateDuration() {
+    ensureAnimations();
     animation.duration = AppMotion.navigationDuration(context, widget.motion);
-    if (animation.duration == Duration.zero && animation.isAnimating) {
+    for (final controller in [...primaryAnimations, ...secondaryAnimations]) {
+      controller.duration = animation.duration;
+    }
+    if (animation.duration == Duration.zero) {
+      for (final controller in primaryAnimations) {
+        controller.value = 1;
+      }
+      for (final controller in secondaryAnimations) {
+        controller.value = 0;
+      }
       animation.value = 1;
     }
   }
@@ -132,6 +187,31 @@ class _AppPageSwitchState extends State<AppPageSwitch>
     final reversing = animation.isAnimating && previous == widget.index;
     final start = reversing ? 1 - animation.value : 0.0;
     previous = oldWidget.index;
+    final incoming = widget.index, outgoing = oldWidget.index;
+    if (!hierarchical && reversing) {
+      primaryAnimations[incoming].forward();
+      secondaryAnimations[incoming].reverse();
+      primaryAnimations[outgoing].reverse();
+      secondaryAnimations[outgoing].forward();
+    } else if (opening || !hierarchical) {
+      if (!reversing) {
+        primaryAnimations[incoming].value = 0;
+        secondaryAnimations[incoming].value = 0;
+        primaryAnimations[outgoing].value = 1;
+        secondaryAnimations[outgoing].value = 0;
+      }
+      primaryAnimations[incoming].forward();
+      secondaryAnimations[outgoing].forward();
+    } else {
+      if (!reversing) {
+        primaryAnimations[outgoing].value = 1;
+        secondaryAnimations[outgoing].value = 0;
+        primaryAnimations[incoming].value = 1;
+        secondaryAnimations[incoming].value = 1;
+      }
+      primaryAnimations[outgoing].reverse();
+      secondaryAnimations[incoming].reverse();
+    }
     if (animation.duration == Duration.zero) {
       previous = null;
       animation.value = 1;
@@ -143,6 +223,9 @@ class _AppPageSwitchState extends State<AppPageSwitch>
   @override
   void dispose() {
     animation.dispose();
+    for (final controller in [...primaryAnimations, ...secondaryAnimations]) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -174,33 +257,24 @@ class _AppPageSwitchState extends State<AppPageSwitch>
                       animation: animation,
                       child: RepaintBoundary(child: widget.children[i]),
                       builder: (context, child) {
-                        final moving = spatial && i == foreground;
-                        final progress = opening
-                            ? animation.value
-                            : 1 - animation.value;
-                        final reveal = AppMotion.curve.transform(progress);
-                        final opacity = spatial
-                            ? (moving ? (reveal / .45).clamp(0.0, 1.0) : 1.0)
-                            : (i == widget.index
-                                  ? animation.value
-                                  : 1 - animation.value);
-                        return Opacity(
-                          opacity: opacity,
-                          child: Transform.scale(
-                            scale: moving ? .985 + .015 * reveal : 1,
-                            alignment: Alignment.topCenter,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(
-                                moving ? AppLayout.radius * (1 - reveal) : 0,
-                              ),
-                              child: ColoredBox(
-                                color: Theme.of(
-                                  context,
-                                ).scaffoldBackgroundColor,
-                                child: child,
-                              ),
-                            ),
-                          ),
+                        final primary = primaryAnimations[i];
+                        final secondary = secondaryAnimations[i];
+                        if (spatial) {
+                          return SharedAxisTransition(
+                            animation: primary,
+                            secondaryAnimation: secondary,
+                            transitionType: SharedAxisTransitionType.scaled,
+                            fillColor: Theme.of(
+                              context,
+                            ).scaffoldBackgroundColor,
+                            child: child!,
+                          );
+                        }
+                        return FadeThroughTransition(
+                          animation: primary,
+                          secondaryAnimation: secondary,
+                          fillColor: Theme.of(context).scaffoldBackgroundColor,
+                          child: child!,
                         );
                       },
                     ),
@@ -791,12 +865,16 @@ class ResourceTile extends StatelessWidget {
     this.badge,
     this.note,
     this.detailsLabel,
+    this.onBadgeTap,
+    this.badgeBusy = false,
     super.key,
   });
   final String title, subtitle, storageId;
   final List<Widget> details;
   final Widget? actions;
   final String? badge, note, detailsLabel;
+  final VoidCallback? onBadgeTap;
+  final bool badgeBusy;
   @override
   Widget build(BuildContext context) => Card.filled(
     child: Padding(
@@ -839,7 +917,20 @@ class ResourceTile extends StatelessWidget {
               children: [
                 if (note != null)
                   Text(note!, style: Theme.of(context).textTheme.bodySmall),
-                if (badge != null) AppBadge(label: badge!),
+                if (badge != null)
+                  onBadgeTap == null && !badgeBusy
+                      ? AppBadge(label: badge!)
+                      : FilledButton.tonal(
+                          onPressed: badgeBusy ? null : onBadgeTap,
+                          child: badgeBusy
+                              ? const SizedBox.square(
+                                  dimension: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Text(badge!),
+                        ),
                 if (details.isNotEmpty)
                   TextButton.icon(
                     key: ValueKey('resource-details-$storageId'),
@@ -911,7 +1002,8 @@ class _AppExpansionTileState extends State<AppExpansionTile> {
       trailing: widget.trailing,
       maintainState: widget.maintainState,
       tilePadding: widget.tilePadding,
-      childrenPadding: widget.childrenPadding,
+      childrenPadding:
+          widget.childrenPadding ?? const EdgeInsets.fromLTRB(0, 12, 0, 16),
       expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
       shape: widget.shape,
       collapsedShape: widget.collapsedShape,

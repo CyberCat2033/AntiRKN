@@ -1,0 +1,82 @@
+{
+  "baselineCommit": "3b409b6",
+  "analyzer": "pass",
+  "runnerUnitTests": {
+    "passed": 91
+  },
+  "targetedFlutterTests": {
+    "passed": 65,
+    "scope": "actions, forms, motion, selection, runner operations; see report for subsequent rapid-tab test"
+  },
+  "broaderManagerRun": {
+    "complete": false,
+    "reason": "existing failures and stalled test; stopped both runs",
+    "commonFailures": [
+      "auto_sync_test.dart: en settings display auto switch, pending editor status and manual retry",
+      "auto_sync_test.dart: ru settings display auto switch, pending editor status and manual retry",
+      "backup_reload_test.dart: confirmed restore reopens the actual database and replaces shell controllers",
+      "expansion_storage_test.dart: scroll offset and late snapshot expansion have separate state",
+      "google_account_test.dart: actual app Settings shows Google sign-in directly",
+      "google_account_test.dart: cancel keeps account, failure is localized, pending sign-in disables duplicate presses",
+      "google_account_test.dart: en desktop cancellation and platform-specific errors at text x2",
+      "google_account_test.dart: en settings account sign-in, persistent identity and sign-out at text x2",
+      "google_account_test.dart: leaving settings cancels pending desktop authorization",
+      "google_account_test.dart: ru desktop cancellation and platform-specific errors at text x2",
+      "google_account_test.dart: ru settings account sign-in, persistent identity and sign-out at text x2",
+      "google_account_test.dart: signing in from Settings keeps account visible across navigation",
+      "panel_update_test.dart: pair update preview on narrow screen en text x2",
+      "panel_update_test.dart: pair update preview on narrow screen ru text x2",
+      "publication_binding_dialog_test.dart: picker configuration can be saved and is validated",
+      "publication_test.dart: en setup recovers lost folder response; received result and failed update retain verified URL without duplicate copy button",
+      "publication_test.dart: ru setup recovers lost folder response; received result and failed update retain verified URL without duplicate copy button",
+      "server_catalog_test.dart: multiple servers CRUD, restart, reveal password, background and large text: en",
+      "server_catalog_test.dart: multiple servers CRUD, restart, reveal password, background and large text: ru",
+      "server_design_test.dart: server hierarchy, completed status and layout at 1000.0",
+      "server_design_test.dart: server hierarchy, completed status and layout at 390.0",
+      "settings_design_test.dart: settings expose essentials and retain options at 1200.0 en",
+      "settings_design_test.dart: settings expose essentials and retain options at 1200.0 ru",
+      "settings_design_test.dart: settings expose essentials and retain options at 390.0 en",
+      "settings_design_test.dart: settings expose essentials and retain options at 390.0 ru",
+      "ssh_widget_test.dart: SSH form and trust prompt at 1400.0, en, text x2",
+      "ssh_widget_test.dart: SSH form and trust prompt at 1400.0, ru, text x2",
+      "ssh_widget_test.dart: SSH form and trust prompt at 390.0, en, text x2",
+      "ssh_widget_test.dart: SSH form and trust prompt at 390.0, ru, text x2",
+      "ssh_widget_test.dart: app restores saved connection automatically and remains accessible on background",
+      "vpn_controller_test.dart: restored offline intentions wait for a fresh explicit plan and cannot replay on reconnect",
+      "vpn_widgets_test.dart: TrustTunnel-only profile with empty groups can be viewed and exported",
+      "widget_test.dart: adaptive resize and large text preserve base config: en",
+      "widget_test.dart: adaptive resize and large text preserve base config: ru",
+      "widget_test.dart: failed preference write keeps previous language and reports failure",
+      "widget_test.dart: manual selection survives restart, preserves draft and overrides OS",
+      "widget_test.dart: settings imports and replaces base config; cancellation preserves the saved copy",
+      "widget_test.dart: system locale resolution [de_DE]",
+      "widget_test.dart: system locale resolution [en_GB]",
+      "widget_test.dart: system locale resolution [fr, ru]",
+      "widget_test.dart: system locale resolution [ru_RU]"
+    ],
+    "baselineFailureCount": 47,
+    "changedBehaviorTestsUpdated": [
+      "server_software_test.dart single-save inbound",
+      "tt_endpoint_editor_test.dart ru/en single-save certificate"
+    ]
+  },
+  "transportTests": {
+    "passed": 35,
+    "failed": 1,
+    "baselineAlsoFails": "server_inventory_test.dart slow inspection survives the old deadline and uses at most three concurrent reads"
+  },
+  "unverified": [
+    "owner VPS removal and network traffic",
+    "physical animation frame times and tactile sensation",
+    "new Windows and Linux builds"
+  ],
+  "finalMotionAndWorkflowTests": {
+    "passed": 13,
+    "includesPreviouslyCountedTests": true
+  },
+  "finalReconnectWorkflowTests": {
+    "passed": 6,
+    "includesPreviouslyCountedTests": true,
+    "checks": "stale offline running job does not block reconnect; duplicate click submits once"
+  }
+}

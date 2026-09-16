@@ -32,6 +32,45 @@ class _DraftPageState extends State<_DraftPage> {
 }
 
 void main() {
+  testWidgets('rapid tab reversal leaves the selected page fully visible', (
+    tester,
+  ) async {
+    var index = 0;
+    late StateSetter update;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StatefulBuilder(
+          builder: (context, setState) {
+            update = setState;
+            return AppPageSwitch(
+              index: index,
+              children: const [
+                Center(child: Text('first')),
+                Center(child: Text('second')),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+    for (final next in [1, 0, 1, 0]) {
+      update(() => index = next);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    await tester.pumpAndSettle();
+    final fades = tester.widgetList<FadeTransition>(
+      find.ancestor(
+        of: find.text('first'),
+        matching: find.byType(FadeTransition),
+      ),
+    );
+    expect(fades, isNotEmpty);
+    for (final fade in fades) {
+      expect(fade.opacity.value, 1);
+    }
+    expect(tester.takeException(), isNull);
+  });
   for (final width in [390.0, 1400.0]) {
     testWidgets(
       'hierarchy at $width preserves drafts and avoids per-frame page builds',

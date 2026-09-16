@@ -71,9 +71,10 @@ class _AwgExistingPanelState extends State<AwgExistingPanel> {
                 actions: IconButton(
                   icon: const Icon(Icons.edit_outlined),
                   tooltip: l.vpnEdit,
-                  onPressed: r.busy || !r.installed || !r.connected
+                  onPressed: r.busy || r.actionPending
                       ? null
                       : () async {
+                          if (!await r.ensureReady()) return;
                           final snapshot = await r.awgRequest(
                             'awg_external_read',
                             id: item['id'] as String,
@@ -97,9 +98,11 @@ class _AwgExistingPanelState extends State<AwgExistingPanel> {
           Align(
             alignment: AlignmentDirectional.centerStart,
             child: TextButton(
-              onPressed: r.busy || !r.installed || !r.connected
+              onPressed: r.busy || r.actionPending
                   ? null
-                  : () => r.awgRequest('awg_discover'),
+                  : () => r.requestAction(() async {
+                      await r.awgRequest('awg_discover');
+                    }),
               child: Text(l.awgRefresh),
             ),
           ),
@@ -144,6 +147,7 @@ class _EditExistingAwgState extends State<_EditExistingAwg> {
       content: SizedBox(
         width: 650,
         child: SingleChildScrollView(
+          padding: const EdgeInsets.only(top: 8),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
@@ -201,6 +205,10 @@ class _EditExistingAwgState extends State<_EditExistingAwg> {
                     error = null;
                   });
                   try {
+                    if (!await widget.runner.ensureReady()) {
+                      if (mounted) setState(() => error = 'vpn_connection');
+                      return;
+                    }
                     if (preview == null) {
                       final changes = {
                         for (final e in fields.entries)
@@ -228,7 +236,8 @@ class _EditExistingAwgState extends State<_EditExistingAwg> {
                           error = widget.runner.responseCode ?? 'awg_failed';
                         }
                       });
-                    } else {
+                    }
+                    if (preview != null) {
                       final success = await widget.runner.applyExternalAwg(
                         payload!,
                         preview!['fingerprint'] as String,
@@ -247,7 +256,7 @@ class _EditExistingAwgState extends State<_EditExistingAwg> {
                     if (mounted) setState(() => busy = false);
                   }
                 },
-          child: Text(preview == null ? l.vpnPrepare : l.vpnApply),
+          child: Text(l.vpnSave),
         ),
       ],
     );

@@ -17,6 +17,8 @@ class CatalogSelection extends ChangeNotifier {
   }
 
   void start() {
+    if (active) return;
+    AppHaptics.selection();
     active = true;
     ids.clear();
     notifyListeners();

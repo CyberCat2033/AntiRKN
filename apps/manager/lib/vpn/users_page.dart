@@ -59,7 +59,7 @@ class UsersPage extends StatefulWidget {
     await controller.saveUser(result as VpnUser);
     if (user == null && controller.error == null) AppHaptics.added();
     if (controller.error == null && controller.workspace.serverIds.isNotEmpty) {
-      await controller.prepare();
+      await controller.prepareAndApply();
     }
   }
 

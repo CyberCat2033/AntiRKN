@@ -429,6 +429,8 @@ class _ManagerShellState extends State<ManagerShell>
     if (widget.source.trim().isNotEmpty) _controller.refresh();
     if (widget.servers is VpnRepository) {
       _vpn = VpnController(
+        connectForAction: (id) async =>
+            await _catalog?.connectForAction(id) == true,
         connectForDeletion: (id) async =>
             _catalog == null ? false : await _catalog!.connectForDeletion(id),
         repository: widget.servers as VpnRepository,

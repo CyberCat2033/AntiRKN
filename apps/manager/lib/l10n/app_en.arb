@@ -639,7 +639,7 @@
       }
     }
   },
-  "panelConnectTitle": "Connect existing panel",
+  "panelConnectTitle": "Sign in to 3x-ui",
   "panelAuthFailed": "3x-ui rejected the panel username or password. Check the panel account; SSH credentials are separate.",
   "panelUnreachable": "The runner could not reach the panel API. Check that x-ui is running and that its listening address and HTTPS certificate are valid.",
   "panelConnectUnsupported": "Could not identify a unique systemd panel at this port. Docker API connections are not supported yet.",
@@ -966,7 +966,7 @@
   "uiSyncOptions": "Sync options",
   "uiPairDevice": "Connect another device",
   "uiSystemUpdate": "Update system",
-  "uiSystemUpdateHelp": "Refresh the package list, then review available updates.",
+  "uiSystemUpdateHelp": "Refresh the package list and install available Ubuntu package updates.",
   "uiCheck": "Check",
   "uiShareProfile": "Connection QR",
   "uiPublicAddresses": "Public IP addresses",
@@ -1116,7 +1116,7 @@
   "uiRemoveProtocolConflict": "The installation changed. Refresh the server and confirm a new removal plan.",
   "uiRemoveProtocolUnsupported": "This installation has a nonstandard configuration. Automatic removal is unavailable.",
   "uiNotInstalled": "Not installed",
-  "uiInstallProtocolHelp": "This protocol is not installed on the server. Prepare installation? You will see the changes before starting.",
+  "uiInstallProtocolHelp": "Install the protocol software and its required dependencies? The app will connect to the server and start the installation.",
   "uiInstallProtocolConnect": "Connect to the server over SSH, then tap the protocol again to install it.",
   "sshHardenBannerTitle": "Root access is not hardened",
   "sshHardenBannerSubtitle": "It is recommended to create a sudo user, change the SSH port to 2222, and disable root login.",

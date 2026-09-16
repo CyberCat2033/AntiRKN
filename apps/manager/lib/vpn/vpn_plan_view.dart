@@ -1,5 +1,4 @@
 import 'package:antirkn_design_system/antirkn_design_system.dart';
-import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../runner/runner_panel.dart';
@@ -28,94 +27,6 @@ class VpnPlanView extends StatelessWidget {
           Semantics(
             liveRegion: true,
             child: AppNotice(message: vpnMessage(l, error), error: true),
-          ),
-        if (c.plans.isNotEmpty)
-          SectionCard(
-            title: l.vpnPlan,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(l.vpnPlanHelp),
-                for (final p in c.plans)
-                  Padding(
-                    padding: const EdgeInsets.only(top: AppLayout.gap),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          '${serverName(vpnServerId(p.serverId))}${isAwgTarget(p.serverId)
-                              ? ' · AmneziaWG'
-                              : isTtTarget(p.serverId)
-                              ? ' · TrustTunnel'
-                              : ''}',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        if (isAwgTarget(p.serverId)) Text(l.awgNetworkPlan),
-                        if (isTtTarget(p.serverId)) Text(l.ttRestartPlan),
-                        if (p.preview == null) Text(l.vpnOfflinePlan),
-                        Text(
-                          '${l.vpnUsers}: ${(p.payload['users'] as List).length}',
-                        ),
-                        for (final user in c.workspace.users)
-                          Text(
-                            '${user.name}: ${user.enabled ? l.vpnEnabled : l.vpnDisabled}',
-                          ),
-                        for (final r in p.payload['resources'] as List)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: AppLayout.smallGap,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Text(
-                                  isTtTarget(p.serverId)
-                                      ? '${(r as Map)['name']} · ${r['domain']}\n${r['listen']}:${r['port']} → ${r['endpoint']}:${r['externalPort']}\n${r['outbound'] == 'socks5' ? 'SOCKS5 ${r['socksAddress']}' : l.ttDirect}'
-                                      : isAwgTarget(p.serverId)
-                                      ? '${(r as Map)['name']} · UDP ${r['port']} → ${r['endpoint']}:${r['externalPort']}\n${r['pool']} · MTU ${r['mtu']}'
-                                      : inboundSummary(r as Map),
-                                ),
-                                if (r['security'] == 'reality' &&
-                                    r['realitySeed'] != null)
-                                  Text(l.vpnRealityKeyPlan),
-                                Text(
-                                  r['internal'] == true
-                                      ? l.vpnInternalHelp
-                                      : l.vpnClientAccess,
-                                ),
-                                Text(
-                                  r['deleted'] == true
-                                      ? l.vpnDeleteHelp
-                                      : r['enabled'] == true
-                                      ? l.vpnEnabled
-                                      : l.vpnDisabled,
-                                ),
-                                if (r['security'] == 'tls')
-                                  Text(
-                                    '${l.vpnCertificate}: ${r['certificate']}\n${l.vpnCertificateKey}: ${r['certificateKey']}',
-                                  ),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                Wrap(
-                  spacing: AppLayout.smallGap,
-                  children: [
-                    FilledButton(
-                      key: const ValueKey('vpn-apply'),
-                      onPressed: c.busy ? null : c.apply,
-                      child: Text(l.vpnApply),
-                    ),
-                    TextButton(
-                      onPressed: c.busy ? null : c.dismissPlans,
-                      child: Text(l.runnerNotNow),
-                    ),
-                  ],
-                ),
-              ],
-            ),
           ),
       ],
     );

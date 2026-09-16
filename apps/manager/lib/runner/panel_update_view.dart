@@ -1,4 +1,3 @@
-import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import 'runner_controller.dart';
@@ -23,21 +22,6 @@ class PanelUpdateView extends StatelessWidget {
           if (p.canApply) ...[
             Text(l.panelUpdateSummary),
             Text(l.panelUpdateCoreCompatibility),
-            AppExpansionTile(
-              key: PageStorageKey('panel-update-details-${c.serverId}'),
-              title: Text(l.componentsDetails),
-              children: [
-                SelectableText(
-                  '${p.url}\nSHA-256: ${p.sha256}\n${p.coreUrl}\nSHA-256: ${p.coreSha256}\n${(p.bytes / 1048576).toStringAsFixed(1)} MiB\n${p.paths.join('\n')}\n${p.backupRoot}/panel-update-<id>/backup/',
-                ),
-                Text(l.panelUpdateRecovery),
-              ],
-            ),
-            FilledButton(
-              key: const ValueKey('panel-update-apply'),
-              onPressed: c.canStart ? c.applyPanelUpdate : null,
-              child: Text(l.runnerApply),
-            ),
           ],
           TextButton(
             onPressed: c.busy ? null : c.dismissPanelUpdate,
@@ -50,22 +34,10 @@ class PanelUpdateView extends StatelessWidget {
               'partially_applied',
             }.contains(c.selected?.status)) ...[
           Text(l.panelUpdateRecovery),
-          if (c.resumePlan == null)
-            TextButton(
-              onPressed: c.canPlan ? c.prepareResume : null,
-              child: Text(l.runnerRetry),
-            )
-          else ...[
-            Text(l.componentsResumePlan),
-            FilledButton(
-              onPressed: c.canPlan ? c.applyResume : null,
-              child: Text(l.runnerApply),
-            ),
-            TextButton(
-              onPressed: c.busy ? null : c.dismissResume,
-              child: Text(l.runnerNotNow),
-            ),
-          ],
+          TextButton(
+            onPressed: c.canRequestAction ? c.retryJob : null,
+            child: Text(l.runnerRetry),
+          ),
         ],
       ],
     );

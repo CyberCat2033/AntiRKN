@@ -3,7 +3,7 @@ import '../l10n/app_localizations.dart';
 import '../runner/runner_controller.dart';
 import 'vpn_strings.dart';
 
-/// Shared prepare -> review -> durable submit flow for TT certificates/edits.
+/// Shared preflight -> durable submit flow for TT certificates/edits.
 mixin TtPlannedState<T extends StatefulWidget> on State<T> {
   RunnerController get runner;
   String get planAction;
@@ -26,6 +26,9 @@ mixin TtPlannedState<T extends StatefulWidget> on State<T> {
       error = null;
     });
     try {
+      if (!await runner.ensureReady()) {
+        throw const FormatException('vpn_connection');
+      }
       if (preview == null) {
         final p = await preparePayload();
         final result = await runner.ttRequest(planAction, payload: p);
@@ -37,7 +40,8 @@ mixin TtPlannedState<T extends StatefulWidget> on State<T> {
           preview = result;
           payload = p;
         });
-      } else {
+      }
+      {
         final ok = await runner.applyTtJob(
           payload!,
           preview!['fingerprint'] as String,
@@ -84,9 +88,6 @@ mixin TtPlannedState<T extends StatefulWidget> on State<T> {
     ),
     if (preview != null)
       TextButton(onPressed: busy ? null : changed, child: Text(l.vpnEdit)),
-    FilledButton(
-      onPressed: busy ? null : submit,
-      child: Text(preview == null ? l.vpnPrepare : l.vpnApply),
-    ),
+    FilledButton(onPressed: busy ? null : submit, child: Text(l.vpnSave)),
   ];
 }

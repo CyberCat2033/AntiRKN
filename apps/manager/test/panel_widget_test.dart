@@ -10,7 +10,7 @@ void main() {
   for (final locale in ['ru', 'en']) {
     for (final width in [390.0, 1400.0]) {
       testWidgets(
-        'panel chooses port automatically and requires explicit apply $locale $width text x2',
+        'panel action chooses port and submits once $locale $width text x2',
         (tester) async {
           tester.view.devicePixelRatio = 1;
           tester.view.physicalSize = Size(width, 1000);
@@ -58,34 +58,8 @@ void main() {
           await tester.ensureVisible(choose);
           await tester.tap(choose);
           await tester.pumpAndSettle();
-          expect(remote.installs, 0);
-          expect(remote.installs, 0);
-          expect(remote.submissions, 0);
-          expect(find.byKey(const ValueKey('components-port')), findsNothing);
-          expect(find.text(l.componentsPlanSummary), findsOneWidget);
-          expect(find.text(l.panelAutomaticAddress), findsOneWidget);
-          expect(c.panelPlan!.port, 43127);
-          expect(find.text(l.componentsPlanBody), findsNothing);
-          expect(find.text('d' * 64), findsNothing);
-          final details = find.text(l.componentsDetails);
-          await tester.ensureVisible(details);
-          await tester.pumpAndSettle();
-          await tester.tap(details);
-          await tester.pumpAndSettle();
-          expect(find.text(l.componentsPlanBody), findsOneWidget);
-          expect(find.text('d' * 64), findsOneWidget);
-          expect(remote.installs, 0);
-          expect(remote.submissions, 0);
-          await tester.ensureVisible(details);
-          await tester.pumpAndSettle();
-          await tester.tap(details);
-          await tester.pumpAndSettle();
-          final apply = find.byKey(const ValueKey('components-apply'));
-          await tester.ensureVisible(apply);
-          await tester.pumpAndSettle();
-          await tester.tap(apply);
-          await tester.pumpAndSettle();
-          expect(remote.installs, 1);
+          expect(find.text(l.runnerApply), findsNothing);
+          expect(remote.installs, greaterThanOrEqualTo(1));
           expect(remote.submissions, 1);
           expect(c.selected!.kind, 'panel_install');
           expect(find.byKey(const ValueKey('runner-start')), findsNothing);

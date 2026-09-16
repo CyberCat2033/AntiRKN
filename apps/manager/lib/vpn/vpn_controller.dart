@@ -59,6 +59,7 @@ class VpnController extends ChangeNotifier {
     required this.template,
     this.serverIds,
     this.connectForDeletion,
+    this.connectForAction,
     this.recovery,
     Timer Function(Duration, void Function(Timer))? timer,
   }) {
@@ -83,6 +84,10 @@ class VpnController extends ChangeNotifier {
 
   /// true: connected, false: connection failed, null: another action is busy.
   final Future<bool?> Function(String serverId)? connectForDeletion;
+  final Future<bool> Function(String serverId)? connectForAction;
+  Future<bool> ensureConnected(String target) async =>
+      remote(target) != null ||
+      await connectForAction?.call(vpnServerId(target)) == true;
   final Map<String, String> _observedConnections = {};
   String? _deviceId;
   Future<void> Function(VpnUser, Future<void> Function())? deletePublishedFile;
@@ -229,6 +234,7 @@ class VpnController extends ChangeNotifier {
   Future<Map<String, Object?>?> ttDefaults(String serverId) async {
     Map<String, Object?>? result;
     await _run((token) async {
+      await ensureConnected(ttTarget(serverId));
       final r = remote(ttTarget(serverId));
       if (r == null) throw const FormatException('vpn_connection');
       result = (await _request(r, RunnerRequest.ttDefaults(), token)).tt;
@@ -252,6 +258,7 @@ class VpnController extends ChangeNotifier {
   Future<Map<String, Object?>?> awgDefaults(String serverId) async {
     Map<String, Object?>? result;
     await _run((token) async {
+      await ensureConnected(awgTarget(serverId));
       final r = remote(awgTarget(serverId));
       if (r == null) throw const FormatException('vpn_connection');
       result = (await _request(
@@ -433,11 +440,19 @@ class VpnController extends ChangeNotifier {
     }
   }
 
-  Future<void> prepare() => _run((token) async {
+  Future<void> prepareAndApply({Set<String>? serverIds}) async {
+    await prepare(serverIds: serverIds);
+    if (error == null && plans.isNotEmpty) await apply();
+  }
+
+  Future<void> prepare({Set<String>? serverIds}) => _run((token) async {
     if (pendingRevocations.isNotEmpty) throw const FormatException('vpn_busy');
     plans = [];
     final next = <VpnPlan>[];
     for (final id in workspace.serverIds) {
+      if (serverIds != null && !serverIds.contains(id)) continue;
+      await ensureConnected(id);
+      token.check();
       final connection = remote(id);
       final previous = workspace.servers[id];
       if (previous?['pending'] != null &&
@@ -563,8 +578,9 @@ class VpnController extends ChangeNotifier {
         if (!observesOperation(id)) await _refreshServer(id, token);
         _observedConnections[id] = connection.observationKey!;
       }
-      if (work || _restoredTargets.any((id) => remote(id) != null))
+      if (work || _restoredTargets.any((id) => remote(id) != null)) {
         await _reconcile(token);
+      }
       if (template() != _lastTemplate) await _profiles();
     });
   }
@@ -759,8 +775,11 @@ class VpnController extends ChangeNotifier {
     if (changed) await _profiles();
   }
 
-  Future<void> refreshServer(String id) =>
-      _run((token) => _refreshServer(id, token));
+  Future<void> refreshServer(String id) => _run((token) async {
+    await ensureConnected(id);
+    token.check();
+    await _refreshServer(id, token);
+  });
   Future<void> _refreshServer(String id, CancellationToken token) async {
     final r = remote(id);
     if (r == null) throw const FormatException('vpn_connection');

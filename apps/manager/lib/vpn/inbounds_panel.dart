@@ -8,6 +8,7 @@ import 'vpn_controller.dart';
 import 'observed_inbound_dialog.dart';
 import 'xhttp_options_editor.dart';
 import '../runner/runner_controller.dart';
+import '../runner/panel_login_view.dart';
 import 'vpn_plan_view.dart';
 import 'reality_scan_result.dart';
 
@@ -44,6 +45,18 @@ class InboundsPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           AppPageIntro(l.uiVlessIntro),
+          if (runner != null &&
+              (runner!.panelAccess == null || runner!.panelLoginRequired)) ...[
+            FilledButton.icon(
+              key: const ValueKey('vless-panel-login'),
+              onPressed: runner!.busy || runner!.actionPending
+                  ? null
+                  : () => showPanelLogin(context, runner!),
+              icon: const Icon(Icons.login),
+              label: Text(l.panelConnectTitle),
+            ),
+            const SizedBox(height: 12),
+          ],
           FilledButton.icon(
             key: const ValueKey('vpn-inbound-add'),
             onPressed: c.busy || !c.loaded ? null : () => _edit(context),
@@ -90,34 +103,60 @@ class InboundsPanel extends StatelessWidget {
                             : l.vpnDisabled,
                         note: l.vpnObserved,
                         detailsLabel: l.componentsDetails,
-                        details: [
-                          Text(
-                            '${l.vpnListen}: ${observed['listen']}:${observed['port']}',
-                          ),
-                          Text(
-                            '${observed['transport']} / ${observed['security']}',
-                          ),
-                        ],
+                        details: const [],
+                        badgeBusy:
+                            runner?.actionPending == true ||
+                            runner?.selected?.kind == 'inbound_update' &&
+                                runner?.selected?.terminal == false,
+                        onBadgeTap: runner == null
+                            ? null
+                            : () async {
+                                if (!await showPanelLogin(
+                                      context,
+                                      runner!,
+                                      port: panel['port'] as int,
+                                    ) ||
+                                    !context.mounted) {
+                                  return;
+                                }
+                                await runner!.setInboundEnabled(
+                                  observed['id'] as int,
+                                  observed['enabled'] != true,
+                                );
+                              },
                         actions: IconButton(
                           tooltip: l.vpnEdit,
                           icon: const Icon(Icons.edit_outlined),
-                          onPressed: runner?.canPlan != true
+                          onPressed:
+                              runner == null ||
+                                  runner!.busy ||
+                                  runner!.actionPending
                               ? null
-                              : () => showDialog<void>(
-                                  context: context,
-                                  animationStyle: AnimationStyle(
-                                    duration: AppMotion.duration(
-                                      context,
-                                      motion,
+                              : () async {
+                                  if (!await showPanelLogin(
+                                        context,
+                                        runner!,
+                                        port: panel['port'] as int,
+                                      ) ||
+                                      !context.mounted) {
+                                    return;
+                                  }
+                                  await showDialog<void>(
+                                    context: context,
+                                    animationStyle: AnimationStyle(
+                                      duration: AppMotion.duration(
+                                        context,
+                                        motion,
+                                      ),
                                     ),
-                                  ),
-                                  builder: (context) => ObservedInboundDialog(
-                                    controller: runner!,
-                                    inboundId: observed['id'] as int,
-                                    port: panel['port'] as int,
-                                    motion: motion,
-                                  ),
-                                ),
+                                    builder: (context) => ObservedInboundDialog(
+                                      controller: runner!,
+                                      inboundId: observed['id'] as int,
+                                      port: panel['port'] as int,
+                                      motion: motion,
+                                    ),
+                                  );
+                                },
                         ),
                       ),
                     ),
@@ -133,18 +172,26 @@ class InboundsPanel extends StatelessWidget {
                     badge: r.enabled ? l.vpnEnabled : l.vpnDisabled,
                     note: r.internal ? l.vpnInternal : l.vpnClientAccess,
                     detailsLabel: l.componentsDetails,
-                    details: [
-                      Text(
-                        '${l.vpnListen}: ${r.spec['listen']}:${r.spec['port']}',
-                      ),
-                      Text('${l.vpnSni}: ${r.spec['sni']}'),
-                      if (r.spec['security'] == 'reality')
-                        Text('${l.vpnTarget}: ${r.spec['target']}'),
-                      if (r.spec['transport'] == 'xhttp')
-                        Text(
-                          '${r.spec['path']} · ${r.spec['mode']} · Host: ${r.spec['host']}',
-                        ),
-                    ],
+                    details: const [],
+                    badgeBusy: c.busy,
+                    onBadgeTap: c.busy
+                        ? null
+                        : () async {
+                            if (runner != null &&
+                                (!await showPanelLogin(context, runner!) ||
+                                    !context.mounted)) {
+                              return;
+                            }
+                            await c.saveInbound(
+                              VlessInbound(
+                                serverId: r.serverId,
+                                spec: {...r.spec, 'enabled': !r.enabled},
+                              ),
+                            );
+                            if (c.error == null) {
+                              await c.prepareAndApply(serverIds: {r.serverId});
+                            }
+                          },
                     actions: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -170,7 +217,11 @@ class InboundsPanel extends StatelessWidget {
                                       },
                                     ),
                                   );
-                                  if (c.error == null) await c.prepare();
+                                  if (c.error == null) {
+                                    await c.prepareAndApply(
+                                      serverIds: {r.serverId},
+                                    );
+                                  }
                                 },
                         ),
                         IconButton(
@@ -195,6 +246,10 @@ class InboundsPanel extends StatelessWidget {
     },
   );
   Future<void> _edit(BuildContext context, [VlessInbound? inbound]) async {
+    if (runner != null &&
+        (!await showPanelLogin(context, runner!) || !context.mounted)) {
+      return;
+    }
     final result = await showDialog<VlessInbound>(
       context: context,
       builder: (context) => InboundForm(
@@ -218,7 +273,9 @@ class InboundsPanel extends StatelessWidget {
         AppHaptics.added();
       }
     }
-    if (controller.error == null) await controller.prepare();
+    if (controller.error == null) {
+      await controller.prepareAndApply(serverIds: {serverId});
+    }
   }
 }
 
@@ -360,6 +417,7 @@ class _InboundFormState extends State<InboundForm> {
       content: SizedBox(
         width: 650,
         child: SingleChildScrollView(
+          padding: const EdgeInsets.only(top: 8),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,

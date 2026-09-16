@@ -37,8 +37,9 @@ class _DesktopBackGestureState extends State<DesktopBackGesture> {
       TargetPlatform.linux,
       TargetPlatform.macOS,
       TargetPlatform.windows,
-    }.contains(defaultTargetPlatform))
+    }.contains(defaultTargetPlatform)) {
       return;
+    }
     if (event is PointerPanZoomStartEvent) {
       end?.cancel();
       travel = Offset.zero;
@@ -53,8 +54,9 @@ class _DesktopBackGestureState extends State<DesktopBackGesture> {
     } else if (event is PointerScrollEvent) {
       if (committedAt != null &&
           DateTime.now().difference(committedAt!) <
-              const Duration(milliseconds: 550))
+              const Duration(milliseconds: 550)) {
         return;
+      }
       if (last == null ||
           event.timeStamp - last! > const Duration(milliseconds: 220)) {
         travel = Offset.zero;

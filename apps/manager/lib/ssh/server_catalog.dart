@@ -85,10 +85,17 @@ class _ServerCatalogState extends State<ServerCatalog> {
     super.dispose();
   }
 
+  final navigation = GlobalKey<NavigatorState>();
+  bool containerOpen = false;
+  VoidCallback? closeContainer;
   Widget? _detail;
   SshController? _detailSession;
 
-  Widget _content(BuildContext context, {bool detail = false}) {
+  Widget _content(
+    BuildContext context, {
+    bool detail = false,
+    VoidCallback? onBack,
+  }) {
     final c = widget.controller;
     final l = AppLocalizations.of(context);
     if (detail && c.selected != null) {
@@ -129,7 +136,7 @@ class _ServerCatalogState extends State<ServerCatalog> {
         key: ObjectKey(session),
         session: session,
         motion: widget.motion,
-        onBack: c.showList,
+        onBack: onBack ?? c.showList,
         clientCount:
             vpn?.workspace.users.where((u) => !u.deleted && u.enabled).length ??
             0,
@@ -257,6 +264,7 @@ class _ServerCatalogState extends State<ServerCatalog> {
           children: [
             if (!selection.active) ...[
               FilledButton.icon(
+                key: const ValueKey('server-add'),
                 onPressed: c.loading
                     ? null
                     : () {
@@ -317,110 +325,157 @@ class _ServerCatalogState extends State<ServerCatalog> {
                   for (final server in c.servers)
                     server.id: item(
                       server.id,
-                      Padding(
-                        padding: EdgeInsets.zero,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            border: Border(
-                              top: BorderSide(
-                                color: server.id == c.servers.first.id
-                                    ? Colors.transparent
-                                    : Theme.of(context)
-                                          .colorScheme
-                                          .outlineVariant
-                                          .withValues(alpha: .55),
+                      AppOpenContainer(
+                        motion: widget.motion,
+                        onClosed: () {
+                          containerOpen = false;
+                          closeContainer = null;
+                          c.showList();
+                        },
+                        openBuilder: (context, close) {
+                          closeContainer = close;
+                          return ListenableBuilder(
+                            listenable: Listenable.merge([c, widget.vpn]),
+                            builder: (context, _) {
+                              if (c.selected == null) {
+                                final route = ModalRoute.of(context);
+                                WidgetsBinding.instance.addPostFrameCallback((
+                                  _,
+                                ) {
+                                  if (mounted &&
+                                      containerOpen &&
+                                      c.selected == null &&
+                                      route?.isCurrent == true) {
+                                    close();
+                                  }
+                                });
+                                return _detail ?? const SizedBox.shrink();
+                              }
+                              _detail = _content(
+                                context,
+                                detail: true,
+                                onBack: close,
+                              );
+                              return _detail!;
+                            },
+                          );
+                        },
+                        closedBuilder: (context, openContainer) => Padding(
+                          padding: EdgeInsets.zero,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              border: Border(
+                                top: BorderSide(
+                                  color: server.id == c.servers.first.id
+                                      ? Colors.transparent
+                                      : Theme.of(context)
+                                            .colorScheme
+                                            .outlineVariant
+                                            .withValues(alpha: .55),
+                                ),
                               ),
                             ),
-                          ),
-                          child: Material(
-                            type: MaterialType.transparency,
-                            clipBehavior: Clip.hardEdge,
-                            child: ListTile(
-                              key: ValueKey('server-${server.id}'),
-                              selected:
-                                  selection.active &&
-                                  selection.ids.contains(server.id),
-                              leading: selection.active
-                                  ? Checkbox(
-                                      key: ValueKey(
-                                        'server-select-${server.id}',
-                                      ),
-                                      value: selection.ids.contains(server.id),
-                                      onChanged: c.loading
-                                          ? null
-                                          : (_) => selection.toggle(server.id),
-                                    )
-                                  : AppIconTile(
-                                      text: server.profile.displayName
-                                          .trim()
-                                          .characters
-                                          .take(2)
-                                          .toString()
-                                          .toUpperCase(),
-                                    ),
-                              title: Text(server.profile.displayName),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    [
-                                      ?c.osFor(server.id),
-                                      server.profile.host,
-                                    ].join(' · '),
+                            child: Material(
+                              type: MaterialType.transparency,
+                              clipBehavior: Clip.hardEdge,
+                              child: ListTile(
+                                key: ValueKey('server-${server.id}'),
+                                selected:
+                                    selection.active &&
+                                    selection.ids.contains(server.id),
+                                leading: AnimatedSwitcher(
+                                  duration: AppMotion.duration(
+                                    context,
+                                    widget.motion,
                                   ),
-                                  const SizedBox(height: 5),
-                                  Row(
-                                    children: [
-                                      Icon(
-                                        c.stageFor(server.id) ==
-                                                SshStage.connected
-                                            ? Icons.check_circle_outline
-                                            : Icons.circle_outlined,
-                                        size: 13,
-                                        color:
-                                            c.stageFor(server.id) ==
-                                                SshStage.connected
-                                            ? Theme.of(
-                                                context,
-                                              ).colorScheme.primary
-                                            : Theme.of(
-                                                context,
-                                              ).colorScheme.onSurfaceVariant,
-                                      ),
-                                      const SizedBox(width: 5),
-                                      Flexible(
-                                        child: Text(
-                                          switch (c.stageFor(server.id)) {
-                                            SshStage.connected =>
-                                              l.sshConnected,
-                                            SshStage.connecting =>
-                                              l.sshConnecting,
-                                            SshStage.verifying =>
-                                              l.sshTrustTitle,
-                                            SshStage.reading => l.sshReading,
-                                            SshStage.checkingPrivileges =>
-                                              l.privilegesChecking,
-                                            SshStage.idle => l.uiOffline,
-                                          },
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.bodySmall,
+                                  child: selection.active
+                                      ? Checkbox(
+                                          key: ValueKey(
+                                            'server-select-${server.id}',
+                                          ),
+                                          value: selection.ids.contains(
+                                            server.id,
+                                          ),
+                                          onChanged: c.loading
+                                              ? null
+                                              : (_) =>
+                                                    selection.toggle(server.id),
+                                        )
+                                      : AppIconTile(
+                                          text: server.profile.displayName
+                                              .trim()
+                                              .characters
+                                              .take(2)
+                                              .toString()
+                                              .toUpperCase(),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                                ),
+                                title: Text(server.profile.displayName),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      [
+                                        ?c.osFor(server.id),
+                                        server.profile.host,
+                                      ].join(' · '),
+                                    ),
+                                    const SizedBox(height: 5),
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          c.stageFor(server.id) ==
+                                                  SshStage.connected
+                                              ? Icons.check_circle_outline
+                                              : Icons.circle_outlined,
+                                          size: 13,
+                                          color:
+                                              c.stageFor(server.id) ==
+                                                  SshStage.connected
+                                              ? Theme.of(
+                                                  context,
+                                                ).colorScheme.primary
+                                              : Theme.of(
+                                                  context,
+                                                ).colorScheme.onSurfaceVariant,
+                                        ),
+                                        const SizedBox(width: 5),
+                                        Flexible(
+                                          child: Text(
+                                            switch (c.stageFor(server.id)) {
+                                              SshStage.connected =>
+                                                l.sshConnected,
+                                              SshStage.connecting =>
+                                                l.sshConnecting,
+                                              SshStage.verifying =>
+                                                l.sshTrustTitle,
+                                              SshStage.reading => l.sshReading,
+                                              SshStage.checkingPrivileges =>
+                                                l.privilegesChecking,
+                                              SshStage.idle => l.uiOffline,
+                                            },
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.bodySmall,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                trailing: selection.active
+                                    ? null
+                                    : const Icon(Icons.chevron_right),
+                                onTap: c.loading
+                                    ? null
+                                    : selection.active
+                                    ? () => selection.toggle(server.id)
+                                    : () {
+                                        containerOpen = true;
+                                        c.select(server.id);
+                                        openContainer();
+                                      },
                               ),
-                              trailing: selection.active
-                                  ? null
-                                  : const Icon(Icons.chevron_right),
-                              onTap: c.loading
-                                  ? null
-                                  : selection.active
-                                  ? () => selection.toggle(server.id)
-                                  : () {
-                                      c.select(server.id);
-                                    },
                             ),
                           ),
                         ),
@@ -436,11 +491,21 @@ class _ServerCatalogState extends State<ServerCatalog> {
   }
 
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
+  Widget build(BuildContext context) => NavigatorPopHandler<void>(
+    enabled: AppPageVisibility.of(context),
+    onPopWithResult: (_) => navigation.currentState?.maybePop(),
+    child: Navigator(
+      key: navigation,
+      onGenerateRoute: (_) =>
+          MaterialPageRoute<void>(builder: (context) => _catalogue(context)),
+    ),
+  );
+
+  Widget _catalogue(BuildContext context) => ListenableBuilder(
     listenable: Listenable.merge([widget.controller, selection, widget.vpn]),
     builder: (context, _) {
       final selected = widget.controller.selected != null;
-      if (selected) {
+      if (selected && !containerOpen) {
         _detailSession = widget.controller.selected;
         _detail = _content(context, detail: true);
       } else if (_detailSession != null &&
@@ -450,10 +515,15 @@ class _ServerCatalogState extends State<ServerCatalog> {
         _detailSession = null;
       }
       return AppPageSwitch(
-        index: selected ? 1 : 0,
-        depth: selected ? 1 : 0,
+        index: selected && !containerOpen ? 1 : 0,
+        depth: selected && !containerOpen ? 1 : 0,
         motion: widget.motion,
-        children: [_content(context), _detail ?? const SizedBox.shrink()],
+        children: [
+          _content(context),
+          containerOpen
+              ? const SizedBox.shrink()
+              : _detail ?? const SizedBox.shrink(),
+        ],
       );
     },
   );

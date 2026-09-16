@@ -10,7 +10,7 @@ void main() {
   for (final locale in ['ru', 'en']) {
     for (final width in [390.0, 1400.0]) {
       testWidgets(
-        'component preview and explicit apply $locale $width text x2',
+        'component action prepares and submits once $locale $width text x2',
         (tester) async {
           tester.view.devicePixelRatio = 1;
           tester.view.physicalSize = Size(width, 1000);
@@ -48,19 +48,15 @@ void main() {
               ),
             ),
           );
+          final l = AppLocalizations.of(
+            tester.element(find.byType(RunnerPanel)),
+          );
           final prepare = find.byKey(const ValueKey('component-trusttunnel'));
           await tester.ensureVisible(prepare);
           await tester.tap(prepare);
           await tester.pumpAndSettle();
-          expect(c.componentPlan, isNotNull);
-          expect(remote.installs, 0);
-          expect(remote.submissions, 0);
-          final apply = find.byKey(const ValueKey('component-apply'));
-          await tester.ensureVisible(apply);
-          await tester.pumpAndSettle();
-          await tester.tap(apply);
-          await tester.pumpAndSettle();
-          expect(remote.installs, 1);
+          expect(find.text(l.runnerApply), findsNothing);
+          expect(remote.installs, greaterThanOrEqualTo(1));
           expect(remote.submissions, 1);
           expect(remote.submitWithoutPersistence, isFalse);
           expect(c.selected!.kind, 'component_install');

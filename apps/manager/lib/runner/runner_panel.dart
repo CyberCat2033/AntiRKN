@@ -42,7 +42,8 @@ class RunnerPanel extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (c.busy && !active) const LinearProgressIndicator(),
+            if ((c.busy || c.actionPending) && !active)
+              const LinearProgressIndicator(),
             if (c.error case final issue?)
               Semantics(
                 liveRegion: true,
@@ -64,8 +65,12 @@ class RunnerPanel extends StatelessWidget {
             if (c.error != null || c.installed && !c.alive)
               TextButton(
                 key: const ValueKey('runner-refresh'),
-                onPressed: c.connected && !c.busy
-                    ? () => c.refresh(prepare: true)
+                onPressed: !c.busy && !c.actionPending
+                    ? () async {
+                        if (await c.ensureReady()) {
+                          await c.refresh(prepare: true);
+                        }
+                      }
                     : null,
                 child: Text(l.runnerRetry),
               ),
@@ -92,8 +97,11 @@ class RunnerPanel extends StatelessWidget {
                   alignment: AlignmentDirectional.centerStart,
                   child: TextButton(
                     key: const ValueKey('runner-cancel'),
-                    onPressed: c.connected && !c.busy && !job.cancelRequested
-                        ? c.cancelJob
+                    onPressed:
+                        !c.busy && !c.actionPending && !job.cancelRequested
+                        ? () async {
+                            if (await c.ensureReady()) await c.cancelJob();
+                          }
                         : null,
                     child: Text(l.runnerCancel),
                   ),
@@ -112,7 +120,11 @@ class RunnerPanel extends StatelessWidget {
               Text(c.observesOperation ? l.operationMissing : l.runnerPending),
               TextButton(
                 key: const ValueKey('runner-retry'),
-                onPressed: c.connected && !c.busy ? c.retryPending : null,
+                onPressed: !c.busy && !c.actionPending
+                    ? () async {
+                        if (await c.ensureReady()) await c.retryPending();
+                      }
+                    : null,
                 child: Text(
                   c.observesOperation ? l.operationTakeOver : l.runnerRetry,
                 ),
@@ -125,12 +137,8 @@ class RunnerPanel extends StatelessWidget {
                     job.kind == 'tt_external_edit' ||
                     job.kind == 'tt_certificate'))
               TextButton(
-                onPressed: c.canPlan
-                    ? (c.resumePlan == null ? c.prepareResume : c.applyResume)
-                    : null,
-                child: Text(
-                  c.resumePlan == null ? l.runnerRetry : l.runnerApply,
-                ),
+                onPressed: c.canRequestAction ? c.retryJob : null,
+                child: Text(l.runnerRetry),
               ),
             SoftwareOverview(controller: c, motion: motion),
             if (c.componentPlan == null &&

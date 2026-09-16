@@ -103,18 +103,21 @@ class SoftwareOverview extends StatelessWidget {
                           : 'component-$key'
                     : 'software-check-$key',
               ),
-              onPressed: applyAction
-                  ? !c.canPlan ||
-                            (isPanel &&
-                                detected &&
-                                (c.panelAccess == null || c.panelLoginRequired))
-                        ? null
-                        : isPanel
-                        ? (detected ? c.preparePanelUpdate : c.openPanelPlan)
-                        : () => c.prepareComponent(key)
-                  : updates == null || updates.busy
+              onPressed: !c.canRequestAction || updates?.busy == true
                   ? null
-                  : updates.check,
+                  : applyAction
+                  ? () async {
+                      if (isPanel &&
+                          detected &&
+                          (!await showPanelLogin(context, c) ||
+                              !context.mounted)) {
+                        return;
+                      }
+                      await c.installOrUpdate(isPanel ? 'panel' : key);
+                    }
+                  : updates == null
+                  ? null
+                  : () => c.requestAction(updates.check),
               child: Text(
                 applyAction
                     ? detected
@@ -132,19 +135,10 @@ class SoftwareOverview extends StatelessWidget {
           if (changes.isNotEmpty)
             Text('${l.softwareUpdateAvailable}: ${changes.join(', ')}'),
           if (changes.isNotEmpty && !canUpdate)
-            TextButton(
-              onPressed: () => showAppDetails(
-                context,
-                title: l.softwareUpdateAvailable,
-                children: [
-                  Text(
-                    isPanel
-                        ? l.panelUpdateCompatibility
-                        : l.componentUpdateUnverified,
-                  ),
-                ],
-              ),
-              child: Text(l.componentsDetails),
+            Text(
+              isPanel
+                  ? l.panelUpdateCompatibility
+                  : l.componentUpdateUnverified,
             ),
         ],
       );
@@ -165,28 +159,21 @@ class SoftwareOverview extends StatelessWidget {
           ),
         );
       } else {
-        if (others.isNotEmpty)
+        if (others.isNotEmpty) {
           others.add(const Divider(indent: 17, endIndent: 17));
+        }
         others.add(
-          ListTile(
+          SummaryCard(
             leading: AppIconTile(
               icon: isPanel ? Icons.dns_outlined : Icons.shield_outlined,
             ),
-            title: Text(name),
+            title: name,
             subtitle: summary,
-            trailing: action,
+            action: action,
           ),
         );
       }
       if (isPanel) {
-        for (final panel in c.panels) {
-          if (panel['source'] == 'systemd' &&
-              (c.panelAccess?.port != panel['port'] || c.panelLoginRequired)) {
-            content.add(
-              PanelLoginView(controller: c, port: panel['port'] as int),
-            );
-          }
-        }
         content.addAll([
           PanelInstallationView(controller: c, motion: motion),
           PanelUpdateView(controller: c),
@@ -220,7 +207,9 @@ class SoftwareOverview extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(bottom: 24),
             child: OutlinedButton.icon(
-              onPressed: updates.busy ? null : updates.check,
+              onPressed: updates.busy || !c.canRequestAction
+                  ? null
+                  : () => c.requestAction(updates.check),
               icon: const Icon(Icons.refresh),
               label: Text(l.updatesCheck),
             ),
@@ -237,7 +226,7 @@ class AptMaintenanceView extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = controller, l = AppLocalizations.of(context);
     final packages = c.aptPlan?['packages'] as List?;
-    if (!c.choosingAptUpdate && c.aptPlan == null)
+    if (!c.choosingAptUpdate && c.aptPlan == null) {
       return AppSettingsSection(
         title: l.aptTitle,
         child: ListTile(
@@ -246,9 +235,12 @@ class AptMaintenanceView extends StatelessWidget {
           title: Text(l.uiSystemUpdate),
           subtitle: Text(l.uiSystemUpdateHelp),
           trailing: const Icon(Icons.chevron_right),
-          onTap: c.canStart ? c.updateSystem : null,
+          onTap: c.canRequestAction
+              ? () => c.requestAction(c.updateSystem)
+              : null,
         ),
       );
+    }
     return SectionCard(
       title: l.aptTitle,
       child: Column(
@@ -261,7 +253,9 @@ class AptMaintenanceView extends StatelessWidget {
               alignment: AlignmentDirectional.centerStart,
               child: FilledButton.tonal(
                 key: const ValueKey('system-update'),
-                onPressed: c.canStart ? c.updateSystem : null,
+                onPressed: c.canRequestAction
+                    ? () => c.requestAction(c.updateSystem)
+                    : null,
                 child: Text(l.uiSystemUpdate),
               ),
             ),
@@ -296,7 +290,7 @@ class AptMaintenanceView extends StatelessWidget {
                   FilledButton(
                     key: const ValueKey('apt-apply'),
                     onPressed: c.canStart ? c.applyApt : null,
-                    child: Text(l.runnerApply),
+                    child: Text(l.softwareUpdate),
                   ),
                 TextButton(
                   onPressed: c.busy ? null : c.dismissApt,
