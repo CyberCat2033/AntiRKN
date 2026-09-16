@@ -79,6 +79,17 @@ python3 tool/google_drive_setup.py \
 
 ## Собрать Android с кнопкой входа
 
+С 2026-09-16 Android-сборка любого режима останавливается перед компиляцией Flutter, если отсутствует или некорректен `ANTIRKN_GOOGLE_PROJECT_ID`. Без него сохранённый аккаунт не восстанавливается, а вход заканчивается ошибкой конфигурации. Возврат правильного ID восстанавливает прежнюю локальную привязку; очистка данных приложения не требуется.
+
+Для текущей конфигурации владельца, включая Picker, из `apps/manager`:
+
+```bash
+flutter build apk --release --target-platform android-arm64 --no-pub \
+  --dart-define-from-file="$HOME/.config/antirkn/google/binding-build-defines.json"
+```
+
+Для debug используйте `--debug` с тем же внешним файлом. JSON содержит только публичные параметры сборки; Desktop client secret и OAuth-токены туда не добавлять. Проверка формата ID не заменяет проверку Android package/SHA-1 в Google Cloud.
+
 После импорта клиентов запустите из корня проекта:
 
 ```bash

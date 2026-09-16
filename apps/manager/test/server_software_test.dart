@@ -1,6 +1,8 @@
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_manager/l10n/app_localizations.dart';
+import 'package:antirkn_manager/network/network_controller.dart';
+import 'package:antirkn_manager/network/sample_inventory_reader.dart';
 import 'package:antirkn_manager/runner/component_updates_controller.dart';
 import 'package:antirkn_manager/runner/runner_controller.dart';
 import 'package:antirkn_manager/runner/runner_panel.dart';
@@ -231,6 +233,9 @@ void main() {
         store: store,
       );
       await c.refresh();
+      final network = NetworkController(reader: const SampleInventoryReader());
+      addTearDown(network.dispose);
+      await tester.runAsync(network.load);
       await tester.pumpWidget(
         MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -238,6 +243,7 @@ void main() {
           home: Scaffold(
             body: ObservedInboundDialog(
               controller: c,
+              network: network,
               inboundId: 42,
               port: 43127,
               motion: MotionPreference.off,
@@ -294,6 +300,9 @@ void main() {
         store: store,
       );
       await c.refresh();
+      final network = NetworkController(reader: const SampleInventoryReader());
+      addTearDown(network.dispose);
+      await tester.runAsync(network.load);
       c.panelAccess = PanelAccess.fromJson({
         'id': 'a' * 32,
         'port': 43127,
@@ -309,6 +318,7 @@ void main() {
           home: Scaffold(
             body: ObservedInboundDialog(
               controller: c,
+              network: network,
               inboundId: 42,
               port: 43127,
               motion: MotionPreference.off,
@@ -319,6 +329,38 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Manual inbound'), findsOneWidget);
       expect(find.textContaining('private-original-key'), findsNothing);
+      final listen = find.byKey(const ValueKey('observed-listen'));
+      await tester.enterText(listen, '198.51.100.99');
+      network.tick();
+      await tester.pump();
+      expect(
+        tester.widget<TextField>(listen).controller!.text,
+        '198.51.100.99',
+      );
+      final pick = find.byKey(const ValueKey('pick-listener'));
+      await tester.ensureVisible(pick);
+      await tester.tap(pick);
+      await tester.pumpAndSettle();
+      final choice = network
+          .choices(AddressRole.listener)
+          .firstWhere(
+            (c) => c.enabled && c.source == AddressChoiceSource.assigned,
+          );
+      final option = find.byKey(ValueKey('option-${choice.id}'));
+      await tester.scrollUntilVisible(
+        option,
+        180,
+        scrollable: find.descendant(
+          of: find.byKey(const ValueKey('address-options-listener')),
+          matching: find.byType(Scrollable),
+        ),
+      );
+      await tester.tap(option);
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(listen).controller!.text, choice.host);
+      // Manual input remains available after selecting a suggestion.
+      await tester.enterText(listen, '198.51.100.99');
+
       final path = find.byKey(const ValueKey('observed-path'));
       await tester.ensureVisible(path);
       await tester.enterText(path, '/edited');
@@ -333,6 +375,7 @@ void main() {
                   .json['payload']
               as String;
       expect(planned, contains('/edited'));
+      expect(planned, contains('198.51.100.99'));
       expect(planned, isNot(contains('private-original-key')));
       expect(planned, isNot(contains('existing-client')));
       expect(planned, isNot(contains('xPaddingPlacement')));

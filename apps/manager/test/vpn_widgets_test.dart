@@ -293,10 +293,8 @@ void main() {
           tester.widget<TextField>(sniField).controller!.text,
           'www.example.com',
         );
-        await tester.ensureVisible(
-          find.byType(DropdownButtonFormField<String>).first,
-        );
-        await tester.tap(find.byType(DropdownButtonFormField<String>).first);
+        await tester.ensureVisible(find.byKey(const ValueKey('transport-raw')));
+        await tester.tap(find.byKey(const ValueKey('transport-raw')));
         await tester.pumpAndSettle();
         await tester.tap(find.text('XHTTP').last);
         await tester.pumpAndSettle();

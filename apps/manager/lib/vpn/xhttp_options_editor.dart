@@ -64,27 +64,26 @@ class _XhttpOptionsEditorState extends State<XhttpOptionsEditor> {
       final current = target[key]?.toString() ?? '';
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),
-        child: DropdownButtonFormField<String>(
+        child: AppSelectField<String>(
           key: ValueKey('xhttp-$id'),
-          initialValue: current,
-          isExpanded: true,
-          decoration: InputDecoration(labelText: key),
-          items: [
-            DropdownMenuItem<String>(value: '', child: Text(l.xhttpDefault)),
+          value: current,
+          label: key,
+          motion: widget.motion,
+          options: [
+            ('', l.xhttpDefault),
             for (final value in choices)
-              if (value != '')
-                DropdownMenuItem(value: value as String, child: Text(value)),
+              if (value != '') (value as String, value),
             if (current.isNotEmpty && !choices.contains(current))
-              DropdownMenuItem(value: current, child: Text(current)),
+              (current, current),
           ],
-          onChanged: (value) {
-            if (value == null || value.isEmpty) {
+          onChanged: (value) => setState(() {
+            if (value.isEmpty) {
               target.remove(key);
             } else {
               target[key] = value;
             }
             changed();
-          },
+          }),
         ),
       );
     }

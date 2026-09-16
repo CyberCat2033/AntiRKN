@@ -1,0 +1,29 @@
+{
+  "checkedAtUtc": "2026-09-16T10:46:07.264826+00:00",
+  "device": "OnePlus HD1911",
+  "mode": "release",
+  "abi": "arm64-v8a",
+  "install": "Success",
+  "preservedData": true,
+  "sha256": "59f86977c75c4d12a2f27514de92c2f35b05f022d141f8896d30b90ae46f2163",
+  "installedSha256": "59f86977c75c4d12a2f27514de92c2f35b05f022d141f8896d30b90ae46f2163",
+  "installedMatches": true,
+  "bytes": 29421104,
+  "signerSha1MatchesRegistered": true,
+  "debuggable": false,
+  "processRunning": true,
+  "googleBuildDefinesPresent": {
+    "ANTIRKN_GOOGLE_PICKER_API_KEY": true,
+    "ANTIRKN_GOOGLE_PICKER_APP_ID": true,
+    "ANTIRKN_GOOGLE_PROJECT_ID": true
+  },
+  "desktopSecretAbsent": true,
+  "startupErrorMatches": 0,
+  "afterInstallUi": {
+    "synchronizationScreenVisible": false,
+    "googleAccountVisible": false,
+    "configurationErrorVisible": false,
+    "syncStatusVisible": false,
+    "result": "inconclusive: synchronization screen was not visible; account restoration after this install not verified by UI"
+  }
+}

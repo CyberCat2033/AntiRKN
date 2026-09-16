@@ -1257,7 +1257,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get vpnDisabled => 'Отключён';
 
   @override
-  String get vpnSave => 'Сохранить и подготовить план доступов';
+  String get vpnSave => 'Сохранить';
 
   @override
   String get vpnInbounds => 'VLESS';

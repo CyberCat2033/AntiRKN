@@ -466,7 +466,7 @@
   "vpnName": "Display name",
   "vpnEnabled": "Enabled",
   "vpnDisabled": "Disabled",
-  "vpnSave": "Save and prepare access plan",
+  "vpnSave": "Save",
   "vpnInbounds": "VLESS",
   "vpnAddInbound": "Add inbound",
   "vpnInboundHelp": "Each client receives personal access to enabled inbounds with an open lock. Close the lock to reserve an inbound for internal use.",

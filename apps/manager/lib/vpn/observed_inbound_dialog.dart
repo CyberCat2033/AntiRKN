@@ -3,6 +3,8 @@ import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
+import '../network/network_controller.dart';
+import '../network/server_address_field.dart';
 import '../runner/runner_controller.dart';
 import '../runner/runner_panel.dart';
 import '../runner/panel_login_view.dart';
@@ -11,12 +13,14 @@ import 'xhttp_options_editor.dart';
 class ObservedInboundDialog extends StatefulWidget {
   const ObservedInboundDialog({
     required this.controller,
+    required this.network,
     required this.inboundId,
     required this.port,
     required this.motion,
     super.key,
   });
   final RunnerController controller;
+  final NetworkController network;
   final int inboundId, port;
   final MotionPreference motion;
   @override
@@ -207,7 +211,15 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
                   '${(snapshot!['row'] as Map)['protocol']} · ${stream['network']} / ${stream['security']}',
                 ),
                 const SizedBox(height: AppLayout.gap),
-                input('listen', l.vpnListen),
+                ServerAddressField(
+                  label: l.vpnListen,
+                  fieldKey: const ValueKey('observed-listen'),
+                  network: widget.network,
+                  controller: fieldController('listen'),
+                  motion: widget.motion,
+                  enabled: !loading,
+                ),
+                const SizedBox(height: AppLayout.gap),
                 input('port', l.vpnPort, number: true),
                 if (reality != null) ...[
                   input(
@@ -260,20 +272,17 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
                       };
                     },
                   ),
-                  DropdownButtonFormField<String>(
-                    initialValue: currentMode.isEmpty ? 'auto' : currentMode,
-                    isExpanded: true,
-                    decoration: InputDecoration(labelText: l.vpnMode),
-                    items: [
-                      for (final mode in modes)
-                        DropdownMenuItem(value: mode, child: Text(mode)),
-                    ],
-                    onChanged: (v) {
+                  AppSelectField<String>(
+                    value: currentMode.isEmpty ? 'auto' : currentMode,
+                    label: l.vpnMode,
+                    motion: widget.motion,
+                    options: [for (final mode in modes) (mode, mode)],
+                    onChanged: (v) => setState(() {
                       stream['xhttpSettings'] = {
                         ...stream['xhttpSettings'] as Map? ?? {},
                         'mode': v,
                       };
-                    },
+                    }),
                   ),
                   XhttpOptionsEditor(
                     initial: {...xsettings}

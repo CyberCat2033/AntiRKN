@@ -1,0 +1,48 @@
+{
+  "checkedAtUtc": "2026-09-16T10:48:22.479259+00:00",
+  "targetedTests": {
+    "inboundNetworkAndSoftware": 18,
+    "inboundDraftAndDesign": 2,
+    "androidGoogleAccount": 8,
+    "totalPassed": 28
+  },
+  "analysis": "10 changed Dart files: PASS",
+  "workspace": "architecture, base.yml SHA-256, 887 RU/EN messages: PASS",
+  "buildGuard": {
+    "missingProjectExplicitTask": "rejected",
+    "missingProjectDebugCompileDependency": "rejected before Flutter compilation",
+    "configuredRelease": "PASS"
+  },
+  "android": "google-inbound-android.json",
+  "linux": {
+    "mode": "release",
+    "arch": "x64",
+    "built": true,
+    "sha256": "aa9724389a5fc1708a0bd4df8ad55982de118fcc6a2a35c897dc03f1620c9904",
+    "desktopSecretAbsent": true,
+    "guiRestarted": false
+  },
+  "syntheticScreenshots": [
+    "inbound-form-390.png",
+    "inbound-transport-390.png",
+    "inbound-form-1200.png",
+    "inbound-transport-1200.png"
+  ],
+  "originalGoogleError": {
+    "reproducedOnCurrentRelease": false,
+    "userConfirmedAccountVisible": true,
+    "previousLocalDebugMissingGoogleDefines": true,
+    "installedReleaseContainsGoogleDefines": true,
+    "signerMatchesPreviouslyRegistered": true,
+    "probableCause": "earlier build missing Google Project ID; original provider response unavailable"
+  },
+  "fullSuite": "not run; initial broader selection hit previously documented TrustTunnel-only profile test failure",
+  "unverified": [
+    "fresh real OAuth sign-in and provider error matrix",
+    "real VPS inbound mutation",
+    "Windows",
+    "full Linux/Android runtime acceptance",
+    "screen reader",
+    "physical frame times"
+  ]
+}

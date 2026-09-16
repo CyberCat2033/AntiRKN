@@ -1254,7 +1254,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get vpnDisabled => 'Disabled';
 
   @override
-  String get vpnSave => 'Save and prepare access plan';
+  String get vpnSave => 'Save';
 
   @override
   String get vpnInbounds => 'VLESS';

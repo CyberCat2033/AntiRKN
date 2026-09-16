@@ -3,7 +3,7 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../network/network_controller.dart';
-import '../network/server_address_picker.dart';
+import '../network/server_address_field.dart';
 import 'vpn_controller.dart';
 import 'observed_inbound_dialog.dart';
 import 'xhttp_options_editor.dart';
@@ -151,6 +151,7 @@ class InboundsPanel extends StatelessWidget {
                                     ),
                                     builder: (context) => ObservedInboundDialog(
                                       controller: runner!,
+                                      network: network,
                                       inboundId: observed['id'] as int,
                                       port: panel['port'] as int,
                                       motion: motion,
@@ -423,17 +424,14 @@ class _InboundFormState extends State<InboundForm> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               field('name', l.vpnName),
-              DropdownButtonFormField<String>(
+              AppSelectField<String>(
                 key: ValueKey('transport-${spec['transport']}'),
-                initialValue: spec['transport'] as String,
-                isExpanded: true,
-                decoration: InputDecoration(labelText: l.vpnTransport),
-                items: const [
-                  DropdownMenuItem(
-                    value: 'raw',
-                    child: Text('RAW/TCP · Vision'),
-                  ),
-                  DropdownMenuItem(value: 'xhttp', child: Text('XHTTP')),
+                value: spec['transport'] as String,
+                label: l.vpnTransport,
+                motion: widget.motion,
+                options: const [
+                  ('raw', 'RAW/TCP · Vision'),
+                  ('xhttp', 'XHTTP'),
                 ],
                 onChanged: (v) => setState(() {
                   spec['transport'] = v;
@@ -447,15 +445,12 @@ class _InboundFormState extends State<InboundForm> {
               ),
               const SizedBox(height: AppLayout.gap),
               if (xhttp) ...[
-                DropdownButtonFormField<String>(
+                AppSelectField<String>(
                   key: ValueKey('security-${spec['security']}'),
-                  initialValue: spec['security'] as String,
-                  isExpanded: true,
-                  decoration: InputDecoration(labelText: l.vpnSecurity),
-                  items: const [
-                    DropdownMenuItem(value: 'reality', child: Text('REALITY')),
-                    DropdownMenuItem(value: 'tls', child: Text('TLS')),
-                  ],
+                  value: spec['security'] as String,
+                  label: l.vpnSecurity,
+                  motion: widget.motion,
+                  options: const [('reality', 'REALITY'), ('tls', 'TLS')],
                   onChanged: (v) => setState(() {
                     spec['security'] = v;
                     spec['mode'] = 'auto';
@@ -463,40 +458,14 @@ class _InboundFormState extends State<InboundForm> {
                 ),
                 const SizedBox(height: AppLayout.gap),
               ],
-              for (final role in [AddressRole.listener])
-                Padding(
-                  padding: const EdgeInsets.only(bottom: AppLayout.gap),
-                  child: ServerAddressPicker(
-                    role: role,
-                    choices: widget.network.choices(role),
-                    selected: widget.network
-                        .choices(role)
-                        .where(
-                          (c) =>
-                              c.host ==
-                              fields[role == AddressRole.listener
-                                      ? 'listen'
-                                      : 'endpoint']!
-                                  .text,
-                        )
-                        .firstOrNull,
-                    selectionIssue: null,
-                    onSelected: (choice) {
-                      if (choice != null) {
-                        setState(
-                          () =>
-                              fields[role == AddressRole.listener
-                                          ? 'listen'
-                                          : 'endpoint']!
-                                      .text =
-                                  choice.host,
-                        );
-                      }
-                    },
-                    motion: widget.motion,
-                  ),
-                ),
-              field('listen', l.vpnListen),
+              ServerAddressField(
+                label: l.vpnListen,
+                fieldKey: const ValueKey('vpn-inbound-listen'),
+                network: widget.network,
+                controller: fields['listen']!,
+                motion: widget.motion,
+              ),
+              const SizedBox(height: AppLayout.gap),
               field('port', l.vpnPort, number: true),
               AppExpansionTile(
                 key: const ValueKey('inbound-connection-address'),
@@ -508,17 +477,14 @@ class _InboundFormState extends State<InboundForm> {
                   field('externalPort', l.vpnExternalPort, number: true),
                 ],
               ),
-              DropdownButtonFormField<String>(
+              AppSelectField<String>(
                 key: const ValueKey('vpn-inbound-utls'),
-                initialValue: spec['fingerprint'] as String? ?? 'chrome',
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'uTLS'),
-                items: [
-                  for (final name in vlessFingerprints)
-                    DropdownMenuItem(value: name, child: Text(name)),
-                ],
+                value: spec['fingerprint'] as String? ?? 'chrome',
+                label: 'uTLS',
+                motion: widget.motion,
+                options: [for (final name in vlessFingerprints) (name, name)],
                 onChanged: (value) {
-                  if (value != null) spec['fingerprint'] = value;
+                  setState(() => spec['fingerprint'] = value);
                 },
               ),
               const SizedBox(height: AppLayout.gap),
@@ -570,19 +536,19 @@ class _InboundFormState extends State<InboundForm> {
               if (xhttp) ...[
                 field('path', l.vpnPath),
                 field('host', l.vpnHost),
-                DropdownButtonFormField<String>(
+                AppSelectField<String>(
                   key: ValueKey('mode-${spec['mode']}-$tls'),
-                  initialValue: spec['mode'] as String,
-                  isExpanded: true,
-                  decoration: InputDecoration(labelText: l.vpnMode),
-                  items: [
+                  value: spec['mode'] as String,
+                  label: l.vpnMode,
+                  motion: widget.motion,
+                  options: [
                     for (final mode in [
                       'auto',
                       'stream-one',
                       if (tls) 'packet-up',
                       if (tls) 'stream-up',
                     ])
-                      DropdownMenuItem(value: mode, child: Text(mode)),
+                      (mode, mode),
                   ],
                   onChanged: (v) => setState(() => spec['mode'] = v),
                 ),

@@ -1,8 +1,39 @@
+import java.util.Base64
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// A build without this ID hides the saved Google account and cannot sign in.
+// Check every APK variant before Flutter compilation, including local debug.
+val verifyGoogleConfiguration by tasks.registering {
+    val definitions = providers.gradleProperty("dart-defines")
+    inputs.property("dart-defines", definitions.orElse(""))
+    doLast {
+        val values = try {
+            definitions.orNull.orEmpty().split(',').filter { it.isNotEmpty() }.associate {
+                val decoded = String(Base64.getDecoder().decode(it), Charsets.UTF_8)
+                decoded.substringBefore('=') to decoded.substringAfter('=', "")
+            }
+        } catch (_: IllegalArgumentException) {
+            throw GradleException("Invalid encoded Dart build configuration.")
+        }
+        val projectId = values["ANTIRKN_GOOGLE_PROJECT_ID"].orEmpty()
+        if (!Regex("^[a-z][a-z0-9-]{4,61}[a-z0-9]$").matches(projectId)) {
+            throw GradleException(
+                "Google Project ID is missing or invalid. Build with " +
+                    "--dart-define-from-file=<external Google build defines JSON>. " +
+                    "See docs/google-drive-setup.md; never include Desktop client secrets."
+            )
+        }
+    }
+}
+
+tasks.matching { it.name.startsWith("compileFlutterBuild") }.configureEach {
+    dependsOn(verifyGoogleConfiguration)
 }
 
 android {

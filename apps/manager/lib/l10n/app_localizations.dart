@@ -2297,7 +2297,7 @@ abstract class AppLocalizations {
   /// No description provided for @vpnSave.
   ///
   /// In en, this message translates to:
-  /// **'Save and prepare access plan'**
+  /// **'Save'**
   String get vpnSave;
 
   /// No description provided for @vpnInbounds.

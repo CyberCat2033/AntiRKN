@@ -219,6 +219,26 @@ void main() {
     expect(http.requests, 0);
   });
   test(
+    'missing build project hides but does not erase the saved account',
+    () async {
+      final configured = service();
+      final account = await configured.signIn();
+      final saved = keys.data.values.single;
+      bridge.calls.clear();
+      final unconfigured = service(project: '');
+      expect(await unconfigured.restore(), isNull);
+      await expectLater(
+        unconfigured.signIn(),
+        throwsA(issue(GoogleAccountIssue.configuration)),
+      );
+      expect(bridge.calls, isEmpty);
+      expect(keys.data.values.single, saved);
+      final restored = service();
+      expect((await restored.restore())!.permissionId, account!.permissionId);
+      expect(restored.accountKey, configured.accountKey);
+    },
+  );
+  test(
     'method channel requests authorization and maps errors without exposing provider text',
     () async {
       const channel = MethodChannel('org.antirkn/google_authorization');

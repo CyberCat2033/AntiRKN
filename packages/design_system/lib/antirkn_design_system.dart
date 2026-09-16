@@ -1434,13 +1434,14 @@ Future<T?> showAppChoice<T>(
   required String title,
   required T value,
   required List<(T, String)> options,
+  MotionPreference motion = MotionPreference.system,
 }) {
   return showModalBottomSheet<T>(
     context: context,
     useSafeArea: true,
     showDragHandle: true,
     sheetAnimationStyle: AnimationStyle(
-      duration: AppMotion.duration(context, MotionPreference.system),
+      duration: AppMotion.duration(context, motion),
     ),
     builder: (context) => SingleChildScrollView(
       child: Padding(
@@ -1459,19 +1460,89 @@ Future<T?> showAppChoice<T>(
               ),
             ),
             for (final option in options)
-              ListTile(
-                title: Text(option.$2),
-                selected: value == option.$1,
-                trailing: value == option.$1 ? const Icon(Icons.check) : null,
-                onTap: () {
-                  Navigator.pop(context, option.$1);
-                },
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: ListTile(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  title: Text(option.$2),
+                  selected: value == option.$1,
+                  trailing: value == option.$1 ? const Icon(Icons.check) : null,
+                  onTap: () {
+                    Navigator.pop(context, option.$1);
+                  },
+                ),
               ),
           ],
         ),
       ),
     ),
   );
+}
+
+/// Form selections share the rounded choice sheet used by settings.
+class AppSelectField<T> extends StatelessWidget {
+  const AppSelectField({
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+    this.motion = MotionPreference.system,
+    super.key,
+  });
+  final String label;
+  final T value;
+  final List<(T, String)> options;
+  final ValueChanged<T>? onChanged;
+  final MotionPreference motion;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final border = theme.inputDecorationTheme.border;
+    final radius = border is OutlineInputBorder
+        ? border.borderRadius
+        : BorderRadius.circular(12);
+    return Semantics(
+      button: true,
+      enabled: onChanged != null,
+      child: Material(
+        color: theme.inputDecorationTheme.fillColor ?? Colors.transparent,
+        borderRadius: radius,
+        child: InkWell(
+          borderRadius: radius,
+          onTap: onChanged == null
+              ? null
+              : () async {
+                  FocusScope.of(context).unfocus();
+                  final selected = await showAppChoice<T>(
+                    context,
+                    title: label,
+                    value: value,
+                    options: options,
+                    motion: motion,
+                  );
+                  if (context.mounted && selected != null) {
+                    onChanged?.call(selected);
+                  }
+                },
+          child: InputDecorator(
+            decoration: InputDecoration(
+              labelText: label,
+              filled: false,
+              enabled: onChanged != null,
+              suffixIcon: const Icon(Icons.expand_more),
+            ),
+            child: Text(
+              options.firstWhere((option) => option.$1 == value).$2,
+              style: theme.textTheme.bodyLarge,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class AppActionRow extends StatelessWidget {
