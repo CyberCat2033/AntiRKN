@@ -53,8 +53,15 @@ class _DragSelectListState extends State<DragSelectList> {
         : null;
   }
 
+  Rect? _viewport() {
+    final own = _rect(bounds);
+    final ancestor = Scrollable.maybeOf(context)?.context.findRenderObject();
+    if (own == null || ancestor is! RenderBox || !ancestor.hasSize) return own;
+    return own.intersect(ancestor.localToGlobal(Offset.zero) & ancestor.size);
+  }
+
   int? _indexAt(Offset position, {bool nearest = false}) {
-    final viewport = _rect(bounds);
+    final viewport = _viewport();
     if (viewport == null) return null;
     int? candidate;
     var distance = double.infinity;
@@ -122,8 +129,11 @@ class _DragSelectListState extends State<DragSelectList> {
       _finish();
       return;
     }
-    final viewport = _rect(bounds);
-    if (viewport == null || !scroll.hasClients) return;
+    final viewport = _viewport();
+    final position = scroll.hasClients
+        ? scroll.position
+        : Scrollable.maybeOf(context)?.position;
+    if (viewport == null || position == null) return;
     final edge = (viewport.height / 4).clamp(24.0, 64.0);
     final y = pointer!.dy;
     final factor = y < viewport.top + edge
@@ -132,12 +142,12 @@ class _DragSelectListState extends State<DragSelectList> {
         ? ((y - viewport.bottom + edge) / edge).clamp(0.0, 1.0)
         : 0.0;
     if (factor == 0) return;
-    final next = (scroll.offset + factor * 12).clamp(
-      scroll.position.minScrollExtent,
-      scroll.position.maxScrollExtent,
+    final next = (position.pixels + factor * 12).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
     );
-    if (next == scroll.offset) return;
-    scroll.jumpTo(next);
+    if (next == position.pixels) return;
+    position.jumpTo(next);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || pointer == null || anchor == null) return;
       final index = _indexAt(pointer!, nearest: true);

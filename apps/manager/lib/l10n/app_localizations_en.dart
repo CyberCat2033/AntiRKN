@@ -3051,4 +3051,12 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get uiServerDataNotCached =>
       'Connect to the server once to save its data on this device.';
+
+  @override
+  String get inboundDeleteSelectionHelp =>
+      'Delete the selected inbounds and their connections? Client records are retained and affected profiles will be updated.';
+
+  @override
+  String get inboundDeleteIncomplete =>
+      'Deletion is incomplete. Check the job in server maintenance; unfinished jobs can be resumed.';
 }

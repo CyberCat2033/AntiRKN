@@ -133,6 +133,7 @@ class RunnerPanel extends StatelessWidget {
             if (failed &&
                 (job.kind == 'protocol_remove' ||
                     job.kind == 'inbound_update' ||
+                    job.kind == 'inbound_remove' ||
                     job.kind == 'awg_external_edit' ||
                     job.kind == 'tt_external_edit' ||
                     job.kind == 'tt_certificate'))

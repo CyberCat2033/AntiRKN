@@ -226,29 +226,26 @@ final class RunnerRequest {
     String id,
     Map<String, Object?> payload,
     String fingerprint,
-  ) =>
-      RunnerRequest.fromJson({
-        'version': 1,
-        'action': 'submit',
-        'id': id,
-        'kind': 'ssh_harden',
-        'count': 7,
-        'interval': 1,
-        'payload': jsonEncode(payload),
-        'fingerprint': fingerprint,
-      });
-  factory RunnerRequest.sshHardenConfirm(String id) =>
-      RunnerRequest.fromJson({
-        'version': 1,
-        'action': 'ssh_harden_confirm',
-        'id': id,
-      });
-  factory RunnerRequest.sshHardenAbort(String id) =>
-      RunnerRequest.fromJson({
-        'version': 1,
-        'action': 'ssh_harden_abort',
-        'id': id,
-      });
+  ) => RunnerRequest.fromJson({
+    'version': 1,
+    'action': 'submit',
+    'id': id,
+    'kind': 'ssh_harden',
+    'count': 7,
+    'interval': 1,
+    'payload': jsonEncode(payload),
+    'fingerprint': fingerprint,
+  });
+  factory RunnerRequest.sshHardenConfirm(String id) => RunnerRequest.fromJson({
+    'version': 1,
+    'action': 'ssh_harden_confirm',
+    'id': id,
+  });
+  factory RunnerRequest.sshHardenAbort(String id) => RunnerRequest.fromJson({
+    'version': 1,
+    'action': 'ssh_harden_abort',
+    'id': id,
+  });
   final Map<String, Object?> json;
   String? get id => json['id'] as String?;
 }
@@ -315,6 +312,7 @@ final class RunnerJob {
           'component_install',
           'protocol_remove',
           'inbound_update',
+          'inbound_remove',
           'apt_update',
           'apt_upgrade',
           'ssh_harden',

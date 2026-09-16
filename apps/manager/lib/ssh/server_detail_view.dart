@@ -2,6 +2,7 @@ import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
+import '../catalog_selection.dart';
 import '../runner/component_installation_view.dart';
 import '../runner/component_updates_controller.dart';
 import '../runner/runner_panel.dart';
@@ -18,12 +19,14 @@ class ServerProtocolSection {
     required this.child,
     this.detected = false,
     this.onRemove,
+    this.selection,
   });
   final String name, mark;
   final int count;
   final bool detected;
   final Widget child;
   final Future<bool> Function()? onRemove;
+  final CatalogSelection? selection;
 }
 
 class ServerDetailView extends StatefulWidget {
@@ -492,7 +495,11 @@ class _ServerDetailViewState extends State<ServerDetailView> {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([widget.session, widget.session.runner]),
+    listenable: Listenable.merge([
+      widget.session,
+      widget.session.runner,
+      ...widget.sections.map((s) => s.selection),
+    ]),
     builder: (context, _) {
       final c = widget.session, l = AppLocalizations.of(context);
       final active = AppPageVisibility.of(context);
@@ -515,6 +522,13 @@ class _ServerDetailViewState extends State<ServerDetailView> {
         canPop: !active,
         onPopInvokedWithResult: (didPop, _) {
           if (didPop || !active || c.vaultBusy || c.picking) return;
+          final selection = index >= 5
+              ? widget.sections[index - 5].selection
+              : null;
+          if (selection?.active == true) {
+            selection!.exit();
+            return;
+          }
           if (index == 0 || requiresConnection) {
             widget.onBack?.call();
           } else {
@@ -534,7 +548,16 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                         ? null
                         : index == 0 || requiresConnection
                         ? widget.onBack
-                        : () => open(0),
+                        : () {
+                            final selection = index >= 5
+                                ? widget.sections[index - 5].selection
+                                : null;
+                            if (selection?.active == true) {
+                              selection!.exit();
+                            } else {
+                              open(0);
+                            }
+                          },
                     icon: const Icon(Icons.arrow_back),
                   ),
                   Expanded(child: AppAnimatedTitle(titles[index])),

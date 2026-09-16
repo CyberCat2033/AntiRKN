@@ -1182,5 +1182,7 @@
   "sshHardenPortBusy": "The selected port is already in use.",
   "sshHardenFailed": "SSH hardening failed. Rolled back to previous state.",
   "sshHardenRandomUser": "Pick a random character",
-  "uiServerDataNotCached": "Connect to the server once to save its data on this device."
+  "uiServerDataNotCached": "Connect to the server once to save its data on this device.",
+  "inboundDeleteSelectionHelp": "Delete the selected inbounds and their connections? Client records are retained and affected profiles will be updated.",
+  "inboundDeleteIncomplete": "Deletion is incomplete. Check the job in server maintenance; unfinished jobs can be resumed."
 }

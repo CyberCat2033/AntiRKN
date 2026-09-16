@@ -3056,4 +3056,12 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get uiServerDataNotCached =>
       'Подключитесь к серверу один раз, чтобы сохранить его данные на этом устройстве.';
+
+  @override
+  String get inboundDeleteSelectionHelp =>
+      'Удалить выбранные inbounds вместе с их подключениями? Записи клиентов сохранятся, затронутые профили будут обновлены.';
+
+  @override
+  String get inboundDeleteIncomplete =>
+      'Удаление завершено не полностью. Проверьте состояние задания в обслуживании сервера; незавершённое задание можно повторить.';
 }

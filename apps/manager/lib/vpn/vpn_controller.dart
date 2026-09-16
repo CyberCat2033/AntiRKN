@@ -335,6 +335,41 @@ class VpnController extends ChangeNotifier {
     await _profiles();
   });
 
+  Future<void> deleteInbounds(List<VlessInbound> expected) => _run((
+    token,
+  ) async {
+    if (!loaded || hasRunning || expected.isEmpty) {
+      throw const FormatException('vpn_busy');
+    }
+    for (final inbound in expected) {
+      final current = workspace.inbounds
+          .where((r) => r.id == inbound.id && r.serverId == inbound.serverId)
+          .firstOrNull;
+      if (current == null ||
+          current.deleted ||
+          canonicalJson(current.spec) != canonicalJson(inbound.spec)) {
+        throw const FormatException('vless_conflict');
+      }
+    }
+    final ids = expected.map((r) => r.id).toSet();
+    await _write(
+      workspace.copy(
+        inbounds: [
+          for (final r in workspace.inbounds)
+            if (ids.contains(r.id))
+              VlessInbound(
+                serverId: r.serverId,
+                spec: {...r.spec, 'deleted': true, 'enabled': false},
+              )
+            else
+              r,
+        ],
+      ),
+    );
+    plans = [];
+    await _profiles();
+  });
+
   Future<bool> retireProtocol(String serverId, String protocol) async {
     if (busy || hasRunning || !loaded) return false;
     var saved = false;

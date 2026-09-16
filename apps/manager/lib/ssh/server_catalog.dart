@@ -77,11 +77,13 @@ class ServerCatalog extends StatefulWidget {
 class _ServerCatalogState extends State<ServerCatalog> {
   final _legacyPassword = TextEditingController();
   final ownSelection = CatalogSelection();
+  final inboundSelection = CatalogSelection();
   CatalogSelection get selection => widget.selection ?? ownSelection;
   @override
   void dispose() {
     _legacyPassword.dispose();
     ownSelection.dispose();
+    inboundSelection.dispose();
     super.dispose();
   }
 
@@ -165,6 +167,7 @@ class _ServerCatalogState extends State<ServerCatalog> {
             : [
                 ServerProtocolSection(
                   name: 'VLESS',
+                  selection: inboundSelection,
                   onRemove: () => removeServerProtocol(
                     context,
                     session,
@@ -176,6 +179,7 @@ class _ServerCatalogState extends State<ServerCatalog> {
                   count: managed.length + external.length,
                   detected: session.runner.panelDetected,
                   child: InboundsPanel(
+                    selection: inboundSelection,
                     showPlan: false,
                     controller: vpn,
                     runner: session.runner,

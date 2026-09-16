@@ -507,8 +507,9 @@ class RunnerController extends ChangeNotifier {
 
   Future<bool> applyInbound(
     Map<String, Object?> payload,
-    String fingerprint,
-  ) async {
+    String fingerprint, {
+    bool remove = false,
+  }) async {
     if (panelAccess == null || !canStart) return false;
     var success = false;
     await _run((remote, token) async {
@@ -520,7 +521,7 @@ class RunnerController extends ChangeNotifier {
         'version': 1,
         'action': 'submit',
         'id': id,
-        'kind': 'inbound_update',
+        'kind': remove ? 'inbound_remove' : 'inbound_update',
         'count': 3,
         'interval': 1,
         'payload': jsonEncode({...payload, 'panelId': panelAccess!.id}),
@@ -1306,6 +1307,7 @@ class RunnerController extends ChangeNotifier {
           'component_install',
           'protocol_remove',
           'inbound_update',
+          'inbound_remove',
           'awg_external_edit',
           'tt_external_edit',
           'tt_certificate',
@@ -1496,6 +1498,7 @@ class RunnerController extends ChangeNotifier {
           'protocol_remove',
           'apt_upgrade',
           'inbound_update',
+          'inbound_remove',
           'awg_external_edit',
           'tt_external_edit',
           'tt_certificate',

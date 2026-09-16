@@ -5431,6 +5431,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Connect to the server once to save its data on this device.'**
   String get uiServerDataNotCached;
+
+  /// No description provided for @inboundDeleteSelectionHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete the selected inbounds and their connections? Client records are retained and affected profiles will be updated.'**
+  String get inboundDeleteSelectionHelp;
+
+  /// No description provided for @inboundDeleteIncomplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Deletion is incomplete. Check the job in server maintenance; unfinished jobs can be resumed.'**
+  String get inboundDeleteIncomplete;
 }
 
 class _AppLocalizationsDelegate

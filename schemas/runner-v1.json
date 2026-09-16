@@ -76,7 +76,8 @@
           "tt_external_edit",
           "tt_certificate",
           "protocol_remove",
-          "ssh_harden"
+          "ssh_harden",
+          "inbound_remove"
         ]
       },
       "count": {
@@ -471,6 +472,16 @@
         "interval",
         "payload",
         "fingerprint"
+      ],
+      "inbound_remove": [
+        "version",
+        "action",
+        "id",
+        "kind",
+        "count",
+        "interval",
+        "payload",
+        "fingerprint"
       ]
     },
     "kindConstants": {
@@ -516,6 +527,10 @@
       },
       "ssh_harden": {
         "count": 7,
+        "interval": 1
+      },
+      "inbound_remove": {
+        "count": 3,
         "interval": 1
       }
     }

@@ -16,6 +16,7 @@ from panel_discovery import discover as discover_panel, connect_existing, extern
 from components import ComponentInstaller, ComponentError
 from protocol_remove import ProtocolRemoval, RemovalError, plan as removal_plan
 from ssh_harden import SshHardenJob, SshHardenError, rollback as ssh_harden_rollback, backup_path as ssh_harden_backup_path, plan as ssh_harden_plan
+from inbound_remove import InboundRemove, plan as removal_plan
 from observed_inbounds import ObservedInboundEdit, snapshot as inbound_snapshot, plan as inbound_plan, stage_payload
 from apt import AptJob, AptError, plan as apt_plan
 from contract import SCHEMA, validate_request
@@ -111,7 +112,7 @@ class Store:
         if action == 'inbound_read':
             return {**self.response('ok'), 'inboundSnapshot': inbound_snapshot(self, req)}
         if action == 'inbound_plan':
-            return {**self.response('ok'), 'inboundPlan': inbound_plan(self, req)}
+            return {**self.response('ok'), 'inboundPlan': (removal_plan(self, req) if 'removals' in json.loads(req['payload']) else inbound_plan(self, req))}
         if action == 'apt_plan':
             return {**self.response('ok'), 'aptPlan': apt_plan()}
         if action == 'reality_scan':
@@ -208,7 +209,7 @@ class Store:
                 code = 'missing'
             elif action == 'resume':
                 original = json.loads(row['request'])
-                if original['kind'] not in ('panel_install', 'panel_update', 'vless_apply', 'awg_apply', 'awg_external_edit', 'tt_apply', 'tt_external_edit', 'tt_certificate', 'component_install', 'protocol_remove', 'inbound_update') or row['status'] not in ('failed', 'partially_applied'):
+                if original['kind'] not in ('panel_install', 'panel_update', 'vless_apply', 'awg_apply', 'awg_external_edit', 'tt_apply', 'tt_external_edit', 'tt_certificate', 'component_install', 'protocol_remove', 'inbound_update', 'inbound_remove') or row['status'] not in ('failed', 'partially_applied'):
                     code = 'conflict'
                 elif self.db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running')").fetchone():
                     code = 'busy'
@@ -277,7 +278,7 @@ class Store:
                 self.db.execute('UPDATE jobs SET status=? WHERE id=?', (status, job_id))
                 self.event(job_id, code, progress, req['count'])
             return 0.1
-        if req['kind'] in ('vless_apply', 'awg_apply', 'awg_external_edit', 'inbound_update', 'tt_apply', 'tt_external_edit', 'tt_certificate'):
+        if req['kind'] in ('vless_apply', 'awg_apply', 'awg_external_edit', 'inbound_update', 'inbound_remove', 'tt_apply', 'tt_external_edit', 'tt_certificate'):
             try:
                 if row['cancel']:
                     # After preflight, an API effect may already have happened
@@ -285,7 +286,7 @@ class Store:
                     status = 'partially_applied' if row['checkpoint'] > 0 else 'cancelled'
                     code = 'vless_partial' if status == 'partially_applied' else 'cancelled'
                 else:
-                    (TtApply(self, req) if req['kind'] == 'tt_apply' else ExternalTtEdit(self, req) if req['kind'] == 'tt_external_edit' else CertificateJob(self, req) if req['kind'] == 'tt_certificate' else ObservedInboundEdit(self, req) if req['kind'] == 'inbound_update' else ExternalAwgEdit(self, req) if req['kind'] == 'awg_external_edit' else AwgApply(self, req) if req['kind'] == 'awg_apply' else VlessApply(self, req)).step(row['checkpoint'])
+                    (InboundRemove(self, req) if req['kind'] == 'inbound_remove' else TtApply(self, req) if req['kind'] == 'tt_apply' else ExternalTtEdit(self, req) if req['kind'] == 'tt_external_edit' else CertificateJob(self, req) if req['kind'] == 'tt_certificate' else ObservedInboundEdit(self, req) if req['kind'] == 'inbound_update' else ExternalAwgEdit(self, req) if req['kind'] == 'awg_external_edit' else AwgApply(self, req) if req['kind'] == 'awg_apply' else VlessApply(self, req)).step(row['checkpoint'])
                     if row['checkpoint'] + 1 < req['count']:
                         return 0.1
                     status, code = 'succeeded', 'succeeded'
