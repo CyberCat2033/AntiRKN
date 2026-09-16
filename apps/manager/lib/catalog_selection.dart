@@ -16,26 +16,34 @@ class CatalogSelection extends ChangeNotifier {
     return true;
   }
 
-  void start() {
+  void start({bool longPress = false}) {
     if (active) return;
-    AppHaptics.selection();
+    if (longPress) {
+      AppHaptics.dragStart();
+    } else {
+      AppHaptics.selection();
+    }
     active = true;
     ids.clear();
     notifyListeners();
   }
 
   void exit() {
+    if (!active) return;
+    AppHaptics.selection();
     active = false;
     ids.clear();
     notifyListeners();
   }
 
   void toggle(String id) {
+    AppHaptics.selection();
     if (!ids.remove(id)) ids.add(id);
     notifyListeners();
   }
 
   void selectAll(Iterable<String> available) {
+    AppHaptics.selection();
     final next = available.toSet();
     if (next.isNotEmpty && ids.containsAll(next)) {
       ids.clear();
@@ -46,6 +54,97 @@ class CatalogSelection extends ChangeNotifier {
     }
     notifyListeners();
   }
+}
+
+/// The avatar stays in place while space for selection expands from the left.
+class CatalogSelectionLeading extends StatelessWidget {
+  const CatalogSelectionLeading({
+    required this.active,
+    required this.selected,
+    required this.onChanged,
+    required this.child,
+    this.checkboxKey,
+    super.key,
+  });
+  final bool active, selected;
+  final ValueChanged<bool?>? onChanged;
+  final Widget child;
+  final Key? checkboxKey;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      TweenAnimationBuilder<double>(
+        tween: Tween(end: active ? 1 : 0),
+        duration: AppMotion.duration(context, MotionPreference.system),
+        curve: Curves.easeInOutCubicEmphasized,
+        builder: (context, value, _) => ClipRect(
+          child: SizedBox(
+            width: 36 * value,
+            height: 48,
+            child: OverflowBox(
+              alignment: Alignment.centerLeft,
+              minWidth: 36,
+              maxWidth: 36,
+              child: ExcludeSemantics(
+                excluding: !active,
+                child: IgnorePointer(
+                  ignoring: !active,
+                  child: Opacity(
+                    opacity: value,
+                    child: Transform.scale(
+                      scale: .86 + .14 * value,
+                      alignment: Alignment.centerLeft,
+                      child: Checkbox(
+                        key: checkboxKey,
+                        value: selected,
+                        onChanged: active ? onChanged : null,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+      child,
+    ],
+  );
+}
+
+class CatalogTitle extends StatelessWidget {
+  const CatalogTitle({required this.selection, required this.title, super.key});
+  final CatalogSelection selection;
+  final String title;
+  @override
+  Widget build(BuildContext context) => AnimatedSwitcher(
+    duration: AppMotion.duration(context, MotionPreference.system),
+    child: Text(
+      selection.active
+          ? AppLocalizations.of(context).catalogSelected(selection.ids.length)
+          : title,
+      key: ValueKey(selection.active),
+    ),
+  );
+}
+
+class CatalogNormalContent extends StatelessWidget {
+  const CatalogNormalContent({
+    required this.selection,
+    required this.child,
+    super.key,
+  });
+  final CatalogSelection selection;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => AnimatedSize(
+    duration: AppMotion.duration(context, MotionPreference.system),
+    curve: Curves.easeInOutCubicEmphasized,
+    alignment: Alignment.topCenter,
+    child: selection.active ? const SizedBox(width: double.infinity) : child,
+  );
 }
 
 class CatalogActions extends StatelessWidget {

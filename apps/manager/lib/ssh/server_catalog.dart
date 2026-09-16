@@ -262,19 +262,25 @@ class _ServerCatalogState extends State<ServerCatalog> {
           key: const PageStorageKey('server-list'),
           padding: AppLayout.screenPadding(context),
           children: [
-            if (!selection.active) ...[
-              FilledButton.icon(
-                key: const ValueKey('server-add'),
-                onPressed: c.loading
-                    ? null
-                    : () {
-                        c.add();
-                      },
-                icon: const Icon(Icons.add),
-                label: Text(l.addServer),
+            CatalogNormalContent(
+              selection: selection,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  FilledButton.icon(
+                    key: const ValueKey('server-add'),
+                    onPressed: c.loading
+                        ? null
+                        : () {
+                            c.add();
+                          },
+                    icon: const Icon(Icons.add),
+                    label: Text(l.addServer),
+                  ),
+                  const SizedBox(height: 20),
+                ],
               ),
-              const SizedBox(height: 20),
-            ],
+            ),
             AppSectionHeading(title: l.uiMyServers, count: c.servers.length),
             if (c.loading) const LinearProgressIndicator(),
             if (c.error case final issue?) ...[
@@ -383,32 +389,23 @@ class _ServerCatalogState extends State<ServerCatalog> {
                                 selected:
                                     selection.active &&
                                     selection.ids.contains(server.id),
-                                leading: AnimatedSwitcher(
-                                  duration: AppMotion.duration(
-                                    context,
-                                    widget.motion,
+                                leading: CatalogSelectionLeading(
+                                  active: selection.active,
+                                  selected: selection.ids.contains(server.id),
+                                  checkboxKey: ValueKey(
+                                    'server-select-${server.id}',
                                   ),
-                                  child: selection.active
-                                      ? Checkbox(
-                                          key: ValueKey(
-                                            'server-select-${server.id}',
-                                          ),
-                                          value: selection.ids.contains(
-                                            server.id,
-                                          ),
-                                          onChanged: c.loading
-                                              ? null
-                                              : (_) =>
-                                                    selection.toggle(server.id),
-                                        )
-                                      : AppIconTile(
-                                          text: server.profile.displayName
-                                              .trim()
-                                              .characters
-                                              .take(2)
-                                              .toString()
-                                              .toUpperCase(),
-                                        ),
+                                  onChanged: c.loading
+                                      ? null
+                                      : (_) => selection.toggle(server.id),
+                                  child: AppIconTile(
+                                    text: server.profile.displayName
+                                        .trim()
+                                        .characters
+                                        .take(2)
+                                        .toString()
+                                        .toUpperCase(),
+                                  ),
                                 ),
                                 title: Text(server.profile.displayName),
                                 subtitle: Column(

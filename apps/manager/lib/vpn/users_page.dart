@@ -241,22 +241,28 @@ class _UsersPageState extends State<UsersPage> {
           padding: AppLayout.screenPadding(context),
           children: [
             AppPageIntro(l.uiClientsIntro),
-            if (!selection.active) ...[
-              FilledButton.icon(
-                onPressed: c.busy || !c.loaded
-                    ? null
-                    : () => UsersPage.edit(
-                        context,
-                        c,
-                        motion,
-                        null,
-                        publications,
-                      ),
-                icon: const Icon(Icons.add),
-                label: Text(l.vpnAddUser),
+            CatalogNormalContent(
+              selection: selection,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  FilledButton.icon(
+                    onPressed: c.busy || !c.loaded
+                        ? null
+                        : () => UsersPage.edit(
+                            context,
+                            c,
+                            motion,
+                            null,
+                            publications,
+                          ),
+                    icon: const Icon(Icons.add),
+                    label: Text(l.vpnAddUser),
+                  ),
+                  const SizedBox(height: 20),
+                ],
               ),
-              const SizedBox(height: 20),
-            ],
+            ),
             AppSectionHeading(
               title: l.vpnUsers,
               count: c.workspace.users.where((u) => !u.deleted).length,
@@ -335,29 +341,24 @@ class _UsersPageState extends State<UsersPage> {
                             clipBehavior: Clip.hardEdge,
                             child: ListTile(
                               key: ValueKey('client-${user.id}'),
-                              leading: AnimatedSwitcher(
-                                duration: AppMotion.duration(context, motion),
-                                child: selection.active
-                                    ? Checkbox(
-                                        key: ValueKey(
-                                          'client-select-${user.id}',
-                                        ),
-                                        value: selection.ids.contains(user.id),
-                                        onChanged: c.busy
-                                            ? null
-                                            : (_) => selection.toggle(user.id),
-                                      )
-                                    : AppIconTile(
-                                        round: true,
-                                        key: ValueKey(
-                                          'client-avatar-${user.id}',
-                                        ),
-                                        text: user.name
-                                            .trim()
-                                            .characters
-                                            .first
-                                            .toUpperCase(),
-                                      ),
+                              leading: CatalogSelectionLeading(
+                                active: selection.active,
+                                selected: selection.ids.contains(user.id),
+                                checkboxKey: ValueKey(
+                                  'client-select-${user.id}',
+                                ),
+                                onChanged: c.busy
+                                    ? null
+                                    : (_) => selection.toggle(user.id),
+                                child: AppIconTile(
+                                  round: true,
+                                  key: ValueKey('client-avatar-${user.id}'),
+                                  text: user.name
+                                      .trim()
+                                      .characters
+                                      .first
+                                      .toUpperCase(),
+                                ),
                               ),
                               title: Text(user.name),
                               subtitle: Column(

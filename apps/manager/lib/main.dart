@@ -628,10 +628,9 @@ class _ManagerShellState extends State<ManagerShell>
               appBar: _index == 2 || _index == 0 && _catalog?.selectedId != null
                   ? null
                   : AppBar(
-                      title: Text(
-                        _index < 2 && _selection.active
-                            ? l.catalogSelected(_selection.ids.length)
-                            : labels[_index],
+                      title: CatalogTitle(
+                        selection: _selection,
+                        title: labels[_index],
                       ),
                       actions: [
                         if (_index == 0 && _catalog != null)

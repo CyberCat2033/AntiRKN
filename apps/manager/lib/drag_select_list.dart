@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'catalog_selection.dart';
 
 typedef SelectableItem = Widget Function(String id, Widget child);
@@ -30,6 +31,8 @@ class _DragSelectListState extends State<DragSelectList> {
   Offset? pointer;
   int? anchor;
   Set<String> before = {};
+  final _hapticClock = Stopwatch()..start();
+  int _lastTick = 0;
 
   @override
   void didUpdateWidget(DragSelectList oldWidget) {
@@ -76,18 +79,31 @@ class _DragSelectListState extends State<DragSelectList> {
     final index = _indexAt(details.globalPosition);
     if (index == null) return;
     before = widget.selection.active ? Set.of(widget.selection.ids) : {};
-    if (!widget.selection.active) widget.selection.start();
+    if (!widget.selection.active) {
+      widget.selection.start(longPress: true);
+    } else {
+      AppHaptics.dragStart();
+    }
     anchor = index;
     pointer = details.globalPosition;
-    _range(index);
+    _range(index, feedback: false);
     timer = Timer.periodic(const Duration(milliseconds: 16), (_) => _scroll());
   }
 
-  void _range(int end) {
+  void _range(int end, {bool feedback = true}) {
     final start = anchor;
     if (start == null) return;
     final lo = start < end ? start : end, hi = start > end ? start : end;
-    widget.selection.replace({...before, ...widget.ids.sublist(lo, hi + 1)});
+    final changed = widget.selection.replace({
+      ...before,
+      ...widget.ids.sublist(lo, hi + 1),
+    });
+    if (changed &&
+        feedback &&
+        _hapticClock.elapsedMilliseconds - _lastTick >= 60) {
+      _lastTick = _hapticClock.elapsedMilliseconds;
+      AppHaptics.dragTick();
+    }
   }
 
   void _move(LongPressMoveUpdateDetails details) {

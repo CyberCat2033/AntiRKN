@@ -83,7 +83,25 @@ class AppOpenContainer extends StatelessWidget {
 
 /// Deliberate edit-mode entry, additions and confirmed deletions.
 abstract final class AppHaptics {
-  static void selection() => _impact(HapticFeedback.selectionClick);
+  static const _channel = MethodChannel('org.antirkn/haptics');
+  static void selection() => _selection('press', HapticFeedback.selectionClick);
+  static void dragStart() =>
+      _selection('dragStart', HapticFeedback.heavyImpact);
+  static void dragTick() =>
+      _selection('dragTick', HapticFeedback.selectionClick);
+
+  static void _selection(String kind, Future<void> Function() fallback) {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+      _impact(fallback);
+      return;
+    }
+    unawaited(
+      _channel.invokeMethod<void>(kind).catchError((Object _) {
+        _impact(fallback);
+      }),
+    );
+  }
+
   static void added() => _impact(HapticFeedback.lightImpact);
   static void deleted() => _impact(HapticFeedback.mediumImpact);
 

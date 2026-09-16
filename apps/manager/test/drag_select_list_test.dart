@@ -9,7 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   for (final locale in ['ru', 'en']) {
     testWidgets(
-      'long press, reversible range and edge scroll with one edit-mode haptic: $locale',
+      'long press, reversible range and edge scroll with semantic drag haptics: $locale',
       (tester) async {
         tester.view.physicalSize = const Size(390, 650);
         tester.view.devicePixelRatio = 1;
@@ -19,17 +19,15 @@ void main() {
         addTearDown(selection.dispose);
         final feedback = <String>[];
         tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-          SystemChannels.platform,
+          const MethodChannel('org.antirkn/haptics'),
           (call) async {
-            if (call.method == 'HapticFeedback.vibrate') {
-              feedback.add(call.arguments as String);
-            }
+            feedback.add(call.method);
             return null;
           },
         );
         addTearDown(
           () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-            SystemChannels.platform,
+            const MethodChannel('org.antirkn/haptics'),
             null,
           ),
         );
@@ -127,9 +125,11 @@ void main() {
         await gesture.up();
         await tester.pumpAndSettle();
         expect(taps, 0);
-        expect(feedback, ['HapticFeedbackType.selectionClick']);
+        expect(feedback.first, 'dragStart');
+        expect(feedback.where((f) => f == 'dragStart'), hasLength(1));
+        final afterDrag = List<String>.of(feedback);
         await tester.pump(const Duration(seconds: 1));
-        expect(feedback, ['HapticFeedbackType.selectionClick']);
+        expect(feedback, afterDrag);
         await tester.tap(find.byKey(const ValueKey('test-select-all')));
         await tester.pumpAndSettle();
         expect(selection.ids.length, 40);
@@ -139,7 +139,7 @@ void main() {
         await tester.tap(find.byKey(const ValueKey('test-edit-exit')));
         await tester.pumpAndSettle();
         expect(selection.active, false);
-        expect(feedback, ['HapticFeedbackType.selectionClick']);
+        expect(feedback.skip(afterDrag.length), ['press', 'press', 'press']);
         expect(tester.takeException(), isNull);
       },
     );
