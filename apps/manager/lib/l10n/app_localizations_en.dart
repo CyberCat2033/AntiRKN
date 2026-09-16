@@ -3059,4 +3059,159 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get inboundDeleteIncomplete =>
       'Deletion is incomplete. Check the job in server maintenance; unfinished jobs can be resumed.';
+
+  @override
+  String get diagTitle => 'IP diagnostics';
+
+  @override
+  String get diagBaseline => 'Checking the initial connection';
+
+  @override
+  String get diagTarget => 'Checking the address';
+
+  @override
+  String get diagControls => 'Checking control addresses';
+
+  @override
+  String get diagRecovery => 'Watching for connection recovery';
+
+  @override
+  String get diagComplete => 'Check complete';
+
+  @override
+  String get diagCancelled => 'Check stopped';
+
+  @override
+  String get diagNetworkChanged => 'Network changed — results are incomplete';
+
+  @override
+  String get diagInsufficient => 'Too few stable control addresses';
+
+  @override
+  String get diagDegraded => 'Queue stopped after connection loss';
+
+  @override
+  String get diagFailed => 'Unable to complete the check';
+
+  @override
+  String get diagInvalid =>
+      'Enter up to 64 public IPs, port 1–65535, and a certificate hostname for TLS. Targets must be IP addresses, not domain names.';
+
+  @override
+  String get diagConsent =>
+      'Contacting a target IP may temporarily interrupt internet access. The app will test from this device, close idle SSH connections and pause its background sync. If connectivity deteriorates, the queue stops and only controls are checked for about 3 minutes. VPNs and other apps may affect results.';
+
+  @override
+  String get diagStart => 'Start check';
+
+  @override
+  String get diagIntro =>
+      'Check IP reachability and signs of temporary connection loss after contacting it. Specify a port on which the server should accept connections.';
+
+  @override
+  String get diagChooseServer => 'Choose server addresses';
+
+  @override
+  String get diagAddresses => 'IP addresses, one per line';
+
+  @override
+  String get diagPort => 'Port';
+
+  @override
+  String get diagProtocol => 'Probe method';
+
+  @override
+  String get diagSni => 'TLS hostname (SNI and certificate)';
+
+  @override
+  String get diagStop => 'Stop';
+
+  @override
+  String get diagBusy =>
+      'Wait for current server and profile operations to finish.';
+
+  @override
+  String get diagHistoryError => 'Unable to read or save diagnostic history.';
+
+  @override
+  String get diagNetwork => 'Connection';
+
+  @override
+  String diagControlCount(int reachable, int total) {
+    return 'Reachable controls: $reachable of $total';
+  }
+
+  @override
+  String get diagStrong =>
+      'Signs of strong blocking: after contacting the IP, connectivity to several independent control networks deteriorated in two consecutive checks.';
+
+  @override
+  String get diagRegional =>
+      'Foreign control servers are unavailable while the Russian control is reachable.';
+
+  @override
+  String diagRecovered(int seconds) {
+    return 'Control connectivity recovered after $seconds s. Start a new check to continue.';
+  }
+
+  @override
+  String get diagNotRecovered =>
+      'Normal connectivity did not recover during observation.';
+
+  @override
+  String get diagLimits =>
+      'An IP may be unavailable because of a closed port, server failure or routing problem. This check does not prove RKN blocking. A successful connection only applies to the selected port and probe method.';
+
+  @override
+  String get diagControlList => 'Control addresses';
+
+  @override
+  String get diagControlHelp =>
+      '14 IPv4 and 12 IPv6 addresses. Each family is checked twice before use; only stable controls are used, excluding target IPs. At least 90% reachable is normal: 9 of 10 or 13 of 14. DNS controls use TCP port 53; RIPE Atlas uses HTTP port 80. Anycast does not guarantee a foreign route.';
+
+  @override
+  String get diagHistory => 'Recent checks';
+
+  @override
+  String get diagCopyReport => 'Copy report';
+
+  @override
+  String get diagClearHistory => 'Clear history';
+
+  @override
+  String get diagInterrupted => 'Interrupted when the app closed';
+
+  @override
+  String get diagReachable => 'Connection succeeded';
+
+  @override
+  String get diagRefused => 'Connection refused: the port may be closed';
+
+  @override
+  String get diagTlsError => 'TLS or certificate error';
+
+  @override
+  String get diagProtocolError =>
+      'Service response does not match the selected protocol';
+
+  @override
+  String get diagUnreachable => 'No connection: cause undetermined';
+
+  @override
+  String get diagWifi => 'Wi-Fi';
+
+  @override
+  String get diagMobile => 'Mobile network';
+
+  @override
+  String get diagSystem => 'System route';
+
+  @override
+  String get diagForeign => 'Foreign server';
+
+  @override
+  String get diagRussia => 'Russian server';
+
+  @override
+  String get diagAnycast => 'Anycast, location depends on routing';
 }

@@ -17,8 +17,9 @@ String serverBytes(int value) {
 }
 
 class ServerAboutView extends StatelessWidget {
-  const ServerAboutView({required this.controller, super.key});
+  const ServerAboutView({required this.controller, this.onDiagnose, super.key});
   final SshController controller;
+  final void Function(String, int)? onDiagnose;
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: controller,
@@ -76,6 +77,15 @@ class ServerAboutView extends StatelessWidget {
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
+          if (onDiagnose != null)
+            OutlinedButton.icon(
+              onPressed: () => onDiagnose!(
+                addresses.keys.join('\n'),
+                int.tryParse(c.port.text) ?? 22,
+              ),
+              icon: const Icon(Icons.network_check),
+              label: Text(l.diagTitle),
+            ),
           AppSettingsSection(
             title: l.uiPublicAddresses,
             child: Column(
@@ -94,6 +104,19 @@ class ServerAboutView extends StatelessWidget {
                       child: Text(entry.value == IpFamily.ipv4 ? 'v4' : 'v6'),
                     ),
                     title: SelectableText(entry.key),
+                    subtitle: onDiagnose == null
+                        ? null
+                        : Align(
+                            alignment: AlignmentDirectional.centerStart,
+                            child: TextButton.icon(
+                              onPressed: () => onDiagnose!(
+                                entry.key,
+                                int.tryParse(c.port.text) ?? 22,
+                              ),
+                              icon: const Icon(Icons.network_check),
+                              label: Text(l.diagTitle),
+                            ),
+                          ),
                     trailing: IconButton(
                       tooltip: l.uiCopyAddress,
                       icon: const Icon(Icons.copy_outlined),

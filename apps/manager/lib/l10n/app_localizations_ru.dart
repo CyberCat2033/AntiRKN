@@ -3064,4 +3064,159 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get inboundDeleteIncomplete =>
       'Удаление завершено не полностью. Проверьте состояние задания в обслуживании сервера; незавершённое задание можно повторить.';
+
+  @override
+  String get diagTitle => 'Диагностика IP';
+
+  @override
+  String get diagBaseline => 'Проверяем исходное состояние сети';
+
+  @override
+  String get diagTarget => 'Проверяем адрес';
+
+  @override
+  String get diagControls => 'Проверяем контрольные адреса';
+
+  @override
+  String get diagRecovery => 'Ждём восстановления связи';
+
+  @override
+  String get diagComplete => 'Проверка завершена';
+
+  @override
+  String get diagCancelled => 'Проверка остановлена';
+
+  @override
+  String get diagNetworkChanged => 'Сеть изменилась — результат неполный';
+
+  @override
+  String get diagInsufficient => 'Недостаточно стабильных контрольных адресов';
+
+  @override
+  String get diagDegraded => 'Очередь остановлена из-за ухудшения связи';
+
+  @override
+  String get diagFailed => 'Не удалось выполнить проверку';
+
+  @override
+  String get diagInvalid =>
+      'Введите до 64 публичных IP, порт 1–65535 и имя сертификата для TLS. Доменные имена вместо IP не поддерживаются.';
+
+  @override
+  String get diagConsent =>
+      'Обращение к проверяемому IP может временно нарушить доступ в интернет. Приложение проверит сеть с этого устройства, закроет свободные SSH-соединения и приостановит свою фоновую синхронизацию. При ухудшении связи очередь остановится; около 3 минут будут проверяться только контрольные адреса. VPN и другие приложения могут влиять на результат.';
+
+  @override
+  String get diagStart => 'Начать проверку';
+
+  @override
+  String get diagIntro =>
+      'Проверка доступности IP и признаков временной потери связи после обращения к нему. Укажите порт, на котором сервер должен принимать соединения.';
+
+  @override
+  String get diagChooseServer => 'Выбрать адреса сервера';
+
+  @override
+  String get diagAddresses => 'IP-адреса, по одному в строке';
+
+  @override
+  String get diagPort => 'Порт';
+
+  @override
+  String get diagProtocol => 'Способ проверки';
+
+  @override
+  String get diagSni => 'Имя сайта для TLS (SNI и сертификат)';
+
+  @override
+  String get diagStop => 'Остановить';
+
+  @override
+  String get diagBusy =>
+      'Дождитесь завершения текущих операций с серверами и профилями.';
+
+  @override
+  String get diagHistoryError =>
+      'Не удалось прочитать или сохранить историю проверок.';
+
+  @override
+  String get diagNetwork => 'Подключение';
+
+  @override
+  String diagControlCount(int reachable, int total) {
+    return 'Контрольные адреса доступны: $reachable из $total';
+  }
+
+  @override
+  String get diagStrong =>
+      'Признаки сильной блокировки: после обращения к IP связь с несколькими независимыми контрольными сетями ухудшилась в двух проверках подряд.';
+
+  @override
+  String get diagRegional =>
+      'Зарубежные контрольные серверы недоступны, российский доступен.';
+
+  @override
+  String diagRecovered(int seconds) {
+    return 'Контрольная связь восстановилась через $seconds с. Для продолжения нужна новая проверка.';
+  }
+
+  @override
+  String get diagNotRecovered =>
+      'В течение наблюдения нормальная связь не восстановилась.';
+
+  @override
+  String get diagLimits =>
+      'Недоступность IP может быть вызвана закрытым портом, неисправностью сервера или маршрута. Проверка не доказывает блокировку РКН. Успешное соединение относится только к указанному порту и способу проверки.';
+
+  @override
+  String get diagControlList => 'Контрольные адреса';
+
+  @override
+  String get diagControlHelp =>
+      '14 IPv4 и 12 IPv6 адресов. Сначала дважды проверяем адреса нужного семейства; используем только стабильные, исключая проверяемые IP. Доступность не ниже 90% считается нормальной: 9 из 10 или 13 из 14. Для DNS проверяем TCP-порт 53, для RIPE Atlas — HTTP-порт 80. Anycast не гарантирует зарубежный маршрут.';
+
+  @override
+  String get diagHistory => 'Последние проверки';
+
+  @override
+  String get diagCopyReport => 'Скопировать отчёт';
+
+  @override
+  String get diagClearHistory => 'Очистить историю';
+
+  @override
+  String get diagInterrupted => 'Прервано при закрытии приложения';
+
+  @override
+  String get diagReachable => 'Соединение успешно';
+
+  @override
+  String get diagRefused => 'Соединение отклонено: возможен закрытый порт';
+
+  @override
+  String get diagTlsError => 'Ошибка TLS или сертификата';
+
+  @override
+  String get diagProtocolError => 'Сервис ответил не по выбранному протоколу';
+
+  @override
+  String get diagUnreachable => 'Нет соединения: причина не установлена';
+
+  @override
+  String get diagWifi => 'Wi-Fi';
+
+  @override
+  String get diagMobile => 'Мобильная сеть';
+
+  @override
+  String get diagSystem => 'Маршрут системы';
+
+  @override
+  String get diagForeign => 'Зарубежный сервер';
+
+  @override
+  String get diagRussia => 'Российский сервер';
+
+  @override
+  String get diagAnycast => 'Anycast, расположение зависит от маршрута';
 }

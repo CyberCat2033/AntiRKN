@@ -1,3 +1,9 @@
+import 'package:flutter/foundation.dart';
+import 'package:antirkn_network_inventory/antirkn_network_inventory.dart';
+import 'network/android_ip_probe_transport.dart';
+import 'network/socket_ip_probe_transport.dart';
+import 'network/ip_diagnostics_controller.dart';
+import 'network/ip_diagnostics_page.dart';
 import 'settings_hub.dart';
 import 'desktop_back_gesture.dart';
 import 'catalog_selection.dart';
@@ -317,6 +323,7 @@ class _AntiRknAppState extends State<AntiRknApp> {
                   settingsError: _settingsError,
                   googleAccount: widget.googleAccount,
                   autoSync: widget.autoSync,
+                  settings: widget.settings,
                   theme: _theme,
                   motion: _motion,
                   onTheme: (value) =>
@@ -345,6 +352,7 @@ class ManagerShell extends StatefulWidget {
     this.settingsError = false,
     this.googleAccount,
     this.autoSync,
+    this.settings,
     required this.theme,
     required this.motion,
     required this.onTheme,
@@ -364,6 +372,7 @@ class ManagerShell extends StatefulWidget {
   final bool settingsError;
   final GoogleAccountService? googleAccount;
   final AutoSyncController? autoSync;
+  final SettingsStore? settings;
   final SshDependencies? ssh;
   final ThemeMode theme;
   final MotionPreference motion;
@@ -389,12 +398,31 @@ class _ManagerShellState extends State<ManagerShell>
   VpnController? _vpn;
   PublicationController? _publications;
   bool _applyingSync = false;
+  bool _diagnosing = false;
+  ComponentUpdatesController? _diagnosticUpdates;
+  late final IpDiagnosticsController _diagnostics;
   int _syncRevision = 0;
-  static const _icons = [Icons.dns_outlined, Icons.people_outline, Icons.tune];
+  static const _icons = [
+    Icons.dns_outlined,
+    Icons.people_outline,
+    Icons.network_check,
+    Icons.tune,
+  ];
 
   @override
   void initState() {
     super.initState();
+    _diagnostics = IpDiagnosticsController(
+      engine: IpDiagnosticEngine(
+        transport: defaultTargetPlatform == TargetPlatform.android
+            ? AndroidIpProbeTransport()
+            : SocketIpProbeTransport(),
+        controls: defaultIpControls(),
+      ),
+      store: widget.settings,
+      enter: _enterDiagnostics,
+      leave: _leaveDiagnostics,
+    )..addListener(_syncChanged);
     _serverSelection.addListener(_syncChanged);
     _clientSelection.addListener(_syncChanged);
     _networkController = NetworkController(reader: widget.networkReader);
@@ -483,6 +511,7 @@ class _ManagerShellState extends State<ManagerShell>
           sync: widget.autoSync,
           canPublish: () =>
               !_applyingSync &&
+              !_diagnosing &&
               !_controller.importing &&
               !_controller.savingDraft &&
               !_controller.draftSaveFailed,
@@ -492,8 +521,79 @@ class _ManagerShellState extends State<ManagerShell>
     }
   }
 
+  Future<bool> _enterDiagnostics() async {
+    final updates = ComponentUpdatesScope.of(context);
+    if (_applyingSync ||
+        (updates?.busy ?? false) ||
+        (_catalog?.diagnosticsConflict ?? false) ||
+        (_sshController?.busy ?? false) ||
+        (_sshController?.runner.busy ?? false) ||
+        (_vpn?.busy ?? false) ||
+        (_vpn?.hasRunning ?? false) ||
+        (_publications?.busy ?? false) ||
+        _networkController.loading ||
+        _controller.importing ||
+        _controller.savingDraft) {
+      return false;
+    }
+    _diagnosing = true;
+    _diagnosticUpdates = updates;
+    updates?.diagnosticsPaused = true;
+    _vpn?.diagnosticsPaused = true;
+    try {
+      await widget.autoSync?.pauseDiagnostics(true);
+      await _publications?.suspend();
+      _catalog?.disconnectForDiagnostics();
+      _sshController?.disconnect();
+      return true;
+    } catch (_) {
+      await _leaveDiagnostics();
+      rethrow;
+    }
+  }
+
+  Future<void> _leaveDiagnostics() async {
+    _diagnosing = false;
+    _diagnosticUpdates?.diagnosticsPaused = false;
+    _diagnosticUpdates = null;
+    if (!mounted) return;
+    _vpn?.diagnosticsPaused = false;
+    await widget.autoSync?.pauseDiagnostics(false);
+    _publications?.resume();
+  }
+
+  Future<void> _openDiagnostics(String addresses, int port) async {
+    _diagnostics.seed(addresses, serverPort: port);
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (context) => ListenableBuilder(
+          listenable: _diagnostics,
+          builder: (context, _) => PopScope(
+            canPop: !_diagnostics.busy,
+            onPopInvokedWithResult: (didPop, _) {
+              if (!didPop) _diagnostics.stop();
+            },
+            child: Scaffold(
+              appBar: AppBar(
+                title: Text(AppLocalizations.of(context).diagTitle),
+              ),
+              body: SafeArea(
+                child: IpDiagnosticsPage(
+                  controller: _diagnostics,
+                  servers: _catalog?.servers ?? const [],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
+    _diagnostics.removeListener(_syncChanged);
+    _diagnostics.dispose();
     _serverSelection.dispose();
     _clientSelection.dispose();
     WidgetsBinding.instance.removeObserver(this);
@@ -510,6 +610,13 @@ class _ManagerShellState extends State<ManagerShell>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached ||
+        state == AppLifecycleState.inactive &&
+            defaultTargetPlatform == TargetPlatform.android) {
+      _diagnostics.stop();
+    }
     // An unfocused desktop window is still visible (e.g. beside a browser).
     // Android retains its existing foreground-only scheduling policy.
     widget.autoSync?.foreground(
@@ -535,6 +642,7 @@ class _ManagerShellState extends State<ManagerShell>
   Future<bool> _applyReceived(Future<void> Function() receive) async {
     if (!mounted ||
         _applyingSync ||
+        _diagnosing ||
         _index == 1 ||
         _serverSelection.active ||
         _catalog?.selectedId != null ||
@@ -577,6 +685,7 @@ class _ManagerShellState extends State<ManagerShell>
 
   bool _canReplace() =>
       !_applyingSync &&
+      !_diagnosing &&
       !(_catalog?.hasActiveWork ?? false) &&
       !(_vpn?.busy ?? false) &&
       !(_publications?.busy ?? false) &&
@@ -584,11 +693,12 @@ class _ManagerShellState extends State<ManagerShell>
       !_controller.importing;
 
   void _navigate(int value) {
+    if (_diagnostics.busy) return;
     if (value == _index) {
       _serverSelection.exit();
       _clientSelection.exit();
       if (value == 0) _catalog?.showList();
-      if (value == 2) _settingsKey.currentState?.showRoot();
+      if (value == 3) _settingsKey.currentState?.showRoot();
     }
     if (value != _index) {
       _serverSelection.exit();
@@ -602,7 +712,7 @@ class _ManagerShellState extends State<ManagerShell>
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final l = AppLocalizations.of(context);
-      final labels = [l.server, l.vpnUsers, l.settings];
+      final labels = [l.server, l.vpnUsers, l.diagTitle, l.settings];
       final rail =
           constraints.maxWidth >= AppLayout.compact &&
           constraints.maxHeight >= 400;
@@ -615,8 +725,12 @@ class _ManagerShellState extends State<ManagerShell>
         builder: (context, _) => AbsorbPointer(
           absorbing: _applyingSync,
           child: PopScope(
-            canPop: !_applyingSync && !(_index < 2 && _selection.active),
+            canPop:
+                !_applyingSync &&
+                !_diagnostics.busy &&
+                !(_index < 2 && _selection.active),
             onPopInvokedWithResult: (didPop, _) {
+              if (!didPop && _diagnostics.busy) _diagnostics.stop();
               if (!didPop &&
                   !_applyingSync &&
                   _index < 2 &&
@@ -625,13 +739,15 @@ class _ManagerShellState extends State<ManagerShell>
               }
             },
             child: Scaffold(
-              appBar: _index == 2 || _index == 0 && _catalog?.selectedId != null
+              appBar: _index == 3 || _index == 0 && _catalog?.selectedId != null
                   ? null
                   : AppBar(
-                      title: CatalogTitle(
-                        selection: _selection,
-                        title: labels[_index],
-                      ),
+                      title: _index >= 2
+                          ? Text(labels[_index])
+                          : CatalogTitle(
+                              selection: _selection,
+                              title: labels[_index],
+                            ),
                       actions: [
                         if (_index == 0 && _catalog != null)
                           ListenableBuilder(
@@ -691,7 +807,9 @@ class _ManagerShellState extends State<ManagerShell>
                   ? null
                   : NavigationBar(
                       selectedIndex: _index,
-                      onDestinationSelected: (value) => _navigate(value),
+                      onDestinationSelected: _diagnostics.busy
+                          ? null
+                          : _navigate,
                       destinations: [
                         for (var i = 0; i < labels.length; i++)
                           NavigationDestination(
@@ -705,7 +823,7 @@ class _ManagerShellState extends State<ManagerShell>
                     !_applyingSync &&
                     (Navigator.of(context).canPop() ||
                         _index == 0 && _catalog?.selectedId != null ||
-                        _index == 2 &&
+                        _index == 3 &&
                             (_settingsKey.currentState?.canGoBack ?? false) ||
                         _index < 2 && _selection.active),
                 onBack: () => Navigator.of(context).maybePop(),
@@ -719,7 +837,9 @@ class _ManagerShellState extends State<ManagerShell>
                           labelType: constraints.maxWidth >= AppLayout.large
                               ? NavigationRailLabelType.none
                               : NavigationRailLabelType.all,
-                          onDestinationSelected: (value) => _navigate(value),
+                          onDestinationSelected: _diagnostics.busy
+                              ? null
+                              : _navigate,
                           destinations: [
                             for (var i = 0; i < labels.length; i++)
                               NavigationRailDestination(
@@ -737,6 +857,7 @@ class _ManagerShellState extends State<ManagerShell>
                             if (_catalog != null)
                               ServerCatalog(
                                 controller: _catalog!,
+                                onDiagnose: _openDiagnostics,
                                 selection: _serverSelection,
                                 motion: widget.motion,
                                 vpn: _vpn,
@@ -767,6 +888,10 @@ class _ManagerShellState extends State<ManagerShell>
                               )
                             else
                               Center(child: Text(l.vpnNoUsers)),
+                            IpDiagnosticsPage(
+                              controller: _diagnostics,
+                              servers: _catalog?.servers ?? const [],
+                            ),
                             SettingsHub(
                               key: _settingsKey,
                               motion: widget.motion,

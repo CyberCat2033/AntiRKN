@@ -56,8 +56,26 @@ class AutoSyncController extends ChangeNotifier {
   Duration? _retryAfter;
   DateTime? _retryAt;
 
+  bool _diagnosticsPaused = false;
+  Future<void> pauseDiagnostics(bool value) async {
+    _diagnosticsPaused = value;
+    if (value) {
+      await ready;
+      _timer?.cancel();
+      _cancel?.cancel();
+      await _running;
+    } else {
+      request();
+    }
+  }
+
   bool get _allowed =>
-      !_disposed && !_suspended && _foreground && enabled && account != null;
+      !_disposed &&
+      !_suspended &&
+      !_diagnosticsPaused &&
+      _foreground &&
+      enabled &&
+      account != null;
   void _notify() {
     if (!_disposed) notifyListeners();
   }

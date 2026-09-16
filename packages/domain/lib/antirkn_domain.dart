@@ -1,3 +1,4 @@
+export 'src/network/ip_diagnostics.dart';
 export 'src/publication.dart';
 export 'src/auto_sync.dart';
 export 'src/google_account.dart';

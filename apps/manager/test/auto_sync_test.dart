@@ -54,6 +54,49 @@ class Session implements AutoSyncSession {
 }
 
 void main() {
+  testWidgets('diagnostic pause joins a worker and blocks automatic retries', (
+    tester,
+  ) async {
+    final account = AccountService();
+    await account.signIn();
+    final changes = StreamController<void>.broadcast();
+    final session = Session()..hold = Completer<void>();
+    final controller = AutoSyncController(
+      accountService: account,
+      settings: Settings(),
+      changes: changes.stream,
+      openSession: () async => session,
+      apply: (_) async => false,
+    );
+    await tester.pump(Duration.zero);
+    await tester.pump(Duration.zero);
+    var paused = false;
+    final pause = controller.pauseDiagnostics(true).then((_) => paused = true);
+    await tester.pump(Duration.zero);
+    expect(paused, isFalse);
+    expect(
+      () => session.cancellation!.check(),
+      throwsA(isA<SyncTransportFailure>()),
+    );
+    session.hold!.complete();
+    session.hold = null;
+    await tester.pump(Duration.zero);
+    await pause;
+    changes.add(null);
+    controller.request(immediate: true);
+    controller.foreground(false);
+    controller.foreground(true);
+    await tester.pump(const Duration(minutes: 2));
+    expect(session.calls, 1);
+    expect(session.closed, 0);
+    await controller.pauseDiagnostics(false);
+    await tester.pump(const Duration(seconds: 10));
+    expect(session.calls, 2);
+    expect(controller.account, isNotNull);
+    await tester.runAsync(controller.stop);
+    controller.dispose();
+    await tester.runAsync(changes.close);
+  });
   testWidgets(
     'startup, debounced saves, retry and foreground resume run one worker',
     (tester) async {

@@ -34,6 +34,7 @@ class ServerDetailView extends StatefulWidget {
     required this.session,
     required this.motion,
     this.onBack,
+    this.onDiagnose,
     this.protocols,
     this.sections = const [],
     this.plans,
@@ -44,6 +45,7 @@ class ServerDetailView extends StatefulWidget {
   final SshController session;
   final MotionPreference motion;
   final VoidCallback? onBack;
+  final void Function(String, int)? onDiagnose;
   final Widget? protocols, plans, activity;
   final List<ServerProtocolSection> sections;
   final int clientCount;
@@ -614,7 +616,12 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                       ? page('activity', [history(context)])
                       : const SizedBox.shrink(),
                   visited.contains(4)
-                      ? page('about', [ServerAboutView(controller: c)])
+                      ? page('about', [
+                          ServerAboutView(
+                            controller: c,
+                            onDiagnose: widget.onDiagnose,
+                          ),
+                        ])
                       : const SizedBox.shrink(),
                   for (var i = 0; i < widget.sections.length; i++)
                     visited.contains(5 + i)

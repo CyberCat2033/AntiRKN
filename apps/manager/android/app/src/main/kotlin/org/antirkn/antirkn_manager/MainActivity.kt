@@ -16,6 +16,7 @@ import java.util.concurrent.Future
 
 class MainActivity : FlutterActivity() {
     private var googleAuthorization: GoogleAuthorizationBridge? = null
+    private var ipDiagnostics: IpDiagnosticsBridge? = null
     private val reader = Executors.newSingleThreadExecutor()
     private var pending: MethodChannel.Result? = null
     private var pickingKey = false
@@ -31,6 +32,7 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         googleAuthorization = GoogleAuthorizationBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         SelectionHaptics(this, flutterEngine.dartExecutor.binaryMessenger)
+        ipDiagnostics = IpDiagnosticsBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "org.antirkn/template_picker")
             .setMethodCallHandler { call, result ->
                 if (call.method == "cancelKey") {
@@ -161,6 +163,7 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        ipDiagnostics?.close()
         googleAuthorization?.dispose()
         googleAuthorization = null
         finishPick(requestId, error = "template_read_error")

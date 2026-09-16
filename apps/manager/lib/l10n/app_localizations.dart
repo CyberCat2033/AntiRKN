@@ -5443,6 +5443,288 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Deletion is incomplete. Check the job in server maintenance; unfinished jobs can be resumed.'**
   String get inboundDeleteIncomplete;
+
+  /// No description provided for @diagTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'IP diagnostics'**
+  String get diagTitle;
+
+  /// No description provided for @diagBaseline.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking the initial connection'**
+  String get diagBaseline;
+
+  /// No description provided for @diagTarget.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking the address'**
+  String get diagTarget;
+
+  /// No description provided for @diagControls.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking control addresses'**
+  String get diagControls;
+
+  /// No description provided for @diagRecovery.
+  ///
+  /// In en, this message translates to:
+  /// **'Watching for connection recovery'**
+  String get diagRecovery;
+
+  /// No description provided for @diagComplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Check complete'**
+  String get diagComplete;
+
+  /// No description provided for @diagCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Check stopped'**
+  String get diagCancelled;
+
+  /// No description provided for @diagNetworkChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'Network changed — results are incomplete'**
+  String get diagNetworkChanged;
+
+  /// No description provided for @diagInsufficient.
+  ///
+  /// In en, this message translates to:
+  /// **'Too few stable control addresses'**
+  String get diagInsufficient;
+
+  /// No description provided for @diagDegraded.
+  ///
+  /// In en, this message translates to:
+  /// **'Queue stopped after connection loss'**
+  String get diagDegraded;
+
+  /// No description provided for @diagFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to complete the check'**
+  String get diagFailed;
+
+  /// No description provided for @diagInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter up to 64 public IPs, port 1–65535, and a certificate hostname for TLS. Targets must be IP addresses, not domain names.'**
+  String get diagInvalid;
+
+  /// No description provided for @diagConsent.
+  ///
+  /// In en, this message translates to:
+  /// **'Contacting a target IP may temporarily interrupt internet access. The app will test from this device, close idle SSH connections and pause its background sync. If connectivity deteriorates, the queue stops and only controls are checked for about 3 minutes. VPNs and other apps may affect results.'**
+  String get diagConsent;
+
+  /// No description provided for @diagStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Start check'**
+  String get diagStart;
+
+  /// No description provided for @diagIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Check IP reachability and signs of temporary connection loss after contacting it. Specify a port on which the server should accept connections.'**
+  String get diagIntro;
+
+  /// No description provided for @diagChooseServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose server addresses'**
+  String get diagChooseServer;
+
+  /// No description provided for @diagAddresses.
+  ///
+  /// In en, this message translates to:
+  /// **'IP addresses, one per line'**
+  String get diagAddresses;
+
+  /// No description provided for @diagPort.
+  ///
+  /// In en, this message translates to:
+  /// **'Port'**
+  String get diagPort;
+
+  /// No description provided for @diagProtocol.
+  ///
+  /// In en, this message translates to:
+  /// **'Probe method'**
+  String get diagProtocol;
+
+  /// No description provided for @diagSni.
+  ///
+  /// In en, this message translates to:
+  /// **'TLS hostname (SNI and certificate)'**
+  String get diagSni;
+
+  /// No description provided for @diagStop.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop'**
+  String get diagStop;
+
+  /// No description provided for @diagBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'Wait for current server and profile operations to finish.'**
+  String get diagBusy;
+
+  /// No description provided for @diagHistoryError.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to read or save diagnostic history.'**
+  String get diagHistoryError;
+
+  /// No description provided for @diagNetwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection'**
+  String get diagNetwork;
+
+  /// No description provided for @diagControlCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Reachable controls: {reachable} of {total}'**
+  String diagControlCount(int reachable, int total);
+
+  /// No description provided for @diagStrong.
+  ///
+  /// In en, this message translates to:
+  /// **'Signs of strong blocking: after contacting the IP, connectivity to several independent control networks deteriorated in two consecutive checks.'**
+  String get diagStrong;
+
+  /// No description provided for @diagRegional.
+  ///
+  /// In en, this message translates to:
+  /// **'Foreign control servers are unavailable while the Russian control is reachable.'**
+  String get diagRegional;
+
+  /// No description provided for @diagRecovered.
+  ///
+  /// In en, this message translates to:
+  /// **'Control connectivity recovered after {seconds} s. Start a new check to continue.'**
+  String diagRecovered(int seconds);
+
+  /// No description provided for @diagNotRecovered.
+  ///
+  /// In en, this message translates to:
+  /// **'Normal connectivity did not recover during observation.'**
+  String get diagNotRecovered;
+
+  /// No description provided for @diagLimits.
+  ///
+  /// In en, this message translates to:
+  /// **'An IP may be unavailable because of a closed port, server failure or routing problem. This check does not prove RKN blocking. A successful connection only applies to the selected port and probe method.'**
+  String get diagLimits;
+
+  /// No description provided for @diagControlList.
+  ///
+  /// In en, this message translates to:
+  /// **'Control addresses'**
+  String get diagControlList;
+
+  /// No description provided for @diagControlHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'14 IPv4 and 12 IPv6 addresses. Each family is checked twice before use; only stable controls are used, excluding target IPs. At least 90% reachable is normal: 9 of 10 or 13 of 14. DNS controls use TCP port 53; RIPE Atlas uses HTTP port 80. Anycast does not guarantee a foreign route.'**
+  String get diagControlHelp;
+
+  /// No description provided for @diagHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent checks'**
+  String get diagHistory;
+
+  /// No description provided for @diagCopyReport.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy report'**
+  String get diagCopyReport;
+
+  /// No description provided for @diagClearHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear history'**
+  String get diagClearHistory;
+
+  /// No description provided for @diagInterrupted.
+  ///
+  /// In en, this message translates to:
+  /// **'Interrupted when the app closed'**
+  String get diagInterrupted;
+
+  /// No description provided for @diagReachable.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection succeeded'**
+  String get diagReachable;
+
+  /// No description provided for @diagRefused.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection refused: the port may be closed'**
+  String get diagRefused;
+
+  /// No description provided for @diagTlsError.
+  ///
+  /// In en, this message translates to:
+  /// **'TLS or certificate error'**
+  String get diagTlsError;
+
+  /// No description provided for @diagProtocolError.
+  ///
+  /// In en, this message translates to:
+  /// **'Service response does not match the selected protocol'**
+  String get diagProtocolError;
+
+  /// No description provided for @diagUnreachable.
+  ///
+  /// In en, this message translates to:
+  /// **'No connection: cause undetermined'**
+  String get diagUnreachable;
+
+  /// No description provided for @diagWifi.
+  ///
+  /// In en, this message translates to:
+  /// **'Wi-Fi'**
+  String get diagWifi;
+
+  /// No description provided for @diagMobile.
+  ///
+  /// In en, this message translates to:
+  /// **'Mobile network'**
+  String get diagMobile;
+
+  /// No description provided for @diagSystem.
+  ///
+  /// In en, this message translates to:
+  /// **'System route'**
+  String get diagSystem;
+
+  /// No description provided for @diagForeign.
+  ///
+  /// In en, this message translates to:
+  /// **'Foreign server'**
+  String get diagForeign;
+
+  /// No description provided for @diagRussia.
+  ///
+  /// In en, this message translates to:
+  /// **'Russian server'**
+  String get diagRussia;
+
+  /// No description provided for @diagAnycast.
+  ///
+  /// In en, this message translates to:
+  /// **'Anycast, location depends on routing'**
+  String get diagAnycast;
 }
 
 class _AppLocalizationsDelegate

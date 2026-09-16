@@ -13,6 +13,7 @@ class ComponentUpdatesController extends ChangeNotifier {
       failed = false,
       storageFailed = false;
   bool manualResults = false;
+  bool diagnosticsPaused = false;
   bool _disposed = false;
   Timer? _timer;
   DateTime? checkedAt, _attemptedAt;
@@ -46,7 +47,7 @@ class ComponentUpdatesController extends ChangeNotifier {
   }
 
   void maybeCheck() {
-    if (!automatic || busy || _disposed) return;
+    if (!automatic || busy || _disposed || diagnosticsPaused) return;
     final now = DateTime.now();
     if (_attemptedAt != null &&
         now.difference(_attemptedAt!) < const Duration(minutes: 15)) {
@@ -81,7 +82,7 @@ class ComponentUpdatesController extends ChangeNotifier {
   }
 
   Future<void> check({bool automaticRequest = false}) async {
-    if (busy || _disposed) return;
+    if (busy || _disposed || diagnosticsPaused) return;
     final now = DateTime.now();
     if (_attemptedAt != null &&
         now.difference(_attemptedAt!) < const Duration(seconds: 30)) {

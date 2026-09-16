@@ -39,6 +39,19 @@ class ServerCatalogController extends ChangeNotifier {
         (s) => s.busy || s.runner.busy || s.vaultBusy || s.picking,
       );
 
+  bool get diagnosticsConflict =>
+      hasActiveWork ||
+      _sessions.values.any(
+        (s) =>
+            s.runner.pending != null || s.runner.jobs.any((j) => !j.terminal),
+      );
+
+  void disconnectForDiagnostics() {
+    for (final session in _sessions.values) {
+      session.disconnect();
+    }
+  }
+
   Future<void> load({String? password}) async {
     if (loading || _disposed) return;
     loading = true;

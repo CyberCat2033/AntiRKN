@@ -36,6 +36,21 @@ class Settings implements SettingsStore {
 
 void main() {
   test(
+    'diagnostics pause prevents automatic and manual release traffic',
+    () async {
+      final source = Source();
+      final controller = ComponentUpdatesController(source: source)
+        ..diagnosticsPaused = true;
+      controller.maybeCheck();
+      await controller.check();
+      expect(source.calls, 0);
+      controller.diagnosticsPaused = false;
+      await controller.check();
+      expect(source.calls, 1);
+      controller.dispose();
+    },
+  );
+  test(
     'numeric version comparison handles dates and rejects unknown labels',
     () {
       expect(componentIsNewer('v3.1.20260828', '3.1.20260812'), isTrue);

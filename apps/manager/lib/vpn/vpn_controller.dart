@@ -578,8 +578,9 @@ class VpnController extends ChangeNotifier {
     plans = [];
     await _reconcile(token);
   });
+  bool diagnosticsPaused = false;
   Future<void> reconcile() async {
-    if (!loaded || busy || _disposed) return;
+    if (!loaded || busy || _disposed || diagnosticsPaused) return;
     final work =
         workspace.servers.keys.any(
           (id) => observesOperation(id) && currentJob(id)?.terminal != true,

@@ -23,12 +23,14 @@ class ServerCatalog extends StatefulWidget {
     required this.motion,
     this.vpn,
     this.selection,
+    this.onDiagnose,
     super.key,
   });
   final ServerCatalogController controller;
   final MotionPreference motion;
   final VpnController? vpn;
   final CatalogSelection? selection;
+  final void Function(String, int)? onDiagnose;
 
   static Future<void> deleteSelected(
     BuildContext context,
@@ -137,6 +139,7 @@ class _ServerCatalogState extends State<ServerCatalog> {
       return ServerDetailView(
         key: ObjectKey(session),
         session: session,
+        onDiagnose: widget.onDiagnose,
         motion: widget.motion,
         onBack: onBack ?? c.showList,
         clientCount:
