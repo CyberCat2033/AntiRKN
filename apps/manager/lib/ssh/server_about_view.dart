@@ -24,17 +24,23 @@ class ServerAboutView extends StatelessWidget {
     listenable: controller,
     builder: (context, _) {
       final c = controller, l = AppLocalizations.of(context);
-      final inventory = c.network.inventory;
+      final inventory = c.observation?.network;
+      final publicAddresses = inventory == null
+          ? c.lastInfo?.publicAddresses
+          : inventory.addresses
+                .where(
+                  (address) => address.addressClass == AddressClass.external,
+                )
+                .map((address) => address.address);
       final addresses = <String, IpFamily>{
-        for (final address in inventory?.addresses ?? <ServerAddress>[])
-          if (address.addressClass == AddressClass.external)
-            address.address.canonical: address.address.family,
+        for (final address in publicAddresses ?? <IpAddress>[])
+          address.canonical: address.family,
       };
       final traffic = c.trafficBytes;
-      final facts = c.observation?.software?.facts;
+      final facts = c.software?.facts;
       final free = int.tryParse(facts?[ServerFact.freeDiskKiB]?.value ?? '');
       final total = int.tryParse(facts?[ServerFact.totalDiskKiB]?.value ?? '');
-      final at = c.observation?.network.observedAt;
+      final at = c.observation?.network.observedAt ?? c.lastInfo?.observedAt;
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -75,7 +81,13 @@ class ServerAboutView extends StatelessWidget {
             child: Column(
               children: [
                 if (addresses.isEmpty)
-                  ListTile(title: Text(l.uiNoPublicAddresses)),
+                  ListTile(
+                    title: Text(
+                      publicAddresses == null
+                          ? l.uiServerDataNotCached
+                          : l.uiNoPublicAddresses,
+                    ),
+                  ),
                 for (final entry in addresses.entries)
                   ListTile(
                     leading: CircleAvatar(

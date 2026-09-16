@@ -166,20 +166,24 @@ Future<AddressChoice?> showServerAddressChoice(
                     );
                   }
                   final choice = row as AddressChoice;
-                  return ListTile(
-                    key: ValueKey('option-${choice.id}'),
-                    enabled: choice.enabled,
-                    selected: choice.id == selected?.id,
-                    leading: Icon(
-                      choice.id == selected?.id
-                          ? Icons.radio_button_checked
-                          : Icons.radio_button_off,
+                  return Material(
+                    type: MaterialType.transparency,
+                    clipBehavior: Clip.hardEdge,
+                    child: ListTile(
+                      key: ValueKey('option-${choice.id}'),
+                      enabled: choice.enabled,
+                      selected: choice.id == selected?.id,
+                      leading: Icon(
+                        choice.id == selected?.id
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_off,
+                      ),
+                      title: Text(choice.host),
+                      subtitle: Text(choiceDescription(l, choice)),
+                      onTap: choice.enabled
+                          ? () => Navigator.pop(context, choice)
+                          : null,
                     ),
-                    title: Text(choice.host),
-                    subtitle: Text(choiceDescription(l, choice)),
-                    onTap: choice.enabled
-                        ? () => Navigator.pop(context, choice)
-                        : null,
                   );
                 },
               ),

@@ -2341,7 +2341,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get autoSyncPairing =>
-      'Create an encrypted backup on your main device. On the new device, choose Restore, select the backup and sign in to the same Google account. The backup transfers the encryption key; share it only with trusted devices. Sync runs while the app is open.';
+      'Sign in to the same Google account on your devices. Servers, clients and settings sync automatically while the app is open.';
 
   @override
   String get googleDesktopConfigurationError =>
@@ -2360,7 +2360,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get autoSyncOtherWorkspaces =>
-      'Drive contains another workspace. To use its servers and clients here, restore an encrypted backup from the device that already has them.';
+      'Some data was saved by an older app version. Update and open AntiRKN on the device that has it; it will become available here automatically.';
 
   @override
   String get publicationTitle => 'Profile publication';
@@ -2817,7 +2817,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get uiSyncAutomaticHelp => 'Changes across all your devices';
 
   @override
-  String get uiPairDeviceHelp => 'Transfer your workspace and sync changes';
+  String get uiPairDeviceHelp => 'Sign in to the same Google account';
 
   @override
   String get uiPublicProfileHelp =>
@@ -3047,4 +3047,8 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sshHardenRandomUser => 'Pick a random character';
+
+  @override
+  String get uiServerDataNotCached =>
+      'Connect to the server once to save its data on this device.';
 }

@@ -1,15 +1,28 @@
 import 'package:antirkn_domain/antirkn_domain.dart';
 
-// Keep component metadata/versions. Runtime resource/port snapshots are not
-// persisted: the next SSH observation supplies their current values.
+// Retain display metrics, never cached privileges or live port/service state.
+const _cachedFacts = {
+  ServerFact.freeDiskKiB,
+  ServerFact.totalDiskKiB,
+  ServerFact.networkTraffic,
+};
 Map<String, Object?> encodeServerInfo(ServerInfo info) => {
   'os': info.os,
   'architecture': info.architecture,
   'observedAt': info.observedAt.toUtc().toIso8601String(),
+  'publicAddresses': info.publicAddresses?.map((ip) => ip.canonical).toList(),
   'software': info.software == null
       ? null
       : {
           'observedAt': info.software!.observedAt.toUtc().toIso8601String(),
+          'facts': {
+            for (final entry in info.software!.facts.entries)
+              if (_cachedFacts.contains(entry.key))
+                entry.key.name: {
+                  'status': entry.value.status.name,
+                  'value': entry.value.value,
+                },
+          },
           'components': [
             for (final component in info.software!.components)
               {
@@ -40,11 +53,25 @@ ServerInfo decodeServerInfo(Map<String, Object?> data) {
     os: data['os'] as String,
     architecture: data['architecture'] as String,
     observedAt: DateTime.parse(data['observedAt'] as String),
+    publicAddresses: (data['publicAddresses'] as List?)
+        ?.map((ip) => IpAddress.parse(ip as String))
+        .toList(growable: false),
     software: software == null
         ? null
         : ServerSoftwareInventory(
             observedAt: DateTime.parse(software['observedAt'] as String),
-            facts: const {},
+            facts: {
+              for (final fact in _cachedFacts)
+                if ((software['facts'] as Map?)?[fact.name]
+                    case final Map value)
+                  fact: value['status'] == InventoryStatus.ok.name
+                      ? InventoryValue.ok(value['value'] as String)
+                      : InventoryValue.failure(
+                          InventoryStatus.values.byName(
+                            value['status'] as String,
+                          ),
+                        ),
+            },
             sockets: const [],
             components: [
               for (final raw in software['components'] as List)

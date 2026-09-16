@@ -33,10 +33,8 @@ extension WorkspaceAutomaticSync on WorkspaceDatabase {
   }
 }
 
-/// The shared workspace key is the owner's membership credential. It is only
-/// transferred by explicit encrypted backup restore. Cloud account access alone
-/// cannot authorize packets. This mode does not claim individual writer
-/// signatures or revocation: every key holder is a trusted workspace owner.
+/// Account onboarding shares keys automatically; causal merge and operation
+/// ownership checks still apply to every imported event.
 final class _WorkspaceAutoSync
     implements AutoSyncSession, SyncPacketStore, ChangeJournalStore {
   _WorkspaceAutoSync(this.store, this.journal, this.remote, this.tokens);
@@ -44,6 +42,7 @@ final class _WorkspaceAutoSync
   final WorkspaceDatabase store;
   final SyncTransportDatabase journal;
   final SyncRemoteStore remote;
+  late final _accountSync = _WorkspaceAccountSync(store, journal, remote);
   String? _exportStamp;
   bool _running = false;
 
@@ -64,7 +63,7 @@ final class _WorkspaceAutoSync
             journal.workspaceId,
             key.version,
             Uint8List.fromList(await key.secret.extractBytes()),
-            event,
+            _accountChange(event, journal.workspaceId),
           );
           cancellation.check();
           await journal.enqueue(event.header.changeId, bytes);
@@ -90,6 +89,34 @@ final class _WorkspaceAutoSync
       final state = await journal.readState();
       var rejected = state['rejected'] as int? ?? 0;
       var others = state['others'] as int? ?? 0;
+      if (remote is SyncAccountStore) {
+        final vpn = await store.readVpn();
+        if (vpn.source != null &&
+            _withAccountNamespaces(vpn.source!, vpn.source) != vpn.source) {
+          if (!await apply(() async {
+            cancellation.check();
+            await store.writeVpn(vpn.source!, expectedRevision: vpn.revision);
+          })) {
+            return const AutoSyncResult(waitingForEditor: true);
+          }
+        }
+        await _accountSync.prepare(cancellation);
+        cancellation.check();
+        final known = Set<String>.from(
+          state['accountWorkspaces'] as List? ?? [],
+        );
+        final discovered = _accountSync._keys.keys.toSet();
+        if (state['accountSyncVersion'] != 1 ||
+            !known.containsAll(discovered)) {
+          await journal.rescanAccountPackets();
+          others = 0;
+          state['accountSyncVersion'] = 1;
+          state['accountWorkspaces'] = {...known, ...discovered}.toList()
+            ..sort();
+          state['others'] = 0;
+          await journal.saveState(state);
+        }
+      }
       final moreExports = await _export(cancellation);
       SyncTransportResult? transfer;
       Object? transferError;
@@ -108,7 +135,7 @@ final class _WorkspaceAutoSync
       final inbox = await journal.readStagedObjects();
       // Validate before asking for an editor lock. Own/replayed events and
       // unrelated workspaces must not interrupt editing or refresh the UI.
-      final incoming = <(StagedSyncObject, LocalChange)>[];
+      final incoming = <(StagedSyncObject, LocalChange, Uint8List)>[];
       for (final object in inbox) {
         cancellation.check();
         if (object.removed) {
@@ -116,7 +143,8 @@ final class _WorkspaceAutoSync
           continue;
         }
         try {
-          final event = await store.verifySyncPacket(object.bytes);
+          final packet = await _accountSync.localPacket(object.bytes);
+          final event = await store.verifySyncPacket(packet);
           final known = await store._serial(() async {
             final rows = store._db.select(
               'SELECT header,payload FROM sync_changes WHERE change_id=? UNION ALL SELECT header,payload FROM sync_incoming WHERE change_id=?',
@@ -138,7 +166,14 @@ final class _WorkspaceAutoSync
                     as Map;
             if (canonicalJson(header.toJson()) !=
                     canonicalJson(event.header.toJson()) ||
-                value['source'] != event.source) {
+                _accountChange(
+                      LocalChange(
+                        header: header,
+                        source: value['source'] as String?,
+                      ),
+                      journal.workspaceId,
+                    ).source !=
+                    event.source) {
               throw const SyncMergeFailure(SyncMergeIssue.invalid);
             }
             return true;
@@ -151,7 +186,7 @@ final class _WorkspaceAutoSync
             );
             await journal.consumeObject(object);
           } else {
-            incoming.add((object, event));
+            incoming.add((object, event, packet));
           }
         } on SyncPacketFailure catch (error) {
           if (error.issue == SyncPacketIssue.storage) rethrow;
@@ -170,10 +205,10 @@ final class _WorkspaceAutoSync
       if (incoming.isNotEmpty) {
         waiting = !await apply(() async {
           cancellation.check();
-          for (final (object, event) in incoming) {
+          for (final (object, event, packet) in incoming) {
             cancellation.check();
             try {
-              await store.receiveSyncPackets([object.bytes]);
+              await store.receiveSyncPackets([packet]);
               await journal.enqueue(
                 event.header.changeId,
                 object.bytes,
@@ -200,6 +235,7 @@ final class _WorkspaceAutoSync
                 ? null
                 : DateTime.parse(state['last'] as String));
       await journal.saveState({
+        ...state,
         'last': last?.toIso8601String(),
         'rejected': rejected,
         'others': others,
@@ -254,7 +290,10 @@ final class _WorkspaceAutoSync
   }
 
   @override
-  Future<void> close() => journal.close();
+  Future<void> close() async {
+    _accountSync.close();
+    await journal.close();
+  }
 }
 
 // One identity-checked token per bounded cycle, never persisted. Checking the

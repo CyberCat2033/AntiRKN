@@ -188,12 +188,6 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        await tester.tap(
-          find.text(
-            locale == 'ru' ? 'Параметры синхронизации' : 'Sync options',
-          ),
-        );
-        await tester.pumpAndSettle();
         expect(find.byKey(const ValueKey('google-auto-sync')), findsOneWidget);
         expect(controller.phase, AutoSyncPhase.editing);
         expect(

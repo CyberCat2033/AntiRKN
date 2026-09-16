@@ -98,6 +98,9 @@ void main() {
         software: ServerSoftwareInventory(
           observedAt: DateTime.utc(2026),
           facts: {
+            ServerFact.networkTraffic: const InventoryValue.ok(
+              '11111111-1111-1111-1111-111111111111\neth0 1024 2048',
+            ),
             ServerFact.freeDiskKiB: status == InventoryStatus.ok
                 ? const InventoryValue.ok('1234')
                 : InventoryValue.failure(status),
@@ -128,6 +131,18 @@ void main() {
       c.lock();
       expect(c.observation, isNull);
       expect(c.network.inventory, isNull);
+      await c.initialise();
+      expect(c.observation, isNull);
+      expect(c.software!.facts[ServerFact.freeDiskKiB]!.value, '1234');
+      expect(c.trafficBytes, (1024, 2048));
+      expect(
+        c.lastInfo!.publicAddresses!.map((ip) => ip.canonical),
+        contains('93.184.215.15'),
+      );
+      c.host.text = 'new-host.example';
+      await c.save();
+      expect(c.trafficBytes, isNull);
+      expect(c.lastInfo, isNull);
     },
   );
 

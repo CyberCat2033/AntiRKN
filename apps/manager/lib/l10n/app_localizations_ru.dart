@@ -2347,7 +2347,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get autoSyncPairing =>
-      'На основном устройстве создайте зашифрованную резервную копию. На новом устройстве нажмите «Восстановить», выберите копию и войдите в тот же Google-аккаунт. Копия передаёт ключ шифрования, поэтому отправляйте её только доверенным устройствам. Синхронизация работает при открытом приложении.';
+      'Войдите в один Google-аккаунт на своих устройствах. Серверы, клиенты и настройки синхронизируются автоматически, пока приложение открыто.';
 
   @override
   String get googleDesktopConfigurationError =>
@@ -2366,7 +2366,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get autoSyncOtherWorkspaces =>
-      'В Drive есть другое рабочее пространство. Чтобы получить его серверы и клиентов здесь, восстановите зашифрованную копию с устройства, где они уже есть.';
+      'Часть данных сохранена старой версией приложения. Обновите и откройте AntiRKN на устройстве с этими данными — они появятся здесь автоматически.';
 
   @override
   String get publicationTitle => 'Публикация профилей';
@@ -2822,8 +2822,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get uiSyncAutomaticHelp => 'Изменения на всех ваших устройствах';
 
   @override
-  String get uiPairDeviceHelp =>
-      'Перенести личное пространство и включить обмен изменениями';
+  String get uiPairDeviceHelp => 'Войти в тот же Google-аккаунт';
 
   @override
   String get uiPublicProfileHelp =>
@@ -3053,4 +3052,8 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get sshHardenRandomUser => 'Выбрать случайного персонажа';
+
+  @override
+  String get uiServerDataNotCached =>
+      'Подключитесь к серверу один раз, чтобы сохранить его данные на этом устройстве.';
 }

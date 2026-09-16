@@ -84,7 +84,8 @@ class InboundsPanel extends StatelessWidget {
                 for (final observed in panel['inbounds'] as List)
                   if (!inbounds.any(
                     (r) =>
-                        observed['name'] == 'AntiRKN:${c.workspace.id}:${r.id}',
+                        observed['name'] ==
+                        'AntiRKN:${c.workspace.resourceWorkspaceId(r.serverId)}:${r.id}',
                   ))
                     Padding(
                       padding: const EdgeInsets.only(

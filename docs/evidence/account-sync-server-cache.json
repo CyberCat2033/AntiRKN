@@ -1,0 +1,38 @@
+{
+  "checkedAtUtc": "2026-09-16T11:14:30.061720+00:00",
+  "targetedTests": {
+    "storageSyncMergeBackupPublicationAndCache": 53,
+    "managerUiSshAndGoogle": 41,
+    "protocolOperationsAndDeletion": 26,
+    "profileCompiler": 24,
+    "driveHttpAdapter": 6,
+    "totalPassed": 150
+  },
+  "analysis": "Dart analyze: modified packages, manager lib and changed tests PASS",
+  "workspace": "Architecture boundaries, base.yml SHA-256, 888 RU/EN messages PASS",
+  "visual": "Pixel check: selected row partly scrolled under fixed header, header background unchanged; synthetic screenshot inspected",
+  "builds": {
+    "android": {
+      "mode": "release",
+      "path": "apps/manager/build/app/outputs/flutter-apk/app-release.apk",
+      "sha256": "9e0aa351f7203aa069147d469fed795a147bc3edc2735d5c6f85720b63525b5b",
+      "installedOrLaunched": false
+    },
+    "linux": {
+      "mode": "release",
+      "path": "apps/manager/build/linux/x64/release/bundle/antirkn_manager",
+      "sha256": "aa9724389a5fc1708a0bd4df8ad55982de118fcc6a2a35c897dc03f1620c9904",
+      "installedOrLaunched": false
+    }
+  },
+  "unverified": [
+    "Real Google account exchange between physical devices",
+    "Fresh Google OAuth",
+    "VPS mutation with imported data",
+    "Windows",
+    "Closed-app background sync",
+    "Physical scroll/FPS"
+  ],
+  "fullSuite": "Not run; only targeted checks",
+  "deviceActions": "No ADB install, app control or physical screenshots; Linux GUI not restarted"
+}

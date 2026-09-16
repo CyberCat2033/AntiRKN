@@ -4175,7 +4175,7 @@ abstract class AppLocalizations {
   /// No description provided for @autoSyncPairing.
   ///
   /// In en, this message translates to:
-  /// **'Create an encrypted backup on your main device. On the new device, choose Restore, select the backup and sign in to the same Google account. The backup transfers the encryption key; share it only with trusted devices. Sync runs while the app is open.'**
+  /// **'Sign in to the same Google account on your devices. Servers, clients and settings sync automatically while the app is open.'**
   String get autoSyncPairing;
 
   /// No description provided for @googleDesktopConfigurationError.
@@ -4205,7 +4205,7 @@ abstract class AppLocalizations {
   /// No description provided for @autoSyncOtherWorkspaces.
   ///
   /// In en, this message translates to:
-  /// **'Drive contains another workspace. To use its servers and clients here, restore an encrypted backup from the device that already has them.'**
+  /// **'Some data was saved by an older app version. Update and open AntiRKN on the device that has it; it will become available here automatically.'**
   String get autoSyncOtherWorkspaces;
 
   /// No description provided for @publicationTitle.
@@ -5033,7 +5033,7 @@ abstract class AppLocalizations {
   /// No description provided for @uiPairDeviceHelp.
   ///
   /// In en, this message translates to:
-  /// **'Transfer your workspace and sync changes'**
+  /// **'Sign in to the same Google account'**
   String get uiPairDeviceHelp;
 
   /// No description provided for @uiPublicProfileHelp.
@@ -5425,6 +5425,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Pick a random character'**
   String get sshHardenRandomUser;
+
+  /// No description provided for @uiServerDataNotCached.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect to the server once to save its data on this device.'**
+  String get uiServerDataNotCached;
 }
 
 class _AppLocalizationsDelegate

@@ -140,7 +140,15 @@ final class DriveFixture implements DriveHttp {
     }
     if (path == '/drive/v3/files') {
       if (query['spaces'] != 'appDataFolder') return json({}, 400);
-      final snapshot = files.values.toList();
+      final prefix = RegExp(
+        r"name contains '([^']+)'",
+      ).firstMatch(query['q'] ?? '')?.group(1);
+      final snapshot = files.values
+          .where(
+            (file) =>
+                prefix == null || (file['name'] as String).contains(prefix),
+          )
+          .toList();
       final start = int.tryParse(query['pageToken'] ?? '0') ?? -1;
       if (start < 0) return json({}, 400);
       final page = snapshot.skip(start).take(pageSize).toList();

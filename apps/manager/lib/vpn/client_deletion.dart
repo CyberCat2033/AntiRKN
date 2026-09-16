@@ -372,7 +372,7 @@ extension ClientDeletion on VpnController {
           );
           final payload = jsonDecode(request.json['payload'] as String) as Map;
           if (!(payload['revokedUsers'] as List? ?? []).contains(original.id) ||
-              payload['workspaceId'] != workspace.id) {
+              payload['workspaceId'] != workspace.resourceWorkspaceId(target)) {
             throw const FormatException('vpn_conflict');
           }
           var response = await _request(
@@ -404,7 +404,10 @@ extension ClientDeletion on VpnController {
             );
             final observed = _observations(state, target);
             final owned = observed
-                ?.where((o) => o['workspaceId'] == workspace.id)
+                ?.where(
+                  (o) =>
+                      o['workspaceId'] == workspace.resourceWorkspaceId(target),
+                )
                 .toList();
             final requested = (payload['resources'] as List)
                 .map((r) => r['id'])
@@ -524,7 +527,11 @@ extension ClientDeletion on VpnController {
   ) {
     if (observed == null) throw const FormatException('vpn_failed');
     final owned =
-        observed.where((o) => o['workspaceId'] == workspace.id).toList()
+        observed
+            .where(
+              (o) => o['workspaceId'] == workspace.resourceWorkspaceId(target),
+            )
+            .toList()
           ..sort((a, b) => (a['id'] as String).compareTo(b['id'] as String));
     if (owned.any((o) => o['confirmed'] != true)) {
       throw const FormatException('vpn_conflict');
@@ -554,9 +561,9 @@ extension ClientDeletion on VpnController {
       'version': 1,
       if (isAwgTarget(target)) 'protocol': 'awg',
       if (isTtTarget(target)) 'protocol': 'tt',
-      'workspaceId': workspace.id,
+      'workspaceId': workspace.resourceWorkspaceId(target),
       'panelId': isAwgTarget(target) || isTtTarget(target)
-          ? workspace.id
+          ? workspace.resourceWorkspaceId(target)
           : panel,
       'resources': [for (final o in owned) o['spec']],
       'users': [

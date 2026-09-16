@@ -4,7 +4,7 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'drive_http.dart';
 
 /// Drive v3 adapter for appDataFolder. No OAuth token persistence or app UI.
-final class GoogleDriveSyncStore implements SyncRemoteStore {
+final class GoogleDriveSyncStore implements SyncRemoteStore, SyncAccountStore {
   GoogleDriveSyncStore({
     required SyncAccessTokenProvider tokens,
     DriveHttp? http,
@@ -19,6 +19,7 @@ final class GoogleDriveSyncStore implements SyncRemoteStore {
   static const _fileFields = 'id,name,mimeType,size,version,spaces,trashed';
   static final _idPattern = RegExp(r'^[A-Za-z0-9_-]{1,256}$');
   static final _packetName = RegExp('^$syncTransportNamePrefix[a-f0-9]{64}\$');
+  static final _accountKeyName = RegExp('^$syncAccountKeyPrefix[a-f0-9]{32}\$');
 
   Uri _uri(String path, [Map<String, String>? query]) =>
       Uri.https('www.googleapis.com', '/drive/v3/$path', query);
@@ -215,10 +216,31 @@ final class GoogleDriveSyncStore implements SyncRemoteStore {
 
   @override
   Future<void> createPacket(String fileId, String name, Uint8List bytes) async {
+    if (!_packetName.hasMatch(name)) {
+      throw const SyncTransportFailure(SyncTransportIssue.invalid);
+    }
+    await _createObject(fileId, name, bytes);
+  }
+
+  @override
+  Future<void> createAccountKey(
+    String fileId,
+    String name,
+    Uint8List bytes,
+  ) async {
+    if (!_accountKeyName.hasMatch(name) || bytes.length > 4096) {
+      throw const SyncTransportFailure(SyncTransportIssue.invalid);
+    }
+    await _createObject(fileId, name, bytes);
+  }
+
+  Future<void> _createObject(
+    String fileId,
+    String name,
+    Uint8List bytes,
+  ) async {
     _id(fileId);
-    if (!_packetName.hasMatch(name) ||
-        bytes.isEmpty ||
-        bytes.length > syncTransportPacketLimit) {
+    if (bytes.isEmpty || bytes.length > syncTransportPacketLimit) {
       throw const SyncTransportFailure(SyncTransportIssue.invalid);
     }
     // Durable fileId is owned by the journal. Restarting a failed upload uses
@@ -301,6 +323,14 @@ final class GoogleDriveSyncStore implements SyncRemoteStore {
 
   @override
   Future<SyncRemotePage> listFiles({String? pageToken}) async {
+    return _listObjects(syncTransportNamePrefix, pageToken);
+  }
+
+  @override
+  Future<SyncRemotePage> listAccountKeys({String? pageToken}) =>
+      _listObjects(syncAccountKeyPrefix, pageToken);
+
+  Future<SyncRemotePage> _listObjects(String prefix, String? pageToken) async {
     if (pageToken != null) _token(pageToken);
     final json = _json(
       await _send(
@@ -308,7 +338,7 @@ final class GoogleDriveSyncStore implements SyncRemoteStore {
         _uri('files', {
           'spaces': 'appDataFolder',
           'pageSize': '100',
-          'q': "trashed = false and name contains '$syncTransportNamePrefix'",
+          'q': "trashed = false and name contains '$prefix'",
           'fields': 'nextPageToken,incompleteSearch,files($_fileFields)',
           'pageToken': ?pageToken,
         }),

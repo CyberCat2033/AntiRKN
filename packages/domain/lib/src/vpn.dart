@@ -255,6 +255,17 @@ final class VpnWorkspace {
   final List<AwgInterface> awgInterfaces;
   final List<TrustTunnelEndpoint> ttEndpoints;
   final Map<String, Map<String, dynamic>> servers, profiles;
+
+  /// Keep the namespace used to derive credentials on the actual server when
+  /// an independently created local workspace joins the same Google account.
+  String resourceWorkspaceId(String target) {
+    final value = servers[target]?['resourceWorkspaceId'] ?? id;
+    if (value is! String || !RegExp(r'^[a-f0-9]{32}$').hasMatch(value)) {
+      throw const FormatException('vpn_workspace');
+    }
+    return value;
+  }
+
   String encode() => jsonEncode({
     'version': users.any((u) => u.deleted) ? 4 : 3,
     'id': id,
@@ -282,6 +293,7 @@ final class VpnWorkspace {
     profiles: profiles ?? this.profiles,
   );
   Map<String, Object?> desired(String serverId, String panelId) {
+    final owner = resourceWorkspaceId(serverId);
     if (isTtTarget(serverId)) {
       final resources =
           ttEndpoints.where((r) => r.serverId == vpnServerId(serverId)).toList()
@@ -291,8 +303,8 @@ final class VpnWorkspace {
       final result = <String, Object?>{
         'version': 1,
         'protocol': 'tt',
-        'workspaceId': id,
-        'panelId': id,
+        'workspaceId': owner,
+        'panelId': owner,
         'resources': resources.map((r) => r.spec).toList(),
         'users': clients
             .map(
@@ -318,8 +330,8 @@ final class VpnWorkspace {
       final result = <String, Object?>{
         'version': 1,
         'protocol': 'awg',
-        'workspaceId': id,
-        'panelId': id,
+        'workspaceId': owner,
+        'panelId': owner,
         'resources': resources.map((r) => r.spec).toList(),
         'users': clients
             .map((u) => <String, Object?>{'id': u.id, 'enabled': u.enabled})
@@ -334,7 +346,7 @@ final class VpnWorkspace {
       ..sort((a, b) => a.id.compareTo(b.id));
     final result = <String, Object?>{
       'version': 1,
-      'workspaceId': id,
+      'workspaceId': owner,
       'panelId': panelId,
       'resources': resources.map((r) => r.spec).toList(),
       'users': clients

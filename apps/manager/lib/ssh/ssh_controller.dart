@@ -239,7 +239,7 @@ class SshController extends ChangeNotifier {
       repository is SettingsStore ? repository as SettingsStore : null;
   bool get canResetTraffic => _trafficStore != null;
   ServerTrafficSnapshot? get trafficSample {
-    final raw = observation?.software?.facts[ServerFact.networkTraffic]?.value;
+    final raw = software?.facts[ServerFact.networkTraffic]?.value;
     if (raw == null) return null;
     try {
       return ServerTrafficSnapshot.parse(raw);
@@ -995,6 +995,13 @@ class SshController extends ChangeNotifier {
             architecture: next.architecture,
             observedAt: next.network.observedAt,
             software: next.software,
+            publicAddresses: List.unmodifiable(
+              next.network.addresses
+                  .where(
+                    (address) => address.addressClass == AddressClass.external,
+                  )
+                  .map((address) => address.address),
+            ),
           ),
         ),
       );

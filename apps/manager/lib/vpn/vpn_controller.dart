@@ -288,9 +288,9 @@ class VpnController extends ChangeNotifier {
     String panel,
     Map<String, Object?> payload,
   ) => isTtTarget(target)
-      ? RunnerRequest.ttPlan(workspace.id, payload)
+      ? RunnerRequest.ttPlan(workspace.resourceWorkspaceId(target), payload)
       : isAwgTarget(target)
-      ? RunnerRequest.awgPlan(workspace.id, payload)
+      ? RunnerRequest.awgPlan(workspace.resourceWorkspaceId(target), payload)
       : RunnerRequest.vlessPlan(panel, payload);
   RunnerRequest _applyRequest(
     String target,
@@ -303,9 +303,9 @@ class VpnController extends ChangeNotifier {
       ? RunnerRequest.awgApply(id, payload, fingerprint)
       : RunnerRequest.vlessApply(id, payload, fingerprint);
   RunnerRequest _stateRequest(String target, String panel) => isTtTarget(target)
-      ? RunnerRequest.ttState(workspace.id)
+      ? RunnerRequest.ttState(workspace.resourceWorkspaceId(target))
       : isAwgTarget(target)
-      ? RunnerRequest.awgState(workspace.id)
+      ? RunnerRequest.awgState(workspace.resourceWorkspaceId(target))
       : RunnerRequest.vlessState(panel);
   Map<String, dynamic>? _preview(RunnerResponse r, String target) =>
       isTtTarget(target)
@@ -465,7 +465,7 @@ class VpnController extends ChangeNotifier {
         throw const FormatException('vpn_busy');
       }
       final panelId = (isAwgTarget(id) || isTtTarget(id))
-          ? workspace.id
+          ? workspace.resourceWorkspaceId(id)
           : connection?.panelId ?? previous?['panelId'] as String?;
       if (panelId == null) throw const FormatException('vpn_panel_required');
       final payload = workspace.desired(id, panelId);
@@ -734,7 +734,8 @@ class VpnController extends ChangeNotifier {
                     (rid) => _observations(state, id)!.any(
                       (r) =>
                           r['id'] == rid &&
-                          r['workspaceId'] == workspace.id &&
+                          r['workspaceId'] ==
+                              workspace.resourceWorkspaceId(id) &&
                           r['confirmed'] == true &&
                           r['revision'] == expected,
                     ),
@@ -799,7 +800,7 @@ class VpnController extends ChangeNotifier {
       final recovered = (_observations(result, id) ?? [])
           .where(
             (o) =>
-                o['workspaceId'] == workspace.id &&
+                o['workspaceId'] == workspace.resourceWorkspaceId(id) &&
                 !workspace.ttEndpoints.any((i) => i.id == o['id']),
           )
           .map(
@@ -821,7 +822,7 @@ class VpnController extends ChangeNotifier {
       final recovered = (_observations(result, id) ?? [])
           .where(
             (o) =>
-                o['workspaceId'] == workspace.id &&
+                o['workspaceId'] == workspace.resourceWorkspaceId(id) &&
                 !workspace.awgInterfaces.any((i) => i.id == o['id']),
           )
           .map(
@@ -844,7 +845,7 @@ class VpnController extends ChangeNotifier {
     final recovered = (_observations(result, id) ?? [])
         .where(
           (o) =>
-              o['workspaceId'] == workspace.id &&
+              o['workspaceId'] == workspace.resourceWorkspaceId(id) &&
               !workspace.inbounds.any((i) => i.id == o['id']),
         )
         .map(

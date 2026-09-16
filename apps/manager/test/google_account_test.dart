@@ -73,7 +73,11 @@ void main() {
         home: MediaQuery(
           data: MediaQueryData(textScaler: TextScaler.linear(scale)),
           child: Scaffold(
-            body: ListView(children: [GoogleAccountPanel(service: service)]),
+            body: ListView(
+              children: [
+                GoogleAccountPanel(service: service, accountDetails: true),
+              ],
+            ),
           ),
         ),
       ),
@@ -94,15 +98,6 @@ void main() {
         await tester.tap(find.byKey(const ValueKey('google-sign-in')));
         await tester.pumpAndSettle();
         expect(find.text('fixture@example.com'), findsOneWidget);
-        await tester.ensureVisible(
-          find.byKey(const PageStorageKey('google-account-options')),
-        );
-        await tester.tap(
-          find.text(
-            locale == 'ru' ? 'Параметры синхронизации' : 'Sync options',
-          ),
-        );
-        await tester.pumpAndSettle();
         await tester.ensureVisible(
           find.byKey(const ValueKey('google-sign-out')),
         );
@@ -133,9 +128,7 @@ void main() {
       await tester.pump();
       expect(
         tester
-            .widget<OutlinedButton>(
-              find.byKey(const ValueKey('google-sign-in')),
-            )
+            .widget<FilledButton>(find.byKey(const ValueKey('google-sign-in')))
             .onPressed,
         isNull,
       );
@@ -143,7 +136,7 @@ void main() {
       await tester.pumpAndSettle();
     },
   );
-  testWidgets('actual app Settings shows Google sign-in directly', (
+  testWidgets('actual app opens Google sign-in from synchronization settings', (
     tester,
   ) async {
     final languages = LanguageController(Languages());
@@ -159,11 +152,21 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Настройки').last);
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('settings-category-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Google Drive').first);
+    await tester.pumpAndSettle();
     expect(
       find.byKey(const ValueKey('google-sign-in')).hitTestable(),
       findsOneWidget,
     );
-    expect(find.text('Войти в Google'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('google-sign-in')),
+        matching: find.text('Войти в Google'),
+      ),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -182,6 +185,8 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.tap(find.text('Настройки').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('settings-category-1')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Google Drive').first);
       await tester.pumpAndSettle();

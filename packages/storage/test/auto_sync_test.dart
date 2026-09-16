@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_integrations/antirkn_integrations.dart';
@@ -138,7 +139,7 @@ void main() {
       first = db('a', 33);
       session = await open(first);
       await drain(session);
-      expect(drive.contents.length, count);
+      expect(drive.contents.length, count + 1);
       expect(drive.contents.containsKey(firstId), isTrue);
       expect(await first.readPendingChanges(), isEmpty);
     },
@@ -194,7 +195,7 @@ void main() {
           ...(await first.readChanges()).map((e) => e.header.changeId),
           ...(await second.readChanges()).map((e) => e.header.changeId),
         };
-        expect(otherDrive.contents.length, history.length);
+        expect(otherDrive.contents.length, history.length + 1);
         final third = await pair(first, 'c', 53);
         await second.writeDraft('on new account');
         await drain(migrated);
@@ -214,14 +215,18 @@ void main() {
   );
 
   test(
-    'foreign workspace, tampering and cloud deletion never mutate local data',
+    'independent conflicting workspaces retain local version; tampering and cloud deletion do not overwrite it',
     () async {
       final first = db('a', 61), foreign = db('foreign', 62);
       await first.writeDraft('keep me');
       await foreign.writeDraft('foreign secret');
       final a = await open(first), f = await open(foreign);
       await drain(f);
-      final corrupt = Uint8List.fromList(drive.contents.values.first);
+      final corrupt = Uint8List.fromList(
+        drive.contents[drive.files.values.firstWhere(
+          (f) => (f['name'] as String).startsWith(syncTransportNamePrefix),
+        )['id']]!,
+      );
       corrupt[corrupt.length - 1] ^= 1;
       final hash = (await Sha256().hash(
         corrupt,
@@ -234,6 +239,165 @@ void main() {
       }
       await drain(a);
       expect(await first.readDraft(), 'keep me');
+    },
+  );
+
+  Future<void> seed(WorkspaceDatabase store, String digit) async {
+    final id = digit * 32;
+    final vault = await store.openServer('server-$digit');
+    await vault.saveProfile(
+      SshProfile(
+        id: 'server-$digit',
+        host: 'server-$digit.example',
+        port: 22,
+        username: 'root',
+        authMethod: SshAuthMethod.password,
+        secrets: {ServerSecret.sshPassword: 'fixture-secret-$digit'},
+      ),
+    );
+    final before = await store.readVpn();
+    final yaml = 'mode: rule\n# fixture-$digit';
+    final hash = (await Sha256().hash(
+      utf8.encode(yaml),
+    )).bytes.map((v) => v.toRadixString(16).padLeft(2, '0')).join();
+    await store.writeVpn(
+      VpnWorkspace(
+        id: before.workspaceId!,
+        users: [VpnUser(id: id, login: 'client-$digit', name: 'Client $digit')],
+        servers: {
+          'server-$digit': {'panelId': '3' * 32},
+          awgTarget('server-$digit'): {},
+          ttTarget('server-$digit'): {},
+        },
+        profiles: {
+          id: {'yaml': yaml, 'hash': hash},
+        },
+      ).encode(),
+      expectedRevision: before.revision,
+    );
+  }
+
+  test(
+    'Google sign-in joins a fresh device without backup, preserving credentials and publication namespace',
+    () async {
+      final first = db('a', 81), second = db('b', 82);
+      await seed(first, '1');
+      final origin = (await first.readWorkspaceIdentity()).workspaceId;
+      final a = await open(first), b = await open(second);
+      await drain(a);
+      await drain(b);
+      expect(
+        (await second.listServers()).single.profile.secrets[ServerSecret
+            .sshPassword],
+        'fixture-secret-1',
+      );
+      final vpn = VpnWorkspace.decode((await second.readVpn()).source!);
+      expect(vpn.users.single.id, '1' * 32);
+      for (final target in [
+        'server-1',
+        awgTarget('server-1'),
+        ttTarget('server-1'),
+      ]) {
+        expect(vpn.desired(target, '3' * 32)['workspaceId'], origin);
+        if (target != 'server-1') {
+          expect(vpn.desired(target, '3' * 32)['panelId'], origin);
+        }
+      }
+      final draft = (await second.readPublicationDraft('1' * 32))!;
+      expect(draft.workspaceId, origin);
+      await second.checkPublicationDraft(draft);
+      expect((await second.readWorkspaceIdentity()).workspaceId, isNot(origin));
+      final before = await second.readVpn();
+      await second.writeVpn(
+        vpn
+            .copy(
+              users: [
+                VpnUser(id: '1' * 32, login: 'client-1', name: 'Renamed'),
+              ],
+            )
+            .encode(),
+        expectedRevision: before.revision,
+      );
+      await drain(b);
+      await drain(a);
+      expect(
+        VpnWorkspace.decode((await first.readVpn()).source!).users.single.name,
+        'Renamed',
+      );
+      expect((await first.readSyncMergeStatus()).conflicts, isEmpty);
+      // Translated history is a normal, valid portable backup.
+      final restored = await pair(second, 'c', 83);
+      expect(
+        (await restored.readPublicationDraft('1' * 32))!.workspaceId,
+        origin,
+      );
+    },
+  );
+
+  test(
+    'two populated devices merge automatically, restart and tombstones converge',
+    () async {
+      final first = db('a', 91);
+      var second = db('b', 92);
+      await seed(first, '1');
+      await seed(second, '2');
+      final a = await open(first);
+      var b = await open(second);
+      await Future.wait([drain(a), drain(b)]);
+      await drain(a);
+      await drain(b);
+      for (final store in [first, second]) {
+        expect((await store.listServers()).map((s) => s.id).toSet(), {
+          'server-1',
+          'server-2',
+        });
+        expect(
+          VpnWorkspace.decode(
+            (await store.readVpn()).source!,
+          ).users.map((u) => u.id).toSet(),
+          {'1' * 32, '2' * 32},
+        );
+        expect((await store.readSyncMergeStatus()).conflicts, isEmpty);
+      }
+      await b.close();
+      await second.close();
+      second = db('b', 92);
+      b = await open(second);
+      await (await first.openServer('server-1')).saveProfile(null);
+      await drain(a);
+      await drain(b);
+      expect((await second.listServers()).map((s) => s.id), ['server-2']);
+      final size = drive.contents.length;
+      await drain(a);
+      await drain(b);
+      expect(drive.contents.length, size);
+    },
+  );
+
+  test(
+    'legacy packets skipped without a key are imported once the old device upgrades',
+    () async {
+      final first = db('a', 101), second = db('b', 102);
+      await seed(first, '1');
+      final tokens = FixtureTokens();
+      final remote = GoogleDriveSyncStore(tokens: tokens, http: drive);
+      for (final packet in await first.preparePendingPackets()) {
+        final digest = (await Sha256().hash(
+          packet.bytes,
+        )).bytes.map((v) => v.toRadixString(16).padLeft(2, '0')).join();
+        await remote.createPacket(
+          await remote.generateFileId(),
+          '$syncTransportNamePrefix$digest',
+          packet.bytes,
+        );
+      }
+      final b = await open(second);
+      expect((await drain(b)).otherWorkspaces, greaterThan(0));
+      expect(await second.listServers(), isEmpty);
+      final a = await open(first);
+      await drain(a);
+      expect((await drain(b)).otherWorkspaces, 0);
+      expect((await second.listServers()).single.id, 'server-1');
     },
   );
 

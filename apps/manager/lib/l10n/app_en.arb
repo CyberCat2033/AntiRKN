@@ -869,7 +869,7 @@
   "autoSyncError": "The exchange did not finish. Your data is saved; the app will retry automatically.",
   "autoSyncNow": "Sync now",
   "autoSyncLast": "Last exchange: {time}",
-  "autoSyncPairing": "Create an encrypted backup on your main device. On the new device, choose Restore, select the backup and sign in to the same Google account. The backup transfers the encryption key; share it only with trusted devices. Sync runs while the app is open.",
+  "autoSyncPairing": "Sign in to the same Google account on your devices. Servers, clients and settings sync automatically while the app is open.",
   "@autoSyncLast": {
     "placeholders": {
       "time": {
@@ -881,7 +881,7 @@
   "googleDesktopUnavailable": "Could not open Google sign-in in the system browser. Check your default browser and try again.",
   "googleDesktopWaiting": "Complete sign-in in your browser, then return here. On first setup, select your Google Desktop client file if prompted.",
   "googleCancelSignIn": "Cancel sign-in",
-  "autoSyncOtherWorkspaces": "Drive contains another workspace. To use its servers and clients here, restore an encrypted backup from the device that already has them.",
+  "autoSyncOtherWorkspaces": "Some data was saved by an older app version. Update and open AntiRKN on the device that has it; it will become available here automatically.",
   "publicationTitle": "Profile publication",
   "publicationHelp": "Automatically save client YAML profiles to Google Drive and update the same file. Set up the folder on one device, then sync the others.",
   "publicationAuthorize": "Allow publishing to Drive",
@@ -1054,7 +1054,7 @@
   "uiUpdatesAutomaticHelp": "New versions of server components",
   "uiUpdatesSuggestionsHelp": "Notify about available updates",
   "uiSyncAutomaticHelp": "Changes across all your devices",
-  "uiPairDeviceHelp": "Transfer your workspace and sync changes",
+  "uiPairDeviceHelp": "Sign in to the same Google account",
   "uiPublicProfileHelp": "The profile is available by direct link. Open the client to get its QR code and link.",
   "uiPublicationAutoHelp": "Save changes at the same profile links",
   "uiVlessIntro": "VLESS connections on this server",
@@ -1181,5 +1181,6 @@
   "sshHardenInvalid": "Invalid username or port.",
   "sshHardenPortBusy": "The selected port is already in use.",
   "sshHardenFailed": "SSH hardening failed. Rolled back to previous state.",
-  "sshHardenRandomUser": "Pick a random character"
+  "sshHardenRandomUser": "Pick a random character",
+  "uiServerDataNotCached": "Connect to the server once to save its data on this device."
 }

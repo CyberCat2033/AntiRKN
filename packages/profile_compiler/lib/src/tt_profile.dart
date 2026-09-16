@@ -18,7 +18,8 @@ List<PreparedProxy> ttUserAccesses(VpnWorkspace workspace, String userId) {
         .where(
           (o) =>
               o['id'] == r.id &&
-              o['workspaceId'] == workspace.id &&
+              o['workspaceId'] ==
+                  workspace.resourceWorkspaceId(ttTarget(r.serverId)) &&
               o['confirmed'] == true &&
               canonicalJson(o['spec']) == canonicalJson(r.spec),
         )

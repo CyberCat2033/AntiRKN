@@ -224,7 +224,7 @@ void main() {
   );
 
   test(
-    'last OS and software versions survive database restart without stale running state',
+    'last server metrics and addresses survive restart without cached privileges or running state',
     () async {
       final db = open();
       final id = db.newServerId();
@@ -235,9 +235,20 @@ void main() {
             os: 'Ubuntu 24.04.3 LTS',
             architecture: 'x86_64',
             observedAt: time,
+            publicAddresses: [
+              IpAddress.parse('93.184.215.15'),
+              IpAddress.parse('2606:4700::1111'),
+            ],
             software: ServerSoftwareInventory(
               observedAt: time,
-              facts: const {},
+              facts: const {
+                ServerFact.freeDiskKiB: InventoryValue.ok('1234'),
+                ServerFact.totalDiskKiB: InventoryValue.ok('5678'),
+                ServerFact.networkTraffic: InventoryValue.ok(
+                  '11111111-1111-1111-1111-111111111111\neth0 1024 2048',
+                ),
+                ServerFact.uid: InventoryValue.ok('0'),
+              },
               sockets: const [],
               components: [
                 ComponentObservation(
@@ -266,6 +277,19 @@ void main() {
       final saved = (await open().listServers()).single.profile.lastInfo!;
       expect(saved.os, 'Ubuntu 24.04.3 LTS');
       expect(saved.observedAt, time);
+      expect(saved.publicAddresses!.map((ip) => ip.canonical), [
+        '93.184.215.15',
+        '2606:4700::1111',
+      ]);
+      expect(saved.software!.facts[ServerFact.freeDiskKiB]!.value, '1234');
+      expect(saved.software!.facts[ServerFact.totalDiskKiB]!.value, '5678');
+      expect(
+        ServerTrafficSnapshot.parse(
+          saved.software!.facts[ServerFact.networkTraffic]!.value!,
+        ).received,
+        1024,
+      );
+      expect(saved.software!.facts.containsKey(ServerFact.uid), isFalse);
       expect(
         saved.software!.components.single.installations.first.version!.value,
         '3.1.20260812',

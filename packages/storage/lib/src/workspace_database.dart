@@ -24,6 +24,7 @@ part 'workspace_backup.dart';
 part 'workspace_sync.dart';
 part 'workspace_merge.dart';
 part 'workspace_auto_sync.dart';
+part 'workspace_account_sync.dart';
 part 'workspace_publications.dart';
 
 Future<WorkspaceDatabase> openLocalWorkspace() async {
@@ -553,7 +554,7 @@ final class WorkspaceDatabase
       throw const PublicationFailure(PublicationIssue.invalid);
     }
     return PublicationDraft(
-      workspaceId: workspace.id,
+      workspaceId: profile['publicationWorkspaceId'] as String? ?? workspace.id,
       deviceId: _journal.identity.deviceId,
       userId: userId,
       name: user.login,
@@ -570,8 +571,7 @@ final class WorkspaceDatabase
   ) => _serial(() async {
     _journal.checkIdentity();
     _checkSyncEffectsNow();
-    if (_journal.identity.workspaceId != draft.workspaceId ||
-        _journal.identity.deviceId != draft.deviceId) {
+    if (_journal.identity.deviceId != draft.deviceId) {
       throw const SyncMergeFailure(SyncMergeIssue.changed);
     }
     if (draft.stamp != _publicationInputStamp()) {
@@ -594,7 +594,10 @@ final class WorkspaceDatabase
       ),
     );
     if (!workspace.users.any((u) => u.id == draft.userId && u.enabled) ||
-        workspace.profiles[draft.userId]?['hash'] != draft.hash) {
+        workspace.profiles[draft.userId]?['hash'] != draft.hash ||
+        (workspace.profiles[draft.userId]?['publicationWorkspaceId'] ??
+                workspace.id) !=
+            draft.workspaceId) {
       throw const SyncMergeFailure(SyncMergeIssue.changed);
     }
   });
@@ -647,6 +650,7 @@ final class WorkspaceDatabase
             expectedRevision,
             previous.single['payload'] as Uint8List,
           );
+    source = _withAccountNamespaces(source, oldSource);
     if (oldSource == source) {
       return _transaction(() {
         _checkRevision('documents', id, expectedRevision);

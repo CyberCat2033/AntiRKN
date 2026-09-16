@@ -27,7 +27,8 @@ List<PreparedProxy> vlessUserAccesses(VpnWorkspace workspace, String userId) {
         .where(
           (o) =>
               o['id'] == inbound.id &&
-              o['workspaceId'] == workspace.id &&
+              o['workspaceId'] ==
+                  workspace.resourceWorkspaceId(inbound.serverId) &&
               o['confirmed'] == true,
         )
         .firstOrNull;

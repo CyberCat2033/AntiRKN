@@ -84,6 +84,15 @@ abstract interface class SyncRemoteStore {
   Future<SyncRemotePage> listChanges(String pageToken);
 }
 
+/// Account-authorized onboarding material in the same private appDataFolder.
+/// Access to this store, unlike the legacy packet-only mode, grants membership.
+abstract interface class SyncAccountStore {
+  Future<SyncRemotePage> listAccountKeys({String? pageToken});
+  Future<void> createAccountKey(String fileId, String name, Uint8List bytes);
+}
+
+const syncAccountKeyPrefix = 'antirkn-account-key-v1-';
+
 /// Capture startToken BEFORE enumeration. Then replay changes from that token.
 final class SyncTransportCursor {
   const SyncTransportCursor({

@@ -7,11 +7,15 @@ final class ServerInfo {
     required this.architecture,
     required this.observedAt,
     this.software,
+    this.publicAddresses,
   });
   final String os;
   final String architecture;
   final DateTime observedAt;
   final ServerSoftwareInventory? software;
+
+  /// null means the older cache did not record addresses; [] means none found.
+  final List<IpAddress>? publicAddresses;
 }
 
 enum InventoryStatus {

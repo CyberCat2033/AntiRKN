@@ -17,7 +17,10 @@ List<PreparedProxy> awgUserAccesses(VpnWorkspace workspace, String userId) {
         .where(
           (r) =>
               r['id'] == interface.id &&
-              r['workspaceId'] == workspace.id &&
+              r['workspaceId'] ==
+                  workspace.resourceWorkspaceId(
+                    awgTarget(interface.serverId),
+                  ) &&
               r['confirmed'] == true &&
               canonicalJson(r['spec']) == canonicalJson(interface.spec),
         )

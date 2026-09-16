@@ -416,6 +416,30 @@ final class SyncTransportDatabase implements SyncTransportJournal {
         .toSet(),
   );
 
+  /// Revisit packets skipped by the older manual-pairing implementation.
+  Future<void> rescanAccountPackets() => _serial(() async {
+    final row = _db
+        .select('SELECT revision FROM transport_cursor WHERE id=1')
+        .single;
+    final revision = row['revision'] as int;
+    final payload = await _encrypt('cursor', revision + 1, {
+      'start': null,
+      'listing': true,
+      'page': null,
+      'last': null,
+    });
+    _transaction(() {
+      _db.execute(
+        'UPDATE transport_cursor SET revision=?,payload=? WHERE id=1 AND revision=?',
+        [revision + 1, payload, revision],
+      );
+      if (_db.updatedRows != 1) {
+        throw const SyncTransportFailure(SyncTransportIssue.changed);
+      }
+      _db.execute('DELETE FROM transport_seen');
+    });
+  });
+
   Future<void> enqueue(
     String changeId,
     Uint8List bytes, {
