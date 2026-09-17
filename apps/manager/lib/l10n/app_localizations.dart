@@ -6011,8 +6011,20 @@ abstract class AppLocalizations {
   /// No description provided for @connectionChanged.
   ///
   /// In en, this message translates to:
-  /// **'Settings changed. Run the check again.'**
+  /// **'Connection settings changed during the check. Run it again.'**
   String get connectionChanged;
+
+  /// No description provided for @connectionCoreUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not run the Mihomo check. Try again.'**
+  String get connectionCoreUnavailable;
+
+  /// No description provided for @connectionUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Mihomo cannot check this connection configuration.'**
+  String get connectionUnsupported;
 
   /// No description provided for @connectionNotTested.
   ///

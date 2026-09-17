@@ -102,7 +102,7 @@ class MihomoValidationBridge(private val context: Context, messenger: BinaryMess
                 try {
                     val json = JSONObject(text)
                     val values = mutableMapOf<String, Any?>()
-                    for (key in listOf("status", "code", "version", "revision", "hash", "resourcesHash", "path")) {
+                    for (key in listOf("status", "code", "version", "revision", "hash", "resourcesHash", "path", "failure")) {
                         if (json.has(key)) values[key] = json.getString(key)
                     }
                     for (key in listOf("tcp", "udp", "udpTested")) {

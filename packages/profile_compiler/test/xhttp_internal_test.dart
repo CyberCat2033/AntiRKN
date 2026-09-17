@@ -65,6 +65,10 @@ void main() {
     final restored = VpnWorkspace.decode(workspace(r).encode());
     final access = vlessUserAccesses(restored, 'c' * 32).single;
     expect(access.fields['client-fingerprint'], 'firefox');
+    expect(
+      (access.fields['reality-opts'] as Map)['support-x25519mlkem768'],
+      isTrue,
+    );
     final options = access.fields['xhttp-opts'] as Map;
     expect(options['reuse-settings'], {
       'max-connections': '2-3',

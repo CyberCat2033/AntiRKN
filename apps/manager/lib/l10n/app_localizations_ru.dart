@@ -3384,7 +3384,16 @@ class AppLocalizationsRu extends AppLocalizations {
       'Проверка прервана. Сервер удалит временный доступ автоматически.';
 
   @override
-  String get connectionChanged => 'Настройки изменились. Повторите проверку.';
+  String get connectionChanged =>
+      'Параметры подключения изменились во время проверки. Запустите её ещё раз.';
+
+  @override
+  String get connectionCoreUnavailable =>
+      'Не удалось выполнить проверку Mihomo. Попробуйте ещё раз.';
+
+  @override
+  String get connectionUnsupported =>
+      'Mihomo не может проверить эту конфигурацию подключения.';
 
   @override
   String get connectionNotTested => 'Не проверено';

@@ -97,6 +97,47 @@ class AdoptedProbeTests(unittest.TestCase):
             self.assertEqual(end['connectionProbe'],dict(closed=True,stable=False),end)
             self.assertIn(foreign,self.raw);self.assertIn(runtime_only,self.runtime)
 
+    def test_external_vless_traffic_counters_do_not_invalidate_probe(self):
+        probe_api(self.api)
+        with patch.object(probe, 'arm'), patch.object(probe, 'retire'):
+            p = self.payload('vless')
+            req = dict(version=1, action='probe_begin', id='e'*32,
+                       payload=json.dumps(dict(protocol='vless', resource='b'*32,
+                           workspace='a'*32, spec=p['resources'][0], external=True)))
+            response = self.store.request(req)
+            self.assertEqual(response['code'], 'ok', response)
+            before = copy.deepcopy(vless.normal(self.api.rows[0]))
+            self.api.rows[0].update(up=1024, down=8192, allTime=9216,
+                clientStats=[dict(id=1, up=1024, down=8192, lastOnline=123456)])
+            # Panel JSON formatting, client order and timestamps are not settings.
+            settings = self.api.rows[0]['settings']
+            for client in settings['clients']:
+                client['updated_at'] = 123456
+            settings['clients'].reverse()
+            self.api.rows[0]['settings'] = json.dumps(settings, indent=2)
+            self.assertEqual(vless.normal(self.api.rows[0]), before)
+            self.assertEqual(self.store.request(req)['connectionProbe'], response['connectionProbe'])
+            self.api.rows[0]['settings'] = settings  # fixture API expects a map
+            self.assertEqual(probe.end(self.store, req['id']), dict(closed=True, stable=True))
+            self.assertEqual(len(self.api.rows[0]['settings']['clients']), 1)
+            self.assertEqual(self.api.rows[0]['up'], 1024)
+
+    def test_external_vless_actual_changes_invalidate_probe_and_survive_cleanup(self):
+        probe_api(self.api)
+        with patch.object(probe, 'arm'), patch.object(probe, 'retire'):
+            p = self.payload('vless')
+            req = dict(version=1, action='probe_begin', id='e'*32,
+                       payload=json.dumps(dict(protocol='vless', resource='b'*32,
+                           workspace='a'*32, spec=p['resources'][0], external=True)))
+            self.assertEqual(self.store.request(req)['code'], 'ok')
+            self.api.rows[0]['streamSettings']['sockopt']['tcpFastOpen'] = False
+            foreign = dict(id='99999999-9999-4999-8999-999999999999', email='added', enable=True)
+            self.api.rows[0]['settings']['clients'].append(foreign)
+            self.assertEqual(probe.end(self.store, req['id']), dict(closed=True, stable=False))
+            self.assertFalse(self.api.rows[0]['streamSettings']['sockopt']['tcpFastOpen'])
+            self.assertIn(foreign, self.api.rows[0]['settings']['clients'])
+            self.assertEqual(len(self.api.rows[0]['settings']['clients']), 2)
+
     def test_cleanup_preserves_concurrent_tt_user(self):
         with patch.object(probe,'arm'), patch.object(probe,'retire'):
             req=self.begin('tt');self.assertEqual(self.store.request(req)['code'],'ok')

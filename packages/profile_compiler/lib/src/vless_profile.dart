@@ -65,6 +65,7 @@ List<PreparedProxy> vlessUserAccesses(VpnWorkspace workspace, String userId) {
         'reality-opts': <String, Object?>{
           'public-key': observation['publicKey'],
           'short-id': observation['shortId'],
+          'support-x25519mlkem768': true,
         },
       if (inbound.transport == 'xhttp')
         'xhttp-opts': <String, Object?>{

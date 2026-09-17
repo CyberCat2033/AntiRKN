@@ -18,6 +18,10 @@ String connectionCheckMessage(AppLocalizations l, ConnectionCheck check) {
     'diagnostic_access' || 'server_unavailable' => l.connectionAccessRequired,
     'cleanup_pending' => l.connectionCleanupPending,
     'changed' => l.connectionChanged,
+    'runtime_unavailable' || 'core_failure' => l.connectionCoreUnavailable,
+    'invalid_proxy' ||
+    'unsupported' ||
+    'udp_unsupported' => l.connectionUnsupported,
     _ => l.connectionNotTested,
   };
 }

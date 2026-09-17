@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"golang.org/x/net/dns/dnsmessage"
 	"net"
 	"net/http"
@@ -87,6 +88,41 @@ func TestUnsupportedChainAndDirectAreNotTested(t *testing.T) {
 		result := Execute(context.Background(), Request{Mode: "probe", YAML: source}, PublicTargets)
 		if result.Status != "not_tested" {
 			t.Fatal("unsupported route")
+		}
+	}
+}
+
+func TestExistingXHTTPNumericRangesAreAccepted(t *testing.T) {
+	// 3x-ui emits single-valued XHTTP ranges as JSON integers. They must
+	// reach Mihomo like YAML integers, never as exponent strings ("3E+00").
+	for _, options := range []string{
+		`{"x-padding-bytes":100,"sc-max-each-post-bytes":1000000,"sc-min-posts-interval-ms":30,"reuse-settings":{"max-concurrency":0,"max-connections":3,"h-max-request-times":600}}`,
+		`{"x-padding-bytes":"100","sc-max-each-post-bytes":"1000000","sc-min-posts-interval-ms":"30","reuse-settings":{"max-concurrency":"0","max-connections":"3","h-max-request-times":"600"}}`,
+	} {
+		source := `{"name":"fixture","type":"vless","server":"127.0.0.1","port":1,"uuid":"00000000-0000-4000-8000-000000000001","network":"xhttp","xhttp-opts":` + options + `}`
+		result := Execute(context.Background(), Request{Mode: "probe", YAML: source}, Targets{})
+		if result.Code != "connection_failed" {
+			t.Fatalf("valid XHTTP options rejected before any network attempt: %s", result.Code)
+		}
+	}
+}
+
+func TestFailureCodeNeverExposesRawErrors(t *testing.T) {
+	for _, item := range []struct{ input, expected string }{
+		{"REALITY authentication failed at secret.example", "reality_auth"},
+		{"xhttp packet-up bad status", "xhttp"},
+		{"tls: failed to verify certificate: x509: certificate is valid for secret.example", "certificate"},
+		{"tls: first record does not look like a TLS handshake", "tls_record"},
+		{"remote error: tls: handshake failure", "tls_remote"},
+		{"read tcp 192.0.2.1: unexpected EOF", "eof"},
+		{"tls: handshake failed", "tls"},
+		{"context deadline exceeded", "timeout"},
+		{"dial tcp 192.0.2.1: connection refused", "dial"},
+		{"unexpected VLESS response version", "vless"},
+		{"private raw error with credentials", "transport"},
+	} {
+		if actual := failureCode(errors.New(item.input)); actual != item.expected {
+			t.Fatalf("%q: got %q", item.input, actual)
 		}
 	}
 }

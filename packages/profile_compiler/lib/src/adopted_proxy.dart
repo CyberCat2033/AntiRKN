@@ -10,6 +10,15 @@ PreparedProxy adoptedProxy(
   Map client,
 ) {
   final base = Map<String, Object?>.from(observation['proxy'] as Map);
+  final reality = base['reality-opts'];
+  if (reality is Map) {
+    base['reality-opts'] = <String, Object?>{
+      ...Map<String, Object?>.from(reality),
+      // Xray 26.7+ accepts the hybrid key share and some REALITY targets now
+      // require it. Mihomo otherwise removes it from the ClientHello.
+      'support-x25519mlkem768': true,
+    };
+  }
   final proxy = PreparedProxy(
     imported: true,
     identity: AccessIdentity(

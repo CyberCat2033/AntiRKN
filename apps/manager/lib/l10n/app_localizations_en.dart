@@ -3379,7 +3379,16 @@ class AppLocalizationsEn extends AppLocalizations {
       'Check interrupted. The server will remove temporary access automatically.';
 
   @override
-  String get connectionChanged => 'Settings changed. Run the check again.';
+  String get connectionChanged =>
+      'Connection settings changed during the check. Run it again.';
+
+  @override
+  String get connectionCoreUnavailable =>
+      'Could not run the Mihomo check. Try again.';
+
+  @override
+  String get connectionUnsupported =>
+      'Mihomo cannot check this connection configuration.';
 
   @override
   String get connectionNotTested => 'Not tested';

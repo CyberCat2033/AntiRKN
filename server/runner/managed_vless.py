@@ -36,6 +36,7 @@ def proxy_fields(row):
     flow = ''
     if security == 'reality':
         reality = stream['realitySettings']
+        client_settings = reality.get('settings', {})
         private = base64.urlsafe_b64decode(reality['privateKey'] + '=' * (-len(reality['privateKey']) % 4))
         if len(private) != 32 or not reality.get('serverNames') or not reality.get('shortIds'):
             raise VlessError('vpn_adoption_unsupported')
@@ -43,9 +44,16 @@ def proxy_fields(row):
                                input_data=bytes.fromhex('302e020100300506032b656e04220420') + private)
         if len(public) != 44:
             raise VlessError('vpn_adoption_invalid')
-        proxy.update(servername=reality['serverNames'][0])
-        proxy['client-fingerprint'] = reality.get('settings', {}).get('fingerprint') or 'chrome'
-        proxy['reality-opts'] = {'public-key': base64.urlsafe_b64encode(public[-32:]).decode().rstrip('='),
+        configured_public = client_settings.get('publicKey') or ''
+        try:
+            configured_public_bytes = base64.urlsafe_b64decode(configured_public + '=' * (-len(configured_public) % 4))
+        except (ValueError, TypeError):
+            configured_public_bytes = b''
+        if configured_public_bytes and len(configured_public_bytes) != 32:
+            raise VlessError('vpn_adoption_invalid')
+        proxy.update(servername=client_settings.get('serverName') or reality['serverNames'][0])
+        proxy['client-fingerprint'] = client_settings.get('fingerprint') or 'chrome'
+        proxy['reality-opts'] = {'public-key': configured_public or base64.urlsafe_b64encode(public[-32:]).decode().rstrip('='),
                                  'short-id': reality['shortIds'][0]}
         if network == 'tcp':
             flow = 'xtls-rprx-vision'

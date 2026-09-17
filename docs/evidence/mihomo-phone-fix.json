@@ -1,0 +1,39 @@
+{
+  "date": "2026-09-17",
+  "device": {
+    "model": "OnePlus HD1911",
+    "android_api": 36,
+    "install_preserved_data": true,
+    "installed_apk_matches_build": true
+  },
+  "runner": {
+    "version": 27,
+    "predecessor_manifests": [25, 26]
+  },
+  "artifacts": {
+    "android_release_apk_sha256": "9a067de4cb4d8b4b3df685f624ed98b1e2a00970d2897ce9136f63ffa7cb8f22",
+    "linux_x64_release_sha256": "e16b707ed86d87307fd447ceec8c211758ccf924ad44687f92d2465b3621098f",
+    "linux_running": true
+  },
+  "checks": {
+    "runner_tests": 168,
+    "tools_tests": 5,
+    "profile_compiler_tests": 27,
+    "manager_connection_tests": 9,
+    "flutter_analyze": "pass",
+    "go_probe_runtime_validator_worker": "pass",
+    "runner_generator": "pass",
+    "workspace_messages": 1016,
+    "android_instrumentation": "pass"
+  },
+  "physical_result": {
+    "working_inbounds": "connected",
+    "intermittent_inbound": "alternates between connected and network failure as expected by owner",
+    "raw_credentials_logged": false
+  },
+  "not_checked": [
+    "Windows runtime",
+    "long-term availability of the intermittent inbound",
+    "legacy REALITY servers without current Xray compatibility"
+  ]
+}

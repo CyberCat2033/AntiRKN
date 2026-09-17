@@ -213,6 +213,10 @@ def fingerprint(store, info):
     if backend == 'adopted':
         adapter = managed_existing.adapter(info['protocol'])
         snapshot = adapter.snapshot(store, info['payload'], info['saved']['spec'])
+        if info['protocol'] == 'vless':
+            # The raw panel row includes traffic counters/clientStats which the
+            # probe itself changes. Use the adapter's semantic settings hash.
+            return snapshot['fingerprint']
         if info['protocol'] == 'awg' and snapshot.get('runtime') is not None:
             snapshot['runtime'] = awg.runtime_config(snapshot['runtime'].encode())
         return vless.digest(snapshot)

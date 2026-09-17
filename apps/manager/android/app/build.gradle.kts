@@ -59,7 +59,10 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        testInstrumentationRunner = "org.antirkn.antirkn_manager.MihomoRuntimeTest"
     }
+
+    testBuildType = "release"
 
     buildTypes {
         release {

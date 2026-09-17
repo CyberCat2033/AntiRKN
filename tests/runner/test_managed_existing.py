@@ -248,13 +248,18 @@ class AdoptionTests(unittest.TestCase):
         source=dict(network='tcp',security='reality',realitySettings=dict(
             privateKey='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
             shortIds=['0123456789abcdef',''],serverNames=['example.com','other.example.com'],
-            target='example.com:443',minClientVer='1.0.0'))
+            target='example.com:443',minClientVer='1.0.0',settings=dict(
+                publicKey='BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+                serverName='other.example.com',fingerprint='firefox')))
         self.api.rows[0]['streamSettings']=copy.deepcopy(source)
         p=self.payload('vless');p['resources'][0]['security']='reality'
         self.assertEqual(self.finish(self.submit(p,'vless'))['status'],'succeeded')
         self.assertEqual(self.api.rows[0]['streamSettings'],source)
         exported=vless.state(self.store,'a'*32)[0]['proxy']
         self.assertEqual(exported['reality-opts']['short-id'],'0123456789abcdef')
+        self.assertEqual(exported['reality-opts']['public-key'],'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB')
+        self.assertEqual(exported['servername'],'other.example.com')
+        self.assertEqual(exported['client-fingerprint'],'firefox')
         self.assertEqual(exported['flow'],'xtls-rprx-vision')
         self.assertNotIn('privateKey',vless.canonical(exported))
 

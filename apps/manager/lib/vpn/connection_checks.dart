@@ -455,8 +455,12 @@ class ConnectionChecks extends ChangeNotifier {
               cleanup,
               sudoPassword: connection.password,
             );
-            if (response.connectionProbe?['closed'] != true ||
-                response.connectionProbe?['stable'] != true) {
+            if (response.connectionProbe?['closed'] != true) {
+              result = outcome(
+                ConnectionCheckStatus.notTested,
+                'cleanup_pending',
+              );
+            } else if (response.connectionProbe?['stable'] != true) {
               result = outcome(ConnectionCheckStatus.notTested, 'changed');
             }
           } finally {
