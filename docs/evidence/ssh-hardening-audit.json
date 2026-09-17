@@ -1,0 +1,45 @@
+{
+  "scope": "isolated audit; no deployed server changed; findings are not acceptance",
+  "source_commit": "fa2117bbf404f025d47d45b2e3dd6fb36f71fd00",
+  "timestamp_utc": "2026-09-17T07:01:23Z",
+  "runner": {
+    "confirm_after_rollback": {
+      "confirmed": true,
+      "database_status": "succeeded",
+      "root_disabled_without_recreating_user": true
+    },
+    "restart_failure": {
+      "exception_escaped": true,
+      "confirmation_token_still_present": true,
+      "final_config_still_present": true
+    },
+    "abort_after_success": {
+      "aborted": true,
+      "previously_committed_config_deleted": true
+    },
+    "rollback_reload_failure": {
+      "reports_success": true,
+      "rolled_back_marker_written": true
+    }
+  },
+  "openssh": {
+    "effective_configuration": [
+      "port 22",
+      "port 2222",
+      "permitrootlogin yes"
+    ],
+    "root_still_allowed": true,
+    "old_port_still_present": true
+  },
+  "systemd_user_watchdog": {
+    "entered_watchdog": true,
+    "unit_exit_code": 0,
+    "staged_config_still_present": true,
+    "rollback_completed": false
+  },
+  "dart": {
+    "password_profile_keeps_old_ssh_password": true,
+    "ssh_and_new_account_password_differ": true,
+    "wizard_style_connect_with_jump_profile": "invalidJumpRoute"
+  }
+}
