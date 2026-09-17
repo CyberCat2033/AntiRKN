@@ -1,0 +1,31 @@
+{
+  "stage": "M2",
+  "runner_tests": 145,
+  "tools_tests": 5,
+  "manager_tests": 19,
+  "runtime_tests": 25,
+  "analyze": "pass",
+  "vm_protocols": [
+    "raw-reality-vision",
+    "xhttp-reality",
+    "xhttp-tls-packet-up",
+    "xhttp-tls-stream-up",
+    "xhttp-tls-stream-one",
+    "amneziawg",
+    "trusttunnel"
+  ],
+  "vm_tcp_udp": "pass",
+  "invalid_credentials": "pass",
+  "independent_cleanup_runner_stopped": [
+    "vless",
+    "awg",
+    "tt"
+  ],
+  "not_checked": [
+    "Android JNI runtime",
+    "Windows runtime",
+    "physical UI",
+    "owner VPS",
+    "full Flutter regression"
+  ]
+}

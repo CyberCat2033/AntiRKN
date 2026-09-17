@@ -5,7 +5,7 @@ import android.content.Intent
 import android.os.*
 import java.io.File
 
-/** One offline parser per process. Never starts a VPN service or applies YAML. */
+/** One validation or outbound probe per process. Never starts a VPN service or applies YAML. */
 class MihomoValidationService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private var started = false

@@ -30,8 +30,9 @@ class MihomoValidationBridge(private val context: Context, messenger: BinaryMess
                     }
                 }
                 "cancel" -> {
-                    if (active?.id == call.argument<String>("id")) active?.cancel()
-                    result.success(null)
+                    val run = active
+                    if (run?.id == call.argument<String>("id")) run?.cancel { result.success(null) }
+                    else result.success(null)
                 }
                 else -> result.notImplemented()
             }
@@ -45,6 +46,8 @@ class MihomoValidationBridge(private val context: Context, messenger: BinaryMess
         private var service: Messenger? = null
         private var response: String? = null
         private var cancelled = false
+        private val cancellations = mutableListOf<() -> Unit>()
+        private val cancelDeadline = Runnable { finish() }
         private val timeout = Runnable { cancel() }
         private val death = IBinder.DeathRecipient { handler.postDelayed({ finish() }, 50) }
         private val reply = Messenger(object : Handler(Looper.getMainLooper()) {
@@ -61,10 +64,11 @@ class MihomoValidationBridge(private val context: Context, messenger: BinaryMess
             } catch (_: Exception) { finish() }
         }
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
-            if (finished || cancelled) { finish(); return }
+            if (finished) return
             try {
                 binder.linkToDeath(death, 0)
                 service = Messenger(binder)
+                if (cancelled) { service!!.send(Message.obtain(null, 2)); return }
                 service!!.send(Message.obtain(null, 1).apply {
                     replyTo = reply
                     data = Bundle().apply { putString("path", path) }
@@ -74,17 +78,25 @@ class MihomoValidationBridge(private val context: Context, messenger: BinaryMess
         override fun onServiceDisconnected(name: ComponentName) { handler.postDelayed({ finish() }, 50) }
         override fun onBindingDied(name: ComponentName) { finish() }
         override fun onNullBinding(name: ComponentName) { finish() }
-        fun cancel() {
+        fun cancel(completed: (() -> Unit)? = null) {
+            if (finished) { completed?.invoke(); return }
+            completed?.let { cancellations.add(it) }
+            if (cancelled) return
             cancelled = true
-            try { service?.send(Message.obtain(null, 2)) } catch (_: Exception) { }
-            finish()
+            try { service?.send(Message.obtain(null, 2)) } catch (_: Exception) { finish(); return }
+            // Keep the binding until binder death; a new request must not enter the
+            // previous worker while it is still stopping.
+            handler.postDelayed(cancelDeadline, 1500)
         }
         private fun finish() {
             if (finished) return
             finished = true
             handler.removeCallbacks(timeout)
+            handler.removeCallbacks(cancelDeadline)
             if (bound) { bound = false; try { context.unbindService(this) } catch (_: Exception) { } }
             if (active === this) active = null
+            cancellations.forEach { it() }
+            cancellations.clear()
             val text = response
             if (!cancelled && text != null && text.length < 16_384) {
                 try {
@@ -93,6 +105,10 @@ class MihomoValidationBridge(private val context: Context, messenger: BinaryMess
                     for (key in listOf("status", "code", "version", "revision", "hash", "resourcesHash", "path")) {
                         if (json.has(key)) values[key] = json.getString(key)
                     }
+                    for (key in listOf("tcp", "udp", "udpTested")) {
+                        if (json.has(key)) values[key] = json.getBoolean(key)
+                    }
+                    if (json.has("milliseconds")) values["milliseconds"] = json.getLong("milliseconds").coerceIn(0L, 60000L)
                     result.success(values)
                 } catch (_: Exception) { result.error("validator_failed", null, null) }
             } else { result.error(if (cancelled) "validator_cancelled" else "validator_failed", null, null) }

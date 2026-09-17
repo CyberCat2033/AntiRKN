@@ -1,3 +1,5 @@
+import 'connection_check_view.dart';
+import 'external_connection_check.dart';
 import 'dart:async';
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:flutter/material.dart';
@@ -71,11 +73,48 @@ class _AwgExistingPanelState extends State<AwgExistingPanel> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           AppSectionHeading(title: l.awgObserved),
+          ConnectionCheckAll(
+            controller: widget.controller,
+            targets: const [],
+            readOthers: () async {
+              final keys = <({String target, String resource})>[];
+              for (final item in external) {
+                if (!context.mounted) break;
+                final key = await prepareExternalConnection(
+                  context,
+                  controller: widget.controller,
+                  runner: r,
+                  serverId: widget.serverId,
+                  protocol: 'awg',
+                  source: item['id'] as String,
+                  host: widget.serverHost,
+                );
+                keys.add(
+                  key ??
+                      externalConnectionTarget(
+                        widget.serverId,
+                        'awg',
+                        item['id'] as String,
+                        null,
+                      ),
+                );
+              }
+              return keys;
+            },
+          ),
           for (final item in external)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: ResourceTile(
                 storageId: 'awg-existing-${item['id']}',
+                footer: ExternalConnectionCheck(
+                  controller: widget.controller,
+                  runner: r,
+                  serverId: widget.serverId,
+                  protocol: 'awg',
+                  source: item['id'] as String,
+                  host: widget.serverHost,
+                ),
                 title: '${item['name']}',
                 subtitle: l.uiPeerCount(item['peers'] as int),
                 badge: item['active'] == true ? l.vpnEnabled : l.vpnDisabled,

@@ -6,13 +6,13 @@ package main
 import "C"
 
 import (
-	"antirkn.local/mihomo/validator"
+	"antirkn.local/mihomo/runtime"
 	"encoding/json"
 )
 
 //export antirknValidate
 func antirknValidate(input *C.char, directory *C.char) *C.char {
-	result := validator.Validate([]byte(C.GoString(input)), C.GoString(directory))
+	result := runtime.Execute([]byte(C.GoString(input)), C.GoString(directory))
 	data, _ := json.Marshal(result)
 	return C.CString(string(data))
 }

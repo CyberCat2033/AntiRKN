@@ -20,14 +20,20 @@ Future<void> main(List<String> args) async {
         .where((r) => r.id == resource)
         .toList(),
   );
+  final accesses = [
+    ...vlessUserAccesses(selected, user),
+    ...awgUserAccesses(selected, user),
+    ...ttUserAccesses(selected, user),
+  ];
+  if (args.contains('--probe')) {
+    final proxy = accesses.singleWhere((p) => p.identity.id == resource);
+    await File(args[1]).writeAsString(jsonEncode(proxy.fields), flush: true);
+    return;
+  }
   final result = const ProfileCompiler().compile(
     template: jsonEncode(input['template']),
     userId: user,
-    accesses: [
-      ...vlessUserAccesses(selected, user),
-      ...awgUserAccesses(selected, user),
-      ...ttUserAccesses(selected, user),
-    ],
+    accesses: accesses,
   );
   if (result.hasBlockingErrors || result.yaml == null) {
     stderr.writeln(result.diagnostics.map((e) => e.code).join(','));

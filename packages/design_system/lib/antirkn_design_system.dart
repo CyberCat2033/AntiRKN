@@ -880,6 +880,7 @@ class ResourceTile extends StatelessWidget {
     required this.details,
     required this.storageId,
     this.actions,
+    this.footer,
     this.badge,
     this.note,
     this.detailsLabel,
@@ -889,7 +890,7 @@ class ResourceTile extends StatelessWidget {
   });
   final String title, subtitle, storageId;
   final List<Widget> details;
-  final Widget? actions;
+  final Widget? actions, footer;
   final String? badge, note, detailsLabel;
   final VoidCallback? onBadgeTap;
   final bool badgeBusy;
@@ -964,6 +965,7 @@ class ResourceTile extends StatelessWidget {
               ],
             ),
           ],
+          ?footer,
         ],
       ),
     ),

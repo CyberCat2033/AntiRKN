@@ -1,3 +1,4 @@
+export 'src/core_probe.dart';
 export 'src/core_validation.dart';
 export 'src/network/ip_diagnostics.dart';
 export 'src/publication.dart';

@@ -1,3 +1,5 @@
+import 'external_connection_check.dart';
+import 'connection_check_view.dart';
 import 'dart:async';
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
@@ -150,6 +152,38 @@ class _TtPanelState extends State<TtPanel> {
             icon: const Icon(Icons.add),
             label: Text(l.ttAdd),
           ),
+          ConnectionCheckAll(
+            controller: c,
+            readOthers: external.isEmpty
+                ? null
+                : () async {
+                    final keys = <({String target, String resource})>[];
+                    for (final item in external) {
+                      if (!context.mounted) break;
+                      final key = await prepareExternalConnection(
+                        context,
+                        controller: c,
+                        runner: r,
+                        serverId: widget.serverId,
+                        protocol: 'tt',
+                        source: item['id'] as String,
+                      );
+                      keys.add(
+                        key ??
+                            externalConnectionTarget(
+                              widget.serverId,
+                              'tt',
+                              item['id'] as String,
+                              null,
+                            ),
+                      );
+                    }
+                    return keys;
+                  },
+            targets: [
+              for (final e in endpoints) (target: target, resource: e.id),
+            ],
+          ),
           const SizedBox(height: 20),
           AppSectionHeading(
             title: l.uiConnections,
@@ -179,6 +213,11 @@ class _TtPanelState extends State<TtPanel> {
                   padding: const EdgeInsets.only(bottom: AppLayout.smallGap),
                   child: ResourceTile(
                     storageId: 'tt-${e.id}',
+                    footer: ConnectionCheckView(
+                      controller: c,
+                      target: (target: target, resource: e.id),
+                      onEdit: () => edit(e),
+                    ),
                     title: e.name,
                     subtitle: '${e.spec['domain']}',
                     note: e.spec.containsKey('adoption')
@@ -241,6 +280,13 @@ class _TtPanelState extends State<TtPanel> {
                   padding: const EdgeInsets.only(bottom: 10),
                   child: ResourceTile(
                     storageId: 'tt-existing-${item['id']}',
+                    footer: ExternalConnectionCheck(
+                      controller: c,
+                      runner: r,
+                      serverId: widget.serverId,
+                      protocol: 'tt',
+                      source: item['id'] as String,
+                    ),
                     title: '${item['name']}',
                     subtitle: (item['hosts'] as List)
                         .map((h) => (h as Map)['domain'])

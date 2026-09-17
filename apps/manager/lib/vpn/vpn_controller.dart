@@ -1,3 +1,4 @@
+import 'connection_checks.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:antirkn_domain/antirkn_domain.dart';
@@ -62,13 +63,22 @@ class VpnController extends ChangeNotifier {
     this.connectForAction,
     this.recovery,
     this.coreValidator,
+    ConnectionProbeEngine? connectionProbe,
+    SettingsStore? probeStore,
+    this.enterConnectionTraffic,
+    this.leaveConnectionTraffic,
     Timer Function(Duration, void Function(Timer))? timer,
   }) {
+    connections = ConnectionChecks(this, connectionProbe, probeStore)
+      ..addListener(_notify);
     _timer = (timer ?? Timer.periodic)(
       const Duration(seconds: 5),
       (_) => unawaited(reconcile()),
     );
   }
+  late final ConnectionChecks connections;
+  final Future<bool> Function()? enterConnectionTraffic;
+  final Future<void> Function()? leaveConnectionTraffic;
   final VpnRepository repository;
   final CoreConfigValidator? coreValidator;
   final WorkspaceRecoveryStore? recovery;
@@ -117,7 +127,9 @@ class VpnController extends ChangeNotifier {
   Timer? _timer;
   CancellationToken? _token;
   bool _disposed = false;
-  bool busy = false, loaded = false;
+  bool _busy = false, loaded = false;
+  bool get busy => _busy || connections.busy;
+  set busy(bool value) => _busy = value;
   String? error;
   Timer? _identityNoticeTimer;
   bool _identityNoticeExpired = false;
@@ -317,6 +329,10 @@ class VpnController extends ChangeNotifier {
         ],
       ),
     );
+    await connections.mark((
+      target: ttTarget(resource.serverId),
+      resource: resource.id,
+    ));
     plans = [];
     await _profiles();
   });
@@ -345,6 +361,10 @@ class VpnController extends ChangeNotifier {
         ],
       ),
     );
+    await connections.mark((
+      target: awgTarget(resource.serverId),
+      resource: resource.id,
+    ));
     plans = [];
     await _profiles();
   });
@@ -396,6 +416,7 @@ class VpnController extends ChangeNotifier {
         ],
       ),
     );
+    await connections.mark((target: inbound.serverId, resource: inbound.id));
     plans = [];
     await _profiles();
   });
@@ -1280,6 +1301,7 @@ class VpnController extends ChangeNotifier {
 
   @override
   void dispose() {
+    connections.dispose();
     _coreCancellation?.cancel();
     _identityNoticeTimer?.cancel();
     _disposed = true;

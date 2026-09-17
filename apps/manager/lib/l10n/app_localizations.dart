@@ -5923,6 +5923,114 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Stop'**
   String get coreStop;
+
+  /// No description provided for @connectionCheck.
+  ///
+  /// In en, this message translates to:
+  /// **'Check connection'**
+  String get connectionCheck;
+
+  /// No description provided for @connectionCheckAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Check all'**
+  String get connectionCheckAll;
+
+  /// No description provided for @connectionStop.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop check'**
+  String get connectionStop;
+
+  /// No description provided for @connectionReconfigure.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconfigure'**
+  String get connectionReconfigure;
+
+  /// No description provided for @connectionChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking connection…'**
+  String get connectionChecking;
+
+  /// No description provided for @connectionWorking.
+  ///
+  /// In en, this message translates to:
+  /// **'Connected · TCP and UDP'**
+  String get connectionWorking;
+
+  /// No description provided for @connectionFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection failed. Review the settings.'**
+  String get connectionFailed;
+
+  /// No description provided for @connectionCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Check stopped'**
+  String get connectionCancelled;
+
+  /// No description provided for @connectionVpnActive.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn off this device’s VPN to check the connection'**
+  String get connectionVpnActive;
+
+  /// No description provided for @connectionNetworkChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'Network changed. Run the check again.'**
+  String get connectionNetworkChanged;
+
+  /// No description provided for @connectionNetworkProblem.
+  ///
+  /// In en, this message translates to:
+  /// **'Network or test destinations unavailable. Try again later.'**
+  String get connectionNetworkProblem;
+
+  /// No description provided for @connectionRouteUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This route cannot yet be checked from this device'**
+  String get connectionRouteUnsupported;
+
+  /// No description provided for @connectionAccessRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Server access is needed to check this connection'**
+  String get connectionAccessRequired;
+
+  /// No description provided for @connectionCleanupPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Check interrupted. The server will remove temporary access automatically.'**
+  String get connectionCleanupPending;
+
+  /// No description provided for @connectionChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings changed. Run the check again.'**
+  String get connectionChanged;
+
+  /// No description provided for @connectionNotTested.
+  ///
+  /// In en, this message translates to:
+  /// **'Not tested'**
+  String get connectionNotTested;
+
+  /// No description provided for @connectionAfterSave.
+  ///
+  /// In en, this message translates to:
+  /// **'The app will check the connection after saving.'**
+  String get connectionAfterSave;
+
+  /// No description provided for @connectionProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Checked: {done} of {total}. Skipped: {skipped}.'**
+  String connectionProgress(int done, int total, int skipped);
 }
 
 class _AppLocalizationsDelegate

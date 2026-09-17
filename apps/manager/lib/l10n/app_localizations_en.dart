@@ -3329,4 +3329,67 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get coreStop => 'Stop';
+
+  @override
+  String get connectionCheck => 'Check connection';
+
+  @override
+  String get connectionCheckAll => 'Check all';
+
+  @override
+  String get connectionStop => 'Stop check';
+
+  @override
+  String get connectionReconfigure => 'Reconfigure';
+
+  @override
+  String get connectionChecking => 'Checking connection…';
+
+  @override
+  String get connectionWorking => 'Connected · TCP and UDP';
+
+  @override
+  String get connectionFailed => 'Connection failed. Review the settings.';
+
+  @override
+  String get connectionCancelled => 'Check stopped';
+
+  @override
+  String get connectionVpnActive =>
+      'Turn off this device’s VPN to check the connection';
+
+  @override
+  String get connectionNetworkChanged =>
+      'Network changed. Run the check again.';
+
+  @override
+  String get connectionNetworkProblem =>
+      'Network or test destinations unavailable. Try again later.';
+
+  @override
+  String get connectionRouteUnsupported =>
+      'This route cannot yet be checked from this device';
+
+  @override
+  String get connectionAccessRequired =>
+      'Server access is needed to check this connection';
+
+  @override
+  String get connectionCleanupPending =>
+      'Check interrupted. The server will remove temporary access automatically.';
+
+  @override
+  String get connectionChanged => 'Settings changed. Run the check again.';
+
+  @override
+  String get connectionNotTested => 'Not tested';
+
+  @override
+  String get connectionAfterSave =>
+      'The app will check the connection after saving.';
+
+  @override
+  String connectionProgress(int done, int total, int skipped) {
+    return 'Checked: $done of $total. Skipped: $skipped.';
+  }
 }

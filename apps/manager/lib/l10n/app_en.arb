@@ -1281,5 +1281,36 @@
   "coreValidationScope": "Mihomo accepted the config. This test does not check connection availability.",
   "coreCancelledHelp": "An unfinished check is not counted as successful.",
   "coreUnavailableHelp": "The core could not start or the check did not finish. Try again.",
-  "coreStop": "Stop"
+  "coreStop": "Stop",
+  "connectionCheck": "Check connection",
+  "connectionCheckAll": "Check all",
+  "connectionStop": "Stop check",
+  "connectionReconfigure": "Reconfigure",
+  "connectionChecking": "Checking connection…",
+  "connectionWorking": "Connected · TCP and UDP",
+  "connectionFailed": "Connection failed. Review the settings.",
+  "connectionCancelled": "Check stopped",
+  "connectionVpnActive": "Turn off this device’s VPN to check the connection",
+  "connectionNetworkChanged": "Network changed. Run the check again.",
+  "connectionNetworkProblem": "Network or test destinations unavailable. Try again later.",
+  "connectionRouteUnsupported": "This route cannot yet be checked from this device",
+  "connectionAccessRequired": "Server access is needed to check this connection",
+  "connectionCleanupPending": "Check interrupted. The server will remove temporary access automatically.",
+  "connectionChanged": "Settings changed. Run the check again.",
+  "connectionNotTested": "Not tested",
+  "connectionAfterSave": "The app will check the connection after saving.",
+  "connectionProgress": "Checked: {done} of {total}. Skipped: {skipped}.",
+  "@connectionProgress": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "skipped": {
+        "type": "int"
+      }
+    }
+  }
 }

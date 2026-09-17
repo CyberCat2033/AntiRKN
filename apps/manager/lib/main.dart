@@ -453,6 +453,16 @@ class _ManagerShellState extends State<ManagerShell>
     if (widget.servers is VpnRepository) {
       _vpn = VpnController(
         coreValidator: MihomoConfigValidator(),
+        connectionProbe: ConnectionProbeEngine(
+          core: MihomoOutboundProbe(),
+          network: defaultTargetPlatform == TargetPlatform.android
+              ? AndroidIpProbeTransport()
+              : SocketIpProbeTransport(),
+          controls: defaultIpControls(),
+        ),
+        probeStore: widget.settings,
+        enterConnectionTraffic: _enterConnectionTraffic,
+        leaveConnectionTraffic: _leaveConnectionTraffic,
         connectForAction: (id) async =>
             await _catalog?.connectForAction(id) == true,
         connectForDeletion: (id) async =>
@@ -515,6 +525,37 @@ class _ManagerShellState extends State<ManagerShell>
         _vpn!.deletePublishedFile = _publications!.deleteClientFile;
       }
     }
+  }
+
+  Future<bool> _enterConnectionTraffic() async {
+    final updates = ComponentUpdatesScope.of(context);
+    if (_diagnosing ||
+        _applyingSync ||
+        (updates?.busy ?? false) ||
+        (_publications?.busy ?? false) ||
+        (_vpn?.hasRunning ?? false) ||
+        (_catalog?.diagnosticsConflict ?? false)) {
+      return false;
+    }
+    _diagnosing = true;
+    _diagnosticUpdates = updates;
+    updates?.diagnosticsPaused = true;
+    try {
+      await widget.autoSync?.pauseDiagnostics(true);
+      await _publications?.suspend();
+      return true;
+    } catch (_) {
+      await _leaveConnectionTraffic();
+      return false;
+    }
+  }
+
+  Future<void> _leaveConnectionTraffic() async {
+    _diagnosing = false;
+    _diagnosticUpdates?.diagnosticsPaused = false;
+    _diagnosticUpdates = null;
+    await widget.autoSync?.pauseDiagnostics(false);
+    if (mounted) _publications?.resume();
   }
 
   Future<bool> _enterDiagnostics() async {
@@ -585,6 +626,10 @@ class _ManagerShellState extends State<ManagerShell>
             defaultTargetPlatform == TargetPlatform.android) {
       _diagnostics.stop();
       _vpn?.cancelCoreValidation();
+      _vpn?.connections.setForeground(false);
+    }
+    if (state == AppLifecycleState.resumed) {
+      _vpn?.connections.setForeground(true);
     }
     // An unfocused desktop window is still visible (e.g. beside a browser).
     // Android retains its existing foreground-only scheduling policy.

@@ -87,8 +87,24 @@ class Store:
         return dict(version=SCHEMA['version'], code=code, alive=alive, jobs=jobs or [])
 
     def request(self, request):
+        import connectivity_probe as probes
+        with probes.operation_lock(self):
+            if request.get('action') == 'submit' and probes.active(self):
+                return self.response('probe_busy')
+            return self._request(request)
+
+    def _request(self, request):
         req = validate_request(request)
         action = req['action']
+        if action in ('probe_begin', 'probe_end'):
+            import connectivity_probe as probes
+            try:
+                value = probes.begin(self, req) if action == 'probe_begin' else probes.end(self, req['id'])
+                return {**self.response('ok'), 'connectionProbe': value}
+            except probes.ProbeError as error:
+                return self.response(error.code)
+            except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError, VlessError):
+                return self.response('probe_failed')
         if action == 'protocol_remove_plan':
             return {**self.response('ok'), 'removalPlan': removal_plan(req['protocol'])}
         if action in ('ssh_harden_plan', 'ssh_harden_status', 'ssh_harden_confirm', 'ssh_harden_commit', 'ssh_harden_abort'):

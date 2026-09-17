@@ -426,6 +426,9 @@ final class RunnerResponse {
           : ComponentPlan.fromJson(
               Map<String, dynamic>.from(value['componentPlan'] as Map),
             ),
+      connectionProbe = value['connectionProbe'] == null
+          ? null
+          : Map<String, dynamic>.from(value['connectionProbe'] as Map),
       inboundSnapshot = value['inboundSnapshot'] == null
           ? null
           : Map<String, dynamic>.from(value['inboundSnapshot'] as Map),
@@ -479,7 +482,7 @@ final class RunnerResponse {
   final Map<String, dynamic>? awgDefaults, awgPlan, awgExternal, tt;
   final List<Map<String, dynamic>>? awgState;
   final PanelUpdatePlan? panelUpdatePlan;
-  final Map<String, dynamic>? inboundSnapshot, inboundPlan;
+  final Map<String, dynamic>? inboundSnapshot, inboundPlan, connectionProbe;
   final Map<String, dynamic>? aptPlan;
   final PanelPlan? panelPlan;
   final ComponentPlan? componentPlan;

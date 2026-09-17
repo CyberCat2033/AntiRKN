@@ -1,6 +1,7 @@
 package main
 
 import (
+	"antirkn.local/mihomo/runtime"
 	"antirkn.local/mihomo/validator"
 	"encoding/json"
 	"io"
@@ -18,6 +19,6 @@ func main() {
 	if err != nil {
 		os.Exit(2)
 	}
-	result := validator.Validate(input, os.Args[1])
+	result := runtime.Execute(input, os.Args[1])
 	_ = json.NewEncoder(os.Stdout).Encode(result)
 }

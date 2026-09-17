@@ -1,3 +1,5 @@
+import 'external_connection_check.dart';
+import 'connection_check_view.dart';
 import 'dart:async';
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
@@ -332,6 +334,62 @@ class InboundsPanelState extends State<InboundsPanel> {
                     icon: const Icon(Icons.add),
                     label: Text(l.vpnAddInbound),
                   ),
+                  ConnectionCheckAll(
+                    controller: c,
+                    readOthers: runner == null
+                        ? null
+                        : () async {
+                            final keys = <({String target, String resource})>[];
+                            for (final panel in runner!.panels) {
+                              for (final row
+                                  in (panel['inbounds'] as List)
+                                      .whereType<Map>()) {
+                                if (inbounds.any(
+                                  (r) =>
+                                      (r.spec['adoption']
+                                                  as Map?)?['sourceId'] ==
+                                              '${row['id']}' &&
+                                          (r.spec['adoption']
+                                                  as Map?)?['panelPort'] ==
+                                              panel['port'] ||
+                                      row['name'] ==
+                                          'AntiRKN:${c.workspace.resourceWorkspaceId(r.serverId)}:${r.id}',
+                                )) {
+                                  continue;
+                                }
+                                if (!context.mounted) {
+                                  break;
+                                }
+                                final key = row['protocol'] != 'vless'
+                                    ? null
+                                    : await prepareExternalConnection(
+                                        context,
+                                        controller: c,
+                                        runner: runner!,
+                                        serverId: serverId,
+                                        protocol: 'vless',
+                                        source: row['id'] as int,
+                                        panelPort: panel['port'] as int,
+                                        host: serverHost,
+                                      );
+                                keys.add(
+                                  key ??
+                                      externalConnectionTarget(
+                                        serverId,
+                                        'vless',
+                                        row['id'] as int,
+                                        panel['port'] as int,
+                                      ),
+                                );
+                              }
+                            }
+                            return keys;
+                          },
+                    targets: [
+                      for (final r in inbounds)
+                        (target: serverId, resource: r.id),
+                    ],
+                  ),
                   const SizedBox(height: 20),
                 ],
               ),
@@ -377,6 +435,19 @@ class InboundsPanelState extends State<InboundsPanel> {
                             ResourceTile(
                               storageId:
                                   'observed-$serverId-${panel['port']}-${observed['id']}',
+                              footer:
+                                  selection.active ||
+                                      observed['protocol'] != 'vless'
+                                  ? null
+                                  : ExternalConnectionCheck(
+                                      controller: c,
+                                      runner: runner!,
+                                      serverId: serverId,
+                                      protocol: 'vless',
+                                      source: observed['id'] as int,
+                                      panelPort: panel['port'] as int,
+                                      host: serverHost,
+                                    ),
                               title: '${observed['name'] ?? ''}'.trim().isEmpty
                                   ? "${'${observed['protocol']}'.toUpperCase()} · ${observed['port']}"
                                   : '${observed['name']}',
@@ -488,6 +559,13 @@ class InboundsPanelState extends State<InboundsPanel> {
                         r.id,
                         ResourceTile(
                           key: ValueKey('inbound-summary-${r.id}'),
+                          footer: selection.active
+                              ? null
+                              : ConnectionCheckView(
+                                  controller: c,
+                                  target: (target: serverId, resource: r.id),
+                                  onEdit: () => _edit(context, r),
+                                ),
                           storageId: r.id,
                           title: r.spec['name'] as String,
                           subtitle:
@@ -950,6 +1028,7 @@ class _InboundFormState extends State<InboundForm> {
                     if (v == true) spec['enabled'] = false;
                   }),
                 ),
+              Text(l.connectionAfterSave),
               if (invalid)
                 Text(
                   l.vpnInvalid,

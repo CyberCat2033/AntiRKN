@@ -3335,4 +3335,66 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get coreStop => 'Остановить';
+
+  @override
+  String get connectionCheck => 'Проверить';
+
+  @override
+  String get connectionCheckAll => 'Проверить все';
+
+  @override
+  String get connectionStop => 'Остановить проверку';
+
+  @override
+  String get connectionReconfigure => 'Перенастроить';
+
+  @override
+  String get connectionChecking => 'Проверяем соединение…';
+
+  @override
+  String get connectionWorking => 'Соединение работает · TCP и UDP';
+
+  @override
+  String get connectionFailed =>
+      'Не удалось подключиться. Проверьте настройки.';
+
+  @override
+  String get connectionCancelled => 'Проверка остановлена';
+
+  @override
+  String get connectionVpnActive => 'Отключите VPN на устройстве для проверки';
+
+  @override
+  String get connectionNetworkChanged => 'Сеть изменилась. Повторите проверку.';
+
+  @override
+  String get connectionNetworkProblem =>
+      'Сеть или контрольные адреса недоступны. Повторите позже.';
+
+  @override
+  String get connectionRouteUnsupported =>
+      'Этот маршрут пока нельзя проверить с устройства';
+
+  @override
+  String get connectionAccessRequired =>
+      'Нужен доступ к серверу для проверки подключения';
+
+  @override
+  String get connectionCleanupPending =>
+      'Проверка прервана. Сервер удалит временный доступ автоматически.';
+
+  @override
+  String get connectionChanged => 'Настройки изменились. Повторите проверку.';
+
+  @override
+  String get connectionNotTested => 'Не проверено';
+
+  @override
+  String get connectionAfterSave =>
+      'После сохранения приложение проверит соединение.';
+
+  @override
+  String connectionProgress(int done, int total, int skipped) {
+    return 'Проверено: $done из $total. Пропущено: $skipped.';
+  }
 }

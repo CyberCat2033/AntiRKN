@@ -1281,5 +1281,36 @@
   "coreValidationScope": "Конфиг принят Mihomo. Доступность подключений этим тестом не проверяется.",
   "coreCancelledHelp": "Незавершённая проверка не считается успешной.",
   "coreUnavailableHelp": "Ядро не удалось запустить или проверка не завершилась. Повторите попытку.",
-  "coreStop": "Остановить"
+  "coreStop": "Остановить",
+  "connectionCheck": "Проверить",
+  "connectionCheckAll": "Проверить все",
+  "connectionStop": "Остановить проверку",
+  "connectionReconfigure": "Перенастроить",
+  "connectionChecking": "Проверяем соединение…",
+  "connectionWorking": "Соединение работает · TCP и UDP",
+  "connectionFailed": "Не удалось подключиться. Проверьте настройки.",
+  "connectionCancelled": "Проверка остановлена",
+  "connectionVpnActive": "Отключите VPN на устройстве для проверки",
+  "connectionNetworkChanged": "Сеть изменилась. Повторите проверку.",
+  "connectionNetworkProblem": "Сеть или контрольные адреса недоступны. Повторите позже.",
+  "connectionRouteUnsupported": "Этот маршрут пока нельзя проверить с устройства",
+  "connectionAccessRequired": "Нужен доступ к серверу для проверки подключения",
+  "connectionCleanupPending": "Проверка прервана. Сервер удалит временный доступ автоматически.",
+  "connectionChanged": "Настройки изменились. Повторите проверку.",
+  "connectionNotTested": "Не проверено",
+  "connectionAfterSave": "После сохранения приложение проверит соединение.",
+  "connectionProgress": "Проверено: {done} из {total}. Пропущено: {skipped}.",
+  "@connectionProgress": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "skipped": {
+        "type": "int"
+      }
+    }
+  }
 }

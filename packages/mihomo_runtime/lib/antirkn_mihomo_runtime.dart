@@ -5,9 +5,8 @@ import 'dart:typed_data';
 
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:crypto/crypto.dart';
-import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:yaml/yaml.dart';
+import 'src/native_worker.dart';
 
 const mihomoVersion = '1.19.30';
 const _revision = 'ac017cdd246ce8bd547653d927e7bf77d7ee73d5';
@@ -16,7 +15,6 @@ const _revision = 'ac017cdd246ce8bd547653d927e7bf77d7ee73d5';
 final class MihomoConfigValidator implements CoreConfigValidator {
   MihomoConfigValidator({this.workerPath});
   final String? workerPath;
-  static const _channel = MethodChannel('org.antirkn/mihomo');
   final _cache = <String, ({Uint8List bytes, DateTime at})>{};
   bool _busy = false;
 
@@ -38,79 +36,21 @@ final class MihomoConfigValidator implements CoreConfigValidator {
       return outcome(CoreConfigStatus.incomplete, 'input_limit');
     }
     _busy = true;
-    Process? process;
-    Directory? directory;
+    final worker = NativeWorker(path: workerPath);
     final http = HttpClient()..connectionTimeout = const Duration(seconds: 5);
-    final id = '${DateTime.now().microsecondsSinceEpoch}';
     final deadline = Timer(const Duration(seconds: 35), cancellation.cancel);
     try {
       cancellation.check();
-      // The native parser first checks the exact YAML. Fetch dependencies only
-      // when it explicitly reports valid provider definitions with missing data.
-      Future<Map<String, dynamic>> invoke(Map<String, Object?> request) async {
-        cancellation.check();
-        if (Platform.isAndroid) {
-          directory ??= await (await getTemporaryDirectory()).createTemp(
-            'mihomo-',
-          );
-          final input = File('${directory!.path}/request.json');
-          await input.writeAsString(jsonEncode(request), flush: true);
-          final result = await cancellation.bind(
-            _channel.invokeMapMethod<String, dynamic>('validate', {
-              'id': id,
-              'path': input.path,
-            }),
-          );
-          if (result == null) throw const FormatException('worker_result');
-          return result;
-        }
-        if (!Platform.isLinux && !Platform.isWindows) {
-          throw UnsupportedError('platform');
-        }
-        directory ??= await Directory.systemTemp.createTemp('antirkn-mihomo-');
-        final exe =
-            workerPath ??
-            '${File(Platform.resolvedExecutable).parent.path}'
-                '${Platform.isWindows ? '/antirkn-mihomo.exe' : '/lib/antirkn-mihomo'}';
-        process = await Process.start(
-          exe,
-          [directory!.path],
-          workingDirectory: directory!.path,
-          includeParentEnvironment: false,
-          environment: {
-            'GOMEMLIMIT': '192MiB',
-            if (Platform.isWindows)
-              'SystemRoot': Platform.environment['SystemRoot'] ?? r'C:\Windows',
-          },
-        );
-        final output = _limited(process!.stdout, 16384);
-        // Drain without retaining potentially sensitive upstream diagnostics.
-        final errors = process!.stderr.drain<void>();
-        final work = () async {
-          process!.stdin.add(utf8.encode(jsonEncode(request)));
-          await process!.stdin.close();
-          final bytes = await output;
-          final exit = await process!.exitCode;
-          await errors;
-          if (exit != 0) throw const FormatException('worker_failed');
-          return Map<String, dynamic>.from(
-            jsonDecode(utf8.decode(bytes)) as Map,
-          );
-        }();
-        try {
-          return await cancellation.bind(work);
-        } finally {
-          process?.kill(ProcessSignal.sigkill);
-        }
-      }
-
-      var response = await invoke({'yaml': yaml});
+      var response = await worker.invoke({'yaml': yaml}, cancellation);
       if (response['code'] == 'provider_content' && !cancellation.isCancelled) {
         final resources = await cancellation.bind(
           _resources(yaml, http, cancellation),
         );
         if (resources.isNotEmpty) {
-          response = await invoke({'yaml': yaml, 'resources': resources});
+          response = await worker.invoke({
+            'yaml': yaml,
+            'resources': resources,
+          }, cancellation);
         }
       }
       cancellation.check();
@@ -167,19 +107,6 @@ final class MihomoConfigValidator implements CoreConfigValidator {
     } finally {
       deadline.cancel();
       http.close(force: true);
-      process?.kill(ProcessSignal.sigkill);
-      if (Platform.isAndroid) {
-        try {
-          await _channel.invokeMethod<void>('cancel', {'id': id});
-        } catch (_) {
-          /* Host may be gone. */
-        }
-      }
-      try {
-        await directory?.delete(recursive: true);
-      } catch (_) {
-        /* App cache cleanup on next host start. */
-      }
       _busy = false;
     }
   }
@@ -248,7 +175,7 @@ final class MihomoConfigValidator implements CoreConfigValidator {
             throw const FormatException('resource_http');
           }
           data = await token.bind(
-            _limited(
+            readLimited(
               response!,
               4 * 1024 * 1024,
             ).timeout(const Duration(seconds: 8)),
@@ -271,13 +198,63 @@ final class MihomoConfigValidator implements CoreConfigValidator {
   }
 }
 
-Future<Uint8List> _limited(Stream<List<int>> stream, int limit) async {
-  final bytes = BytesBuilder(copy: false);
-  await for (final part in stream) {
-    if (bytes.length + part.length > limit) {
-      throw const FormatException('output_limit');
+/// Uses the packaged worker's direct adapter API: no config activation or TUN.
+final class MihomoOutboundProbe implements CoreProbeTransport {
+  MihomoOutboundProbe({this.workerPath});
+  final String? workerPath;
+  @override
+  Future<CoreTrafficCheck> probe(
+    Map<String, Object?>? proxy,
+    CancellationToken token, {
+    required bool udp,
+  }) async {
+    try {
+      final source = jsonEncode(proxy ?? <String, Object?>{});
+      final hash = sha256.convert(utf8.encode(source)).toString();
+      final result = await NativeWorker(path: workerPath).invoke({
+        'mode': proxy == null ? 'control' : 'probe',
+        'yaml': source,
+        'udp': udp,
+      }, token);
+      if (result['hash'] != hash ||
+          result['version'] != mihomoVersion ||
+          result['revision'] != _revision) {
+        throw const FormatException('worker_result');
+      }
+      const codes = {
+        'connected',
+        'connection_failed',
+        'udp_unsupported',
+        'unsupported',
+        'unsupported_route',
+        'invalid_proxy',
+        'input_limit',
+        'timeout',
+      };
+      final code = result['code'];
+      if (code is! String || !codes.contains(code)) {
+        throw const FormatException('worker_result');
+      }
+      return CoreTrafficCheck(
+        status: switch (result['status']) {
+          'success' => CoreTrafficStatus.success,
+          'failed' => CoreTrafficStatus.failed,
+          'not_tested' => CoreTrafficStatus.notTested,
+          _ => throw const FormatException('worker_result'),
+        },
+        code: code,
+        tcp: result['tcp'] == true,
+        udp: result['udp'] == true,
+        udpTested: result['udpTested'] == true,
+        milliseconds: (result['milliseconds'] as int? ?? 0).clamp(0, 60000),
+      );
+    } catch (_) {
+      return CoreTrafficCheck(
+        status: token.isCancelled
+            ? CoreTrafficStatus.cancelled
+            : CoreTrafficStatus.notTested,
+        code: token.isCancelled ? 'cancelled' : 'runtime_unavailable',
+      );
     }
-    bytes.add(part);
   }
-  return bytes.takeBytes();
 }

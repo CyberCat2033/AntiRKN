@@ -26,3 +26,13 @@ Linux/Android deny new sockets process-wide with seccomp. Windows uses the denie
 dialer/resolver and a supported-constructor allowlist; Windows runtime tests require
 a Windows host. Each request runs in a fresh process with a private temporary home.
 Only bounded status codes and numeric locations leave it; raw upstream logs do not.
+
+Connectivity requests construct one VLESS, WireGuard/AmneziaWG or TrustTunnel
+outbound directly. They do not apply YAML routing, expose listeners, create TUN
+or fall back to DIRECT. Explicit controls use the same fixed HTTPS/DNS targets
+in a separate request. HTTPS validates certificates and response status; UDP
+validates a DNS transaction, question, response source and answer. Chained
+outbounds require an explicit supported route and currently return not-tested.
+
+Linux unit checks: `go test -tags with_gvisor ./probe ./runtime ./validator ./cmd/worker`.
+The Android JNI entry point is built using the NDK, not the host C compiler.

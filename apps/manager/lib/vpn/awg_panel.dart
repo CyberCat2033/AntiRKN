@@ -1,3 +1,4 @@
+import 'connection_check_view.dart';
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
@@ -84,6 +85,12 @@ class AwgPanel extends StatelessWidget {
             icon: const Icon(Icons.add),
             label: Text(l.awgAdd),
           ),
+          ConnectionCheckAll(
+            controller: c,
+            targets: [
+              for (final r in interfaces) (target: target, resource: r.id),
+            ],
+          ),
           const SizedBox(height: 20),
           AppSectionHeading(
             title: l.uiInterfaces,
@@ -104,6 +111,11 @@ class AwgPanel extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: AppLayout.smallGap),
                   child: ResourceTile(
                     storageId: 'awg-${r.id}',
+                    footer: ConnectionCheckView(
+                      controller: c,
+                      target: (target: target, resource: r.id),
+                      onEdit: () => edit(context, r),
+                    ),
                     title: r.name,
                     subtitle: '${r.spec['pool']}',
                     badge: r.enabled ? l.vpnEnabled : l.vpnDisabled,
@@ -280,6 +292,7 @@ class _AwgFormState extends State<AwgForm> {
                   if (v) spec['enabled'] = false;
                 }),
               ),
+              Text(l.connectionAfterSave),
               if (invalid)
                 Text(
                   l.vpnInvalid,

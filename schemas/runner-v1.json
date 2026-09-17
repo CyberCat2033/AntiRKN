@@ -54,7 +54,9 @@
           "ssh_harden_confirm",
           "ssh_harden_abort",
           "ssh_harden_status",
-          "ssh_harden_commit"
+          "ssh_harden_commit",
+          "probe_begin",
+          "probe_end"
         ]
       },
       "id": {
@@ -334,6 +336,17 @@
         "id"
       ],
       "ssh_harden_commit": [
+        "version",
+        "action",
+        "id"
+      ],
+      "probe_begin": [
+        "version",
+        "action",
+        "id",
+        "payload"
+      ],
+      "probe_end": [
         "version",
         "action",
         "id"
@@ -722,7 +735,13 @@
     "vpn_adoption_invalid",
     "vpn_adoption_unsupported",
     "vpn_adoption_conflict",
-    "vpn_adoption_failed"
+    "vpn_adoption_failed",
+    "probe_invalid",
+    "probe_failed",
+    "probe_changed",
+    "probe_busy",
+    "probe_route",
+    "probe_cleanup"
   ],
   "maxRequestBytes": 524288,
   "maxEvents": 256,
