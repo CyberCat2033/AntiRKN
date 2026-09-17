@@ -207,6 +207,40 @@ class ConnectionChecks extends ChangeNotifier {
     return null;
   }
 
+  String signature(ConnectionTarget key) => _signature(key);
+
+  Map<String, Object?> diagnosticPayload(ConnectionTarget key) => {
+    'protocol': isAwgTarget(key.target)
+        ? 'awg'
+        : isTtTarget(key.target)
+        ? 'tt'
+        : 'vless',
+    'resource': key.resource,
+    if (_external.containsKey(key)) 'external': true,
+    'workspace': owner.workspace.resourceWorkspaceId(key.target),
+    'spec': spec(key),
+  };
+
+  PreparedProxy? compileDiagnostic(ConnectionTarget key, Map access) {
+    final user = VpnUser.fromJson(
+      Map<String, dynamic>.from(access['user'] as Map),
+    );
+    final isolated = _isolated(key);
+    final temporary = isolated.copy(
+      users: [user],
+      servers: {
+        ...isolated.servers,
+        key.target: {
+          ...?isolated.servers[key.target],
+          'observed': [access['observation']],
+          'pending': null,
+          'error': null,
+        },
+      },
+    );
+    return _proxy(temporary, user.id, key);
+  }
+
   String _signature(ConnectionTarget key) => canonicalJson([
     spec(key),
     _identity(key),
@@ -372,17 +406,7 @@ class ConnectionChecks extends ChangeNotifier {
             'version': 1,
             'action': 'probe_begin',
             'id': lease,
-            'payload': jsonEncode({
-              'protocol': isAwgTarget(key.target)
-                  ? 'awg'
-                  : isTtTarget(key.target)
-                  ? 'tt'
-                  : 'vless',
-              'resource': key.resource,
-              if (_external.containsKey(key)) 'external': true,
-              'workspace': owner.workspace.resourceWorkspaceId(key.target),
-              'spec': spec(key),
-            }),
+            'payload': jsonEncode(diagnosticPayload(key)),
           }),
           token,
           sudoPassword: connection.password,
@@ -395,23 +419,7 @@ class ConnectionChecks extends ChangeNotifier {
           );
           return result;
         }
-        final user = VpnUser.fromJson(
-          Map<String, dynamic>.from(access['user'] as Map),
-        );
-        final isolated = _isolated(key);
-        final temporary = isolated.copy(
-          users: [user],
-          servers: {
-            ...isolated.servers,
-            key.target: {
-              ...?isolated.servers[key.target],
-              'observed': [access['observation']],
-              'pending': null,
-              'error': null,
-            },
-          },
-        );
-        proxy = _proxy(temporary, user.id, key);
+        proxy = compileDiagnostic(key, access);
       }
       if (proxy == null) {
         result = outcome(ConnectionCheckStatus.notTested, 'unsupported');

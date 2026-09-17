@@ -88,7 +88,13 @@ class Store:
 
     def request(self, request):
         import connectivity_probe as probes
+        import xray_transaction as upgrade
         with probes.operation_lock(self):
+            action=request.get('action')
+            if action in ('submit','resume','panel_cli','panel_connect','probe_begin') and upgrade.active(self):
+                return self.response('xray_check_busy')
+            if action=='probe_end' and upgrade.holds_lease(self,request.get('id')):
+                return self.response('xray_check_busy')
             if request.get('action') == 'submit' and probes.active(self):
                 return self.response('probe_busy')
             return self._request(request)
@@ -96,6 +102,18 @@ class Store:
     def _request(self, request):
         req = validate_request(request)
         action = req['action']
+        if action.startswith('xray_check_'):
+            import xray_transaction as upgrade
+            try:
+                if action=='xray_check_plan': value=upgrade.plan(self,req['id'])
+                elif action=='xray_check_latest': value=upgrade.latest(self,req['id'])
+                elif action=='xray_check_status': value=upgrade.status(self,req)
+                elif action=='xray_check_begin': value=upgrade.begin(self,req)
+                else: value=upgrade.finish(self,req)
+                return {**self.response('ok'),'xrayCheck':value}
+            except upgrade.UpdateError as error:return self.response(error.code)
+            except (OSError,ValueError,KeyError,TypeError,subprocess.SubprocessError,VlessError,PanelError):
+                return self.response('xray_check_failed')
         if action in ('probe_begin', 'probe_end'):
             import connectivity_probe as probes
             try:

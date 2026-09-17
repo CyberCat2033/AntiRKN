@@ -6031,6 +6031,132 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Checked: {done} of {total}. Skipped: {skipped}.'**
   String connectionProgress(int done, int total, int skipped);
+
+  /// No description provided for @xrayUpgradeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Xray core update'**
+  String get xrayUpgradeTitle;
+
+  /// No description provided for @xrayUpgradeAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Check and update Xray'**
+  String get xrayUpgradeAction;
+
+  /// No description provided for @xrayUpgradeIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'All enabled inbounds are checked before and after the update. If the comparison does not finish, the server restores the previous core.'**
+  String get xrayUpgradeIntro;
+
+  /// No description provided for @xrayUpgradeBaseline.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking connections before updating…'**
+  String get xrayUpgradeBaseline;
+
+  /// No description provided for @xrayUpgradePreparing.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing recovery and updating Xray…'**
+  String get xrayUpgradePreparing;
+
+  /// No description provided for @xrayUpgradeComparison.
+  ///
+  /// In en, this message translates to:
+  /// **'Comparing connections after updating…'**
+  String get xrayUpgradeComparison;
+
+  /// No description provided for @xrayUpgradeCommitted.
+  ///
+  /// In en, this message translates to:
+  /// **'Xray updated. HTTPS and UDP work on all tested inbounds.'**
+  String get xrayUpgradeCommitted;
+
+  /// No description provided for @xrayUpgradeRestored.
+  ///
+  /// In en, this message translates to:
+  /// **'The previous core was restored. Results of connection rechecks are below.'**
+  String get xrayUpgradeRestored;
+
+  /// No description provided for @xrayUpgradeUnchanged.
+  ///
+  /// In en, this message translates to:
+  /// **'The update did not start.'**
+  String get xrayUpgradeUnchanged;
+
+  /// No description provided for @xrayUpgradePending.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the server to confirm recovery. Rollback continues independently of the app.'**
+  String get xrayUpgradePending;
+
+  /// No description provided for @xrayUpgradeCoverage.
+  ///
+  /// In en, this message translates to:
+  /// **'Every enabled inbound needs successful HTTPS and UDP checks. Up to 8 VLESS inbounds are supported per run; unavailable or unsupported connections are not skipped.'**
+  String get xrayUpgradeCoverage;
+
+  /// No description provided for @xrayUpgradeLayout.
+  ///
+  /// In en, this message translates to:
+  /// **'Updating requires a supported 3x-ui 3.7/3.8 installation on Ubuntu x64 and an earlier Xray version.'**
+  String get xrayUpgradeLayout;
+
+  /// No description provided for @xrayUpgradeProblem.
+  ///
+  /// In en, this message translates to:
+  /// **'The check did not finish. Review the connection results and retry when connectivity is restored.'**
+  String get xrayUpgradeProblem;
+
+  /// No description provided for @xrayUpgradeConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'The server state changed. External edits were preserved; check the server before retrying.'**
+  String get xrayUpgradeConflict;
+
+  /// No description provided for @xrayUpgradePrerelease.
+  ///
+  /// In en, this message translates to:
+  /// **'Pre-release'**
+  String get xrayUpgradePrerelease;
+
+  /// No description provided for @xrayUpgradeBefore.
+  ///
+  /// In en, this message translates to:
+  /// **'Before'**
+  String get xrayUpgradeBefore;
+
+  /// No description provided for @xrayUpgradeAfter.
+  ///
+  /// In en, this message translates to:
+  /// **'After'**
+  String get xrayUpgradeAfter;
+
+  /// No description provided for @xrayUpgradeRecovery.
+  ///
+  /// In en, this message translates to:
+  /// **'After rollback'**
+  String get xrayUpgradeRecovery;
+
+  /// No description provided for @xrayUpgradeDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled — not tested'**
+  String get xrayUpgradeDisabled;
+
+  /// No description provided for @xrayUpgradeNotTested.
+  ///
+  /// In en, this message translates to:
+  /// **'Not tested'**
+  String get xrayUpgradeNotTested;
+
+  /// No description provided for @xrayUpgradeAttention.
+  ///
+  /// In en, this message translates to:
+  /// **'Recovery is not confirmed. Check the Xray service and binary changes on the server; the backup is retained.'**
+  String get xrayUpgradeAttention;
 }
 
 class _AppLocalizationsDelegate

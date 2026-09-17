@@ -3397,4 +3397,77 @@ class AppLocalizationsRu extends AppLocalizations {
   String connectionProgress(int done, int total, int skipped) {
     return 'Проверено: $done из $total. Пропущено: $skipped.';
   }
+
+  @override
+  String get xrayUpgradeTitle => 'Обновление ядра Xray';
+
+  @override
+  String get xrayUpgradeAction => 'Проверить и обновить Xray';
+
+  @override
+  String get xrayUpgradeIntro =>
+      'Все включённые инбаунды проверяются до и после обновления. Если сравнение не завершится, сервер вернёт прежнее ядро.';
+
+  @override
+  String get xrayUpgradeBaseline => 'Проверка подключений до обновления…';
+
+  @override
+  String get xrayUpgradePreparing =>
+      'Подготовка восстановления и обновление Xray…';
+
+  @override
+  String get xrayUpgradeComparison => 'Сравнение подключений после обновления…';
+
+  @override
+  String get xrayUpgradeCommitted =>
+      'Xray обновлён. HTTPS и UDP работают на всех проверенных инбаундах.';
+
+  @override
+  String get xrayUpgradeRestored =>
+      'Прежнее ядро восстановлено. Результаты повторных проверок — ниже.';
+
+  @override
+  String get xrayUpgradeUnchanged => 'Обновление не началось.';
+
+  @override
+  String get xrayUpgradePending =>
+      'Ожидается подтверждение восстановления с сервера. Откат продолжает работать независимо от приложения.';
+
+  @override
+  String get xrayUpgradeCoverage =>
+      'Нужны успешные HTTPS и UDP на каждом включённом инбаунде. За один запуск поддерживается до 8 VLESS-инбаундов; недоступные или неподдерживаемые подключения не пропускаются.';
+
+  @override
+  String get xrayUpgradeLayout =>
+      'Обновление доступно для проверенной установки 3x-ui 3.7/3.8 на Ubuntu x64 с более ранней версией Xray.';
+
+  @override
+  String get xrayUpgradeProblem =>
+      'Проверка не завершена. Посмотрите результаты подключений и повторите после восстановления связи.';
+
+  @override
+  String get xrayUpgradeConflict =>
+      'Состояние сервера изменилось. Чужие изменения сохранены; проверьте сервер перед повтором.';
+
+  @override
+  String get xrayUpgradePrerelease => 'Предварительный выпуск';
+
+  @override
+  String get xrayUpgradeBefore => 'До';
+
+  @override
+  String get xrayUpgradeAfter => 'После';
+
+  @override
+  String get xrayUpgradeRecovery => 'После отката';
+
+  @override
+  String get xrayUpgradeDisabled => 'Отключён — не проверяется';
+
+  @override
+  String get xrayUpgradeNotTested => 'Не проверен';
+
+  @override
+  String get xrayUpgradeAttention =>
+      'Восстановление не подтверждено. Проверьте службу Xray и изменения бинарного файла на сервере; резервная копия сохранена.';
 }

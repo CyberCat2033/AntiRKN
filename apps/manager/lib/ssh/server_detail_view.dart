@@ -44,6 +44,7 @@ class ServerDetailView extends StatefulWidget {
     this.sections = const [],
     this.plans,
     this.activity,
+    this.coreUpgrade,
     this.clientCount = 0,
     super.key,
   });
@@ -51,7 +52,7 @@ class ServerDetailView extends StatefulWidget {
   final MotionPreference motion;
   final VoidCallback? onBack;
   final IpDiagnosticsController? diagnostics;
-  final Widget? protocols, plans, activity;
+  final Widget? protocols, plans, activity, coreUpgrade;
   final List<ServerProtocolSection> sections;
   final int clientCount;
   @override
@@ -645,6 +646,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                       : const SizedBox.shrink(),
                   visited.contains(2)
                       ? page('updates', [
+                          ?widget.coreUpgrade,
                           RunnerPanel(
                             controller: c.runner,
                             motion: widget.motion,

@@ -1466,6 +1466,8 @@ class RunnerController extends ChangeNotifier {
       pending = null;
       jobs = [selected!, ...jobs.where((j) => j.id != selected!.id)];
     } else if (const {
+      'xray_check_busy',
+      'probe_busy',
       'busy',
       'capacity',
       'conflict',

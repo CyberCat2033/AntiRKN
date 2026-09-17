@@ -1,0 +1,18 @@
+{
+  "results": {
+    "baseline_all_inbounds_https_udp": true,
+    "real_official_binary_replaced_before_device_commit": true,
+    "real_update_regression_restored_binary_and_all_traffic": true,
+    "inbound_ids_ports_enabled_unchanged": true,
+    "one_inbound_udp_only_failure_rolls_back": true,
+    "udp_failure_recovery_all_traffic": true,
+    "independent_rollback_deadline_runner_stopped_and_traffic": true,
+    "late_commit_rejected": true,
+    "independent_rollback_reboot_and_traffic": true,
+    "real_update_full_tls_baseline_comparison_commit": true
+  },
+  "panel": "3.8.0",
+  "before": "26.7.28",
+  "candidate": "26.9.9",
+  "deviceCore": "Mihomo 1.19.30"
+}

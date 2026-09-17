@@ -385,7 +385,10 @@ final class RunnerJob {
 
 final class RunnerResponse {
   RunnerResponse.fromJson(Map<String, dynamic> value)
-    : removalPlan = value['removalPlan'] == null
+    : xrayCheck = value['xrayCheck'] == null
+          ? null
+          : Map<String, dynamic>.from(value['xrayCheck'] as Map),
+      removalPlan = value['removalPlan'] == null
           ? null
           : Map<String, dynamic>.from(value['removalPlan'] as Map),
       tt = value['tt'] == null
@@ -478,6 +481,7 @@ final class RunnerResponse {
     }
   }
   final String code;
+  final Map<String, dynamic>? xrayCheck;
   final Map<String, dynamic>? removalPlan;
   final Map<String, dynamic>? awgDefaults, awgPlan, awgExternal, tt;
   final List<Map<String, dynamic>>? awgState;

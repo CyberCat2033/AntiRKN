@@ -3392,4 +3392,76 @@ class AppLocalizationsEn extends AppLocalizations {
   String connectionProgress(int done, int total, int skipped) {
     return 'Checked: $done of $total. Skipped: $skipped.';
   }
+
+  @override
+  String get xrayUpgradeTitle => 'Xray core update';
+
+  @override
+  String get xrayUpgradeAction => 'Check and update Xray';
+
+  @override
+  String get xrayUpgradeIntro =>
+      'All enabled inbounds are checked before and after the update. If the comparison does not finish, the server restores the previous core.';
+
+  @override
+  String get xrayUpgradeBaseline => 'Checking connections before updating…';
+
+  @override
+  String get xrayUpgradePreparing => 'Preparing recovery and updating Xray…';
+
+  @override
+  String get xrayUpgradeComparison => 'Comparing connections after updating…';
+
+  @override
+  String get xrayUpgradeCommitted =>
+      'Xray updated. HTTPS and UDP work on all tested inbounds.';
+
+  @override
+  String get xrayUpgradeRestored =>
+      'The previous core was restored. Results of connection rechecks are below.';
+
+  @override
+  String get xrayUpgradeUnchanged => 'The update did not start.';
+
+  @override
+  String get xrayUpgradePending =>
+      'Waiting for the server to confirm recovery. Rollback continues independently of the app.';
+
+  @override
+  String get xrayUpgradeCoverage =>
+      'Every enabled inbound needs successful HTTPS and UDP checks. Up to 8 VLESS inbounds are supported per run; unavailable or unsupported connections are not skipped.';
+
+  @override
+  String get xrayUpgradeLayout =>
+      'Updating requires a supported 3x-ui 3.7/3.8 installation on Ubuntu x64 and an earlier Xray version.';
+
+  @override
+  String get xrayUpgradeProblem =>
+      'The check did not finish. Review the connection results and retry when connectivity is restored.';
+
+  @override
+  String get xrayUpgradeConflict =>
+      'The server state changed. External edits were preserved; check the server before retrying.';
+
+  @override
+  String get xrayUpgradePrerelease => 'Pre-release';
+
+  @override
+  String get xrayUpgradeBefore => 'Before';
+
+  @override
+  String get xrayUpgradeAfter => 'After';
+
+  @override
+  String get xrayUpgradeRecovery => 'After rollback';
+
+  @override
+  String get xrayUpgradeDisabled => 'Disabled — not tested';
+
+  @override
+  String get xrayUpgradeNotTested => 'Not tested';
+
+  @override
+  String get xrayUpgradeAttention =>
+      'Recovery is not confirmed. Check the Xray service and binary changes on the server; the backup is retained.';
 }

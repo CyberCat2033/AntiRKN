@@ -1,3 +1,4 @@
+import '../runner/xray_upgrade_view.dart';
 import '../drag_select_list.dart';
 import '../catalog_selection.dart';
 import 'package:antirkn_design_system/antirkn_design_system.dart';
@@ -147,6 +148,13 @@ class _ServerCatalogState extends State<ServerCatalog> {
       return ServerDetailView(
         key: ObjectKey(session),
         session: session,
+        coreUpgrade: vpn == null
+            ? null
+            : XrayUpgradeView(
+                runner: session.runner,
+                vpn: vpn,
+                host: session.host.text.trim(),
+              ),
         diagnostics: widget.diagnostics,
         motion: widget.motion,
         onBack: onBack ?? c.showList,

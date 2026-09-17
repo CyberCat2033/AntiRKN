@@ -13,7 +13,7 @@ ROOT=Path(__file__).resolve().parent.parent
 DIRECTORY=Path('/tmp/antirkn-mihomo-vm')
 os.environ['ANTIRKN_VM_DIRECTORY']=str(DIRECTORY)
 from test_panel_vm import remote, python, bundle_strings
-VERSION='v23'
+VERSION='v24'
 WORKSPACE='b'*32
 PANEL_ID='10000000000000000000000000000001'
 
@@ -39,16 +39,28 @@ def install():
     sources=bundle_strings()
     state=json.loads(python(sources['runnerInspector']+'\nprint(json.dumps(inspect_runner()))').stdout)
     desired=json.loads(sources['runnerBundle'])['release']
-    if state['state']=='installed' and state['release']!=desired and not state.get('upgradable'):
+    if state['release']!=desired and not state.get('upgradable') and remote('test -d /usr/local/lib/antirkn-runner/v24',check=False).returncode==0:
         # Only this named, disposable VM may replace an unpublished development bundle.
         python("""import pathlib,sqlite3,subprocess,shutil
 assert pathlib.Path('/etc/hostname').read_text().strip()=='antirkn-runner-fixture'
+import sys
+sys.path.insert(0,'/usr/local/lib/antirkn-runner/v24')
+from runner import Store,STATE
+import xray_transaction as x
+s=Store(STATE);assert not x.active(s);s.close()
 c=sqlite3.connect('/var/lib/antirkn-runner/jobs.sqlite');assert not c.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running')").fetchone();c.close()
 subprocess.run(['systemctl','stop','antirkn-runner'],check=True)
-shutil.rmtree('/usr/local/lib/antirkn-runner/v23')
+shutil.rmtree('/usr/local/lib/antirkn-runner/v24')
 base=pathlib.Path('/usr/local/lib/antirkn-runner')
 if not any(base.iterdir()):base.rmdir()
-pathlib.Path('/etc/systemd/system/antirkn-runner.service').unlink()
+unit=pathlib.Path('/etc/systemd/system/antirkn-runner.service')
+previous=base/'v23/manifest.json'
+if previous.exists():
+ import hashlib,json
+ data=unit.read_bytes().replace(b'/v24/',b'/v23/')
+ assert hashlib.sha256(data).hexdigest()==json.loads(previous.read_text())['hashes']['antirkn-runner.service']
+ unit.write_bytes(data)
+else:unit.unlink()
 """)
         state=json.loads(python(sources['runnerInspector']+'\nprint(json.dumps(inspect_runner()))').stdout)
     result=json.loads(python(sources['runnerInstaller'],json.dumps(dict(fingerprint=state['fingerprint'],bundle=json.loads(sources['runnerBundle']))).encode()).stdout)
@@ -57,7 +69,7 @@ pathlib.Path('/etc/systemd/system/antirkn-runner.service').unlink()
         archive=Path('/tmp/antirkn-mihomo-panel.tar.gz')
         assert hashlib.sha256(archive.read_bytes()).hexdigest()=='236b837627520f0c4ae4134dc6a34ea5e294b69e158879795fe8cd51c5f3582c'
         remote('cat > /tmp/mihomo-panel.tar.gz',archive.read_bytes())
-        remote('tar -xzf /tmp/mihomo-panel.tar.gz -C /usr/local')
+        remote('tar --no-same-owner -xzf /tmp/mihomo-panel.tar.gz -C /usr/local')
         remote('cp /usr/local/x-ui/x-ui.service.debian /etc/systemd/system/x-ui.service')
         old=Path('/tmp/antirkn-mihomo-xray-old.zip')
         meta=json.loads(Path('/tmp/antirkn-mihomo-xray-old-release.json').read_text())

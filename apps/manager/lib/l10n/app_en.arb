@@ -1312,5 +1312,26 @@
         "type": "int"
       }
     }
-  }
+  },
+  "xrayUpgradeTitle": "Xray core update",
+  "xrayUpgradeAction": "Check and update Xray",
+  "xrayUpgradeIntro": "All enabled inbounds are checked before and after the update. If the comparison does not finish, the server restores the previous core.",
+  "xrayUpgradeBaseline": "Checking connections before updating…",
+  "xrayUpgradePreparing": "Preparing recovery and updating Xray…",
+  "xrayUpgradeComparison": "Comparing connections after updating…",
+  "xrayUpgradeCommitted": "Xray updated. HTTPS and UDP work on all tested inbounds.",
+  "xrayUpgradeRestored": "The previous core was restored. Results of connection rechecks are below.",
+  "xrayUpgradeUnchanged": "The update did not start.",
+  "xrayUpgradePending": "Waiting for the server to confirm recovery. Rollback continues independently of the app.",
+  "xrayUpgradeCoverage": "Every enabled inbound needs successful HTTPS and UDP checks. Up to 8 VLESS inbounds are supported per run; unavailable or unsupported connections are not skipped.",
+  "xrayUpgradeLayout": "Updating requires a supported 3x-ui 3.7/3.8 installation on Ubuntu x64 and an earlier Xray version.",
+  "xrayUpgradeProblem": "The check did not finish. Review the connection results and retry when connectivity is restored.",
+  "xrayUpgradeConflict": "The server state changed. External edits were preserved; check the server before retrying.",
+  "xrayUpgradePrerelease": "Pre-release",
+  "xrayUpgradeBefore": "Before",
+  "xrayUpgradeAfter": "After",
+  "xrayUpgradeRecovery": "After rollback",
+  "xrayUpgradeDisabled": "Disabled — not tested",
+  "xrayUpgradeNotTested": "Not tested",
+  "xrayUpgradeAttention": "Recovery is not confirmed. Check the Xray service and binary changes on the server; the backup is retained."
 }

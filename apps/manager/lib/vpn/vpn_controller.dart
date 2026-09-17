@@ -128,7 +128,14 @@ class VpnController extends ChangeNotifier {
   CancellationToken? _token;
   bool _disposed = false;
   bool _busy = false, loaded = false;
-  bool get busy => _busy || connections.busy;
+  bool _upgradeBusy = false;
+  bool get upgradeBusy => _upgradeBusy;
+  set upgradeBusy(bool value) {
+    _upgradeBusy = value;
+    _notify();
+  }
+
+  bool get busy => _busy || connections.busy || _upgradeBusy;
   set busy(bool value) => _busy = value;
   String? error;
   Timer? _identityNoticeTimer;

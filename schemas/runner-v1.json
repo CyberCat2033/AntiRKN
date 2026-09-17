@@ -56,7 +56,13 @@
           "ssh_harden_status",
           "ssh_harden_commit",
           "probe_begin",
-          "probe_end"
+          "probe_end",
+          "xray_check_plan",
+          "xray_check_latest",
+          "xray_check_status",
+          "xray_check_begin",
+          "xray_check_commit",
+          "xray_check_abort"
         ]
       },
       "id": {
@@ -350,6 +356,39 @@
         "version",
         "action",
         "id"
+      ],
+      "xray_check_plan": [
+        "version",
+        "action",
+        "id"
+      ],
+      "xray_check_latest": [
+        "version",
+        "action",
+        "id"
+      ],
+      "xray_check_status": [
+        "version",
+        "action",
+        "id"
+      ],
+      "xray_check_begin": [
+        "version",
+        "action",
+        "id",
+        "payload"
+      ],
+      "xray_check_commit": [
+        "version",
+        "action",
+        "id",
+        "payload"
+      ],
+      "xray_check_abort": [
+        "version",
+        "action",
+        "id",
+        "payload"
       ]
     },
     "submissions": {
@@ -741,7 +780,21 @@
     "probe_changed",
     "probe_busy",
     "probe_route",
-    "probe_cleanup"
+    "probe_cleanup",
+    "xray_check_failed",
+    "xray_check_coverage",
+    "xray_check_changed",
+    "xray_check_invalid",
+    "xray_check_busy",
+    "xray_check_timeout",
+    "xray_check_config",
+    "xray_check_restart",
+    "xray_check_rollback",
+    "xray_check_missing",
+    "xray_check_layout",
+    "xray_check_watchdog",
+    "xray_check_digest",
+    "xray_check_late"
   ],
   "maxRequestBytes": 524288,
   "maxEvents": 256,
