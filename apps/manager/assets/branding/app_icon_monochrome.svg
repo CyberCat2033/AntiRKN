@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108">
+<g transform="translate(10.26 10.26) scale(.81)">
+<path d="M27 49 C4 70 29 89 53 80 M83 48 C98 53 88 67 84 70 M34 39 C43 34 50 32 56 33" fill="none" stroke="#FFFFFF" stroke-width="3.4" stroke-linecap="round"/>
+<path d="M81 32 A11 11 0 1 1 59 32 A11 11 0 1 1 81 32 M59 32 H81 M70 21 C64 27 64 37 70 43 M70 21 C76 27 76 37 70 43" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M32 41 H53 Q56 41 56 44 V48 Q56 51 53 51 H32 Q29 51 29 48 V44 Q29 41 32 41 Z M35 44.4 A1.6 1.6 0 1 1 35 47.6 A1.6 1.6 0 1 1 35 44.4 Z M41 45.1 H49 A.9 .9 0 0 1 49 46.9 H41 A.9 .9 0 0 1 41 45.1 Z" fill="#FFFFFF" fill-rule="evenodd"/>
+<path d="M32 54 H51 Q54 54 54 57 V61 Q54 64 51 64 H32 Q29 64 29 61 V57 Q29 54 32 54 Z M35 57.4 A1.6 1.6 0 1 1 35 60.6 A1.6 1.6 0 1 1 35 57.4 Z M41 58.1 H49 A.9 .9 0 0 1 49 59.9 H41 A.9 .9 0 0 1 41 58.1 Z" fill="#FFFFFF" fill-rule="evenodd"/>
+<path d="M32 67 H51 Q54 67 54 70 V74 Q54 77 51 77 H32 Q29 77 29 74 V70 Q29 67 32 67 Z M35 70.4 A1.6 1.6 0 1 1 35 73.6 A1.6 1.6 0 1 1 35 70.4 Z M41 71.1 H49 A.9 .9 0 0 1 49 72.9 H41 A.9 .9 0 0 1 41 71.1 Z" fill="#FFFFFF" fill-rule="evenodd"/>
+<path d="M67 54 L78 59 Q80 60 80 62 C80 72 77 78 67 83 C57 78 54 72 54 62 Q54 60 56 59 Z M62 65 V63 A5 5 0 0 1 72 63 V65 H73 Q74 65 74 67 V74 Q74 76 72 76 H62 Q60 76 60 74 V67 Q60 65 62 65 Z M64.5 65 H69.5 V63 A2.5 2.5 0 0 0 64.5 63 Z M67 68 A1.7 1.7 0 0 0 66.1 71.15 L65.7 73 H68.3 L67.9 71.15 A1.7 1.7 0 0 0 67 68 Z" fill="#FFFFFF" transform="translate(2 0)" fill-rule="evenodd"/>
+</g>
+</svg>

@@ -1,0 +1,52 @@
+{
+  "date": "2026-09-17T12:26:14.875296+00:00",
+  "includedCommits": [
+    "fda8aa1",
+    "5394388",
+    "b640af0",
+    "60e9b7d"
+  ],
+  "icon": {
+    "originalBytes": 68927,
+    "originalPaths": 130,
+    "cleanBytes": 1830,
+    "cleanPaths": 14,
+    "cleanSha256": "1071313bded126a84472dffe2fe7fbac041df095e28cfe34d814f002cdb3c2d8",
+    "adaptiveForegroundMaxRadiusDp": 32.9,
+    "safeCircleRadiusDp": 33,
+    "androidAdaptive": true,
+    "androidMonochrome": true,
+    "windowsIcoSizes": [
+      16,
+      24,
+      32,
+      48,
+      64,
+      128,
+      256
+    ]
+  },
+  "android": {
+    "package": "org.antirkn.antirkn_manager",
+    "device": "OnePlus HD1911",
+    "apkBytes": 77787946,
+    "apkSha256": "3b3d1d4806f8591b8b7c3b04640e712498681895da365fbd4898314511603e1a",
+    "installedApkHashMatches": true,
+    "signerSha256": "86d566768a8241ff2e2fb9921c66f3c7f4e30d10c10649d801d03061af23c994",
+    "install": "adb install -r: Success",
+    "launch": "COLD Status ok; process present",
+    "debuggable": false,
+    "dataHandling": "No uninstall or data clear; firstInstallTime unchanged"
+  },
+  "linux": {
+    "releaseBuild": true,
+    "bundledIconHashMatches": true
+  },
+  "notVerified": [
+    "Android themed launcher appearance: screen capture was black",
+    "Full Android native validation/probe runtime",
+    "Windows GUI build/runtime",
+    "Linux GUI runtime with new icon",
+    "Owner VPS reboot"
+  ]
+}
