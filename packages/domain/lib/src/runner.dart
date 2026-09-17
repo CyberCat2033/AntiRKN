@@ -321,6 +321,7 @@ final class RunnerJob {
           'tt_certificate',
           'component_install',
           'protocol_remove',
+          'server_reboot',
           'inbound_update',
           'inbound_remove',
           'apt_update',

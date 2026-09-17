@@ -92,7 +92,7 @@ class RunnerPanel extends StatelessWidget {
                 Text(l.aptReboot),
               if (active && job.kind.startsWith('apt_')) Text(l.aptRunningHelp),
               if (job.cancelRequested && active) Text(l.runnerCancelRequested),
-              if (active)
+              if (active && job.kind != 'server_reboot')
                 Align(
                   alignment: AlignmentDirectional.centerStart,
                   child: TextButton(
@@ -246,6 +246,9 @@ String runnerEventLabel(AppLocalizations l, String code) => switch (code) {
   'vless_partial' => l.vpnPartial,
   'vless_invalid' || 'awg_invalid' => l.vpnInvalid,
   'vless_api_failed' || 'awg_failed' => l.vpnFailed,
+  'server_reboot_waiting' => l.serverRebootWaiting,
+  'server_reboot_done' => l.serverRebootDone,
+  'server_reboot_failed' => l.serverRebootFailed,
   'panel_update_preparing' => l.panelUpdatePreparing,
   'panel_update_backup' => l.panelUpdateBackup,
   'panel_update_switching' => l.panelUpdateSwitching,

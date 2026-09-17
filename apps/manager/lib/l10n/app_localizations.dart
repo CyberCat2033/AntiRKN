@@ -6157,6 +6157,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Recovery is not confirmed. Check the Xray service and binary changes on the server; the backup is retained.'**
   String get xrayUpgradeAttention;
+
+  /// No description provided for @serverReboot.
+  ///
+  /// In en, this message translates to:
+  /// **'Restart server'**
+  String get serverReboot;
+
+  /// No description provided for @serverRebootConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Restart the server? SSH and VPN connections will be interrupted briefly.'**
+  String get serverRebootConfirm;
+
+  /// No description provided for @serverRebootWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'The server is restarting. Waiting for it to reconnect…'**
+  String get serverRebootWaiting;
+
+  /// No description provided for @serverRebootDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Server restart confirmed.'**
+  String get serverRebootDone;
+
+  /// No description provided for @serverRebootFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The restart is not confirmed yet. Reconnect to check its status.'**
+  String get serverRebootFailed;
 }
 
 class _AppLocalizationsDelegate

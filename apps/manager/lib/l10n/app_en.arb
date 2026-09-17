@@ -1333,5 +1333,10 @@
   "xrayUpgradeRecovery": "After rollback",
   "xrayUpgradeDisabled": "Disabled — not tested",
   "xrayUpgradeNotTested": "Not tested",
-  "xrayUpgradeAttention": "Recovery is not confirmed. Check the Xray service and binary changes on the server; the backup is retained."
+  "xrayUpgradeAttention": "Recovery is not confirmed. Check the Xray service and binary changes on the server; the backup is retained.",
+  "serverReboot": "Restart server",
+  "serverRebootConfirm": "Restart the server? SSH and VPN connections will be interrupted briefly.",
+  "serverRebootWaiting": "The server is restarting. Waiting for it to reconnect…",
+  "serverRebootDone": "Server restart confirmed.",
+  "serverRebootFailed": "The restart is not confirmed yet. Reconnect to check its status."
 }

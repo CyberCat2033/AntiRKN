@@ -33,6 +33,29 @@ void main() {
   }
 
   test(
+    'reboot persists before submit and recovers lost reply without resending',
+    () async {
+      await install();
+      remote.loseSubmitResponse = true;
+      await c.rebootServer();
+      expect(remote.submissions, 1);
+      expect(remote.submitWithoutPersistence, isFalse);
+      expect(c.pending?.json['kind'], 'server_reboot');
+      final id = c.pending!.id;
+      c.dispose();
+      c = create();
+      await c.restoreLocal();
+      remote.loseSubmitResponse = false;
+      await c.refresh();
+      expect(c.selected?.id, id);
+      expect(c.pending, isNull);
+      expect(remote.submissions, 1);
+      await c.rebootServer();
+      expect(remote.submissions, 1);
+    },
+  );
+
+  test(
     'recovery clears a persisted unsent hardening job before reconnect',
     () async {
       final id = 'a' * 32;

@@ -13,7 +13,7 @@ ROOT=Path(__file__).resolve().parent.parent
 DIRECTORY=Path('/tmp/antirkn-mihomo-vm')
 os.environ['ANTIRKN_VM_DIRECTORY']=str(DIRECTORY)
 from test_panel_vm import remote, python, bundle_strings
-VERSION='v24'
+VERSION='v25'
 WORKSPACE='b'*32
 PANEL_ID='10000000000000000000000000000001'
 

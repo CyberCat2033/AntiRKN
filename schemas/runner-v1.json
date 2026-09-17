@@ -87,7 +87,8 @@
           "tt_certificate",
           "protocol_remove",
           "ssh_harden",
-          "inbound_remove"
+          "inbound_remove",
+          "server_reboot"
         ]
       },
       "count": {
@@ -546,6 +547,14 @@
         "interval",
         "payload",
         "fingerprint"
+      ],
+      "server_reboot": [
+        "version",
+        "action",
+        "id",
+        "kind",
+        "count",
+        "interval"
       ]
     },
     "kindConstants": {
@@ -595,6 +604,10 @@
       },
       "inbound_remove": {
         "count": 3,
+        "interval": 1
+      },
+      "server_reboot": {
+        "count": 2,
         "interval": 1
       }
     }
@@ -794,7 +807,10 @@
     "xray_check_layout",
     "xray_check_watchdog",
     "xray_check_digest",
-    "xray_check_late"
+    "xray_check_late",
+    "server_reboot_waiting",
+    "server_reboot_done",
+    "server_reboot_failed"
   ],
   "maxRequestBytes": 524288,
   "maxEvents": 256,

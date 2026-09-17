@@ -684,6 +684,28 @@ class RunnerController extends ChangeNotifier {
     return result;
   }
 
+  Future<void> rebootServer() => requestAction(() async {
+    await _run((remote, token) async {
+      if (pending != null || jobs.any((job) => !job.terminal)) return;
+      pending = RunnerRequest.fromJson({
+        'version': 1,
+        'action': 'submit',
+        'kind': 'server_reboot',
+        'id': List.generate(
+          16,
+          (_) => Random.secure().nextInt(256).toRadixString(16).padLeft(2, '0'),
+        ).join(),
+        'count': 2,
+        'interval': 1,
+      });
+      selected = null;
+      cursor = 0;
+      await _save();
+      token.check();
+      await _submit(remote, token);
+    });
+  });
+
   Future<void> installPanelCli() => _run((remote, token) async {
     final result = await remote.request(
       RunnerRequest.panelCli(),

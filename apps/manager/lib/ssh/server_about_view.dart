@@ -1,3 +1,4 @@
+import 'server_reboot_view.dart';
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
@@ -28,7 +29,7 @@ class ServerAboutView extends StatelessWidget {
   final IpDiagnosticsController? diagnostics;
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([controller, diagnostics]),
+    listenable: Listenable.merge([controller, controller.runner, diagnostics]),
     builder: (context, _) {
       final c = controller, l = AppLocalizations.of(context);
       final inventory = c.observation?.network;
@@ -117,6 +118,7 @@ class ServerAboutView extends StatelessWidget {
             if (!canDiagnose)
               Text(l.diagNoIpv4, style: Theme.of(context).textTheme.bodySmall),
           ],
+          ServerRebootView(controller: c),
           AppSettingsSection(
             title: l.uiPublicAddresses,
             child: Column(

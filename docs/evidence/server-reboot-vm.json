@@ -1,0 +1,8 @@
+{
+  "fixture": "isolated Ubuntu VM",
+  "runner": "v25",
+  "rebootConfirmed": true,
+  "replayBeforeAndAfterBoot": true,
+  "noSecondReboot": true,
+  "runnerAndPanelActiveAfterBoot": true
+}

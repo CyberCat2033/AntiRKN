@@ -292,6 +292,18 @@ class Store:
             if row['status'] == 'planned':
                 self.db.execute("UPDATE jobs SET status='running' WHERE id=?", (job_id,))
                 self.event(job_id, 'running', row['checkpoint'], req['count'])
+        if req['kind']=='server_reboot':
+            import server_reboot as reboot
+            try:
+                if row['cancel'] and row['checkpoint']==0 and not reboot.record_path(self,job_id).exists():
+                    status,code='cancelled','cancelled'
+                elif not reboot.poll(self,req):return 1
+                else:status,code='succeeded','server_reboot_done'
+            except Exception:status,code='needs_attention','server_reboot_failed'
+            with self.db:
+                self.db.execute('UPDATE jobs SET status=?,checkpoint=? WHERE id=?',(status,2 if status=='succeeded' else row['checkpoint'],job_id))
+                self.event(job_id,code,2 if status=='succeeded' else row['checkpoint'],2)
+            return .1
         if req['kind'] in ('apt_update', 'apt_upgrade'):
             task = AptJob(self, req)
             try:

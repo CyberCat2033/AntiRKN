@@ -3464,4 +3464,22 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get xrayUpgradeAttention =>
       'Recovery is not confirmed. Check the Xray service and binary changes on the server; the backup is retained.';
+
+  @override
+  String get serverReboot => 'Restart server';
+
+  @override
+  String get serverRebootConfirm =>
+      'Restart the server? SSH and VPN connections will be interrupted briefly.';
+
+  @override
+  String get serverRebootWaiting =>
+      'The server is restarting. Waiting for it to reconnect…';
+
+  @override
+  String get serverRebootDone => 'Server restart confirmed.';
+
+  @override
+  String get serverRebootFailed =>
+      'The restart is not confirmed yet. Reconnect to check its status.';
 }

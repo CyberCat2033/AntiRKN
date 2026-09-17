@@ -3470,4 +3470,22 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get xrayUpgradeAttention =>
       'Восстановление не подтверждено. Проверьте службу Xray и изменения бинарного файла на сервере; резервная копия сохранена.';
+
+  @override
+  String get serverReboot => 'Перезапустить сервер';
+
+  @override
+  String get serverRebootConfirm =>
+      'Перезапустить сервер? SSH и VPN-соединения временно прервутся.';
+
+  @override
+  String get serverRebootWaiting =>
+      'Сервер перезапускается. Ожидаем восстановления связи…';
+
+  @override
+  String get serverRebootDone => 'Перезапуск сервера подтверждён.';
+
+  @override
+  String get serverRebootFailed =>
+      'Перезапуск пока не подтверждён. Подключитесь снова, чтобы проверить состояние.';
 }
