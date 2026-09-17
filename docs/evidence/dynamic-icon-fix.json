@@ -1,0 +1,20 @@
+{
+  "package": "org.antirkn.antirkn_manager",
+  "device": "OnePlus HD1911",
+  "apkSha256": "17a5100618869ed97faf87138b3863d3c0932eef6c768275acc2b3f889be44da",
+  "install": "adb install -r: Success",
+  "installedApkHashMatches": true,
+  "api31DayAndNightSystemReferences": true,
+  "phoneResolvedColors": {
+    "background": "#4e2426",
+    "primary": "#ffdada"
+  },
+  "appInfoVisualCheck": "PASS: normal adaptive icon uses the current pink system palette",
+  "userThemeSettingsChanged": false,
+  "dataCleared": false,
+  "notVerified": [
+    "wallpaper switching on physical device",
+    "light mode visual check on physical device",
+    "third-party launcher cache refresh"
+  ]
+}

@@ -23,7 +23,7 @@ def write(path, source):
     path.write_text(source)
 
 
-def vector(source, output):
+def vector(source, output, colors=None):
     svg = ET.fromstring(source)
     root = ET.Element('vector', {f'{{{NS}}}{k}': v for k, v in
         dict(width='108dp', height='108dp', viewportWidth='108', viewportHeight='108').items()})
@@ -45,6 +45,7 @@ def vector(source, output):
             attrs = {}
             for k, v in element.attrib.items():
                 if k not in names: continue
+                if colors and k in ('fill', 'stroke'): v = colors.get(v, v)
                 if v == 'none': v = '#00000000'
                 if v == 'evenodd': v = 'evenOdd'
                 attrs[f'{{{NS}}}{names[k]}'] = v
@@ -61,9 +62,28 @@ def vector(source, output):
 def main():
     color = (ART/'app_icon.svg').read_text()
     mono = (ART/'app_icon_monochrome.svg').read_text()
-    vector(color, RES/'drawable/ic_launcher_foreground.xml')
+    palette = {'background': '#111D23', 'primary': '#A6E9DC',
+               'secondary': '#304B5A', 'detail': '#8DA8BB'}
+    vector(color, RES/'drawable/ic_launcher_foreground.xml',
+           {value: '@color/ic_launcher_'+role for role, value in palette.items()})
     vector(mono, RES/'drawable/ic_launcher_monochrome.xml')
-    write(RES/'values/icon_colors.xml', '<resources>\n    <color name="ic_launcher_background">#111D23</color>\n</resources>\n')
+    # The normal adaptive icon is also used by App info and share sheets.
+    # It must resolve the device palette even if the host ignores monochrome.
+    palettes = {
+        'values': palette,
+        'values-v31': dict(background='@android:color/system_accent1_100',
+                           primary='@android:color/system_accent1_700',
+                           secondary='@android:color/system_accent2_200',
+                           detail='@android:color/system_accent2_700'),
+        'values-night-v31': dict(background='@android:color/system_accent1_800',
+                                 primary='@android:color/system_accent1_100',
+                                 secondary='@android:color/system_accent2_600',
+                                 detail='@android:color/system_accent2_100'),
+    }
+    for directory, values in palettes.items():
+        write(RES/directory/'icon_colors.xml', '<resources>\n'+''.join(
+            f'    <color name="ic_launcher_{role}">{value}</color>\n'
+            for role, value in values.items())+'</resources>\n')
     for version in (26, 33):
         themed = '    <monochrome android:drawable="@drawable/ic_launcher_monochrome" />\n' if version == 33 else ''
         write(RES/f'mipmap-anydpi-v{version}/ic_launcher.xml',
