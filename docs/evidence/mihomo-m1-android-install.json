@@ -1,0 +1,22 @@
+{
+  "stage": "M1 interim installation requested while M2 is in progress",
+  "sourceCommit": "fda8aa1",
+  "deviceModel": "OnePlus HD1911",
+  "package": "org.antirkn.antirkn_manager",
+  "apkBytes": 77335010,
+  "apkSha256": "a30fc10c24f45453c4cbb0a7474ef26900901cae68ccc211b6db420ad0f4e86e",
+  "signerSha256": "86d566768a8241ff2e2fb9921c66f3c7f4e30d10c10649d801d03061af23c994",
+  "installedAt": "2026-09-17T11:08:55.131051+00:00",
+  "install": "adb install -r: Success",
+  "launch": "cold launch: Status ok; process present",
+  "dataHandling": "replace existing package; no uninstall or data clear",
+  "notIncluded": [
+    "M2 outbound connectivity checks",
+    "M3 Xray upgrade rollback"
+  ],
+  "notVerified": [
+    "native Android validation execution",
+    "physical animation smoothness",
+    "user data content"
+  ]
+}
