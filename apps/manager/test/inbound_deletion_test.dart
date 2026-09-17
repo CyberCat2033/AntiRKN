@@ -90,7 +90,11 @@ void main() {
           ),
         ),
       );
-      await tester.tap(find.byKey(const ValueKey('inbound-edit')));
+      await tester.longPress(
+        find.byKey(
+          ValueKey('inbound-summary-${c.workspace.inbounds.first.id}'),
+        ),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('inbound-select-all')));
       await tester.pumpAndSettle();

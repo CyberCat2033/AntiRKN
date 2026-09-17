@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'awg.dart';
+import 'adopted_resource.dart';
 import 'tt.dart';
 import 'dart:math';
 import 'network/ip_address.dart';
@@ -110,11 +111,21 @@ final class VpnUser {
 
 final class VlessInbound {
   VlessInbound({required this.serverId, required Map<String, Object?> spec})
-    : spec = Map.unmodifiable(spec) {
+    : spec = Map.unmodifiable({
+        ...spec,
+        if (spec['adoption'] != null)
+          'adoption': Map<String, Object?>.unmodifiable(
+            spec['adoption'] as Map,
+          ),
+      }) {
     final rule =
         ((vlessSchema['properties'] as Map)['resources'] as Map)['items']
             as Map;
     validateVlessSchema(spec, rule);
+    if (spec.containsKey('adoption')) {
+      validateAdoptedResource(spec);
+      return;
+    }
     final listen = IpAddress.parse(spec['listen'] as String);
     if (listen.category == IpCategory.multicast ||
         ['0.0.0.0', '::'].contains(spec['endpoint'])) {

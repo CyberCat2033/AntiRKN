@@ -3248,4 +3248,26 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get sshHardenStorageFailed =>
       'Could not save the access details. The server transition has not been committed.';
+
+  @override
+  String get vpnAdopt => 'Manage client access';
+
+  @override
+  String get vpnAdoptWarning =>
+      'AntiRKN will create and revoke access for its clients and update their profiles. Existing settings, keys and access will be preserved. Existing users will not be added to the AntiRKN client list. Applying changes may briefly restart the service.';
+
+  @override
+  String get vpnAdopting => 'Waiting for management to be confirmed';
+
+  @override
+  String get vpnAdoptUnsupported =>
+      'This connection cannot be imported with its current settings. No server settings were changed.';
+
+  @override
+  String get vpnAdoptConflict =>
+      'The connection has changed or is already managed. Refresh its state and try again.';
+
+  @override
+  String get vpnAdoptFailed =>
+      'Client management could not be confirmed. Check the operation status before retrying.';
 }

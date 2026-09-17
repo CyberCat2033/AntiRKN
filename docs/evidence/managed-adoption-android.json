@@ -1,0 +1,19 @@
+{
+  "date": "2026-09-17",
+  "device": "OnePlus HD1911",
+  "package": "org.antirkn.antirkn_manager",
+  "variant": "release",
+  "abi": "arm64-v8a",
+  "sha256": "b53038f340014b27fede8cb784160df0ef5a46dd34d51e3e5015b84cfa85bfb0",
+  "installedSha256": "b53038f340014b27fede8cb784160df0ef5a46dd34d51e3e5015b84cfa85bfb0",
+  "certificateSha256": "86d566768a8241ff2e2fb9921c66f3c7f4e30d10c10649d801d03061af23c994",
+  "updatePreservesData": true,
+  "install": "PASS",
+  "signature": "PASS",
+  "debuggable": false,
+  "launch": "PASS",
+  "processRunning": true,
+  "physicalUiAcceptance": false,
+  "liveServerAdoption": false,
+  "physicalUiAcceptanceNote": "Owner will check later; regression covered by widget tests"
+}

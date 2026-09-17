@@ -47,6 +47,10 @@ def parse_payload(raw):
             if len({v['id'] for v in p[key]}) != len(p[key]):
                 raise AwgError()
         for r in p['resources']:
+            if 'adoption' in r:
+                import managed_existing
+                managed_existing.validate_spec(r, 'awg')
+                continue
             pool = ipaddress.ip_network(r['pool'])
             if pool.version != 4 or not 16 <= pool.prefixlen <= 24 or not any(pool.subnet_of(ipaddress.ip_network(n)) for n in ('10.0.0.0/8','172.16.0.0/12','192.168.0.0/16')):
                 raise AwgError()
@@ -70,6 +74,8 @@ def parse_payload(raw):
                 raise AwgError()
     except (ValueError, TypeError, KeyError):
         raise AwgError()
+    import managed_existing
+    managed_existing.validate_payload(p, 'awg')
     return p
 
 
@@ -312,13 +318,14 @@ def confirmed(saved):
 
 def preflight(store, p):
     check_revocations(store, p)
-    release = prerequisites()
+    release = prerequisites() if any('adoption' not in r for r in p['resources']) else None
     saved = owned(store)
+    adopted = {}
     ids = {r['id'] for r in p['resources']}
     if any(v['workspaceId'] == p['workspaceId'] and rid not in ids for rid, v in saved.items()):
         raise AwgError('awg_conflict')
     selected_routes = routes()
-    active_resources = [r for r in p['resources'] if r['enabled'] and not r['deleted']]
+    active_resources = [r for r in p['resources'] if r['enabled'] and not r['deleted'] and 'adoption' not in r]
     if len({r['port'] for r in active_resources}) != len(active_resources):
         raise AwgError('awg_port_busy')
     all_names = {name_for(rid): rid for rid in saved}
@@ -326,6 +333,10 @@ def preflight(store, p):
              for rid, record in saved.items() if rid not in ids and not record['spec']['deleted']
              for pool in (record['spec']['pool'], record['spec']['pool6']) if pool]
     for r in p['resources']:
+        if 'adoption' in r:
+            import managed_existing
+            adopted[r['id']] = managed_existing.preflight(store, p, r, saved.get(r['id']), 'awg')
+            continue
         rid, name = r['id'], name_for(r['id'])
         previous = saved.get(rid)
         if name in all_names and all_names[name] != rid:
@@ -350,7 +361,7 @@ def preflight(store, p):
             pools.append(net)
         if r['enabled'] and not (previous and active(rid) and previous['spec']['port'] == r['port']) and not free_port(r['port']):
             raise AwgError('awg_port_busy')
-    return dict(fingerprint=digest(dict(desired=p, saved=saved, release=release)),
+    return dict(fingerprint=digest(dict(desired=p, saved=saved, release=release, adopted=adopted)),
         resources=len(p['resources']), users=len(p['users']),
         creates=sum(r['id'] not in saved and not r['deleted'] for r in p['resources']),
         updates=sum(r['id'] in saved and not r['deleted'] for r in p['resources']),
@@ -365,10 +376,14 @@ def plan(store, req):
     return preflight(store, p)
 
 
-def state(store, workspace):
+def state(store, workspace, pending_job=None):
     result = []
     for rid, saved in owned(store).items():
         if saved['workspaceId'] != workspace:
+            continue
+        if saved.get('adopted'):
+            import managed_existing
+            result.append(managed_existing.state(store, saved, 'awg', pending_job))
             continue
         valid = confirmed(saved)
         clients = [dict(c) for c in saved['clients']]
@@ -394,17 +409,18 @@ class AwgApply:
     def step(self, checkpoint):
         p, req, db = self.payload, self.req, self.store.db
         check_revocations(self.store, p)
-        prerequisites()
+        native = [r for r in p['resources'] if 'adoption' not in r]
+        if native: prerequisites()
         if checkpoint == 0:
             if preflight(self.store, p)['fingerprint'] != req['fingerprint']:
                 raise AwgError('awg_conflict')
             check_revocations(self.store, p, persist=True)
             backup = self.store.directory / ('awg-backup-' + req['id'] + '.json')
             if not backup.exists():
-                content = {r['id']: [base64.b64encode(path.read_bytes()).decode() if path.exists() else None for path in paths(r['id'])] for r in p['resources']}
+                content = {r['id']: [base64.b64encode(path.read_bytes()).decode() if path.exists() else None for path in paths(r['id'])] for r in native}
                 atomic_file(backup, canonical(dict(resources=owned(self.store), files=content)).encode())
-            if not KEY.exists():
-                if owned(self.store):
+            if native and not KEY.exists():
+                if any(not r.get('adopted') for r in owned(self.store).values()):
                     raise AwgError('awg_conflict')
                 fd = os.open(str(KEY), os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
                 with os.fdopen(fd, 'wb') as stream:
@@ -413,6 +429,10 @@ class AwgApply:
         elif checkpoint <= len(p['resources']):
             r = p['resources'][checkpoint - 1]
             previous = owned(self.store).get(r['id'])
+            if 'adoption' in r:
+                import managed_existing
+                managed_existing.apply(self.store, req, p, r, previous, 'awg', checkpoint)
+                return
             wanted, config, network = desired(p, r, previous)
             conf_path, net_path = paths(r['id'])
             intent_path = self.store.directory / ('awg-intent-' + req['id'] + '-' + r['id'] + '.json')
@@ -457,7 +477,7 @@ class AwgApply:
                 self.store.event(req['id'], 'awg_applying', checkpoint + 1, req['count'])
             return
         else:
-            if any(not r['confirmed'] or r['revision'] != digest(p) for r in state(self.store, p['workspaceId'])):
+            if any(not r['confirmed'] or r['revision'] != digest(p) for r in state(self.store, p['workspaceId'], pending_job=req['id'])):
                 raise AwgError('awg_conflict')
             code = 'awg_checking'
         with db:

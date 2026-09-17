@@ -1,6 +1,7 @@
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'prepared_proxy.dart';
 import 'proxy_name.dart';
+import 'adopted_proxy.dart';
 
 List<PreparedProxy> ttUserAccesses(VpnWorkspace workspace, String userId) {
   final user = workspace.users
@@ -30,10 +31,14 @@ List<PreparedProxy> ttUserAccesses(VpnWorkspace workspace, String userId) {
           (c) =>
               c['id'] == userId &&
               c['enabled'] == true &&
-              c['username'] == user.login,
+              (r.spec.containsKey('adoption') || c['username'] == user.login),
         )
         .firstOrNull;
     if (client == null) throw const FormatException('vpn_pending');
+    if (r.spec.containsKey('adoption')) {
+      result.add(adoptedProxy(workspace, userId, r.spec, observed!, client));
+      continue;
+    }
     final proxy = PreparedProxy(
       identity: AccessIdentity(
         id: r.id,

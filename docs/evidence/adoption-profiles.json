@@ -1,0 +1,56 @@
+{
+  "mihomo": "1.19.30",
+  "liveConnectivity": false,
+  "results": [
+    {
+      "case": "tcp-none",
+      "compiled": true,
+      "mihomoConfig": true
+    },
+    {
+      "case": "tcp-reality",
+      "compiled": true,
+      "mihomoConfig": true
+    },
+    {
+      "case": "xhttp-reality",
+      "compiled": true,
+      "mihomoConfig": true
+    },
+    {
+      "case": "xhttp-tls",
+      "compiled": true,
+      "mihomoConfig": true
+    },
+    {
+      "case": "ws-tls",
+      "compiled": true,
+      "mihomoConfig": true
+    },
+    {
+      "case": "grpc-tls",
+      "compiled": true,
+      "mihomoConfig": true
+    },
+    {
+      "case": "awg1",
+      "compiled": true,
+      "mihomoConfig": true
+    },
+    {
+      "case": "awg2",
+      "compiled": true,
+      "mihomoConfig": true
+    },
+    {
+      "case": "awg3",
+      "compiled": true,
+      "mihomoConfig": true
+    },
+    {
+      "case": "trusttunnel",
+      "compiled": true,
+      "mihomoConfig": true
+    }
+  ]
+}

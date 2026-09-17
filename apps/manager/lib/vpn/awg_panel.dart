@@ -5,6 +5,7 @@ import '../l10n/app_localizations.dart';
 import '../network/network_controller.dart';
 import '../network/server_address_picker.dart';
 import 'vpn_controller.dart';
+import 'adopt_resource.dart';
 import 'vpn_plan_view.dart';
 
 class AwgPanel extends StatelessWidget {
@@ -23,6 +24,15 @@ class AwgPanel extends StatelessWidget {
   Future<void> edit(BuildContext context, [AwgInterface? current]) async {
     if (!await controller.ensureConnected(awgTarget(serverId)) ||
         !context.mounted) {
+      return;
+    }
+    if (current?.spec.containsKey('adoption') == true) {
+      final spec = await editAdoptedResource(context, current!.spec);
+      if (spec == null) return;
+      await controller.saveAwg(AwgInterface(serverId: serverId, spec: spec));
+      if (controller.error == null) {
+        await controller.prepareAndApply(serverIds: {awgTarget(serverId)});
+      }
       return;
     }
     final spec = current?.spec ?? await controller.awgDefaults(serverId);
@@ -97,10 +107,13 @@ class AwgPanel extends StatelessWidget {
                     title: r.name,
                     subtitle: '${r.spec['pool']}',
                     badge: r.enabled ? l.vpnEnabled : l.vpnDisabled,
-                    note:
-                        observed.any(
-                          (s) => s['id'] == r.id && s['confirmed'] != true,
-                        )
+                    note: r.spec.containsKey('adoption')
+                        ? c.adoptionConfirmed(target, r.id)
+                              ? l.vpnClientAccess
+                              : l.vpnAdopting
+                        : observed.any(
+                            (s) => s['id'] == r.id && s['confirmed'] != true,
+                          )
                         ? l.vpnConflict
                         : null,
                     detailsLabel: l.componentsDetails,
@@ -109,27 +122,7 @@ class AwgPanel extends StatelessWidget {
                       onPressed: c.busy ? null : () => edit(context, r),
                       icon: const Icon(Icons.edit_outlined),
                     ),
-                    details: [
-                      Text(
-                        '${r.spec['endpoint']}:${r.spec['externalPort']} · MTU ${r.spec['mtu']}',
-                      ),
-                      for (final state in observed.where(
-                        (o) => o['id'] == r.id,
-                      )) ...[
-                        for (final client
-                            in (state['clients'] as List)
-                                .whereType<Map>()
-                                .where((p) => p['enabled'] == true))
-                          Padding(
-                            padding: const EdgeInsets.only(
-                              top: AppLayout.smallGap,
-                            ),
-                            child: Text(
-                              '${c.workspace.users.where((u) => u.id == client['id']).firstOrNull?.name ?? client['id']} · ${client['address']}\n${l.awgHandshake}: ${(client['handshake'] as int? ?? 0) == 0 ? l.awgNoHandshake : DateTime.fromMillisecondsSinceEpoch((client['handshake'] as int) * 1000).toLocal()}\nRX ${client['rx'] ?? 0} B · TX ${client['tx'] ?? 0} B',
-                            ),
-                          ),
-                      ],
-                    ],
+                    details: const [],
                   ),
                 ),
               VpnJobView(showSnapshot: false, controller: c, serverId: target),

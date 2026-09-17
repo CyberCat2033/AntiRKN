@@ -13,6 +13,8 @@ import json
 import re
 SCHEMA = json.loads(%r)
 def validate_schema(value, rule=SCHEMA):
+    if isinstance(value, dict) and 'adoption' in value and 'adopted' in rule:
+        rule = rule['adopted']
     kind = rule['type']
     types = {'object': dict, 'array': list, 'string': str, 'integer': int, 'boolean': bool}
     if type(value) is not types[kind]:
@@ -43,6 +45,7 @@ import 'dart:convert';
 final Map<String, dynamic> vlessSchema = jsonDecode(r\'''%s\''') as Map<String, dynamic>;
 void validateVlessSchema(Object? value, [Map? rule]) {
   rule ??= vlessSchema;
+  if (value is Map && value.containsKey('adoption') && rule.containsKey('adopted')) { rule = rule['adopted'] as Map; }
   final kind = rule['type'];
   final valid = switch (kind) {
     'object' => value is Map, 'array' => value is List,

@@ -1,6 +1,7 @@
 import 'network/ip_address.dart';
 import 'tt_contract.g.dart';
 import 'vless_contract.g.dart';
+import 'adopted_resource.dart';
 
 String ttTarget(String serverId) => 'tt/$serverId';
 bool isTtTarget(String target) => target.startsWith('tt/');
@@ -9,12 +10,22 @@ final class TrustTunnelEndpoint {
   TrustTunnelEndpoint({
     required this.serverId,
     required Map<String, Object?> spec,
-  }) : spec = Map.unmodifiable(spec) {
+  }) : spec = Map.unmodifiable({
+         ...spec,
+         if (spec['adoption'] != null)
+           'adoption': Map<String, Object?>.unmodifiable(
+             spec['adoption'] as Map,
+           ),
+       }) {
     try {
       validateVlessSchema(
         spec,
         ttSchema['properties']['resources']['items'] as Map,
       );
+      if (spec.containsKey('adoption')) {
+        validateAdoptedResource(spec);
+        return;
+      }
       final listen = IpAddress.parse(spec['listen'] as String);
       if (listen.category == IpCategory.multicast ||
           ['0.0.0.0', '::'].contains(spec['endpoint']) ||

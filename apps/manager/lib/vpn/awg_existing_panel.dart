@@ -4,14 +4,21 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../runner/runner_controller.dart';
 import 'vpn_strings.dart';
+import 'vpn_controller.dart';
+import 'adopt_resource.dart';
 
 class AwgExistingPanel extends StatefulWidget {
   const AwgExistingPanel({
     required this.runner,
     required this.motion,
+    required this.controller,
+    required this.serverId,
+    required this.serverHost,
     super.key,
   });
   final RunnerController runner;
+  final VpnController controller;
+  final String serverId, serverHost;
   final MotionPreference motion;
   @override
   State<AwgExistingPanel> createState() => _AwgExistingPanelState();
@@ -44,18 +51,27 @@ class _AwgExistingPanelState extends State<AwgExistingPanel> {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: widget.runner,
+    listenable: Listenable.merge([widget.runner, widget.controller]),
     builder: (context, _) {
       final r = widget.runner, l = AppLocalizations.of(context);
-      if ((r.awgDiscovery?['resources'] as List? ?? []).isEmpty) {
+      final external = (r.awgDiscovery?['resources'] as List? ?? [])
+          .whereType<Map>()
+          .where(
+            (item) => !hasAdoptedSource(
+              widget.controller.workspace.awgInterfaces
+                  .where((r) => r.serverId == widget.serverId)
+                  .map((r) => r.spec),
+              item['id'] as String,
+            ),
+          );
+      if (external.isEmpty) {
         return const SizedBox.shrink();
       }
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           AppSectionHeading(title: l.awgObserved),
-          for (final item
-              in (r.awgDiscovery?['resources'] as List? ?? []).whereType<Map>())
+          for (final item in external)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: ResourceTile(
@@ -64,34 +80,59 @@ class _AwgExistingPanelState extends State<AwgExistingPanel> {
                 subtitle: l.uiPeerCount(item['peers'] as int),
                 badge: item['active'] == true ? l.vpnEnabled : l.vpnDisabled,
                 detailsLabel: l.componentsDetails,
-                details: [
-                  Text('${item['source']} · AWG ${item['version']}'),
-                  Text('UDP ${(item['values'] as Map)['ListenPort']}'),
-                ],
-                actions: IconButton(
-                  icon: const Icon(Icons.edit_outlined),
-                  tooltip: l.vpnEdit,
-                  onPressed: r.busy || r.actionPending
-                      ? null
-                      : () async {
-                          if (!await r.ensureReady()) return;
-                          final snapshot = await r.awgRequest(
-                            'awg_external_read',
-                            id: item['id'] as String,
-                          );
-                          if (snapshot == null || !context.mounted) return;
-                          await showDialog<void>(
-                            context: context,
-                            builder: (_) =>
-                                _EditExistingAwg(runner: r, snapshot: snapshot),
-                            animationStyle: AnimationStyle(
-                              duration: AppMotion.duration(
-                                context,
-                                widget.motion,
-                              ),
+                details: const [],
+                actions: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      key: ValueKey('adopt-awg-${item['id']}'),
+                      tooltip: l.vpnAdopt,
+                      icon: const Icon(Icons.people_outline),
+                      onPressed:
+                          r.busy ||
+                              r.actionPending ||
+                              widget.controller.busy ||
+                              widget.controller.hasRunning
+                          ? null
+                          : () => adoptExistingResource(
+                              context,
+                              controller: widget.controller,
+                              runner: r,
+                              serverId: widget.serverId,
+                              protocol: 'awg',
+                              sourceId: item['id'] as String,
+                              host: widget.serverHost,
+                              motion: widget.motion,
                             ),
-                          );
-                        },
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined),
+                      tooltip: l.vpnEdit,
+                      onPressed: r.busy || r.actionPending
+                          ? null
+                          : () async {
+                              if (!await r.ensureReady()) return;
+                              final snapshot = await r.awgRequest(
+                                'awg_external_read',
+                                id: item['id'] as String,
+                              );
+                              if (snapshot == null || !context.mounted) return;
+                              await showDialog<void>(
+                                context: context,
+                                builder: (_) => _EditExistingAwg(
+                                  runner: r,
+                                  snapshot: snapshot,
+                                ),
+                                animationStyle: AnimationStyle(
+                                  duration: AppMotion.duration(
+                                    context,
+                                    widget.motion,
+                                  ),
+                                ),
+                              );
+                            },
+                    ),
+                  ],
                 ),
               ),
             ),

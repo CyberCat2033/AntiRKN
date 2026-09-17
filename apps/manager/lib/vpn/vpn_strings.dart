@@ -2,6 +2,10 @@ import '../l10n/app_localizations.dart';
 import '../app_strings.dart';
 
 String vpnMessage(AppLocalizations l, String code) => switch (code) {
+  'vpn_adoption_invalid' => l.vpnInvalid,
+  'vpn_adoption_unsupported' => l.vpnAdoptUnsupported,
+  'vpn_adoption_conflict' => l.vpnAdoptConflict,
+  'vpn_adoption_failed' => l.vpnAdoptFailed,
   'vpn_user_deleted' => l.vpnUserDeleted,
   'vpn_revocation_failed' => l.vpnRevocationFailed,
   'sync_conflict' => l.syncEffectsBlocked,

@@ -81,6 +81,7 @@ class _ServerCatalogState extends State<ServerCatalog> {
   final _legacyPassword = TextEditingController();
   final ownSelection = CatalogSelection();
   final inboundSelection = CatalogSelection();
+  final inboundPanel = GlobalKey<InboundsPanelState>();
   CatalogSelection get selection => widget.selection ?? ownSelection;
   @override
   void dispose() {
@@ -115,7 +116,13 @@ class _ServerCatalogState extends State<ServerCatalog> {
         for (final panel in session.runner.panels)
           for (final value in panel['inbounds'] as List)
             if (!managed.any(
-              (r) => value['name'] == 'AntiRKN:${vpn?.workspace.id}:${r.id}',
+              (r) =>
+                  (r.spec['adoption'] as Map?)?['sourceId'] ==
+                          '${value['id']}' &&
+                      (r.spec['adoption'] as Map?)?['panelPort'] ==
+                          panel['port'] ||
+                  value['name'] ==
+                      'AntiRKN:${vpn?.workspace.resourceWorkspaceId(r.serverId)}:${r.id}',
             ))
               value,
       ];
@@ -172,6 +179,15 @@ class _ServerCatalogState extends State<ServerCatalog> {
                 ServerProtocolSection(
                   name: 'VLESS',
                   selection: inboundSelection,
+                  selectionActions: () =>
+                      inboundPanel.currentState?.selectionActions() ??
+                      const SizedBox.shrink(),
+                  selectionEnabled:
+                      !vpn.busy &&
+                      !vpn.hasRunning &&
+                      !session.runner.busy &&
+                      !session.runner.actionPending &&
+                      managed.length + external.length > 0,
                   onRemove: () => removeServerProtocol(
                     context,
                     session,
@@ -183,6 +199,8 @@ class _ServerCatalogState extends State<ServerCatalog> {
                   count: managed.length + external.length,
                   detected: session.runner.panelDetected,
                   child: InboundsPanel(
+                    key: inboundPanel,
+                    selectionInHeader: true,
                     selection: inboundSelection,
                     showPlan: false,
                     controller: vpn,
@@ -221,6 +239,9 @@ class _ServerCatalogState extends State<ServerCatalog> {
                       ),
                       const SizedBox(height: AppLayout.gap),
                       AwgExistingPanel(
+                        controller: vpn,
+                        serverId: c.selectedId!,
+                        serverHost: session.host.text.trim(),
                         runner: session.runner,
                         motion: widget.motion,
                       ),

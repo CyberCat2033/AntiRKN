@@ -96,6 +96,80 @@
             "minimum": 0,
             "maximum": 2147483647
           }
+        },
+        "adopted": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            },
+            "name": {
+              "type": "string",
+              "maxLength": 128,
+              "minLength": 1
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "deleted": {
+              "type": "boolean"
+            },
+            "endpoint": {
+              "type": "string",
+              "maxLength": 253,
+              "minLength": 1
+            },
+            "externalPort": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "adoption": {
+              "type": "object",
+              "properties": {
+                "sourceId": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{1,32}$",
+                  "maxLength": 32
+                },
+                "observedHash": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              }
+            },
+            "domain": {
+              "type": "string",
+              "maxLength": 253,
+              "minLength": 1
+            },
+            "listen": {
+              "type": "string",
+              "maxLength": 45,
+              "minLength": 1
+            },
+            "quic": {
+              "type": "boolean"
+            },
+            "outbound": {
+              "type": "string",
+              "enum": [
+                "direct",
+                "socks5"
+              ]
+            },
+            "socksAddress": {
+              "type": "string",
+              "maxLength": 300
+            }
+          },
+          "optional": []
         }
       }
     },

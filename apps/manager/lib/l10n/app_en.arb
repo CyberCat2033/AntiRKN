@@ -1258,5 +1258,11 @@
   "sshHardenDisableRoot": "Disable direct root login",
   "sshHardenRecoveryFailed": "Recovery could not be verified. Keep the saved access details and retry rollback.",
   "sshHardenSudoRequired": "The new account must require a password for sudo.",
-  "sshHardenStorageFailed": "Could not save the access details. The server transition has not been committed."
+  "sshHardenStorageFailed": "Could not save the access details. The server transition has not been committed.",
+  "vpnAdopt": "Manage client access",
+  "vpnAdoptWarning": "AntiRKN will create and revoke access for its clients and update their profiles. Existing settings, keys and access will be preserved. Existing users will not be added to the AntiRKN client list. Applying changes may briefly restart the service.",
+  "vpnAdopting": "Waiting for management to be confirmed",
+  "vpnAdoptUnsupported": "This connection cannot be imported with its current settings. No server settings were changed.",
+  "vpnAdoptConflict": "The connection has changed or is already managed. Refresh its state and try again.",
+  "vpnAdoptFailed": "Client management could not be confirmed. Check the operation status before retrying."
 }

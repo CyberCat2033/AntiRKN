@@ -665,7 +665,11 @@
     "ssh_harden_firewall_configured",
     "ssh_harden_testing",
     "ssh_harden_confirmed",
-    "ssh_harden_aborted"
+    "ssh_harden_aborted",
+    "vpn_adoption_invalid",
+    "vpn_adoption_unsupported",
+    "vpn_adoption_conflict",
+    "vpn_adoption_failed"
   ],
   "codes": [
     "ok",
@@ -714,7 +718,11 @@
     "ssh_harden_conflict",
     "ssh_harden_invalid",
     "ssh_harden_port_busy",
-    "ssh_harden_failed"
+    "ssh_harden_failed",
+    "vpn_adoption_invalid",
+    "vpn_adoption_unsupported",
+    "vpn_adoption_conflict",
+    "vpn_adoption_failed"
   ],
   "maxRequestBytes": 524288,
   "maxEvents": 256,

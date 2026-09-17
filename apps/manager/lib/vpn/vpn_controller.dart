@@ -462,6 +462,7 @@ class VpnController extends ChangeNotifier {
           !(allowMissing && response.code == 'missing')) {
         throw FormatException(
           (response.code.startsWith('vless_') ||
+                  response.code.startsWith('vpn_adoption_') ||
                   response.code.startsWith('awg_') ||
                   response.code.startsWith('tt_'))
               ? response.code
@@ -478,6 +479,85 @@ class VpnController extends ChangeNotifier {
   Future<void> prepareAndApply({Set<String>? serverIds}) async {
     await prepare(serverIds: serverIds);
     if (error == null && plans.isNotEmpty) await apply();
+  }
+
+  bool adoptionConfirmed(String target, String id) =>
+      workspace.servers[target]?['pending'] == null &&
+      (workspace.servers[target]?['observed'] as List? ?? []).any(
+        (row) => row['id'] == id && row['confirmed'] == true,
+      );
+
+  Future<void> adoptResource({
+    required String target,
+    required String expectedIdentity,
+    required Map<String, Object?> spec,
+  }) async {
+    var prepared = false;
+    await _run((token) async {
+      if (!loaded || hasRunning || pendingRevocations.isNotEmpty) {
+        throw const FormatException('vpn_busy');
+      }
+      await ensureConnected(target);
+      token.check();
+      final connection = remote(target);
+      if (connection == null ||
+          connection.identity != expectedIdentity ||
+          workspace.servers[target]?['identity'] != null &&
+              workspace.servers[target]!['identity'] != expectedIdentity) {
+        throw const FormatException('vpn_identity');
+      }
+      final server = vpnServerId(target);
+      final source = (spec['adoption'] as Map)['sourceId'];
+      final existing = isAwgTarget(target)
+          ? workspace.awgInterfaces
+                .where((r) => r.serverId == server)
+                .map((r) => r.spec)
+          : isTtTarget(target)
+          ? workspace.ttEndpoints
+                .where((r) => r.serverId == server)
+                .map((r) => r.spec)
+          : workspace.inbounds
+                .where((r) => r.serverId == server)
+                .map((r) => r.spec);
+      if (existing.any((s) => (s['adoption'] as Map?)?['sourceId'] == source)) {
+        throw const FormatException('vpn_adoption_conflict');
+      }
+      final candidate = isAwgTarget(target)
+          ? workspace.copy(
+              awgInterfaces: [
+                ...workspace.awgInterfaces,
+                AwgInterface(serverId: server, spec: spec),
+              ],
+            )
+          : isTtTarget(target)
+          ? workspace.copy(
+              ttEndpoints: [
+                ...workspace.ttEndpoints,
+                TrustTunnelEndpoint(serverId: server, spec: spec),
+              ],
+            )
+          : workspace.copy(
+              inbounds: [
+                ...workspace.inbounds,
+                VlessInbound(serverId: server, spec: spec),
+              ],
+            );
+      final panel = isAwgTarget(target) || isTtTarget(target)
+          ? workspace.resourceWorkspaceId(target)
+          : connection.panelId;
+      final payload = candidate.desired(target, panel);
+      final response = await _request(
+        connection,
+        _planRequest(target, panel, payload),
+        token,
+      );
+      final preview = _preview(response, target);
+      if (preview == null) throw const FormatException('vpn_adoption_failed');
+      await _write(candidate);
+      plans = [VpnPlan(target, payload, connection.identity, preview)];
+      prepared = true;
+    });
+    if (prepared && error == null) await apply();
   }
 
   Future<void> prepare({Set<String>? serverIds}) => _run((token) async {

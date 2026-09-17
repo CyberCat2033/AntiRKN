@@ -3254,4 +3254,26 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get sshHardenStorageFailed =>
       'Не удалось сохранить реквизиты. Переход на сервере не зафиксирован.';
+
+  @override
+  String get vpnAdopt => 'Управлять доступами клиентов';
+
+  @override
+  String get vpnAdoptWarning =>
+      'AntiRKN будет создавать и отзывать доступы своих клиентов и обновлять их профили. Существующие настройки, ключи и доступы сохранятся. Сторонние пользователи не будут добавлены в каталог клиентов AntiRKN. При применении возможен краткий перезапуск службы.';
+
+  @override
+  String get vpnAdopting => 'Ожидается подтверждение управления';
+
+  @override
+  String get vpnAdoptUnsupported =>
+      'Подключение с такими настройками пока нельзя импортировать. Настройки сервера не изменены.';
+
+  @override
+  String get vpnAdoptConflict =>
+      'Подключение изменилось или уже находится под управлением. Обновите его состояние и повторите попытку.';
+
+  @override
+  String get vpnAdoptFailed =>
+      'Управление доступами не подтверждено. Проверьте состояние операции перед повтором.';
 }

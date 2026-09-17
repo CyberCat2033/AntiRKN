@@ -1,6 +1,7 @@
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'prepared_proxy.dart';
 import 'proxy_name.dart';
+import 'adopted_proxy.dart';
 
 List<PreparedProxy> awgUserAccesses(VpnWorkspace workspace, String userId) {
   if (!workspace.users.any((u) => u.id == userId && u.enabled)) return [];
@@ -31,6 +32,10 @@ List<PreparedProxy> awgUserAccesses(VpnWorkspace workspace, String userId) {
         .firstOrNull;
     if (client == null) throw const FormatException('vpn_pending');
     final s = interface.spec;
+    if (s.containsKey('adoption')) {
+      proxies.add(adoptedProxy(workspace, userId, s, observed!, client));
+      continue;
+    }
     final proxy = PreparedProxy(
       identity: AccessIdentity(
         id: interface.id,

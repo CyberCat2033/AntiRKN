@@ -8,6 +8,7 @@ import '../drag_select_list.dart';
 import '../network/network_controller.dart';
 import '../network/server_address_field.dart';
 import 'vpn_controller.dart';
+import 'adopt_resource.dart';
 import 'observed_inbound_dialog.dart';
 import 'xhttp_options_editor.dart';
 import '../runner/runner_controller.dart';
@@ -20,6 +21,7 @@ class InboundsPanel extends StatefulWidget {
     required this.controller,
     this.runner,
     this.selection,
+    this.selectionInHeader = false,
     this.showPlan = true,
     this.serverHost = '',
     required this.serverId,
@@ -37,11 +39,12 @@ class InboundsPanel extends StatefulWidget {
   final NetworkController network;
   final MotionPreference motion;
   final CatalogSelection? selection;
+  final bool selectionInHeader;
   @override
-  State<InboundsPanel> createState() => _InboundsPanelState();
+  InboundsPanelState createState() => InboundsPanelState();
 }
 
-class _InboundsPanelState extends State<InboundsPanel> {
+class InboundsPanelState extends State<InboundsPanel> {
   final ownSelection = CatalogSelection();
   CatalogSelection get selection => widget.selection ?? ownSelection;
   VpnController get controller => widget.controller;
@@ -52,15 +55,59 @@ class _InboundsPanelState extends State<InboundsPanel> {
   NetworkController get network => widget.network;
   MotionPreference get motion => widget.motion;
   bool get showPlan => widget.showPlan;
-  bool deleting = false;
+  final deletionState = ValueNotifier(false);
+  bool get deleting => deletionState.value;
+  set deleting(bool value) => deletionState.value = value;
   String? deletionIssue;
   String externalId(Map panel, Map inbound) =>
       'external-${panel['port']}-${inbound['id']}';
   @override
   void dispose() {
     ownSelection.dispose();
+    deletionState.dispose();
     super.dispose();
   }
+
+  List<String> get availableIds {
+    final inbounds = controller.workspace.inbounds.where(
+      (r) => r.serverId == serverId && !r.deleted,
+    );
+    return [
+      for (final panel in runner?.panels ?? <Map<String, dynamic>>[])
+        for (final row in panel['inbounds'] as List)
+          if (!inbounds.any(
+            (r) =>
+                (r.spec['adoption'] as Map?)?['sourceId'] == '${row['id']}' &&
+                    (r.spec['adoption'] as Map?)?['panelPort'] ==
+                        panel['port'] ||
+                row['name'] ==
+                    'AntiRKN:${controller.workspace.resourceWorkspaceId(r.serverId)}:${r.id}',
+          ))
+            externalId(panel, row as Map),
+      ...inbounds.map((r) => r.id),
+    ];
+  }
+
+  Widget selectionActions() => ListenableBuilder(
+    listenable: Listenable.merge([
+      controller,
+      runner,
+      selection,
+      deletionState,
+    ]),
+    builder: (context, _) => CatalogActions(
+      selection: selection,
+      available: availableIds,
+      onDelete: removeSelected,
+      prefix: 'inbound',
+      busy:
+          deleting ||
+          controller.busy ||
+          controller.hasRunning ||
+          (runner?.busy ?? false) ||
+          (runner?.actionPending ?? false),
+    ),
+  );
 
   Widget selectable(String id, Widget child) => Row(
     children: [
@@ -237,67 +284,58 @@ class _InboundsPanelState extends State<InboundsPanel> {
           inbounds = c.workspace.inbounds.where(
             (r) => r.serverId == serverId && !r.deleted,
           );
-      final externalKeys = [
-        for (final panel in runner?.panels ?? <Map<String, dynamic>>[])
-          for (final row in panel['inbounds'] as List)
-            if (!inbounds.any(
-              (r) =>
-                  row['name'] ==
-                  'AntiRKN:${c.workspace.resourceWorkspaceId(r.serverId)}:${r.id}',
-            ))
-              externalId(panel, row as Map),
-      ];
       return DragSelectList(
         selection: selection,
-        ids: [...externalKeys, ...inbounds.map((r) => r.id)],
+        ids: availableIds,
         enabled: !deleting && !c.busy && !(runner?.busy ?? false),
         builder: (scroll, item) => Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            AppPageIntro(l.uiVlessIntro),
-            Row(
-              children: [
-                Expanded(
-                  child: CatalogTitle(
-                    selection: selection,
-                    title: l.vpnInbounds,
+            if (selection.active && !widget.selectionInHeader)
+              Row(
+                children: [
+                  Expanded(
+                    child: CatalogTitle(
+                      selection: selection,
+                      title: l.vpnInbounds,
+                    ),
                   ),
-                ),
-                CatalogActions(
-                  selection: selection,
-                  available: [...externalKeys, ...inbounds.map((r) => r.id)],
-                  onDelete: removeSelected,
-                  prefix: 'inbound',
-                  busy:
-                      deleting ||
-                      c.busy ||
-                      c.hasRunning ||
-                      (runner?.busy ?? false),
-                ),
-              ],
-            ),
+                  selectionActions(),
+                ],
+              ),
             if (deleting) const LinearProgressIndicator(),
             if (deletionIssue != null) Text(deletionIssue!),
-            if (runner != null &&
-                (runner!.panelAccess == null ||
-                    runner!.panelLoginRequired)) ...[
-              FilledButton.icon(
-                key: const ValueKey('vless-panel-login'),
-                onPressed: runner!.busy || runner!.actionPending
-                    ? null
-                    : () => showPanelLogin(context, runner!),
-                icon: const Icon(Icons.login),
-                label: Text(l.panelConnectTitle),
+            CatalogNormalContent(
+              selection: selection,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  AppPageIntro(l.uiVlessIntro),
+                  if (runner != null &&
+                      (runner!.panelAccess == null ||
+                          runner!.panelLoginRequired)) ...[
+                    FilledButton.icon(
+                      key: const ValueKey('vless-panel-login'),
+                      onPressed: runner!.busy || runner!.actionPending
+                          ? null
+                          : () => showPanelLogin(context, runner!),
+                      icon: const Icon(Icons.login),
+                      label: Text(l.panelConnectTitle),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  FilledButton.icon(
+                    key: const ValueKey('vpn-inbound-add'),
+                    onPressed: c.busy || !c.loaded
+                        ? null
+                        : () => _edit(context),
+                    icon: const Icon(Icons.add),
+                    label: Text(l.vpnAddInbound),
+                  ),
+                  const SizedBox(height: 20),
+                ],
               ),
-              const SizedBox(height: 12),
-            ],
-            FilledButton.icon(
-              key: const ValueKey('vpn-inbound-add'),
-              onPressed: c.busy || !c.loaded ? null : () => _edit(context),
-              icon: const Icon(Icons.add),
-              label: Text(l.vpnAddInbound),
             ),
-            const SizedBox(height: 20),
             AppSectionHeading(title: l.vpnInbounds),
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -321,8 +359,12 @@ class _InboundsPanelState extends State<InboundsPanel> {
                   for (final observed in panel['inbounds'] as List)
                     if (!inbounds.any(
                       (r) =>
+                          (r.spec['adoption'] as Map?)?['sourceId'] ==
+                                  '${observed['id']}' &&
+                              (r.spec['adoption'] as Map?)?['panelPort'] ==
+                                  panel['port'] ||
                           observed['name'] ==
-                          'AntiRKN:${c.workspace.resourceWorkspaceId(r.serverId)}:${r.id}',
+                              'AntiRKN:${c.workspace.resourceWorkspaceId(r.serverId)}:${r.id}',
                     ))
                       Padding(
                         padding: const EdgeInsets.only(
@@ -366,42 +408,72 @@ class _InboundsPanelState extends State<InboundsPanel> {
                                         observed['enabled'] != true,
                                       );
                                     },
-                              actions: IconButton(
-                                tooltip: l.vpnEdit,
-                                icon: const Icon(Icons.edit_outlined),
-                                onPressed:
-                                    runner == null ||
-                                        runner!.busy ||
-                                        runner!.actionPending
-                                    ? null
-                                    : () async {
-                                        if (!await showPanelLogin(
+                              actions: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (observed['protocol'] == 'vless')
+                                    IconButton(
+                                      key: ValueKey(
+                                        'adopt-vless-${panel['port']}-${observed['id']}',
+                                      ),
+                                      tooltip: l.vpnAdopt,
+                                      icon: const Icon(Icons.people_outline),
+                                      onPressed:
+                                          c.busy ||
+                                              c.hasRunning ||
+                                              runner!.busy ||
+                                              runner!.actionPending
+                                          ? null
+                                          : () => adoptExistingResource(
                                               context,
-                                              runner!,
-                                              port: panel['port'] as int,
-                                            ) ||
-                                            !context.mounted) {
-                                          return;
-                                        }
-                                        await showDialog<void>(
-                                          context: context,
-                                          animationStyle: AnimationStyle(
-                                            duration: AppMotion.duration(
-                                              context,
-                                              motion,
+                                              controller: c,
+                                              runner: runner!,
+                                              serverId: serverId,
+                                              protocol: 'vless',
+                                              sourceId: observed['id'] as int,
+                                              panelPort: panel['port'] as int,
+                                              host: serverHost,
+                                              motion: motion,
                                             ),
-                                          ),
-                                          builder: (context) =>
-                                              ObservedInboundDialog(
-                                                controller: runner!,
-                                                network: network,
-                                                inboundId:
-                                                    observed['id'] as int,
-                                                port: panel['port'] as int,
-                                                motion: motion,
+                                    ),
+                                  IconButton(
+                                    tooltip: l.vpnEdit,
+                                    icon: const Icon(Icons.edit_outlined),
+                                    onPressed:
+                                        runner == null ||
+                                            runner!.busy ||
+                                            runner!.actionPending
+                                        ? null
+                                        : () async {
+                                            if (!await showPanelLogin(
+                                                  context,
+                                                  runner!,
+                                                  port: panel['port'] as int,
+                                                ) ||
+                                                !context.mounted) {
+                                              return;
+                                            }
+                                            await showDialog<void>(
+                                              context: context,
+                                              animationStyle: AnimationStyle(
+                                                duration: AppMotion.duration(
+                                                  context,
+                                                  motion,
+                                                ),
                                               ),
-                                        );
-                                      },
+                                              builder: (context) =>
+                                                  ObservedInboundDialog(
+                                                    controller: runner!,
+                                                    network: network,
+                                                    inboundId:
+                                                        observed['id'] as int,
+                                                    port: panel['port'] as int,
+                                                    motion: motion,
+                                                  ),
+                                            );
+                                          },
+                                  ),
+                                ],
                               ),
                             ),
                           ),
@@ -421,7 +493,13 @@ class _InboundsPanelState extends State<InboundsPanel> {
                           subtitle:
                               '${r.spec['transport'].toString().toUpperCase()} · ${r.spec['security'].toString().toUpperCase()}',
                           badge: r.enabled ? l.vpnEnabled : l.vpnDisabled,
-                          note: r.internal ? l.vpnInternal : l.vpnClientAccess,
+                          note:
+                              r.spec.containsKey('adoption') &&
+                                  !c.adoptionConfirmed(serverId, r.id)
+                              ? l.vpnAdopting
+                              : r.internal
+                              ? l.vpnInternal
+                              : l.vpnClientAccess,
                           detailsLabel: l.componentsDetails,
                           details: const [],
                           badgeBusy: c.busy,
@@ -510,6 +588,17 @@ class _InboundsPanelState extends State<InboundsPanel> {
   Future<void> _edit(BuildContext context, [VlessInbound? inbound]) async {
     if (runner != null &&
         (!await showPanelLogin(context, runner!) || !context.mounted)) {
+      return;
+    }
+    if (inbound?.spec.containsKey('adoption') == true) {
+      final spec = await editAdoptedResource(context, inbound!.spec);
+      if (spec == null) return;
+      await controller.saveInbound(
+        VlessInbound(serverId: serverId, spec: spec),
+      );
+      if (controller.error == null) {
+        await controller.prepareAndApply(serverIds: {serverId});
+      }
       return;
     }
     final result = await showDialog<VlessInbound>(

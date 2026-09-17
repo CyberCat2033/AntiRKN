@@ -42,6 +42,8 @@ def parse_payload(raw):
         if len({v['login'].lower() for v in p['users']}) != len(p['users']):
             raise TtError('tt_login_conflict')
         for r in p['resources']: validate_resource(r)
+        import managed_existing
+        managed_existing.validate_payload(p, 'tt')
         return p
     except (TypeError, ValueError, KeyError):
         raise TtError()
@@ -49,6 +51,10 @@ def parse_payload(raw):
 
 def validate_resource(r):
     validate_schema(r, SCHEMA['properties']['resources']['items'])
+    if 'adoption' in r:
+        import managed_existing
+        managed_existing.validate_spec(r, 'tt')
+        return
     ip(r['listen'], wildcard=True); domain(r['domain'])
     try: ip(r['endpoint'])
     except TtError: domain(r['endpoint'])
@@ -168,8 +174,9 @@ def confirmed(saved, probe=True):
 
 def preflight(store, p):
     check_revocations(store, p)
-    release = prerequisites()
+    release = prerequisites() if any('adoption' not in r for r in p['resources']) else None
     saved = owned(store)
+    adopted = {}
     ids = {r['id'] for r in p['resources']}
     if any(r['workspaceId'] == p['workspaceId'] and rid not in ids for rid, r in saved.items()):
         raise TtError('tt_conflict')
@@ -177,6 +184,10 @@ def preflight(store, p):
     certs = {}
     for r in p['resources']:
         old = saved.get(r['id'])
+        if 'adoption' in r:
+            import managed_existing
+            adopted[r['id']] = managed_existing.preflight(store, p, r, old, 'tt')
+            continue
         if old:
             if old['workspaceId'] != p['workspaceId'] or not intact(old): raise TtError('tt_conflict')
         elif current_hashes(r['id']) != [None]*4: raise TtError('tt_conflict')
@@ -193,7 +204,7 @@ def preflight(store, p):
             if not same and not available(r['listen'], r['port'], r['quic']): raise TtError('tt_port_busy')
             if same and r['quic'] and not old['spec']['quic'] and not available(r['listen'], r['port'], udp_only=True): raise TtError('tt_port_busy')
             if r['outbound'] == 'socks5': check_socks(r['socksAddress'])
-    return dict(fingerprint=digest(dict(payload=p,saved=saved,release=release,certificates=certs)),
+    return dict(fingerprint=digest(dict(payload=p,saved=saved,release=release,certificates=certs,adopted=adopted)),
         resources=len(p['resources']), users=len(p['users']), restart=True,
         creates=sum(r['id'] not in saved and not r['deleted'] for r in p['resources']),
         updates=sum(r['id'] in saved and not r['deleted'] for r in p['resources']),
@@ -206,10 +217,14 @@ def plan(store, req):
     return preflight(store,p)
 
 
-def state(store, workspace):
+def state(store, workspace, pending_job=None):
     result = []
     for rid, saved in owned(store).items():
         if saved['workspaceId'] != workspace: continue
+        if saved.get('adopted'):
+            import managed_existing
+            result.append(managed_existing.state(store, saved, 'tt', pending_job))
+            continue
         cr = certificates.record(saved['spec']['certificateId'])
         result.append(dict(id=rid,workspaceId=workspace,confirmed=confirmed(saved),
             spec=saved['spec'],clients=saved['clients'],revision=saved['revision'],certificate=certificates.public(cr)))
@@ -225,16 +240,17 @@ class TtApply:
         with lock():
             p,req,db = self.p,self.req,self.store.db
             check_revocations(self.store, p)
-            prerequisites()
+            native = [r for r in p['resources'] if 'adoption' not in r]
+            if native: prerequisites()
             if checkpoint == 0:
                 if preflight(self.store,p)['fingerprint'] != req['fingerprint']: raise TtError('tt_conflict')
                 check_revocations(self.store, p, persist=True)
                 backup = self.store.directory / ('tt-backup-'+req['id']+'.json')
                 if not backup.exists():
-                    atomic_file(backup,canonical(dict(records=owned(self.store),files={r['id']:[base64.b64encode(read(f)).decode() if f.exists() else None for f in paths(r['id'])] for r in p['resources']})).encode())
-                mkdir(ROOT)
-                if not KEY.exists():
-                    if owned(self.store): raise TtError('tt_conflict')
+                    atomic_file(backup,canonical(dict(records=owned(self.store),files={r['id']:[base64.b64encode(read(f)).decode() if f.exists() else None for f in paths(r['id'])] for r in native})).encode())
+                if native: mkdir(ROOT)
+                if native and not KEY.exists():
+                    if any(not r.get('adopted') for r in owned(self.store).values()): raise TtError('tt_conflict')
                     fd=os.open(str(KEY),os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
                     with os.fdopen(fd,'wb') as stream:
                         stream.write(secrets.token_bytes(32));stream.flush();os.fsync(stream.fileno())
@@ -242,6 +258,10 @@ class TtApply:
             elif checkpoint <= len(p['resources']):
                 r=p['resources'][checkpoint-1]
                 old=owned(self.store).get(r['id'])
+                if 'adoption' in r:
+                    import managed_existing
+                    managed_existing.apply(self.store, req, p, r, old, 'tt', checkpoint)
+                    return
                 if r['deleted']:
                     if old is None: raise TtError('tt_conflict')
                     wanted={**old,'spec':r,'revision':digest(p)};data=[]
@@ -280,7 +300,7 @@ class TtApply:
                     self.store.event(req['id'],'tt_applying',checkpoint+1,req['count'])
                 return
             else:
-                if any(not r['confirmed'] or r['revision'] != digest(p) for r in state(self.store,p['workspaceId'])): raise TtError('tt_conflict')
+                if any(not r['confirmed'] or r['revision'] != digest(p) for r in state(self.store,p['workspaceId'],pending_job=req['id'])): raise TtError('tt_conflict')
                 code='tt_checking'
             with db:
                 db.execute('UPDATE jobs SET checkpoint=? WHERE id=?',(checkpoint+1,req['id']))

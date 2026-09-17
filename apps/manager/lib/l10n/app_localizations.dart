@@ -5785,6 +5785,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not save the access details. The server transition has not been committed.'**
   String get sshHardenStorageFailed;
+
+  /// No description provided for @vpnAdopt.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage client access'**
+  String get vpnAdopt;
+
+  /// No description provided for @vpnAdoptWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'AntiRKN will create and revoke access for its clients and update their profiles. Existing settings, keys and access will be preserved. Existing users will not be added to the AntiRKN client list. Applying changes may briefly restart the service.'**
+  String get vpnAdoptWarning;
+
+  /// No description provided for @vpnAdopting.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for management to be confirmed'**
+  String get vpnAdopting;
+
+  /// No description provided for @vpnAdoptUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This connection cannot be imported with its current settings. No server settings were changed.'**
+  String get vpnAdoptUnsupported;
+
+  /// No description provided for @vpnAdoptConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'The connection has changed or is already managed. Refresh its state and try again.'**
+  String get vpnAdoptConflict;
+
+  /// No description provided for @vpnAdoptFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Client management could not be confirmed. Check the operation status before retrying.'**
+  String get vpnAdoptFailed;
 }
 
 class _AppLocalizationsDelegate

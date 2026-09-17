@@ -49,6 +49,10 @@ def parse_payload(raw):
     for key in ('users', 'resources'):
         if len({x['id'] for x in value[key]}) != len(value[key]): raise VlessError()
     for r in value['resources']:
+        if 'adoption' in r:
+            import managed_existing
+            managed_existing.validate_spec(r, 'vless')
+            continue
         try:
             listen = ipaddress.ip_address(r['listen'])
             if listen.is_multicast: raise ValueError()
@@ -74,6 +78,8 @@ def parse_payload(raw):
             if 'sessionIDTable' in extra and not 10 <= lower(extra.get('sessionIDLength','16-32')) <= upper(extra.get('sessionIDLength','16-32')) <= 128: raise ValueError()
             if r['deleted'] and r['enabled']: raise ValueError()
         except (ValueError, TypeError): raise VlessError()
+    import managed_existing
+    managed_existing.validate_payload(value, 'vless')
     return value
 
 
@@ -216,7 +222,12 @@ def preflight(store, payload, api):
     rows = api.call('/panel/api/inbounds/list')
     if not isinstance(rows, list): raise VlessError('vless_api_failed')
     saved = owned_rows(store)
+    adopted = {}
     for r in payload['resources']:
+        if 'adoption' in r:
+            import managed_existing
+            adopted[r['id']] = managed_existing.preflight(store, payload, r, saved.get(r['id']), 'vless')
+            continue
         current = locate(rows, payload['workspaceId'], r['id'])
         previous = saved.get(r['id'])
         if previous and previous['workspaceId'] != payload['workspaceId']: raise VlessError('vless_conflict')
@@ -227,7 +238,7 @@ def preflight(store, payload, api):
     # stale device cannot silently drop clients/resources through a partial list.
     if any(p['workspaceId'] == payload['workspaceId'] and rid not in {r['id'] for r in payload['resources']} for rid, p in saved.items()):
         raise VlessError('vless_conflict')
-    active = [r for r in payload['resources'] if r['enabled'] and not r['deleted']]
+    active = [r for r in payload['resources'] if r['enabled'] and not r['deleted'] and 'adoption' not in r]
     reserved = [(r['listen'], r['port'], r['id']) for r in active]
     for i, (address, port, rid) in enumerate(reserved):
         for other_address, other_port, other_id in reserved[:i]:
@@ -254,7 +265,7 @@ def preflight(store, payload, api):
             settings=json.loads(config['settings']), streamSettings=json.loads(config['streamSettings']))
         inbound['settings']['clients'] = [c for c in inbound['settings']['clients'] if c['enable']]
         command([str(PANEL / 'bin/xray-linux-amd64'),'run','-test','-config','stdin:'], input_data=canonical(dict(inbounds=[inbound],outbounds=[dict(protocol='freedom')])).encode())
-    fingerprint = digest(dict(rows=sorted([normal(r) for r in rows], key=lambda r:r['id']), saved=saved, desired=payload))
+    fingerprint = digest(dict(rows=sorted([normal(r) for r in rows], key=lambda r:r['id']), saved=saved, desired=payload, adopted=adopted))
     return dict(fingerprint=fingerprint, resources=len(payload['resources']), users=len(payload['users']),
                 creates=sum(locate(rows,payload['workspaceId'],r['id']) is None and not r['deleted'] for r in payload['resources']),
                 deletes=sum(r['deleted'] and locate(rows,payload['workspaceId'],r['id']) is not None for r in payload['resources']),
@@ -267,12 +278,16 @@ def plan(store, req):
     return preflight(store, payload, panel_for(store, payload['panelId']))
 
 
-def state(store, panel_id):
+def state(store, panel_id, pending_job=None):
     api = panel_for(store, panel_id)
     rows = api.call('/panel/api/inbounds/list')
     result = []
     for rid, saved in owned_rows(store).items():
         if saved['panelId'] != panel_id: continue
+        if saved.get('adopted'):
+            import managed_existing
+            result.append(managed_existing.state(store, saved, 'vless', pending_job))
+            continue
         current = locate(rows, saved['workspaceId'], rid)
         confirmed = (current is None if saved.get('deleted') else current is not None and digest(normal(current)) == saved['observedHash'])
         result.append(dict(id=rid, spec=saved['spec'], workspaceId=saved['workspaceId'],
@@ -302,6 +317,10 @@ class VlessApply:
             code = 'vless_preparing'
         elif checkpoint <= len(p['resources']):
             r = p['resources'][checkpoint - 1]
+            if 'adoption' in r:
+                import managed_existing
+                managed_existing.apply(self.store, self.req, p, r, owned_rows(self.store).get(r['id']), 'vless', checkpoint)
+                return
             rows = api.call('/panel/api/inbounds/list')
             current = locate(rows, p['workspaceId'], r['id'])
             previous = owned_rows(self.store).get(r['id'])
@@ -341,7 +360,7 @@ class VlessApply:
                 if isinstance(status, dict) and isinstance(status.get('xray'), dict) and status['xray'].get('state') == 'running': break
                 time.sleep(.25)
             else: raise VlessError('vless_api_failed')
-            for r in state(self.store, p['panelId']):
+            for r in state(self.store, p['panelId'], pending_job=job_id):
                 if r['workspaceId'] == p['workspaceId'] and not r['confirmed']: raise VlessError('vless_conflict')
             code = 'vless_checking'
         with db:

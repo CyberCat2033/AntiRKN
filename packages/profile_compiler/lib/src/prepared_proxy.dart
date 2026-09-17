@@ -6,10 +6,14 @@ export 'package:antirkn_domain/antirkn_domain.dart'
 /// Ephemeral adapter output after credentials have been resolved from a vault.
 /// Never store these fields in logs or an unencrypted database.
 final class PreparedProxy {
-  PreparedProxy({required this.identity, required Map<String, Object?> fields})
-    : fields = _freezeMap(fields);
+  PreparedProxy({
+    required this.identity,
+    required Map<String, Object?> fields,
+    this.imported = false,
+  }) : fields = _freezeMap(fields);
 
   final AccessIdentity identity;
+  final bool imported;
   final Map<String, Object?> fields;
   String get name => fields['name'] as String;
 
@@ -41,7 +45,15 @@ final class PreparedProxy {
         final network = fields['network'] ?? 'tcp';
         final reality = fields['reality-opts'];
         final vision = fields['flow'] == 'xtls-rprx-vision';
-        if (fields['tls'] != true ||
+        if (imported) {
+          if (!['tcp', 'ws', 'h2', 'grpc', 'xhttp'].contains(network) ||
+              fields['tls'] is! bool ||
+              reality != null && (fields['tls'] != true || reality is! Map) ||
+              fields['flow'] != null &&
+                  (!vision || network != 'tcp' || fields['tls'] != true)) {
+            throw const FormatException('unsupported_vless_preset');
+          }
+        } else if (fields['tls'] != true ||
             !((network == 'tcp' && reality is Map && vision) ||
                 (network == 'xhttp' &&
                     !fields.containsKey('flow') &&

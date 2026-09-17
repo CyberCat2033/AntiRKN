@@ -9,6 +9,7 @@ import '../runner/runner_controller.dart';
 import 'tt_certificates.dart';
 import 'tt_dialog.dart';
 import 'vpn_controller.dart';
+import 'adopt_resource.dart';
 import 'vpn_plan_view.dart';
 import 'vpn_strings.dart';
 
@@ -75,6 +76,19 @@ class _TtPanelState extends State<TtPanel> {
 
   Future<void> edit([TrustTunnelEndpoint? current]) async {
     if (!await widget.runner.ensureReady() || !mounted) return;
+    if (current?.spec.containsKey('adoption') == true) {
+      final spec = await editAdoptedResource(context, current!.spec);
+      if (spec == null) return;
+      await widget.controller.saveTt(
+        TrustTunnelEndpoint(serverId: widget.serverId, spec: spec),
+      );
+      if (widget.controller.error == null) {
+        await widget.controller.prepareAndApply(
+          serverIds: {ttTarget(widget.serverId)},
+        );
+      }
+      return;
+    }
     final spec =
         current?.spec ?? await widget.controller.ttDefaults(widget.serverId);
     if (spec == null || !mounted) return;
@@ -119,6 +133,14 @@ class _TtPanelState extends State<TtPanel> {
       final endpoints = c.workspace.ttEndpoints.where(
         (e) => e.serverId == widget.serverId && !e.deleted,
       );
+      final external = (r.ttDiscovery?['resources'] as List? ?? [])
+          .whereType<Map>()
+          .where(
+            (item) => !hasAdoptedSource(
+              endpoints.map((r) => r.spec),
+              item['id'] as String,
+            ),
+          );
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -159,6 +181,11 @@ class _TtPanelState extends State<TtPanel> {
                     storageId: 'tt-${e.id}',
                     title: e.name,
                     subtitle: '${e.spec['domain']}',
+                    note: e.spec.containsKey('adoption')
+                        ? c.adoptionConfirmed(target, e.id)
+                              ? l.vpnClientAccess
+                              : l.vpnAdopting
+                        : null,
                     badge: e.enabled ? l.vpnEnabled : l.vpnDisabled,
                     detailsLabel: l.componentsDetails,
                     actions: IconButton(
@@ -166,16 +193,7 @@ class _TtPanelState extends State<TtPanel> {
                       icon: const Icon(Icons.edit_outlined),
                       tooltip: l.vpnEdit,
                     ),
-                    details: [
-                      Text(
-                        '${l.vpnListen}: ${e.spec['listen']}:${e.spec['port']}',
-                      ),
-                      Text(
-                        e.spec['outbound'] == 'socks5'
-                            ? 'SOCKS5 ${e.spec['socksAddress']}'
-                            : l.ttDirect,
-                      ),
-                    ],
+                    details: const [],
                   ),
                 ),
               VpnJobView(showSnapshot: false, controller: c, serverId: target),
@@ -203,7 +221,7 @@ class _TtPanelState extends State<TtPanel> {
                 ),
               ),
               if ((r.ttDiscovery?['issues'] as List? ?? []).isNotEmpty ||
-                  (r.ttDiscovery?['resources'] as List? ?? []).isNotEmpty) ...[
+                  external.isNotEmpty) ...[
                 const Divider(),
                 Text(
                   l.awgObserved,
@@ -218,9 +236,7 @@ class _TtPanelState extends State<TtPanel> {
                   subtitle: Text(vpnMessage(l, issue['code'] as String)),
                   leading: const Icon(Icons.info_outline),
                 ),
-              for (final item
-                  in (r.ttDiscovery?['resources'] as List? ?? [])
-                      .whereType<Map>())
+              for (final item in external)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: ResourceTile(
@@ -231,38 +247,61 @@ class _TtPanelState extends State<TtPanel> {
                         .join(', '),
                     note: l.uiPeerCount((item['users'] as List).length),
                     detailsLabel: l.componentsDetails,
-                    details: [
-                      Text(
-                        '${item['values']['listen']}:${item['values']['port']}',
-                      ),
-                    ],
-                    actions: IconButton(
-                      icon: const Icon(Icons.edit_outlined),
-                      tooltip: l.vpnEdit,
-                      onPressed: r.busy
-                          ? null
-                          : () async {
-                              final snapshot = await r.ttRequest(
-                                'tt_external_read',
-                                id: item['id'] as String,
-                              );
-                              if (snapshot == null || !context.mounted) return;
-                              await showDialog<bool>(
-                                context: context,
-                                builder: (_) => _ExistingTtDialog(
+                    details: const [],
+                    actions: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          key: ValueKey('adopt-tt-${item['id']}'),
+                          tooltip: l.vpnAdopt,
+                          icon: const Icon(Icons.people_outline),
+                          onPressed:
+                              c.busy ||
+                                  c.hasRunning ||
+                                  r.busy ||
+                                  r.actionPending
+                              ? null
+                              : () => adoptExistingResource(
+                                  context,
+                                  controller: c,
                                   runner: r,
-                                  snapshot: snapshot,
-                                  network: widget.network,
+                                  serverId: widget.serverId,
+                                  protocol: 'tt',
+                                  sourceId: item['id'] as String,
                                   motion: widget.motion,
                                 ),
-                                animationStyle: AnimationStyle(
-                                  duration: AppMotion.duration(
-                                    context,
-                                    widget.motion,
-                                  ),
-                                ),
-                              );
-                            },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined),
+                          tooltip: l.vpnEdit,
+                          onPressed: r.busy
+                              ? null
+                              : () async {
+                                  final snapshot = await r.ttRequest(
+                                    'tt_external_read',
+                                    id: item['id'] as String,
+                                  );
+                                  if (snapshot == null || !context.mounted) {
+                                    return;
+                                  }
+                                  await showDialog<bool>(
+                                    context: context,
+                                    builder: (_) => _ExistingTtDialog(
+                                      runner: r,
+                                      snapshot: snapshot,
+                                      network: widget.network,
+                                      motion: widget.motion,
+                                    ),
+                                    animationStyle: AnimationStyle(
+                                      duration: AppMotion.duration(
+                                        context,
+                                        widget.motion,
+                                      ),
+                                    ),
+                                  );
+                                },
+                        ),
+                      ],
                     ),
                   ),
                 ),

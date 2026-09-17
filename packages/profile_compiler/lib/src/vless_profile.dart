@@ -3,6 +3,7 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:crypto/crypto.dart';
 import 'prepared_proxy.dart';
 import 'proxy_name.dart';
+import 'adopted_proxy.dart';
 
 String vlessRevision(Map<String, Object?> payload) =>
     sha256.convert(utf8.encode(canonicalJson(payload))).toString();
@@ -18,7 +19,8 @@ List<PreparedProxy> vlessUserAccesses(VpnWorkspace workspace, String userId) {
     final server = workspace.servers[inbound.serverId];
     if (server?['pending'] != null ||
         server?['error'] == 'vpn_identity' ||
-        server?['error'] == 'vless_conflict') {
+        server?['error'] == 'vless_conflict' ||
+        (server?['error'] as String?)?.startsWith('vpn_adoption_') == true) {
       throw const FormatException('vpn_pending');
     }
     final observations = server?['observed'] as List? ?? [];
@@ -42,6 +44,10 @@ List<PreparedProxy> vlessUserAccesses(VpnWorkspace workspace, String userId) {
         .firstOrNull;
     if (binding == null) throw const FormatException('vpn_pending');
     final s = inbound.spec;
+    if (s.containsKey('adoption')) {
+      proxies.add(adoptedProxy(workspace, userId, s, observation, binding));
+      continue;
+    }
     final fields = <String, Object?>{
       'name': clientProxyName(workspace, userId, inbound.id),
       'type': 'vless',

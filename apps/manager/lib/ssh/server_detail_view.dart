@@ -21,6 +21,8 @@ class ServerProtocolSection {
     this.detected = false,
     this.onRemove,
     this.selection,
+    this.selectionEnabled = true,
+    this.selectionActions,
   });
   final String name, mark;
   final int count;
@@ -28,6 +30,8 @@ class ServerProtocolSection {
   final Widget child;
   final Future<bool> Function()? onRemove;
   final CatalogSelection? selection;
+  final bool selectionEnabled;
+  final Widget Function()? selectionActions;
 }
 
 class ServerDetailView extends StatefulWidget {
@@ -518,6 +522,8 @@ class _ServerDetailViewState extends State<ServerDetailView> {
       final requiresConnection =
           !c.hasSavedProfile || c.challenge != null || c.showPrivilegePrompt;
       final index = requiresConnection ? 1 : selected;
+      final section = index >= 5 ? widget.sections[index - 5] : null;
+      final selecting = section?.selection?.active == true;
       visited.add(index);
       final titles = [
         c.displayName,
@@ -546,33 +552,59 @@ class _ServerDetailViewState extends State<ServerDetailView> {
         },
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-              child: Row(
-                children: [
-                  IconButton(
-                    key: const ValueKey('server-list-back'),
-                    tooltip: l.uiBack,
-                    onPressed: c.vaultBusy || c.picking
-                        ? null
-                        : index == 0 || requiresConnection
-                        ? widget.onBack
-                        : () {
-                            final selection = index >= 5
-                                ? widget.sections[index - 5].selection
-                                : null;
-                            if (selection?.active == true) {
-                              selection!.exit();
-                            } else {
-                              open(0);
-                            }
-                          },
-                    icon: const Icon(Icons.arrow_back),
-                  ),
-                  Expanded(child: AppAnimatedTitle(titles[index])),
+            if (selecting)
+              AppBar(
+                key: const ValueKey('inbound-selection-toolbar'),
+                primary: false,
+                automaticallyImplyLeading: false,
+                title: CatalogTitle(
+                  selection: section!.selection!,
+                  title: section.name,
+                ),
+                actions: [
+                  if (section.selectionActions != null)
+                    section.selectionActions!(),
                 ],
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                child: Row(
+                  children: [
+                    IconButton(
+                      key: const ValueKey('server-list-back'),
+                      tooltip: l.uiBack,
+                      onPressed: c.vaultBusy || c.picking
+                          ? null
+                          : index == 0 || requiresConnection
+                          ? widget.onBack
+                          : () {
+                              final selection = index >= 5
+                                  ? widget.sections[index - 5].selection
+                                  : null;
+                              if (selection?.active == true) {
+                                selection!.exit();
+                              } else {
+                                open(0);
+                              }
+                            },
+                      icon: const Icon(Icons.arrow_back),
+                    ),
+                    Expanded(child: AppAnimatedTitle(titles[index])),
+                    if (index >= 5 &&
+                        widget.sections[index - 5].selection != null &&
+                        !widget.sections[index - 5].selection!.active)
+                      IconButton(
+                        key: const ValueKey('inbound-edit'),
+                        tooltip: l.catalogEdit,
+                        onPressed: widget.sections[index - 5].selectionEnabled
+                            ? widget.sections[index - 5].selection!.start
+                            : null,
+                        icon: const Icon(Icons.edit_outlined),
+                      ),
+                  ],
+                ),
               ),
-            ),
             if (c.error != null)
               ListTile(
                 leading: const Icon(Icons.error_outline),

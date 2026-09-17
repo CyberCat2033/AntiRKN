@@ -1,0 +1,46 @@
+{
+  "date": "2026-09-17",
+  "baseCommit": "78e3fc4",
+  "runnerVersion": 22,
+  "tests": {
+    "runner": 137,
+    "tools": 5,
+    "managerTargeted": 24,
+    "profileCompiler": 24,
+    "mihomoConfigCases": 10
+  },
+  "analyze": "PASS",
+  "generators": "PASS",
+  "architecture": "PASS",
+  "baseYmlUnchanged": true,
+  "localizationMessages": 953,
+  "runtimeBug": {
+    "source": "Owner report and sanitized Android stack trace",
+    "exception": "Map<dynamic, dynamic> is not a subtype of Map<String, dynamic> in Map.addAll",
+    "fixed": "Typed adoption metadata copy",
+    "regression": "Actual people icon opens consent, cancels and adopts with no clients",
+    "result": "PASS"
+  },
+  "selectionToolbar": {
+    "topAppBar": true,
+    "hidesIntroAndAdd": true,
+    "selectAllDeleteCancelExit": "PASS"
+  },
+  "androidEvidence": "managed-adoption-android.json",
+  "profileEvidence": "adoption-profiles.json",
+  "baselineFailure": {
+    "test": "restored offline intentions wait for a fresh explicit plan and cannot replay on reconnect",
+    "file": "apps/manager/test/vpn_controller_test.dart:228",
+    "reproducedOnCleanBase": true
+  },
+  "fullRegressionPass": false,
+  "notVerified": [
+    "Live server adoption and VPN traffic",
+    "Live multi-device synchronization",
+    "Complete native/Docker/nonstandard installations matrix",
+    "Linux and Windows builds",
+    "HTTPUpgrade and H2 config-test cases"
+  ],
+  "userStoresAndBuildArtifactsExcluded": true,
+  "push": false
+}

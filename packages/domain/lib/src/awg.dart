@@ -1,6 +1,7 @@
 import 'awg_contract.g.dart';
 import 'network/ip_address.dart';
 import 'vless_contract.g.dart';
+import 'adopted_resource.dart';
 
 /// Protocol targets share the durable workspace coordinator while retaining
 /// independent observations and operation IDs for each backend.
@@ -21,9 +22,18 @@ final class AwgInterface {
   AwgInterface({required this.serverId, required Map<String, Object?> spec})
     : spec = Map.unmodifiable({
         ...spec,
-        'options': Map<String, Object?>.unmodifiable(spec['options'] as Map),
+        if (spec['adoption'] != null)
+          'adoption': Map<String, Object?>.unmodifiable(
+            spec['adoption'] as Map,
+          ),
+        if (spec['options'] != null)
+          'options': Map<String, Object?>.unmodifiable(spec['options'] as Map),
       }) {
     validateVlessSchema(spec, awgResourceSchema);
+    if (spec.containsKey('adoption')) {
+      validateAdoptedResource(spec);
+      return;
+    }
     final pool = (spec['pool'] as String).split('/');
     if (pool.length != 2) throw const FormatException('awg_invalid');
     final address = IpAddress.parse(pool.first);

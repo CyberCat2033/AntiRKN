@@ -138,13 +138,20 @@ def read_resource(rid):
 
 def public_snapshot(rid):
     r, raw, values, peers, fingerprint = read_resource(rid)
+    import ipaddress
+    addresses = [ipaddress.ip_interface(v.strip()) for v in values.get('Address', '').split(',') if v.strip()]
+    pool = next((str(a.network) for a in addresses if a.version == 4), '')
+    pool6 = next((str(a.network) for a in addresses if a.version == 6), '')
+    bindings = r.get('portBindings', {}).get(values['ListenPort'] + '/udp') or []
+    mapped = {int(b['HostPort']) for b in bindings}
     # Keys, PSKs, hooks and peer endpoints never leave this RPC response.
     return dict(id=rid, name=r.get('containerName', r['name']) + '/' + r['name'],
         source=r['source'], path=r['path'], active=r['active'], peers=peers,
         version='3.1' if 'HeaderProtectionKey' in values else '2' if 'S3' in values or 'S4' in values else '1',
         fingerprint=fingerprint, portLocked=bool(r.get('portBindings')),
         values={k: v for k, v in values.items() if k in ALLOWED},
-        hasHeaderProtection='HeaderProtectionKey' in values)
+        hasHeaderProtection='HeaderProtectionKey' in values, pool=pool, pool6=pool6,
+        externalPort=next(iter(mapped)) if len(mapped) == 1 else int(values['ListenPort']))
 
 
 def discovery():

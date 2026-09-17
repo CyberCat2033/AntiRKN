@@ -456,7 +456,85 @@
           "xhttp",
           "fingerprint",
           "realitySeed"
-        ]
+        ],
+        "adopted": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "^[^\\x00-\\x1f\\x7f]+$"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "deleted": {
+              "type": "boolean"
+            },
+            "endpoint": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 253,
+              "pattern": "^[A-Za-z0-9:.\\-]+$"
+            },
+            "externalPort": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "adoption": {
+              "type": "object",
+              "properties": {
+                "sourceId": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{1,32}$",
+                  "maxLength": 32
+                },
+                "observedHash": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "panelId": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{32}$"
+                },
+                "panelPort": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 65535
+                }
+              }
+            },
+            "transport": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "pattern": "^[a-z0-9-]+$"
+            },
+            "security": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "pattern": "^[a-z0-9-]+$"
+            },
+            "internal": {
+              "type": "boolean"
+            }
+          },
+          "optional": [
+            "internal"
+          ]
+        }
       }
     },
     "users": {
