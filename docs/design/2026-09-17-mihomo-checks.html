@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>AntiRKN — проверки Mihomo · согласование</title>
+  <style>
+    *{box-sizing:border-box} :root{font-family:Inter,Roboto,"Segoe UI",Arial,sans-serif;color:#f4ecef;background:#171316;font-synthesis:none}
+    body{margin:0} button,select,input{font:inherit} button{cursor:pointer} a{color:#edb3c0} button:disabled{cursor:default;opacity:.55}
+    button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid #eca9be;outline-offset:3px}
+    button{color:inherit} h1,h2,h3,p{margin:0} button,a{-webkit-tap-highlight-color:transparent} [hidden]{display:none!important}
+    .studio{max-width:1460px;margin:auto;padding:30px 36px 40px}.mast{display:flex;gap:18px;align-items:center;justify-content:space-between}
+    .brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:-.4px}.brand-mark{background:#efb1bd;color:#492832;border-radius:11px;padding:9px}
+    .edition{font-size:11px;letter-spacing:1.8px;color:#c2b0bb}.intro{margin:32px 0 25px;max-width:820px}h1{font-size:clamp(27px,3.1vw,42px);letter-spacing:-1.3px;font-weight:550;line-height:1.15}
+    .intro p{color:#beafb8;font-size:14px;line-height:1.65;margin-top:13px}.tools{border-block:1px solid #3c3039;padding:15px 0;display:flex;gap:14px 22px;flex-wrap:wrap;align-items:center}
+    .segment{display:flex;gap:4px;padding:4px;border-radius:14px;background:#241e23;flex-wrap:wrap}.segment button,.studio-button{min-height:42px;border:0;background:transparent;border-radius:10px;padding:10px 13px;font-size:13px;color:#d5c5cf}
+    .segment button[aria-pressed=true]{background:#ead9e2;color:#352832}.tool-label{font-size:12px;color:#c2b0bb}.choice{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+    select{background:#241e23;color:#eee1e9;border:1px solid #65535f;border-radius:10px;padding:10px;min-height:44px;font-size:13px}.studio-button{background:#30272f}
+    .stage{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:28px;align-items:start;margin-top:27px}.viewport{min-width:0}.app{
+      --bg:#171112;--surface:#21191a;--high:#302426;--nav:#271d1f;--text:#f5eded;--muted:#cbbabd;--accent:#f3b3bf;--on-accent:#4b2530;
+      --selected:#594047;--line:#574047;--good:#bed6b2;--good-bg:#283427;--warn:#f4c994;--warn-bg:#3b2e20;--bad:#ffb4ab;--bad-bg:#442b2c;
+      border:1px solid #5c4650;border-radius:26px;background:var(--bg);color:var(--text);min-height:700px;overflow:hidden;position:relative;color-scheme:dark;box-shadow:0 20px 60px #0003}
+    .app.light{--bg:#fff8f7;--surface:#f5ebed;--high:#ecdee1;--nav:#f0e3e6;--text:#29191e;--muted:#6b535c;--accent:#874653;--on-accent:#fff;--selected:#eed5dc;--line:#dac6cd;--good:#365d31;--good-bg:#e2eddd;--warn:#74501d;--warn-bg:#f6e6cb;--bad:#9a332f;--bad-bg:#ffdad6;color-scheme:light}
+    .app-layout{display:grid;grid-template-columns:90px minmax(0,1fr);min-height:700px}.rail{background:var(--nav);padding:28px 8px;display:flex;align-items:center;flex-direction:column;gap:21px}
+    .rail .brand-mark{margin-bottom:24px;background:var(--accent);color:var(--on-accent)}.nav-item{border:0;background:transparent;display:flex;align-items:center;flex-direction:column;gap:7px;font-size:11px;padding:5px;color:var(--muted);min-width:65px;min-height:62px}
+    .nav-item .nav-icon{width:58px;height:32px;border-radius:99px;display:grid;place-items:center}.nav-item[aria-current=page] .nav-icon{background:var(--selected);color:var(--text)}
+    .page{min-width:0;padding:25px 27px 35px}.page-head{display:flex;align-items:center;gap:10px;margin-bottom:24px}.page-head h2{font-size:26px;font-weight:500;letter-spacing:-.6px;flex:1;min-width:0}
+    .icon{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;vertical-align:middle}
+    .icon-btn{display:inline-grid;place-items:center;min-width:44px;min-height:44px;border-radius:50%;background:transparent;border:0;color:var(--muted);flex-shrink:0}.icon-btn:hover{background:var(--high)}
+    .eyebrow{color:var(--accent);font-size:11px;letter-spacing:1.4px;text-transform:uppercase;margin:24px 3px 12px;font-weight:650}.muted{color:var(--muted)}.small{font-size:13px;line-height:1.55}.lead{font-size:14px;line-height:1.55;color:var(--muted);margin-bottom:20px}
+    .actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.actions>*{max-width:100%}.button{border:1px solid transparent;background:var(--accent);color:var(--on-accent);padding:11px 17px;min-height:44px;border-radius:99px;font-size:14px;font-weight:550;display:inline-flex;align-items:center;justify-content:center;gap:8px;line-height:1.35}
+    .button.outline{background:transparent;color:var(--accent);border-color:var(--line)}.button.tonal{background:var(--selected);color:var(--text)}.button.text{background:transparent;color:var(--accent);padding-inline:10px}.button:hover{filter:brightness(1.08)}
+    .mark{background:var(--accent);color:var(--on-accent);width:21px;height:21px;display:inline-grid;place-items:center;border-radius:7px;font-size:11px;font-weight:750;flex-shrink:0}.button:not(.outline):not(.text):not(.tonal) .mark{background:var(--on-accent);color:var(--accent)}
+    .card{background:var(--surface);border-radius:18px;padding:18px;margin-bottom:11px;min-width:0}.card-head{display:flex;align-items:center;gap:12px}.copy{flex:1;min-width:0}.name{font-weight:550;font-size:16px;overflow-wrap:anywhere}.sub{font-size:12px;color:var(--muted);margin-top:5px;line-height:1.55;overflow-wrap:anywhere}
+    .tile{width:42px;height:42px;border-radius:13px;background:var(--high);display:grid;place-items:center;color:var(--accent);flex-shrink:0}.avatar{border-radius:50%;font-size:19px}
+    .state{display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:1.5;margin-top:14px;color:var(--muted)}.state.good{color:var(--good)}.state.bad{color:var(--bad)}.state.warn{color:var(--warn)}.state .icon{width:17px;height:19px;margin-top:1px}
+    .card-footer{display:flex;gap:9px;align-items:center;justify-content:space-between;margin-top:12px;flex-wrap:wrap}.divider{height:1px;background:var(--line);opacity:.6;margin:17px 0}.status-pill{padding:5px 8px;border-radius:7px;background:var(--high);color:var(--muted);font-size:11px}
+    .notice{padding:14px 16px;background:var(--high);border-radius:13px;font-size:13px;line-height:1.6;margin:15px 0;color:var(--muted)}.notice.good{background:var(--good-bg);color:var(--good)}.notice.bad{background:var(--bad-bg);color:var(--bad)}.notice.warn{background:var(--warn-bg);color:var(--warn)}
+    .nav-bottom{display:none;background:var(--nav);padding:10px;justify-content:space-around}.notes{padding-top:5px}.notes h2{font-size:17px;font-weight:550;margin-bottom:20px}.annotation{display:grid;grid-template-columns:25px 1fr;gap:10px;margin-bottom:24px}.note-number{border:1px solid #795762;color:#f1b6c2;border-radius:8px;height:25px;display:grid;place-items:center;font-size:12px}.annotation strong{font-size:13px;font-weight:550}.annotation p{font-size:12px;line-height:1.65;color:#bdabb7;margin-top:7px}.notes .footnote{color:#bba9b5;font-size:12px;line-height:1.7;border-top:1px solid #49343f;padding-top:17px}
+    .mobile-mode .app{max-width:390px;margin:auto}.mobile-mode .app-layout{display:block}.mobile-mode .rail{display:none}.mobile-mode .page{padding:20px 16px 24px}.mobile-mode .nav-bottom{display:flex}.mobile-mode .page-head h2{font-size:25px}.mobile-mode .wide-action{width:100%}
+    .version-row{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:11px 0;font-size:14px}.version-row span:last-child{color:var(--muted);text-align:right}.version-row+.version-row{border-top:1px solid var(--line)}
+    .test-list{margin-top:13px}.test-row{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:12px 0;font-size:13px;border-bottom:1px solid var(--line)}.test-row span:last-child{text-align:right;color:var(--muted)}
+    .steps{display:flex;gap:6px;margin:17px 0}.step{height:5px;flex:1;background:var(--line);border-radius:3px}.step.done{background:var(--good)}.step.active{background:var(--accent)}.spin{animation:spin 1.1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+    dialog{position:fixed;max-width:min(590px,calc(100vw - 24px));width:590px;max-height:90dvh;overflow:auto;border:1px solid var(--line);border-radius:25px;background:var(--surface);color:var(--text);padding:24px;box-shadow:0 30px 90px #0006}dialog::backdrop{background:#080609aa}dialog .page-head{margin-bottom:12px}dialog .page-head h2{font-size:23px}.dialog-actions{margin-top:22px;justify-content:flex-end}
+    .field{display:block;margin:15px 0;color:var(--muted);font-size:12px}.field input{display:block;width:100%;background:transparent;border:1px solid var(--line);border-radius:13px;min-height:53px;padding:12px;color:var(--text);margin-top:7px}
+    .code-grid{display:grid;grid-template-columns:1fr;gap:16px}.code-label{font-size:12px;color:var(--muted);margin-bottom:10px}pre{margin:0;padding:17px;background:var(--bg);border-radius:13px;font:12px/1.65 "JetBrains Mono",Consolas,monospace;overflow:auto;max-height:460px;tab-size:2}.yaml-key{color:var(--accent)}.yaml-comment{color:var(--muted)}
+    .table-scroll{overflow:auto;margin-top:16px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{text-align:left;padding:12px 6px;border-bottom:1px solid var(--line);white-space:nowrap}th{font-weight:500;color:var(--muted)}td.good{color:var(--good)}td.bad{color:var(--bad)}.app-footer{font-size:11px;color:var(--muted);margin:22px 3px 0;line-height:1.6}.review-footer{color:#baa9b3;font-size:12px;line-height:1.7;margin-top:24px}
+    @media(min-width:1180px){.code-grid{grid-template-columns:.7fr 1fr}}
+    @media(max-width:1050px){.stage{grid-template-columns:minmax(0,1fr) 220px;gap:20px}.studio{padding:24px}.page{padding:22px 20px}.rail{width:76px}.app-layout{grid-template-columns:76px minmax(0,1fr)}}
+    @media(max-width:780px){.stage{grid-template-columns:minmax(0,1fr)}.notes{display:grid;grid-template-columns:1fr 1fr;gap:0 20px}.notes h2,.notes .footnote{grid-column:1/-1}.edition{max-width:135px;line-height:1.6;text-align:right}.studio{padding:22px 16px}.intro{margin:26px 0 20px}.rail{display:none}.app-layout{display:block}.nav-bottom{display:flex}.page{padding:20px 16px 24px}.wide-action{width:100%}.app{border-radius:22px}}
+    @media(max-width:430px){.studio{padding:18px 10px}.notes{display:block}.segment{width:100%}.segment button{flex:1;padding:10px 8px}.page-head h2{font-size:23px}.page{padding-inline:13px}.card{padding:15px}.intro p{font-size:13px}.tools{gap:13px}.mark{width:20px;height:20px}.app-layout{min-height:640px}dialog{padding:20px}.button{font-size:13px;padding-inline:13px}}
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+  </style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="i-server" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="7" rx="2"/><rect x="4" y="14" width="16" height="7" rx="2"/><path d="M8 6.5h.01M8 17.5h.01M12 6.5h5M12 17.5h5"/></symbol>
+  <symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-3a6 6 0 0 1 12 0v3M16 5a3 3 0 0 1 0 6M18 14a5 5 0 0 1 3 5"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="10" cy="18" r="2"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="m12 5-7 7 7 7M5 12h15"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="m15 4 5 5M4 20l1-6L16 3a2 2 0 0 1 3 0l2 2a2 2 0 0 1 0 3L10 19z"/></symbol>
+  <symbol id="i-test" viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="m12 3 10 18H2zM12 9v5M12 17h.01"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M14 3H5v18h14V8zM14 3v5h5M8 12h8M8 16h6"/></symbol>
+  <symbol id="i-qr" viewBox="0 0 24 24"><path d="M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3zM15 15h3v3h3v3h-6v-3M12 3v3M3 12h6M12 9v6h-2M18 12h3M12 21v-3"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 10a8 8 0 0 0-14-4L3 9M3 4v5h5M4 14a8 8 0 0 0 14 4l3-3M21 20v-5h-5"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></symbol>
+</defs></svg>
+<main class="studio">
+  <header class="mast"><div class="brand"><span class="brand-mark">A</span> AntiRKN <span class="muted">/</span> Design review</div><span class="edition">17.09.2026 · ПРОЕКТ</span></header>
+  <div class="intro"><h1>Проверка там, где она нужна.</h1><p>Встроенный Mihomo: подключение после создания инбаунда, проверка обновления Xray и валидности профиля клиента. Интерактивный макет на основе текущего интерфейса B. Все данные и результаты демонстрационные.</p></div>
+  <div class="tools" aria-label="Управление макетом">
+    <div class="segment" aria-label="Экран">
+      <button data-screen="inbounds" aria-pressed="true">Инбаунды</button><button data-screen="xray" aria-pressed="false">Xray</button><button data-screen="clients" aria-pressed="false">Клиенты</button><button data-screen="yaml" aria-pressed="false">YAML</button>
+    </div>
+    <div class="choice"><label class="tool-label" for="scenario">Результат демо</label><select id="scenario"><option value="failure">Ошибка / откат</option><option value="success">Успех</option><option value="offline">Нет сети</option><option value="unavailable">Нет доступа / ресурсов</option></select></div>
+    <button class="studio-button" id="size-toggle" aria-pressed="false">Телефон · 390 px</button><button class="studio-button" id="theme-toggle" aria-pressed="false">Светлая тема</button>
+  </div>
+  <div class="stage" id="stage">
+    <div class="viewport"><section class="app" id="app" aria-label="Макет приложения"><div class="app-layout"><nav class="rail" aria-label="Разделы приложения"><span class="brand-mark">A</span><div id="rail-nav"></div></nav><div class="page" id="page"></div></div><nav class="nav-bottom" id="bottom-nav" aria-label="Мобильная навигация"></nav><dialog id="modal" aria-labelledby="modal-title"></dialog></section></div>
+    <aside class="notes" id="notes" aria-label="Пояснения к новым элементам"></aside>
+  </div>
+  <p class="review-footer">Номера отмечают предлагаемые изменения и в приложение не попадут. Переключатели экрана, темы и результата — инструменты макета.<br>План реализации: <a href="../plans/2026-09-17-mihomo-integration.md">2026-09-17-mihomo-integration.md</a>. Макет работает локально, без сетевых запросов.</p>
+</main>
+<script>
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const icon = name => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"></use></svg>`;
+  const mark = n => `<span class="mark" aria-hidden="true">${n}</span>`;
+  const button = (label, action, style = 'outline', symbol = '', n = '') => `<button class="button ${style}" data-action="${action}">${symbol ? icon(symbol) : ''}${label}${n ? mark(n) : ''}</button>`;
+  const state = (kind, text) => `<div class="state ${kind}" role="status">${icon(kind === 'good' ? 'check' : kind === 'bad' || kind === 'warn' ? 'alert' : 'clock')}<span>${text}</span></div>`;
+  const note = (n, title, text) => `<div class="annotation"><span class="note-number">${n}</span><div><strong>${title}</strong><p>${text}</p></div></div>`;
+  const names = ['Основной · REALITY', 'Резервный · XHTTP', 'Внутренний · RAW'];
+  let screen = 'inbounds', scenario = 'failure', timer = null, actionToken = 0, lastFocus = null;
+  let inboundResult = false, clientResult = false;
+  const nav = () => `<button class="nav-item" data-screen="inbounds" ${screen !== 'clients' ? 'aria-current="page"' : ''}><span class="nav-icon">${icon('server')}</span>Серверы</button><button class="nav-item" data-screen="clients" ${screen === 'clients' ? 'aria-current="page"' : ''}><span class="nav-icon">${icon('people')}</span>Клиенты</button><button class="nav-item" data-action="settings"><span class="nav-icon">${icon('settings')}</span>Настройки</button>`;
+  function header(title, back = true) { return `<div class="page-head">${back ? `<button class="icon-btn" data-action="back" aria-label="Назад">${icon('back')}</button>` : ''}<h2>${title}</h2><button class="icon-btn" data-action="selection" aria-label="Выбрать элементы">${icon('edit')}</button></div>`; }
+  function render() {
+    $('rail-nav').innerHTML = nav(); $('bottom-nav').innerHTML = nav();
+    document.querySelectorAll('.segment [data-screen]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.screen === screen)));
+    if (screen === 'inbounds') renderInbounds();
+    if (screen === 'clients') renderClients();
+    if (screen === 'xray') renderXray();
+    if (screen === 'yaml') renderYaml();
+  }
+  function inboundStatus(i) {
+    if (i === 2) return state('', 'Не проверен · инбаунд выключен');
+    if (scenario === 'offline') return state('warn', 'Проверка недоступна · нет сети');
+    if (scenario === 'unavailable') return state('', 'Не проверен · нет клиентского доступа');
+    if (i === 1 && scenario === 'failure') return state('bad', 'Нет соединения · превышено время ожидания');
+    return state('good', `Соединение работает · ${i ? 68 : 42} мс${inboundResult ? ' · только что' : ''}`);
+  }
+  function renderInbounds() {
+    $('page').innerHTML = header('VLESS') + `<p class="lead">Сервер «Европа» · подключения и персональные доступы.</p><div class="actions">${button('Добавить инбаунд','add','','plus')}<span class="wide-action">${button('Проверить все','test-all','outline','test',1)}</span></div><p class="eyebrow">Инбаунды · 3</p>` + names.map((name,i) => `<article class="card"><div class="card-head"><span class="tile">${icon('server')}</span><div class="copy"><div class="name">${name}</div><div class="sub">${i === 2 ? 'Внутренний · без клиентов' : 'VLESS · ' + (i ? 'XHTTP + TLS · :8443' : 'RAW + REALITY · :443')}</div></div><button class="icon-btn" data-action="edit-${i}" aria-label="Настроить ${name}">${icon('edit')}</button></div>${inboundStatus(i)}<div class="card-footer"><span class="status-pill">${i === 2 ? 'Выключен' : 'Включён'}</span><div class="actions">${i === 1 && scenario === 'failure' ? button('Перенастроить','edit-1','tonal','',3) : ''}${button('Проверить',`test-${i}`,'text','test',i === 0 ? 2 : '')}</div></div></article>`).join('') + `<p class="app-footer">После сохранения проверка запускается автоматически.<br>Результат относится к этому устройству и текущей сети.</p>`;
+    $('notes').innerHTML = '<h2>На странице VLESS</h2>' + note(1,'Общая проверка','Под «Добавить инбаунд» на телефоне, рядом на широком экране. Во время теста в окне есть «Остановить».') + note(2,'Тест конкретного инбаунда','В нижней строке карточки. Проверяет соединение через этот узел. Причина пропуска также видна.') + note(3,'Предложение перенастроить','Появляется при отказе подключения. Открывает существующую форму с сохранёнными параметрами.') + '<p class="footnote">Нажмите «Добавить инбаунд» → «Сохранить», чтобы увидеть автопроверку. При отсутствии доступа не показываем ложный успех.</p>';
+  }
+  function validationStatus() {
+    if (!clientResult) return state('', 'Конфиг ещё не проверен ядром');
+    if (scenario === 'failure') return state('bad','Ошибка конфига · группа ссылается на отсутствующий узел');
+    if (scenario === 'offline' || scenario === 'unavailable') return state('warn','Проверено частично · нет локального набора правил');
+    return state('good','Конфиг валиден · проверен Mihomo');
+  }
+  function renderClients() {
+    $('page').innerHTML = header('Клиенты',false) + `<p class="lead">Персональные профили для всех настроенных подключений.</p>${button('Добавить клиента','existing','','plus')}<p class="eyebrow">Все клиенты · 2</p>` + ['Алексей','Мария'].map((name,i) => `<article class="card"><div class="card-head"><span class="tile avatar">${name[0]}</span><div class="copy"><div class="name">${name}</div><div class="sub">VLESS · AmneziaWG · TrustTunnel</div></div><button class="icon-btn" data-action="profile-${i}" aria-label="Профиль ${name}">${icon('qr')}</button></div>${i === 0 ? validationStatus() : state('good','Конфиг валиден · 10 минут назад')}<div class="card-footer"><span class="sub">${i ? '3' : '4'} подключения</span>${button('Проверить конфиг',`validate-${i}`,'outline','check',i === 0 ? 1 : '')}</div></article>`).join('') + `<p class="app-footer">Проверяется текущий сформированный YAML клиента.<br>Доступность подключений проверяется отдельно в VLESS.</p>`;
+    $('notes').innerHTML = '<h2>Во вкладке «Клиенты»</h2>' + note(1,'Проверить конфиг','Одна подписанная кнопка прямо на карточке клиента. Результат появляется под протоколами; подробности открываются в окне.') + note(2,'В окне профиля','То же действие рядом с просмотром YAML. Проверка работает и до публикации в Google Drive.') + note(3,'Понятный результат','«Валиден», «Ошибка конфига» или «Проверено частично». Изменение профиля сбрасывает прежний результат.') + '<p class="footnote">Нажмите на значок профиля справа. Быстрый тест проверяет разбор конфигурации ядром; сетевую доступность он не подтверждает.</p>';
+  }
+  function renderXray() {
+    $('page').innerHTML = header('Обслуживание') + `<p class="lead">Сервер «Европа» · службы и обновления.</p><p class="eyebrow">Доступно обновление</p><article class="card"><div class="card-head"><span class="tile">${icon('download')}</span><div class="copy"><div class="name">3x-ui / Xray</div><div class="sub">Обновление ядра с проверкой подключений</div></div></div><div class="divider"></div><div class="version-row"><span>3x-ui</span><span>3.8.0</span></div><div class="version-row"><span>Xray</span><span>26.7.28 → новая версия</span></div><div class="notice">Проверим инбаунды до и после обновления. При ухудшении соединения вернём предыдущую версию Xray.</div>${button('Обновить с проверкой','update','','refresh',1)}<p class="sub" style="margin-top:12px">Короткий перезапуск Xray прервёт активные подключения.</p></article><p class="eyebrow">Установлены</p><article class="card"><div class="card-head"><span class="tile">${icon('server')}</span><div class="copy"><div class="name">AmneziaWG</div><div class="sub">Установлен</div></div>${button('Проверить','existing','text')}</div><div class="divider"></div><div class="card-head"><span class="tile">${icon('server')}</span><div class="copy"><div class="name">TrustTunnel</div><div class="sub">Установлен</div></div>${button('Проверить','existing','text')}</div></article><p class="app-footer">«Новая версия» — обозначение кандидата в макете.<br>Реальная версия будет показана перед запуском.</p>`;
+    $('notes').innerHTML = '<h2>В обслуживании сервера</h2>' + note(1,'Обновить с проверкой','Запускает весь цикл одним нажатием. Повторного подтверждения плана нет. Версия кандидата и краткое предупреждение видны заранее.') + note(2,'Сравнение до / после','В окне выполнения — каждый инбаунд, его исходный результат и проверка после обновления.') + note(3,'Подтверждение отката','При регрессии хотя бы одного ранее работавшего инбаунда — откат и повторная проверка. Отдельно показываем состояние самого отката.') + '<p class="footnote">В этом примере два доступных инбаунда. Если хотя бы один включённый инбаунд нельзя проверить, обновление не начинается: охват показывается явно.</p>';
+  }
+  const before = `proxies:\n  - client-fingerprint: chrome\n    flow: xtls-rprx-vision\n    name: Алексей_Основной\n    network: tcp\n    port: 443\n    reality-opts:\n      public-key: <скрыто>\n      short-id: <скрыто>\n    server: 192.0.2.10\n    servername: example.com\n    tls: true\n    type: vless\n    udp: true\n    uuid: <скрыто>\n  - name: Алексей_Резервный\n    # следующий прокси…`;
+  const after = `proxies:\n  - name: Алексей_Основной\n    type: vless\n    server: 192.0.2.10\n    port: 443\n    udp: true\n    uuid: <скрыто>\n    flow: xtls-rprx-vision\n    tls: true\n    servername: example.com\n    client-fingerprint: chrome\n    reality-opts:\n      public-key: <скрыто>\n      short-id: <скрыто>\n    network: tcp\n\n  - name: Алексей_Резервный\n    type: vless\n    server: 192.0.2.11\n    port: 8443\n    udp: true\n    uuid: <скрыто>\n    tls: true\n    servername: example.com\n    network: xhttp\n    xhttp-opts:\n      path: /connect\n      mode: auto`;
+  function renderYaml() {
+    $('page').innerHTML = header('Конфиг клиента') + `<p class="lead">Алексей · порядок полей и отступы в выдаваемом YAML.</p><div class="notice">${mark(1)} Сначала имя и тип, затем адрес и параметры протокола.<br>${mark(2)} Одна пустая строка между соседними прокси.</div><div class="code-grid"><section><h3 class="code-label">Сейчас · алфавитный порядок</h3><pre id="before-code"></pre></section><section><h3 class="code-label">Предлагается · по примеру Mihomo</h3><pre id="after-code"></pre></section></div><p class="app-footer">Ключи и UUID в этом примере скрыты. Это иллюстрация форматирования.</p>`;
+    $('before-code').textContent = before; $('after-code').textContent = after;
+    $('notes').innerHTML = '<h2>Читаемый YAML</h2>' + note(1,'Порядок по типу прокси','VLESS, WireGuard / AmneziaWG и TrustTunnel получают собственный порядок полей по примерам wiki.') + note(2,'Разделение узлов','Ровно одна пустая строка между элементами proxies. Неизвестные поля сохраняются, порядок узлов остаётся прежним.') + '<p class="footnote">Верхние разделы, DNS, правила и группы сохраняют порядок шаблона. Источник: <a href="https://wiki.metacubex.one/en/config/proxies/vless/" target="_blank" rel="noreferrer">официальный пример VLESS</a>. Переключатель «до / после» — только для согласования.</p>';
+  }
+  function openModal(title, content) {
+    if (!$('modal').open) lastFocus = document.activeElement;
+    $('modal').innerHTML = `<div class="page-head"><h2 id="modal-title">${title}</h2><button class="icon-btn" data-action="close" aria-label="Закрыть">${icon('close')}</button></div>${content}`;
+    if (!$('modal').open) $('modal').showModal();
+  }
+  function closeModal() { clearTimeout(timer); actionToken++; $('modal').close(); lastFocus?.focus(); }
+  function delayed(callback, delay=1100) { const token = ++actionToken; clearTimeout(timer); timer=setTimeout(() => { if (token === actionToken && $('modal').open) callback(); }, delay); }
+  function editInbound(i = -1) {
+    openModal(i < 0 ? 'Добавить инбаунд' : 'Настройка инбаунда', `<label class="field">Название<input value="${i < 0 ? 'Новое подключение' : names[i]}" autocomplete="off"></label><label class="field">Адрес подключения<input value="192.0.2.10" autocomplete="off"></label><label class="field">Порт<input value="${i === 1 ? '8443' : '443'}" inputmode="numeric"></label><div class="notice">После сохранения автоматически проверим соединение через Mihomo.</div><p class="small muted">В макете показана часть существующей формы.</p><div class="actions dialog-actions">${button('Отмена','close','text')}${button('Сохранить','save','','check')}</div>`);
+  }
+  function testInbounds(single = null, automatic = false) {
+    openModal(automatic ? 'Инбаунд создан' : 'Проверка инбаундов', `<p class="lead">${automatic ? 'Проверяем подключение после сохранения.' : 'Подключаемся с этого устройства через Mihomo.'}</p>${state('', 'Выполняется проверка…')}<div class="steps"><span class="step active"></span><span class="step"></span></div><div class="actions dialog-actions">${button('Остановить','stop','outline')}</div>`);
+    delayed(() => {
+      inboundResult=true; if (screen === 'inbounds') render();
+      const disabled = single === 2;
+      const blocked = scenario === 'unavailable' || disabled;
+      const offline = scenario === 'offline', failed = scenario === 'failure' && single !== 0;
+      const title = blocked ? 'Не удалось проверить' : offline ? 'Нет сети' : failed ? 'Нет соединения' : single === null && !automatic ? 'Проверены все включённые инбаунды' : 'Соединение работает';
+      const kind = blocked || offline ? 'warn' : failed ? 'bad' : 'good';
+      openModal(title, `<div class="notice ${kind}">${blocked ? (disabled ? 'Инбаунд выключен. Включите его перед проверкой.' : 'Нет клиентского доступа для подключения. Настройки сохранены.') : offline ? 'Контрольные адреса тоже недоступны. Проверьте интернет и повторите тест.' : failed ? 'Конфигурация сохранена, но соединение через инбаунд не установлено. Можно изменить настройки и повторить проверку.' : 'Через инбаунд получен ответ на тестовый запрос.'}</div>${single === null && !automatic ? `<div class="test-list">${names.map((n,i)=>`<div class="test-row"><span>${n}</span><span>${blocked ? 'Нет доступа' : offline ? 'Не проверен' : i === 2 ? 'Выключен' : i === 1 && failed ? 'Нет соединения' : 'Работает'}</span></div>`).join('')}</div>` : ''}<div class="actions dialog-actions">${button('Закрыть','close','text')}${failed && !blocked && !offline ? button('Перенастроить','edit-1','','edit') : button('Повторить','test-all','outline','refresh')}</div>`);
+    });
+  }
+  function validate(client = 0) {
+    openModal('Проверка конфига',`${state('','Mihomo проверяет текущий профиль…')}<div class="actions dialog-actions">${button('Остановить','stop','outline')}</div>`);
+    delayed(() => {
+      if (client === 0) clientResult=true; if (screen === 'clients') render();
+      const failed = scenario === 'failure', partial = scenario === 'offline' || scenario === 'unavailable';
+      openModal(failed ? 'Ошибка конфига' : partial ? 'Проверено частично' : 'Конфиг валиден', `<div class="notice ${failed ? 'bad' : partial ? 'warn' : 'good'}">${failed ? 'Группа Proxy_Chain ссылается на узел, которого нет в этом профиле.' : partial ? 'Структура YAML проверена. Для полной проверки ядром не хватает локального набора правил.' : 'Текущий YAML успешно прошёл проверку встроенным Mihomo.'}</div><p class="small muted">${failed ? 'Место: proxy-groups → Proxy_Chain → proxies. Последняя опубликованная версия сохраняется.' : partial ? 'Восстановите доступ к ресурсам и повторите проверку.' : 'Доступность подключений этим тестом не проверялась.'}</p><div class="actions dialog-actions">${button('Закрыть','close','text')}${failed ? button('Посмотреть конфиг','show-yaml','','doc') : button('Повторить','validate-'+client,'outline','refresh')}</div>`);
+    },700);
+  }
+  function profile(client) {
+    openModal(client ? 'Мария' : 'Алексей', `<p class="lead">Профиль Clash Meta</p><div class="card" style="background:var(--high)"><div class="card-head"><span class="tile">${icon('qr')}</span><div class="copy"><div class="name">Ссылка на профиль</div><div class="sub">В приложении здесь находится существующий QR.</div></div></div></div><div class="actions">${button('Проверить конфиг','validate-'+client,'outline','check',2)}${button('Просмотреть YAML','show-yaml','text','doc')}</div><div class="actions dialog-actions">${button('Закрыть','close','text')}</div>`);
+  }
+  function updateXray() {
+    const offline = scenario === 'offline', missing = scenario === 'unavailable';
+    openModal('Обновление Xray', `<p class="lead">26.7.28 → новая версия</p><div class="steps"><span class="step active"></span><span class="step"></span><span class="step"></span><span class="step"></span></div>${state('','1 / 4 · Проверяем все включённые инбаунды')}<div class="actions dialog-actions">${button('Остановить','stop','outline')}</div>`);
+    delayed(() => {
+      if (offline || missing) {
+        openModal('Обновление не началось', `<div class="notice warn">${offline ? 'Нет стабильного соединения с контрольными адресами. Сначала восстановите сеть.' : 'Проверен 1 из 2 включённых инбаундов. Для второго нет клиентского доступа.'}</div><p class="small muted">Xray остаётся на версии 26.7.28. Полное сравнение до и после пока невозможно.</p><div class="actions dialog-actions">${button('Закрыть','close','text')}${button('Повторить','update','','refresh')}</div>`); return;
+      }
+      openModal('Обновление Xray', `<div class="steps"><span class="step done"></span><span class="step done"></span><span class="step active"></span><span class="step"></span></div>${state('','3 / 4 · Повторно проверяем инбаунды')}<p class="small muted" style="margin-top:14px">До обновления: 2 из 2 включённых работают. Один внутренний инбаунд выключен. Предыдущая версия сохранена.</p><div class="actions dialog-actions">${button('Закрыть','close','text')}</div>`);
+      delayed(() => {
+        const failed = scenario === 'failure';
+        openModal(failed ? 'Предыдущая версия восстановлена' : 'Xray обновлён', `<div class="notice ${failed ? 'warn' : 'good'}">${mark(3)} ${failed ? 'После обновления REALITY перестал подключаться. Xray 26.7.28 восстановлен, оба инбаунда снова работают.' : 'Оба инбаунда работают на новой версии. Обновление завершено.'}</div><p class="small muted">${mark(2)} Сравнение подключений</p><div class="table-scroll"><table><thead><tr><th>Инбаунд</th><th>До</th><th>После</th>${failed ? '<th>Откат</th>' : ''}</tr></thead><tbody><tr><td>REALITY</td><td class="good">42 мс</td><td class="${failed ? 'bad' : 'good'}">${failed ? 'Отказ' : '43 мс'}</td>${failed ? '<td class="good">44 мс</td>' : ''}</tr><tr><td>XHTTP</td><td class="good">68 мс</td><td class="good">67 мс</td>${failed ? '<td class="good">69 мс</td>' : ''}</tr></tbody></table></div><p class="small muted" style="margin-top:15px">Проверены 2 включённых инбаунда; внутренний выключен и пропущен. Сеть оставалась доступна.</p><div class="actions dialog-actions">${button('Готово','close','','check')}</div>`);
+      },1500);
+    },1200);
+  }
+  document.addEventListener('click', event => {
+    const target = event.target.closest('button'); if (!target) return;
+    if (target.dataset.screen) { closeModal(); screen=target.dataset.screen; render(); return; }
+    const action = target.dataset.action;
+    if (action === 'close') closeModal();
+    else if (action === 'add') editInbound();
+    else if (action?.startsWith('edit-')) editInbound(Number(action.split('-')[1]));
+    else if (action === 'save') testInbounds(1,true);
+    else if (action === 'test-all') testInbounds();
+    else if (action?.startsWith('test-')) testInbounds(Number(action.split('-')[1]));
+    else if (action?.startsWith('validate-')) validate(Number(action.split('-')[1]));
+    else if (action?.startsWith('profile-')) profile(Number(action.split('-')[1]));
+    else if (action === 'update') updateXray();
+    else if (action === 'show-yaml') { closeModal(); screen='yaml'; render(); }
+    else if (action === 'back') { screen=screen === 'yaml' ? 'clients' : 'xray'; render(); }
+    else if (action === 'stop') { clearTimeout(timer); actionToken++; openModal('Проверка остановлена', `<p class="lead">Незавершённые пробы не считаются успешными.</p><div class="actions dialog-actions">${button('Закрыть','close','text')}</div>`); }
+    else if (action) openModal('Существующий элемент', `<p class="lead">Это действие уже есть в приложении. В данном макете показаны только новые проверки Mihomo.</p><div class="actions dialog-actions">${button('Закрыть','close','text')}</div>`);
+  });
+  $('scenario').addEventListener('change', event => { closeModal(); scenario=event.target.value; inboundResult=false; clientResult=false; render(); });
+  $('size-toggle').addEventListener('click', event => { const on=$('stage').classList.toggle('mobile-mode'); event.currentTarget.setAttribute('aria-pressed',String(on)); event.currentTarget.textContent=on ? 'Широкий экран' : 'Телефон · 390 px'; });
+  $('theme-toggle').addEventListener('click', event => { const on=$('app').classList.toggle('light'); event.currentTarget.setAttribute('aria-pressed',String(on)); event.currentTarget.textContent=on ? 'Тёмная тема' : 'Светлая тема'; });
+  $('modal').addEventListener('cancel',event => { event.preventDefault(); closeModal(); });
+  render();
+</script>
+</body>
+</html>
