@@ -1122,10 +1122,10 @@
   "sshHardenBannerSubtitle": "It is recommended to create a sudo user, change the SSH port to 2222, and disable root login.",
   "sshHardenBannerAction": "Secure server",
   "sshHardenDialogTitle": "SSH Hardening Wizard",
-  "sshHardenDialogDescription": "Safe access transition: creates a non-root user with sudo privileges, switches SSH to a new port (2222), and disables direct root login. Both ports remain active during verification. If the test fails, automatic rollback triggers after 5 minutes.",
+  "sshHardenDialogDescription": "Create a user with sudo and choose the SSH port. The app verifies new access before and after applying the final settings. Unfinished changes are automatically rolled back, including after a server restart.",
   "sshHardenUsername": "New username",
   "sshHardenPort": "New SSH port",
-  "sshHardenSudoPassword": "Sudo password for new user",
+  "sshHardenSudoPassword": "Password for the new user and sudo",
   "sshHardenSudoPasswordConfirm": "Confirm sudo password",
   "sshHardenPasswordMismatch": "Passwords do not match",
   "sshHardenPasswordRequired": "Please enter a sudo password",
@@ -1172,15 +1172,15 @@
       }
     }
   },
-  "sshHardenConfirmAction": "Confirm & disable root",
+  "sshHardenConfirmAction": "Apply protection",
   "sshHardenAbortAction": "Roll back changes",
   "sshHardenRetryAction": "Retry verification",
-  "sshHardenConfirmed": "Hardening applied. Direct root login disabled.",
+  "sshHardenConfirmed": "SSH protection applied. The new connection and sudo access have been verified.",
   "sshHardenAborted": "Changes rolled back. Root access preserved.",
   "sshHardenConflict": "SSH configuration changed during hardening.",
   "sshHardenInvalid": "Invalid username or port.",
   "sshHardenPortBusy": "The selected port is already in use.",
-  "sshHardenFailed": "SSH hardening failed. Rolled back to previous state.",
+  "sshHardenFailed": "Could not complete SSH protection. Check the connection and recovery status.",
   "sshHardenRandomUser": "Pick a random character",
   "uiServerDataNotCached": "Connect to the server once to save its data on this device.",
   "inboundDeleteSelectionHelp": "Delete the selected inbounds and their connections? Client records are retained and affected profiles will be updated.",
@@ -1254,5 +1254,9 @@
         "type": "int"
       }
     }
-  }
+  },
+  "sshHardenDisableRoot": "Disable direct root login",
+  "sshHardenRecoveryFailed": "Recovery could not be verified. Keep the saved access details and retry rollback.",
+  "sshHardenSudoRequired": "The new account must require a password for sudo.",
+  "sshHardenStorageFailed": "Could not save the access details. The server transition has not been committed."
 }

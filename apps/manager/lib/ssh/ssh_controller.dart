@@ -536,43 +536,140 @@ class SshController extends ChangeNotifier {
     return true;
   }
 
-  Future<bool> applyHardenedCredentials({
-    required String username,
-    required int port,
-    required String sudoPasswordText,
-  }) async {
+  /// Persist both recovery routes before any server mutation or final commit.
+  Future<void> persistHardenProfile(SshProfile updated) async {
     final current = _vault?.profile;
-    if (current == null) return false;
-    final updated = current.withHardenedAccess(
-      user: username,
-      port: port,
-      sudoPassword: sudoPasswordText,
-    );
-    this.username.text = username;
-    this.port.text = port.toString();
-    sudoPassword.text = sudoPasswordText;
+    if (current == null ||
+        current.id != updated.id ||
+        current.host != updated.host ||
+        current.hostKey == null ||
+        updated.hostKey == null ||
+        !current.hostKey!.matches(updated.hostKey!)) {
+      throw const VaultFailure(VaultIssue.writeFailed);
+    }
     vaultBusy = true;
     _notify();
     try {
-      jumpCandidates = await repository?.listServers() ?? [];
-      resolveSshRoute(updated, jumpCandidates.map((s) => s.profile));
       await _vault!.saveProfile(updated);
-      disconnect();
-      observation = null;
-      network.clear();
+      _restore();
       settingsExpanded = false;
-      _notify();
-      return true;
     } on VaultFailure catch (e) {
-      if (!_disposed) vaultError = e.issue;
-      return false;
-    } catch (_) {
-      if (!_disposed) vaultError = VaultIssue.writeFailed;
-      return false;
+      vaultError = e.issue;
+      rethrow;
     } finally {
       vaultBusy = false;
       _notify();
     }
+  }
+
+  /// The same saved route and pinned keys apply to both verification connections.
+  Future<SshConnection> openHardenConnection(
+    SshProfile target,
+    CancellationToken cancellation,
+  ) async {
+    if (target.hostKey == null) {
+      throw const SshFailure(SshIssue.hostKeyRejected);
+    }
+    final candidates = await repository?.listServers() ?? jumpCandidates;
+    final route = resolveSshRoute(target, candidates.map((s) => s.profile));
+    final vaults = <SecretVault>[];
+    try {
+      final jumps = <SshProfile>[];
+      for (final hop in route.take(route.length - 1)) {
+        final vault = await repository!.openServer(hop.id);
+        vaults.add(vault);
+        if (!vault.isUnlocked) await vault.unlock();
+        final profile = vault.profile;
+        if (profile == null ||
+            profile.id != hop.id ||
+            profile.jumpServerId != hop.jumpServerId ||
+            profile.hostKey == null) {
+          throw const SshFailure(SshIssue.invalidJumpRoute);
+        }
+        jumps.add(profile);
+      }
+      cancellation.check();
+      return await connector.connect(
+        target,
+        cancellation: cancellation,
+        jumpHosts: jumps,
+        verifyHostKey: (key) async => target.hostKey!.matches(key),
+        verifyJumpHostKey: (hop, key) async => hop.hostKey!.matches(key),
+      );
+    } finally {
+      for (final vault in vaults) {
+        vault.lock();
+      }
+    }
+  }
+
+  Future<RunnerResponse> hardenRequest(
+    RunnerRequest request,
+    CancellationToken cancellation, {
+    SshConnection? connection,
+    String? password,
+  }) async {
+    final remote = _guardRunner((connection ?? _connection)?.runner);
+    if (remote == null) throw const RunnerFailure(RunnerIssue.unavailable);
+    return remote.request(
+      request,
+      cancellation,
+      sudoPassword: password ?? _effectiveSudoPassword,
+    );
+  }
+
+  /// A lost commit reply or process death must leave both access routes usable.
+  Future<void> _recoverHardenedAccess(CancellationToken cancellation) async {
+    final current = _vault!.profile!;
+    final recovery = current.hardenRecovery;
+    if (recovery == null) return;
+    Object? failure;
+    final old = current.recoveredAccess(hardened: false);
+    final next = current.recoveredAccess(hardened: true);
+    final candidates = current.username == next.username
+        ? [next, old]
+        : [old, next];
+    for (final candidate in candidates) {
+      SshConnection? connection;
+      try {
+        connection = await openHardenConnection(candidate, cancellation);
+        final response = await hardenRequest(
+          RunnerRequest.sshHardenStatus(recovery['jobId'] as String),
+          cancellation,
+          connection: connection,
+          password:
+              candidate.secrets[ServerSecret.sudoPassword] ??
+              candidate.secrets[ServerSecret.sshPassword],
+        );
+        final result = response.sshHardenResult;
+        if (response.code != 'ok' || result == null) {
+          throw const RunnerFailure(RunnerIssue.unavailable);
+        }
+        final SshProfile selected;
+        if (result.confirmed) {
+          selected = current.recoveredAccess(hardened: true, clear: true);
+        } else if (result.aborted ||
+            result.phase == 'failed' ||
+            result.phase == 'cancelled' ||
+            result.phase == 'missing') {
+          selected = current.recoveredAccess(hardened: false, clear: true);
+        } else {
+          selected = candidate;
+        }
+        if (selected.hardenRecovery == null) {
+          await runner.clearHardenPending(recovery['jobId'] as String);
+        }
+        await persistHardenProfile(selected);
+        return;
+      } catch (e) {
+        cancellation.check();
+        failure = e;
+      } finally {
+        connection?.close();
+      }
+    }
+    if (failure is SshFailure) throw failure;
+    throw const SshFailure(SshIssue.network);
   }
 
   Future<bool> _saveDraft() async {
@@ -664,6 +761,9 @@ class SshController extends ChangeNotifier {
     _cancellation = cancellation;
     final jumpVaults = <String, SecretVault>{};
     try {
+      if (!replaceServer && _vault!.profile?.hardenRecovery != null) {
+        await _recoverHardenedAccess(cancellation);
+      }
       final previous = _vault!.profile;
       if (!await _saveDraft()) return;
       cancellation.check();

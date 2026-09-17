@@ -52,7 +52,9 @@
           "protocol_remove_plan",
           "ssh_harden_plan",
           "ssh_harden_confirm",
-          "ssh_harden_abort"
+          "ssh_harden_abort",
+          "ssh_harden_status",
+          "ssh_harden_commit"
         ]
       },
       "id": {
@@ -322,6 +324,16 @@
         "id"
       ],
       "ssh_harden_abort": [
+        "version",
+        "action",
+        "id"
+      ],
+      "ssh_harden_status": [
+        "version",
+        "action",
+        "id"
+      ],
+      "ssh_harden_commit": [
         "version",
         "action",
         "id"

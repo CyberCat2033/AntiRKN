@@ -33,6 +33,29 @@ void main() {
   }
 
   test(
+    'recovery clears a persisted unsent hardening job before reconnect',
+    () async {
+      final id = 'a' * 32;
+      store.value = jsonEncode({
+        'version': 1,
+        'identity': identity,
+        'cursor': 0,
+        'pending': RunnerRequest.sshHarden(id, {
+          'username': 'fixture',
+          'port': 2222,
+          'sudoPassword': 'test-only',
+        }, 'f' * 64).json,
+      });
+      expect(c.pending, isNull);
+      await c.clearHardenPending(id);
+      expect(c.pending, isNull);
+      expect((jsonDecode(store.value!) as Map)['pending'], isNull);
+      await c.retryPending();
+      expect(remote.submissions, 0);
+    },
+  );
+
+  test(
     'connect prepares runner once and recovers existing panel independently of last job',
     () async {
       remote.job = runnerJob('d' * 32, status: 'succeeded', progress: 10);

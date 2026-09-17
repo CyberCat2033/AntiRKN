@@ -1,0 +1,57 @@
+{
+  "timestamp_utc": "2026-09-17T07:49:40Z",
+  "baseline_commit": "c7dacfa110db3467c702d41952f94e587680e019",
+  "runner_version": "v21",
+  "runner_release": "47e2280d04cc589d3fc92ecd686011b77db9b2a41b97895bef1689fb9c46f078",
+  "checks": {
+    "python_runner": {
+      "passed": 119,
+      "failed": 0,
+      "hardening_regressions": 22
+    },
+    "manager_targeted": {
+      "passed": 57,
+      "failed": 0,
+      "files": [
+        "ssh_harden_controller_test.dart",
+        "ssh_harden_access_test.dart",
+        "privilege_controller_test.dart",
+        "ssh_controller_test.dart",
+        "runner_controller_test.dart"
+      ]
+    },
+    "ssh_transport_full": {
+      "passed": 35,
+      "failed": 1,
+      "known_baseline_failure": "server_inventory_test.dart: slow inspection survives the old deadline and uses at most three concurrent reads",
+      "baseline_reproduction": "Same assertion at line 121 reproduced with source from c7dacfa, using isolated packages/domain and packages/ssh_transport copies."
+    },
+    "real_openssh_effective_policy": {
+      "passed": true,
+      "port": 2222,
+      "permitrootlogin": "no",
+      "earlier_include_and_match": true
+    },
+    "disposable_ubuntu_vm": {
+      "passed": true,
+      "assertions": 48,
+      "evidence": "ssh-hardening-recovery-vm.json",
+      "final_source_release_matches_vm": true
+    },
+    "flutter_analyze": "passed",
+    "architecture_and_947_translations": "passed",
+    "runner_generator": "passed",
+    "diff_check": "passed",
+    "linux_debug_build": "passed"
+  },
+  "not_tested": [
+    "Android build/install or physical device UI",
+    "Windows build",
+    "Live owner VPS",
+    "Real multi-hop SSH network (route and pins covered by tests)",
+    "Active UFW on VM (configuration snapshots and ownership are implemented)",
+    "Abrupt power loss at every checkpoint",
+    "Real v20-to-v21 upgrade (fresh v21 installation and legacy-journal regression tested)"
+  ],
+  "publication": "local commit only; no push"
+}

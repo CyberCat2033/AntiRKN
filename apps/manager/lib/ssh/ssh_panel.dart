@@ -425,7 +425,9 @@ class _SshPanelState extends State<SshPanel> {
               ),
             ),
             if (!expanded &&
-                c.showPrivilegePrompt &&
+                (c.showPrivilegePrompt ||
+                    c.isRoot ||
+                    c.profile?.hardenRecovery != null) &&
                 (c.stage == SshStage.connected ||
                     c.stage == SshStage.checkingPrivileges ||
                     (c.stage == SshStage.reading && c.privileges != null))) ...[
@@ -445,7 +447,7 @@ class _SshPanelState extends State<SshPanel> {
                             : privilegeStatusLabel(l, c.privileges!.status),
                       ),
                     ),
-                    if (c.isRoot) ...[
+                    if (c.isRoot || c.profile?.hardenRecovery != null) ...[
                       const SizedBox(height: AppLayout.gap),
                       FilledButton.tonalIcon(
                         icon: const Icon(Icons.shield_outlined),

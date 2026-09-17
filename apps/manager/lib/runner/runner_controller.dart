@@ -20,7 +20,8 @@ class RunnerController extends ChangeNotifier {
     this.connectForAction,
   }) {
     _timer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (!busy &&
+      if (!pollingPaused &&
+          !busy &&
           transport() != null &&
           error == null &&
           (installation == null ||
@@ -102,6 +103,7 @@ class RunnerController extends ChangeNotifier {
   bool get observesOperation =>
       operation != null && operation!.executorDeviceId != _deviceId;
   bool busy = false;
+  bool pollingPaused = false;
   bool alive = false;
   bool connectionLost = false;
   RunnerIssue? error;
@@ -1179,6 +1181,8 @@ class RunnerController extends ChangeNotifier {
     required String sudoPassword,
     String? publicKey,
     int deadlineSeconds = 300,
+    bool disableRootLogin = true,
+    required Future<void> Function(String id) beforeSubmit,
   }) async {
     if (!canStart) return null;
     String? jobId;
@@ -1198,21 +1202,31 @@ class RunnerController extends ChangeNotifier {
         16,
         (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
       ).join();
+      await beforeSubmit(id);
+      token.check();
       pending = RunnerRequest.sshHarden(id, {
         'username': username,
         'port': port,
         'sudoPassword': sudoPassword,
         if (publicKey != null && publicKey.isNotEmpty) 'publicKey': publicKey,
-        'disableRootLogin': true,
+        'disableRootLogin': disableRootLogin,
         'deadlineSeconds': deadlineSeconds,
       }, plan.fingerprint);
       selected = null;
       cursor = 0;
       await _save();
       await _submit(remote, token);
-      jobId = id;
+      if (selected?.id == id || pending?.id == id) jobId = id;
     });
     return jobId;
+  }
+
+  Future<void> clearHardenPending(String id) async {
+    if (store != null) await _load();
+    if (pending?.id == id && pending?.json['kind'] == 'ssh_harden') {
+      pending = null;
+      await _save();
+    }
   }
 
   Future<SshHardenResult?> confirmSshHarden(String jobId) async {

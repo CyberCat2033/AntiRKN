@@ -5255,7 +5255,7 @@ abstract class AppLocalizations {
   /// No description provided for @sshHardenDialogDescription.
   ///
   /// In en, this message translates to:
-  /// **'Safe access transition: creates a non-root user with sudo privileges, switches SSH to a new port (2222), and disables direct root login. Both ports remain active during verification. If the test fails, automatic rollback triggers after 5 minutes.'**
+  /// **'Create a user with sudo and choose the SSH port. The app verifies new access before and after applying the final settings. Unfinished changes are automatically rolled back, including after a server restart.'**
   String get sshHardenDialogDescription;
 
   /// No description provided for @sshHardenUsername.
@@ -5273,7 +5273,7 @@ abstract class AppLocalizations {
   /// No description provided for @sshHardenSudoPassword.
   ///
   /// In en, this message translates to:
-  /// **'Sudo password for new user'**
+  /// **'Password for the new user and sudo'**
   String get sshHardenSudoPassword;
 
   /// No description provided for @sshHardenSudoPasswordConfirm.
@@ -5369,7 +5369,7 @@ abstract class AppLocalizations {
   /// No description provided for @sshHardenConfirmAction.
   ///
   /// In en, this message translates to:
-  /// **'Confirm & disable root'**
+  /// **'Apply protection'**
   String get sshHardenConfirmAction;
 
   /// No description provided for @sshHardenAbortAction.
@@ -5387,7 +5387,7 @@ abstract class AppLocalizations {
   /// No description provided for @sshHardenConfirmed.
   ///
   /// In en, this message translates to:
-  /// **'Hardening applied. Direct root login disabled.'**
+  /// **'SSH protection applied. The new connection and sudo access have been verified.'**
   String get sshHardenConfirmed;
 
   /// No description provided for @sshHardenAborted.
@@ -5417,7 +5417,7 @@ abstract class AppLocalizations {
   /// No description provided for @sshHardenFailed.
   ///
   /// In en, this message translates to:
-  /// **'SSH hardening failed. Rolled back to previous state.'**
+  /// **'Could not complete SSH protection. Check the connection and recovery status.'**
   String get sshHardenFailed;
 
   /// No description provided for @sshHardenRandomUser.
@@ -5761,6 +5761,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Anycast, location depends on routing'**
   String get diagAnycast;
+
+  /// No description provided for @sshHardenDisableRoot.
+  ///
+  /// In en, this message translates to:
+  /// **'Disable direct root login'**
+  String get sshHardenDisableRoot;
+
+  /// No description provided for @sshHardenRecoveryFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Recovery could not be verified. Keep the saved access details and retry rollback.'**
+  String get sshHardenRecoveryFailed;
+
+  /// No description provided for @sshHardenSudoRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'The new account must require a password for sudo.'**
+  String get sshHardenSudoRequired;
+
+  /// No description provided for @sshHardenStorageFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save the access details. The server transition has not been committed.'**
+  String get sshHardenStorageFailed;
 }
 
 class _AppLocalizationsDelegate

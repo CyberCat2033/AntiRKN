@@ -246,6 +246,16 @@ final class RunnerRequest {
     'action': 'ssh_harden_abort',
     'id': id,
   });
+  factory RunnerRequest.sshHardenStatus(String id) => RunnerRequest.fromJson({
+    'version': 1,
+    'action': 'ssh_harden_status',
+    'id': id,
+  });
+  factory RunnerRequest.sshHardenCommit(String id) => RunnerRequest.fromJson({
+    'version': 1,
+    'action': 'ssh_harden_commit',
+    'id': id,
+  });
   final Map<String, Object?> json;
   String? get id => json['id'] as String?;
 }

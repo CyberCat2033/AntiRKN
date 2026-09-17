@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from panel_discovery import discover as discover_panel, connect_existing, external_access
 from components import ComponentInstaller, ComponentError
 from protocol_remove import ProtocolRemoval, RemovalError, plan as removal_plan
-from ssh_harden import SshHardenJob, SshHardenError, rollback as ssh_harden_rollback, backup_path as ssh_harden_backup_path, plan as ssh_harden_plan
+from ssh_harden import SshHardenJob, SshHardenError, plan as ssh_harden_plan
 from inbound_remove import InboundRemove, plan as removal_plan
 from observed_inbounds import ObservedInboundEdit, snapshot as inbound_snapshot, plan as inbound_plan, stage_payload
 from apt import AptJob, AptError, plan as apt_plan
@@ -91,20 +91,19 @@ class Store:
         action = req['action']
         if action == 'protocol_remove_plan':
             return {**self.response('ok'), 'removalPlan': removal_plan(req['protocol'])}
-        if action == 'ssh_harden_plan':
-            return {**self.response('ok'), 'sshHardenPlan': ssh_harden_plan(self, req)}
-        if action == 'ssh_harden_confirm':
+        if action in ('ssh_harden_plan', 'ssh_harden_status', 'ssh_harden_confirm', 'ssh_harden_commit', 'ssh_harden_abort'):
             try:
-                res = SshHardenJob.confirm(self, req)
-                return {**self.response('ok'), 'sshHardenResult': res}
+                if action == 'ssh_harden_plan':
+                    return {**self.response('ok'), 'sshHardenPlan': ssh_harden_plan(self, req)}
+                method = {'ssh_harden_status': SshHardenJob.status,
+                          'ssh_harden_confirm': SshHardenJob.confirm,
+                          'ssh_harden_commit': SshHardenJob.commit,
+                          'ssh_harden_abort': SshHardenJob.abort}[action]
+                return {**self.response('ok'), 'sshHardenResult': method(self, req)}
             except SshHardenError as error:
                 return self.response(error.code)
-        if action == 'ssh_harden_abort':
-            try:
-                res = SshHardenJob.abort(self, req)
-                return {**self.response('ok'), 'sshHardenResult': res}
-            except SshHardenError as error:
-                return self.response(error.code)
+            except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
+                return self.response('ssh_harden_failed')
         if action == 'panel_update_plan':
             return {**self.response('ok'), 'panelUpdatePlan': panel_update_plan(self, req['id'])}
         if action == 'panel_connect':
@@ -321,29 +320,8 @@ class Store:
                 self.event(job_id, code, progress, req['count'])
             return 0.1
         if req['kind'] == 'ssh_harden':
-            try:
-                if row['cancel']:
-                    SshHardenJob.abort(self, req)
-                    return 0.1
-                harden_job = SshHardenJob(self, req)
-                if row['checkpoint'] < 6:
-                    harden_job.step(row['checkpoint'])
-                    return 0.1
-                bdir = ssh_harden_backup_path(job_id)
-                if (bdir / 'rolled_back').exists():
-                    with self.db:
-                        self.db.execute("UPDATE jobs SET status='failed' WHERE id=?", (job_id,))
-                        self.event(job_id, 'ssh_harden_aborted', 6, req['count'])
-                    return 0.5
-                return 1.0
-            except (SshHardenError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
-                ssh_harden_rollback(job_id)
-                code = error.code if isinstance(error, SshHardenError) else 'ssh_harden_failed'
-                with self.db:
-                    progress = self.db.execute('SELECT checkpoint FROM jobs WHERE id=?', (job_id,)).fetchone()[0]
-                    self.db.execute("UPDATE jobs SET status='failed' WHERE id=?", (job_id,))
-                    self.event(job_id, code, progress, req['count'])
-                return 0.1
+            SshHardenJob(self, req).tick()
+            return 0.5
         if req['kind'] == 'component_install':
             installer = ComponentInstaller(self, req)
             try:

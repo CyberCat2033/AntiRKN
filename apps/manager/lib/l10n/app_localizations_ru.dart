@@ -2955,7 +2955,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get sshHardenDialogDescription =>
-      'Безопасный перенос доступа: создаётся непривилегированный пользователь с правами sudo, SSH переключается на новый порт (2222), а прямой вход root отключается. Во время проверки сохраняется доступ по обоим портам. Если проверка не пройдёт, через 5 минут сработает автоматический откат.';
+      'Создайте пользователя с sudo и выберите порт SSH. Приложение проверит новый доступ до и после применения итоговых настроек. Незавершённые изменения автоматически откатываются, в том числе после перезагрузки сервера.';
 
   @override
   String get sshHardenUsername => 'Имя нового пользователя';
@@ -2964,7 +2964,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get sshHardenPort => 'Новый SSH порт';
 
   @override
-  String get sshHardenSudoPassword => 'Пароль sudo для нового пользователя';
+  String get sshHardenSudoPassword => 'Пароль нового пользователя и sudo';
 
   @override
   String get sshHardenSudoPasswordConfirm => 'Повторите пароль sudo';
@@ -3023,7 +3023,7 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
-  String get sshHardenConfirmAction => 'Подтвердить и отключить root';
+  String get sshHardenConfirmAction => 'Применить защиту';
 
   @override
   String get sshHardenAbortAction => 'Откатить изменения';
@@ -3032,7 +3032,8 @@ class AppLocalizationsRu extends AppLocalizations {
   String get sshHardenRetryAction => 'Повторить проверку';
 
   @override
-  String get sshHardenConfirmed => 'Защита применена. Вход от root отключен.';
+  String get sshHardenConfirmed =>
+      'Защита SSH применена. Новое подключение и sudo проверены.';
 
   @override
   String get sshHardenAborted => 'Изменения откатаны. Доступ от root сохранён.';
@@ -3048,7 +3049,8 @@ class AppLocalizationsRu extends AppLocalizations {
   String get sshHardenPortBusy => 'Выбранный порт уже занят другой службой.';
 
   @override
-  String get sshHardenFailed => 'Ошибка настройки SSH. Произведён откат.';
+  String get sshHardenFailed =>
+      'Не удалось завершить защиту SSH. Проверьте подключение и состояние восстановления.';
 
   @override
   String get sshHardenRandomUser => 'Выбрать случайного персонажа';
@@ -3237,4 +3239,19 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get diagAnycast => 'Anycast, расположение зависит от маршрута';
+
+  @override
+  String get sshHardenDisableRoot => 'Запретить прямой вход root';
+
+  @override
+  String get sshHardenRecoveryFailed =>
+      'Восстановление доступа не подтверждено. Сохраните реквизиты и повторите откат.';
+
+  @override
+  String get sshHardenSudoRequired =>
+      'Новый пользователь должен вводить пароль для sudo.';
+
+  @override
+  String get sshHardenStorageFailed =>
+      'Не удалось сохранить реквизиты. Переход на сервере не зафиксирован.';
 }

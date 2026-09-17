@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 import 'runner.dart';
 
@@ -15,6 +16,7 @@ enum ServerSecret {
   keyPassphrase,
   sudoPassword,
   rootPassword,
+  sshHardenRecovery,
 }
 
 final class SshProfile {
@@ -98,6 +100,9 @@ final class SshProfile {
   }) {
     final nextSecrets = Map<ServerSecret, String>.from(secrets);
     nextSecrets[ServerSecret.sudoPassword] = sudoPassword;
+    if (authMethod == SshAuthMethod.password) {
+      nextSecrets[ServerSecret.sshPassword] = sudoPassword;
+    }
     return SshProfile(
       id: id,
       name: name,
@@ -112,6 +117,93 @@ final class SshProfile {
       jumpServerId: jumpServerId,
     );
   }
+
+  /// Recovery credentials live inside the encrypted vault, never in UI settings.
+  Map<String, dynamic>? get hardenRecovery {
+    final source = secrets[ServerSecret.sshHardenRecovery];
+    if (source == null) return null;
+    final value = jsonDecode(source) as Map<String, dynamic>;
+    if (value['version'] != 1 ||
+        !RegExp(r'^[a-f0-9]{32}$').hasMatch(value['jobId'] as String) ||
+        value['host'] != host ||
+        value['hostKey'] != hostKey?.fingerprint) {
+      throw const FormatException('invalid_ssh_recovery');
+    }
+    return value;
+  }
+
+  SshProfile withHardenRecovery({
+    required String jobId,
+    required String user,
+    required int port,
+    required String password,
+  }) {
+    if (hardenRecovery != null || hostKey == null) {
+      throw const FormatException('pending_ssh_recovery');
+    }
+    return _withAccessSecrets(username, this.port, {
+      ...secrets,
+      ServerSecret.sshHardenRecovery: jsonEncode({
+        'version': 1,
+        'jobId': jobId,
+        'host': host,
+        'hostKey': hostKey!.fingerprint,
+        'oldUser': username,
+        'oldPort': this.port,
+        'oldSshPassword': secrets[ServerSecret.sshPassword],
+        'oldSudoPassword': secrets[ServerSecret.sudoPassword],
+        'user': user,
+        'port': port,
+        'password': password,
+      }),
+    });
+  }
+
+  SshProfile recoveredAccess({required bool hardened, bool clear = false}) {
+    final recovery = hardenRecovery;
+    if (recovery == null) throw const FormatException('missing_ssh_recovery');
+    final values = Map<ServerSecret, String>.from(secrets);
+    if (clear) values.remove(ServerSecret.sshHardenRecovery);
+    if (hardened) {
+      values[ServerSecret.sudoPassword] = recovery['password'] as String;
+      if (authMethod == SshAuthMethod.password) {
+        values[ServerSecret.sshPassword] = recovery['password'] as String;
+      }
+    } else {
+      for (final entry in {
+        ServerSecret.sshPassword: 'oldSshPassword',
+        ServerSecret.sudoPassword: 'oldSudoPassword',
+      }.entries) {
+        values.remove(entry.key);
+        if (recovery[entry.value] case final String value) {
+          values[entry.key] = value;
+        }
+      }
+    }
+    return _withAccessSecrets(
+      recovery[hardened ? 'user' : 'oldUser'] as String,
+      recovery[hardened ? 'port' : 'oldPort'] as int,
+      values,
+    );
+  }
+
+  SshProfile _withAccessSecrets(
+    String user,
+    int nextPort,
+    Map<ServerSecret, String> values,
+  ) => SshProfile(
+    id: id,
+    name: name,
+    host: host,
+    port: nextPort,
+    username: user,
+    authMethod: authMethod,
+    secrets: values,
+    keyName: keyName,
+    hostKey: hostKey,
+    lastInfo: lastInfo,
+    jumpServerId: jumpServerId,
+  );
 
   /// Display metadata and inactive credentials do not affect a live session.
   bool hasSameConnectionSettings(SshProfile other) =>

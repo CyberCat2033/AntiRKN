@@ -337,7 +337,8 @@ class _ServerDetailViewState extends State<ServerDetailView> {
             ),
           ),
         ),
-        if (widget.session.isRoot &&
+        if ((widget.session.isRoot ||
+                widget.session.profile?.hardenRecovery != null) &&
             widget.session.stage == SshStage.connected) ...[
           const SizedBox(height: 16),
           Card(

@@ -90,7 +90,8 @@ def prepare():
                '-drive', f'file={DIRECTORY / "disk.qcow2"},if=virtio,format=qcow2',
                '-nic', f'user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:{port}-:22' + forwards,
                '-smbios', f'type=1,serial=ds=nocloud;s=http://10.0.2.2:{server.server_port}/',
-               '-serial', f'file:{DIRECTORY / "console.txt"}', '-monitor', 'none']
+               '-chardev', f'socket,id=console,path={DIRECTORY / "console.sock"},server=on,wait=off,logfile={DIRECTORY / "console.txt"}',
+               '-serial', 'chardev:console', '-monitor', 'none']
     vm = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     (DIRECTORY / 'pid').write_text(str(vm.pid))
     print('Ubuntu QEMU fixture starting (image hash verified).', flush=True)

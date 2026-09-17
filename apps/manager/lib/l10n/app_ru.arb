@@ -1122,10 +1122,10 @@
   "sshHardenBannerSubtitle": "Рекомендуется создать пользователя с sudo, сменить порт SSH на 2222 и отключить вход root.",
   "sshHardenBannerAction": "Защитить сервер",
   "sshHardenDialogTitle": "Мастер защиты SSH",
-  "sshHardenDialogDescription": "Безопасный перенос доступа: создаётся непривилегированный пользователь с правами sudo, SSH переключается на новый порт (2222), а прямой вход root отключается. Во время проверки сохраняется доступ по обоим портам. Если проверка не пройдёт, через 5 минут сработает автоматический откат.",
+  "sshHardenDialogDescription": "Создайте пользователя с sudo и выберите порт SSH. Приложение проверит новый доступ до и после применения итоговых настроек. Незавершённые изменения автоматически откатываются, в том числе после перезагрузки сервера.",
   "sshHardenUsername": "Имя нового пользователя",
   "sshHardenPort": "Новый SSH порт",
-  "sshHardenSudoPassword": "Пароль sudo для нового пользователя",
+  "sshHardenSudoPassword": "Пароль нового пользователя и sudo",
   "sshHardenSudoPasswordConfirm": "Повторите пароль sudo",
   "sshHardenPasswordMismatch": "Пароли не совпадают",
   "sshHardenPasswordRequired": "Введите пароль sudo для защиты",
@@ -1172,15 +1172,15 @@
       }
     }
   },
-  "sshHardenConfirmAction": "Подтвердить и отключить root",
+  "sshHardenConfirmAction": "Применить защиту",
   "sshHardenAbortAction": "Откатить изменения",
   "sshHardenRetryAction": "Повторить проверку",
-  "sshHardenConfirmed": "Защита применена. Вход от root отключен.",
+  "sshHardenConfirmed": "Защита SSH применена. Новое подключение и sudo проверены.",
   "sshHardenAborted": "Изменения откатаны. Доступ от root сохранён.",
   "sshHardenConflict": "Конфигурация SSH изменилась во время работы мастера.",
   "sshHardenInvalid": "Недопустимое имя пользователя или порт.",
   "sshHardenPortBusy": "Выбранный порт уже занят другой службой.",
-  "sshHardenFailed": "Ошибка настройки SSH. Произведён откат.",
+  "sshHardenFailed": "Не удалось завершить защиту SSH. Проверьте подключение и состояние восстановления.",
   "sshHardenRandomUser": "Выбрать случайного персонажа",
   "uiServerDataNotCached": "Подключитесь к серверу один раз, чтобы сохранить его данные на этом устройстве.",
   "inboundDeleteSelectionHelp": "Удалить выбранные inbounds вместе с их подключениями? Записи клиентов сохранятся, затронутые профили будут обновлены.",
@@ -1254,5 +1254,9 @@
         "type": "int"
       }
     }
-  }
+  },
+  "sshHardenDisableRoot": "Запретить прямой вход root",
+  "sshHardenRecoveryFailed": "Восстановление доступа не подтверждено. Сохраните реквизиты и повторите откат.",
+  "sshHardenSudoRequired": "Новый пользователь должен вводить пароль для sudo.",
+  "sshHardenStorageFailed": "Не удалось сохранить реквизиты. Переход на сервере не зафиксирован."
 }

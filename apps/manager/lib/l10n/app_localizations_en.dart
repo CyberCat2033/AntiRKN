@@ -2950,7 +2950,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sshHardenDialogDescription =>
-      'Safe access transition: creates a non-root user with sudo privileges, switches SSH to a new port (2222), and disables direct root login. Both ports remain active during verification. If the test fails, automatic rollback triggers after 5 minutes.';
+      'Create a user with sudo and choose the SSH port. The app verifies new access before and after applying the final settings. Unfinished changes are automatically rolled back, including after a server restart.';
 
   @override
   String get sshHardenUsername => 'New username';
@@ -2959,7 +2959,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sshHardenPort => 'New SSH port';
 
   @override
-  String get sshHardenSudoPassword => 'Sudo password for new user';
+  String get sshHardenSudoPassword => 'Password for the new user and sudo';
 
   @override
   String get sshHardenSudoPasswordConfirm => 'Confirm sudo password';
@@ -3017,7 +3017,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get sshHardenConfirmAction => 'Confirm & disable root';
+  String get sshHardenConfirmAction => 'Apply protection';
 
   @override
   String get sshHardenAbortAction => 'Roll back changes';
@@ -3027,7 +3027,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sshHardenConfirmed =>
-      'Hardening applied. Direct root login disabled.';
+      'SSH protection applied. The new connection and sudo access have been verified.';
 
   @override
   String get sshHardenAborted => 'Changes rolled back. Root access preserved.';
@@ -3043,7 +3043,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sshHardenFailed =>
-      'SSH hardening failed. Rolled back to previous state.';
+      'Could not complete SSH protection. Check the connection and recovery status.';
 
   @override
   String get sshHardenRandomUser => 'Pick a random character';
@@ -3233,4 +3233,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get diagAnycast => 'Anycast, location depends on routing';
+
+  @override
+  String get sshHardenDisableRoot => 'Disable direct root login';
+
+  @override
+  String get sshHardenRecoveryFailed =>
+      'Recovery could not be verified. Keep the saved access details and retry rollback.';
+
+  @override
+  String get sshHardenSudoRequired =>
+      'The new account must require a password for sudo.';
+
+  @override
+  String get sshHardenStorageFailed =>
+      'Could not save the access details. The server transition has not been committed.';
 }

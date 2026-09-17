@@ -66,16 +66,16 @@ final class SshHardenPlan {
   bool get isRootAllowed => currentRootLogin == 'allowed';
 
   Map<String, dynamic> toJson() => {
-        'supported': supported,
-        'currentPort': currentPort,
-        'currentRootLogin': currentRootLogin,
-        'socketActivation': socketActivation,
-        'proposedPort': proposedPort,
-        'proposedUser': proposedUser,
-        'portAvailable': portAvailable,
-        'userAvailable': userAvailable,
-        'fingerprint': fingerprint,
-      };
+    'supported': supported,
+    'currentPort': currentPort,
+    'currentRootLogin': currentRootLogin,
+    'socketActivation': socketActivation,
+    'proposedPort': proposedPort,
+    'proposedUser': proposedUser,
+    'portAvailable': portAvailable,
+    'userAvailable': userAvailable,
+    'fingerprint': fingerprint,
+  };
 }
 
 /// Payload sent in runner job submission for kind `ssh_harden`.
@@ -97,13 +97,13 @@ final class SshHardenSubmission {
   final int deadlineSeconds;
 
   Map<String, dynamic> toJson() => {
-        'username': username,
-        'port': port,
-        'sudoPassword': sudoPassword,
-        if (publicKey != null && publicKey!.isNotEmpty) 'publicKey': publicKey,
-        'disableRootLogin': disableRootLogin,
-        'deadlineSeconds': deadlineSeconds,
-      };
+    'username': username,
+    'port': port,
+    'sudoPassword': sudoPassword,
+    if (publicKey != null && publicKey!.isNotEmpty) 'publicKey': publicKey,
+    'disableRootLogin': disableRootLogin,
+    'deadlineSeconds': deadlineSeconds,
+  };
 }
 
 /// Result returned by `ssh_harden_confirm` or `ssh_harden_abort`.
@@ -111,6 +111,9 @@ final class SshHardenResult {
   const SshHardenResult({
     this.confirmed = false,
     this.aborted = false,
+    this.finalized = false,
+    this.phase = '',
+    this.deadline,
     this.port,
     this.username,
   });
@@ -119,6 +122,14 @@ final class SshHardenResult {
     return SshHardenResult(
       confirmed: json['confirmed'] as bool? ?? false,
       aborted: json['aborted'] as bool? ?? false,
+      finalized: json['finalized'] as bool? ?? false,
+      phase: json['phase'] as String? ?? '',
+      deadline: json['deadline'] == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(
+              ((json['deadline'] as num) * 1000).round(),
+              isUtc: true,
+            ),
       port: (json['port'] as num?)?.toInt(),
       username: json['username'] as String?,
     );
@@ -126,6 +137,9 @@ final class SshHardenResult {
 
   final bool confirmed;
   final bool aborted;
+  final bool finalized;
+  final String phase;
+  final DateTime? deadline;
   final int? port;
   final String? username;
 }
