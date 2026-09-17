@@ -5444,6 +5444,42 @@ abstract class AppLocalizations {
   /// **'Deletion is incomplete. Check the job in server maintenance; unfinished jobs can be resumed.'**
   String get inboundDeleteIncomplete;
 
+  /// No description provided for @diagSuspectedBlocking.
+  ///
+  /// In en, this message translates to:
+  /// **'Signs of blocking'**
+  String get diagSuspectedBlocking;
+
+  /// No description provided for @diagConnectionLost.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection lost after this IP'**
+  String get diagConnectionLost;
+
+  /// No description provided for @diagConnectionRestored.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection restored'**
+  String get diagConnectionRestored;
+
+  /// No description provided for @diagQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting'**
+  String get diagQueued;
+
+  /// No description provided for @diagNotTested.
+  ///
+  /// In en, this message translates to:
+  /// **'Not tested'**
+  String get diagNotTested;
+
+  /// No description provided for @diagNoIpv4.
+  ///
+  /// In en, this message translates to:
+  /// **'No public IPv4 addresses available for testing (up to 64 per server).'**
+  String get diagNoIpv4;
+
   /// No description provided for @diagTitle.
   ///
   /// In en, this message translates to:

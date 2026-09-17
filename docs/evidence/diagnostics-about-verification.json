@@ -1,0 +1,39 @@
+{
+  "date": "2026-09-17",
+  "task": "about-server-ip-diagnostics",
+  "checks": {
+    "targeted_manager_tests": 15,
+    "targeted_manager_result": "PASS",
+    "analyze_files": 8,
+    "analyze_result": "PASS",
+    "workspace_result": "PASS",
+    "localizations": 943,
+    "base_yml_unchanged": true
+  },
+  "known_unrelated_failures": {
+    "test": "server_design_test.dart",
+    "count": 2,
+    "reproduced_at": "08bd27c",
+    "cause": "Existing full-width SSH button assertions"
+  },
+  "android": {
+    "target": "android-arm64",
+    "mode": "release",
+    "build": "PASS",
+    "signature": "PASS",
+    "install": "adb install -r: Success",
+    "device_model": "OnePlus HD1911",
+    "cold_launch": "Status: ok",
+    "process_present": true,
+    "debuggable": false,
+    "sha256": "3c55bb86edfa3b64e4cd8b88effa2715476b267d827befb2f7a7cc27d90f035b",
+    "installed_sha256_matches": true
+  },
+  "not_verified": [
+    "Physical dialog on locked phone",
+    "Real target and ISP connectivity",
+    "Linux and Windows builds",
+    "Full regression"
+  ],
+  "push": false
+}

@@ -2,6 +2,7 @@ import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
+import '../network/ip_diagnostics_controller.dart';
 import '../catalog_selection.dart';
 import '../runner/component_installation_view.dart';
 import '../runner/component_updates_controller.dart';
@@ -34,7 +35,7 @@ class ServerDetailView extends StatefulWidget {
     required this.session,
     required this.motion,
     this.onBack,
-    this.onDiagnose,
+    this.diagnostics,
     this.protocols,
     this.sections = const [],
     this.plans,
@@ -45,7 +46,7 @@ class ServerDetailView extends StatefulWidget {
   final SshController session;
   final MotionPreference motion;
   final VoidCallback? onBack;
-  final void Function(String, int)? onDiagnose;
+  final IpDiagnosticsController? diagnostics;
   final Widget? protocols, plans, activity;
   final List<ServerProtocolSection> sections;
   final int clientCount;
@@ -156,6 +157,10 @@ class _ServerDetailViewState extends State<ServerDetailView> {
   }
 
   void open(int index) {
+    if (widget.diagnostics?.busy ?? false) {
+      widget.diagnostics!.stop();
+      return;
+    }
     if (index == 1) widget.session.editSettings();
     if (index != 1 && selected == 1) widget.session.closeSettings();
     setState(() {
@@ -165,6 +170,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
   }
 
   Future<void> refresh() async {
+    if (widget.diagnostics?.busy ?? false) return;
     if (!await widget.session.ensureConnected()) return;
     await widget.session.refresh();
     await widget.session.runner.refresh();
@@ -619,7 +625,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                       ? page('about', [
                           ServerAboutView(
                             controller: c,
-                            onDiagnose: widget.onDiagnose,
+                            diagnostics: widget.diagnostics,
                           ),
                         ])
                       : const SizedBox.shrink(),

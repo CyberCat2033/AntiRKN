@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../l10n/app_localizations.dart';
+import '../network/ip_diagnostics_controller.dart';
+import '../network/server_ip_diagnostics.dart';
 import 'ssh_controller.dart';
 
 String serverBytes(int value) {
@@ -17,12 +19,16 @@ String serverBytes(int value) {
 }
 
 class ServerAboutView extends StatelessWidget {
-  const ServerAboutView({required this.controller, this.onDiagnose, super.key});
+  const ServerAboutView({
+    required this.controller,
+    this.diagnostics,
+    super.key,
+  });
   final SshController controller;
-  final void Function(String, int)? onDiagnose;
+  final IpDiagnosticsController? diagnostics;
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: controller,
+    listenable: Listenable.merge([controller, diagnostics]),
     builder: (context, _) {
       final c = controller, l = AppLocalizations.of(context);
       final inventory = c.observation?.network;
@@ -37,6 +43,18 @@ class ServerAboutView extends StatelessWidget {
         for (final address in publicAddresses ?? <IpAddress>[])
           address.canonical: address.family,
       };
+      final server = c.profile == null
+          ? null
+          : ServerIpDiagnostics(
+              c.profile!,
+              addresses.keys.map(IpAddress.parse),
+            );
+      final running =
+          diagnostics?.busy == true && diagnostics?.serverKey == server?.key;
+      final canDiagnose =
+          server != null &&
+          server.addresses.isNotEmpty &&
+          server.addresses.length <= 64;
       final traffic = c.trafficBytes;
       final facts = c.software?.facts;
       final free = int.tryParse(facts?[ServerFact.freeDiskKiB]?.value ?? '');
@@ -58,7 +76,10 @@ class ServerAboutView extends StatelessWidget {
               IconButton(
                 tooltip: l.sshRefresh,
                 onPressed:
-                    c.stage == SshStage.connected && !c.busy && !c.runner.busy
+                    c.stage == SshStage.connected &&
+                        !c.busy &&
+                        !c.runner.busy &&
+                        diagnostics?.busy != true
                     ? () {
                         c.refresh();
                       }
@@ -77,15 +98,25 @@ class ServerAboutView extends StatelessWidget {
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
-          if (onDiagnose != null)
+          if (diagnostics != null) ...[
             OutlinedButton.icon(
-              onPressed: () => onDiagnose!(
-                addresses.keys.join('\n'),
-                int.tryParse(c.port.text) ?? 22,
+              key: const ValueKey('server-ip-diagnostics'),
+              onPressed: running
+                  ? diagnostics!.stop
+                  : !canDiagnose || diagnostics!.busy
+                  ? null
+                  : () =>
+                        showServerIpDiagnostics(context, diagnostics!, server),
+              icon: Icon(running ? Icons.stop : Icons.network_check),
+              label: Text(
+                running
+                    ? '${l.diagStop} · ${diagnostics!.current?.completed ?? 0}/${diagnostics!.current?.targets.length ?? 0}'
+                    : l.diagTitle,
               ),
-              icon: const Icon(Icons.network_check),
-              label: Text(l.diagTitle),
             ),
+            if (!canDiagnose)
+              Text(l.diagNoIpv4, style: Theme.of(context).textTheme.bodySmall),
+          ],
           AppSettingsSection(
             title: l.uiPublicAddresses,
             child: Column(
@@ -104,19 +135,9 @@ class ServerAboutView extends StatelessWidget {
                       child: Text(entry.value == IpFamily.ipv4 ? 'v4' : 'v6'),
                     ),
                     title: SelectableText(entry.key),
-                    subtitle: onDiagnose == null
+                    subtitle: server == null
                         ? null
-                        : Align(
-                            alignment: AlignmentDirectional.centerStart,
-                            child: TextButton.icon(
-                              onPressed: () => onDiagnose!(
-                                entry.key,
-                                int.tryParse(c.port.text) ?? 22,
-                              ),
-                              icon: const Icon(Icons.network_check),
-                              label: Text(l.diagTitle),
-                            ),
-                          ),
+                        : _result(context, server, entry.key),
                     trailing: IconButton(
                       tooltip: l.uiCopyAddress,
                       icon: const Icon(Icons.copy_outlined),
@@ -225,6 +246,18 @@ class ServerAboutView extends StatelessWidget {
       );
     },
   );
+
+  Widget? _result(BuildContext context, ServerIpDiagnostics server, String ip) {
+    final result = diagnostics?.resultFor(server, ip);
+    if (result == null) return null;
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Text(
+        diagnosticAddressLabel(AppLocalizations.of(context), result),
+        key: ValueKey('diagnostic-result-$ip'),
+      ),
+    );
+  }
 }
 
 class _Metric extends StatelessWidget {

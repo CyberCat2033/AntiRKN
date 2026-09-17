@@ -4,6 +4,7 @@ import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
+import '../network/ip_diagnostics_controller.dart';
 import 'server_detail_view.dart';
 import 'protocol_removal.dart';
 import 'server_catalog_controller.dart';
@@ -23,14 +24,14 @@ class ServerCatalog extends StatefulWidget {
     required this.motion,
     this.vpn,
     this.selection,
-    this.onDiagnose,
+    this.diagnostics,
     super.key,
   });
   final ServerCatalogController controller;
   final MotionPreference motion;
   final VpnController? vpn;
   final CatalogSelection? selection;
-  final void Function(String, int)? onDiagnose;
+  final IpDiagnosticsController? diagnostics;
 
   static Future<void> deleteSelected(
     BuildContext context,
@@ -139,7 +140,7 @@ class _ServerCatalogState extends State<ServerCatalog> {
       return ServerDetailView(
         key: ObjectKey(session),
         session: session,
-        onDiagnose: widget.onDiagnose,
+        diagnostics: widget.diagnostics,
         motion: widget.motion,
         onBack: onBack ?? c.showList,
         clientCount:

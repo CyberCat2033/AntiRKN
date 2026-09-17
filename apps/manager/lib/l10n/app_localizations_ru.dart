@@ -3066,6 +3066,24 @@ class AppLocalizationsRu extends AppLocalizations {
       'Удаление завершено не полностью. Проверьте состояние задания в обслуживании сервера; незавершённое задание можно повторить.';
 
   @override
+  String get diagSuspectedBlocking => 'Признаки блокировки';
+
+  @override
+  String get diagConnectionLost => 'Потеря связи после этого IP';
+
+  @override
+  String get diagConnectionRestored => 'Связь восстановлена';
+
+  @override
+  String get diagQueued => 'Ожидает проверки';
+
+  @override
+  String get diagNotTested => 'Не проверен';
+
+  @override
+  String get diagNoIpv4 => 'Нет публичных IPv4 для проверки (до 64 на сервер).';
+
+  @override
   String get diagTitle => 'Диагностика IP';
 
   @override

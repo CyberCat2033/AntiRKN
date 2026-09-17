@@ -3,7 +3,6 @@ import 'package:antirkn_network_inventory/antirkn_network_inventory.dart';
 import 'network/android_ip_probe_transport.dart';
 import 'network/socket_ip_probe_transport.dart';
 import 'network/ip_diagnostics_controller.dart';
-import 'network/ip_diagnostics_page.dart';
 import 'settings_hub.dart';
 import 'desktop_back_gesture.dart';
 import 'catalog_selection.dart';
@@ -402,12 +401,7 @@ class _ManagerShellState extends State<ManagerShell>
   ComponentUpdatesController? _diagnosticUpdates;
   late final IpDiagnosticsController _diagnostics;
   int _syncRevision = 0;
-  static const _icons = [
-    Icons.dns_outlined,
-    Icons.people_outline,
-    Icons.network_check,
-    Icons.tune,
-  ];
+  static const _icons = [Icons.dns_outlined, Icons.people_outline, Icons.tune];
 
   @override
   void initState() {
@@ -562,34 +556,6 @@ class _ManagerShellState extends State<ManagerShell>
     _publications?.resume();
   }
 
-  Future<void> _openDiagnostics(String addresses, int port) async {
-    _diagnostics.seed(addresses, serverPort: port);
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (context) => ListenableBuilder(
-          listenable: _diagnostics,
-          builder: (context, _) => PopScope(
-            canPop: !_diagnostics.busy,
-            onPopInvokedWithResult: (didPop, _) {
-              if (!didPop) _diagnostics.stop();
-            },
-            child: Scaffold(
-              appBar: AppBar(
-                title: Text(AppLocalizations.of(context).diagTitle),
-              ),
-              body: SafeArea(
-                child: IpDiagnosticsPage(
-                  controller: _diagnostics,
-                  servers: _catalog?.servers ?? const [],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   void dispose() {
     _diagnostics.removeListener(_syncChanged);
@@ -698,7 +664,7 @@ class _ManagerShellState extends State<ManagerShell>
       _serverSelection.exit();
       _clientSelection.exit();
       if (value == 0) _catalog?.showList();
-      if (value == 3) _settingsKey.currentState?.showRoot();
+      if (value == 2) _settingsKey.currentState?.showRoot();
     }
     if (value != _index) {
       _serverSelection.exit();
@@ -712,7 +678,7 @@ class _ManagerShellState extends State<ManagerShell>
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final l = AppLocalizations.of(context);
-      final labels = [l.server, l.vpnUsers, l.diagTitle, l.settings];
+      final labels = [l.server, l.vpnUsers, l.settings];
       final rail =
           constraints.maxWidth >= AppLayout.compact &&
           constraints.maxHeight >= 400;
@@ -739,7 +705,7 @@ class _ManagerShellState extends State<ManagerShell>
               }
             },
             child: Scaffold(
-              appBar: _index == 3 || _index == 0 && _catalog?.selectedId != null
+              appBar: _index == 2 || _index == 0 && _catalog?.selectedId != null
                   ? null
                   : AppBar(
                       title: _index >= 2
@@ -823,7 +789,7 @@ class _ManagerShellState extends State<ManagerShell>
                     !_applyingSync &&
                     (Navigator.of(context).canPop() ||
                         _index == 0 && _catalog?.selectedId != null ||
-                        _index == 3 &&
+                        _index == 2 &&
                             (_settingsKey.currentState?.canGoBack ?? false) ||
                         _index < 2 && _selection.active),
                 onBack: () => Navigator.of(context).maybePop(),
@@ -857,7 +823,7 @@ class _ManagerShellState extends State<ManagerShell>
                             if (_catalog != null)
                               ServerCatalog(
                                 controller: _catalog!,
-                                onDiagnose: _openDiagnostics,
+                                diagnostics: _diagnostics,
                                 selection: _serverSelection,
                                 motion: widget.motion,
                                 vpn: _vpn,
@@ -888,10 +854,6 @@ class _ManagerShellState extends State<ManagerShell>
                               )
                             else
                               Center(child: Text(l.vpnNoUsers)),
-                            IpDiagnosticsPage(
-                              controller: _diagnostics,
-                              servers: _catalog?.servers ?? const [],
-                            ),
                             SettingsHub(
                               key: _settingsKey,
                               motion: widget.motion,

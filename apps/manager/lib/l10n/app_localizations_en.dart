@@ -3061,6 +3061,25 @@ class AppLocalizationsEn extends AppLocalizations {
       'Deletion is incomplete. Check the job in server maintenance; unfinished jobs can be resumed.';
 
   @override
+  String get diagSuspectedBlocking => 'Signs of blocking';
+
+  @override
+  String get diagConnectionLost => 'Connection lost after this IP';
+
+  @override
+  String get diagConnectionRestored => 'Connection restored';
+
+  @override
+  String get diagQueued => 'Waiting';
+
+  @override
+  String get diagNotTested => 'Not tested';
+
+  @override
+  String get diagNoIpv4 =>
+      'No public IPv4 addresses available for testing (up to 64 per server).';
+
+  @override
   String get diagTitle => 'IP diagnostics';
 
   @override

@@ -1,7 +1,58 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:antirkn_domain/antirkn_domain.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+
+/// A diagnostic always uses the saved connection and the server's own IPv4s.
+class ServerIpDiagnostics {
+  ServerIpDiagnostics(SshProfile profile, Iterable<IpAddress> addresses)
+    : key = jsonEncode([
+        profile.id,
+        profile.host,
+        profile.port,
+        profile.hostKey?.fingerprint,
+      ]),
+      sshPort = profile.port,
+      addresses = List.unmodifiable({
+        for (final ip in addresses)
+          if (ip.family == IpFamily.ipv4 &&
+              ip.category == IpCategory.publicUnicast)
+            ip.canonical,
+      });
+
+  final String key;
+  final int sshPort;
+  final List<String> addresses;
+
+  List<IpProbeTarget> targets(IpProbeKind kind) {
+    if (addresses.isEmpty ||
+        addresses.length > 64 ||
+        ![IpProbeKind.tcp, IpProbeKind.ssh].contains(kind)) {
+      throw const FormatException('diagnostic_targets');
+    }
+    return [
+      for (final ip in addresses)
+        IpProbeTarget(ip, kind == IpProbeKind.ssh ? sshPort : 443, kind: kind),
+    ];
+  }
+}
+
+class IpAddressDiagnostic {
+  const IpAddressDiagnostic({
+    required this.target,
+    required this.stage,
+    required this.running,
+    required this.current,
+    required this.strong,
+    required this.connectionLost,
+    required this.recovered,
+    this.status,
+  });
+  final IpProbeTarget target;
+  final IpProbeStatus? status;
+  final IpDiagnosticStage stage;
+  final bool running, current, strong, connectionLost, recovered;
+}
 
 class IpDiagnosticsController extends ChangeNotifier {
   IpDiagnosticsController({
@@ -16,11 +67,8 @@ class IpDiagnosticsController extends ChangeNotifier {
   final SettingsStore? store;
   final Future<bool> Function()? enter;
   final Future<void> Function()? leave;
-  final addresses = TextEditingController(),
-      port = TextEditingController(text: '443'),
-      host = TextEditingController();
-  IpProbeKind kind = IpProbeKind.tcp;
   IpDiagnosticRun? current;
+  String? serverKey;
   List<Map<String, dynamic>> history = [];
   bool busy = false, disposed = false, historyError = false;
   String? issue;
@@ -47,49 +95,59 @@ class IpDiagnosticsController extends ChangeNotifier {
     _notify();
   }
 
-  void seed(String value, {int? serverPort}) {
-    if (busy) return;
-    addresses.text = value;
-    if (serverPort != null) {
-      port.text = '$serverPort';
-      kind = IpProbeKind.ssh;
-    }
-    issue = null;
-    _notify();
-  }
-
-  List<IpProbeTarget> parse() {
-    final number = int.tryParse(port.text.trim());
-    if (number == null) throw const FormatException('diagnostic_target');
-    final values = addresses.text.trim().split(RegExp(r'[\s,;]+')).toSet();
-    if (values.isEmpty || values.length > 64) {
-      throw const FormatException('diagnostic_targets');
-    }
-    return values.map((ip) {
-      final target = IpProbeTarget(
-        ip,
-        number,
-        kind: kind,
-        host: host.text.trim(),
+  IpAddressDiagnostic? resultFor(ServerIpDiagnostics server, String ip) {
+    if (!server.addresses.contains(ip)) return null;
+    final live = current != null && serverKey == server.key;
+    final snapshot = live
+        ? {...current!.toJson(), 'currentIp': current!.currentIp}
+        : history.where((h) => h['serverKey'] == server.key).firstOrNull;
+    if (snapshot == null) return null;
+    try {
+      final targetJson = (snapshot['targets'] as List)
+          .whereType<Map>()
+          .where((t) => t['ip'] == ip)
+          .firstOrNull;
+      if (targetJson == null) return null;
+      final sample = (snapshot['samples'] as List)
+          .whereType<Map>()
+          .where((s) => s['phase'] == 'target' && s['ip'] == ip)
+          .firstOrNull;
+      final stage = IpDiagnosticStage.values.byName(
+        snapshot['stage'] as String,
       );
-      if (target.address.category != IpCategory.publicUnicast) {
-        throw const FormatException('diagnostic_public_ip');
-      }
-      return target;
-    }).toList();
+      final running = live && busy;
+      final activeStage = [
+        IpDiagnosticStage.baseline,
+        IpDiagnosticStage.target,
+        IpDiagnosticStage.controls,
+        IpDiagnosticStage.recovery,
+      ].contains(stage);
+      return IpAddressDiagnostic(
+        target: IpProbeTarget.fromJson(Map<String, dynamic>.from(targetJson)),
+        stage: !running && activeStage ? IpDiagnosticStage.cancelled : stage,
+        running: running,
+        current: snapshot['currentIp'] == ip,
+        strong:
+            snapshot['currentIp'] == ip && snapshot['suspectedStrong'] == true,
+        connectionLost:
+            snapshot['currentIp'] == ip && snapshot['lossAt'] != null,
+        recovered: snapshot['recoveredAt'] != null,
+        status: sample == null
+            ? null
+            : IpProbeStatus.values.byName(sample['status'] as String),
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
-  void setKind(IpProbeKind value) {
-    if (busy) return;
-    kind = value;
-    _notify();
-  }
-
-  Future<void> start(List<IpProbeTarget> targets) async {
+  Future<void> start(ServerIpDiagnostics server, IpProbeKind kind) async {
     if (busy || disposed) return;
+    final targets = server.targets(kind);
     busy = true;
     issue = null;
-    current = null;
+    serverKey = server.key;
+    current = IpDiagnosticRun(DateTime.now(), targets);
     _notify();
     var entered = false;
     _token = CancellationToken();
@@ -100,6 +158,7 @@ class IpDiagnosticsController extends ChangeNotifier {
       entered = enter == null || await enter!();
       if (!entered) {
         issue = 'busy';
+        current = null;
         return;
       }
       if (disposed || _token!.isCancelled) return;
@@ -116,6 +175,7 @@ class IpDiagnosticsController extends ChangeNotifier {
       await _writes;
     } catch (_) {
       issue = 'failed';
+      current?.stage = IpDiagnosticStage.failed;
     } finally {
       if (entered) await leave?.call();
       busy = false;
@@ -125,7 +185,11 @@ class IpDiagnosticsController extends ChangeNotifier {
   }
 
   void _save(IpDiagnosticRun value) {
-    final snapshot = Map<String, dynamic>.from(value.toJson());
+    final snapshot = <String, dynamic>{
+      ...value.toJson(),
+      'serverKey': serverKey,
+      'currentIp': value.currentIp,
+    };
     history = [
       snapshot,
       ...history.where((h) => h['startedAt'] != snapshot['startedAt']),
@@ -163,9 +227,6 @@ class IpDiagnosticsController extends ChangeNotifier {
   void dispose() {
     disposed = true;
     stop();
-    addresses.dispose();
-    port.dispose();
-    host.dispose();
     super.dispose();
   }
 }
