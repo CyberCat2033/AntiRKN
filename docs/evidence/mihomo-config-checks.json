@@ -1,0 +1,70 @@
+{
+  "downloadedRuleSnapshots": 4,
+  "checks": {
+    "vless_only": {
+      "status": "valid",
+      "code": "valid",
+      "version": "1.19.30",
+      "revision": "ac017cdd246ce8bd547653d927e7bf77d7ee73d5",
+      "hash": "8f30992d81713318d6b74b3288a87a5de2d6494f385c571007aa5e17dfdaa496",
+      "resourcesHash": "4816b50680c1dd182d7b81dfb4bc713b61a6266c7f93533b090c9117e9ab99e7"
+    },
+    "trusttunnel_only": {
+      "status": "valid",
+      "code": "valid",
+      "version": "1.19.30",
+      "revision": "ac017cdd246ce8bd547653d927e7bf77d7ee73d5",
+      "hash": "49be0f945845a53f81fd2d69d869ac66fa6a0768cd334f1a3b8996adf5b230cb",
+      "resourcesHash": "4816b50680c1dd182d7b81dfb4bc713b61a6266c7f93533b090c9117e9ab99e7"
+    },
+    "awg_only": {
+      "status": "valid",
+      "code": "valid",
+      "version": "1.19.30",
+      "revision": "ac017cdd246ce8bd547653d927e7bf77d7ee73d5",
+      "hash": "5217f2a8fc8f9cbe3bfee2d501c0c1aa7262c13ed45e77c2c1d39c96eaf9cf24",
+      "resourcesHash": "4816b50680c1dd182d7b81dfb4bc713b61a6266c7f93533b090c9117e9ab99e7"
+    },
+    "mixed_with_ru": {
+      "status": "valid",
+      "code": "valid",
+      "version": "1.19.30",
+      "revision": "ac017cdd246ce8bd547653d927e7bf77d7ee73d5",
+      "hash": "bc8cd4fccbcd8c3b7d19e632a9022a5c8a29773e74cf137166ad1fafbbd987a4",
+      "resourcesHash": "4816b50680c1dd182d7b81dfb4bc713b61a6266c7f93533b090c9117e9ab99e7"
+    },
+    "mixed_without_ru": {
+      "status": "valid",
+      "code": "valid",
+      "version": "1.19.30",
+      "revision": "ac017cdd246ce8bd547653d927e7bf77d7ee73d5",
+      "hash": "60a767a8047c67feb931af1b41c74f823b2a63fad6a3e91873f3053236c01d22",
+      "resourcesHash": "4816b50680c1dd182d7b81dfb4bc713b61a6266c7f93533b090c9117e9ab99e7"
+    },
+    "without_wg": {
+      "status": "valid",
+      "code": "valid",
+      "version": "1.19.30",
+      "revision": "ac017cdd246ce8bd547653d927e7bf77d7ee73d5",
+      "hash": "e832f4104e09573a18d40637be22e37076f151da0b1cdaa211e1e1a9c79afa23",
+      "resourcesHash": "4816b50680c1dd182d7b81dfb4bc713b61a6266c7f93533b090c9117e9ab99e7"
+    },
+    "provider_valid": {
+      "status": "valid",
+      "code": "valid",
+      "version": "1.19.30",
+      "revision": "ac017cdd246ce8bd547653d927e7bf77d7ee73d5",
+      "hash": "28ce92cc4f832c9d1f8fb9212ce1123a6aab5601ee3a1afd3f9cbd2b796f7d38",
+      "resourcesHash": "f27a3cf39901a314c347e43b1813b1ba400bc393f9d2972895deeefbab55e97d"
+    },
+    "provider_invalid": {
+      "status": "invalid",
+      "code": "provider_rejected",
+      "version": "1.19.30",
+      "revision": "ac017cdd246ce8bd547653d927e7bf77d7ee73d5",
+      "hash": "28ce92cc4f832c9d1f8fb9212ce1123a6aab5601ee3a1afd3f9cbd2b796f7d38",
+      "resourcesHash": "c50439415aa71d40c699ea0c0a10a32500ec673ed9d7fb579de93cdf531abb07",
+      "path": "rule-providers"
+    }
+  }
+}

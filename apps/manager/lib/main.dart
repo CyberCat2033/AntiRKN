@@ -1,3 +1,4 @@
+import 'package:antirkn_mihomo_runtime/antirkn_mihomo_runtime.dart';
 import 'package:flutter/foundation.dart';
 import 'package:antirkn_network_inventory/antirkn_network_inventory.dart';
 import 'network/android_ip_probe_transport.dart';
@@ -451,6 +452,7 @@ class _ManagerShellState extends State<ManagerShell>
     if (widget.source.trim().isNotEmpty) _controller.refresh();
     if (widget.servers is VpnRepository) {
       _vpn = VpnController(
+        coreValidator: MihomoConfigValidator(),
         connectForAction: (id) async =>
             await _catalog?.connectForAction(id) == true,
         connectForDeletion: (id) async =>
@@ -582,6 +584,7 @@ class _ManagerShellState extends State<ManagerShell>
         state == AppLifecycleState.inactive &&
             defaultTargetPlatform == TargetPlatform.android) {
       _diagnostics.stop();
+      _vpn?.cancelCoreValidation();
     }
     // An unfocused desktop window is still visible (e.g. beside a browser).
     // Android retains its existing foreground-only scheduling policy.

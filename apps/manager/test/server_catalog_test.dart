@@ -73,6 +73,58 @@ void main() {
         hostKey: key,
         secrets: const {ServerSecret.sshPassword: 'test-only'},
       );
+  testWidgets('server row keeps its layout while opening and closing', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 1000);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final repository = _Repository();
+    repository.servers.addAll({
+      for (final id in ['a', 'b', 'c']) id: profile(id),
+    });
+    final languages = LanguageController(repository);
+    await languages.load();
+    addTearDown(languages.dispose);
+    await tester.pumpWidget(
+      AntiRknApp(
+        source: '',
+        languages: languages,
+        servers: repository,
+        settings: repository,
+        ssh: SshDependencies(
+          openVault: () async => FakeVault(),
+          connector: FakeConnector(),
+          picker: FakeKeyPicker(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final row = find.byKey(const ValueKey('server-c'));
+    final subtitle = find.descendant(of: row, matching: find.byType(Column));
+    final size = tester.getSize(subtitle);
+    await tester.tap(row);
+    await tester.pump();
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(tester.getSize(subtitle), size, reason: 'opening frame $i');
+      expect(tester.takeException(), isNull);
+    }
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('server-list-back')));
+    await tester.pump();
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(tester.getSize(subtitle), size, reason: 'closing frame $i');
+      expect(tester.takeException(), isNull);
+    }
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('server-a')), findsOneWidget);
+    expect(find.byKey(const ValueKey('server-b')), findsOneWidget);
+    expect(tester.getSize(subtitle), size);
+  });
+
   for (final outcome in ['accept', 'reject', 'cancel']) {
     test('jump and target trust are saved separately: $outcome', () async {
       final repo = _Repository();

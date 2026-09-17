@@ -13,6 +13,7 @@ import 'client_deletion_panel.dart';
 import 'vpn_controller.dart';
 import 'vpn_plan_view.dart';
 import 'vpn_strings.dart';
+import 'core_config_check.dart';
 
 class UsersPage extends StatefulWidget {
   const UsersPage({
@@ -390,6 +391,11 @@ class _UsersPageState extends State<UsersPage> {
                                             .first
                                             .code,
                                       ),
+                                    ),
+                                  if (!selection.active)
+                                    CoreConfigCheckAction(
+                                      controller: c,
+                                      userId: user.id,
                                     ),
                                 ],
                               ),

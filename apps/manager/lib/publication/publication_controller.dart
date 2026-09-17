@@ -223,6 +223,7 @@ class PublicationController extends ChangeNotifier {
           user.enabled,
           vpn.workspace.profiles[user.id]?['hash'],
           vpn.results[user.id]?.hasBlockingErrors,
+          vpn.coreCheckFor(user.id)?.status == CoreConfigStatus.invalid,
         ],
     ]);
     if (stamp == _profileStamp) return;
@@ -272,6 +273,9 @@ class PublicationController extends ChangeNotifier {
             !vpn.busy &&
             canPublish?.call() != false &&
             vpn.results[draft.userId]?.hasBlockingErrors == false &&
+            !vpn.coreValidationBusy &&
+            vpn.coreCheckFor(draft.userId)?.status !=
+                CoreConfigStatus.invalid &&
             vpn.results[draft.userId]?.sha256Hash == draft.hash,
       );
       for (final user in vpn.workspace.users.toList()) {
@@ -372,6 +376,8 @@ class PublicationController extends ChangeNotifier {
       !vpn.busy &&
       canPublish?.call() != false &&
       vpn.results[draft.userId]?.hasBlockingErrors == false &&
+      !vpn.coreValidationBusy &&
+      vpn.coreCheckFor(draft.userId)?.status != CoreConfigStatus.invalid &&
       vpn.results[draft.userId]?.sha256Hash == draft.hash;
 
   Future<T> _bindingEdit<T>(Future<T> Function() action) async {

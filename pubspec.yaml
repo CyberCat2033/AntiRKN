@@ -12,7 +12,9 @@ workspace:
   - packages/network_inventory
   - packages/design_system
   - packages/profile_compiler
+  - packages/mihomo_runtime
 dev_dependencies:
+  yaml: 3.1.3
   antirkn_integrations:
     path: packages/integrations
   antirkn_sync:

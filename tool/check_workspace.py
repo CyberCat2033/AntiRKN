@@ -26,6 +26,7 @@ for key in keys(catalogs['en']) & keys(catalogs['ru']):
         errors.append(f'Translation placeholders differ: {key}')
 
 allowed = {
+    'mihomo_runtime': {'antirkn_domain', 'flutter', 'crypto', 'yaml', 'path_provider'},
     'domain': set(),
     'network_inventory': {'antirkn_domain'},
     'profile_compiler': {'antirkn_domain', 'crypto', 'yaml', 'yaml_edit'},

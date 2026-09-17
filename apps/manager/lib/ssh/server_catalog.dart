@@ -438,6 +438,7 @@ class _ServerCatalogState extends State<ServerCatalog> {
                                 ),
                                 title: Text(server.profile.displayName),
                                 subtitle: Column(
+                                  mainAxisSize: MainAxisSize.min,
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(

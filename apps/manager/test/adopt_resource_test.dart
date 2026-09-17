@@ -356,7 +356,7 @@ void main() {
   });
   for (final language in ['ru', 'en']) {
     testWidgets(
-      'adoption warning cancels without effect and confirms entered address: $language',
+      'adoption consent has no fields and preserves the observed settings: $language',
       (tester) async {
         Map<String, Object?>? result;
         await tester.pumpWidget(
@@ -386,7 +386,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(
           find.textContaining(
-            language == 'ru' ? 'Существующие настройки' : 'Existing settings',
+            language == 'ru' ? 'Текущие настройки' : 'Existing settings',
           ),
           findsOneWidget,
         );
@@ -395,20 +395,10 @@ void main() {
         expect(result, isNull);
         await tester.tap(find.text('Open'));
         await tester.pumpAndSettle();
-        await tester.enterText(
-          find.byKey(const ValueKey('adopt-endpoint')),
-          '0.0.0.0',
-        );
-        await tester.tap(find.byKey(const ValueKey('adopt-confirm')));
-        await tester.pump();
-        expect(result, isNull);
-        await tester.enterText(
-          find.byKey(const ValueKey('adopt-endpoint')),
-          '203.0.113.10',
-        );
+        expect(find.byType(TextField), findsNothing);
         await tester.tap(find.byKey(const ValueKey('adopt-confirm')));
         await tester.pumpAndSettle();
-        expect(result!['endpoint'], '203.0.113.10');
+        expect(result, equals(spec('vless')));
         expect(tester.takeException(), isNull);
       },
     );

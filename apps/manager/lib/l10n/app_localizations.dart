@@ -5795,7 +5795,7 @@ abstract class AppLocalizations {
   /// No description provided for @vpnAdoptWarning.
   ///
   /// In en, this message translates to:
-  /// **'AntiRKN will create and revoke access for its clients and update their profiles. Existing settings, keys and access will be preserved. Existing users will not be added to the AntiRKN client list. Applying changes may briefly restart the service.'**
+  /// **'AntiRKN will manage access for its clients. Existing settings and users will be preserved.'**
   String get vpnAdoptWarning;
 
   /// No description provided for @vpnAdopting.
@@ -5821,6 +5821,108 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Client management could not be confirmed. Check the operation status before retrying.'**
   String get vpnAdoptFailed;
+
+  /// No description provided for @coreCheckConfig.
+  ///
+  /// In en, this message translates to:
+  /// **'Check config'**
+  String get coreCheckConfig;
+
+  /// No description provided for @coreNotChecked.
+  ///
+  /// In en, this message translates to:
+  /// **'Config not checked by the core yet'**
+  String get coreNotChecked;
+
+  /// No description provided for @coreValid.
+  ///
+  /// In en, this message translates to:
+  /// **'Config is valid'**
+  String get coreValid;
+
+  /// No description provided for @coreInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid config'**
+  String get coreInvalid;
+
+  /// No description provided for @coreIncomplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Partially checked'**
+  String get coreIncomplete;
+
+  /// No description provided for @coreCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Check stopped'**
+  String get coreCancelled;
+
+  /// No description provided for @coreUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Check unavailable'**
+  String get coreUnavailable;
+
+  /// No description provided for @coreChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking config…'**
+  String get coreChecking;
+
+  /// No description provided for @coreCheckingHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Mihomo is checking the current YAML and available rule sets.'**
+  String get coreCheckingHelp;
+
+  /// No description provided for @coreMissingResources.
+  ///
+  /// In en, this message translates to:
+  /// **'The check is incomplete: external resources or the client environment are required. Retry when they are available.'**
+  String get coreMissingResources;
+
+  /// No description provided for @coreProviderInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Mihomo could not parse the rule set content. The last publication is preserved.'**
+  String get coreProviderInvalid;
+
+  /// No description provided for @coreInputLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'The config or its resources exceed the quick check limit.'**
+  String get coreInputLimit;
+
+  /// No description provided for @coreRejected.
+  ///
+  /// In en, this message translates to:
+  /// **'Mihomo found an error in the current config. Check its parameters and references to proxy nodes.'**
+  String get coreRejected;
+
+  /// No description provided for @coreValidationScope.
+  ///
+  /// In en, this message translates to:
+  /// **'Mihomo accepted the config. This test does not check connection availability.'**
+  String get coreValidationScope;
+
+  /// No description provided for @coreCancelledHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'An unfinished check is not counted as successful.'**
+  String get coreCancelledHelp;
+
+  /// No description provided for @coreUnavailableHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'The core could not start or the check did not finish. Try again.'**
+  String get coreUnavailableHelp;
+
+  /// No description provided for @coreStop.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop'**
+  String get coreStop;
 }
 
 class _AppLocalizationsDelegate

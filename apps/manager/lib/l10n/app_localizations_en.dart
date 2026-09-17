@@ -3254,7 +3254,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get vpnAdoptWarning =>
-      'AntiRKN will create and revoke access for its clients and update their profiles. Existing settings, keys and access will be preserved. Existing users will not be added to the AntiRKN client list. Applying changes may briefly restart the service.';
+      'AntiRKN will manage access for its clients. Existing settings and users will be preserved.';
 
   @override
   String get vpnAdopting => 'Waiting for management to be confirmed';
@@ -3270,4 +3270,63 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get vpnAdoptFailed =>
       'Client management could not be confirmed. Check the operation status before retrying.';
+
+  @override
+  String get coreCheckConfig => 'Check config';
+
+  @override
+  String get coreNotChecked => 'Config not checked by the core yet';
+
+  @override
+  String get coreValid => 'Config is valid';
+
+  @override
+  String get coreInvalid => 'Invalid config';
+
+  @override
+  String get coreIncomplete => 'Partially checked';
+
+  @override
+  String get coreCancelled => 'Check stopped';
+
+  @override
+  String get coreUnavailable => 'Check unavailable';
+
+  @override
+  String get coreChecking => 'Checking config…';
+
+  @override
+  String get coreCheckingHelp =>
+      'Mihomo is checking the current YAML and available rule sets.';
+
+  @override
+  String get coreMissingResources =>
+      'The check is incomplete: external resources or the client environment are required. Retry when they are available.';
+
+  @override
+  String get coreProviderInvalid =>
+      'Mihomo could not parse the rule set content. The last publication is preserved.';
+
+  @override
+  String get coreInputLimit =>
+      'The config or its resources exceed the quick check limit.';
+
+  @override
+  String get coreRejected =>
+      'Mihomo found an error in the current config. Check its parameters and references to proxy nodes.';
+
+  @override
+  String get coreValidationScope =>
+      'Mihomo accepted the config. This test does not check connection availability.';
+
+  @override
+  String get coreCancelledHelp =>
+      'An unfinished check is not counted as successful.';
+
+  @override
+  String get coreUnavailableHelp =>
+      'The core could not start or the check did not finish. Try again.';
+
+  @override
+  String get coreStop => 'Stop';
 }

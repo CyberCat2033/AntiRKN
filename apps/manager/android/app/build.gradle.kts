@@ -77,3 +77,32 @@ flutter {
 dependencies {
     implementation("com.google.android.gms:play-services-auth:22.0.0")
 }
+
+// All selected Flutter ABIs include the same pinned core. Generated binaries stay
+// under build/, and the task input digest avoids rebuilding unchanged Go code.
+val mihomoGenerated = layout.buildDirectory.dir("generated/mihomo")
+android.sourceSets.getByName("main") {
+    jniLibs.srcDir(mihomoGenerated.map { it.dir("jniLibs") })
+    assets.srcDir(mihomoGenerated.map { it.dir("assets") })
+}
+val buildMihomo by tasks.registering {
+    doLast {
+        val root = rootProject.projectDir.resolve("../../..").canonicalFile
+        val selected = providers.gradleProperty("target-platform").orElse("android-arm,android-arm64,android-x64").get().split(',')
+        val abis = mapOf("android-arm" to "armeabi-v7a", "android-arm64" to "arm64-v8a", "android-x64" to "x86_64")
+        for (platform in selected) {
+            val abi = abis[platform] ?: throw GradleException("Unsupported Mihomo ABI: $platform")
+            val output = mihomoGenerated.get().file("jniLibs/$abi/libantirkn_mihomo.so").asFile
+            val process = ProcessBuilder("python3", root.resolve("tool/build_mihomo.py").path,
+                "--target", "android", "--abi", abi,
+                "--ndk", android.sdkDirectory.resolve("ndk/${android.ndkVersion}").path,
+                "--output", output.path).inheritIO().start()
+            if (process.waitFor() != 0) throw GradleException("Mihomo native build failed")
+            copy {
+                from(output.parentFile.resolve("notices"))
+                into(mihomoGenerated.get().dir("assets/mihomo/notices"))
+            }
+        }
+    }
+}
+tasks.named("preBuild").configure { dependsOn(buildMihomo) }

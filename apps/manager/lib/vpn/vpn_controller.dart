@@ -61,6 +61,7 @@ class VpnController extends ChangeNotifier {
     this.connectForDeletion,
     this.connectForAction,
     this.recovery,
+    this.coreValidator,
     Timer Function(Duration, void Function(Timer))? timer,
   }) {
     _timer = (timer ?? Timer.periodic)(
@@ -69,6 +70,7 @@ class VpnController extends ChangeNotifier {
     );
   }
   final VpnRepository repository;
+  final CoreConfigValidator? coreValidator;
   final WorkspaceRecoveryStore? recovery;
   Set<String> _restoredTargets = {};
   bool needsRestoreReview(String id) => _restoredTargets.contains(id);
@@ -125,6 +127,69 @@ class VpnController extends ChangeNotifier {
   int revision = 0;
   List<VpnPlan> plans = [];
   final results = <String, ProfileResult>{};
+  final _coreChecks = <String, CoreConfigCheck>{};
+  CancellationToken? _coreCancellation;
+  String? coreCheckingUser;
+  bool get coreValidationBusy => _coreCancellation != null;
+
+  CoreConfigCheck? coreCheckFor(String userId) {
+    final check = _coreChecks[userId];
+    if (check == null ||
+        check.profileHash != results[userId]?.sha256Hash ||
+        _lastTemplate != template() ||
+        !workspace.users.any(
+          (u) => u.id == userId && !u.deleted && u.enabled,
+        )) {
+      return null;
+    }
+    if (check.status != CoreConfigStatus.invalid &&
+        DateTime.now().difference(check.checkedAt) >
+            const Duration(minutes: 5)) {
+      return null;
+    }
+    return check;
+  }
+
+  void cancelCoreValidation() => _coreCancellation?.cancel();
+
+  Future<void> validateCoreProfile(String userId) async {
+    if (coreValidationBusy || busy || !loaded) return;
+    final token = CancellationToken();
+    _coreCancellation = token;
+    coreCheckingUser = userId;
+    notifyListeners();
+    try {
+      // Compile a fresh snapshot without writing profile history or publishing.
+      final source = template();
+      final snapshot = workspace.encode();
+      final compiled = await compute(_compile, (snapshot, source, userId));
+      if (_disposed || token.isCancelled) return;
+      final yaml = compiled.yaml, hash = compiled.sha256Hash;
+      if (yaml == null || hash == null || compiled.hasBlockingErrors) return;
+      final check = coreValidator == null
+          ? CoreConfigCheck(
+              status: CoreConfigStatus.unavailable,
+              code: 'runtime_unavailable',
+              profileHash: hash,
+              checkedAt: DateTime.now().toUtc(),
+            )
+          : await coreValidator!.validate(yaml, token);
+      if (!_disposed &&
+          source == template() &&
+          snapshot == workspace.encode() &&
+          results[userId]?.sha256Hash == hash &&
+          check.profileHash == hash) {
+        _coreChecks[userId] = check;
+      }
+    } catch (_) {
+      // No YAML, native errors or credentials are exposed by the controller.
+    } finally {
+      _coreCancellation = null;
+      coreCheckingUser = null;
+      if (!_disposed) notifyListeners();
+    }
+  }
+
   String? selectedUserId;
   String? _lastTemplate;
   void _notify() {
@@ -1215,6 +1280,7 @@ class VpnController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _coreCancellation?.cancel();
     _identityNoticeTimer?.cancel();
     _disposed = true;
     _timer?.cancel();

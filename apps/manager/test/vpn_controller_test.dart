@@ -168,8 +168,10 @@ VpnController controller(
   Map<String, Remote> remotes, {
   String Function()? source,
   WorkspaceRecoveryStore? recovery,
+  CoreConfigValidator? coreValidator,
 }) => VpnController(
   repository: store,
+  coreValidator: coreValidator,
   recovery: recovery,
   template: source ?? () => template,
   remote: (id) => remotes[id] == null

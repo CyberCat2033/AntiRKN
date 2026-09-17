@@ -176,8 +176,26 @@ class _AdoptedResourceDialogState extends State<AdoptedResourceDialog> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    if (widget.consent) {
+      return AlertDialog(
+        title: Text(l.vpnAdopt),
+        content: Text(l.vpnAdoptWarning),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(l.sshCancel),
+          ),
+          FilledButton(
+            key: const ValueKey('adopt-confirm'),
+            onPressed: () =>
+                Navigator.pop(context, Map<String, Object?>.from(widget.spec)),
+            child: Text(l.vpnAdopt),
+          ),
+        ],
+      );
+    }
     return AppFormDialog(
-      title: Text(widget.consent ? l.vpnAdopt : l.vpnEdit),
+      title: Text(l.vpnEdit),
       content: SizedBox(
         width: 500,
         child: SingleChildScrollView(
@@ -185,10 +203,6 @@ class _AdoptedResourceDialogState extends State<AdoptedResourceDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (widget.consent) ...[
-                Text(l.vpnAdoptWarning),
-                const SizedBox(height: 16),
-              ],
               TextField(
                 key: const ValueKey('adopt-name'),
                 controller: name,
@@ -239,7 +253,7 @@ class _AdoptedResourceDialogState extends State<AdoptedResourceDialog> {
               'externalPort': value,
             });
           },
-          child: Text(widget.consent ? l.vpnAdopt : l.vpnSave),
+          child: Text(l.vpnSave),
         ),
       ],
     );

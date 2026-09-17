@@ -106,3 +106,7 @@ install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
 install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   CONFIGURATIONS Profile;Release
   COMPONENT Runtime)
+
+# Pinned native validator is built with the application, never downloaded at runtime.
+set(ANTIRKN_MIHOMO_TARGET windows)
+include("${CMAKE_CURRENT_SOURCE_DIR}/../native_mihomo.cmake")

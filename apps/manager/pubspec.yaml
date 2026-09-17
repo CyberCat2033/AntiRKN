@@ -6,6 +6,8 @@ resolution: workspace
 environment:
   sdk: '>=3.11.0 <4.0.0'
 dependencies:
+  antirkn_mihomo_runtime:
+    path: ../../packages/mihomo_runtime
   flutter:
     sdk: flutter
   flutter_localizations:
@@ -30,6 +32,7 @@ dependencies:
   antirkn_profile_compiler:
     path: ../../packages/profile_compiler
 dev_dependencies:
+  crypto: 3.0.7
   cryptography: 2.9.0
   flutter_test:
     sdk: flutter

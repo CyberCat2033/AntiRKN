@@ -3,10 +3,10 @@ import 'dart:convert';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:crypto/crypto.dart';
 import 'package:yaml/yaml.dart';
-import 'package:yaml_edit/yaml_edit.dart';
 
 import 'prepared_proxy.dart';
 import 'safe_yaml.dart';
+import 'profile_yaml.dart';
 
 final class ProxyDescriptor {
   const ProxyDescriptor(this.name, this.type);
@@ -54,7 +54,7 @@ final class ProfileResult {
 /// Stateless, shared by the GUI and command-line/integration probes.
 final class ProfileCompiler {
   const ProfileCompiler();
-  static const version = '0.2.0';
+  static const version = '0.3.0';
   static const targetCore = 'mihomo-v1.19.30';
 
   ProfileResult preview({
@@ -106,15 +106,10 @@ final class ProfileCompiler {
       }
       String? yaml;
       if (selected != null) {
-        final editor = YamlEditor(template);
-        editor.update(
-          ['proxies'],
-          [
-            ...existing,
-            for (final node in selected) canonicalValue(node.fields),
-          ],
-        );
-        yaml = editor.toString();
+        yaml = writeProfileYaml(template, [
+          ...existing,
+          for (final node in selected) node.fields,
+        ]);
       }
       final diagnostics = <ProfileDiagnostic>[];
       void warn(String code, [String? subject]) => diagnostics.add(
