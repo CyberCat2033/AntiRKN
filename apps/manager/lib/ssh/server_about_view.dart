@@ -1,3 +1,4 @@
+import 'server_clear_clients_view.dart';
 import 'server_reboot_view.dart';
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
@@ -7,6 +8,7 @@ import 'package:intl/intl.dart';
 import '../l10n/app_localizations.dart';
 import '../network/ip_diagnostics_controller.dart';
 import '../network/server_ip_diagnostics.dart';
+import '../vpn/vpn_controller.dart';
 import 'ssh_controller.dart';
 
 String serverBytes(int value) {
@@ -23,10 +25,12 @@ class ServerAboutView extends StatelessWidget {
   const ServerAboutView({
     required this.controller,
     this.diagnostics,
+    this.vpn,
     super.key,
   });
   final SshController controller;
   final IpDiagnosticsController? diagnostics;
+  final VpnController? vpn;
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: Listenable.merge([controller, controller.runner, diagnostics]),
@@ -119,6 +123,8 @@ class ServerAboutView extends StatelessWidget {
               Text(l.diagNoIpv4, style: Theme.of(context).textTheme.bodySmall),
           ],
           ServerRebootView(controller: c),
+          const SizedBox(height: 8),
+          ServerClearClientsView(controller: c, vpn: vpn),
           AppSettingsSection(
             title: l.uiPublicAddresses,
             child: Column(

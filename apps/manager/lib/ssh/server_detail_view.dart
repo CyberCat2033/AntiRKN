@@ -11,6 +11,7 @@ import 'server_about_view.dart';
 import 'ssh_controller.dart';
 import 'ssh_harden_wizard.dart';
 import 'ssh_panel.dart';
+import '../vpn/vpn_controller.dart';
 
 class ServerProtocolSection {
   const ServerProtocolSection({
@@ -38,6 +39,7 @@ class ServerDetailView extends StatefulWidget {
   const ServerDetailView({
     required this.session,
     required this.motion,
+    this.vpn,
     this.onBack,
     this.diagnostics,
     this.protocols,
@@ -50,6 +52,7 @@ class ServerDetailView extends StatefulWidget {
   });
   final SshController session;
   final MotionPreference motion;
+  final VpnController? vpn;
   final VoidCallback? onBack;
   final IpDiagnosticsController? diagnostics;
   final Widget? protocols, plans, activity, coreUpgrade;
@@ -661,6 +664,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                           ServerAboutView(
                             controller: c,
                             diagnostics: widget.diagnostics,
+                            vpn: widget.vpn,
                           ),
                         ])
                       : const SizedBox.shrink(),

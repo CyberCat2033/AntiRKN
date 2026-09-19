@@ -1357,5 +1357,10 @@
   "serverRebootConfirm": "Restart the server? SSH and VPN connections will be interrupted briefly.",
   "serverRebootWaiting": "The server is restarting. Waiting for it to reconnect…",
   "serverRebootDone": "Server restart confirmed.",
-  "serverRebootFailed": "The restart is not confirmed yet. Reconnect to check its status."
+  "serverRebootFailed": "The restart is not confirmed yet. Reconnect to check its status.",
+  "serverClearClients": "Delete all clients",
+  "serverClearClientsConfirm": "This will remove all clients and peers across all managed protocols on this server (VLESS, AmneziaWG, TrustTunnel), including third-party clients. Active client connections will be terminated.",
+  "serverClearClientsWaiting": "Deleting all clients…",
+  "serverClearClientsDone": "All clients have been deleted from managed inbounds.",
+  "serverClearClientsFailed": "Failed to delete clients from managed inbounds."
 }

@@ -1357,5 +1357,10 @@
   "serverRebootConfirm": "Перезапустить сервер? SSH и VPN-соединения временно прервутся.",
   "serverRebootWaiting": "Сервер перезапускается. Ожидаем восстановления связи…",
   "serverRebootDone": "Перезапуск сервера подтверждён.",
-  "serverRebootFailed": "Перезапуск пока не подтверждён. Подключитесь снова, чтобы проверить состояние."
+  "serverRebootFailed": "Перезапуск пока не подтверждён. Подключитесь снова, чтобы проверить состояние.",
+  "serverClearClients": "Удалить всех клиентов",
+  "serverClearClientsConfirm": "Будут удалены все клиенты и пиры во всех managed-протоколах на этом сервере (VLESS, AmneziaWG, TrustTunnel), включая сторонних клиентов. Активные подключения клиентов будут разорваны.",
+  "serverClearClientsWaiting": "Удаление всех клиентов…",
+  "serverClearClientsDone": "Все клиенты удалены из managed-инбаундов.",
+  "serverClearClientsFailed": "Не удалось удалить клиентов из managed-инбаундов."
 }

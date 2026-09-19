@@ -148,5 +148,22 @@ class RunnerTests(unittest.TestCase):
         with self.assertRaises(ValueError): Store(self.directory)
         self.assertEqual(self.store.db.execute('PRAGMA user_version').fetchone()[0], 2)
 
+    def test_clear_managed_clients(self):
+        res = self.store.request(dict(version=1, action='clear_managed_clients'))
+        self.assertEqual(res['code'], 'ok')
+        self.assertEqual(res['clearedClients'], {'cleared': 0})
+        # Add sample resources and revoked clients
+        with self.store.db:
+            self.store.db.execute('INSERT INTO revoked_clients VALUES (?, ?)', ('ws1', 'u1'))
+            self.store.db.execute('INSERT INTO tt_resources VALUES (?, ?)', ('res1', json.dumps({
+                'workspaceId': 'ws1', 'spec': {'id': 'res1'}, 'clients': [{'id': 'u1'}]
+            })))
+            self.store.db.execute('INSERT INTO awg_resources VALUES (?, ?)', ('res2', json.dumps({
+                'workspaceId': 'ws1', 'spec': {'id': 'res2'}, 'clients': [{'id': 'u1'}]
+            })))
+        res = self.store.request(dict(version=1, action='clear_managed_clients'))
+        self.assertEqual(res['code'], 'ok')
+        self.assertEqual(self.store.db.execute('SELECT COUNT(*) FROM revoked_clients').fetchone()[0], 0)
+
 if __name__ == '__main__':
     unittest.main()

@@ -1,0 +1,40 @@
+{
+  "date": "2026-09-19",
+  "scope": "add button in About Server to clear all clients on managed inbounds (VLESS, AmneziaWG, TrustTunnel) including foreign ones",
+  "checks": {
+    "python_runner_tests": {
+      "runner_test": {
+        "passed": 174,
+        "failed": 0
+      }
+    },
+    "targeted_widget_tests": {
+      "server_clear_clients_widget_test": {
+        "passed": 4,
+        "failed": 0
+      },
+      "runner_controller_test": {
+        "passed": 14,
+        "failed": 0
+      }
+    },
+    "flutter_analyze": true,
+    "workspace_check": true,
+    "localization_messages_per_locale": 1038,
+    "diff_check": true
+  },
+  "android": {
+    "device": "OnePlus HD1911",
+    "architecture": "arm64",
+    "build": "release",
+    "google_project_id_configured": true,
+    "apk_size_bytes": 77809782,
+    "apk_sha256": "897d4cc80f1b6d108677749fdb19e6a0bcdaab4982562484d769f5e673e07a6d",
+    "installed_with_data_preserved": true,
+    "installed_apk_hash_matches": true
+  },
+  "not_verified": [
+    "manual physical screen clicks on live user VPS",
+    "Linux and Windows desktop runtime"
+  ]
+}

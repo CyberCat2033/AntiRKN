@@ -3555,4 +3555,22 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get serverRebootFailed =>
       'The restart is not confirmed yet. Reconnect to check its status.';
+
+  @override
+  String get serverClearClients => 'Delete all clients';
+
+  @override
+  String get serverClearClientsConfirm =>
+      'This will remove all clients and peers across all managed protocols on this server (VLESS, AmneziaWG, TrustTunnel), including third-party clients. Active client connections will be terminated.';
+
+  @override
+  String get serverClearClientsWaiting => 'Deleting all clients…';
+
+  @override
+  String get serverClearClientsDone =>
+      'All clients have been deleted from managed inbounds.';
+
+  @override
+  String get serverClearClientsFailed =>
+      'Failed to delete clients from managed inbounds.';
 }

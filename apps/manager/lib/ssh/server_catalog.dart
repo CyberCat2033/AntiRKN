@@ -196,6 +196,7 @@ class _ServerCatalogState extends State<ServerCatalog> {
       return ServerDetailView(
         key: ObjectKey(session),
         session: session,
+        vpn: vpn,
         coreUpgrade: vpn == null
             ? null
             : XrayUpgradeView(

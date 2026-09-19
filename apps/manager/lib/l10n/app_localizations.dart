@@ -6301,6 +6301,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The restart is not confirmed yet. Reconnect to check its status.'**
   String get serverRebootFailed;
+
+  /// No description provided for @serverClearClients.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete all clients'**
+  String get serverClearClients;
+
+  /// No description provided for @serverClearClientsConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'This will remove all clients and peers across all managed protocols on this server (VLESS, AmneziaWG, TrustTunnel), including third-party clients. Active client connections will be terminated.'**
+  String get serverClearClientsConfirm;
+
+  /// No description provided for @serverClearClientsWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleting all clients…'**
+  String get serverClearClientsWaiting;
+
+  /// No description provided for @serverClearClientsDone.
+  ///
+  /// In en, this message translates to:
+  /// **'All clients have been deleted from managed inbounds.'**
+  String get serverClearClientsDone;
+
+  /// No description provided for @serverClearClientsFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to delete clients from managed inbounds.'**
+  String get serverClearClientsFailed;
 }
 
 class _AppLocalizationsDelegate

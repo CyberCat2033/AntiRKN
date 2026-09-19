@@ -45,6 +45,159 @@ def strict_json(raw):
     return json.loads(raw, object_pairs_hook=pairs)
 
 
+def clear_managed_clients(store):
+    cleared = 0
+    # 1. VLESS resources
+    import vless
+    try:
+        owned_vless = {r['id']: json.loads(r['data']) for r in store.db.execute('SELECT * FROM vless_resources')}
+    except Exception:
+        owned_vless = {}
+    panels = {}
+    for res_id, r in owned_vless.items():
+        panels.setdefault(r.get('panelId'), []).append((res_id, r))
+    for panel_id, items in panels.items():
+        try:
+            api = panel_for(store, panel_id)
+            inbounds = api.call('/panel/api/inbounds/list')
+        except Exception:
+            continue
+        restarted = False
+        for res_id, r in items:
+            row = None
+            if r.get('adopted'):
+                try:
+                    source_id = int(r['spec']['adoption']['sourceId'])
+                    row = next((x for x in inbounds if x['id'] == source_id), None)
+                except Exception:
+                    row = None
+            else:
+                row = vless.locate(inbounds, r['workspaceId'], res_id)
+            if row is not None:
+                settings = vless.object_field(row.get('settings') or '{}')
+                if settings.get('clients'):
+                    cleared += len(settings['clients'])
+                settings['clients'] = []
+                wanted = dict(row)
+                wanted['settings'] = vless.canonical(settings)
+                api.call('/panel/api/inbounds/update/%d' % row['id'], wanted)
+                restarted = True
+                r['clients'] = []
+                r['observedHash'] = vless.digest(vless.normal(wanted))
+                with store.db:
+                    store.db.execute('UPDATE vless_resources SET data=? WHERE id=?', (vless.canonical(r), res_id))
+        if restarted:
+            try:
+                api.call('/panel/api/server/restartXrayService', {})
+                deadline = time.monotonic() + 20
+                while time.monotonic() < deadline:
+                    st = api.call('/panel/api/server/status')
+                    if isinstance(st, dict) and isinstance(st.get('xray'), dict) and st['xray'].get('state') == 'running':
+                        break
+                    time.sleep(0.25)
+            except Exception:
+                pass
+
+    # 2. AmneziaWG resources
+    import awg
+    import hashlib
+    try:
+        owned_awg = {r['id']: json.loads(r['data']) for r in store.db.execute('SELECT * FROM awg_resources')}
+    except Exception:
+        owned_awg = {}
+    for res_id, r in owned_awg.items():
+        try:
+            import managed_awg
+            QUICK = {b'Address', b'MTU', b'DNS', b'Table', b'PreUp', b'PostUp', b'PreDown', b'PostDown', b'SaveConfig'}
+            if r.get('adopted'):
+                source_id = r['spec']['adoption']['sourceId']
+                resource, raw, values, peers, fingerprint = awg_external.read_resource(source_id)
+                header, blocks = managed_awg.peer_blocks(raw.decode())
+                cleared += len(blocks)
+                if not header.endswith('\n'):
+                    header += '\n'
+                awg_external.write_file(resource, header.encode())
+                if resource.get('active'):
+                    core = b''.join(line for line in header.encode().splitlines(keepends=True) if line.split(b'=', 1)[0].strip() not in QUICK)
+                    awg_external.exec_resource(resource, [resource['binary'], 'syncconf', resource['name'], '/dev/stdin'], core)
+                r['clients'] = []
+                with store.db:
+                    store.db.execute('UPDATE awg_resources SET data=? WHERE id=?', (vless.canonical(r), res_id))
+            else:
+                conf_path, net_path = awg.paths(r['id'])
+                if conf_path.exists():
+                    header, blocks = managed_awg.peer_blocks(conf_path.read_text())
+                    cleared += len(blocks)
+                    if not header.endswith('\n'):
+                        header += '\n'
+                    from panel import atomic_file
+                    atomic_file(conf_path, header.encode())
+                    if awg.active(r['id']):
+                        name = awg.name_for(r['id'])
+                        core = b''.join(line for line in header.encode().splitlines(keepends=True) if line.split(b'=', 1)[0].strip() not in QUICK)
+                        vless.command([awg.AWG, 'syncconf', name, '/dev/stdin'], input_data=core)
+                    r['clients'] = []
+                    r['configHash'] = hashlib.sha256(header.encode()).hexdigest()
+                    with store.db:
+                        store.db.execute('UPDATE awg_resources SET data=? WHERE id=?', (vless.canonical(r), res_id))
+        except Exception:
+            pass
+
+    # 3. TrustTunnel resources
+    import tt
+    import secrets
+    import hmac
+    try:
+        owned_tt = {r['id']: json.loads(r['data']) for r in store.db.execute('SELECT * FROM tt_resources')}
+    except Exception:
+        owned_tt = {}
+    for res_id, r in owned_tt.items():
+        try:
+            import tt_common
+            if r.get('adopted'):
+                import managed_tt
+                current = managed_tt.snapshot(store, {}, r)
+                resource = current['resource']
+                credentials = tt_common.toml_loads(current['credentials'])
+                cleared += len([c for c in credentials.get('client', []) if c.get('username') != '_antirkn_no_clients'])
+                sentinel = secrets.token_hex(32)
+                credentials['client'] = [dict(username='_antirkn_no_clients', password=sentinel)]
+                new_creds = tt_common.toml_bytes(credentials)
+                tt_external.write_existing(Path(resource['credentials']), new_creds, resource['ownerUid'])
+                if resource.get('active'):
+                    tt_common.run(['/usr/bin/systemctl', 'restart', resource['unit']], timeout=60)
+                r['clients'] = []
+                with store.db:
+                    store.db.execute('UPDATE tt_resources SET data=? WHERE id=?', (vless.canonical(r), res_id))
+            else:
+                from panel import atomic_file
+                base = tt_common.ROOT / r['spec']['id']
+                cred_path = base / 'credentials.toml'
+                if cred_path.exists():
+                    key = Path(tt.KEY).read_bytes() if Path(tt.KEY).exists() else secrets.token_bytes(32)
+                    sentinel = hmac.new(key, ('tt-deny-all/' + r['workspaceId'] + '/' + r['spec']['id']).encode(), hashlib.sha256).hexdigest()
+                    creds = dict(client=[dict(username='_antirkn_no_clients', password=sentinel)])
+                    atomic_file(cred_path, tt_common.toml_bytes(creds))
+                    unit = 'antirkn-tt@' + r['spec']['id'] + '.service'
+                    if tt_common.active(unit):
+                        tt_common.run(['/usr/bin/systemctl', 'restart', unit], timeout=60)
+                    r['clients'] = []
+                    if 'hashes' in r and len(r['hashes']) >= 3:
+                        r['hashes'][2] = hashlib.sha256(tt_common.toml_bytes(creds)).hexdigest()
+                    with store.db:
+                        store.db.execute('UPDATE tt_resources SET data=? WHERE id=?', (vless.canonical(r), res_id))
+        except Exception:
+            pass
+
+    try:
+        with store.db:
+            store.db.execute('DELETE FROM revoked_clients')
+    except Exception:
+        pass
+
+    return dict(cleared=cleared)
+
+
 class Store:
     def __init__(self, directory):
         self.directory = Path(directory)
@@ -217,6 +370,12 @@ class Store:
             return {**self.response('ok'), 'panelAccess': access_for(req['id'], original['port'])}
         if action in ('panel_plan', 'panel_verify', 'component_plan'):
             raise ValueError('invalid')  # Device-side operations, never arbitrary worker commands.
+        if action == 'clear_managed_clients':
+            try:
+                result = clear_managed_clients(self)
+                return {**self.response('ok'), 'clearedClients': result}
+            except Exception:
+                return self.response('clear_managed_clients_failed')
         if action == 'list':
             rows = self.db.execute('SELECT * FROM jobs ORDER BY created DESC LIMIT ?', (SCHEMA['pageSize'],)).fetchall()
             return self.response('ok', [self.job(row, row['sequence']) for row in rows])

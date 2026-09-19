@@ -84,6 +84,8 @@ final class RunnerRequest {
       });
   factory RunnerRequest.list() =>
       RunnerRequest.fromJson({'version': 1, 'action': 'list'});
+  factory RunnerRequest.clearManagedClients() =>
+      RunnerRequest.fromJson({'version': 1, 'action': 'clear_managed_clients'});
   factory RunnerRequest.ttDefaults() =>
       RunnerRequest.fromJson({'version': 1, 'action': 'tt_defaults'});
   factory RunnerRequest.ttState(String workspaceId) => RunnerRequest.fromJson({
@@ -469,6 +471,9 @@ final class RunnerResponse {
           : SshHardenResult.fromJson(
               Map<String, dynamic>.from(value['sshHardenResult'] as Map),
             ),
+      clearedClients = value['clearedClients'] == null
+          ? null
+          : Map<String, dynamic>.from(value['clearedClients'] as Map),
       alive = value['alive'] as bool,
       jobs = List.unmodifiable(
         (value['jobs'] as List).map(
@@ -499,6 +504,7 @@ final class RunnerResponse {
   final List<Map<String, dynamic>>? vlessState;
   final SshHardenPlan? sshHardenPlan;
   final SshHardenResult? sshHardenResult;
+  final Map<String, dynamic>? clearedClients;
   final bool alive;
   final List<RunnerJob> jobs;
 }

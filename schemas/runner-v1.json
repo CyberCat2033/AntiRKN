@@ -62,7 +62,8 @@
           "xray_check_status",
           "xray_check_begin",
           "xray_check_commit",
-          "xray_check_abort"
+          "xray_check_abort",
+          "clear_managed_clients"
         ]
       },
       "id": {
@@ -390,6 +391,10 @@
         "action",
         "id",
         "payload"
+      ],
+      "clear_managed_clients": [
+        "version",
+        "action"
       ]
     },
     "submissions": {
@@ -810,7 +815,8 @@
     "xray_check_late",
     "server_reboot_waiting",
     "server_reboot_done",
-    "server_reboot_failed"
+    "server_reboot_failed",
+    "clear_managed_clients_failed"
   ],
   "maxRequestBytes": 524288,
   "maxEvents": 256,
