@@ -11,7 +11,7 @@ List<PreparedProxy> ttUserAccesses(VpnWorkspace workspace, String userId) {
   final result = <PreparedProxy>[];
   for (final r in workspace.ttEndpoints.where((r) => r.enabled && !r.deleted)) {
     final server = workspace.servers[ttTarget(r.serverId)];
-    if (server?['pending'] != null || server?['error'] != null) {
+    if (server?['error'] == 'vpn_identity') {
       throw const FormatException('vpn_pending');
     }
     final observed = (server?['observed'] as List? ?? [])

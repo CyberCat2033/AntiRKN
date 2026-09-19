@@ -17,8 +17,7 @@ List<PreparedProxy> vlessUserAccesses(VpnWorkspace workspace, String userId) {
     (i) => i.enabled && !i.deleted && !i.internal,
   )) {
     final server = workspace.servers[inbound.serverId];
-    if (server?['pending'] != null ||
-        server?['error'] == 'vpn_identity' ||
+    if (server?['error'] == 'vpn_identity' ||
         server?['error'] == 'vless_conflict' ||
         (server?['error'] as String?)?.startsWith('vpn_adoption_') == true) {
       throw const FormatException('vpn_pending');

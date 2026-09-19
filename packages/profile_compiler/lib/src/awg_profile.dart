@@ -10,7 +10,7 @@ List<PreparedProxy> awgUserAccesses(VpnWorkspace workspace, String userId) {
     (r) => r.enabled && !r.deleted,
   )) {
     final server = workspace.servers[awgTarget(interface.serverId)];
-    if (server?['pending'] != null || server?['error'] != null) {
+    if (server?['error'] == 'vpn_identity') {
       throw const FormatException('vpn_pending');
     }
     final observed = (server?['observed'] as List? ?? [])

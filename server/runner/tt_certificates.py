@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from tt_common import (CERT_ROOT, STATE, TtError, active, address, available,
     canonical, digest, domain, identifier, ip, lock, mkdir, read, run, safe_path)
+from apt import AptError, run as apt_run
 from panel import atomic_file
 
 SCRIPT = str(Path(__file__).resolve())
@@ -175,6 +176,23 @@ def package_plan():
     if not match or match[1] == '(none)' or not re.fullmatch('[A-Za-z0-9.+:~_-]+', match[1]):
         raise TtError('tt_certbot_required')
     return dict(installed=False, version=match[1])
+
+
+def install_certbot(package, job_id):
+    """Install the exact previewed package through the hardened APT path."""
+    if package['installed'] or Path('/usr/bin/certbot').exists():
+        return
+    if package_plan() != package:
+        raise TtError('tt_conflict')
+    try:
+        apt_run(['--assume-yes', '--no-install-recommends', 'install',
+                 'certbot=' + package['version']],
+                unit='antirkn-tt-certbot-' + identifier(job_id))
+    except AptError:
+        raise TtError('tt_certbot_required')
+    installed = package_plan()
+    if installed.get('installed') is not True:
+        raise TtError('tt_certbot_required')
 
 
 def preview_pair(p):
@@ -374,16 +392,7 @@ class CertificateJob:
                     if p['mode'] == 'acme':
                         dns_check(p)
                         package = intent['package']
-                        if not package['installed'] and not Path('/usr/bin/certbot').exists():
-                            if package_plan() != package: raise TtError('tt_conflict')
-                            # APT needs the host package directories. Run in a
-                            # dedicated unit, outside the runner mount sandbox.
-                            result = run(['/usr/bin/systemd-run', '--quiet', '--wait', '--pipe', '--collect',
-                                '--unit=antirkn-tt-certbot-' + self.req['id'],
-                                '--property=UMask=0077', '--property=TimeoutStartSec=600',
-                                '/usr/bin/apt-get', '-y', '--no-install-recommends',
-                                '-o', 'Dpkg::Options::=--force-confold', 'install', 'certbot=' + package['version']], timeout=600, check=False)
-                            if result.returncode: raise TtError('tt_certbot_required')
+                        install_certbot(package, self.req['id'])
                         issue(p)
                     elif p['mode'] == 'import':
                         mkdir(base / 'imported')

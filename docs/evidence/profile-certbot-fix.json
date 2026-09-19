@@ -1,0 +1,54 @@
+{
+  "checked_at": "2026-09-19T15:52:38+03:00",
+  "scope": "confirmed profile publication and Certbot installation",
+  "runner": {
+    "version": 28,
+    "release": "5af486156554e6da9af57f2780c6bc59fb4badd5a563ee2706694091705dbc41",
+    "predecessor_v27": "cc895634f6b24015f0daf7c25337cd5da0444e99bc13a4f3e85da19c378ef4f9",
+    "tests": 170,
+    "status": "PASS"
+  },
+  "profile_compiler": {
+    "tests": 31,
+    "status": "PASS",
+    "new_regressions": [
+      "confirmed VLESS with unrelated pending job",
+      "confirmed AmneziaWG with unrelated pending job",
+      "confirmed TrustTunnel with unrelated pending job",
+      "mismatched resource readback remains blocked"
+    ]
+  },
+  "manager_targeted": {
+    "trusttunnel_tests": 5,
+    "trusttunnel_status": "PASS",
+    "publication_binding": "3 PASS, 1 external Picker configuration failure",
+    "vpn_controller": "10 PASS, 1 previously documented restored-review failure"
+  },
+  "static_checks": {
+    "flutter_analyze": "PASS",
+    "workspace": "PASS",
+    "translations": 1016,
+    "runner_generation": "PASS"
+  },
+  "android": {
+    "abi": "arm64-v8a",
+    "mode": "release",
+    "package": "org.antirkn.antirkn_manager",
+    "debuggable": false,
+    "size_bytes": 77809774,
+    "sha256": "136eb307e5851e1d505c8f0fd1541820eb240992c6110bf01b75101abe91e3be",
+    "device": "OnePlus HD1911",
+    "install": "PASS: adb install -r",
+    "installed_hash_match": true,
+    "data_cleared": false,
+    "cold_launch": "NOT RUN"
+  },
+  "not_tested": [
+    "real VPS Certbot APT installation",
+    "public Let's Encrypt HTTP-01 issuance",
+    "real Google Drive publication",
+    "manual Clash Mi connection after install",
+    "Windows and Linux release runtime",
+    "real runner v27 to v28 server upgrade"
+  ]
+}

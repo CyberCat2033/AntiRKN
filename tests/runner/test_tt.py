@@ -182,6 +182,28 @@ class TrustTunnelTests(unittest.TestCase):
             with self.assertRaises(cert.TtError):cert.decode(json.dumps(dict(p,email=value)))
         with self.assertRaises(cert.TtError):cert.decode(json.dumps(dict(p,autoDetectIps='true')))
 
+    def test_certbot_install_uses_hardened_apt_job_and_verifies_binary(self):
+        package = {'installed': False, 'version': '2.9.0-1'}
+        installed = {'installed': True, 'version': 'certbot 2.9.0'}
+        with patch.object(cert.Path, 'exists', return_value=False), \
+                patch.object(cert, 'package_plan', side_effect=[package, installed]), \
+                patch.object(cert, 'apt_run') as apt_run:
+            cert.install_certbot(package, 'a' * 32)
+        apt_run.assert_called_once_with(
+            ['--assume-yes', '--no-install-recommends', 'install',
+             'certbot=2.9.0-1'],
+            unit='antirkn-tt-certbot-' + 'a' * 32,
+        )
+
+    def test_certbot_install_failure_is_reported_without_unsafe_retry(self):
+        package = {'installed': False, 'version': '2.9.0-1'}
+        with patch.object(cert.Path, 'exists', return_value=False), \
+                patch.object(cert, 'package_plan', return_value=package), \
+                patch.object(cert, 'apt_run', side_effect=cert.AptError()):
+            with self.assertRaises(cert.TtError) as error:
+                cert.install_certbot(package, 'a' * 32)
+        self.assertEqual(error.exception.code, 'tt_certbot_required')
+
     def test_stale_external_plan_rejected_without_writes(self):
         c=dict(listen='127.0.0.1',port=8443,quic=False,ipv6=False,allowPrivate=False,outbound='direct',socksAddress='127.0.0.1:1080',hostIndex=0,domain='vpn.example.com',certificateId='')
         req={'payload':json.dumps(dict(resourceId='b'*32,observedHash='a'*64,changes=c))}
