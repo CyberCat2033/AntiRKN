@@ -1483,6 +1483,7 @@ Future<T?> showAppChoice<T>(
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: ListTile(
+                  key: ValueKey('app-choice-${option.$1}'),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
@@ -1555,8 +1556,14 @@ class AppSelectField<T> extends StatelessWidget {
               suffixIcon: const Icon(Icons.expand_more),
             ),
             child: Text(
-              options.firstWhere((option) => option.$1 == value).$2,
-              style: theme.textTheme.bodyLarge,
+              options.where((option) => option.$1 == value).firstOrNull?.$2 ??
+                  value?.toString() ??
+                  '',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: onChanged == null ? theme.disabledColor : null,
+              ),
             ),
           ),
         ),

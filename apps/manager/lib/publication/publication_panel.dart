@@ -87,18 +87,15 @@ class _PublicationSettingsState extends State<PublicationSettingsPanel> {
           if (c.error != null) Text(publicationMessage(l, c.error!.name)),
           if (settings == null && c.authorized) ...[
             Text(l.publicationLinkHelp),
-            if (folders != null)
-              DropdownButtonFormField<String>(
-                initialValue: folder?.id ?? '',
-                isExpanded: true,
-                decoration: InputDecoration(labelText: l.publicationFolder),
-                items: [
-                  DropdownMenuItem(
-                    value: '',
-                    child: Text(l.publicationNewFolder),
-                  ),
-                  for (final f in folders!)
-                    DropdownMenuItem(value: f.id, child: Text(f.name)),
+            if (folders != null) ...[
+              const SizedBox(height: 8),
+              AppSelectField<String>(
+                key: const ValueKey('publication-folder'),
+                value: folder?.id ?? '',
+                label: l.publicationFolder,
+                options: [
+                  ('', l.publicationNewFolder),
+                  for (final f in folders!) (f.id, f.name),
                 ],
                 onChanged: c.editing
                     ? null
@@ -108,6 +105,8 @@ class _PublicationSettingsState extends State<PublicationSettingsPanel> {
                             .firstOrNull,
                       ),
               ),
+              const SizedBox(height: 8),
+            ],
             if (folders == null) Text(l.publicationNewFolder),
             if (folderError != null) Text(publicationMessage(l, folderError)),
             TextButton(

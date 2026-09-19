@@ -225,6 +225,28 @@ void main() {
         await tester.tap(advanced);
         await tester.pumpAndSettle();
         expect(fields['socksAddress']!.text, '127.0.0.1:2080');
+
+        final outbound = find.byKey(const ValueKey('tt-outbound'));
+        await tester.ensureVisible(outbound);
+        await tester.tap(outbound);
+        await tester.pumpAndSettle();
+        expect(find.byType(BottomSheet), findsOneWidget);
+        await tester.tap(find.byKey(const ValueKey('app-choice-direct')));
+        await tester.pumpAndSettle();
+        expect(value['outbound'], 'direct');
+        expect(find.byType(BottomSheet), findsNothing);
+
+        final certKey = ValueKey('tt-certificate-${value['certificateId']}-1');
+        final certField = find.byKey(certKey);
+        await tester.ensureVisible(certField);
+        await tester.tap(certField);
+        await tester.pumpAndSettle();
+        expect(find.byType(BottomSheet), findsOneWidget);
+        await tester.tap(find.byKey(const ValueKey('app-choice-')));
+        await tester.pumpAndSettle();
+        expect(value['certificateId'], '');
+        expect(find.byType(BottomSheet), findsNothing);
+
         expect(tester.takeException(), isNull);
       },
     );

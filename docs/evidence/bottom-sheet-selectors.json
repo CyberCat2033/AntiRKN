@@ -1,0 +1,40 @@
+{
+  "date": "2026-09-19",
+  "scope": "replace popup dropdown selectors with bottom sheet choice pickers across all forms",
+  "checks": {
+    "targeted_widget_tests": {
+      "passed": 3,
+      "failed": 0
+    },
+    "inbound_editor_tests": {
+      "passed": 4,
+      "failed": 0
+    },
+    "awg_editor_tests": {
+      "passed": 3,
+      "failed": 0
+    },
+    "dropdown_buttons_remaining": 0,
+    "flutter_analyze": true,
+    "workspace_check": true,
+    "localization_messages_per_locale": 1030,
+    "diff_check": true
+  },
+  "android": {
+    "device": "OnePlus HD1911",
+    "architecture": "arm64",
+    "build": "release",
+    "google_project_id_configured": true,
+    "apk_size_bytes": 77678710,
+    "apk_sha256": "3e64d25129411ead8d5ad66ef8ec07279e45024eb1e6545a3cd01d8eafd5af4c",
+    "installed_with_data_preserved": true,
+    "installed_apk_hash_matches": true,
+    "activity_started": true,
+    "process_running": true,
+    "pid": 22391
+  },
+  "not_verified": [
+    "manual physical screen clicks on user VPS data",
+    "Linux and Windows desktop runtime"
+  ]
+}

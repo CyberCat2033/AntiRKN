@@ -142,41 +142,26 @@ class _SshPanelState extends State<SshPanel> {
                         id: 'ssh-user',
                       ),
                       if (c.showJumpPicker) ...[
-                        InputDecorator(
-                          decoration: InputDecoration(labelText: l.sshJump),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              key: const ValueKey('ssh-jump'),
-                              value: c.jumpServerId ?? '',
-                              isExpanded: true,
-                              items: [
-                                DropdownMenuItem(
-                                  value: '',
-                                  child: Text(l.sshDirect),
-                                ),
-                                for (final server in c.jumpOptions)
-                                  DropdownMenuItem(
-                                    value: server.id,
-                                    child: Text(
-                                      server.profile.displayName,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                if (c.jumpServerId != null &&
-                                    !c.jumpOptions.any(
-                                      (s) => s.id == c.jumpServerId,
-                                    ))
-                                  DropdownMenuItem(
-                                    value: c.jumpServerId,
-                                    child: Text(l.sshJumpMissing),
-                                  ),
-                              ],
-                              onChanged: c.editing
-                                  ? (id) => c.setJump(id == '' ? null : id)
-                                  : null,
-                            ),
-                          ),
+                        AppSelectField<String>(
+                          key: const ValueKey('ssh-jump'),
+                          value: c.jumpServerId ?? '',
+                          label: l.sshJump,
+                          motion: widget.motion,
+                          options: [
+                            ('', l.sshDirect),
+                            for (final server in c.jumpOptions)
+                              (server.id, server.profile.displayName),
+                            if (c.jumpServerId != null &&
+                                !c.jumpOptions.any(
+                                  (s) => s.id == c.jumpServerId,
+                                ))
+                              (c.jumpServerId!, l.sshJumpMissing),
+                          ],
+                          onChanged: c.editing
+                              ? (id) => c.setJump(id == '' ? null : id)
+                              : null,
                         ),
+                        const SizedBox(height: 8),
                         Text(l.sshJumpHelp),
                         const SizedBox(height: AppLayout.gap),
                       ],

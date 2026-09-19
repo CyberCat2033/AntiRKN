@@ -261,22 +261,19 @@ class _TtCertificateState extends State<TtCertificateDialog>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              DropdownButtonFormField<String>(
-                initialValue: mode,
-                isExpanded: true,
-                decoration: InputDecoration(labelText: l.ttCertificateSource),
-                items: [
-                  DropdownMenuItem(
-                    value: 'files',
-                    child: Text(l.ttServerFiles),
-                  ),
-                  DropdownMenuItem(value: 'import', child: Text(l.ttImportPem)),
-                  DropdownMenuItem(value: 'acme', child: Text(l.ttIssueAcme)),
+              AppSelectField<String>(
+                key: const ValueKey('tt-certificate-mode'),
+                value: mode,
+                label: l.ttCertificateSource,
+                options: [
+                  ('files', l.ttServerFiles),
+                  ('import', l.ttImportPem),
+                  ('acme', l.ttIssueAcme),
                 ],
                 onChanged: busy || preview != null || widget.certificate != null
                     ? null
                     : (v) {
-                        mode = v!;
+                        mode = v;
                         changed();
                       },
               ),

@@ -414,35 +414,31 @@ class TtSettingsEditor extends StatelessWidget {
         const SizedBox(height: AppLayout.gap),
         field('port', l.ttPort, number: true),
         field('domain', l.ttDomain),
-        DropdownButtonFormField<String>(
+        AppSelectField<String>(
           key: ValueKey('tt-certificate-$id-${certificates.length}'),
-          initialValue: certificates.any((c) => c['id'] == id) ? id : '',
-          isExpanded: true,
-          decoration: InputDecoration(labelText: l.ttCertificates),
-          items: [
-            DropdownMenuItem(
-              value: '',
-              child: Text(
-                external ? l.ttKeepCertificate : l.ttChooseCertificate,
-              ),
-            ),
+          value: certificates.any((c) => c['id'] == id) ? id : '',
+          label: l.ttCertificates,
+          motion: motion,
+          options: [
+            ('', external ? l.ttKeepCertificate : l.ttChooseCertificate),
             for (final c in certificates)
-              DropdownMenuItem(
-                value: c['id'] as String,
-                child: Text('${c['domain']}'),
-              ),
+              (c['id'] as String, '${c['domain']}'),
           ],
           onChanged: enabled
               ? (v) {
-                  spec['certificateId'] = v!;
+                  spec['certificateId'] = v;
                   final c = certificates.where((c) => c['id'] == v).firstOrNull;
                   if (c != null) fields['domain']!.text = c['domain'] as String;
                   onChanged();
                 }
               : null,
         ),
-        if (certificates.isEmpty && !external) Text(l.ttNeedCertificate),
-        if (onIssueCertificate != null)
+        if (certificates.isEmpty && !external) ...[
+          const SizedBox(height: 8),
+          Text(l.ttNeedCertificate),
+        ],
+        if (onIssueCertificate != null) ...[
+          const SizedBox(height: 8),
           Align(
             alignment: AlignmentDirectional.centerStart,
             child: OutlinedButton.icon(
@@ -454,22 +450,25 @@ class TtSettingsEditor extends StatelessWidget {
               label: Text(l.ttIssueAcme),
             ),
           ),
+        ],
         const SizedBox(height: AppLayout.gap),
-        DropdownButtonFormField<String>(
-          initialValue: spec['outbound'] == 'socks5' ? 'socks5' : 'direct',
-          isExpanded: true,
-          decoration: InputDecoration(labelText: l.ttOutbound),
-          items: [
-            DropdownMenuItem(value: 'direct', child: Text(l.ttDirect)),
-            const DropdownMenuItem(value: 'socks5', child: Text('SOCKS5')),
+        AppSelectField<String>(
+          key: const ValueKey('tt-outbound'),
+          value: spec['outbound'] == 'socks5' ? 'socks5' : 'direct',
+          label: l.ttOutbound,
+          motion: motion,
+          options: [
+            ('direct', l.ttDirect),
+            ('socks5', 'SOCKS5'),
           ],
           onChanged: enabled
               ? (v) {
-                  spec['outbound'] = v!;
+                  spec['outbound'] = v;
                   onChanged();
                 }
               : null,
         ),
+        const SizedBox(height: AppLayout.gap),
         if (spec['outbound'] == 'socks5') ...[
           field('socksAddress', l.ttSocksAddress),
           Text(l.ttSocksHelp),
@@ -801,26 +800,28 @@ class _ExistingTtState extends State<_ExistingTtDialog>
             children: [
               Text(l.ttPreserveUsers),
               Text((widget.snapshot['users'] as List).join(', ')),
-              if (hosts.length > 1)
-                DropdownButtonFormField<int>(
-                  initialValue: 0,
-                  isExpanded: true,
-                  items: [
+              if (hosts.length > 1) ...[
+                const SizedBox(height: AppLayout.gap),
+                AppSelectField<int>(
+                  key: const ValueKey('tt-adopt-host'),
+                  value: (spec['hostIndex'] as int?) ?? 0,
+                  label: l.ttDomain,
+                  motion: widget.motion,
+                  options: [
                     for (var i = 0; i < hosts.length; i++)
-                      DropdownMenuItem(
-                        value: i,
-                        child: Text('${hosts[i]['domain']}'),
-                      ),
+                      (i, '${hosts[i]['domain']}'),
                   ],
                   onChanged: busy || preview != null
                       ? null
                       : (v) {
-                          spec['hostIndex'] = v!;
+                          spec['hostIndex'] = v;
                           fields['domain']!.text = hosts[v]['domain'] as String;
                           spec['certificateId'] = '';
                           changed();
                         },
                 ),
+                const SizedBox(height: AppLayout.gap),
+              ],
               TtSettingsEditor(
                 fields: fields,
                 spec: spec,
