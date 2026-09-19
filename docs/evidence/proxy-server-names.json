@@ -39,9 +39,26 @@
   "not_green": [
     "Combined client_deletion/adopt_resource/vpn_controller run: one previously documented restored-review failure and two unrelated AWG/TT adoption-conflict assertions"
   ],
+  "android": {
+    "device": "OnePlus HD1911",
+    "target": "android-arm64 release",
+    "apk": "apps/manager/build/app/outputs/flutter-apk/app-release.apk",
+    "bytes": 77875310,
+    "sha256": "4353571d5df70be1c7575900c9910bd53f81cf821bf78b1011a4324999ee7a63",
+    "certificate_sha256": "86d566768a8241ff2e2fb9921c66f3c7f4e30d10c10649d801d03061af23c994",
+    "install": "adb install -r: Success",
+    "installed_hash_matches": true,
+    "data_cleared": false,
+    "first_install_time": "2026-09-13 00:24:56",
+    "last_update_time": "2026-09-19 17:33:44",
+    "launch_status": "ok",
+    "process_alive": true,
+    "activity_task_present": true,
+    "focused_at_final_check": false,
+    "build_warning": "Flutter printed Already watching path before reporting a successful APK build"
+  },
   "not_run": [
-    "Android or Linux build",
-    "APK installation",
+    "Linux build",
     "real Google Drive republish and QR import",
     "visual verification with the owner's current profile"
   ]
