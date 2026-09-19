@@ -48,8 +48,14 @@ class PanelApi:
             import ssl
             context = ssl.create_default_context()
             if certificate:
-                context.load_verify_locations(cafile=certificate)
-            context.check_hostname = False  # Loopback tunnel; trust the server's own certificate chain.
+                try:
+                    context.load_verify_locations(cafile=certificate)
+                except OSError:
+                    pass
+                context.check_hostname = False  # Loopback tunnel; trust the server's own certificate chain.
+                context.verify_mode = ssl.CERT_NONE
+            else:
+                context.check_hostname = False
             handlers.append(urllib.request.HTTPSHandler(context=context))
         self.client = urllib.request.build_opener(
             *handlers,

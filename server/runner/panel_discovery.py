@@ -130,7 +130,9 @@ def connect_existing(raw):
     cert = None
     if observed['tls']:
         db = sqlite3.connect(path.resolve().as_uri() + '?mode=ro', uri=True)
-        try: cert = db.execute("SELECT value FROM settings WHERE key='webCertFile'").fetchone()[0]
+        try:
+            row = db.execute("SELECT value FROM settings WHERE key='webCertFile'").fetchone()
+            cert = row[0] if row and row[0] else None
         finally: db.close()
     try:
         api = PanelApi(value['port'], observed['basePath'], tls=observed['tls'],
