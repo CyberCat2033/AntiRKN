@@ -706,9 +706,8 @@ class _ManagerShellState extends State<ManagerShell>
         (_catalog?.hasActiveWork ?? false) ||
         (_catalog?.hasUnsavedEdits ?? false) ||
         (_vpn?.busy ?? false) ||
-        (_publications?.busy ?? false) ||
+        (_publications?.editing ?? false) ||
         (_vpn?.hasRunning ?? false) ||
-        (_vpn?.plans.isNotEmpty ?? false) ||
         _controller.savingDraft ||
         _controller.draftSaveFailed ||
         _controller.importing ||
@@ -720,6 +719,7 @@ class _ManagerShellState extends State<ManagerShell>
       // Fence user input before any asynchronous repository mutation.
       await WidgetsBinding.instance.endOfFrame;
       if (!mounted) return false;
+      await _publications?.suspend();
       await receive();
       await _catalog?.reloadAfterSync();
       final source = await widget.drafts?.readDraft();
@@ -737,6 +737,7 @@ class _ManagerShellState extends State<ManagerShell>
       unawaited(widget.onRestored?.call());
       rethrow;
     } finally {
+      if (mounted) _publications?.resume();
       if (mounted) setState(() => _applyingSync = false);
     }
   }

@@ -117,22 +117,41 @@ final class _WorkspaceAutoSync
           await journal.saveState(state);
         }
       }
-      final moreExports = await _export(cancellation);
+      final recoveryActive = state['missingRecoveryActive'] == true;
+      final stagedBeforeTransfer = (await journal.readStagedObjects(
+        limit: 1,
+      )).isNotEmpty;
+      final prioritizeIncoming = recoveryActive || stagedBeforeTransfer;
+      final moreExports = prioritizeIncoming
+          ? false
+          : await _export(cancellation);
       SyncTransportResult? transfer;
       Object? transferError;
-      try {
-        transfer = await SyncTransportEngine(
-          remote: remote,
-          journal: journal,
-          packets: this,
-          changes: this,
-        ).exchange(downloadPageLimit: 1, cancellation: cancellation);
-      } catch (error) {
-        transferError = error;
+      // Do not let a full account scan grow the durable inbox faster than the
+      // UI-safe receive batches can consume it. Once staged bytes exist, drain
+      // them before performing any more remote packet I/O.
+      if (!stagedBeforeTransfer) {
+        try {
+          transfer =
+              await SyncTransportEngine(
+                remote: remote,
+                journal: journal,
+                packets: this,
+                changes: this,
+              ).exchange(
+                uploadLimit: prioritizeIncoming ? 0 : 20,
+                downloadPageLimit: 1,
+                cancellation: cancellation,
+              );
+        } catch (error) {
+          transferError = error;
+        }
       }
       cancellation.check();
       var waiting = false;
-      final inbox = await journal.readStagedObjects();
+      // Keep each foreground lock short enough for Flutter to render and
+      // accept input while a large account history is being recovered.
+      final inbox = await journal.readStagedObjects(limit: 20);
       // Validate before asking for an editor lock. Own/replayed events and
       // unrelated workspaces must not interrupt editing or refresh the UI.
       final incoming = <(StagedSyncObject, LocalChange, Uint8List)>[];
@@ -205,27 +224,95 @@ final class _WorkspaceAutoSync
       if (incoming.isNotEmpty) {
         waiting = !await apply(() async {
           cancellation.check();
-          for (final (object, event, packet) in incoming) {
-            cancellation.check();
-            try {
-              await store.receiveSyncPackets([packet]);
+          try {
+            await store.receiveSyncPackets([
+              for (final entry in incoming) entry.$3,
+            ]);
+            for (final (object, event, _) in incoming) {
+              cancellation.check();
               await journal.enqueue(
                 event.header.changeId,
                 object.bytes,
                 delivered: true,
               );
               await journal.consumeObject(object);
-            } on SyncMergeFailure catch (error) {
-              if (error.issue != SyncMergeIssue.invalid) rethrow;
-              rejected++;
-              await journal.consumeObject(object);
+            }
+          } on SyncMergeFailure catch (error) {
+            if (error.issue != SyncMergeIssue.invalid) rethrow;
+            // Preserve the old quarantine behavior for a malformed member,
+            // while keeping the normal valid path to one graph projection.
+            for (final (object, event, packet) in incoming) {
+              cancellation.check();
+              try {
+                await store.receiveSyncPackets([packet]);
+                await journal.enqueue(
+                  event.header.changeId,
+                  object.bytes,
+                  delivered: true,
+                );
+                await journal.consumeObject(object);
+              } on SyncMergeFailure catch (error) {
+                if (error.issue != SyncMergeIssue.invalid) rethrow;
+                rejected++;
+                await journal.consumeObject(object);
+              }
             }
           }
         });
       }
-      final merge = await store.readSyncMergeStatus();
+      var merge = await store.readSyncMergeStatus();
+      if (!waiting && merge.conflicts.isNotEmpty) {
+        waiting = !await apply(() async {
+          for (final conflict in merge.conflicts) {
+            cancellation.check();
+            final candidates =
+                conflict.kind == ChangeEntityKind.vpnUser &&
+                    conflict.variants.any((event) => event.header.deleted)
+                ? conflict.variants
+                      .where((event) => event.header.deleted)
+                      .toList()
+                : conflict.variants.toList();
+            candidates.sort((a, b) {
+              final revision = b.header.revision.compareTo(a.header.revision);
+              return revision != 0
+                  ? revision
+                  : b.header.changeId.compareTo(a.header.changeId);
+            });
+            await store.resolveSyncConflict(
+              conflict,
+              candidates.first.header.changeId,
+            );
+          }
+          merge = await store.readSyncMergeStatus();
+        });
+      }
+      var recoveryRequested = false;
+      final missingSignature = merge.missingChangeIds.isEmpty
+          ? null
+          : (await Sha256().hash(
+              utf8.encode(canonicalJson(merge.missingChangeIds)),
+            )).bytes.map((v) => v.toRadixString(16).padLeft(2, '0')).join();
+      if (missingSignature == null) {
+        state.remove('missingRecoveryActive');
+        state.remove('missingRecoverySignature');
+      } else if (recoveryActive) {
+        if (transfer?.downloadCaughtUp == true) {
+          state['missingRecoveryActive'] = false;
+          state['missingRecoverySignature'] = missingSignature;
+        }
+      } else if (state['missingRecoverySignature'] != missingSignature) {
+        // A packet may have been skipped before its account key was available,
+        // or an older cursor may already have passed it. Re-enumerate Drive
+        // once for this unresolved causal gap. Do not loop when the provider
+        // genuinely no longer has the predecessor.
+        await journal.rescanAccountPackets();
+        state['missingRecoveryActive'] = true;
+        recoveryRequested = true;
+      }
       final more =
           moreExports ||
+          (stagedBeforeTransfer && !waiting) ||
+          recoveryRequested ||
           (transfer != null && !transfer.downloadCaughtUp) ||
           (await journal.pendingExports(limit: 1)).isNotEmpty ||
           (!waiting && (await journal.readStagedObjects(limit: 1)).isNotEmpty);

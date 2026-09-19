@@ -215,6 +215,24 @@ void main() {
     },
   );
 
+  test('observed remote copy cancels a redundant queued export', () async {
+    final db = workspace('a');
+    final state = await journal('ja', db);
+    await state.enqueue('same-change', Uint8List.fromList([1, 2, 3]));
+    expect((await state.pendingExports()).map((e) => e.changeId), [
+      'same-change',
+    ]);
+
+    await state.enqueue(
+      'same-change',
+      Uint8List.fromList([4, 5, 6]),
+      delivered: true,
+    );
+
+    expect(await state.pendingExports(), isEmpty);
+    expect(await state.exportedIds(), contains('same-change'));
+  });
+
   test(
     'pre-existing file with wrong bytes is not acknowledged or overwritten',
     () async {

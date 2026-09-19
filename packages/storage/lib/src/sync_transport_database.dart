@@ -456,7 +456,9 @@ final class SyncTransportDatabase implements SyncTransportJournal {
     });
     _transaction(() {
       _db.execute(
-        'INSERT OR IGNORE INTO transport_exports (id,delivered,payload) VALUES (?,?,?)',
+        'INSERT INTO transport_exports (id,delivered,payload) VALUES (?,?,?) '
+        'ON CONFLICT(id) DO UPDATE SET delivered='
+        'MAX(transport_exports.delivered,excluded.delivered)',
         [changeId, delivered ? 1 : 0, payload],
       );
     });

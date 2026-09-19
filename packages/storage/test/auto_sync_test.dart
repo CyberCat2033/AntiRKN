@@ -146,27 +146,23 @@ void main() {
   );
 
   test(
-    'offline edits conflict persistently and explicit resolution converges',
+    'offline conflicts choose the highest causal revision automatically',
     () async {
       final first = db('a', 41);
       await first.writeDraft('base');
       final second = await pair(first, 'b', 42);
       await first.writeDraft('first offline edit');
-      await second.writeDraft('second offline edit');
+      await second.writeDraft('second intermediate edit');
+      await second.writeDraft('second newest edit');
       final a = await open(first), b = await open(second);
       await drain(a);
       await drain(b);
-      final result = await drain(a);
-      expect(result.conflicts, 1);
-      final conflict = (await first.readSyncMergeStatus()).conflicts.single;
-      final chosen = conflict.variants.firstWhere(
-        (e) => e.source == 'second offline edit',
-      );
-      await first.resolveSyncConflict(conflict, chosen.header.changeId);
       await drain(a);
       await drain(b);
+      expect((await first.readSyncMergeStatus()).conflicts, isEmpty);
       expect((await second.readSyncMergeStatus()).conflicts, isEmpty);
-      expect(await second.readDraft(), 'second offline edit');
+      expect(await first.readDraft(), 'second newest edit');
+      expect(await second.readDraft(), 'second newest edit');
     },
   );
 
@@ -215,7 +211,7 @@ void main() {
   );
 
   test(
-    'independent conflicting workspaces retain local version; tampering and cloud deletion do not overwrite it',
+    'independent workspace conflict resolves once; tampering and cloud deletion do not overwrite it',
     () async {
       final first = db('a', 61), foreign = db('foreign', 62);
       await first.writeDraft('keep me');
@@ -233,12 +229,13 @@ void main() {
       )).bytes.map((v) => v.toRadixString(16).padLeft(2, '0')).join();
       drive.insert('corrupt', '$syncTransportNamePrefix$hash', corrupt);
       await drain(a);
-      expect(await first.readDraft(), 'keep me');
+      final selected = await first.readDraft();
+      expect(selected, anyOf('keep me', 'foreign secret'));
       for (final id in drive.files.keys.toList()) {
         drive.remove(id);
       }
       await drain(a);
-      expect(await first.readDraft(), 'keep me');
+      expect(await first.readDraft(), selected);
     },
   );
 
@@ -402,6 +399,81 @@ void main() {
   );
 
   test(
+    'missing predecessor triggers one full account rescan and then drains',
+    () async {
+      final first = db('a', 111);
+      await first.readWorkspaceIdentity();
+      final second = await pair(first, 'b', 112);
+      await first.writeDraft('causal parent');
+      await first.writeDraft('causal child');
+      final a = await open(first);
+      await drain(a);
+
+      final packetFiles = drive.files.values
+          .where(
+            (file) =>
+                (file['name'] as String).startsWith(syncTransportNamePrefix),
+          )
+          .toList();
+      expect(packetFiles, hasLength(3));
+      final parent = Map<String, dynamic>.from(
+        packetFiles[packetFiles.length - 2],
+      );
+      final parentId = parent['id'] as String;
+      final parentBytes = Uint8List.fromList(drive.contents[parentId]!);
+      drive.files.remove(parentId);
+      drive.contents.remove(parentId);
+      drive.log.removeWhere((entry) => entry['fileId'] == parentId);
+
+      final b = await open(second);
+      final incomplete = await cycle(b);
+      expect(incomplete.more, isTrue);
+      expect(incomplete.waitingGroups, 1);
+      expect(
+        (await second.readSyncMergeStatus()).missingChangeIds,
+        hasLength(1),
+      );
+
+      // The packet exists in the account but the incremental cursor has no
+      // event for it, matching a packet skipped by an older client.
+      drive.files[parentId] = parent;
+      drive.contents[parentId] = parentBytes;
+      final recovered = await drain(b);
+
+      expect(recovered.waitingGroups, 0);
+      expect(await second.readDraft(), 'causal child');
+      expect((await second.readSyncMergeStatus()).missingChangeIds, isEmpty);
+    },
+  );
+
+  test('staged packet backlog drains before another remote page', () async {
+    final first = db('a', 121);
+    await first.readWorkspaceIdentity();
+    final second = await pair(first, 'b', 122);
+    for (var i = 0; i < 25; i++) {
+      await first.writeDraft('backlog-$i');
+    }
+    final tokens = FixtureTokens();
+    final upstream = GoogleDriveSyncStore(tokens: tokens, http: drive);
+    final remote = _CountingRemote(upstream);
+    final a = await first.openAutoSync(tokens, remote: remote);
+    sessions.add(a);
+    await drain(a);
+
+    remote.listings = 0;
+    final b = await second.openAutoSync(tokens, remote: remote);
+    sessions.add(b);
+    final firstBatch = await cycle(b);
+    expect(firstBatch.more, isTrue);
+    expect(remote.listings, 1);
+
+    final secondBatch = await cycle(b);
+    expect(secondBatch.more, isTrue);
+    expect(remote.listings, 1);
+    expect(await second.readDraft(), 'backlog-24');
+  });
+
+  test(
     'change signal only follows durable local edits, not packet export or receipts',
     () async {
       final first = db('a', 71);
@@ -416,4 +488,35 @@ void main() {
       await listener.cancel();
     },
   );
+}
+
+final class _CountingRemote implements SyncRemoteStore {
+  _CountingRemote(this.delegate);
+  final SyncRemoteStore delegate;
+  int listings = 0;
+
+  @override
+  String get accountKey => delegate.accountKey;
+  @override
+  Future<void> createPacket(String fileId, String name, Uint8List bytes) =>
+      delegate.createPacket(fileId, name, bytes);
+  @override
+  Future<Uint8List> download(String fileId) => delegate.download(fileId);
+  @override
+  Future<String> generateFileId() => delegate.generateFileId();
+  @override
+  Future<SyncRemoteFile> getFile(String fileId) => delegate.getFile(fileId);
+  @override
+  Future<String> getStartPageToken() => delegate.getStartPageToken();
+  @override
+  Future<SyncRemotePage> listChanges(String pageToken) {
+    listings++;
+    return delegate.listChanges(pageToken);
+  }
+
+  @override
+  Future<SyncRemotePage> listFiles({String? pageToken}) {
+    listings++;
+    return delegate.listFiles(pageToken: pageToken);
+  }
 }

@@ -12,6 +12,8 @@ final class _WorkspaceMerge {
   final WorkspaceDatabase store;
   Database get db => store._db;
   bool _ready = false;
+  String? _allEventsStamp, _acceptedEventsStamp;
+  Map<String, LocalChange>? _allEventsCache, _acceptedEventsCache;
   static final ddl = [
     'CREATE TABLE sync_incoming (change_id TEXT PRIMARY KEY, header TEXT NOT NULL, payload BLOB NOT NULL, state INTEGER NOT NULL CHECK(state IN (0,1,2,3)))',
     "CREATE TRIGGER sync_incoming_immutable BEFORE UPDATE OF change_id,header,payload ON sync_incoming BEGIN SELECT RAISE(ABORT, 'immutable_change'); END",
@@ -77,6 +79,12 @@ final class _WorkspaceMerge {
   void advance() => db.execute('UPDATE sync_merge_meta SET epoch=epoch+1');
 
   Future<Map<String, LocalChange>> events({bool includeWaiting = false}) async {
+    final currentStamp = stamp();
+    final cached = includeWaiting ? _allEventsCache : _acceptedEventsCache;
+    final cachedStamp = includeWaiting ? _allEventsStamp : _acceptedEventsStamp;
+    if (cached != null && cachedStamp == currentStamp) {
+      return Map<String, LocalChange>.of(cached);
+    }
     final result = <String, LocalChange>{};
     for (final table in ['sync_changes', 'sync_incoming']) {
       final rows = db.select(
@@ -109,7 +117,27 @@ final class _WorkspaceMerge {
         );
       }
     }
+    if (stamp() == currentStamp) {
+      if (includeWaiting) {
+        _allEventsStamp = currentStamp;
+        _allEventsCache = Map<String, LocalChange>.of(result);
+      } else {
+        _acceptedEventsStamp = currentStamp;
+        _acceptedEventsCache = Map<String, LocalChange>.of(result);
+      }
+    }
     return result;
+  }
+
+  Map<String, LocalChange> _acceptedFrom(Map<String, LocalChange> all) {
+    final waiting = db
+        .select('SELECT change_id FROM sync_incoming WHERE state!=1')
+        .map((r) => r['change_id'] as String)
+        .toSet();
+    return <String, LocalChange>{
+      for (final entry in all.entries)
+        if (!waiting.contains(entry.key)) entry.key: entry.value,
+    };
   }
 
   Map<_EntityKey, String> preferredHeads() => {
@@ -163,21 +191,26 @@ final class _WorkspaceMerge {
       }
       if (encrypted.isNotEmpty) advance();
     });
+    if (encrypted.isNotEmpty) {
+      final nextStamp = stamp();
+      _allEventsStamp = nextStamp;
+      _allEventsCache = Map<String, LocalChange>.of(known);
+    }
     await drain();
     return status();
   }
 
   Future<void> drain() async {
+    var expected = stamp();
+    final all = await events(includeWaiting: true);
+    final accepted = _acceptedFrom(all);
+    final rejectedIds = db
+        .select('SELECT change_id FROM sync_incoming WHERE state=3')
+        .map((r) => r['change_id'])
+        .toSet();
     var again = true;
     while (again) {
       again = false;
-      final expected = stamp();
-      final all = await events(includeWaiting: true);
-      final accepted = await events();
-      final rejectedIds = db
-          .select('SELECT change_id FROM sync_incoming WHERE state=3')
-          .map((r) => r['change_id'])
-          .toSet();
       final pending = <String, List<LocalChange>>{};
       for (final e in all.values.where(
         (e) =>
@@ -230,6 +263,7 @@ final class _WorkspaceMerge {
                 failureState,
                 e.header.changeId,
               ]);
+              if (failureState == 3) rejectedIds.add(e.header.changeId);
             }
           });
           continue;
@@ -245,15 +279,26 @@ final class _WorkspaceMerge {
           commitProjection(graph, projection, writes);
           advance();
         });
+        for (final event in group) {
+          accepted[event.header.changeId] = event;
+        }
+        expected = stamp();
         again = true;
         break;
       }
     }
+    final finalStamp = stamp();
+    _allEventsStamp = finalStamp;
+    _allEventsCache = Map<String, LocalChange>.of(all);
+    _acceptedEventsStamp = finalStamp;
+    _acceptedEventsCache = Map<String, LocalChange>.of(accepted);
   }
 
   Future<SyncMergeStatus> status() async {
     final expected = stamp();
-    final graph = CausalGraph((await events()).values);
+    final all = await events(includeWaiting: true);
+    final accepted = _acceptedFrom(all);
+    final graph = CausalGraph(accepted.values);
     final conflicts = <SyncConflict>[];
     for (final row in db.select(
       'SELECT * FROM sync_conflicts ORDER BY entity_kind,entity_id',
@@ -272,7 +317,6 @@ final class _WorkspaceMerge {
         ),
       );
     }
-    final all = await events(includeWaiting: true);
     final blockedChanges = <LocalChange>[];
     final missing = <String>{},
         waiting = <String>{},
