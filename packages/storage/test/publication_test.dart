@@ -100,6 +100,31 @@ void main() {
     },
   );
   test(
+    'unrelated server observations do not invalidate a retained profile',
+    () async {
+      final draft = (await db.readPublicationDraft(user))!;
+      final before = await db.readVpn();
+      final workspace = VpnWorkspace.decode(before.source!);
+      await db.writeVpn(
+        workspace
+            .copy(
+              servers: {
+                'server': {
+                  'error': 'vpn_connection',
+                  'verifiedAt': '2026-09-19T16:00:00Z',
+                },
+              },
+            )
+            .encode(),
+        expectedRevision: before.revision,
+      );
+      await db.checkPublicationDraft(draft);
+      final current = await db.readPublicationDraft(user);
+      expect(current?.headId, draft.headId);
+      expect(current?.hash, draft.hash);
+    },
+  );
+  test(
     'backup and encrypted sync carry settings/results but keep device queue local',
     () async {
       const password = 'public-publication-backup-fixture';

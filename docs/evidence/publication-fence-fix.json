@@ -1,0 +1,36 @@
+{
+  "checked_at": "2026-09-19T16:22:59+03:00",
+  "root_cause": "unrelated vpn workspace revisions invalidated an in-flight retained profile draft",
+  "storage_publication_tests": {
+    "passed": 4,
+    "status": "PASS"
+  },
+  "manager_publication_regression": "PASS",
+  "full_storage_suite": {
+    "passed": 117,
+    "failed": 5,
+    "failures": "unrelated existing namespace migration expectations"
+  },
+  "static_checks": {
+    "flutter_analyze": "PASS",
+    "workspace": "PASS",
+    "runner_generation": "PASS"
+  },
+  "android": {
+    "abi": "arm64-v8a",
+    "mode": "release",
+    "package": "org.antirkn.antirkn_manager",
+    "size_bytes": 77809774,
+    "sha256": "8ec5791c20341d3d8168fd249668776ee953023979f40cd356e9fea40dce6b0c",
+    "device": "OnePlus HD1911",
+    "install": "PASS: adb install -r",
+    "installed_hash_match": true,
+    "data_cleared": false,
+    "cold_launch": "NOT RUN"
+  },
+  "not_tested": [
+    "real Google Drive publication",
+    "Clash Mi subscription fetch",
+    "post-install cold launch"
+  ]
+}

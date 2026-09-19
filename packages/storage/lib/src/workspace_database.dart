@@ -577,8 +577,8 @@ final class WorkspaceDatabase
     if (draft.stamp != _publicationInputStamp()) {
       throw const SyncMergeFailure(SyncMergeIssue.changed);
     }
-    // Queue/result documents change the global journal stamp. Recheck the
-    // profile head and user instead of treating our own queue write as an edit.
+    // Queue/result documents and unrelated server observations must not fence
+    // a retained profile. Recheck its causal head, exact bytes and user instead.
     if (_merge.preferredHeads()[(ChangeEntityKind.profile, draft.userId)] !=
         draft.headId) {
       throw const SyncMergeFailure(SyncMergeIssue.changed);
@@ -593,7 +593,9 @@ final class WorkspaceDatabase
         row['payload'] as Uint8List,
       ),
     );
-    if (!workspace.users.any((u) => u.id == draft.userId && u.enabled) ||
+    if (!workspace.users.any(
+          (u) => u.id == draft.userId && u.enabled && u.login == draft.name,
+        ) ||
         workspace.profiles[draft.userId]?['hash'] != draft.hash ||
         (workspace.profiles[draft.userId]?['publicationWorkspaceId'] ??
                 workspace.id) !=

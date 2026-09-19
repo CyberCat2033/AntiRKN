@@ -39,9 +39,7 @@ void _validatePublicationDocument(String id, String source) {
 extension WorkspacePublications on WorkspaceDatabase {
   String _publicationInputStamp() => jsonEncode(
     _db
-        .select(
-          "SELECT id,revision FROM documents WHERE id IN ('vpn-workspace-v1','template-draft') ORDER BY id",
-        )
+        .select("SELECT id,revision FROM documents WHERE id='template-draft'")
         .map((r) => [r['id'], r['revision']])
         .toList(),
   );
