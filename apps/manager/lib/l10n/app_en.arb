@@ -731,7 +731,7 @@
   "ttDnsFailed": "Unable to resolve the domain’s A/AAAA records.",
   "ttDnsMismatch": "The domain points to a different IP. Set its A/AAAA records to this server’s IPs and try again.",
   "ttAcmePortBusy": "TCP port 80 is occupied. HTTP-01 standalone issuance cannot start.",
-  "ttCertbotRequired": "Certbot cannot be installed from the current APT indexes. Run the manual APT index update and prepare a new plan.",
+  "ttCertbotRequired": "Certbot could not be installed after refreshing the APT indexes. Check the Ubuntu repositories and retry this request.",
   "ttAcmeFailed": "ACME issuance or renewal failed. Check public DNS, port 80 reachability and the ACME log on the server.",
   "backupTitle": "Backups",
   "backupHelp": "Save servers, clients, keys, templates and change history in an encrypted file to restore on another installation.",

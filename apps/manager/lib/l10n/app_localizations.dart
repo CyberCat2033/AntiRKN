@@ -3683,7 +3683,7 @@ abstract class AppLocalizations {
   /// No description provided for @ttCertbotRequired.
   ///
   /// In en, this message translates to:
-  /// **'Certbot cannot be installed from the current APT indexes. Run the manual APT index update and prepare a new plan.'**
+  /// **'Certbot could not be installed after refreshing the APT indexes. Check the Ubuntu repositories and retry this request.'**
   String get ttCertbotRequired;
 
   /// No description provided for @ttAcmeFailed.

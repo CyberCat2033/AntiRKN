@@ -268,15 +268,7 @@ class PublicationController extends ChangeNotifier {
         repository: repository,
         remote: remote(),
         eligible: (draft) async =>
-            !_suspended &&
-            _foreground &&
-            !vpn.busy &&
-            canPublish?.call() != false &&
-            vpn.results[draft.userId]?.hasBlockingErrors == false &&
-            !vpn.coreValidationBusy &&
-            vpn.coreCheckFor(draft.userId)?.status !=
-                CoreConfigStatus.invalid &&
-            vpn.results[draft.userId]?.sha256Hash == draft.hash,
+            !_suspended && _foreground && _draftEligible(draft),
       );
       for (final user in vpn.workspace.users.toList()) {
         _cancel!.check();
@@ -371,14 +363,36 @@ class PublicationController extends ChangeNotifier {
   bool bindingPending(String userId) =>
       bindings[userId] != null &&
       bindings[userId]?['id'] != results[userId]?['binding'];
-  bool _bindingEligible(PublicationDraft draft) =>
-      !_disposed &&
-      !vpn.busy &&
-      canPublish?.call() != false &&
-      vpn.results[draft.userId]?.hasBlockingErrors == false &&
-      !vpn.coreValidationBusy &&
-      vpn.coreCheckFor(draft.userId)?.status != CoreConfigStatus.invalid &&
-      vpn.results[draft.userId]?.sha256Hash == draft.hash;
+
+  String? savedProfileHashFor(String userId) {
+    final hash = vpn.workspace.profiles[userId]?['hash'];
+    return hash is String && hash.isNotEmpty ? hash : null;
+  }
+
+  bool _draftEligible(PublicationDraft draft) {
+    final user = vpn.workspace.users
+        .where((candidate) => candidate.id == draft.userId)
+        .firstOrNull;
+    if (_disposed ||
+        user?.enabled != true ||
+        vpn.busy ||
+        canPublish?.call() == false ||
+        savedProfileHashFor(draft.userId) != draft.hash) {
+      return false;
+    }
+    // A failed current compilation deliberately retains the last generated
+    // profile. Its draft remains publishable. Core validation only applies
+    // when it checked the exact draft that is about to be published.
+    if (vpn.results[draft.userId]?.sha256Hash == draft.hash &&
+        (vpn.coreValidationBusy ||
+            vpn.coreCheckFor(draft.userId)?.status ==
+                CoreConfigStatus.invalid)) {
+      return false;
+    }
+    return true;
+  }
+
+  bool _bindingEligible(PublicationDraft draft) => _draftEligible(draft);
 
   Future<T> _bindingEdit<T>(Future<T> Function() action) async {
     if (editing || _disposed) {

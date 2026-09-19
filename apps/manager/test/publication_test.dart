@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_manager/l10n/app_localizations.dart';
 import 'package:antirkn_manager/publication/publication_controller.dart';
@@ -27,10 +28,21 @@ class Account
 
 class Repository implements PublicationRepository {
   final docs = <String, String>{}, queues = <String, String>{};
+  PublicationDraft? draft;
   @override
   Future<String?> readPublicationDocument(String id) async => docs[id];
   @override
   Future<String?> readPublicationQueue(String id) async => queues[id];
+  @override
+  Future<PublicationDraft?> readPublicationDraft(String id) async =>
+      draft?.userId == id ? draft : null;
+  @override
+  Future<void> checkPublicationDraft(PublicationDraft value) async {
+    if (draft?.stamp != value.stamp) {
+      throw const SyncMergeFailure(SyncMergeIssue.changed);
+    }
+  }
+
   @override
   Future<void> writePublicationDocument(
     String id,
@@ -49,6 +61,7 @@ class Repository implements PublicationRepository {
 
 class Remote implements PublicationRemoteStore {
   final folders = <String, PublicationFile>{};
+  final contents = <String, Uint8List>{};
   int ids = 0, creates = 0;
   bool lost = false;
   @override
@@ -77,10 +90,126 @@ class Remote implements PublicationRemoteStore {
   }
 
   @override
+  Future<Uint8List> download(String id) async => contents[id] ?? Uint8List(0);
+
+  @override
+  Future<void> checkPrivate(String id) async {}
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 void main() {
+  testWidgets(
+    'retained saved profile remains publishable while current compilation is blocked',
+    (tester) async {
+      var source = fixtures.template;
+      final vpn = fixtures.controller(
+        fixtures.MemoryVpn(),
+        {},
+        source: () => source,
+      );
+      final account = Account()..publicationAuthorized = true;
+      final repo = Repository();
+      final remote = Remote();
+      final c = PublicationController(
+        repository: repo,
+        account: account,
+        remote: () => remote,
+        vpn: vpn,
+      )..foreground(false);
+      addTearDown(() {
+        c.dispose();
+        vpn.dispose();
+      });
+      await c.ready;
+      late Map<String, dynamic> saved;
+      await tester.runAsync(() async {
+        await vpn.load();
+        await vpn.saveUser(
+          VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice'),
+        );
+        saved = vpn.workspace.profiles[fixtures.alice]!;
+        source = '[invalid';
+        await vpn.reconcile();
+      });
+      final savedYaml = saved['yaml'] as String;
+      final savedHash = saved['hash'] as String;
+      expect(vpn.results[fixtures.alice]!.hasBlockingErrors, isTrue);
+      expect(vpn.workspace.profiles[fixtures.alice]!['hash'], savedHash);
+
+      repo.docs['settings'] = canonicalJson(
+        const PublicationSettings(
+          accountKey: 'account',
+          folderId: 'folder',
+          folderName: 'Profiles',
+          access: PublicationAccess.link,
+          enabled: true,
+          folderReady: true,
+        ).toJson(),
+      );
+      repo.draft = PublicationDraft(
+        workspaceId: vpn.workspace.id,
+        deviceId: 'd' * 32,
+        userId: fixtures.alice,
+        name: 'Alice',
+        headId: 'h' * 64,
+        hash: savedHash,
+        stamp: 'retained-profile',
+        bytes: Uint8List.fromList(utf8.encode(savedYaml)),
+        ancestors: {'h' * 64},
+      );
+      remote.folders['folder'] = const PublicationFile(
+        id: 'folder',
+        name: 'Profiles',
+        mimeType: 'application/vnd.google-apps.folder',
+        version: '1',
+        etag: 'folder-etag',
+        editable: true,
+        properties: {},
+      );
+      remote.folders['existing'] = const PublicationFile(
+        id: 'existing',
+        name: 'alice.yml',
+        mimeType: 'application/yaml',
+        version: '1',
+        etag: 'profile-etag',
+        editable: true,
+        properties: {},
+      );
+      remote.contents['existing'] = Uint8List.fromList(
+        utf8.encode('old: profile'),
+      );
+      await c.reload();
+
+      final preview = await c.inspectFile(
+        fixtures.alice,
+        PublicationTarget('existing'),
+      );
+      expect(preview.draft.hash, savedHash);
+
+      c.results[fixtures.alice] = {
+        'fileId': 'existing',
+        'hash': savedHash,
+        'access': 'link',
+        'url': 'https://drive.google.com/uc?id=existing',
+      };
+      await tester.pumpWidget(
+        MaterialApp(
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: Scaffold(
+            body: UserPublicationView(controller: c, userId: fixtures.alice),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('Profile published'), findsOneWidget);
+      expect(find.text('Waiting to publish'), findsNothing);
+      await tester.pump(const Duration(milliseconds: 1));
+    },
+  );
+
   for (final locale in ['ru', 'en']) {
     testWidgets(
       '$locale setup recovers lost folder response; received result and failed update retain verified URL without duplicate copy button',

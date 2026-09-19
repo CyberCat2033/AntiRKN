@@ -215,10 +215,10 @@ class UserPublicationView extends StatelessWidget {
           queue = controller.queues[userId],
           result = controller.results[userId];
       if (controller.settings == null) return const SizedBox.shrink();
-      final currentHash = controller.vpn.results[userId]?.sha256Hash;
+      final savedHash = controller.savedProfileHashFor(userId);
       final published =
           result != null &&
-          result['hash'] == currentHash &&
+          result['hash'] == savedHash &&
           queue?['status'] != 'error';
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,

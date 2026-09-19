@@ -2055,7 +2055,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get ttCertbotRequired =>
-      'Certbot недоступен по текущим индексам APT. Запустите ручное обновление индексов и подготовьте новый план.';
+      'Certbot не удалось установить после обновления индексов APT. Проверьте репозитории Ubuntu и повторите запрос.';
 
   @override
   String get ttAcmeFailed =>

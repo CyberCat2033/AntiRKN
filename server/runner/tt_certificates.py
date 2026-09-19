@@ -171,22 +171,29 @@ def package_plan():
     if binary.exists():
         safe_path(binary)
         return dict(installed=True, version=run([str(binary), '--version']).stdout.decode().strip())
+    # Planning stays read-only. An approved installation always refreshes APT
+    # indexes before resolving and pinning the package candidate.
+    return dict(installed=False, version=None)
+
+
+def certbot_candidate():
     policy = run(['/usr/bin/apt-cache', 'policy', 'certbot']).stdout.decode()
     match = re.search(r'Candidate: ([^\s]+)', policy)
     if not match or match[1] == '(none)' or not re.fullmatch('[A-Za-z0-9.+:~_-]+', match[1]):
         raise TtError('tt_certbot_required')
-    return dict(installed=False, version=match[1])
+    return match[1]
 
 
 def install_certbot(package, job_id):
-    """Install the exact previewed package through the hardened APT path."""
+    """Refresh stale indexes if needed, then install an exact APT candidate."""
     if package['installed'] or Path('/usr/bin/certbot').exists():
         return
-    if package_plan() != package:
-        raise TtError('tt_conflict')
     try:
+        apt_run(['-o', 'APT::Update::Error-Mode=any', 'update'],
+                unit='antirkn-tt-certbot-' + identifier(job_id) + '-update')
+        version = certbot_candidate()
         apt_run(['--assume-yes', '--no-install-recommends', 'install',
-                 'certbot=' + package['version']],
+                 'certbot=' + version],
                 unit='antirkn-tt-certbot-' + identifier(job_id))
     except AptError:
         raise TtError('tt_certbot_required')

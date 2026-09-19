@@ -1,0 +1,41 @@
+{
+  "checked_at": "2026-09-19T16:13:42+03:00",
+  "scope": "retained profile publication and automatic Certbot APT refresh",
+  "runner": {
+    "version": 29,
+    "release": "698dfd58e061c50a6a2d17a3968c5d80c25411e47f1f909e5658bc644cfba41b",
+    "predecessor_v28": "5af486156554e6da9af57f2780c6bc59fb4badd5a563ee2706694091705dbc41",
+    "tests": 173,
+    "status": "PASS"
+  },
+  "publication_regression": {
+    "retained_saved_profile_with_blocked_current_compile": "PASS",
+    "full_publication_test": "NOT GREEN: two unrelated setup navigation expectations"
+  },
+  "static_checks": {
+    "flutter_analyze": "PASS",
+    "workspace": "PASS",
+    "translations": 1016,
+    "runner_generation": "PASS"
+  },
+  "android": {
+    "abi": "arm64-v8a",
+    "mode": "release",
+    "package": "org.antirkn.antirkn_manager",
+    "debuggable": false,
+    "size_bytes": 77809774,
+    "sha256": "4a3c33d3ff20075cd81176c8f083a790de209992638be4b1c5c19a0b97667900",
+    "device": "OnePlus HD1911",
+    "install": "PASS: adb install -r",
+    "installed_hash_match": true,
+    "data_cleared": false,
+    "cold_launch": "NOT RUN"
+  },
+  "not_tested": [
+    "real VPS APT refresh and Certbot installation",
+    "public Let's Encrypt HTTP-01 issuance",
+    "real Google Drive publication and Clash Mi fetch",
+    "real runner v28 to v29 server upgrade",
+    "post-install cold launch"
+  ]
+}

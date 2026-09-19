@@ -6,7 +6,7 @@ import socket
 import tempfile
 import types
 import unittest
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'server/runner'))
 import tt
@@ -183,26 +183,67 @@ class TrustTunnelTests(unittest.TestCase):
         with self.assertRaises(cert.TtError):cert.decode(json.dumps(dict(p,autoDetectIps='true')))
 
     def test_certbot_install_uses_hardened_apt_job_and_verifies_binary(self):
-        package = {'installed': False, 'version': '2.9.0-1'}
+        package = {'installed': False, 'version': None}
         installed = {'installed': True, 'version': 'certbot 2.9.0'}
         with patch.object(cert.Path, 'exists', return_value=False), \
-                patch.object(cert, 'package_plan', side_effect=[package, installed]), \
+                patch.object(cert, 'certbot_candidate', return_value='2.9.0-1'), \
+                patch.object(cert, 'package_plan', return_value=installed), \
                 patch.object(cert, 'apt_run') as apt_run:
             cert.install_certbot(package, 'a' * 32)
-        apt_run.assert_called_once_with(
-            ['--assume-yes', '--no-install-recommends', 'install',
-             'certbot=2.9.0-1'],
-            unit='antirkn-tt-certbot-' + 'a' * 32,
-        )
+        self.assertEqual(apt_run.call_args_list, [
+            call(
+                ['-o', 'APT::Update::Error-Mode=any', 'update'],
+                unit='antirkn-tt-certbot-' + 'a' * 32 + '-update',
+            ),
+            call(
+                ['--assume-yes', '--no-install-recommends', 'install',
+                 'certbot=2.9.0-1'],
+                unit='antirkn-tt-certbot-' + 'a' * 32,
+            ),
+        ])
 
     def test_certbot_install_failure_is_reported_without_unsafe_retry(self):
         package = {'installed': False, 'version': '2.9.0-1'}
         with patch.object(cert.Path, 'exists', return_value=False), \
-                patch.object(cert, 'package_plan', return_value=package), \
                 patch.object(cert, 'apt_run', side_effect=cert.AptError()):
             with self.assertRaises(cert.TtError) as error:
                 cert.install_certbot(package, 'a' * 32)
         self.assertEqual(error.exception.code, 'tt_certbot_required')
+
+    def test_missing_certbot_is_planned_for_refresh_without_read_only_candidate(self):
+        with patch.object(cert.Path, 'exists', return_value=False), \
+                patch.object(cert, 'run') as run:
+            self.assertEqual(cert.package_plan(),
+                             {'installed': False, 'version': None})
+        run.assert_not_called()
+
+    def test_certbot_candidate_must_exist_after_index_refresh(self):
+        result = types.SimpleNamespace(
+            stdout=b'certbot:\n  Installed: (none)\n  Candidate: (none)\n')
+        with patch.object(cert, 'run', return_value=result), \
+                self.assertRaises(cert.TtError) as error:
+            cert.certbot_candidate()
+        self.assertEqual(error.exception.code, 'tt_certbot_required')
+
+    def test_certbot_install_refreshes_an_old_planned_candidate(self):
+        package = {'installed': False, 'version': '2.8.0-1'}
+        installed = {'installed': True, 'version': 'certbot 2.9.0'}
+        with patch.object(cert.Path, 'exists', return_value=False), \
+                patch.object(cert, 'certbot_candidate', return_value='2.9.0-1'), \
+                patch.object(cert, 'package_plan', return_value=installed), \
+                patch.object(cert, 'apt_run') as apt_run:
+            cert.install_certbot(package, 'a' * 32)
+        self.assertEqual(apt_run.call_args_list, [
+            call(
+                ['-o', 'APT::Update::Error-Mode=any', 'update'],
+                unit='antirkn-tt-certbot-' + 'a' * 32 + '-update',
+            ),
+            call(
+                ['--assume-yes', '--no-install-recommends', 'install',
+                 'certbot=2.9.0-1'],
+                unit='antirkn-tt-certbot-' + 'a' * 32,
+            ),
+        ])
 
     def test_stale_external_plan_rejected_without_writes(self):
         c=dict(listen='127.0.0.1',port=8443,quic=False,ipv6=False,allowPrivate=False,outbound='direct',socksAddress='127.0.0.1:1080',hostIndex=0,domain='vpn.example.com',certificateId='')
