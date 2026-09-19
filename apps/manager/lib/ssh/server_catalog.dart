@@ -16,6 +16,7 @@ import '../vpn/inbounds_panel.dart';
 import '../vpn/awg_panel.dart';
 import '../vpn/tt_panel.dart';
 import '../vpn/awg_existing_panel.dart';
+import '../vpn/adopt_resource.dart';
 import '../vpn/vpn_plan_view.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 
@@ -175,6 +176,20 @@ class _ServerCatalogState extends State<ServerCatalog> {
             ))
               value,
       ];
+      final awgManaged =
+          vpn?.workspace.awgInterfaces
+              .where((r) => r.serverId == c.selectedId && !r.deleted)
+              .toList() ??
+          <AwgInterface>[];
+      final awgExternal = (session.runner.awgDiscovery?['resources'] as List? ?? [])
+          .whereType<Map>()
+          .where(
+            (item) => !hasAdoptedSource(
+              awgManaged.map((r) => r.spec),
+              item['id'] as String,
+            ),
+          )
+          .toList();
       String serverName(String id) =>
           c.servers
               .where((s) => s.id == vpnServerId(id))
@@ -279,12 +294,11 @@ class _ServerCatalogState extends State<ServerCatalog> {
                     'AmneziaWG',
                   ),
                   mark: 'W',
-                  count: vpn.workspace.awgInterfaces
-                      .where((r) => r.serverId == c.selectedId && !r.deleted)
-                      .length,
+                  count: awgManaged.length + awgExternal.length,
                   detected:
                       session.runner.presence(VpnComponent.amneziaWg) ==
-                      ComponentPresence.detected,
+                          ComponentPresence.detected ||
+                      awgExternal.isNotEmpty,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [

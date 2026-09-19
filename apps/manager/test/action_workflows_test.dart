@@ -245,7 +245,7 @@ void main() {
         ),
       ),
     );
-    await tester.longPress(find.text('AmneziaWG'));
+    await tester.tap(find.byKey(const ValueKey('remove-protocol-AmneziaWG')));
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.byType(AppFormDialog), findsOneWidget);
     expect(connector.calls, 0);

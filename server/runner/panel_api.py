@@ -5,13 +5,37 @@ Inputs/outputs are private stdin/stdout, never command arguments or logs.
 import http.cookiejar
 import ipaddress
 import json
+import re
 import urllib.request
 import urllib.parse
 from urllib.error import HTTPError
 
 
+def normalize_base_path(value):
+    """Return the panel webpath in the form used by every API request."""
+    if value is None:
+        return '/'
+    if not isinstance(value, str):
+        raise ValueError('panel_base_path')
+    value = value.strip()
+    if not value:
+        return '/'
+    if not value.startswith('/'):
+        value = '/' + value
+    if value == '/':
+        return value
+    if len(value) > 2048 or any(ord(char) < 0x20 for char in value):
+        raise ValueError('panel_base_path')
+    if '\\' in value or '?' in value or '#' in value:
+        raise ValueError('panel_base_path')
+    if not re.fullmatch(r'/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*/?', value):
+        raise ValueError('panel_base_path')
+    return value if value.endswith('/') else value + '/'
+
+
 class PanelApi:
     def __init__(self, port, base_path='/', *, tls=False, certificate=None, host='127.0.0.1'):
+        base_path = normalize_base_path(base_path)
         address = ipaddress.ip_address(host or '127.0.0.1')
         if address.is_unspecified:
             address = ipaddress.ip_address('::1' if address.version == 6 else '127.0.0.1')

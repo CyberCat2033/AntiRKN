@@ -55,11 +55,15 @@ Future<bool> removeServerProtocol(
   );
   if (confirmed != true || !context.mounted) return false;
   AppHaptics.deleted();
-  if (vpn.busy || vpn.hasRunning || !runner.canRequestAction) {
+  if (vpn.busy || vpn.hasRunning) {
     notice(l.uiRemoveProtocolBusy);
     return false;
   }
   if (!await runner.ensureReady() || !context.mounted) return false;
+  if (!runner.canStart) {
+    notice(l.uiRemoveProtocolBusy);
+    return false;
+  }
   final plan = await runner.prepareProtocolRemoval(protocol);
   if (plan == null) {
     notice(runnerCodeLabel(l, runner.responseCode ?? 'protocol_remove_failed'));

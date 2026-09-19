@@ -47,7 +47,7 @@ class PanelApiTests(unittest.TestCase):
                 server.socket = context.wrap_socket(server.socket, server_side=True)
             thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
             try:
-                api = PanelApi(server.server_port, '/private/', host='127.0.0.2',
+                api = PanelApi(server.server_port, 'private', host='127.0.0.2',
                     tls=tls, certificate=str(cert) if tls else None)
                 with self.assertRaisesRegex(ValueError, '^panel_auth_failed$'):
                     api.login('ssh-user', 'panel-password')
@@ -56,7 +56,7 @@ class PanelApiTests(unittest.TestCase):
                 if tls:
                     # Trust is scoped to the discovered certificate, never globally disabled.
                     with self.assertRaises(OSError):
-                        PanelApi(server.server_port, '/private/', host='127.0.0.2', tls=True).login('panel-admin', 'panel-password')
+                        PanelApi(server.server_port, 'private', host='127.0.0.2', tls=True).login('panel-admin', 'panel-password')
             finally:
                 server.shutdown(); server.server_close(); thread.join()
 

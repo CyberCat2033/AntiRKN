@@ -181,7 +181,10 @@ class _ServerDetailViewState extends State<ServerDetailView> {
     if (widget.diagnostics?.busy ?? false) return;
     if (!await widget.session.ensureConnected()) return;
     await widget.session.refresh();
-    await widget.session.runner.refresh();
+    await widget.session.runner.refresh(prepare: true);
+    if (widget.session.runner.installed && widget.session.runner.connected) {
+      await widget.session.runner.awgRequest('awg_discover');
+    }
   }
 
   Widget page(String id, List<Widget> children) => RefreshIndicator(
@@ -314,6 +317,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                       ),
                     ),
                     OutlinedButton(
+                      key: const ValueKey('server-ssh-access'),
                       onPressed: () => open(1),
                       child: Text(l.uiSshAccess),
                     ),
@@ -417,7 +421,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                             motion: widget.motion,
                             busy: protocolBusy(i),
                             onTap: () => openProtocol(i),
-                            onLongPress:
+                            onRemove:
                                 widget.sections[i].onRemove == null ||
                                     !widget.sections[i].detected
                                 ? null
@@ -709,13 +713,13 @@ class _ProtocolTile extends StatelessWidget {
     required this.section,
     required this.motion,
     required this.onTap,
-    this.onLongPress,
+    this.onRemove,
     this.busy = false,
   });
   final ServerProtocolSection section;
   final MotionPreference motion;
   final VoidCallback onTap;
-  final VoidCallback? onLongPress;
+  final VoidCallback? onRemove;
   final bool busy;
   @override
   Widget build(BuildContext context) {
@@ -747,7 +751,7 @@ class _ProtocolTile extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(AppLayout.radius),
           onTap: busy ? null : onTap,
-          onLongPress: busy ? null : onLongPress,
+          onLongPress: busy ? null : onRemove,
           enableFeedback: false,
           child: Padding(
             padding: const EdgeInsets.all(17),
@@ -769,13 +773,22 @@ class _ProtocolTile extends StatelessWidget {
                         dimension: 19,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    else
+                    else ...[
+                      if (onRemove != null)
+                        IconButton(
+                          key: ValueKey('remove-protocol-${section.name}'),
+                          tooltip: l.uiRemoveProtocol,
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(Icons.delete_outline, size: 19),
+                          onPressed: onRemove,
+                        ),
                       Icon(
                         section.count == 0 && !section.detected
                             ? Icons.add
                             : Icons.arrow_forward,
                         size: 19,
                       ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 22),

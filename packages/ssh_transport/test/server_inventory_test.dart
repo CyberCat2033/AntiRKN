@@ -12,6 +12,8 @@ Map<String, String> cleanResponses() => {
       ServerFact.init => 'systemd',
       ServerFact.tools => 'apt-get\ndpkg-query\nsystemctl\nsudo\n',
       ServerFact.uid => '1000',
+      ServerFact.networkTraffic =>
+        '00000000-0000-0000-0000-000000000000\neth0 1024 1024',
       _ => '1024',
     },
   InventoryProbes.services: '',

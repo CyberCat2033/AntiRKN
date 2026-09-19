@@ -24,7 +24,7 @@ class DiscoveryTests(unittest.TestCase):
             'CREATE TABLE inbounds (id INTEGER, remark TEXT, enable INTEGER, '
             'listen TEXT, port INTEGER, protocol TEXT, stream_settings TEXT); '
             "INSERT INTO settings VALUES ('webPort','4321'),('webListen','127.0.0.1'),"
-            "('webBasePath','/existing/'),('secret','never-export');")
+            "('webBasePath','wgI1mnzsb9DYDpWUDv'),('secret','never-export');")
         db.execute('INSERT INTO inbounds VALUES (1, ?, 1, ?, 443, ?, ?)',
             ('Existing inbound', '::', 'vless', json.dumps(dict(network='xhttp', security='reality',
                 realitySettings=dict(privateKey='never-export-private')))))
@@ -37,7 +37,7 @@ class DiscoveryTests(unittest.TestCase):
     def test_existing_panel_settings_and_inbounds_are_read_without_credentials_or_writes(self):
         before = self.path.read_bytes()
         result = read_database(self.path, 'systemd')
-        self.assertEqual((result['port'], result['basePath'], result['listen']), (4321, '/existing/', '127.0.0.1'))
+        self.assertEqual((result['port'], result['basePath'], result['listen']), (4321, '/wgI1mnzsb9DYDpWUDv/', '127.0.0.1'))
         self.assertEqual(result['inbounds'][0]['transport'], 'xhttp')
         self.assertNotIn('never-export', json.dumps(result))
         self.assertEqual(before, self.path.read_bytes())

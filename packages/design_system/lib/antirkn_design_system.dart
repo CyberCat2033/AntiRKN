@@ -730,18 +730,20 @@ class SectionCard extends StatelessWidget {
     required this.title,
     required this.child,
     this.trailing,
+    this.uppercase = false,
     super.key,
   });
   final String title;
   final Widget child;
   final Widget? trailing;
+  final bool uppercase;
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 24),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AppSectionHeading(title: title, action: trailing, uppercase: true),
+        AppSectionHeading(title: title, action: trailing, uppercase: uppercase),
         Card.filled(
           child: Padding(padding: const EdgeInsets.all(18), child: child),
         ),

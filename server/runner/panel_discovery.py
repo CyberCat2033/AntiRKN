@@ -11,6 +11,7 @@ import sqlite3
 import subprocess
 
 from panel import CLI, DATABASE, PanelInstaller, PanelError, access_for, safe_file
+from panel_api import normalize_base_path
 
 
 def databases():
@@ -68,7 +69,7 @@ def read_database(path, source):
                 transport=str(stream.get('network', 'tcp'))[:32],
                 security=str(stream.get('security', 'none'))[:32]))
         return dict(source=source, port=port, listen=settings.get('webListen') or '0.0.0.0',
-            basePath=settings.get('webBasePath') or '/',
+            basePath=normalize_base_path(settings.get('webBasePath')),
             tls=bool(settings.get('webCertFile') and settings.get('webKeyFile')), inbounds=inbounds)
     finally:
         db.close()

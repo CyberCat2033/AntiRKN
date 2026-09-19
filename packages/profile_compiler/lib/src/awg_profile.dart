@@ -29,6 +29,10 @@ List<PreparedProxy> awgUserAccesses(
       );
       continue;
     }
+    if (server?['error'] == 'awg_conflict' ||
+        (server?['error'] as String?)?.startsWith('vpn_adoption_') == true) {
+      throw const FormatException('awg_conflict');
+    }
     final candidates = (server?['observed'] as List? ?? [])
         .whereType<Map>()
         .where(

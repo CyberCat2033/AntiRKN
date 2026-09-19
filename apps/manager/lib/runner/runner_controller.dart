@@ -743,6 +743,8 @@ class RunnerController extends ChangeNotifier {
     await _save();
   });
 
+  Future<void> discoverPanel() => _run(_discoverPanel);
+
   Future<void> _discoverPanel(
     RunnerTransport remote,
     CancellationToken token,

@@ -517,11 +517,12 @@ void main() {
           await enter('ssh-password', 'fixture-password-$letter');
           await tap('ssh-save');
           expect(find.text('VPS $letter'), findsOneWidget);
-          await tap('ssh-edit');
+          await tap('server-ssh-access');
           expect(
             find.byKey(const ValueKey('ssh-jump')),
             letter == 'B' ? findsOneWidget : findsNothing,
           );
+          await tap('server-list-back');
           await tap('server-list-back');
         }
         expect(repository.servers, hasLength(2));
@@ -535,28 +536,18 @@ void main() {
         await launch();
         await tap('server-$firstId');
         expect(find.byKey(const ValueKey('ssh-connect')), findsOneWidget);
-        expect(
-          tester.getBottomLeft(find.byKey(const ValueKey('ssh-connect'))).dy,
-          lessThanOrEqualTo(tester.getTopLeft(find.byType(TabBar)).dy),
-        );
-        await tap('server-tab-connection');
+        await tap('server-ssh-access');
         expect(find.byKey(const ValueKey('ssh-connect')), findsOneWidget);
-        expect(
-          find.text(language == 'en' ? 'Network & SSH' : 'Сеть и SSH'),
-          findsOneWidget,
-        );
         expect(
           find.text(language == 'en' ? 'Connect' : 'Подключиться'),
           findsOneWidget,
         );
-        await tap('ssh-edit');
         expect(find.byKey(const ValueKey('ssh-jump')), findsOneWidget);
         await tap('ssh-jump');
         await tester.tap(find.text('VPS B').last);
         await tester.pumpAndSettle();
         await tap('ssh-save');
         expect(repository.servers[firstId]!.jumpServerId, secondId);
-        await tap('ssh-edit');
         await tap('ssh-jump');
         await tester.tap(
           find
@@ -568,7 +559,6 @@ void main() {
         await tester.pumpAndSettle();
         await tap('ssh-save');
         expect(repository.servers[firstId]!.jumpServerId, isNull);
-        await tap('ssh-edit');
         await tap('show-ssh-password');
         final field = tester.widget<TextField>(
           find.byKey(const ValueKey('ssh-password')),
@@ -602,13 +592,13 @@ void main() {
         await tap('ssh-connect');
         await tap('ssh-trust-accept');
         await tap('server-list-back');
+        await tap('server-list-back');
         expect(find.text('Renamed A'), findsOneWidget);
         expect(repository.servers[firstId]!.host, 'a.example');
         expect(repository.servers[firstId]!.lastInfo!.os, 'Ubuntu 24.04');
         await tester.pumpWidget(const SizedBox());
         await launch();
         await tap('server-$firstId');
-        await tap('server-tab-connection');
         expect(find.textContaining('Ubuntu 24.04'), findsOneWidget);
         await tap('server-list-back');
         await tap('server-edit');

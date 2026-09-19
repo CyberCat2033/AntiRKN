@@ -36,6 +36,17 @@ class _AwgExistingPanelState extends State<AwgExistingPanel> {
   }
 
   @override
+  void didUpdateWidget(AwgExistingPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.runner != widget.runner) {
+      oldWidget.runner.removeListener(changed);
+      widget.runner.addListener(changed);
+      queried = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) => changed());
+    }
+  }
+
+  @override
   void dispose() {
     widget.runner.removeListener(changed);
     super.dispose();
@@ -45,7 +56,11 @@ class _AwgExistingPanelState extends State<AwgExistingPanel> {
     final r = widget.runner;
     final key =
         '${r.identity()}|${r.selected?.terminal == true ? r.selected?.id : ''}';
-    if (mounted && r.installed && r.connected && !r.busy && queried != key) {
+    if (mounted &&
+        r.installed &&
+        r.connected &&
+        !r.busy &&
+        (r.awgDiscovery == null || queried != key)) {
       queried = key;
       unawaited(r.awgRequest('awg_discover'));
     }
@@ -72,7 +87,10 @@ class _AwgExistingPanelState extends State<AwgExistingPanel> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          AppSectionHeading(title: l.awgObserved),
+          AppSectionHeading(
+            title: l.awgObserved,
+            count: external.length,
+          ),
           ConnectionCheckAll(
             controller: widget.controller,
             targets: const [],
@@ -129,7 +147,6 @@ class _AwgExistingPanelState extends State<AwgExistingPanel> {
                       icon: const Icon(Icons.people_outline),
                       onPressed:
                           r.busy ||
-                              r.actionPending ||
                               widget.controller.busy ||
                               widget.controller.hasRunning
                           ? null

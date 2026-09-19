@@ -30,6 +30,10 @@ List<PreparedProxy> ttUserAccesses(
       );
       continue;
     }
+    if (server?['error'] == 'tt_conflict' ||
+        (server?['error'] as String?)?.startsWith('vpn_adoption_') == true) {
+      throw const FormatException('tt_conflict');
+    }
     final candidates = (server?['observed'] as List? ?? [])
         .whereType<Map>()
         .where(

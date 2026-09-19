@@ -4,13 +4,12 @@ import 'dart:io';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_network_inventory/antirkn_network_inventory.dart';
 
-Map<String, dynamic> networkFixture() =>
-    jsonDecode(
-          File(
-            '../../packages/network_inventory/lib/fixtures/one_vps.json',
-          ).readAsStringSync(),
-        )
-        as Map<String, dynamic>;
+Map<String, dynamic> networkFixture() {
+  final candidate1 = File('../../packages/network_inventory/lib/fixtures/one_vps.json');
+  final candidate2 = File('packages/network_inventory/lib/fixtures/one_vps.json');
+  final file = candidate1.existsSync() ? candidate1 : candidate2;
+  return jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+}
 
 ServerNetworkInventory testInventory({
   Map<String, dynamic>? data,

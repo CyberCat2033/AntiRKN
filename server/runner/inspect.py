@@ -85,8 +85,16 @@ def inspect_runner():
             elif unit_hash is None or any(unit_hash == old['hashes']['antirkn-runner.service'] for old in predecessors):
                 state = 'partial'
             else: raise ValueError()
-        elif predecessors and unit_hash == predecessors[-1]['hashes']['antirkn-runner.service']:
-            release, state, upgradable = predecessors[-1]['release'], 'installed', True
+        elif predecessors:
+            # The service may still point at any verified predecessor. This is
+            # deliberately a set membership check: interrupted or manually
+            # repeated upgrades can leave more than one old directory behind,
+            # and the newest directory is not necessarily the active one.
+            matching = predecessor_for_unit(predecessors, unit_hash)
+            if matching is not None:
+                release, state, upgradable = matching['release'], 'installed', True
+            elif any(hashes.values()):
+                raise ValueError()
         elif any(hashes.values()): raise ValueError()
     except (ValueError, KeyError, TypeError, OSError):
         unsafe = True
@@ -100,3 +108,8 @@ def inspect_runner():
     supported = distro.get('ID','').strip('"') == 'ubuntu' and platform.machine() == 'x86_64' and sys.version_info >= (3,8) and systemd
     active = subprocess.run(['/usr/bin/systemctl','is-active','--quiet','antirkn-runner.service'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=10).returncode == 0 if systemd else False
     return dict(supported=supported,state=state,release=release,fingerprint=hashlib.sha256(json.dumps(hashes,sort_keys=True).encode()).hexdigest(),active=active,upgradable=upgradable)
+
+
+def predecessor_for_unit(predecessors, unit_hash):
+    return next((old for old in predecessors
+                 if unit_hash == old['hashes']['antirkn-runner.service']), None)

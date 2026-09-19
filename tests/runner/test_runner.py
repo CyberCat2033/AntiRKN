@@ -1,4 +1,5 @@
 import concurrent.futures
+import importlib.util
 import json
 from pathlib import Path
 import sqlite3
@@ -33,6 +34,18 @@ class RunnerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             strict_json('{"version":1,"version":2}')
         self.assertEqual(self.store.db.execute('SELECT COUNT(*) FROM jobs').fetchone()[0], 0)
+
+    def test_any_verified_predecessor_is_upgradeable(self):
+        path = Path(__file__).resolve().parents[2] / 'server/runner/inspect.py'
+        spec = importlib.util.spec_from_file_location('runner_inspector_fixture', path)
+        inspector = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(inspector)
+        predecessors = [
+            {'release': 'a' * 64, 'hashes': {'antirkn-runner.service': 'unit-a'}},
+            {'release': 'b' * 64, 'hashes': {'antirkn-runner.service': 'unit-b'}},
+        ]
+        self.assertEqual(inspector.predecessor_for_unit(predecessors, 'unit-a'), predecessors[0])
+        self.assertIsNone(inspector.predecessor_for_unit(predecessors, 'unknown'))
 
     def test_repeat_and_conflicting_request_identity(self):
         req = submit()
