@@ -2,6 +2,7 @@ import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_manager/l10n/app_localizations.dart';
 import 'package:antirkn_manager/network/network_controller.dart';
 import 'package:antirkn_manager/network/sample_inventory_reader.dart';
+import 'package:antirkn_manager/network/server_address_field.dart';
 import 'package:antirkn_manager/vpn/tt_panel.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
@@ -146,6 +147,7 @@ void main() {
         addTearDown(tester.view.resetDevicePixelRatio);
         final network = NetworkController(reader: SampleInventoryReader());
         addTearDown(network.dispose);
+        await tester.runAsync(network.load);
         final value = {...spec(), 'outbound': 'socks5'};
         final fields = {
           for (final key in [
@@ -164,6 +166,7 @@ void main() {
             f.dispose();
           }
         });
+        var changes = 0;
         await tester.pumpWidget(
           MaterialApp(
             locale: Locale(locale),
@@ -180,13 +183,40 @@ void main() {
                   ],
                   network: network,
                   motion: MotionPreference.off,
-                  onChanged: () {},
+                  onChanged: () => changes++,
                 ),
               ),
             ),
           ),
         );
         await tester.pumpAndSettle();
+        final listen = find.byKey(const ValueKey('tt-listen'));
+        expect(find.byType(ServerAddressField), findsOneWidget);
+        await tester.enterText(listen, '198.51.100.99');
+        expect(fields['listen']!.text, '198.51.100.99');
+        expect(changes, 1);
+        await tester.tap(find.byKey(const ValueKey('pick-listener')));
+        await tester.pumpAndSettle();
+        final choice = network
+            .choices(AddressRole.listener)
+            .firstWhere(
+              (choice) =>
+                  choice.enabled &&
+                  choice.source == AddressChoiceSource.assigned,
+            );
+        final option = find.byKey(ValueKey('option-${choice.id}'));
+        await tester.scrollUntilVisible(
+          option,
+          180,
+          scrollable: find.descendant(
+            of: find.byKey(const ValueKey('address-options-listener')),
+            matching: find.byType(Scrollable),
+          ),
+        );
+        await tester.tap(option);
+        await tester.pumpAndSettle();
+        expect(fields['listen']!.text, choice.host);
+        expect(changes, 2);
         final socks = find.byKey(const ValueKey('tt-socksAddress'));
         await tester.ensureVisible(socks);
         await tester.enterText(socks, '127.0.0.1:2080');

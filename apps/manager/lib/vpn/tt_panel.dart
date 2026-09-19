@@ -6,7 +6,7 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../network/network_controller.dart';
-import '../network/server_address_picker.dart';
+import '../network/server_address_field.dart';
 import '../runner/runner_controller.dart';
 import 'tt_certificates.dart';
 import 'tt_dialog.dart';
@@ -397,29 +397,21 @@ class TtSettingsEditor extends StatelessWidget {
         onChanged: (_) => onChanged(),
       ),
     );
-    Widget picker(AddressRole role, String key) {
-      final choices = network.choices(role);
-      return ServerAddressPicker(
-        role: role,
-        choices: choices,
-        selected: choices.where((c) => c.host == fields[key]!.text).firstOrNull,
-        selectionIssue: null,
-        motion: motion,
-        enabled: enabled,
-        onSelected: (c) {
-          fields[key]!.text = c?.host ?? '';
-          onChanged();
-        },
-      );
-    }
-
     final id = spec['certificateId'] as String? ?? '';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (!external) field('name', l.vpnNodeName),
-        picker(AddressRole.listener, 'listen'),
-        field('listen', l.networkListener),
+        ServerAddressField(
+          label: l.networkListener,
+          fieldKey: const ValueKey('tt-listen'),
+          network: network,
+          controller: fields['listen']!,
+          motion: motion,
+          enabled: enabled,
+          onChanged: (_) => onChanged(),
+        ),
+        const SizedBox(height: AppLayout.gap),
         field('port', l.ttPort, number: true),
         field('domain', l.ttDomain),
         DropdownButtonFormField<String>(

@@ -4,6 +4,7 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_manager/l10n/app_localizations.dart';
 import 'package:antirkn_manager/network/network_controller.dart';
 import 'package:antirkn_manager/network/sample_inventory_reader.dart';
+import 'package:antirkn_manager/network/server_address_field.dart';
 import 'package:antirkn_manager/vpn/awg_panel.dart';
 import 'package:antirkn_profile_compiler/antirkn_profile_compiler.dart';
 import 'package:flutter/material.dart';
@@ -145,6 +146,7 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       final network = NetworkController(reader: SampleInventoryReader());
       addTearDown(network.dispose);
+      await tester.runAsync(network.load);
       await tester.pumpWidget(
         MaterialApp(
           locale: Locale(locale),
@@ -163,7 +165,26 @@ void main() {
       );
       await tester.pumpAndSettle();
       final endpoint = find.byKey(const ValueKey('awg-endpoint'));
+      expect(find.byType(ServerAddressField), findsOneWidget);
       expect(tester.widget<TextField>(endpoint).controller!.text, '');
+      await tester.tap(find.byKey(const ValueKey('pick-endpoint')));
+      await tester.pumpAndSettle();
+      final choice = network
+          .choices(AddressRole.endpoint)
+          .firstWhere((choice) => choice.enabled);
+      final option = find.byKey(ValueKey('option-${choice.id}'));
+      await tester.scrollUntilVisible(
+        option,
+        180,
+        scrollable: find.descendant(
+          of: find.byKey(const ValueKey('address-options-endpoint')),
+          matching: find.byType(Scrollable),
+        ),
+      );
+      await tester.tap(option);
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(endpoint).controller!.text, choice.host);
+      // A suggestion never removes manual endpoint editing.
       await tester.enterText(endpoint, '203.0.113.2');
       await tester.enterText(find.byKey(const ValueKey('awg-port')), '51821');
       final advanced = find.byType(ExpansionTile);

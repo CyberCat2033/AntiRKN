@@ -4,7 +4,7 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../network/network_controller.dart';
-import '../network/server_address_picker.dart';
+import '../network/server_address_field.dart';
 import 'vpn_controller.dart';
 import 'adopt_resource.dart';
 import 'vpn_plan_view.dart';
@@ -213,7 +213,6 @@ class _AwgFormState extends State<AwgForm> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    final choices = widget.network.choices(AddressRole.endpoint);
     return AppFormDialog(
       title: Text('AmneziaWG 3.1'),
       content: SizedBox(
@@ -225,19 +224,16 @@ class _AwgFormState extends State<AwgForm> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               field('name', l.vpnNodeName),
-              ServerAddressPicker(
-                role: AddressRole.endpoint,
-                choices: choices,
-                selected: choices
-                    .where((c) => c.host == fields['endpoint']!.text)
-                    .firstOrNull,
-                selectionIssue: null,
+              ServerAddressField(
+                label: l.awgEndpoint,
+                fieldKey: const ValueKey('awg-endpoint'),
+                network: widget.network,
+                controller: fields['endpoint']!,
                 motion: widget.motion,
-                onSelected: (choice) => setState(
-                  () => fields['endpoint']!.text = choice?.host ?? '',
-                ),
+                role: AddressRole.endpoint,
+                onChanged: (_) => setState(() {}),
               ),
-              field('endpoint', l.awgEndpoint),
+              const SizedBox(height: AppLayout.gap),
               field('port', l.awgPort, number: true),
               Text(l.awgEndpointHelp),
               AppExpansionTile(

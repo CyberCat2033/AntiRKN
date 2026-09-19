@@ -16,6 +16,7 @@ class ServerAddressField extends StatelessWidget {
     required this.motion,
     this.role = AddressRole.listener,
     this.enabled = true,
+    this.onChanged,
     super.key,
   });
   final String label;
@@ -25,6 +26,7 @@ class ServerAddressField extends StatelessWidget {
   final MotionPreference motion;
   final AddressRole role;
   final bool enabled;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -38,6 +40,7 @@ class ServerAddressField extends StatelessWidget {
         enabled: enabled,
         autocorrect: false,
         enableSuggestions: false,
+        onChanged: onChanged,
         decoration: InputDecoration(
           labelText: label,
           suffixIcon: IconButton(
@@ -64,6 +67,7 @@ class ServerAddressField extends StatelessWidget {
                     );
                     if (context.mounted && choice != null) {
                       controller.text = choice.host;
+                      onChanged?.call(choice.host);
                     }
                   },
           ),

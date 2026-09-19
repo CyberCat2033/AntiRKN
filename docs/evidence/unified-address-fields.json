@@ -1,0 +1,39 @@
+{
+  "date": "2026-09-19",
+  "scope": "compact VLESS-style address fields for AmneziaWG and TrustTunnel",
+  "checks": {
+    "targeted_widget_tests": {
+      "passed": 26,
+      "failed": 0
+    },
+    "manual_input_preserved": true,
+    "endpoint_picker": true,
+    "listener_picker": true,
+    "narrow_width_390": true,
+    "locales": [
+      "ru",
+      "en"
+    ],
+    "manager_analyze": true,
+    "workspace_check": true,
+    "localization_messages_per_locale": 1030,
+    "diff_check": true
+  },
+  "android": {
+    "device": "OnePlus HD1911",
+    "architecture": "arm64",
+    "build": "release",
+    "google_project_id_configured": true,
+    "apk_sha256": "c8b4d7e8594d5b9bbfc9846a83d54fe70a6efff542aefb6fc491a2f2a84dd89c",
+    "installed_with_data_preserved": true,
+    "installed_apk_hash_matches": true,
+    "activity_started": true,
+    "process_running": true
+  },
+  "not_verified": [
+    "full test suite",
+    "physical Android visual acceptance",
+    "Linux and Windows runtime",
+    "screen reader"
+  ]
+}
