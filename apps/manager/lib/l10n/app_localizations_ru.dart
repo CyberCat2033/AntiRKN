@@ -1348,6 +1348,29 @@ class AppLocalizationsRu extends AppLocalizations {
       'Изменения доступов ожидают выполнения на одном или нескольких серверах. Полный актуальный профиль пока не готов.';
 
   @override
+  String get vpnPendingReadback => 'Сервер ещё не подтвердил этот ресурс.';
+
+  @override
+  String get vpnPendingSettings =>
+      'Сервер вернул другие настройки этого ресурса.';
+
+  @override
+  String get vpnPendingClient =>
+      'Клиент отсутствует в подтверждённом состоянии сервера.';
+
+  @override
+  String get vpnPendingIdentity =>
+      'Перед выдачей доступа нужно проверить сохранённую идентичность сервера.';
+
+  @override
+  String get vpnPendingReview =>
+      'Управляемый ресурс на сервере изменился и требует проверки.';
+
+  @override
+  String get vpnPendingResource =>
+      'Ресурс доступа больше не найден в текущей конфигурации.';
+
+  @override
   String get vpnProfile => 'Персональный профиль Mihomo';
 
   @override
@@ -1368,7 +1391,23 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get vpnLastProfile =>
-      'Не удалось сформировать текущий профиль. Предыдущая сохранённая версия остаётся в истории.';
+      'Текущий профиль пока не готов. Последняя корректная версия сохранена.';
+
+  @override
+  String get vpnPreviousProfileLink =>
+      'Этот QR по-прежнему ведёт на последний проверенный профиль и не содержит ожидающие изменения.';
+
+  @override
+  String get vpnRegenerateProfile =>
+      'Перепроверить серверы и перегенерировать профиль';
+
+  @override
+  String get vpnRegeneratingProfile =>
+      'Перепроверяем серверы и перегенерируем профиль…';
+
+  @override
+  String get vpnProfileRegenerated =>
+      'Состояние серверов перепроверено, актуальный профиль перегенерирован.';
 
   @override
   String get vpnInvalid =>

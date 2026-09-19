@@ -314,6 +314,45 @@ void main() {
     },
   );
   test(
+    'forced profile regeneration refreshes readback without submitting a plan',
+    () async {
+      final store = MemoryVpn(), remote = Remote(store);
+      final c = controller(store, {'one': remote});
+      addTearDown(c.dispose);
+      await c.load();
+      await c.saveUser(VpnUser(id: alice, login: 'alice', name: 'Alice'));
+      final original = inbound('one', '1' * 32);
+      await c.saveInbound(original);
+      await c.prepareAndApply();
+      expect(c.results[alice]!.hasBlockingErrors, isFalse);
+
+      final changed = VlessInbound(
+        serverId: original.serverId,
+        spec: {...original.spec, 'endpoint': '198.51.100.20'},
+      );
+      await c.saveInbound(changed);
+      expect(c.results[alice]!.diagnostics.single.code, 'vpn_pending_settings');
+      expect(
+        c.results[alice]!.diagnostics.single.subject,
+        'VLESS · Server one · VLESS',
+      );
+      remote.state = [
+        for (final observation in remote.state)
+          {...observation, 'spec': changed.spec},
+      ];
+      final submitted = remote.submissions.length;
+      remote.actions.clear();
+
+      await c.regenerateProfile(alice);
+
+      expect(c.error, isNull);
+      expect(c.results[alice]!.hasBlockingErrors, isFalse);
+      expect(c.results[alice]!.yaml, contains('198.51.100.20'));
+      expect(remote.actions, ['vless_state']);
+      expect(remote.submissions, hasLength(submitted));
+    },
+  );
+  test(
     'uncertain reply replays the persisted operation ID after controller restart',
     () async {
       final store = MemoryVpn(), remotes = <String, Remote>{};

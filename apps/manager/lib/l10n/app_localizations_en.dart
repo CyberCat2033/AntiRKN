@@ -1344,6 +1344,30 @@ class AppLocalizationsEn extends AppLocalizations {
       'Access changes are pending on one or more servers. A complete current profile is not ready yet.';
 
   @override
+  String get vpnPendingReadback =>
+      'The server has not confirmed this resource yet.';
+
+  @override
+  String get vpnPendingSettings =>
+      'The server reported different settings for this resource.';
+
+  @override
+  String get vpnPendingClient =>
+      'This client is missing from the confirmed server state.';
+
+  @override
+  String get vpnPendingIdentity =>
+      'The saved server identity must be reviewed before this access can be issued.';
+
+  @override
+  String get vpnPendingReview =>
+      'The managed server resource changed and requires review.';
+
+  @override
+  String get vpnPendingResource =>
+      'The access resource is no longer present in the current configuration.';
+
+  @override
   String get vpnProfile => 'Personal Mihomo profile';
 
   @override
@@ -1364,7 +1388,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get vpnLastProfile =>
-      'Could not generate the current profile. The previous saved version is retained.';
+      'The current profile is not ready. The last valid version was retained.';
+
+  @override
+  String get vpnPreviousProfileLink =>
+      'This QR still points to the last verified profile and does not include the pending changes.';
+
+  @override
+  String get vpnRegenerateProfile => 'Recheck servers and regenerate profile';
+
+  @override
+  String get vpnRegeneratingProfile =>
+      'Rechecking servers and regenerating the profile…';
+
+  @override
+  String get vpnProfileRegenerated =>
+      'Server state was rechecked and the current profile was regenerated.';
 
   @override
   String get vpnInvalid =>

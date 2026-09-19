@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart';
 import 'prepared_proxy.dart';
 import 'proxy_name.dart';
 import 'adopted_proxy.dart';
+import 'access_diagnostic.dart';
 
 String vlessRevision(Map<String, Object?> payload) =>
     sha256.convert(utf8.encode(canonicalJson(payload))).toString();
@@ -13,6 +14,7 @@ List<PreparedProxy> vlessUserAccesses(
   VpnWorkspace workspace,
   String userId, {
   Map<String, String> serverNames = const {},
+  void Function(ProfileAccessException)? onPending,
 }) {
   final user = workspace.users.where((u) => u.id == userId).firstOrNull;
   if (user == null || !user.enabled) return [];
@@ -20,32 +22,66 @@ List<PreparedProxy> vlessUserAccesses(
   for (final inbound in workspace.inbounds.where(
     (i) => i.enabled && !i.deleted && !i.internal,
   )) {
+    final subject = accessDiagnosticSubject(
+      'VLESS',
+      inbound.serverId,
+      inbound.name,
+      serverNames,
+    );
     final server = workspace.servers[inbound.serverId];
-    if (server?['error'] == 'vpn_identity' ||
-        server?['error'] == 'vless_conflict' ||
+    if (server?['error'] == 'vpn_identity') {
+      reportPendingAccess(
+        ProfileAccessException('vpn_pending_identity', subject),
+        onPending,
+      );
+      continue;
+    }
+    if (server?['error'] == 'vless_conflict' ||
         (server?['error'] as String?)?.startsWith('vpn_adoption_') == true) {
-      throw const FormatException('vpn_pending');
+      reportPendingAccess(
+        ProfileAccessException('vpn_pending_review', subject),
+        onPending,
+      );
+      continue;
     }
     final observations = server?['observed'] as List? ?? [];
-    final observation = observations
+    final candidates = observations
         .whereType<Map>()
         .where(
           (o) =>
               o['id'] == inbound.id &&
               o['workspaceId'] ==
-                  workspace.resourceWorkspaceId(inbound.serverId) &&
-              o['confirmed'] == true,
+                  workspace.resourceWorkspaceId(inbound.serverId),
         )
+        .toList();
+    final observation = candidates
+        .where((o) => o['confirmed'] == true)
         .firstOrNull;
-    if (observation == null ||
-        canonicalJson(observation['spec']) != canonicalJson(inbound.spec)) {
-      throw const FormatException('vpn_pending');
+    if (observation == null) {
+      reportPendingAccess(
+        ProfileAccessException('vpn_pending_readback', subject),
+        onPending,
+      );
+      continue;
+    }
+    if (canonicalJson(observation['spec']) != canonicalJson(inbound.spec)) {
+      reportPendingAccess(
+        ProfileAccessException('vpn_pending_settings', subject),
+        onPending,
+      );
+      continue;
     }
     final binding = (observation['clients'] as List)
         .whereType<Map>()
         .where((u) => u['id'] == userId && u['enabled'] == true)
         .firstOrNull;
-    if (binding == null) throw const FormatException('vpn_pending');
+    if (binding == null) {
+      reportPendingAccess(
+        ProfileAccessException('vpn_pending_client', subject),
+        onPending,
+      );
+      continue;
+    }
     final s = inbound.spec;
     if (s.containsKey('adoption')) {
       proxies.add(

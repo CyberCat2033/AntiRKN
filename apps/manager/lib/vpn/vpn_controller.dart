@@ -34,13 +34,50 @@ final class VpnPlan {
 ProfileResult _compile((String, String, String, Map<String, String>) input) {
   final workspace = VpnWorkspace.decode(input.$1);
   try {
+    final pending = <ProfileAccessException>[];
+    final accesses = [
+      ...vlessUserAccesses(
+        workspace,
+        input.$3,
+        serverNames: input.$4,
+        onPending: pending.add,
+      ),
+      ...awgUserAccesses(
+        workspace,
+        input.$3,
+        serverNames: input.$4,
+        onPending: pending.add,
+      ),
+      ...ttUserAccesses(
+        workspace,
+        input.$3,
+        serverNames: input.$4,
+        onPending: pending.add,
+      ),
+    ];
+    if (pending.isNotEmpty) {
+      return ProfileResult(
+        groups: [],
+        diagnostics: [
+          for (final issue in pending)
+            ProfileDiagnostic(
+              issue.code,
+              DiagnosticSeverity.error,
+              subject: issue.subject,
+            ),
+        ],
+      );
+    }
     return const ProfileCompiler().compile(
       template: input.$2,
       userId: input.$3,
-      accesses: [
-        ...vlessUserAccesses(workspace, input.$3, serverNames: input.$4),
-        ...awgUserAccesses(workspace, input.$3, serverNames: input.$4),
-        ...ttUserAccesses(workspace, input.$3, serverNames: input.$4),
+      accesses: accesses,
+    );
+  } on ProfileAccessException catch (e) {
+    return ProfileResult(
+      groups: [],
+      diagnostics: [
+        ProfileDiagnostic(e.code, DiagnosticSeverity.error, subject: e.subject),
       ],
     );
   } on FormatException catch (e) {
@@ -1277,7 +1314,11 @@ class VpnController extends ChangeNotifier {
     token.check();
     await _refreshServer(id, token);
   });
-  Future<void> _refreshServer(String id, CancellationToken token) async {
+  Future<void> _refreshServer(
+    String id,
+    CancellationToken token, {
+    bool rebuildProfiles = true,
+  }) async {
     final r = remote(id);
     if (r == null) throw const FormatException('vpn_connection');
     final current = workspace.servers[id] ?? {};
@@ -1311,7 +1352,7 @@ class VpnController extends ChangeNotifier {
           workspace.copy(ttEndpoints: [...workspace.ttEndpoints, ...recovered]),
         );
       }
-      await _profiles();
+      if (rebuildProfiles) await _profiles();
       return;
     }
     if (isAwgTarget(id)) {
@@ -1335,7 +1376,7 @@ class VpnController extends ChangeNotifier {
           ),
         );
       }
-      await _profiles();
+      if (rebuildProfiles) await _profiles();
       return;
     }
     final recovered = (_observations(result, id) ?? [])
@@ -1356,7 +1397,7 @@ class VpnController extends ChangeNotifier {
         workspace.copy(inbounds: [...workspace.inbounds, ...recovered]),
       );
     }
-    await _profiles();
+    if (rebuildProfiles) await _profiles();
   }
 
   Future<void> _observeOperation(String id, CancellationToken token) async {
@@ -1552,6 +1593,50 @@ class VpnController extends ChangeNotifier {
   Future<void> refreshProfiles() => _run((token) async {
     if (loaded) await _profiles();
   });
+
+  /// Re-reads every active access resource before rebuilding [userId]'s
+  /// profile. This is intentionally read-only: it never submits a new access
+  /// plan from a profile/share action.
+  Future<void> regenerateProfile(String userId) => _run((token) async {
+    if (!loaded ||
+        !workspace.users.any(
+          (user) => user.id == userId && !user.deleted && user.enabled,
+        )) {
+      return;
+    }
+    final targets = <String>{
+      for (final resource in workspace.inbounds)
+        if (resource.enabled && !resource.deleted && !resource.internal)
+          resource.serverId,
+      for (final resource in workspace.awgInterfaces)
+        if (resource.enabled && !resource.deleted) awgTarget(resource.serverId),
+      for (final resource in workspace.ttEndpoints)
+        if (resource.enabled && !resource.deleted) ttTarget(resource.serverId),
+    }.toList()..sort();
+    String? firstIssue;
+    for (final target in targets) {
+      try {
+        if (!await ensureConnected(target)) {
+          throw const FormatException('vpn_connection');
+        }
+        token.check();
+        await _refreshServer(target, token, rebuildProfiles: false);
+      } on SyncMergeFailure {
+        rethrow;
+      } on VaultFailure {
+        rethrow;
+      } on SshFailure {
+        firstIssue ??= 'vpn_connection';
+      } on RunnerFailure {
+        firstIssue ??= 'vpn_runner';
+      } on FormatException catch (e) {
+        firstIssue ??= e.message;
+      }
+    }
+    await _profiles();
+    error = firstIssue;
+  });
+
   Future<void> _profiles() async {
     final source = template();
     _lastTemplate = source;

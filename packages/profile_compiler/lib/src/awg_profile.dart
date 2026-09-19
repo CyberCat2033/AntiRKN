@@ -2,43 +2,74 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'prepared_proxy.dart';
 import 'proxy_name.dart';
 import 'adopted_proxy.dart';
+import 'access_diagnostic.dart';
 
 List<PreparedProxy> awgUserAccesses(
   VpnWorkspace workspace,
   String userId, {
   Map<String, String> serverNames = const {},
+  void Function(ProfileAccessException)? onPending,
 }) {
   if (!workspace.users.any((u) => u.id == userId && u.enabled)) return [];
   final proxies = <PreparedProxy>[];
   for (final interface in workspace.awgInterfaces.where(
     (r) => r.enabled && !r.deleted,
   )) {
+    final subject = accessDiagnosticSubject(
+      'AmneziaWG',
+      interface.serverId,
+      interface.name,
+      serverNames,
+    );
     final server = workspace.servers[awgTarget(interface.serverId)];
     if (server?['error'] == 'vpn_identity') {
-      throw const FormatException('vpn_pending');
+      reportPendingAccess(
+        ProfileAccessException('vpn_pending_identity', subject),
+        onPending,
+      );
+      continue;
     }
-    final observed = (server?['observed'] as List? ?? [])
+    final candidates = (server?['observed'] as List? ?? [])
         .whereType<Map>()
         .where(
           (r) =>
               r['id'] == interface.id &&
               r['workspaceId'] ==
-                  workspace.resourceWorkspaceId(
-                    awgTarget(interface.serverId),
-                  ) &&
-              r['confirmed'] == true &&
-              canonicalJson(r['spec']) == canonicalJson(interface.spec),
+                  workspace.resourceWorkspaceId(awgTarget(interface.serverId)),
         )
+        .toList();
+    final observed = candidates
+        .where((r) => r['confirmed'] == true)
         .firstOrNull;
-    final client = (observed?['clients'] as List? ?? [])
+    if (observed == null) {
+      reportPendingAccess(
+        ProfileAccessException('vpn_pending_readback', subject),
+        onPending,
+      );
+      continue;
+    }
+    if (canonicalJson(observed['spec']) != canonicalJson(interface.spec)) {
+      reportPendingAccess(
+        ProfileAccessException('vpn_pending_settings', subject),
+        onPending,
+      );
+      continue;
+    }
+    final client = (observed['clients'] as List? ?? [])
         .whereType<Map>()
         .where((c) => c['id'] == userId && c['enabled'] == true)
         .firstOrNull;
-    if (client == null) throw const FormatException('vpn_pending');
+    if (client == null) {
+      reportPendingAccess(
+        ProfileAccessException('vpn_pending_client', subject),
+        onPending,
+      );
+      continue;
+    }
     final s = interface.spec;
     if (s.containsKey('adoption')) {
       proxies.add(
-        adoptedProxy(workspace, userId, s, observed!, client, serverNames),
+        adoptedProxy(workspace, userId, s, observed, client, serverNames),
       );
       continue;
     }
@@ -57,7 +88,7 @@ List<PreparedProxy> awgUserAccesses(
         'ip': client['address'],
         if (s['pool6'] != '') 'ipv6': client['address6'],
         'private-key': client['privateKey'],
-        'public-key': observed!['publicKey'],
+        'public-key': observed['publicKey'],
         'pre-shared-key': client['presharedKey'],
         'udp': true,
         'mtu': s['mtu'],

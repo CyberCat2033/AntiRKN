@@ -2462,6 +2462,42 @@ abstract class AppLocalizations {
   /// **'Access changes are pending on one or more servers. A complete current profile is not ready yet.'**
   String get vpnPending;
 
+  /// No description provided for @vpnPendingReadback.
+  ///
+  /// In en, this message translates to:
+  /// **'The server has not confirmed this resource yet.'**
+  String get vpnPendingReadback;
+
+  /// No description provided for @vpnPendingSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'The server reported different settings for this resource.'**
+  String get vpnPendingSettings;
+
+  /// No description provided for @vpnPendingClient.
+  ///
+  /// In en, this message translates to:
+  /// **'This client is missing from the confirmed server state.'**
+  String get vpnPendingClient;
+
+  /// No description provided for @vpnPendingIdentity.
+  ///
+  /// In en, this message translates to:
+  /// **'The saved server identity must be reviewed before this access can be issued.'**
+  String get vpnPendingIdentity;
+
+  /// No description provided for @vpnPendingReview.
+  ///
+  /// In en, this message translates to:
+  /// **'The managed server resource changed and requires review.'**
+  String get vpnPendingReview;
+
+  /// No description provided for @vpnPendingResource.
+  ///
+  /// In en, this message translates to:
+  /// **'The access resource is no longer present in the current configuration.'**
+  String get vpnPendingResource;
+
   /// No description provided for @vpnProfile.
   ///
   /// In en, this message translates to:
@@ -2501,8 +2537,32 @@ abstract class AppLocalizations {
   /// No description provided for @vpnLastProfile.
   ///
   /// In en, this message translates to:
-  /// **'Could not generate the current profile. The previous saved version is retained.'**
+  /// **'The current profile is not ready. The last valid version was retained.'**
   String get vpnLastProfile;
+
+  /// No description provided for @vpnPreviousProfileLink.
+  ///
+  /// In en, this message translates to:
+  /// **'This QR still points to the last verified profile and does not include the pending changes.'**
+  String get vpnPreviousProfileLink;
+
+  /// No description provided for @vpnRegenerateProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Recheck servers and regenerate profile'**
+  String get vpnRegenerateProfile;
+
+  /// No description provided for @vpnRegeneratingProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Rechecking servers and regenerating the profile…'**
+  String get vpnRegeneratingProfile;
+
+  /// No description provided for @vpnProfileRegenerated.
+  ///
+  /// In en, this message translates to:
+  /// **'Server state was rechecked and the current profile was regenerated.'**
+  String get vpnProfileRegenerated;
 
   /// No description provided for @vpnInvalid.
   ///

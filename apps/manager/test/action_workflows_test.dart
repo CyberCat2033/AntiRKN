@@ -393,4 +393,50 @@ void main() {
       c.dispose();
     },
   );
+  testWidgets(
+    'profile action identifies the resource and exposes regeneration at top right',
+    (tester) async {
+      final resource = vpn.inbound('one', '1' * 32);
+      final store = vpn.MemoryVpn()
+        ..raw = VpnWorkspace(
+          id: 'f' * 32,
+          users: [VpnUser(id: vpn.alice, login: 'alice', name: 'Alice')],
+          inbounds: [resource],
+        ).encode();
+      final c = vpn.controller(store, {});
+      await tester.runAsync(c.load);
+      await tester.pumpWidget(
+        app(
+          ProfileShareSheet(
+            controller: c,
+            user: c.workspace.users.single,
+            exporter: Export(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('profile-regenerate')), findsOneWidget);
+      expect(
+        tester
+            .widget<IconButton>(
+              find.byKey(const ValueKey('profile-regenerate')),
+            )
+            .onPressed,
+        isNotNull,
+      );
+      expect(
+        tester.getTopLeft(find.byKey(const ValueKey('profile-regenerate'))).dx,
+        lessThan(
+          tester.getTopLeft(find.byKey(const ValueKey('profile-close'))).dx,
+        ),
+      );
+      expect(find.text('VLESS · Server one · VLESS'), findsOneWidget);
+      expect(
+        find.text('The server has not confirmed this resource yet.'),
+        findsOneWidget,
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+      c.dispose();
+    },
+  );
 }

@@ -171,12 +171,56 @@ void main() {
     expect(
       () => vlessUserAccesses(workspace, userId),
       throwsA(
-        isA<FormatException>().having(
-          (error) => error.message,
-          'message',
-          'vpn_pending',
-        ),
+        isA<ProfileAccessException>()
+            .having((error) => error.code, 'code', 'vpn_pending_settings')
+            .having(
+              (error) => error.subject,
+              'subject',
+              'VLESS · server · VLESS',
+            ),
       ),
     );
+  });
+
+  test('pending callback reports every affected VLESS resource', () {
+    final first = VlessInbound(
+      serverId: serverId,
+      spec: {
+        ...VlessInbound.defaults(),
+        'id': '18888888888888888888888888888888',
+        'name': 'First',
+        'endpoint': '203.0.113.1',
+        'sni': 'example.com',
+        'target': 'example.com:443',
+      },
+    );
+    final second = VlessInbound(
+      serverId: serverId,
+      spec: {
+        ...VlessInbound.defaults(),
+        'id': '28888888888888888888888888888888',
+        'name': 'Second',
+        'endpoint': '203.0.113.2',
+        'sni': 'example.com',
+        'target': 'example.com:443',
+      },
+    );
+    final issues = <ProfileAccessException>[];
+    final accesses = vlessUserAccesses(
+      VpnWorkspace(id: workspaceId, users: [user], inbounds: [first, second]),
+      userId,
+      serverNames: {serverId: 'NL'},
+      onPending: issues.add,
+    );
+
+    expect(accesses, isEmpty);
+    expect(issues.map((issue) => issue.code), [
+      'vpn_pending_readback',
+      'vpn_pending_readback',
+    ]);
+    expect(issues.map((issue) => issue.subject), [
+      'VLESS · NL · First',
+      'VLESS · NL · Second',
+    ]);
   });
 }

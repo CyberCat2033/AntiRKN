@@ -2,11 +2,13 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'prepared_proxy.dart';
 import 'proxy_name.dart';
 import 'adopted_proxy.dart';
+import 'access_diagnostic.dart';
 
 List<PreparedProxy> ttUserAccesses(
   VpnWorkspace workspace,
   String userId, {
   Map<String, String> serverNames = const {},
+  void Function(ProfileAccessException)? onPending,
 }) {
   final user = workspace.users
       .where((u) => u.id == userId && u.enabled)
@@ -14,22 +16,47 @@ List<PreparedProxy> ttUserAccesses(
   if (user == null) return [];
   final result = <PreparedProxy>[];
   for (final r in workspace.ttEndpoints.where((r) => r.enabled && !r.deleted)) {
+    final subject = accessDiagnosticSubject(
+      'TrustTunnel',
+      r.serverId,
+      r.name,
+      serverNames,
+    );
     final server = workspace.servers[ttTarget(r.serverId)];
     if (server?['error'] == 'vpn_identity') {
-      throw const FormatException('vpn_pending');
+      reportPendingAccess(
+        ProfileAccessException('vpn_pending_identity', subject),
+        onPending,
+      );
+      continue;
     }
-    final observed = (server?['observed'] as List? ?? [])
+    final candidates = (server?['observed'] as List? ?? [])
         .whereType<Map>()
         .where(
           (o) =>
               o['id'] == r.id &&
               o['workspaceId'] ==
-                  workspace.resourceWorkspaceId(ttTarget(r.serverId)) &&
-              o['confirmed'] == true &&
-              canonicalJson(o['spec']) == canonicalJson(r.spec),
+                  workspace.resourceWorkspaceId(ttTarget(r.serverId)),
         )
+        .toList();
+    final observed = candidates
+        .where((o) => o['confirmed'] == true)
         .firstOrNull;
-    final client = (observed?['clients'] as List? ?? [])
+    if (observed == null) {
+      reportPendingAccess(
+        ProfileAccessException('vpn_pending_readback', subject),
+        onPending,
+      );
+      continue;
+    }
+    if (canonicalJson(observed['spec']) != canonicalJson(r.spec)) {
+      reportPendingAccess(
+        ProfileAccessException('vpn_pending_settings', subject),
+        onPending,
+      );
+      continue;
+    }
+    final client = (observed['clients'] as List? ?? [])
         .whereType<Map>()
         .where(
           (c) =>
@@ -38,10 +65,16 @@ List<PreparedProxy> ttUserAccesses(
               (r.spec.containsKey('adoption') || c['username'] == user.login),
         )
         .firstOrNull;
-    if (client == null) throw const FormatException('vpn_pending');
+    if (client == null) {
+      reportPendingAccess(
+        ProfileAccessException('vpn_pending_client', subject),
+        onPending,
+      );
+      continue;
+    }
     if (r.spec.containsKey('adoption')) {
       result.add(
-        adoptedProxy(workspace, userId, r.spec, observed!, client, serverNames),
+        adoptedProxy(workspace, userId, r.spec, observed, client, serverNames),
       );
       continue;
     }

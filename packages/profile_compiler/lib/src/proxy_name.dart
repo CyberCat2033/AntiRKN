@@ -1,4 +1,5 @@
 import 'package:antirkn_domain/antirkn_domain.dart';
+import 'access_diagnostic.dart';
 
 /// Human-readable Protocol-ClientName_ServerName names.
 ///
@@ -69,5 +70,5 @@ String clientProxyName(
     used.add(name);
     if (node.id == resourceId) return name;
   }
-  throw const FormatException('vpn_pending');
+  throw ProfileAccessException('vpn_pending_resource', null);
 }

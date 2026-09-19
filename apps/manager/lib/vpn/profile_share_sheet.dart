@@ -27,12 +27,37 @@ class ProfileShareSheet extends StatefulWidget {
 
 class _ProfileShareSheetState extends State<ProfileShareSheet> {
   bool saving = false;
+  bool regenerating = false;
   String? message;
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) widget.publications?.request(force: true);
+    });
+  }
+
+  Future<void> _regenerate() async {
+    final l = AppLocalizations.of(context);
+    setState(() {
+      regenerating = true;
+      message = l.vpnRegeneratingProfile;
+    });
+    await widget.controller.regenerateProfile(widget.user.id);
+    if (!mounted) return;
+    final result = widget.controller.results[widget.user.id];
+    final usable =
+        widget.controller.error == null &&
+        result?.yaml != null &&
+        result?.hasBlockingErrors == false;
+    if (usable) widget.publications?.request(force: true);
+    setState(() {
+      regenerating = false;
+      message = widget.controller.error != null
+          ? vpnMessage(l, widget.controller.error!)
+          : usable
+          ? l.vpnProfileRegenerated
+          : l.vpnLastProfile;
     });
   }
 
@@ -71,6 +96,20 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                     ),
                   ),
                   IconButton(
+                    key: const ValueKey('profile-regenerate'),
+                    tooltip: l.vpnRegenerateProfile,
+                    onPressed: regenerating || saving || c.busy
+                        ? null
+                        : _regenerate,
+                    icon: regenerating
+                        ? const SizedBox.square(
+                            dimension: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.refresh),
+                  ),
+                  IconButton(
+                    key: const ValueKey('profile-close'),
                     tooltip: l.networkClose,
                     onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.close),
@@ -89,6 +128,15 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                 ),
               if (link != null) ...[
                 const SizedBox(height: AppLayout.gap),
+                if (!usable) ...[
+                  Card.filled(
+                    child: ListTile(
+                      leading: const Icon(Icons.history),
+                      title: Text(l.vpnPreviousProfileLink),
+                    ),
+                  ),
+                  const SizedBox(height: AppLayout.smallGap),
+                ],
                 ProfileLinkQr(
                   url: link,
                   profileName: user?.name ?? widget.user.name,
@@ -108,9 +156,18 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                 ),
               if (result != null)
                 for (final d in result.diagnostics)
-                  Text(
-                    '${d.severity == DiagnosticSeverity.error ? l.profileError : l.profileWarning}: '
-                    '${vpnMessage(l, d.code)}${d.subject == null ? '' : ' (${d.subject})'}',
+                  Card.filled(
+                    child: ListTile(
+                      leading: Icon(
+                        d.severity == DiagnosticSeverity.error
+                            ? Icons.error_outline
+                            : Icons.warning_amber_outlined,
+                      ),
+                      title: Text(d.subject ?? vpnMessage(l, d.code)),
+                      subtitle: d.subject == null
+                          ? null
+                          : Text(vpnMessage(l, d.code)),
+                    ),
                   ),
               const SizedBox(height: 20),
               if (usable)

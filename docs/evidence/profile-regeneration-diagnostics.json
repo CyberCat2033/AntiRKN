@@ -1,0 +1,34 @@
+{
+  "date": "2026-09-19",
+  "scope": "profile regeneration action and structured pending-access diagnostics",
+  "checks": {
+    "profile_compiler_tests": {"passed": 32, "failed": 0},
+    "manager_targeted_tests": {"passed": 28, "failed": 0},
+    "forced_readback_without_submit": true,
+    "all_pending_resources_reported": true,
+    "button_top_right_widget_check": true,
+    "profile_compiler_analyze": true,
+    "manager_analyze": true,
+    "workspace_check": true,
+    "localization_messages_per_locale": 1030
+  },
+  "known_unrelated_failures": {
+    "vpn_controller_restored_review": {"passed": 12, "failed": 1},
+    "awg_tt_adoption_assertions": 2
+  },
+  "android": {
+    "architecture": "arm64",
+    "build": "release",
+    "apk_sha256": "c717bbe5b73380ae26de8841786b592748208fd396d0d17ad54df8f4a8f16891",
+    "installed_with_data_preserved": true,
+    "installed_apk_hash_matches": true,
+    "activity_started": true
+  },
+  "not_verified": [
+    "manual regeneration against owner servers",
+    "real Google Drive publication after regeneration",
+    "Clash Mi import of the regenerated profile",
+    "Windows and Linux runtime",
+    "screen reader"
+  ]
+}
