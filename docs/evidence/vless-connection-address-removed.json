@@ -1,0 +1,33 @@
+{
+  "date": "2026-09-19",
+  "scope": "remove redundant inbound connection address expansion tile from VLESS edit form",
+  "checks": {
+    "targeted_widget_tests": {
+      "passed": 4,
+      "failed": 0
+    },
+    "inbound_connection_address_removed": true,
+    "vpn_inbound_endpoint_field_removed": true,
+    "vpn_inbound_external_port_field_removed": true,
+    "endpoint_and_external_port_derived_on_save": true,
+    "flutter_analyze": true,
+    "workspace_check": true,
+    "localization_messages_per_locale": 1030,
+    "diff_check": true
+  },
+  "android": {
+    "device": "OnePlus HD1911",
+    "architecture": "arm64",
+    "build": "release",
+    "google_project_id_configured": true,
+    "apk_sha256": "1f13d06b1f3db014f33b9b89cc3b904be51d52f04ab590531c4bda43ec2785c5",
+    "installed_with_data_preserved": true,
+    "installed_apk_hash_matches": true,
+    "activity_started": true,
+    "process_running": true
+  },
+  "not_verified": [
+    "manual visual click-through on physical phone",
+    "Linux and Windows runtime"
+  ]
+}

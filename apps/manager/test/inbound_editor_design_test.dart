@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:antirkn_design_system/antirkn_design_system.dart';
+import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_manager/l10n/app_localizations.dart';
 import 'package:antirkn_manager/network/network_controller.dart';
 import 'package:antirkn_manager/network/sample_inventory_reader.dart';
@@ -126,6 +127,15 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.widget<TextField>(listen).controller!.text, '2001:db8::99');
       expect(find.text('Clear selection'), findsNothing);
+      expect(
+        find.byKey(const ValueKey('inbound-connection-address')),
+        findsNothing,
+      );
+      expect(find.byKey(const ValueKey('vpn-inbound-endpoint')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('vpn-inbound-externalPort')),
+        findsNothing,
+      );
       await tester.tap(find.byKey(const ValueKey('transport-raw')));
       await tester.pumpAndSettle();
       expect(find.byType(BottomSheet), findsOneWidget);
@@ -158,4 +168,126 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
   }
+
+  testWidgets(
+    'saving inbound derives endpoint and externalPort automatically',
+    (tester) async {
+      final network = NetworkController(reader: const SampleInventoryReader());
+      addTearDown(network.dispose);
+      VlessInbound? saved;
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () async {
+                  saved = await showDialog<VlessInbound>(
+                    context: context,
+                    builder: (context) => InboundForm(
+                      serverId: 'server-1',
+                      network: network,
+                      motion: MotionPreference.off,
+                      defaultEndpoint: '198.51.100.10',
+                    ),
+                  );
+                },
+                child: const Text('Open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('inbound-connection-address')),
+        findsNothing,
+      );
+      expect(find.byKey(const ValueKey('vpn-inbound-endpoint')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('vpn-inbound-externalPort')),
+        findsNothing,
+      );
+
+      final portField = find.byKey(const ValueKey('vpn-inbound-port'));
+      await tester.enterText(portField, '8443');
+      final listenField = find.byKey(const ValueKey('vpn-inbound-listen'));
+      await tester.enterText(listenField, '203.0.113.5');
+      final targetField = find.byKey(const ValueKey('vpn-inbound-target'));
+      await tester.enterText(targetField, 'example.com:443');
+      final sniField = find.byKey(const ValueKey('vpn-inbound-sni'));
+      await tester.enterText(sniField, 'example.com');
+
+      final saveButton = find.byKey(const ValueKey('vpn-inbound-save'));
+      await tester.ensureVisible(saveButton);
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
+
+      expect(saved, isNotNull);
+      expect(saved!.spec['port'], 8443);
+      expect(saved!.spec['externalPort'], 8443);
+      expect(saved!.spec['listen'], '203.0.113.5');
+      expect(saved!.spec['endpoint'], '203.0.113.5');
+    },
+  );
+
+  testWidgets(
+    'saving inbound with wildcard listen falls back to defaultEndpoint',
+    (tester) async {
+      final network = NetworkController(reader: const SampleInventoryReader());
+      addTearDown(network.dispose);
+      VlessInbound? saved;
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () async {
+                  saved = await showDialog<VlessInbound>(
+                    context: context,
+                    builder: (context) => InboundForm(
+                      serverId: 'server-1',
+                      network: network,
+                      motion: MotionPreference.off,
+                      defaultEndpoint: '198.51.100.10',
+                    ),
+                  );
+                },
+                child: const Text('Open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+
+      final portField = find.byKey(const ValueKey('vpn-inbound-port'));
+      await tester.enterText(portField, '443');
+      final listenField = find.byKey(const ValueKey('vpn-inbound-listen'));
+      await tester.enterText(listenField, '0.0.0.0');
+      final targetField = find.byKey(const ValueKey('vpn-inbound-target'));
+      await tester.enterText(targetField, 'example.com:443');
+      final sniField = find.byKey(const ValueKey('vpn-inbound-sni'));
+      await tester.enterText(sniField, 'example.com');
+
+      final saveButton = find.byKey(const ValueKey('vpn-inbound-save'));
+      await tester.ensureVisible(saveButton);
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
+
+      expect(saved, isNotNull);
+      expect(saved!.spec['port'], 443);
+      expect(saved!.spec['externalPort'], 443);
+      expect(saved!.spec['listen'], '0.0.0.0');
+      expect(saved!.spec['endpoint'], '198.51.100.10');
+    },
+  );
 }

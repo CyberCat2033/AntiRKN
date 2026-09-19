@@ -739,8 +739,6 @@ class _InboundFormState extends State<InboundForm> {
       'name',
       'listen',
       'port',
-      'endpoint',
-      'externalPort',
       'sni',
       'target',
       'path',
@@ -792,7 +790,6 @@ class _InboundFormState extends State<InboundForm> {
     });
   }
 
-  late bool automaticPort = spec['port'] == spec['externalPort'];
   @override
   void dispose() {
     for (final field in fields.values) {
@@ -820,12 +817,6 @@ class _InboundFormState extends State<InboundForm> {
               fields['sni']!.text = realityTargetHost(value);
             }
           });
-        }
-        if (key == 'port' && automaticPort) {
-          fields['externalPort']!.text = value;
-        }
-        if (key == 'externalPort') {
-          automaticPort = value == fields['port']!.text;
         }
       },
       keyboardType: number ? TextInputType.number : TextInputType.text,
@@ -895,16 +886,6 @@ class _InboundFormState extends State<InboundForm> {
               ),
               const SizedBox(height: AppLayout.gap),
               field('port', l.vpnPort, number: true),
-              AppExpansionTile(
-                key: const ValueKey('inbound-connection-address'),
-                title: Text(l.vpnConnectionAddress),
-                children: [
-                  Text(l.vpnConnectionAddressHelp),
-                  const SizedBox(height: AppLayout.gap),
-                  field('endpoint', l.vpnEndpoint),
-                  field('externalPort', l.vpnExternalPort, number: true),
-                ],
-              ),
               AppSelectField<String>(
                 key: const ValueKey('vpn-inbound-utls'),
                 value: spec['fingerprint'] as String? ?? 'chrome',
@@ -1047,12 +1028,22 @@ class _InboundFormState extends State<InboundForm> {
           key: const ValueKey('vpn-inbound-save'),
           onPressed: () {
             try {
+              final port = int.tryParse(fields['port']!.text.trim());
+              final listen = fields['listen']!.text.trim();
+              final defaultHost =
+                  (spec['endpoint'] as String? ?? '').trim().isNotEmpty &&
+                      !['0.0.0.0', '::'].contains(spec['endpoint'])
+                  ? (spec['endpoint'] as String).trim()
+                  : widget.defaultEndpoint.trim();
+              final endpoint = !['0.0.0.0', '::', ''].contains(listen)
+                  ? listen
+                  : defaultHost;
               final values = <String, Object?>{
                 ...spec,
                 for (final e in fields.entries)
-                  e.key: ['port', 'externalPort'].contains(e.key)
-                      ? int.tryParse(e.value.text.trim())
-                      : e.value.text.trim(),
+                  e.key: e.key == 'port' ? port : e.value.text.trim(),
+                'endpoint': endpoint,
+                'externalPort': port,
               };
               if (!tls) {
                 values['target'] = normalizeRealityTarget(
