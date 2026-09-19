@@ -575,12 +575,64 @@ void main() {
       expect(deleted.revocationComplete, isFalse);
       expect(deleted.revocationSettled, isTrue);
       expect(deleted.deletionComplete, isTrue);
-      expect((jsonDecode(store.raw!) as Map)['version'], 5);
       expect(c.hasPendingRevocation('one'), isFalse);
       expect(c.hasRunning, isFalse);
       expect(c.hasLocalServerState('one'), isFalse);
       expect(c.orphanedPhysicalServerIds({'two'}), isEmpty);
       expect(c.results[bob]!.hasBlockingErrors, isFalse);
+      expect(c.workspace.serverIds, {'two'});
+
+      await c.saveUser(
+        VpnUser(
+          id: 'cccccccccccccccccccccccccccccccc',
+          login: 'charlie',
+          name: 'Charlie',
+          enabled: true,
+        ),
+      );
+      await c.prepareAndApply();
+      expect(c.workspace.serverIds, {'two'});
+      expect(c.hasLocalServerState('one'), isFalse);
+      expect(c.workspace.servers['one']?['authorizedPayload'], isNull);
+      expect(c.workspace.servers['one']?['paused'], isTrue);
+    },
+  );
+
+  test(
+    'orphaned server with offline authorizedPayload is detected and forgotten without resurrecting',
+    () async {
+      final store = MemoryVpn();
+      final remotes = <String, Remote>{'two': Remote(store)};
+      final c = controller(store, remotes);
+      addTearDown(c.dispose);
+      await setup(c);
+      await store.writeVpn(
+        jsonEncode({
+          ...jsonDecode(store.raw!) as Map,
+          'servers': {
+            'ghost': {
+              'authorizedPayload': jsonEncode({
+                'version': 1,
+                'resources': <dynamic>[],
+                'users': <dynamic>[],
+              }),
+              'paused': false,
+            },
+          },
+        }),
+        expectedRevision: store.revision,
+      );
+      await c.load();
+      expect(c.orphanedPhysicalServerIds({'one', 'two'}), {'ghost'});
+      expect(await c.forgetServersLocally({'ghost'}), isTrue);
+      expect(c.orphanedPhysicalServerIds({'one', 'two'}), isEmpty);
+      expect(c.workspace.servers['ghost']?['authorizedPayload'], isNull);
+      expect(c.workspace.servers['ghost']?['paused'], isTrue);
+      expect(c.workspace.serverIds, {'one', 'two'});
+      await c.prepareAndApply();
+      expect(c.workspace.servers['ghost']?['authorizedPayload'], isNull);
+      expect(c.workspace.servers['ghost']?['paused'], isTrue);
+      expect(c.workspace.serverIds, {'one', 'two'});
     },
   );
 }

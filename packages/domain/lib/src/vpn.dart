@@ -390,9 +390,9 @@ final class VpnWorkspace {
   }
 
   Set<String> get serverIds => {
-    ...inbounds.map((i) => i.serverId),
-    ...awgInterfaces.map((i) => awgTarget(i.serverId)),
-    ...ttEndpoints.map((i) => ttTarget(i.serverId)),
+    ...inbounds.where((i) => !i.deleted).map((i) => i.serverId),
+    ...awgInterfaces.where((i) => !i.deleted).map((i) => awgTarget(i.serverId)),
+    ...ttEndpoints.where((i) => !i.deleted).map((i) => ttTarget(i.serverId)),
   };
   @override
   String toString() => 'VpnWorkspace(<redacted>)';

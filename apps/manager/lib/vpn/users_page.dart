@@ -207,6 +207,7 @@ class _UsersPageState extends State<UsersPage> {
               ].contains(job.status);
     }
     return record != null &&
+        record['forgottenLocallyAt'] == null &&
         (record['error'] != null ||
             record['pending'] != null &&
                 (!c.observesOperation(id) || job?.terminal != true) ||
@@ -220,6 +221,7 @@ class _UsersPageState extends State<UsersPage> {
                       'needs_attention',
                     ].contains(job.status)) ||
             !c.observesOperation(id) &&
+                record['paused'] != true &&
                 record['authorizedPayload'] != null &&
                 record['authorizedPayload'] != record['appliedPayload']);
   }

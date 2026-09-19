@@ -403,7 +403,10 @@ class VpnController extends ChangeNotifier {
       for (final entry in workspace.servers.entries)
         if (entry.value['pending'] != null ||
             entry.value['job'] != null ||
-            entry.value['operation'] != null)
+            entry.value['operation'] != null ||
+            entry.value['authorizedPayload'] != null ||
+            entry.value['appliedPayload'] != null ||
+            (entry.value['observed'] as List? ?? []).isNotEmpty)
           vpnServerId(entry.key),
     };
     return referenced.difference(available);
@@ -954,9 +957,13 @@ class VpnController extends ChangeNotifier {
     }
     plans = [];
     final next = <VpnPlan>[];
-    final selected = workspace.serverIds
-        .where((id) => serverIds == null || serverIds.contains(id))
-        .toList();
+    final availableTargets = serverIds ?? workspace.serverIds;
+    final selected = availableTargets.where((id) {
+      if (serverIds != null && !serverIds.contains(id)) return false;
+      final server = vpnServerId(id);
+      return this.serverIds == null ||
+          this.serverIds!().map(vpnServerId).contains(server);
+    }).toList();
     // A hidden revocation is retained honestly, but it must not become an
     // invisible permanent blocker. Once this explicit access change reconnects
     // the server, finish the old revocation before planning the current state.
@@ -1118,7 +1125,19 @@ class VpnController extends ChangeNotifier {
   Future<void> _reconcile(CancellationToken token) async {
     _restoredTargets = await recovery?.readRestoredTargets() ?? {};
     var changed = false;
-    for (final id in workspace.serverIds) {
+    final reconcileTargets = {
+      ...workspace.serverIds,
+      for (final e in workspace.servers.entries)
+        if (e.value['pending'] != null ||
+            e.value['job'] != null ||
+            e.value['operation'] != null)
+          e.key,
+    }.where((id) {
+      final server = vpnServerId(id);
+      return serverIds == null ||
+          serverIds!().map(vpnServerId).contains(server);
+    }).toList();
+    for (final id in reconcileTargets) {
       // A force-hidden revocation and the current desired payload may coexist
       // durably, but must never execute concurrently on the physical server.
       if (hasPendingRevocation(vpnServerId(id))) continue;

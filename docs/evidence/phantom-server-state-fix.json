@@ -1,0 +1,44 @@
+{
+  "date": "2026-09-19T20:55:00+03:00",
+  "cause": "Tombstoned resources from deleted servers were exposed via VpnWorkspace.serverIds, causing client prepareAndApply to generate offline removal plans on raw server IDs and display attention cards",
+  "checks": {
+    "serverIds_excludes_tombstoned_resources": "pass",
+    "forgotten_server_excluded_from_prepare_and_apply": "pass",
+    "orphaned_physical_servers_detects_offline_payloads": "pass",
+    "client_deletion_tests": {
+      "passed": 12,
+      "failed": 0
+    },
+    "inbound_deletion_tests": {
+      "passed": 3,
+      "failed": 0
+    },
+    "connection_and_operations_tests": {
+      "passed": 17,
+      "failed": 0
+    },
+    "profile_compiler_tests": {
+      "passed": 32,
+      "failed": 0
+    },
+    "flutter_analyze": "pass",
+    "workspace_check": {
+      "status": "pass",
+      "localized_messages": 1030
+    }
+  },
+  "android": {
+    "target": "android-arm64 release",
+    "apk": "apps/manager/build/app/outputs/flutter-apk/app-release.apk",
+    "bytes": 77875350,
+    "sha256": "dbf4400f55c4e790efa317a20d6bdbaba929e59ee344e445fb2d559dc4f84d48",
+    "install": "adb install -r: Success",
+    "data_cleared": false,
+    "launched": true,
+    "pid": 19928
+  },
+  "remote_effects": {
+    "ssh_connection_attempted": false,
+    "vps_changed": false
+  }
+}
