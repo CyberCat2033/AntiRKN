@@ -180,6 +180,7 @@ void main() {
                   spec: value,
                   certificates: [
                     {'id': 'e' * 32, 'domain': 'vpn.example.com'},
+                    {'id': 'f' * 32, 'domain': 'backup.example.com'},
                   ],
                   network: network,
                   motion: MotionPreference.off,
@@ -236,15 +237,17 @@ void main() {
         expect(value['outbound'], 'direct');
         expect(find.byType(BottomSheet), findsNothing);
 
-        final certKey = ValueKey('tt-certificate-${value['certificateId']}-1');
+        final certKey = ValueKey('tt-certificate-${value['certificateId']}-2');
         final certField = find.byKey(certKey);
         await tester.ensureVisible(certField);
         await tester.tap(certField);
         await tester.pumpAndSettle();
         expect(find.byType(BottomSheet), findsOneWidget);
-        await tester.tap(find.byKey(const ValueKey('app-choice-')));
+        expect(find.byKey(const ValueKey('app-choice-')), findsNothing);
+        await tester.tap(find.byKey(ValueKey('app-choice-${'f' * 32}')));
         await tester.pumpAndSettle();
-        expect(value['certificateId'], '');
+        expect(value['certificateId'], 'f' * 32);
+        expect(fields['domain']!.text, 'backup.example.com');
         expect(find.byType(BottomSheet), findsNothing);
 
         expect(tester.takeException(), isNull);

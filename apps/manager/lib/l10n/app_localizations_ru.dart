@@ -1974,6 +1974,17 @@ class AppLocalizationsRu extends AppLocalizations {
   String get ttRotate => 'Заменить пароли всех клиентов этого endpoint';
 
   @override
+  String get ttRegeneratePasswords => 'Перегенерировать пароли клиентов';
+
+  @override
+  String get ttPasswordsAutomatic =>
+      'Пароли клиентов создаются автоматически и сохраняются при редактировании.';
+
+  @override
+  String get ttPasswordsRegenerated =>
+      'Новые пароли для всех клиентов применятся вместе с планом. Клиентские профили будут пересобраны.';
+
+  @override
   String get ttCertificates => 'TLS-сертификаты';
 
   @override

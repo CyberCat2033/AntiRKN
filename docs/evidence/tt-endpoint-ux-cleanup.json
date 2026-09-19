@@ -1,0 +1,34 @@
+{
+  "date": "2026-09-19",
+  "scope": "clean up TrustTunnel endpoint editor UX: button for password rotation, remove delete checkbox, remove dummy certificate choice",
+  "checks": {
+    "targeted_widget_tests": {
+      "tt_test": {
+        "passed": 3,
+        "failed": 0
+      },
+      "tt_endpoint_editor_test": {
+        "passed": 2,
+        "failed": 0
+      }
+    },
+    "flutter_analyze": true,
+    "workspace_check": true,
+    "localization_messages_per_locale": 1033,
+    "diff_check": true
+  },
+  "android": {
+    "device": "OnePlus HD1911",
+    "architecture": "arm64",
+    "build": "release",
+    "google_project_id_configured": true,
+    "apk_size_bytes": 77744246,
+    "apk_sha256": "09c464e1ab354e8e59f3ea444fc796df70b5b356c2a9f63260ffb0292ae7fa92",
+    "installed_with_data_preserved": true,
+    "installed_apk_hash_matches": true
+  },
+  "not_verified": [
+    "manual physical screen clicks on user VPS data",
+    "Linux and Windows desktop runtime"
+  ]
+}

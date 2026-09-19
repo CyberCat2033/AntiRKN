@@ -1968,6 +1968,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ttRotate => 'Replace passwords for all clients of this endpoint';
 
   @override
+  String get ttRegeneratePasswords => 'Regenerate client passwords';
+
+  @override
+  String get ttPasswordsAutomatic =>
+      'Client passwords are generated automatically and kept when editing.';
+
+  @override
+  String get ttPasswordsRegenerated =>
+      'New passwords for all clients will be applied with the plan. Client profiles will be rebuilt.';
+
+  @override
   String get ttCertificates => 'TLS certificates';
 
   @override

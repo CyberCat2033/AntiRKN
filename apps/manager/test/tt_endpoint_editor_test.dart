@@ -178,6 +178,15 @@ void main() {
         expect(find.byType(TtCertificateDialog), findsNothing);
         expect(remote.submissions, 1);
         expect(remote.submitWithoutPersistence, isFalse);
+        final regen = find.byKey(const ValueKey('tt-regenerate-passwords'));
+        await tester.ensureVisible(regen);
+        expect(find.text(l.vpnDeleteHelp), findsNothing);
+        expect(find.text(l.ttPasswordsAutomatic), findsOneWidget);
+        if (language == 'ru') {
+          await tester.tap(regen);
+          await tester.pumpAndSettle();
+          expect(find.text(l.ttPasswordsRegenerated), findsOneWidget);
+        }
         await tester.tap(find.text(l.vpnSave));
         await tester.pumpAndSettle();
         expect(result!.spec['certificateId'], remote.certificates.single['id']);
@@ -185,7 +194,7 @@ void main() {
         expect(result!.spec['port'], 8443);
         expect(result!.spec['externalPort'], 8443);
         expect(result!.spec['endpoint'], 'vpn.example.com');
-        expect(result!.spec['rotation'], 0);
+        expect(result!.spec['rotation'], language == 'ru' ? 1 : 0);
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox());
         runner.dispose();

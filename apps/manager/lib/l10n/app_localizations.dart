@@ -3530,6 +3530,24 @@ abstract class AppLocalizations {
   /// **'Replace passwords for all clients of this endpoint'**
   String get ttRotate;
 
+  /// No description provided for @ttRegeneratePasswords.
+  ///
+  /// In en, this message translates to:
+  /// **'Regenerate client passwords'**
+  String get ttRegeneratePasswords;
+
+  /// No description provided for @ttPasswordsAutomatic.
+  ///
+  /// In en, this message translates to:
+  /// **'Client passwords are generated automatically and kept when editing.'**
+  String get ttPasswordsAutomatic;
+
+  /// No description provided for @ttPasswordsRegenerated.
+  ///
+  /// In en, this message translates to:
+  /// **'New passwords for all clients will be applied with the plan. Client profiles will be rebuilt.'**
+  String get ttPasswordsRegenerated;
+
   /// No description provided for @ttCertificates.
   ///
   /// In en, this message translates to:

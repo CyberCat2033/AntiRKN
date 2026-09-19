@@ -398,6 +398,19 @@ class TtSettingsEditor extends StatelessWidget {
       ),
     );
     final id = spec['certificateId'] as String? ?? '';
+    final hasMatching = certificates.any((c) => c['id'] == id);
+    final effectiveId = hasMatching
+        ? id
+        : (certificates.isNotEmpty && !external
+            ? (certificates.first['id'] as String)
+            : '');
+    if (effectiveId != id && effectiveId.isNotEmpty) {
+      spec['certificateId'] = effectiveId;
+      final c = certificates.where((c) => c['id'] == effectiveId).firstOrNull;
+      if (c != null && fields['domain']!.text.trim().isEmpty) {
+        fields['domain']!.text = c['domain'] as String;
+      }
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -415,12 +428,13 @@ class TtSettingsEditor extends StatelessWidget {
         field('port', l.ttPort, number: true),
         field('domain', l.ttDomain),
         AppSelectField<String>(
-          key: ValueKey('tt-certificate-$id-${certificates.length}'),
-          value: certificates.any((c) => c['id'] == id) ? id : '',
+          key: ValueKey('tt-certificate-$effectiveId-${certificates.length}'),
+          value: effectiveId,
           label: l.ttCertificates,
           motion: motion,
           options: [
-            ('', external ? l.ttKeepCertificate : l.ttChooseCertificate),
+            if (certificates.isEmpty || external)
+              ('', external ? l.ttKeepCertificate : l.ttChooseCertificate),
             for (final c in certificates)
               (c['id'] as String, '${c['domain']}'),
           ],
@@ -666,21 +680,16 @@ class _ManagedTtState extends State<ManagedTtDialog> {
                 value: spec['enabled'] as bool,
                 onChanged: (v) => setState(() {
                   spec['enabled'] = v;
-                  if (v) spec['deleted'] = false;
                 }),
               ),
-              CheckboxListTile(
-                title: Text(l.ttRotate),
-                value: rotate,
-                onChanged: (v) => setState(() => rotate = v!),
+              OutlinedButton.icon(
+                key: const ValueKey('tt-regenerate-passwords'),
+                onPressed: () => setState(() => rotate = true),
+                icon: const Icon(Icons.refresh),
+                label: Text(l.ttRegeneratePasswords),
               ),
-              CheckboxListTile(
-                title: Text(l.vpnDeleteHelp),
-                value: spec['deleted'] as bool,
-                onChanged: (v) => setState(() {
-                  spec['deleted'] = v!;
-                  if (v) spec['enabled'] = false;
-                }),
+              Text(
+                rotate ? l.ttPasswordsRegenerated : l.ttPasswordsAutomatic,
               ),
               if (invalid) Text(l.vpnInvalid),
             ],
