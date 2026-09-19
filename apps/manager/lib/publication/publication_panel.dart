@@ -231,8 +231,10 @@ class UserPublicationView extends StatelessWidget {
                 ? publicationMessage(l, queue?['issue'] as String?)
                 : l.publicationWaiting,
           ),
-          if (queue?['status'] == 'error')
+          if (!published && controller.busy) const LinearProgressIndicator(),
+          if (!published)
             TextButton(
+              key: ValueKey('publication-retry-$userId'),
               onPressed: controller.busy
                   ? null
                   : () => controller.request(force: true),

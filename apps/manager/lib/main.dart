@@ -534,6 +534,7 @@ class _ManagerShellState extends State<ManagerShell>
     await catalogReady;
     await _vpn?.load();
     await _repairOrphanedVpnState();
+    await _vpn?.recoverHiddenPendingAccessChanges();
   }
 
   Future<void> _repairOrphanedVpnState() async {

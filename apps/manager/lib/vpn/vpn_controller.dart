@@ -350,6 +350,75 @@ class VpnController extends ChangeNotifier {
     return referenced.difference(available);
   }
 
+  bool get hasUnappliedActiveAccess {
+    final users = workspace.users
+        .where((user) => !user.deleted && user.enabled)
+        .map((user) => user.id)
+        .toSet();
+    if (users.isEmpty) return false;
+    bool missing(Iterable<Map> observations, String resourceId) {
+      final clients = observations
+          .where((row) => row['id'] == resourceId && row['confirmed'] == true)
+          .expand(
+            (row) => (row['clients'] as List? ?? const []).whereType<Map>(),
+          )
+          .where((client) => client['enabled'] == true)
+          .map((client) => client['id'])
+          .toSet();
+      return !clients.containsAll(users);
+    }
+
+    for (final resource in workspace.inbounds.where(
+      (resource) => resource.enabled && !resource.deleted && !resource.internal,
+    )) {
+      if (missing(
+        (workspace.servers[resource.serverId]?['observed'] as List? ?? const [])
+            .whereType<Map>(),
+        resource.id,
+      )) {
+        return true;
+      }
+    }
+    for (final resource in workspace.awgInterfaces.where(
+      (resource) => resource.enabled && !resource.deleted,
+    )) {
+      if (missing(
+        (workspace.servers[awgTarget(resource.serverId)]?['observed']
+                    as List? ??
+                const [])
+            .whereType<Map>(),
+        resource.id,
+      )) {
+        return true;
+      }
+    }
+    for (final resource in workspace.ttEndpoints.where(
+      (resource) => resource.enabled && !resource.deleted,
+    )) {
+      if (missing(
+        (workspace.servers[ttTarget(resource.serverId)]?['observed'] as List? ??
+                const [])
+            .whereType<Map>(),
+        resource.id,
+      )) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Repairs the legacy state where a force-hidden revocation prevented a
+  /// subsequently saved client from ever being prepared for the server.
+  Future<void> recoverHiddenPendingAccessChanges() async {
+    if (!loaded ||
+        busy ||
+        !pendingRevocations.any((user) => user.deletion?['hidden'] == true) ||
+        !hasUnappliedActiveAccess) {
+      return;
+    }
+    await prepareAndApply();
+  }
+
   Future<void> saveUser(VpnUser user) => _run((token) async {
     if (!loaded) return;
     if (user.deleted ||
@@ -821,11 +890,28 @@ class VpnController extends ChangeNotifier {
   }
 
   Future<void> prepare({Set<String>? serverIds}) => _run((token) async {
-    if (pendingRevocations.isNotEmpty) throw const FormatException('vpn_busy');
+    if (blockingRevocations.isNotEmpty) {
+      throw const FormatException('vpn_busy');
+    }
     plans = [];
     final next = <VpnPlan>[];
-    for (final id in workspace.serverIds) {
-      if (serverIds != null && !serverIds.contains(id)) continue;
+    final selected = workspace.serverIds
+        .where((id) => serverIds == null || serverIds.contains(id))
+        .toList();
+    // A hidden revocation is retained honestly, but it must not become an
+    // invisible permanent blocker. Once this explicit access change reconnects
+    // the server, finish the old revocation before planning the current state.
+    if (pendingRevocations.isNotEmpty) {
+      for (final id in selected) {
+        await ensureConnected(id);
+        token.check();
+      }
+      await _reconcileDeletions(token);
+    }
+    if (blockingRevocations.isNotEmpty) {
+      throw const FormatException('vpn_busy');
+    }
+    for (final id in selected) {
       await ensureConnected(id);
       token.check();
       final connection = remote(id);
@@ -844,8 +930,15 @@ class VpnController extends ChangeNotifier {
           : connection?.panelId ?? previous?['panelId'] as String?;
       if (panelId == null) throw const FormatException('vpn_panel_required');
       final payload = workspace.desired(id, panelId);
-      if (connection == null) {
-        next.add(VpnPlan(id, payload, previous?['identity'] as String?, null));
+      if (connection == null || hasPendingRevocation(vpnServerId(id))) {
+        next.add(
+          VpnPlan(
+            id,
+            payload,
+            connection?.identity ?? previous?['identity'] as String?,
+            null,
+          ),
+        );
         continue;
       }
       if (previous?['identity'] != null &&
@@ -874,7 +967,9 @@ class VpnController extends ChangeNotifier {
   }
 
   Future<void> apply() => _run((token) async {
-    if (pendingRevocations.isNotEmpty) throw const FormatException('vpn_busy');
+    if (blockingRevocations.isNotEmpty) {
+      throw const FormatException('vpn_busy');
+    }
     if (plans.isEmpty) return;
     final records = {...workspace.servers};
     for (final plan in plans) {
@@ -965,6 +1060,9 @@ class VpnController extends ChangeNotifier {
     _restoredTargets = await recovery?.readRestoredTargets() ?? {};
     var changed = false;
     for (final id in workspace.serverIds) {
+      // A force-hidden revocation and the current desired payload may coexist
+      // durably, but must never execute concurrently on the physical server.
+      if (hasPendingRevocation(vpnServerId(id))) continue;
       if (observesOperation(id)) {
         await _observeOperation(id, token);
         continue;

@@ -100,6 +100,55 @@ class Remote implements PublicationRemoteStore {
 }
 
 void main() {
+  testWidgets('waiting publication exposes an immediate retry action', (
+    tester,
+  ) async {
+    final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
+    final c = PublicationController(
+      repository: Repository(),
+      account: Account()..publicationAuthorized = true,
+      remote: Remote.new,
+      vpn: vpn,
+      canPublish: () => false,
+    )..foreground(false);
+    await c.ready;
+    await tester.runAsync(() async {
+      await vpn.load();
+      await vpn.saveUser(
+        VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice'),
+      );
+    });
+    c.settings = const PublicationSettings(
+      accountKey: 'account',
+      folderId: 'folder',
+      folderName: 'Profiles',
+      access: PublicationAccess.link,
+      enabled: true,
+      folderReady: true,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        home: Scaffold(
+          body: UserPublicationView(controller: c, userId: fixtures.alice),
+        ),
+      ),
+    );
+    expect(find.text('Waiting to publish'), findsOneWidget);
+    final retry = find.byKey(
+      const ValueKey('publication-retry-${fixtures.alice}'),
+    );
+    expect(retry, findsOneWidget);
+    await tester.tap(retry);
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await c.suspend();
+    c.dispose();
+    vpn.dispose();
+  });
+
   testWidgets(
     'retained saved profile remains publishable while current compilation is blocked',
     (tester) async {

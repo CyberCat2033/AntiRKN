@@ -1,0 +1,50 @@
+{
+  "date": "2026-09-19T17:10:31+03:00",
+  "cause": "A force-hidden client revocation remained in pendingRevocations and blocked the next client's prepareAndApply before reconnection",
+  "checks": {
+    "hidden_revocation_then_new_client": "pass",
+    "hidden_revocation_without_new_access_stays_idle": "pass",
+    "client_deletion_tests": {
+      "passed": 12,
+      "failed": 0
+    },
+    "client_deletion_ui_tests": {
+      "passed": 3,
+      "failed": 0
+    },
+    "multi_server_profile_regression": "pass",
+    "publication_waiting_retry": "pass",
+    "profile_qr_tests": {
+      "passed": 3,
+      "failed": 0
+    },
+    "verified_link_survives_missing_compilation": "pass",
+    "manager_analyze": "pass",
+    "workspace": {
+      "status": "pass",
+      "localized_messages": 1020
+    },
+    "known_unrelated_restored_review": {
+      "current": "fail",
+      "clean_head_c9a6a3f": "same failure"
+    }
+  },
+  "android": {
+    "target": "android-arm64 release",
+    "apk": "apps/manager/build/app/outputs/flutter-apk/app-release.apk",
+    "bytes": 77875310,
+    "sha256": "9fd53c1bcfe66148bfe19d93b389e42b6c78bfe4d02066205c1218c4af041847",
+    "install": "adb install -r: Success",
+    "installed_hash_matches": true,
+    "data_cleared": false,
+    "cold_start": "pass",
+    "process_alive": true,
+    "activity_focused": true,
+    "ui_runtime_result": "owner screenshot confirmed current YAML without vpn_pending before final QR retry build"
+  },
+  "unverified": [
+    "independent VPS readback outside the app",
+    "Google Drive publication, final QR appearance and Clash Mi refresh",
+    "Windows and Linux runtime"
+  ]
+}

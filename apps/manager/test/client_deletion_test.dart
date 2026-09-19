@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_manager/vpn/vpn_controller.dart';
@@ -99,6 +100,94 @@ void main() {
       );
       await c.saveUser(VpnUser(id: f.alice, login: 'alice', name: 'Alice'));
       expect(c.error, 'vpn_user_deleted');
+    },
+  );
+
+  test(
+    'force-hidden deletion does not invisibly block a later client addition',
+    () async {
+      final store = f.MemoryVpn();
+      final server = f.Remote(store);
+      final remotes = <String, f.Remote>{'one': server};
+      var reconnect = false;
+      VpnController controller() => VpnController(
+        repository: store,
+        template: () => f.template,
+        remote: (id) => remotes[id] == null
+            ? null
+            : VpnRemote(
+                transport: remotes[id]!,
+                panelId: f.panel,
+                identity: 'identity-$id',
+              ),
+        connectForDeletion: (_) async => false,
+        connectForAction: (_) async {
+          if (!reconnect) return false;
+          remotes['one'] = server;
+          return true;
+        },
+        timer: (duration, callback) => Timer(Duration.zero, () {}),
+      );
+
+      var c = controller();
+      await c.load();
+      await c.saveUser(VpnUser(id: f.alice, login: 'alice', name: 'Alice'));
+      await c.saveInbound(f.inbound('one', '1' * 32));
+      await c.prepareAndApply();
+      expect(c.results[f.alice]!.hasBlockingErrors, false);
+
+      remotes.clear();
+      await c.deleteUser(user(c));
+      c.dispose();
+      final saved = jsonDecode(store.raw!) as Map<String, dynamic>;
+      final deleted = (saved['users'] as List).single as Map<String, dynamic>;
+      final target = (deleted['deletion']['targets']['one'] as Map);
+      target['connectionAttempts'] = 3;
+      target['connectAfter'] = 0;
+      store.raw = jsonEncode(saved);
+
+      c = controller();
+      addTearDown(c.dispose);
+      await c.load();
+      expect(c.canForceDelete(user(c)), true);
+      await c.forceDeleteClient(f.alice);
+      expect(user(c).deletion!['hidden'], true);
+      expect(c.pendingRevocations, hasLength(1));
+      expect(c.hasUnappliedActiveAccess, false);
+      await c.recoverHiddenPendingAccessChanges();
+      expect(c.pendingRevocations, hasLength(1));
+
+      await c.saveUser(VpnUser(id: f.bob, login: 'bob', name: 'Bob'));
+      expect(c.hasUnappliedActiveAccess, true);
+      server.running = true;
+      reconnect = true;
+      await c.recoverHiddenPendingAccessChanges();
+
+      expect(c.error, isNull);
+      expect(user(c).deletionComplete, false);
+      expect(c.pendingRevocations, hasLength(1));
+      expect(c.results[f.bob]!.hasBlockingErrors, true);
+      expect(c.workspace.servers['one']?['authorizedPayload'], isNotNull);
+
+      server.running = false;
+      for (final job in server.jobs.values) {
+        job['status'] = 'succeeded';
+        job['checkpoint'] = job['count'];
+      }
+      await c.reconcile();
+
+      expect(c.error, isNull);
+      expect(user(c).deletionComplete, true);
+      expect(c.pendingRevocations, isEmpty);
+      expect(c.results[f.bob]!.hasBlockingErrors, false);
+      expect(c.workspace.profiles[f.bob]?['yaml'], contains('VLESS-Bob'));
+      expect(
+        server.state
+            .expand((resource) => resource['clients'] as List)
+            .where((client) => client['id'] == f.bob)
+            .single['enabled'],
+        true,
+      );
     },
   );
 

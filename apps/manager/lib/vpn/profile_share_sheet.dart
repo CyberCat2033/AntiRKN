@@ -29,6 +29,14 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
   bool saving = false;
   String? message;
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.publications?.request(force: true);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: Listenable.merge([widget.controller, widget.publications]),
     builder: (context, _) {

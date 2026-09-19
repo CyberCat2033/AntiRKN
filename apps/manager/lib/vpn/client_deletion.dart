@@ -5,6 +5,8 @@ extension ClientDeletion on VpnController {
       workspace.users.where((u) => u.deleted && !u.deletionComplete);
   Iterable<VpnUser> get pendingRevocations =>
       pendingDeletions.where((u) => !u.revocationSettled);
+  Iterable<VpnUser> get blockingRevocations =>
+      pendingRevocations.where((u) => u.deletion?['hidden'] != true);
   bool hasPendingRevocation(String serverId) => pendingRevocations.any(
     (u) => (u.deletion!['targets'] as Map).entries.any(
       (e) =>
