@@ -8,4 +8,4 @@ dependencies:
   antirkn_domain:
     path: ../domain
 dev_dependencies:
-  test: 1.29.0
+  test: ^1.29.0
