@@ -113,25 +113,18 @@ void main() {
           ),
         ),
       );
+      await c.preparePanelUpdate();
       await tester.drag(find.byType(ListView), const Offset(0, -250));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.byKey(const ValueKey('panel-update')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('panel-update')));
       await tester.pumpAndSettle();
       expect(find.text('3x-ui 3.7.0 → 3.8.0'), findsOneWidget);
       expect(find.text('Xray 26.7.28 → 26.7.28'), findsOneWidget);
       expect(find.byKey(const ValueKey('panel-access')), findsNothing);
       expect(remote.submissions, 0);
-      await tester.ensureVisible(
-        find.byKey(const ValueKey('panel-update-apply')),
-      );
+      c.dismissPanelUpdate();
       await tester.pumpAndSettle();
-      await tester.ensureVisible(
-        find.byKey(const ValueKey('panel-update-apply')),
-      );
+      await tester.ensureVisible(find.byKey(const ValueKey('panel-update')));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('panel-update-apply')));
+      await tester.tap(find.byKey(const ValueKey('panel-update')));
       await tester.pumpAndSettle();
       expect(remote.submissions, 1);
       expect(tester.takeException(), isNull);

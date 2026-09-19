@@ -76,6 +76,7 @@ class SettingsHubState extends State<SettingsHub> {
               children: [
                 if (selected > 0)
                   IconButton(
+                    key: const ValueKey('settings-back'),
                     tooltip: l.uiBack,
                     onPressed: () => open(0),
                     icon: const Icon(Icons.arrow_back),

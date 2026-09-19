@@ -1,4 +1,5 @@
 import concurrent.futures
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -46,6 +47,21 @@ class RunnerTests(unittest.TestCase):
         ]
         self.assertEqual(inspector.predecessor_for_unit(predecessors, 'unit-a'), predecessors[0])
         self.assertIsNone(inspector.predecessor_for_unit(predecessors, 'unknown'))
+
+    def test_v29_predecessor_manifests_valid(self):
+        schema_path = Path(__file__).resolve().parents[2] / 'schemas/runner-predecessor-v29.json'
+        manifests = json.loads(schema_path.read_text())
+        self.assertIsInstance(manifests, list)
+        self.assertEqual(len(manifests), 3)
+        for m in manifests:
+            self.assertIn('release', m)
+            self.assertIn('hashes', m)
+            self.assertEqual(len(m['release']), 64)
+            expected = hashlib.sha256(json.dumps(m['hashes'], sort_keys=True).encode()).hexdigest()
+            self.assertEqual(m['release'], expected)
+            self.assertIn('antirkn-runner.service', m['hashes'])
+            self.assertIn('runner.py', m['hashes'])
+
 
     def test_repeat_and_conflicting_request_identity(self):
         req = submit()

@@ -22,10 +22,31 @@ class TestLanguageStore implements LanguagePreferenceStore {
 }
 
 Future<void> openGroup(WidgetTester tester, String key) async {
-  final group = find.byKey(PageStorageKey(key));
-  await tester.ensureVisible(group);
-  // Main settings are visible cards; only advanced options are disclosures.
-  await tester.pumpAndSettle();
+  if (key == 'settings-template') {
+    if (find.byType(TemplateSettings).hitTestable().evaluate().isNotEmpty) return;
+    final back = find.byKey(const ValueKey('settings-back')).hitTestable();
+    if (back.evaluate().isNotEmpty) {
+      await tester.tap(back);
+      await tester.pumpAndSettle();
+    }
+    await tester.tap(
+      find.byKey(const ValueKey('settings-category-1')).hitTestable(),
+    );
+    await tester.pumpAndSettle();
+  } else if (key == 'settings-appearance') {
+    if (find.byIcon(Icons.language).hitTestable().evaluate().isNotEmpty) {
+      return;
+    }
+    final back = find.byKey(const ValueKey('settings-back')).hitTestable();
+    if (back.evaluate().isNotEmpty) {
+      await tester.tap(back);
+      await tester.pumpAndSettle();
+    }
+    await tester.tap(
+      find.byKey(const ValueKey('settings-category-0')).hitTestable(),
+    );
+    await tester.pumpAndSettle();
+  }
 }
 
 void main() {
@@ -90,7 +111,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('import-template')));
       await tester.pumpAndSettle();
       expect(c.source, source);
-      expect(find.text('Imported: chosen.yml'), findsOneWidget);
+      expect(find.text('chosen.yml'), findsOneWidget);
       selected = null;
       await tester.tap(find.byKey(const ValueKey('import-template')));
       await tester.pumpAndSettle();
@@ -121,6 +142,14 @@ void main() {
     });
   }
 
+Future<void> selectLanguage(WidgetTester tester, AppLanguage language) async {
+  await openGroup(tester, 'settings-appearance');
+  await tester.tap(find.byIcon(Icons.language).hitTestable());
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(ValueKey('app-choice-$language')).hitTestable());
+  await tester.pumpAndSettle();
+}
+
   testWidgets(
     'manual selection survives restart, preserves draft and overrides OS',
     (tester) async {
@@ -132,12 +161,7 @@ void main() {
           .widget<TemplateSettings>(find.byType(TemplateSettings))
           .controller;
       c.edit('proxies: []\n# retained copy');
-      if (find.byKey(const ValueKey('language-en')).evaluate().isEmpty) {
-        await openGroup(tester, 'settings-appearance');
-      }
-      await tester.ensureVisible(find.byKey(const ValueKey('language-en')));
-      await tester.tap(find.byKey(const ValueKey('language-en')));
-      await tester.pumpAndSettle();
+      await selectLanguage(tester, AppLanguage.en);
       expect(store.value, AppLanguage.en);
       expect(find.text('Interface language'), findsOneWidget);
       await tester.tap(find.text('Clients').last);
@@ -150,14 +174,7 @@ void main() {
       expect(find.text('Interface language'), findsOneWidget);
       await start(tester, LanguageController(store), key: UniqueKey());
       expect(find.text('Base configuration'), findsOneWidget);
-      await tester.tap(find.text('Settings').last);
-      await tester.pumpAndSettle();
-      if (find.byKey(const ValueKey('language-en')).evaluate().isEmpty) {
-        await openGroup(tester, 'settings-appearance');
-      }
-      await tester.ensureVisible(find.byKey(const ValueKey('language-system')));
-      await tester.tap(find.byKey(const ValueKey('language-system')));
-      await tester.pumpAndSettle();
+      await selectLanguage(tester, AppLanguage.system);
       expect(find.text('Язык интерфейса'), findsOneWidget);
       tester.platformDispatcher.localesTestValue = [const Locale('en')];
       await tester.pumpAndSettle();
@@ -173,14 +190,7 @@ void main() {
       addTearDown(tester.platformDispatcher.clearLocalesTestValue);
       final store = TestLanguageStore()..fail = true;
       await start(tester, LanguageController(store));
-      await tester.tap(find.text('Settings').last);
-      await tester.pumpAndSettle();
-      if (find.byKey(const ValueKey('language-en')).evaluate().isEmpty) {
-        await openGroup(tester, 'settings-appearance');
-      }
-      await tester.ensureVisible(find.byKey(const ValueKey('language-ru')));
-      await tester.tap(find.byKey(const ValueKey('language-ru')));
-      await tester.pumpAndSettle();
+      await selectLanguage(tester, AppLanguage.ru);
       expect(
         find.text('Could not save the language preference. Please try again.'),
         findsOneWidget,

@@ -29,7 +29,7 @@ class XrayUpgradeController extends ChangeNotifier {
   final String host;
   Map<String, dynamic>? plan, operation;
   final rows = <XrayComparison>[];
-  bool busy = false, _disposed = false;
+  bool busy = false, running = false, _disposed = false;
   String phase = 'idle', code = '';
   CancellationToken? _token;
   static const terminal = {'committed', 'rolled_back', 'not_changed'};
@@ -79,6 +79,7 @@ class XrayUpgradeController extends ChangeNotifier {
     busy = true;
     changed();
     final token = CancellationToken();
+    _token = token;
     final deadline = Timer(const Duration(seconds: 30), token.cancel);
     try {
       // Latest remains readable if the new Xray failed to start.
@@ -98,6 +99,7 @@ class XrayUpgradeController extends ChangeNotifier {
       code = error is FormatException ? error.message : 'server_unavailable';
     } finally {
       deadline.cancel();
+      if (_token == token) _token = null;
       busy = false;
       changed();
     }
@@ -144,6 +146,7 @@ class XrayUpgradeController extends ChangeNotifier {
   Future<void> run() async {
     if (busy || vpn.busy || !runner.canRequestAction || !available) return;
     busy = true;
+    running = true;
     phase = 'baseline';
     code = '';
     rows.clear();
@@ -368,6 +371,7 @@ class XrayUpgradeController extends ChangeNotifier {
       _token = null;
       vpn.upgradeBusy = false;
       if (entered) await vpn.leaveConnectionTraffic?.call();
+      running = false;
       busy = false;
       changed();
     }

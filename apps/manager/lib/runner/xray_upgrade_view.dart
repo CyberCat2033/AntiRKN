@@ -40,7 +40,7 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
           !c.busy &&
           widget.runner.connected &&
           widget.runner.panelAccess != null &&
-          (c.plan == null ||
+          ((c.plan == null && c.code.isEmpty) ||
               c.operation != null &&
                   !XrayUpgradeController.terminal.contains(
                     c.operation!['phase'],
@@ -146,9 +146,10 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
               const SizedBox(height: 8),
               FilledButton.icon(
                 key: const ValueKey('xray-check-update'),
-                onPressed: c.busy
+                onPressed: c.running
                     ? c.cancel
-                    : widget.vpn.busy ||
+                    : c.busy ||
+                          widget.vpn.busy ||
                           !widget.runner.canRequestAction ||
                           !c.available
                     ? null
@@ -160,9 +161,11 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
                         await c.run();
                       },
                 icon: Icon(
-                  c.busy ? Icons.stop_circle_outlined : Icons.system_update_alt,
+                  c.running
+                      ? Icons.stop_circle_outlined
+                      : Icons.system_update_alt,
                 ),
-                label: Text(c.busy ? l.connectionStop : l.xrayUpgradeAction),
+                label: Text(c.running ? l.connectionStop : l.xrayUpgradeAction),
               ),
               TextButton(
                 onPressed: c.busy
