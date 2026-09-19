@@ -502,6 +502,8 @@ void main() {
       );
       expect(c.hasPendingRevocation('one'), isTrue);
       expect(c.hasRunning, isTrue);
+      expect(c.hasLocalServerState('one'), isTrue);
+      expect(c.orphanedPhysicalServerIds({'two'}), {'one'});
 
       expect(await c.forgetServersLocally({'one'}), isTrue);
 
@@ -532,6 +534,8 @@ void main() {
       expect((jsonDecode(store.raw!) as Map)['version'], 5);
       expect(c.hasPendingRevocation('one'), isFalse);
       expect(c.hasRunning, isFalse);
+      expect(c.hasLocalServerState('one'), isFalse);
+      expect(c.orphanedPhysicalServerIds({'two'}), isEmpty);
       expect(c.results[bob]!.hasBlockingErrors, isFalse);
     },
   );

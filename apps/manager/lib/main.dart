@@ -407,6 +407,7 @@ class _ManagerShellState extends State<ManagerShell>
   @override
   void initState() {
     super.initState();
+    Future<void>? catalogReady;
     _diagnostics = IpDiagnosticsController(
       engine: IpDiagnosticEngine(
         transport: defaultTargetPlatform == TargetPlatform.android
@@ -432,7 +433,8 @@ class _ManagerShellState extends State<ManagerShell>
           picker: ssh.picker,
           reader: widget.networkReader,
           agentAvailable: ssh.agentAvailable,
-        )..load();
+        );
+        catalogReady = _catalog!.load();
       } else {
         _sshController = SshController(
           openVault: ssh.openVault,
@@ -504,7 +506,8 @@ class _ManagerShellState extends State<ManagerShell>
             onSshFailure: runner.accessFailure,
           );
         },
-      )..load();
+      );
+      unawaited(_loadVpnAfterCatalog(catalogReady));
       if (widget.servers is PublicationRepository &&
           widget.googleAccount is GoogleSyncAccountService) {
         final account = widget.googleAccount! as GoogleSyncAccountService;
@@ -525,6 +528,28 @@ class _ManagerShellState extends State<ManagerShell>
         _vpn!.deletePublishedFile = _publications!.deleteClientFile;
       }
     }
+  }
+
+  Future<void> _loadVpnAfterCatalog(Future<void>? catalogReady) async {
+    await catalogReady;
+    await _vpn?.load();
+    await _repairOrphanedVpnState();
+  }
+
+  Future<void> _repairOrphanedVpnState() async {
+    final catalog = _catalog, vpn = _vpn;
+    if (catalog == null ||
+        vpn == null ||
+        catalog.loading ||
+        catalog.error != null ||
+        !vpn.loaded ||
+        vpn.busy) {
+      return;
+    }
+    final orphaned = vpn.orphanedPhysicalServerIds(
+      catalog.servers.map((server) => server.id),
+    );
+    if (orphaned.isNotEmpty) await vpn.forgetServersLocally(orphaned);
   }
 
   Future<bool> _enterConnectionTraffic() async {
@@ -685,6 +710,7 @@ class _ManagerShellState extends State<ManagerShell>
         await _controller.refresh();
       }
       await _vpn?.load();
+      await _repairOrphanedVpnState();
       await _publications?.reload();
       _syncRevision++;
       return true;

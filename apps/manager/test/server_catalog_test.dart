@@ -1,13 +1,59 @@
+import 'dart:async';
+
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_manager/language_controller.dart';
+import 'package:antirkn_manager/l10n/app_localizations.dart';
 import 'package:antirkn_manager/main.dart';
+import 'package:antirkn_manager/catalog_selection.dart';
+import 'package:antirkn_manager/ssh/server_catalog.dart';
 import 'package:antirkn_manager/ssh/server_catalog_controller.dart';
 import 'package:antirkn_manager/ssh/ssh_controller.dart';
+import 'package:antirkn_manager/vpn/vpn_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'ssh_support.dart';
 import 'network_support.dart';
+
+const _userId = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+const _template =
+    '{"proxies":[],"proxy-groups":[{"name":"ALL","type":"select","include-all-proxies":true}],"rules":["MATCH,ALL"]}';
+
+VlessInbound _inbound(String server, String id) => VlessInbound(
+  serverId: server,
+  spec: {
+    ...VlessInbound.defaults(),
+    'id': id,
+    'endpoint': '203.0.113.1',
+    'sni': 'example.com',
+    'target': 'example.com:443',
+  },
+);
+
+class _MemoryVpn implements VpnRepository {
+  String? source;
+  int revision = 0;
+
+  @override
+  Future<VpnStoredDocument> readVpn() async =>
+      VpnStoredDocument(source, revision);
+
+  @override
+  Future<int> writeVpn(String source, {required int expectedRevision}) async {
+    if (expectedRevision != revision) {
+      throw const VaultFailure(VaultIssue.busy);
+    }
+    this.source = source;
+    return ++revision;
+  }
+}
+
+VpnController _vpnController(VpnRepository repository) => VpnController(
+  repository: repository,
+  remote: (_) => null,
+  template: () => _template,
+  timer: (_, _) => Timer(Duration.zero, () {}),
+);
 
 class _Repository
     implements ServerRepository, LanguagePreferenceStore, SettingsStore {
@@ -15,14 +61,9 @@ class _Repository
   final settings = <String, String>{};
   int sequence = 0;
   int revision = 1;
-  bool failDeleteOnce = false;
   final deletedRevisions = <int>[];
   @override
   Future<void> deleteServers(List<SavedServer> expected) async {
-    if (failDeleteOnce) {
-      failDeleteOnce = false;
-      throw const VaultFailure(VaultIssue.busy);
-    }
     for (final server in expected) {
       deletedRevisions.add(server.revision);
       servers.remove(server.id);
@@ -68,6 +109,25 @@ class _Handle extends FakeVault {
     } else {
       repository.servers[id] = profile;
     }
+  }
+}
+
+class _VpnRepository extends _Repository implements VpnRepository {
+  _VpnRepository(this.vpnSource);
+  String? vpnSource;
+  int vpnRevision = 1;
+
+  @override
+  Future<VpnStoredDocument> readVpn() async =>
+      VpnStoredDocument(vpnSource, vpnRevision);
+
+  @override
+  Future<int> writeVpn(String source, {required int expectedRevision}) async {
+    if (expectedRevision != vpnRevision) {
+      throw const VaultFailure(VaultIssue.busy);
+    }
+    vpnSource = source;
+    return ++vpnRevision;
   }
 }
 
@@ -133,12 +193,85 @@ void main() {
   });
 
   testWidgets('blocked deletion offers explicit local forget', (tester) async {
-    final repository = _Repository()
-      ..servers['a'] = profile('a')
-      ..failDeleteOnce = true;
+    final repository = _Repository()..servers['a'] = profile('a');
+    final connector = FakeConnector();
+    final catalog = ServerCatalogController(
+      repository: repository,
+      connector: connector,
+      picker: FakeKeyPicker(),
+      reader: TestInventoryReader(() async => testInventory()),
+    );
+    final vpn = _vpnController(_MemoryVpn());
+    final selection = CatalogSelection()
+      ..start()
+      ..toggle('a');
+    addTearDown(() {
+      selection.dispose();
+      catalog.dispose();
+      vpn.dispose();
+    });
+    await catalog.load();
+    await tester.runAsync(() async {
+      await vpn.load();
+      await vpn.saveUser(VpnUser(id: _userId, login: 'alice', name: 'Alice'));
+      await vpn.saveInbound(_inbound('a', '1' * 32));
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        home: Builder(
+          builder: (context) => TextButton(
+            key: const ValueKey('delete'),
+            onPressed: () =>
+                ServerCatalog.deleteSelected(context, catalog, selection, vpn),
+            child: const Text('Delete'),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('delete')));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.tap(find.byKey(const ValueKey('ssh-delete-confirm')));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(
+      find.byKey(const ValueKey('ssh-forget-local-confirm')),
+      findsOneWidget,
+    );
+    expect(find.text('Forget inaccessible server?'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('ssh-forget-local-confirm')));
+    await tester.pump();
+    await tester.runAsync(() async {
+      for (
+        var attempt = 0;
+        attempt < 100 && repository.servers.isNotEmpty;
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+    });
+    await tester.pump(const Duration(seconds: 1));
+    expect(repository.servers, isEmpty);
+    expect(vpn.workspace.inbounds.single.deleted, isTrue);
+    expect(connector.calls, 0);
+  });
+
+  testWidgets('startup retires VPN resources whose SSH server is gone', (
+    tester,
+  ) async {
+    final repository = _VpnRepository(
+      VpnWorkspace(
+        id: 'f' * 32,
+        inbounds: [_inbound('gone', '1' * 32)],
+      ).encode(),
+    );
     final languages = LanguageController(repository);
     await languages.load();
     addTearDown(languages.dispose);
+
     await tester.pumpWidget(
       AntiRknApp(
         source: '',
@@ -152,24 +285,22 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('server-edit')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('server-select-a')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('server-delete-selected')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('ssh-delete-confirm')));
-    await tester.pumpAndSettle();
-    expect(
-      find.byKey(const ValueKey('ssh-forget-local-confirm')),
-      findsOneWidget,
-    );
-    expect(find.text('Forget inaccessible server?'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('ssh-forget-local-confirm')));
-    await tester.pumpAndSettle();
-    expect(repository.servers, isEmpty);
-    expect(find.byKey(const ValueKey('server-a')), findsNothing);
+    await tester.pump();
+    await tester.runAsync(() async {
+      for (var attempt = 0; attempt < 100; attempt++) {
+        final source = repository.vpnSource;
+        if (source != null &&
+            VpnWorkspace.decode(source).inbounds.single.deleted) {
+          return;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      fail('Orphaned VPN resource was not retired');
+    });
+
+    final restored = VpnWorkspace.decode(repository.vpnSource!);
+    expect(restored.inbounds.single.deleted, isTrue);
+    expect(restored.inbounds.single.enabled, isFalse);
   });
 
   testWidgets('server row keeps its layout while opening and closing', (

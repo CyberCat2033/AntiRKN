@@ -1,0 +1,32 @@
+{
+  "date": "2026-09-19T16:57:31+03:00",
+  "cause": "A refreshed ordinary SSH deletion could bypass local VPN cleanup and leave active resources referencing a missing physical server",
+  "checks": {
+    "server_with_vpn_state_requires_forget": "pass",
+    "startup_retires_orphaned_resource": "pass",
+    "orphan_detection_and_forget": "pass",
+    "retained_profile_publication": "pass",
+    "client_deletion_tests": {
+      "passed": 11,
+      "failed": 0
+    },
+    "manager_analyze": "pass",
+    "workspace": {
+      "status": "pass",
+      "localized_messages": 1020
+    }
+  },
+  "android": {
+    "target": "android-arm64 release",
+    "apk": "apps/manager/build/app/outputs/flutter-apk/app-release.apk",
+    "bytes": 77809774,
+    "sha256": "4a11d88a4b7ba2668027e942ee721c5b2e882d8f18648663c7017854d6ae4013",
+    "install": "adb install -r: Success",
+    "data_cleared": false,
+    "launched": false
+  },
+  "remote_effects": {
+    "ssh_connection_attempted": false,
+    "vps_changed": false
+  }
+}

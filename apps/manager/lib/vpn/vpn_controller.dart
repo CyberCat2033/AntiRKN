@@ -302,6 +302,54 @@ class VpnController extends ChangeNotifier {
             e.value['pending'] != null &&
             e.value['paused'] != true,
       );
+
+  bool hasLocalServerState(String serverId) {
+    if (workspace.inbounds.any(
+          (resource) => resource.serverId == serverId && !resource.deleted,
+        ) ||
+        workspace.awgInterfaces.any(
+          (resource) => resource.serverId == serverId && !resource.deleted,
+        ) ||
+        workspace.ttEndpoints.any(
+          (resource) => resource.serverId == serverId && !resource.deleted,
+        ) ||
+        hasPendingRevocation(serverId)) {
+      return true;
+    }
+    return workspace.servers.entries.any((entry) {
+      if (vpnServerId(entry.key) != serverId) return false;
+      final record = entry.value;
+      return record['pending'] != null ||
+          record['job'] != null ||
+          record['operation'] != null ||
+          record['authorizedPayload'] != null ||
+          record['appliedPayload'] != null ||
+          (record['observed'] as List? ?? []).isNotEmpty;
+    });
+  }
+
+  Set<String> orphanedPhysicalServerIds(Iterable<String> availableServerIds) {
+    final available = availableServerIds.map(vpnServerId).toSet();
+    final referenced = <String>{
+      for (final resource in workspace.inbounds)
+        if (!resource.deleted) resource.serverId,
+      for (final resource in workspace.awgInterfaces)
+        if (!resource.deleted) resource.serverId,
+      for (final resource in workspace.ttEndpoints)
+        if (!resource.deleted) resource.serverId,
+      for (final user in pendingRevocations)
+        for (final entry in (user.deletion!['targets'] as Map).entries)
+          if (!vpnRevocationSettled(entry.value))
+            vpnServerId(entry.key as String),
+      for (final entry in workspace.servers.entries)
+        if (entry.value['pending'] != null ||
+            entry.value['job'] != null ||
+            entry.value['operation'] != null)
+          vpnServerId(entry.key),
+    };
+    return referenced.difference(available);
+  }
+
   Future<void> saveUser(VpnUser user) => _run((token) async {
     if (!loaded) return;
     if (user.deleted ||

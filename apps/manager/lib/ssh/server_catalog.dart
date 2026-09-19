@@ -57,7 +57,8 @@ class ServerCatalog extends StatefulWidget {
       canDelete: (id) =>
           !(vpn?.busy ?? false) &&
           !(vpn?.hasRunning ?? false) &&
-          !(vpn?.hasPendingRevocation(id) ?? false),
+          !(vpn?.hasPendingRevocation(id) ?? false) &&
+          !(vpn?.hasLocalServerState(id) ?? false),
     );
     if (controller.error == null) {
       selection.exit();
