@@ -25,6 +25,17 @@ class ServerCatalogController extends ChangeNotifier {
   bool _disposed = false;
   SshController? get selected => _sessions[selectedId];
   SshController? sessionFor(String id) => _sessions[id];
+  String serverDisplayName(String id) {
+    final sessionName = _sessions[id]?.displayName.trim();
+    if (sessionName != null && sessionName.isNotEmpty) return sessionName;
+    return servers
+            .where((server) => server.id == id)
+            .firstOrNull
+            ?.profile
+            .displayName ??
+        id;
+  }
+
   bool get needsLegacyPassword => repository.needsLegacyPassword;
   bool get hasUnsavedEdits => _sessions.values.any(
     (s) =>

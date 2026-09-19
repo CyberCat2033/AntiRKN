@@ -8,6 +8,7 @@ PreparedProxy adoptedProxy(
   Map spec,
   Map observation,
   Map client,
+  Map<String, String> serverNames,
 ) {
   final base = Map<String, Object?>.from(observation['proxy'] as Map);
   final reality = base['reality-opts'];
@@ -29,7 +30,12 @@ PreparedProxy adoptedProxy(
     ),
     fields: {
       ...base,
-      'name': clientProxyName(workspace, userId, spec['id'] as String),
+      'name': clientProxyName(
+        workspace,
+        userId,
+        spec['id'] as String,
+        serverNames,
+      ),
       'server': spec['endpoint'],
       'port': spec['externalPort'],
       if (base['type'] == 'vless') 'uuid': client['uuid'],

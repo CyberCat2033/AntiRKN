@@ -408,7 +408,7 @@ void main() {
     },
   );
   test(
-    'all protocol proxy names use display name and node label, with stable duplicate suffixes',
+    'proxy names append inbound only for multiple VLESS and keep stable duplicate suffixes',
     () async {
       final store = f.MemoryVpn();
       final c = f.controller(store, {
@@ -443,27 +443,50 @@ void main() {
       await c.apply();
       expect(c.error, isNull);
       expect(
-        awgUserAccesses(c.workspace, f.alice).single.name,
-        'AmneziaWG-Alice_Amnezia',
+        awgUserAccesses(
+          c.workspace,
+          f.alice,
+          serverNames: c.profileServerNames,
+        ).single.name,
+        'AmneziaWG-Alice_Server one',
       );
       expect(
-        ttUserAccesses(c.workspace, f.alice).single.name,
-        'TrustTunnel-Alice_Trust',
+        ttUserAccesses(
+          c.workspace,
+          f.alice,
+          serverNames: c.profileServerNames,
+        ).single.name,
+        'TrustTunnel-Alice_Server one',
       );
-      final vless = vlessUserAccesses(c.workspace, f.alice);
-      final expected = {
-        for (final r in c.workspace.inbounds) 'VLESS-Alice_${r.name}',
+      final vless = vlessUserAccesses(
+        c.workspace,
+        f.alice,
+        serverNames: c.profileServerNames,
+      );
+      final expected = <String>{
+        'VLESS-Alice_Server one-Node_1',
+        'VLESS-Alice_Server one-Node_2',
+        'VLESS-Alice_Server two-Node_3',
+        'VLESS-Alice_Server two-Node_4',
       };
       expect(vless.map((p) => p.name).toSet(), expected);
-      final before = awgUserAccesses(c.workspace, f.alice).single.fields;
+      final before = awgUserAccesses(
+        c.workspace,
+        f.alice,
+        serverNames: c.profileServerNames,
+      ).single.fields;
       final renamed = c.workspace.copy(
         users: [
           VpnUser(id: f.alice, login: 'alice', name: 'USER'),
           c.workspace.users.last,
         ],
       );
-      final after = awgUserAccesses(renamed, f.alice).single.fields;
-      expect(after, {...before, 'name': 'AmneziaWG-USER_Amnezia'});
+      final after = awgUserAccesses(
+        renamed,
+        f.alice,
+        serverNames: c.profileServerNames,
+      ).single.fields;
+      expect(after, {...before, 'name': 'AmneziaWG-USER_Server one'});
       final nodes = c.workspace.inbounds
           .map(
             (r) => VlessInbound(
@@ -493,13 +516,20 @@ void main() {
       final names = vlessUserAccesses(
         duplicate,
         f.alice,
+        serverNames: c.profileServerNames,
       ).map((p) => p.name).toSet();
       expect(names.length, nodes.length);
-      expect(names, containsAll(['VLESS-Alice_Same', 'VLESS-Alice_Same_2']));
+      expect(names, {
+        'VLESS-Alice_Server one-Same',
+        'VLESS-Alice_Server one-Same_2',
+        'VLESS-Alice_Server two-Same',
+        'VLESS-Alice_Server two-Same_2',
+      });
       expect(
         vlessUserAccesses(
           duplicate.copy(inbounds: nodes.reversed.toList()),
           f.alice,
+          serverNames: c.profileServerNames,
         ).map((p) => p.name).toSet(),
         names,
       );

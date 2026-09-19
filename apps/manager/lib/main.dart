@@ -402,6 +402,7 @@ class _ManagerShellState extends State<ManagerShell>
   ComponentUpdatesController? _diagnosticUpdates;
   late final IpDiagnosticsController _diagnostics;
   int _syncRevision = 0;
+  String _serverNameSnapshot = '';
   static const _icons = [Icons.dns_outlined, Icons.people_outline, Icons.tune];
 
   @override
@@ -434,6 +435,7 @@ class _ManagerShellState extends State<ManagerShell>
           reader: widget.networkReader,
           agentAvailable: ssh.agentAvailable,
         );
+        _catalog!.addListener(_catalogChanged);
         catalogReady = _catalog!.load();
       } else {
         _sshController = SshController(
@@ -474,6 +476,7 @@ class _ManagerShellState extends State<ManagerShell>
             ? widget.servers as WorkspaceRecoveryStore
             : null,
         template: () => _controller.source,
+        serverName: (id) => _catalog?.serverDisplayName(id) ?? id,
         serverIds: () =>
             _catalog?.servers.expand(
               (s) => [s.id, awgTarget(s.id), ttTarget(s.id)],
@@ -535,6 +538,19 @@ class _ManagerShellState extends State<ManagerShell>
     await _vpn?.load();
     await _repairOrphanedVpnState();
     await _vpn?.recoverHiddenPendingAccessChanges();
+  }
+
+  void _catalogChanged() {
+    final catalog = _catalog;
+    if (catalog == null) return;
+    final entries = [
+      for (final server in catalog.servers)
+        '${server.id}\u0000${catalog.serverDisplayName(server.id)}',
+    ]..sort();
+    final snapshot = entries.join('\u0001');
+    if (snapshot == _serverNameSnapshot) return;
+    _serverNameSnapshot = snapshot;
+    if (_vpn?.loaded == true) unawaited(_vpn!.refreshProfiles());
   }
 
   Future<void> _repairOrphanedVpnState() async {
@@ -634,6 +650,7 @@ class _ManagerShellState extends State<ManagerShell>
     WidgetsBinding.instance.removeObserver(this);
     widget.autoSync?.removeListener(_syncChanged);
     widget.autoSync?.apply = (_) async => false;
+    _catalog?.removeListener(_catalogChanged);
     _catalog?.dispose();
     _publications?.dispose();
     _vpn?.dispose();

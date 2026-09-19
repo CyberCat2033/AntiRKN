@@ -264,14 +264,18 @@ void main() {
         expect(c.adoptionConfirmed(target, 'd' * 32), true);
         expect(remote.submissions, hasLength(1));
         final restored = VpnWorkspace.decode(store.raw!);
+        final serverNames = {vpnServerId(target): 'Managed server'};
         final accesses = protocol == 'vless'
-            ? vlessUserAccesses(restored, f.alice)
+            ? vlessUserAccesses(restored, f.alice, serverNames: serverNames)
             : protocol == 'awg'
-            ? awgUserAccesses(restored, f.alice)
-            : ttUserAccesses(restored, f.alice);
+            ? awgUserAccesses(restored, f.alice, serverNames: serverNames)
+            : ttUserAccesses(restored, f.alice, serverNames: serverNames);
         expect(accesses, hasLength(1));
         expect(accesses.single.fields['server'], 'vpn.example.com');
-        expect(accesses.single.fields['name'], endsWith('Alice_Existing node'));
+        expect(
+          accesses.single.fields['name'],
+          endsWith('Alice_Managed server'),
+        );
         final conflicted = restored.copy(
           servers: {
             ...restored.servers,

@@ -31,16 +31,16 @@ final class VpnPlan {
   final Map<String, dynamic>? preview;
 }
 
-ProfileResult _compile((String, String, String) input) {
+ProfileResult _compile((String, String, String, Map<String, String>) input) {
   final workspace = VpnWorkspace.decode(input.$1);
   try {
     return const ProfileCompiler().compile(
       template: input.$2,
       userId: input.$3,
       accesses: [
-        ...vlessUserAccesses(workspace, input.$3),
-        ...awgUserAccesses(workspace, input.$3),
-        ...ttUserAccesses(workspace, input.$3),
+        ...vlessUserAccesses(workspace, input.$3, serverNames: input.$4),
+        ...awgUserAccesses(workspace, input.$3, serverNames: input.$4),
+        ...ttUserAccesses(workspace, input.$3, serverNames: input.$4),
       ],
     );
   } on FormatException catch (e) {
@@ -59,6 +59,7 @@ class VpnController extends ChangeNotifier {
     required this.remote,
     required this.template,
     this.serverIds,
+    this.serverName,
     this.connectForDeletion,
     this.connectForAction,
     this.recovery,
@@ -93,6 +94,22 @@ class VpnController extends ChangeNotifier {
   final VpnRemote? Function(String) remote;
   final String Function() template;
   final Iterable<String> Function()? serverIds;
+  final String Function(String)? serverName;
+
+  String _profileServerName(String id) {
+    final name = serverName?.call(id).trim();
+    return name == null || name.isEmpty ? id : name;
+  }
+
+  Map<String, String> get profileServerNames => {
+    for (final id in <String>{
+      ...workspace.inbounds.map((resource) => resource.serverId),
+      ...workspace.awgInterfaces.map((resource) => resource.serverId),
+      ...workspace.ttEndpoints.map((resource) => resource.serverId),
+      ...(serverIds?.call() ?? const <String>[]).map(vpnServerId),
+    })
+      id: _profileServerName(id),
+  };
 
   /// true: connected, false: connection failed, null: another action is busy.
   final Future<bool?> Function(String serverId)? connectForDeletion;
@@ -181,7 +198,12 @@ class VpnController extends ChangeNotifier {
       // Compile a fresh snapshot without writing profile history or publishing.
       final source = template();
       final snapshot = workspace.encode();
-      final compiled = await compute(_compile, (snapshot, source, userId));
+      final compiled = await compute(_compile, (
+        snapshot,
+        source,
+        userId,
+        profileServerNames,
+      ));
       if (_disposed || token.isCancelled) return;
       final yaml = compiled.yaml, hash = compiled.sha256Hash;
       if (yaml == null || hash == null || compiled.hasBlockingErrors) return;
@@ -1542,7 +1564,12 @@ class VpnController extends ChangeNotifier {
         changed = histories.remove(user.id) != null || changed;
         continue;
       }
-      final result = await compute(_compile, (encoded, source, user.id));
+      final result = await compute(_compile, (
+        encoded,
+        source,
+        user.id,
+        profileServerNames,
+      ));
       if (_disposed) return;
       results[user.id] = result;
       if (user.enabled &&

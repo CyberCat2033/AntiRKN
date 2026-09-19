@@ -187,10 +187,22 @@ class ConnectionChecks extends ChangeNotifier {
     ConnectionTarget key,
   ) {
     final nodes = isAwgTarget(key.target)
-        ? awgUserAccesses(workspace, userId)
+        ? awgUserAccesses(
+            workspace,
+            userId,
+            serverNames: owner.profileServerNames,
+          )
         : isTtTarget(key.target)
-        ? ttUserAccesses(workspace, userId)
-        : vlessUserAccesses(workspace, userId);
+        ? ttUserAccesses(
+            workspace,
+            userId,
+            serverNames: owner.profileServerNames,
+          )
+        : vlessUserAccesses(
+            workspace,
+            userId,
+            serverNames: owner.profileServerNames,
+          );
     return nodes.where((node) => node.identity.id == key.resource).firstOrNull;
   }
 

@@ -174,6 +174,11 @@ VpnController controller(
   coreValidator: coreValidator,
   recovery: recovery,
   template: source ?? () => template,
+  serverName: (id) => switch (id) {
+    'one' => 'Server one',
+    'two' => 'Server two',
+    _ => id,
+  },
   remote: (id) => remotes[id] == null
       ? null
       : VpnRemote(
@@ -299,7 +304,7 @@ void main() {
       await c.saveUser(VpnUser(id: alice, login: 'alice', name: 'Renamed'));
       expect(
         c.results[alice]!.yaml,
-        before!.replaceAll('Alice_VLESS', 'Renamed_VLESS'),
+        before!.replaceAll('Alice_Server', 'Renamed_Server'),
       );
       final restored = controller(store, remotes);
       addTearDown(restored.dispose);

@@ -1,0 +1,48 @@
+{
+  "date": "2026-09-19",
+  "scope": "Protocol-ClientName_ServerName naming with conditional VLESS inbound suffix",
+  "passed": [
+    {
+      "command": "cd packages/profile_compiler && dart test",
+      "tests": 31
+    },
+    {
+      "command": "cd packages/profile_compiler && dart analyze"
+    },
+    {
+      "command": "cd apps/manager && flutter test --no-pub test/client_deletion_test.dart",
+      "tests": 12
+    },
+    {
+      "command": "cd apps/manager && flutter test --no-pub test/vpn_controller_test.dart --plain-name 'two clients x two servers x two inbounds, only personal credentials in each YAML'",
+      "tests": 1
+    },
+    {
+      "command": "cd apps/manager && flutter test --no-pub test/connection_checks_test.dart",
+      "tests": 9
+    },
+    {
+      "command": "cd apps/manager && flutter test --no-pub test/adopt_resource_test.dart --plain-name 'vless: confirmed adoption exports access, remains durable after lost reply, rejects second claim'",
+      "tests": 1
+    },
+    {
+      "command": "cd apps/manager && flutter analyze --no-pub lib/vpn/vpn_controller.dart lib/vpn/connection_checks.dart lib/ssh/server_catalog_controller.dart lib/main.dart test/client_deletion_test.dart test/vpn_controller_test.dart test/adopt_resource_test.dart"
+    },
+    {
+      "command": "python3 tool/check_workspace.py",
+      "messages": 1020
+    },
+    {
+      "command": "git diff --check"
+    }
+  ],
+  "not_green": [
+    "Combined client_deletion/adopt_resource/vpn_controller run: one previously documented restored-review failure and two unrelated AWG/TT adoption-conflict assertions"
+  ],
+  "not_run": [
+    "Android or Linux build",
+    "APK installation",
+    "real Google Drive republish and QR import",
+    "visual verification with the owner's current profile"
+  ]
+}

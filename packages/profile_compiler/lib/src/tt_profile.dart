@@ -3,7 +3,11 @@ import 'prepared_proxy.dart';
 import 'proxy_name.dart';
 import 'adopted_proxy.dart';
 
-List<PreparedProxy> ttUserAccesses(VpnWorkspace workspace, String userId) {
+List<PreparedProxy> ttUserAccesses(
+  VpnWorkspace workspace,
+  String userId, {
+  Map<String, String> serverNames = const {},
+}) {
   final user = workspace.users
       .where((u) => u.id == userId && u.enabled)
       .firstOrNull;
@@ -36,7 +40,9 @@ List<PreparedProxy> ttUserAccesses(VpnWorkspace workspace, String userId) {
         .firstOrNull;
     if (client == null) throw const FormatException('vpn_pending');
     if (r.spec.containsKey('adoption')) {
-      result.add(adoptedProxy(workspace, userId, r.spec, observed!, client));
+      result.add(
+        adoptedProxy(workspace, userId, r.spec, observed!, client, serverNames),
+      );
       continue;
     }
     final proxy = PreparedProxy(
@@ -47,7 +53,7 @@ List<PreparedProxy> ttUserAccesses(VpnWorkspace workspace, String userId) {
         confirmed: true,
       ),
       fields: {
-        'name': clientProxyName(workspace, userId, r.id),
+        'name': clientProxyName(workspace, userId, r.id, serverNames),
         'type': 'trusttunnel',
         'server': r.spec['endpoint'],
         'port': r.spec['externalPort'],

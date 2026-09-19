@@ -3,7 +3,11 @@ import 'prepared_proxy.dart';
 import 'proxy_name.dart';
 import 'adopted_proxy.dart';
 
-List<PreparedProxy> awgUserAccesses(VpnWorkspace workspace, String userId) {
+List<PreparedProxy> awgUserAccesses(
+  VpnWorkspace workspace,
+  String userId, {
+  Map<String, String> serverNames = const {},
+}) {
   if (!workspace.users.any((u) => u.id == userId && u.enabled)) return [];
   final proxies = <PreparedProxy>[];
   for (final interface in workspace.awgInterfaces.where(
@@ -33,7 +37,9 @@ List<PreparedProxy> awgUserAccesses(VpnWorkspace workspace, String userId) {
     if (client == null) throw const FormatException('vpn_pending');
     final s = interface.spec;
     if (s.containsKey('adoption')) {
-      proxies.add(adoptedProxy(workspace, userId, s, observed!, client));
+      proxies.add(
+        adoptedProxy(workspace, userId, s, observed!, client, serverNames),
+      );
       continue;
     }
     final proxy = PreparedProxy(
@@ -44,7 +50,7 @@ List<PreparedProxy> awgUserAccesses(VpnWorkspace workspace, String userId) {
         confirmed: true,
       ),
       fields: {
-        'name': clientProxyName(workspace, userId, interface.id),
+        'name': clientProxyName(workspace, userId, interface.id, serverNames),
         'type': 'wireguard',
         'server': s['endpoint'],
         'port': s['externalPort'],

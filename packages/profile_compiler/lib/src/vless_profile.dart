@@ -9,7 +9,11 @@ String vlessRevision(Map<String, Object?> payload) =>
     sha256.convert(utf8.encode(canonicalJson(payload))).toString();
 
 /// Uses observed per-client credentials, never an administrator's panel access.
-List<PreparedProxy> vlessUserAccesses(VpnWorkspace workspace, String userId) {
+List<PreparedProxy> vlessUserAccesses(
+  VpnWorkspace workspace,
+  String userId, {
+  Map<String, String> serverNames = const {},
+}) {
   final user = workspace.users.where((u) => u.id == userId).firstOrNull;
   if (user == null || !user.enabled) return [];
   final proxies = <PreparedProxy>[];
@@ -44,11 +48,13 @@ List<PreparedProxy> vlessUserAccesses(VpnWorkspace workspace, String userId) {
     if (binding == null) throw const FormatException('vpn_pending');
     final s = inbound.spec;
     if (s.containsKey('adoption')) {
-      proxies.add(adoptedProxy(workspace, userId, s, observation, binding));
+      proxies.add(
+        adoptedProxy(workspace, userId, s, observation, binding, serverNames),
+      );
       continue;
     }
     final fields = <String, Object?>{
-      'name': clientProxyName(workspace, userId, inbound.id),
+      'name': clientProxyName(workspace, userId, inbound.id, serverNames),
       'type': 'vless',
       'server': s['endpoint'],
       'port': s['externalPort'],
