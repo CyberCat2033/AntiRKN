@@ -2273,6 +2273,12 @@ class AppLocalizationsRu extends AppLocalizations {
   String get syncSelect => 'Выбрать эту версию';
 
   @override
+  String get syncDeviceThis => 'Это устройство';
+
+  @override
+  String get syncDeviceOther => 'Другое устройство';
+
+  @override
   String get syncResolve => 'Сохранить решение';
 
   @override

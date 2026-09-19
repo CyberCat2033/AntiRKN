@@ -808,6 +808,8 @@
   "syncReveal": "Show contents and secrets",
   "syncHide": "Hide contents",
   "syncSelect": "Choose this version",
+  "syncDeviceThis": "This device",
+  "syncDeviceOther": "Other device",
   "syncResolve": "Save decision",
   "syncKindServer": "Server",
   "syncKindTemplate": "Base template",

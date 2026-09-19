@@ -1,0 +1,1529 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AntiRKN — Экспертный UI/UX Аудит и Концепция Редизайна Material Design 3</title>
+  <style>
+    :root {
+      --md-sys-color-primary: #006a4e;
+      --md-sys-color-on-primary: #ffffff;
+      --md-sys-color-primary-container: #8cf3cb;
+      --md-sys-color-on-primary-container: #002116;
+      --md-sys-color-secondary: #4d6357;
+      --md-sys-color-on-secondary: #ffffff;
+      --md-sys-color-secondary-container: #cfe8d9;
+      --md-sys-color-on-secondary-container: #0b1f16;
+      --md-sys-color-tertiary: #3d6373;
+      --md-sys-color-on-tertiary: #ffffff;
+      --md-sys-color-tertiary-container: #c1e8fb;
+      --md-sys-color-on-tertiary-container: #001f29;
+      --md-sys-color-error: #ba1a1a;
+      --md-sys-color-on-error: #ffffff;
+      --md-sys-color-error-container: #ffdad6;
+      --md-sys-color-on-error-container: #410002;
+      --md-sys-color-warning: #b26a00;
+      --md-sys-color-warning-container: #ffe0b2;
+      --md-sys-color-surface: #fbfdf9;
+      --md-sys-color-on-surface: #191c1a;
+      --md-sys-color-surface-variant: #dbe5de;
+      --md-sys-color-on-surface-variant: #404944;
+      --md-sys-color-outline: #707973;
+      --md-sys-color-outline-variant: #bfc9c2;
+      --md-sys-color-surface-container-lowest: #ffffff;
+      --md-sys-color-surface-container-low: #f5f7f3;
+      --md-sys-color-surface-container: #eff2ee;
+      --md-sys-color-surface-container-high: #e9ece8;
+      --md-sys-color-surface-container-highest: #e3e6e2;
+
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 28px;
+      --radius-full: 9999px;
+      --elevation-1: 0 1px 3px 1px rgba(0,0,0,0.15), 0 1px 2px 0 rgba(0,0,0,0.30);
+      --elevation-2: 0 2px 6px 2px rgba(0,0,0,0.15), 0 1px 2px 0 rgba(0,0,0,0.30);
+      --elevation-3: 0 4px 8px 3px rgba(0,0,0,0.15), 0 1px 3px 0 rgba(0,0,0,0.30);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-family);
+      background-color: var(--md-sys-color-surface);
+      color: var(--md-sys-color-on-surface);
+      line-height: 1.6;
+      display: flex;
+    }
+
+    /* Sidebar Navigation */
+    #sidebar {
+      width: 320px;
+      height: 100vh;
+      position: sticky;
+      top: 0;
+      background: var(--md-sys-color-surface-container-low);
+      border-right: 1px solid var(--md-sys-color-outline-variant);
+      padding: 24px 16px;
+      overflow-y: auto;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    #sidebar h2 {
+      font-size: 1.25rem;
+      color: var(--md-sys-color-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .badge-p0 {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      background-color: var(--md-sys-color-error-container);
+      color: var(--md-sys-color-on-error-container);
+    }
+
+    #sidebar nav {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    #sidebar a {
+      color: var(--md-sys-color-on-surface-variant);
+      text-decoration: none;
+      padding: 8px 12px;
+      border-radius: var(--radius-md);
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+
+    #sidebar a:hover {
+      background: var(--md-sys-color-surface-container-highest);
+      color: var(--md-sys-color-on-surface);
+    }
+
+    #sidebar a.active {
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+      font-weight: 600;
+    }
+
+    /* Main Content */
+    #main-content {
+      flex: 1;
+      padding: 40px 48px;
+      max-width: 1240px;
+      overflow-x: hidden;
+    }
+
+    header {
+      margin-bottom: 40px;
+      border-bottom: 1px solid var(--md-sys-color-outline-variant);
+      padding-bottom: 24px;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      color: var(--md-sys-color-primary);
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .header-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      font-weight: 500;
+      background: var(--md-sys-color-surface-container-high);
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    .chip.error {
+      background: var(--md-sys-color-error-container);
+      color: var(--md-sys-color-on-error-container);
+    }
+
+    .chip.warning {
+      background: var(--md-sys-color-warning-container);
+      color: var(--md-sys-color-warning);
+    }
+
+    .chip.success {
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+    }
+
+    section {
+      margin-bottom: 48px;
+    }
+
+    h2 {
+      font-size: 1.75rem;
+      color: var(--md-sys-color-on-surface);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-left: 4px solid var(--md-sys-color-primary);
+      padding-left: 12px;
+    }
+
+    h3 {
+      font-size: 1.25rem;
+      margin: 20px 0 12px 0;
+      color: var(--md-sys-color-secondary);
+    }
+
+    p, li {
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: 1rem;
+      margin-bottom: 12px;
+    }
+
+    ul, ol {
+      padding-left: 24px;
+      margin-bottom: 16px;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--md-sys-color-surface-container-low);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      margin-bottom: 20px;
+      border: 1px solid var(--md-sys-color-outline-variant);
+      transition: box-shadow 0.2s;
+    }
+
+    .card:hover {
+      box-shadow: var(--elevation-1);
+    }
+
+    .card.problem {
+      border-left: 6px solid var(--md-sys-color-error);
+      background: #fff8f7;
+    }
+
+    .card.solution {
+      border-left: 6px solid var(--md-sys-color-primary);
+      background: #f4fbf7;
+    }
+
+    .card h4 {
+      font-size: 1.15rem;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .card-meta {
+      font-size: 0.85rem;
+      font-family: var(--font-mono);
+      color: var(--md-sys-color-outline);
+      margin-bottom: 12px;
+    }
+
+    .code-inline {
+      font-family: var(--font-mono);
+      background: var(--md-sys-color-surface-container-highest);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+      color: var(--md-sys-color-on-surface);
+    }
+
+    /* Comparison Tables */
+    .table-container {
+      overflow-x: auto;
+      margin: 20px 0;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--md-sys-color-outline-variant);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+      background: var(--md-sys-color-surface-container-lowest);
+    }
+
+    th, td {
+      padding: 14px 18px;
+      text-align: left;
+      border-bottom: 1px solid var(--md-sys-color-outline-variant);
+    }
+
+    th {
+      background: var(--md-sys-color-surface-container);
+      font-weight: 600;
+      color: var(--md-sys-color-on-surface);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background: var(--md-sys-color-surface-container-low);
+    }
+
+    /* Code Blocks */
+    pre.code-block {
+      background: #141715;
+      color: #e3e6e2;
+      padding: 16px 20px;
+      border-radius: var(--radius-md);
+      font-family: var(--font-mono);
+      font-size: 0.88rem;
+      overflow-x: auto;
+      margin: 16px 0;
+      border: 1px solid #2d3530;
+      line-height: 1.5;
+    }
+
+    /* Interactive Mockups */
+    .mockup-preview {
+      background: #191c1a;
+      color: #e3e6e2;
+      border-radius: var(--radius-xl);
+      padding: 24px;
+      margin: 24px 0;
+      box-shadow: var(--elevation-3);
+      border: 1px solid #333d37;
+    }
+
+    .mockup-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #333d37;
+      padding-bottom: 16px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .mockup-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #8cf3cb;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .mockup-tabs {
+      display: flex;
+      gap: 6px;
+      background: #242c27;
+      padding: 4px;
+      border-radius: var(--radius-full);
+      overflow-x: auto;
+    }
+
+    .mockup-tab {
+      padding: 8px 18px;
+      border-radius: var(--radius-full);
+      font-size: 0.85rem;
+      cursor: pointer;
+      color: #bfc9c2;
+      border: none;
+      background: none;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .mockup-tab.active {
+      background: #006a4e;
+      color: #ffffff;
+      font-weight: 600;
+      box-shadow: var(--elevation-1);
+    }
+
+    .mockup-body {
+      background: #111413;
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      min-height: 380px;
+      border: 1px solid #27302b;
+    }
+
+    /* M3 Widgets Simulation */
+    .m3-segmented-button {
+      display: inline-flex;
+      border: 1px solid #4a564f;
+      border-radius: var(--radius-full);
+      overflow: hidden;
+      margin: 8px 0;
+      background: #1e2421;
+    }
+
+    .m3-segmented-item {
+      padding: 8px 16px;
+      border: none;
+      background: transparent;
+      color: #c2cdc5;
+      font-size: 0.88rem;
+      cursor: pointer;
+      border-right: 1px solid #4a564f;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .m3-segmented-item:last-child {
+      border-right: none;
+    }
+
+    .m3-segmented-item.selected {
+      background: #2e3a33;
+      color: #8cf3cb;
+      font-weight: 600;
+    }
+
+    .fab {
+      background: #8cf3cb;
+      color: #002116;
+      padding: 12px 20px;
+      border-radius: 16px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: var(--elevation-2);
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .fab:hover {
+      box-shadow: var(--elevation-3);
+      filter: brightness(0.95);
+    }
+
+    /* MD3 Icon Buttons */
+    .icon-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #242c27;
+      border: 1px solid #3d4a42;
+      color: #e3e6e2;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .icon-btn:hover {
+      background: #2e3a33;
+      border-color: #8cf3cb;
+      color: #8cf3cb;
+      transform: translateY(-1px);
+    }
+
+    .icon-btn.active {
+      background: #006a4e;
+      border-color: #8cf3cb;
+      color: #8cf3cb;
+      box-shadow: 0 0 10px rgba(140, 243, 203, 0.3);
+    }
+
+    /* Clickable Server Card */
+    .server-card {
+      background: #1e2421;
+      border-radius: 16px;
+      padding: 18px;
+      border: 1px solid #2e3832;
+      margin-bottom: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .server-card:hover {
+      background: #252d28;
+      border-color: #4a5c51;
+      transform: translateY(-2px);
+      box-shadow: var(--elevation-2);
+    }
+
+    .server-card:active {
+      transform: translateY(0);
+    }
+
+    /* MD3 Bottom Navigation Bar */
+    .m3-bottom-nav {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      background: #191c1a;
+      border-top: 1px solid #2e3832;
+      padding: 8px 12px 10px 12px;
+      margin-top: 20px;
+      border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+    }
+
+    .m3-nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #a0aca4;
+      padding: 4px 12px;
+      transition: all 0.2s;
+      flex: 1;
+      max-width: 110px;
+    }
+
+    .m3-nav-pill {
+      width: 56px;
+      height: 32px;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      color: #a0aca4;
+    }
+
+    .m3-nav-item:hover .m3-nav-pill {
+      background: #242c27;
+      color: #e3e6e2;
+    }
+
+    .m3-nav-item.active .m3-nav-pill {
+      background: #00513b;
+      color: #8cf3cb;
+    }
+
+    .m3-nav-label {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: inherit;
+    }
+
+    .m3-nav-item.active .m3-nav-label {
+      color: #8cf3cb;
+      font-weight: 700;
+    }
+
+    .btn-tonal {
+      background: #28332d;
+      border: 1px solid #3d4a42;
+      color: #e3e6e2;
+      padding: 8px 16px;
+      border-radius: 10px;
+      font-size: 0.88rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn-tonal:hover {
+      background: #34423a;
+    }
+
+    .btn-primary {
+      background: #006a4e;
+      border: none;
+      color: #ffffff;
+      padding: 8px 16px;
+      border-radius: 10px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn-primary:hover {
+      background: #008562;
+    }
+
+    /* Modal Simulation */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal-content {
+      background: #1e2421;
+      border-radius: 24px;
+      padding: 28px;
+      max-width: 480px;
+      width: 90%;
+      border: 1px solid #3a4740;
+      box-shadow: var(--elevation-3);
+      color: #e3e6e2;
+    }
+
+    /* Responsive */
+    @media (max-width: 960px) {
+      body {
+        flex-direction: column;
+      }
+      #sidebar {
+        width: 100%;
+        height: auto;
+        position: relative;
+        border-right: none;
+        border-bottom: 1px solid var(--md-sys-color-outline-variant);
+      }
+      #main-content {
+        padding: 24px 16px;
+      }
+      h1 {
+        font-size: 1.8rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar -->
+  <aside id="sidebar">
+    <h2>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+      AntiRKN Redesign
+    </h2>
+    <div style="font-size: 0.85rem; color: var(--md-sys-color-on-surface-variant); margin-bottom: 8px;">
+      Документ: <strong>Полная модель UI</strong><br>
+      Спецификация: <a href="docs/UI_REDESIGN_SPECIFICATION.md" style="padding:0; background:none; color:var(--md-sys-color-primary); text-decoration:underline;">MD3 Specification</a>
+    </div>
+
+    <nav>
+      <a href="#summary" class="active">1. Главное резюме аудита</a>
+      <a href="#dead-weight">2. Устаревший функционал (P0)</a>
+      <a href="#overload">3. Перегруженность и хаос данных</a>
+      <a href="#m3-violations">4. Нарушения Material Design 3</a>
+      <a href="#screen-audit">5. Поэкранный аудит (До / После)</a>
+      <a href="#architecture">6. Модель архитектуры виджетов</a>
+      <a href="#mockups">7. Интерактивные макеты нового UI</a>
+      <a href="#agent-prompt">8. Промпт и ТЗ для ИИ-агента</a>
+    </nav>
+  </aside>
+
+  <!-- Main Content -->
+  <main id="main-content">
+
+    <header>
+      <h1>Модель графического интерфейса AntiRKN v2 (Material Design 3)</h1>
+      <p style="font-size: 1.15rem; color: var(--md-sys-color-secondary);">
+        Комплексная архитектурная спецификация и интерактивные прототипы для реализации автономным ИИ-агентом или разработчиком.
+      </p>
+      <div class="header-meta">
+        <span class="chip success">✨ 4-вкладочная архитектура MD3</span>
+        <span class="chip">🎯 Android • Linux • Windows</span>
+        <span class="chip warning">🛡️ Progressive Disclosure</span>
+        <span class="chip success">🤖 Готов промпт для Codex / ИИ</span>
+      </div>
+    </header>
+
+    <!-- Section 1: Executive Summary -->
+    <section id="summary">
+      <h2>1. Главное резюме аудита</h2>
+      <p>
+        В ходе досконального сканирования кодовой базы Flutter-клиента AntiRKN (<code class="code-inline">apps/manager/lib/</code>, <code class="code-inline">packages/design_system/</code>) был выявлен классический <strong>синдром разработческого прототипа</strong> (<em>Developer Dashboard Syndrome</em>).
+      </p>
+      <p>
+        Приложение решает сложнейшие задачи серверного provisioning (Xray 3x-ui, AmneziaWG, TrustTunnel, Mihomo, Google Drive E2EE Sync), однако текущий интерфейс формировался инкрементально отладочными шагами от стадии P0 к P1-06a. В результате в релизный UI проникли десятки отладочных сущностей, от которых обычный пользователь и системный администратор испытывают когнитивный шок.
+      </p>
+
+      <div class="card problem">
+        <h4>🚨 5 ключевых дефектов текущего UI</h4>
+        <div class="card-meta">Критический уровень воздействия на пользователя: ВЫСОКИЙ</div>
+        <ul>
+          <li><strong>Анахронизмы фазы P0 на первом экране:</strong> Вкладка №0 («Обзор») и постоянный чип в AppBar гласят: <em>«Прототип P0... Установка ПО и синхронизация запланированы на следующие стадии»</em>, хотя весь этот функционал уже написан и работает!</li>
+          <li><strong>Отладочный песочница-верстак вместо реальной пользы:</strong> Вкладка №1 («Шаблоны») содержит ручной генератор mock-нод («mixed», «noRuWg»), созданный на первой неделе проекта для юнит-тестов компилятора, но занимающий главное место в навигации.</li>
+          <li><strong>Вываливание сырых путей Linux и хешей:</strong> На экранах установки пользователю демонстрируются строки вида <code class="code-inline">/usr/local/lib/antirkn-components/trusttunnel/</code>, контрольные суммы SHA-256 и размеры в MiB прямо в основных карточках.</li>
+          <li><strong>Дамп сетевых сокетов ядра и флагов:</strong> Карточка сервера содержит детальный список всех сетевых сокетов операционной системы (<code class="code-inline">0.0.0.0:22</code>, <code class="code-inline">127.0.0.1:2080</code>), время жизни адресов в секундах (<code class="code-inline">infinite</code>) и системные флаги interfaces.</li>
+          <li><strong>Полное игнорирование правил Material Design 3:</strong> Отсутствие FAB (Floating Action Button), выбор взаимоисключающих опций через <code class="code-inline">ChoiceChip</code> вместо <code class="code-inline">SegmentedButton</code>, модальные диалоги с 12 полями ввода вместо адаптивных Full-Screen Dialogs / Bottom Sheets, прыгающее количество вкладок в NavigationBar.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Section 2: Dead Weight & Obsolete Functionality -->
+    <section id="dead-weight">
+      <h2>2. Устаревший и бесполезный функционал (Dead Weight)</h2>
+
+      <div class="card problem">
+        <h4>1. Вкладка №0: «Обзор / Прототип P0» (<code class="code-inline">apps/manager/lib/main.dart:636-651</code>)</h4>
+        <p>Содержит две гигантские пустые карточки с текстом из 2026-09-13: <em>«Установка ПО и синхронизация запланированы на следующие стадии»</em>. <strong>Устранение:</strong> заменить на Дашборд здоровья серверов и фоновых задач.</p>
+      </div>
+
+      <div class="card problem">
+        <h4>2. Постоянный чип «Прототип P0» в AppBar (<code class="code-inline">main.dart:584-595</code>)</h4>
+        <p>На всех экранах висит чип с колбой науки. <strong>Устранение:</strong> удалить, заменить на индикатор облачной синхронизации Google Drive E2EE.</p>
+      </div>
+
+      <div class="card problem">
+        <h4>3. Вкладка №1: «Шаблоны / Workbench» (<code class="code-inline">main.dart:852-1168</code>)</h4>
+        <p>Отладочная песочница с кнопками фиктивных нод («mixed», «noRuWg») и текстовым вводом фиктивных прокси. <strong>Устранение:</strong> убрать из главного меню, выбор <code class="code-inline">base.yml</code> и список групп перенести в Настройки.</p>
+      </div>
+
+      <div class="card problem">
+        <h4>4. Демо-генератор сетевого инвентаря (<code class="code-inline">network_workbench.dart:127-189</code>)</h4>
+        <p>Кнопка «Загрузить пример», считывающая тестовый синтетический JSON при отсутствии SSH. <strong>Устранение:</strong> заменить на канонический Material 3 Empty State «Сервер не подключен».</p>
+      </div>
+    </section>
+
+    <!-- Section 3: Information Overload & Technical Jargon -->
+    <section id="overload">
+      <h2>3. Перегруженность и хаос данных (Technical Clutter)</h2>
+
+      <div class="card problem">
+        <h4>Вываливание системных путей Linux и бинарников</h4>
+        <p>Строки <code class="code-inline">/usr/local/x-ui/</code>, <code class="code-inline">/etc/systemd/system/x-ui.service</code>, <code class="code-inline">SHA-256: 4f2c846...</code> показываются прямо в центре экрана. <strong>Решение:</strong> спрятать под спойлер с иконкой терминала <em>«Технические параметры пакета»</em>.</p>
+      </div>
+
+      <div class="card problem">
+        <h4>Сырые байты трафика и таймстемпы</h4>
+        <p>В пирах AmneziaWG пишется: <code class="code-inline">RX 34298129 B · TX 1029410 B</code>. <strong>Решение:</strong> форматировать в человекопонятные <code class="code-inline">32.7 МБ</code> / <code class="code-inline">1.0 МБ</code>, а время рукопожатий — в <code class="code-inline">«2 мин. назад»</code>.</p>
+      </div>
+
+      <div class="card problem">
+        <h4>Дамп сетевых сокетов ядра</h4>
+        <p>Таблица всех слушающих портов хоста (<code class="code-inline">0.0.0.0:22</code>, <code class="code-inline">127.0.0.1:2080</code>) вываливается в общую карточку сервера. <strong>Решение:</strong> вынести сокеты ОС в отдельный диагностический спойлер вкладки «Сеть».</p>
+      </div>
+    </section>
+
+    <!-- Section 4: Material Design 3 Violations -->
+    <section id="m3-violations">
+      <h2>4. Нарушения правил Material Design 3</h2>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Элемент</th>
+              <th>Текущее нарушение в AntiRKN</th>
+              <th>Канон Material Design 3</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Селекторы опций</strong></td>
+              <td><code class="code-inline">ChoiceChip</code> в <code class="code-inline">Wrap</code> для темы, языка, анимаций, SSH-аутентификации</td>
+              <td><strong><code class="code-inline">SegmentedButton&lt;T&gt;</code></strong> для взаимоисключающего выбора из 2–4 значений</td>
+            </tr>
+            <tr>
+              <td><strong>Главное действие (CTA)</strong></td>
+              <td>Иконка «+» в углу AppBar; обычная кнопка в карточке списка</td>
+              <td><strong><code class="code-inline">FloatingActionButton.extended</code></strong> (FAB) с четким акцентом и иконкой</td>
+            </tr>
+            <tr>
+              <td><strong>Карточки и вложенность</strong></td>
+              <td>Тяжелые контурные <code class="code-inline">Card.outlined</code>, вложенные друг в друга (Card Nesting Hell)</td>
+              <td>Тональные поверхности <strong><code class="code-inline">surfaceContainerLow / High</code></strong> с тонкими разделителями</td>
+            </tr>
+            <tr>
+              <td><strong>Отступы экранов</strong></td>
+              <td>Жесткий отступ 24px везде, отнимающий 48px на смартфонах 360–390px</td>
+              <td>Адаптивные отступы: <strong>16dp на compact (&lt;600dp)</strong> и <strong>24dp на desktop</strong></td>
+            </tr>
+            <tr>
+              <td><strong>Диалоги редактирования</strong></td>
+              <td>Модальный <code class="code-inline">AlertDialog</code> с 11 полями, сжимающийся клавиатурой</td>
+              <td><strong>FullScreenDialog</strong> на мобильных устройствах или адаптивный Bottom Sheet</td>
+            </tr>
+            <tr>
+              <td><strong>Навигационная панель</strong></td>
+              <td>Динамическое добавление 5-й вкладки по <code class="code-inline">if (_vpn != null)</code></td>
+              <td>Статичные 4 вкладки: Дашборд, Серверы, Клиенты, Настройки</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Section 5: Screen-by-Screen Audit -->
+    <section id="screen-audit">
+      <h2>5. Поэкранный аудит: Текущий вид vs Новый вид</h2>
+
+      <div class="card solution">
+        <h4>1. Оболочка и навигация (`ManagerShell`)</h4>
+        <p><strong>Было:</strong> 5 вкладок (2 мертвые), чип прототипа P0, прыгающий нижний бар.<br>
+        <strong>Стало:</strong> 4 фиксированные вкладки (Дашборд, Серверы, Клиенты, Настройки). В шапке — статус Google Drive Sync и аватар аккаунта.</p>
+      </div>
+
+      <div class="card solution">
+        <h4>2. Экран сервера (`ServerDetailView`)</h4>
+        <p><strong>Было:</strong> Один бесконечный скролл с SSH, Runner, 4 протоколами, сокетами ОС и APT.<br>
+        <strong>Стало:</strong> Разделение экрана на 3 сегмента (Segmented Tabs):<br>
+        • <em>Протоколы</em> (VLESS REALITY, AWG, TrustTunnel);<br>
+        • <em>Службы и ПО</em> (3x-ui, Xray, обновления APT, скрытые тех. параметры);<br>
+        • <em>Сеть и SSH</em> (публичные адреса, ключи, Jump-хост).</p>
+      </div>
+
+      <div class="card solution">
+        <h4>3. Экран клиентов (`UsersView`)</h4>
+        <p><strong>Было:</strong> Пользователи перемешаны с очередями задач runner для всех серверов.<br>
+        <strong>Стало:</strong> Карточки пользователей с аватарами, переключателем доступа и модальным окном выдачи: крупный QR-код Mihomo + прямая ссылка Google Drive.</p>
+      </div>
+
+      <div class="card solution">
+        <h4>4. Экран настроек (`SettingsView`)</h4>
+        <p><strong>Было:</strong> Длинная лента несортированных карточек.<br>
+        <strong>Стало:</strong> Группированные списки Material 3 (Облако/Бэкап, Базовый YAML, Оформление на SegmentedButtons).</p>
+      </div>
+    </section>
+
+    <!-- Section 6: Widget Architecture Tree -->
+    <section id="architecture">
+      <h2>6. Модель архитектуры виджетов и потоков данных</h2>
+      <p>
+        Новая структура строго отделяет презентационный слой от неизменяемой бизнес-логики и контрактов:
+      </p>
+
+      <pre class="code-block">
+lib/
+├── main.dart                          <-- ManagerShell: 4 вкладки, DynamicColorBuilder
+├── dashboard/
+│   └── dashboard_view.dart            <-- Экран 1: Сводка серверов, задач и Google Drive
+├── ssh/
+│   ├── server_catalog.dart            <-- Экран 2: Список серверов + FAB "Добавить"
+│   ├── server_detail_view.dart        <-- Детали сервера с SegmentedButton (3 вкладки)
+│   ├── tabs/
+│   │   ├── server_protocols_tab.dart  <-- Вкладка 1: Inbounds, AWG, TrustTunnel
+│   │   ├── server_services_tab.dart   <-- Вкладка 2: 3x-ui, Xray, APT, Обновления
+│   │   └── server_network_tab.dart    <-- Вкладка 3: Адреса, SSH-параметры, Диагностика
+│   └── ssh_controller.dart            <-- БЕЗ ИЗМЕНЕНИЙ (бизнес-логика сохранена)
+├── vpn/
+│   ├── users_page.dart                <-- Экран 3: Клиенты + FAB "Новый пользователь"
+│   ├── profile_share_sheet.dart       <-- Bottom Sheet: QR-код Mihomo + Ссылка Drive
+│   └── vpn_controller.dart            <-- БЕЗ ИЗМЕНЕНИЙ
+├── settings/
+│   └── settings_view.dart             <-- Экран 4: Google Drive, base.yml, Внешний вид
+└── runner/, sync/, network/           <-- Контроллеры и протокольные клиенты БЕЗ ИЗМЕНЕНИЙ</pre>
+
+      <div class="card solution">
+        <h4>🔗 Маппинг данных (Controller Binding)</h4>
+        <ul>
+          <li><strong>Дашборд:</strong> Подписывается на <code class="code-inline">ServerCatalogController</code> (число серверов), <code class="code-inline">VpnController</code> (пользователи), <code class="code-inline">AutoSyncController</code> (статус облака) и <code class="code-inline">RunnerJob</code> (глобальный прогресс-бар).</li>
+          <li><strong>Серверы:</strong> Использует методы <code class="code-inline">catalog.servers</code>, <code class="code-inline">catalog.select(id)</code>, <code class="code-inline">session.runner</code>. Никаких новых сетевых запросов.</li>
+          <li><strong>Клиенты:</strong> Отображает <code class="code-inline">vpn.workspace.users</code>, переключает через <code class="code-inline">vpn.saveUser()</code>, выдает профиль через <code class="code-inline">vpn.exportProfile()</code>.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Section 7: Interactive Mockups -->
+    <section id="mockups">
+      <h2>7. Интерактивные макеты нового интерфейса</h2>
+      <p>
+        Переключайте разделы в <strong>нижней панели навигации (Material 3 NavigationBar)</strong>. На вкладке «Сервер» карточки серверов кликабельны целиком (клик открывает детали), а в правом верхнем углу доступны кнопки <strong>«+»</strong> (добавление сервера) и <strong>«карандашик»</strong> (вход/выход из режима редактирования для удаления):
+      </p>
+
+      <div class="mockup-preview">
+        <div class="mockup-header">
+          <div class="mockup-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v12H4z" fill-opacity="0.3"/><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12z"/></svg>
+            Интерактивный прототип: AntiRKN v2 (Material Design 3)
+          </div>
+          <div class="mockup-tabs">
+            <button class="mockup-tab active" data-view="dashboard" onclick="switchMockup('dashboard', this)">1. Дашборд</button>
+            <button class="mockup-tab" data-view="server" onclick="switchMockup('server', this)">2. Сервер</button>
+            <button class="mockup-tab" data-view="users" onclick="switchMockup('users', this)">3. Клиенты и QR</button>
+            <button class="mockup-tab" data-view="settings" onclick="switchMockup('settings', this)">4. Настройки</button>
+          </div>
+        </div>
+
+        <div class="mockup-body" id="mockup-content">
+          <!-- View 1: Dashboard -->
+          <div id="view-dashboard">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+              <div>
+                <h3 style="color: #fff; margin: 0;">Инфраструктура AntiRKN</h3>
+                <p style="font-size: 0.85rem; color: #a0aca4; margin: 0;">Синхронизировано со сквозным шифрованием (E2EE)</p>
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <span class="chip success" style="background: #00513b; color: #8cf3cb;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
+                  Google Drive: Актуально
+                </span>
+              </div>
+            </div>
+
+            <!-- Running Task Banner -->
+            <div style="background: #252b27; border-left: 4px solid #8cf3cb; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="font-size: 0.85rem; font-weight: 600; color: #fff;">Фоновая задача: Франкфурт (Ubuntu 24.04)</div>
+                <div style="font-size: 0.75rem; color: #8fa096;">Применение обновлений ядра Xray v26.7.28 • 80%</div>
+              </div>
+              <span style="font-size: 0.75rem; color: #8cf3cb; font-family: var(--font-mono);">Выполняется…</span>
+            </div>
+
+            <!-- Stats Grid -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+              <div style="background: #1e2421; padding: 16px; border-radius: 16px; border: 1px solid #2e3832;">
+                <div style="font-size: 0.85rem; color: #8fa096;">Серверы онлайн</div>
+                <div style="font-size: 1.8rem; font-weight: 700; color: #8cf3cb; margin: 4px 0;">2 / 2</div>
+                <div style="font-size: 0.75rem; color: #8cf3cb;">Германия, Финляндия</div>
+              </div>
+              <div style="background: #1e2421; padding: 16px; border-radius: 16px; border: 1px solid #2e3832;">
+                <div style="font-size: 0.85rem; color: #8fa096;">VPN-пользователи</div>
+                <div style="font-size: 1.8rem; font-weight: 700; color: #ffffff; margin: 4px 0;">5 клиентов</div>
+                <div style="font-size: 0.75rem; color: #a0aca4;">8 профилей Mihomo</div>
+              </div>
+              <div style="background: #1e2421; padding: 16px; border-radius: 16px; border: 1px solid #2e3832;">
+                <div style="font-size: 0.85rem; color: #8fa096;">Протоколы в работе</div>
+                <div style="font-size: 1.8rem; font-weight: 700; color: #c1e8fb; margin: 4px 0;">3 службы</div>
+                <div style="font-size: 0.75rem; color: #c1e8fb;">VLESS, AWG 3.1, TrustTunnel</div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- View 2: Server Catalog & Detail -->
+          <div id="view-server" style="display: none;">
+            <!-- Server List Subview -->
+            <div id="server-list-subview">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 12px;">
+                <div>
+                  <h3 style="color: #fff; margin: 0; display: flex; align-items: center; gap: 8px;">
+                    Серверы
+                    <span class="chip" style="background: #28322c; color: #8cf3cb; font-size: 0.75rem; padding: 2px 8px;" id="server-count-badge">2</span>
+                  </h3>
+                  <p style="font-size: 0.85rem; color: #a0aca4; margin: 0;">Управление инфраструктурой и протоколами</p>
+                </div>
+                <!-- 2 кнопки в правом верхнем углу: (+) и (карандашик для входа в режим редактирования) -->
+                <div style="display: flex; gap: 10px; align-items: center;">
+                  <button class="icon-btn" onclick="openAddServerModal()" title="Добавить сервер (+)">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                  </button>
+                  <button class="icon-btn" id="btn-edit-server" onclick="toggleServerEditMode()" title="Режим редактирования (удаление серверов)">
+                    <svg id="edit-server-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Баннер активного режима редактирования -->
+              <div id="server-edit-banner" style="display: none; background: #3b090b; border: 1px solid #93000a; border-radius: 12px; padding: 12px 16px; margin-bottom: 16px; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: #ffdad6;">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                  <strong>Режим редактирования:</strong> нажмите «Удалить» на нужном сервере
+                </div>
+                <button class="btn-tonal" style="padding: 4px 12px; font-size: 0.75rem; background: #690005; color: #fff; border: none;" onclick="toggleServerEditMode()">
+                  Завершить
+                </button>
+              </div>
+
+              <!-- Server Card 1: Кликабельная карточка (Франкфурт) -->
+              <div class="server-card" onclick="handleServerCardClick('Франкфурт (Ubuntu 24.04)', '45.134.22.10')">
+                <div>
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="width: 10px; height: 10px; border-radius: 50%; background: #8cf3cb; display: inline-block;"></span>
+                    <strong style="color: #fff; font-size: 1.05rem;">Франкфурт</strong>
+                    <span class="chip success" style="font-size: 0.72rem; padding: 2px 8px;">Онлайн</span>
+                  </div>
+                  <div style="font-size: 0.85rem; color: #8fa096; margin-top: 6px;">45.134.22.10:22 • Ubuntu 24.04 • VLESS, AWG, TrustTunnel</div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <!-- Обычный режим: пинг и шеврон -->
+                  <div class="card-normal-action" style="display: flex; align-items: center; gap: 8px;">
+                    <span class="chip" style="background: #232b26; color: #8cf3cb; font-size: 0.75rem; padding: 2px 8px;">34 ms</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="#8fa096"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                  </div>
+                  <!-- Режим редактирования: кнопка удаления -->
+                  <button class="card-edit-action btn-tonal" style="display: none; color: #ffb4ab; border-color: #690005; background: #3b090b; padding: 6px 14px;" onclick="event.stopPropagation(); openDeleteServerModal('Франкфурт (45.134.22.10)')" title="Удалить сервер">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                    Удалить
+                  </button>
+                </div>
+              </div>
+
+              <!-- Server Card 2: Кликабельная карточка (Хельсинки) -->
+              <div class="server-card" onclick="handleServerCardClick('Хельсинки (Ubuntu 22.04)', '95.217.44.89')">
+                <div>
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="width: 10px; height: 10px; border-radius: 50%; background: #8cf3cb; display: inline-block;"></span>
+                    <strong style="color: #fff; font-size: 1.05rem;">Хельсинки</strong>
+                    <span class="chip success" style="font-size: 0.72rem; padding: 2px 8px;">Онлайн</span>
+                  </div>
+                  <div style="font-size: 0.85rem; color: #8fa096; margin-top: 6px;">95.217.44.89:22 • Ubuntu 22.04 • VLESS REALITY</div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <!-- Обычный режим: пинг и шеврон -->
+                  <div class="card-normal-action" style="display: flex; align-items: center; gap: 8px;">
+                    <span class="chip" style="background: #232b26; color: #8cf3cb; font-size: 0.75rem; padding: 2px 8px;">19 ms</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="#8fa096"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                  </div>
+                  <!-- Режим редактирования: кнопка удаления -->
+                  <button class="card-edit-action btn-tonal" style="display: none; color: #ffb4ab; border-color: #690005; background: #3b090b; padding: 6px 14px;" onclick="event.stopPropagation(); openDeleteServerModal('Хельсинки (95.217.44.89)')" title="Удалить сервер">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                    Удалить
+                  </button>
+                </div>
+              </div>
+            </div>
+            </div>
+
+            <!-- Server Detail Subview (Initially hidden, opened when clicking a server) -->
+            <div id="server-detail-subview" style="display: none;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <button class="btn-tonal" onclick="closeServerDetail()" title="Вернуться к списку серверов">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+                    Серверы
+                  </button>
+                  <div>
+                    <span style="font-size: 0.8rem; color: #8cf3cb; text-transform: uppercase; font-weight: 600;" id="detail-server-header">VPS #1 • Франкфурт</span>
+                    <h3 style="color: #fff; margin: 2px 0 0 0;" id="detail-server-ip">Ubuntu 24.04 (45.134.22.10)</h3>
+                  </div>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <span class="chip success" style="background: #00513b; color: #8cf3cb;">● SSH подключен</span>
+                  <button class="btn-tonal" style="color: #ffb4ab; border-color: #690005; background: #3b090b;" onclick="openDeleteServerModal('текущий сервер')" title="Удалить сервер">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                    Удалить
+                  </button>
+                </div>
+              </div>
+
+            <!-- Segmented Control for Server Sub-views -->
+            <div class="m3-segmented-button" style="margin-bottom: 20px;">
+              <button class="m3-segmented-item selected" id="subtab-proto" onclick="switchServerSubtab('proto')">Протоколы (Inbounds)</button>
+              <button class="m3-segmented-item" id="subtab-services" onclick="switchServerSubtab('services')">Службы и обновления</button>
+              <button class="m3-segmented-item" id="subtab-network" onclick="switchServerSubtab('network')">Сеть и SSH</button>
+            </div>
+
+            <!-- Subtab 1: Protocols -->
+            <div id="subview-proto">
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="background: #1e2421; border-radius: 14px; padding: 16px; border: 1px solid #2e3832; display: flex; justify-content: space-between; align-items: center;">
+                  <div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <strong style="color: #fff;">VLESS REALITY + Vision</strong>
+                      <span class="chip success" style="font-size: 0.7rem; padding: 2px 6px;">Порт 443</span>
+                      <span class="chip" style="font-size: 0.7rem; padding: 2px 6px; background: #28322c; color: #a0aca4;">SNI: dl.google.com</span>
+                    </div>
+                    <div style="font-size: 0.8rem; color: #8fa096; margin-top: 4px;">Служба: 3x-ui / Xray • Активен • Доступ открыт всем 5 клиентам</div>
+                  </div>
+                  <div style="display: flex; gap: 8px;">
+                    <button class="btn-tonal">Изменить</button>
+                  </div>
+                </div>
+
+                <div style="background: #1e2421; border-radius: 14px; padding: 16px; border: 1px solid #2e3832; display: flex; justify-content: space-between; align-items: center;">
+                  <div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <strong style="color: #fff;">AmneziaWG 3.1</strong>
+                      <span class="chip warning" style="font-size: 0.7rem; padding: 2px 6px; background: #473200; color: #ffd88a;">UDP 51820</span>
+                      <span class="chip" style="font-size: 0.7rem; padding: 2px 6px; background: #28322c; color: #a0aca4;">Пул: 10.7.0.0/24</span>
+                    </div>
+                    <div style="font-size: 0.8rem; color: #8fa096; margin-top: 4px;">Обфускация активна • Трафик за сутки: <strong>1.4 ГБ</strong> (Рукопожатие: 3 мин назад)</div>
+                  </div>
+                  <div style="display: flex; gap: 8px;">
+                    <button class="btn-tonal">Изменить</button>
+                  </div>
+                </div>
+
+                <div style="background: #1e2421; border-radius: 14px; padding: 16px; border: 1px solid #2e3832; display: flex; justify-content: space-between; align-items: center;">
+                  <div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <strong style="color: #fff;">TrustTunnel 1.1</strong>
+                      <span class="chip" style="font-size: 0.7rem; padding: 2px 6px; background: #1f3b33; color: #8cf3cb;">HTTPS 8443</span>
+                      <span class="chip" style="font-size: 0.7rem; padding: 2px 6px; background: #28322c; color: #a0aca4;">vpn.domain.com</span>
+                    </div>
+                    <div style="font-size: 0.8rem; color: #8fa096; margin-top: 4px;">Сертификат ACME Let's Encrypt действителен (автопродление активно)</div>
+                  </div>
+                  <div style="display: flex; gap: 8px;">
+                    <button class="btn-tonal">Изменить</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Subtab 2: Services & Updates -->
+            <div id="subview-services" style="display: none;">
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="background: #1e2421; border-radius: 14px; padding: 16px; border: 1px solid #2e3832;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                      <div style="font-weight: 600; color: #fff;">Панель 3x-ui + Ядро Xray</div>
+                      <div style="font-size: 0.8rem; color: #8fa096;">Версия: 3x-ui v3.8.0 • Xray v26.7.28 (Подтвержденная совместимость с Mihomo)</div>
+                    </div>
+                    <button class="btn-tonal">Проверить</button>
+                  </div>
+                </div>
+
+                <div style="background: #1e2421; border-radius: 14px; padding: 16px; border: 1px solid #2e3832;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                      <div style="font-weight: 600; color: #fff;">Системные обновления APT</div>
+                      <div style="font-size: 0.8rem; color: #8fa096;">Доступно 4 пакета безопасности</div>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                      <button class="btn-tonal">apt update</button>
+                      <button class="btn-primary">Обновить</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Progressive Disclosure Spoiler -->
+                <details style="background: #191f1c; border-radius: 10px; padding: 12px; border: 1px solid #2e3832; cursor: pointer;">
+                  <summary style="font-size: 0.85rem; color: #8cf3cb; font-weight: 600;">
+                    Технические параметры пакетов и хеши SHA-256 (Скрыто для чистоты UI)
+                  </summary>
+                  <pre class="code-block" style="margin-top: 8px; font-size: 0.75rem;">
+/usr/local/x-ui/
+/etc/x-ui/
+/etc/systemd/system/x-ui.service
+SHA-256: 4f2c8469a5312389dc563b72... (28.4 MiB)
+Systemd Unit: active (running)</pre>
+                </details>
+              </div>
+            </div>
+
+            <!-- Subtab 3: Network & SSH -->
+            <div id="subview-network" style="display: none;">
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="background: #1e2421; border-radius: 14px; padding: 16px; border: 1px solid #2e3832;">
+                  <div style="font-weight: 600; color: #fff; margin-bottom: 8px;">Публичные IP-адреса сервера</div>
+                  <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <span class="chip" style="background: #28322c; color: #fff;">IPv4: 45.134.22.10 (eth0)</span>
+                    <span class="chip" style="background: #28322c; color: #fff;">IPv6: 2a03:4000:6:11bb::1</span>
+                  </div>
+                </div>
+
+                <div style="background: #1e2421; border-radius: 14px; padding: 16px; border: 1px solid #2e3832;">
+                  <div style="font-weight: 600; color: #fff; margin-bottom: 8px;">SSH-подключение</div>
+                  <div style="font-size: 0.85rem; color: #8fa096;">Пользователь: root • Порт: 22 • Авторизация: Ed25519 Key</div>
+                  <div style="margin-top: 10px;">
+                    <button class="btn-tonal">Изменить параметры SSH</button>
+                  </div>
+                </div>
+
+                <details style="background: #191f1c; border-radius: 10px; padding: 12px; border: 1px solid #2e3832; cursor: pointer;">
+                  <summary style="font-size: 0.85rem; color: #8cf3cb; font-weight: 600;">
+                    Диагностика слушающих сокетов ядра ОС (Netstat)
+                  </summary>
+                  <pre class="code-block" style="margin-top: 8px; font-size: 0.75rem;">
+TCP 0.0.0.0:22 (sshd)
+TCP 0.0.0.0:443 (xray)
+UDP 0.0.0.0:51820 (amneziawg)
+TCP 127.0.0.1:2080 (3x-ui loopback)</pre>
+                </details>
+              </div>
+            </div>
+          </div>
+
+          <!-- View 3: Users -->
+          <div id="view-users" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+              <div>
+                <h3 style="color: #fff; margin: 0;">VPN-клиенты (5 человек)</h3>
+                <p style="font-size: 0.85rem; color: #a0aca4; margin: 0;">Генерация подписок Mihomo и ссылок Google Drive</p>
+              </div>
+              <button class="fab" style="font-size: 0.85rem; padding: 10px 16px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                Новый пользователь
+              </button>
+            </div>
+
+            <!-- User Item Card -->
+            <div style="background: #1e2421; border-radius: 16px; padding: 16px; border: 1px solid #2e3832; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+              <div style="display: flex; align-items: center; gap: 14px;">
+                <div style="width: 44px; height: 44px; border-radius: 50%; background: #006a4e; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.1rem;">
+                  АИ
+                </div>
+                <div>
+                  <div style="font-weight: 600; color: #fff; font-size: 1rem;">Александр (Смартфон)</div>
+                  <div style="font-size: 0.8rem; color: #8fa096;">Логин: alex_phone • Доступы: [VLESS] [AWG] [TT]</div>
+                </div>
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <button class="btn-primary" onclick="openShareModal('Александр (Смартфон)', 'alex_phone')">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h7V2H4c-1.1 0-2 .9-2 2v7h2V4zm6 9l-4 4 1.41 1.41L11 14.83V22h2v-7.17l3.59 3.58L18 17l-4-4h-4zm8-9h-7V2h7c1.1 0 2 .9 2 2v7h-2V4zm-2 16h-5v2h5c1.1 0 2-.9 2-2v-5h-2v5z"/></svg>
+                  Поделиться профилем
+                </button>
+              </div>
+            </div>
+
+            <div style="background: #1e2421; border-radius: 16px; padding: 16px; border: 1px solid #2e3832; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+              <div style="display: flex; align-items: center; gap: 14px;">
+                <div style="width: 44px; height: 44px; border-radius: 50%; background: #3d6373; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.1rem;">
+                  ЕМ
+                </div>
+                <div>
+                  <div style="font-weight: 600; color: #fff; font-size: 1rem;">Елена (Ноутбук)</div>
+                  <div style="font-size: 0.8rem; color: #8fa096;">Логин: elena_mac • Доступы: [VLESS] [AWG]</div>
+                </div>
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <button class="btn-primary" onclick="openShareModal('Елена (Ноутбук)', 'elena_mac')">
+                  Поделиться профилем
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- View 4: Settings -->
+          <div id="view-settings" style="display: none;">
+            <h3 style="color: #fff; margin-bottom: 16px;">Настройки AntiRKN</h3>
+
+            <div style="background: #1e2421; border-radius: 16px; padding: 20px; border: 1px solid #2e3832; margin-bottom: 16px;">
+              <h4 style="color: #8cf3cb; margin-bottom: 8px;">Облачная синхронизация Google Drive</h4>
+              <p style="font-size: 0.85rem; color: #a0aca4; margin-bottom: 12px;">Аккаунт: <strong>admin@antirkn.app</strong> (Сквозное шифрование XChaCha20-Poly1305 активно)</p>
+              <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                <button class="btn-tonal">Сменить аккаунт</button>
+                <button class="btn-tonal">Резервная копия (.antirkn)</button>
+              </div>
+            </div>
+
+            <div style="background: #1e2421; border-radius: 16px; padding: 20px; border: 1px solid #2e3832; margin-bottom: 16px;">
+              <h4 style="color: #fff; margin-bottom: 8px;">Базовый профиль Mihomo</h4>
+              <p style="font-size: 0.85rem; color: #8fa096; margin-bottom: 10px;">Файл шаблона: <strong>base.yml</strong> • Обнаружено групп правил: 4 (Proxy_Auto, WG_Auto, Fallback)</p>
+              <button class="btn-tonal">Выбрать другой YAML-файл</button>
+            </div>
+
+            <div style="background: #1e2421; border-radius: 16px; padding: 20px; border: 1px solid #2e3832;">
+              <h4 style="color: #fff; margin-bottom: 12px;">Внешний вид и язык</h4>
+              <div style="margin-bottom: 14px;">
+                <div style="font-size: 0.85rem; color: #8fa096; margin-bottom: 6px;">Тема оформления</div>
+                <div class="m3-segmented-button">
+                  <button class="m3-segmented-item selected">Системная</button>
+                  <button class="m3-segmented-item">Светлая</button>
+                  <button class="m3-segmented-item">Тёмная</button>
+                </div>
+              </div>
+              <div>
+                <div style="font-size: 0.85rem; color: #8fa096; margin-bottom: 6px;">Язык интерфейса</div>
+                <div class="m3-segmented-button">
+                  <button class="m3-segmented-item selected">Авто (Системный)</button>
+                  <button class="m3-segmented-item">Русский</button>
+                  <button class="m3-segmented-item">English</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Material Design 3 Bottom Navigation Bar (Навигация внизу) -->
+        <nav class="m3-bottom-nav" id="mockup-bottom-nav">
+          <button class="m3-nav-item active" id="nav-btn-dashboard" onclick="switchMockup('dashboard', this)">
+            <div class="m3-nav-pill">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+            </div>
+            <span class="m3-nav-label">Дашборд</span>
+          </button>
+          <button class="m3-nav-item" id="nav-btn-server" onclick="switchMockup('server', this)">
+            <div class="m3-nav-pill">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M20 13H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1v-6c0-.55-.45-1-1-1zM7 19c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM20 3H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1V4c0-.55-.45-1-1-1zM7 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg>
+            </div>
+            <span class="m3-nav-label">Сервер</span>
+          </button>
+          <button class="m3-nav-item" id="nav-btn-users" onclick="switchMockup('users', this)">
+            <div class="m3-nav-pill">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+            </div>
+            <span class="m3-nav-label">Клиенты</span>
+          </button>
+          <button class="m3-nav-item" id="nav-btn-settings" onclick="switchMockup('settings', this)">
+            <div class="m3-nav-pill">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+            </div>
+            <span class="m3-nav-label">Настройки</span>
+          </button>
+        </nav>
+      </div>
+    </section>
+
+    <!-- Modal for Sharing (Interactive) -->
+    <div class="modal-overlay" id="share-modal" onclick="closeShareModal(event)">
+      <div class="modal-content" onclick="event.stopPropagation()">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h3 style="color: #8cf3cb; margin: 0;" id="modal-user-name">Поделиться профилем</h3>
+          <button style="background: none; border: none; color: #8fa096; font-size: 1.4rem; cursor: pointer;" onclick="closeShareModal()">&times;</button>
+        </div>
+
+        <p style="font-size: 0.85rem; color: #c2cdc5; margin-bottom: 16px;">
+          Отсканируйте QR-код в приложении Mihomo / Flclash или скопируйте ссылку на файл подписки в Google Drive:
+        </p>
+
+        <!-- Simulated QR Code -->
+        <div style="background: #fff; border-radius: 12px; padding: 16px; width: 180px; height: 180px; margin: 0 auto 16px auto; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: var(--elevation-2);">
+          <svg width="140" height="140" viewBox="0 0 24 24" fill="#000">
+            <path d="M2 2h8v8H2zm2 2v4h4V4zm-4 8h8v8H2zm2 2v4h4v-4zm10-12h8v8h-8zm2 2v4h4V4zm-2 10h2v2h-2zm4 0h2v2h-2zm-4 4h2v2h-2zm4 0h2v2h-2zm2-2h2v2h-2zm-2-4h2v2h-2zm4 0h2v2h-2z"/>
+          </svg>
+          <div style="font-size: 0.65rem; color: #333; font-weight: 700; margin-top: 4px;">Mihomo / Clash Meta</div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+          <button class="btn-tonal" onclick="closeShareModal()">Закрыть</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal for Delete Server Confirmation (Interactive) -->
+    <div class="modal-overlay" id="delete-server-modal" onclick="closeDeleteServerModal(event)">
+      <div class="modal-content" onclick="event.stopPropagation()">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
+          <div style="width: 40px; height: 40px; border-radius: 50%; background: #93000a; color: #ffdad6; display: flex; align-items: center; justify-content: center;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+          </div>
+          <div>
+            <h3 style="color: #ffb4ab; margin: 0;">Удалить сервер?</h3>
+            <div style="font-size: 0.8rem; color: #a0aca4;" id="delete-server-target">Франкфурт (Ubuntu 24.04)</div>
+          </div>
+        </div>
+
+        <p style="font-size: 0.9rem; color: #c2cdc5; margin-bottom: 20px;">
+          Сервер и все сохранённые учетные данные будут удалены из локальной базы данных и очереди облачной синхронизации. Службы и файлы на удаленном VPS затронуты не будут.
+        </p>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+          <button class="btn-tonal" onclick="closeDeleteServerModal()">Отмена</button>
+          <button class="btn-primary" style="background: #ba1a1a; color: #ffffff;" onclick="confirmDeleteServer()">
+            Удалить сервер
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal for Add New Server (Interactive) -->
+    <div class="modal-overlay" id="add-server-modal" onclick="closeAddServerModal(event)">
+      <div class="modal-content" onclick="event.stopPropagation()">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h3 style="color: #8cf3cb; margin: 0;">Добавить новый VPS-сервер</h3>
+          <button style="background: none; border: none; color: #8fa096; font-size: 1.4rem; cursor: pointer;" onclick="closeAddServerModal()">&times;</button>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px;">
+          <div>
+            <label style="font-size: 0.8rem; color: #8fa096; display: block; margin-bottom: 4px;">Имя сервера (для каталога)</label>
+            <input type="text" value="Амстердам (VPS)" style="width: 100%; background: #141815; border: 1px solid #3d4a42; border-radius: 8px; padding: 10px; color: #fff;">
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <div style="flex: 3;">
+              <label style="font-size: 0.8rem; color: #8fa096; display: block; margin-bottom: 4px;">IP-адрес или хост</label>
+              <input type="text" placeholder="185.22.33.44" style="width: 100%; background: #141815; border: 1px solid #3d4a42; border-radius: 8px; padding: 10px; color: #fff;">
+            </div>
+            <div style="flex: 1;">
+              <label style="font-size: 0.8rem; color: #8fa096; display: block; margin-bottom: 4px;">Порт SSH</label>
+              <input type="text" value="22" style="width: 100%; background: #141815; border: 1px solid #3d4a42; border-radius: 8px; padding: 10px; color: #fff;">
+            </div>
+          </div>
+          <div>
+            <label style="font-size: 0.8rem; color: #8fa096; display: block; margin-bottom: 4px;">Пользователь SSH</label>
+            <input type="text" value="root" style="width: 100%; background: #141815; border: 1px solid #3d4a42; border-radius: 8px; padding: 10px; color: #fff;">
+          </div>
+          <div>
+            <label style="font-size: 0.8rem; color: #8fa096; display: block; margin-bottom: 6px;">Способ входа</label>
+            <div class="m3-segmented-button" style="margin: 0; width: 100%;">
+              <button class="m3-segmented-item selected" style="flex: 1; justify-content: center;">SSH-ключ</button>
+              <button class="m3-segmented-item" style="flex: 1; justify-content: center;">Пароль</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+          <button class="btn-tonal" onclick="closeAddServerModal()">Отмена</button>
+          <button class="btn-primary" onclick="alert('Сервер успешно добавлен в каталог!'); closeAddServerModal();">
+            Подключить и сохранить
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 8: Ready-to-use Prompt for Implementing Agent -->
+    <section id="agent-prompt">
+      <h2>8. Готовый промпт и ТЗ для ИИ-агента исполнителя</h2>
+      <p>
+        Вы можете скопировать следующий текст целиком и передать его ИИ-агенту (Codex, Claude 3.7 Sonnet, GPT-4o) для непосредственной кодогенерации:
+      </p>
+
+      <pre class="code-block" style="background: #111a15; border-color: #006a4e; color: #b7fad9; padding: 20px; font-size: 0.85rem; user-select: all;">
+Ты — Senior Flutter/Dart разработчик и эксперт по Material Design 3.
+Твоя задача — реализовать редизайн графического интерфейса AntiRKN в строгом соответствии с документами:
+1. `docs/UI_REDESIGN_SPECIFICATION.md` (полная архитектурная спецификация)
+2. `ui_audit_and_redesign.html` (аудит дефектов и визуальная модель)
+
+КЛЮЧЕВЫЕ ПРАВИЛА:
+1. Сохраняй 100% стабильность доменных репозиториев и контроллеров (VpnController, ServerCatalogController, AutoSyncController, RunnerController). Изменяй ТОЛЬКО UI-слой в apps/manager/lib/ и design_system.
+2. Реализуй навигацию внизу: Material 3 `NavigationBar` в `Scaffold.bottomNavigationBar` с 4 фиксированными разделами:
+   - Вкладка 0: Дашборд (apps/manager/lib/dashboard/dashboard_view.dart):
+     * Общий статус системы, активные задачи Runner, карточки метрик.
+     * БЕЗ кнопки добавления сервера (создание серверов локализовано во вкладке Серверы).
+   - Вкладка 1: Серверы (apps/manager/lib/ssh/server_catalog.dart):
+     * Кнопка «Открыть» не нужна — вся карточка сервера является единым кликабельным элементом (`Card` + `InkWell`).
+     * Сверху в правом углу AppBar ровно 2 кнопки: `+` (добавить сервер) и `карандашик` (вход в режим редактирования).
+     * В обычном режиме карточки минималистичны (индикатор онлайна, имя, IP, задержка).
+     * В режиме редактирования (активируется карандашиком) на каждой карточке появляется кнопка удаления с вызовом диалога подтверждения и `controller.deleteServer(id)`.
+     * Внутри экрана деталей сервера 3 сегмента (SegmentedButton): Протоколы, Службы, Сеть.
+   - Вкладка 2: Клиенты (apps/manager/lib/vpn/users_page.dart) с модальным окном выдачи QR-кода и ссылки.
+   - Вкладка 3: Настройки (apps/manager/lib/settings/settings_view.dart).
+3. Удали прототипный мусор: вкладку overview, чип prototype P0, песочницу TemplateWorkbench. Выбор base.yml перенеси в Настройки.
+4. Замени ChoiceChip на SegmentedButton&lt;T&gt; для темы, языка, анимаций и SSH-аутентификации.
+5. Замени вложенные Card.outlined на surfaceContainerLow с адаптивными отступами: 16dp (мобильные), 24dp (десктоп).
+6. Запускай проверку после каждого шага: `flutter analyze` и `flutter test`.</pre>
+    </section>
+
+  </main>
+
+  <script>
+    let isServerEditMode = false;
+
+    function switchMockup(view, btn) {
+      document.querySelectorAll('.mockup-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.m3-nav-item').forEach(t => t.classList.remove('active'));
+
+      const targetNav = document.getElementById('nav-btn-' + view);
+      if (targetNav) targetNav.classList.add('active');
+
+      const targetTab = document.querySelector(`.mockup-tab[data-view="${view}"]`);
+      if (targetTab) targetTab.classList.add('active');
+      if (btn && btn.classList.contains('mockup-tab')) btn.classList.add('active');
+
+      document.getElementById('view-dashboard').style.display = 'none';
+      document.getElementById('view-server').style.display = 'none';
+      document.getElementById('view-users').style.display = 'none';
+      document.getElementById('view-settings').style.display = 'none';
+
+      document.getElementById('view-' + view).style.display = 'block';
+    }
+
+    function toggleServerEditMode() {
+      isServerEditMode = !isServerEditMode;
+      const btn = document.getElementById('btn-edit-server');
+      const banner = document.getElementById('server-edit-banner');
+      const normalActions = document.querySelectorAll('.card-normal-action');
+      const editActions = document.querySelectorAll('.card-edit-action');
+
+      if (isServerEditMode) {
+        btn.classList.add('active');
+        btn.title = "Завершить редактирование";
+        banner.style.display = 'flex';
+        normalActions.forEach(el => el.style.display = 'none');
+        editActions.forEach(el => el.style.display = 'inline-flex');
+      } else {
+        btn.classList.remove('active');
+        btn.title = "Режим редактирования (удаление серверов)";
+        banner.style.display = 'none';
+        normalActions.forEach(el => el.style.display = 'flex');
+        editActions.forEach(el => el.style.display = 'none');
+      }
+    }
+
+    function handleServerCardClick(name, ip) {
+      if (isServerEditMode) {
+        // В режиме редактирования клик по телу карточки не переходит в детали, чтобы избежать случайного открытия при удалении
+        return;
+      }
+      openServerDetail(name, ip);
+    }
+
+    function switchServerSubtab(tab) {
+      document.getElementById('subtab-proto').classList.remove('selected');
+      document.getElementById('subtab-services').classList.remove('selected');
+      document.getElementById('subtab-network').classList.remove('selected');
+
+      document.getElementById('subview-proto').style.display = 'none';
+      document.getElementById('subview-services').style.display = 'none';
+      document.getElementById('subview-network').style.display = 'none';
+
+      document.getElementById('subtab-' + tab).classList.add('selected');
+      document.getElementById('subview-' + tab).style.display = 'block';
+    }
+
+    function openServerDetail(name, ip) {
+      document.getElementById('detail-server-header').innerText = name;
+      document.getElementById('detail-server-ip').innerText = ip;
+      document.getElementById('server-list-subview').style.display = 'none';
+      document.getElementById('server-detail-subview').style.display = 'block';
+    }
+
+    function closeServerDetail() {
+      document.getElementById('server-detail-subview').style.display = 'none';
+      document.getElementById('server-list-subview').style.display = 'block';
+    }
+
+    function openDeleteServerModal(serverName) {
+      document.getElementById('delete-server-target').innerText = serverName;
+      document.getElementById('delete-server-modal').style.display = 'flex';
+    }
+
+    function closeDeleteServerModal(event) {
+      document.getElementById('delete-server-modal').style.display = 'none';
+    }
+
+    function confirmDeleteServer() {
+      alert('Сервер успешно удален из каталога!');
+      closeDeleteServerModal();
+      closeServerDetail();
+    }
+
+    function openAddServerModal() {
+      document.getElementById('add-server-modal').style.display = 'flex';
+    }
+
+    function closeAddServerModal(event) {
+      document.getElementById('add-server-modal').style.display = 'none';
+    }
+
+    function openShareModal(name, login) {
+      document.getElementById('modal-user-name').innerText = 'Профиль: ' + name;
+      document.getElementById('share-modal').style.display = 'flex';
+    }
+
+    function closeShareModal(event) {
+      document.getElementById('share-modal').style.display = 'none';
+    }
+
+    // Navigation highlight
+    document.querySelectorAll('#sidebar nav a').forEach(anchor => {
+      anchor.addEventListener('click', function(e) {
+        document.querySelectorAll('#sidebar nav a').forEach(a => a.classList.remove('active'));
+        this.classList.add('active');
+      });
+    });
+  </script>
+</body>
+</html>

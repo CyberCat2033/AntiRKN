@@ -1,0 +1,27 @@
+{
+  "date": "2026-09-16",
+  "android": {
+    "mode": "release",
+    "target": "android-arm64",
+    "bytes": 29550572,
+    "sha256": "023a653d594f9e67926f47b754227d00cfdbd3c9618dde3dad634c504fba8e9a",
+    "install": "adb install -r: Success",
+    "installed_sha256_matches": true,
+    "debuggable": false,
+    "device": "OnePlus HD1911"
+  },
+  "linux": {
+    "mode": "debug",
+    "build": "PASS",
+    "path": "apps/manager/build/linux/x64/debug/bundle/antirkn_manager",
+    "existing_window_restarted": false
+  },
+  "focused_checks": {
+    "actual_TEST_protocol_remove_response": "PASS; succeeded; no repeated deletion",
+    "nested_navigation_widget_test": "PASS; 1 test"
+  },
+  "full_tests_analyze_verify": "Not run, per owner request",
+  "real_VPS_removal": "Not tested",
+  "physical_trackpad_gesture": "Not tested by agent",
+  "commit": null
+}

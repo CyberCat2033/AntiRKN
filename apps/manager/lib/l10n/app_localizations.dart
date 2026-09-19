@@ -4034,6 +4034,18 @@ abstract class AppLocalizations {
   /// **'Choose this version'**
   String get syncSelect;
 
+  /// No description provided for @syncDeviceThis.
+  ///
+  /// In en, this message translates to:
+  /// **'This device'**
+  String get syncDeviceThis;
+
+  /// No description provided for @syncDeviceOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Other device'**
+  String get syncDeviceOther;
+
   /// No description provided for @syncResolve.
   ///
   /// In en, this message translates to:

@@ -22,6 +22,7 @@ class _SyncConflictsPanelState extends State<SyncConflictsPanel> {
   SyncMergeStatus? status;
   bool busy = false;
   SyncMergeIssue? error;
+  String? localDeviceId;
   @override
   void initState() {
     super.initState();
@@ -35,7 +36,13 @@ class _SyncConflictsPanelState extends State<SyncConflictsPanel> {
       error = null;
     });
     try {
-      final next = await widget.store.readSyncMergeStatus();
+      final store = widget.store;
+      if (localDeviceId == null && store is ChangeJournalStore) {
+        localDeviceId =
+            (await (store as ChangeJournalStore).readWorkspaceIdentity())
+                .deviceId;
+      }
+      final next = await store.readSyncMergeStatus();
       if (mounted) setState(() => status = next);
     } catch (_) {
       if (mounted) setState(() => error = SyncMergeIssue.storage);
@@ -63,7 +70,10 @@ class _SyncConflictsPanelState extends State<SyncConflictsPanel> {
   Future<void> _open(SyncConflict conflict) async {
     final selected = await showDialog<String>(
       context: context,
-      builder: (_) => _ConflictDialog(conflict: conflict),
+      builder: (_) => _ConflictDialog(
+        conflict: conflict,
+        localDeviceId: localDeviceId,
+      ),
     );
     if (selected == null || !mounted) return;
     if (!widget.canResolve()) {
@@ -197,8 +207,9 @@ String _kindLabel(AppLocalizations l, ChangeEntityKind kind) => switch (kind) {
 };
 
 class _ConflictDialog extends StatefulWidget {
-  const _ConflictDialog({required this.conflict});
+  const _ConflictDialog({required this.conflict, this.localDeviceId});
   final SyncConflict conflict;
+  final String? localDeviceId;
   @override
   State<_ConflictDialog> createState() => _ConflictDialogState();
 }
@@ -243,6 +254,13 @@ class _ConflictDialogState extends State<_ConflictDialog> {
                               l.syncVariant(i + 1),
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
+                            if (widget.localDeviceId != null)
+                              Text(
+                                event.header.deviceId == widget.localDeviceId
+                                    ? l.syncDeviceThis
+                                    : l.syncDeviceOther,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
                             if (event.header.deleted) Text(l.syncDeleted),
                             if (event.source != null) ...[
                               TextButton(

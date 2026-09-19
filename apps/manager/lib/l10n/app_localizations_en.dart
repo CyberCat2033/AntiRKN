@@ -2268,6 +2268,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncSelect => 'Choose this version';
 
   @override
+  String get syncDeviceThis => 'This device';
+
+  @override
+  String get syncDeviceOther => 'Other device';
+
+  @override
   String get syncResolve => 'Save decision';
 
   @override

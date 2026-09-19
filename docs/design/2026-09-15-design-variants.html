@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>AntiRKN — три варианта интерфейса</title>
+  <style>
+    * { box-sizing: border-box; }
+    :root { font-family: Inter, Roboto, "Segoe UI", Arial, sans-serif; color: #f2ecee; background: #181619; font-synthesis: none; }
+    body { margin: 0; }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    button, a, input, select { -webkit-tap-highlight-color: transparent; }
+    button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible { outline: 3px solid #e8aaa9; outline-offset: 3px; }
+    button { color: inherit; }
+    .studio { max-width: 1440px; margin: auto; padding: 38px 40px 30px; }
+    .masthead { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+    .wordmark { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 650; letter-spacing: -.4px; }
+    .wordmark .logo { display: grid; place-items: center; width: 32px; height: 32px; background: #f4b7b9; color: #452627; border-radius: 10px; }
+    .edition { color: #aaa0a6; font-size: 12px; letter-spacing: 1.6px; text-transform: uppercase; }
+    .intro { margin: 32px 0 26px; display: flex; justify-content: space-between; align-items: end; gap: 30px; }
+    h1 { font-size: clamp(27px, 3.1vw, 43px); font-weight: 550; letter-spacing: -1.5px; line-height: 1.15; margin: 0 0 12px; }
+    .intro p { color: #b9adb5; font-size: 15px; line-height: 1.6; margin: 0; max-width: 700px; }
+    .prototype-note { font-size: 12px; line-height: 1.6; color: #c4b8bf; max-width: 245px; flex-shrink: 0; padding-left: 18px; border-left: 1px solid #51424d; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 14px 26px; align-items: center; padding: 19px 0; border-block: 1px solid #383138; margin-bottom: 26px; }
+    .control { display: flex; align-items: center; gap: 10px; }
+    .control-label { color: #b9adb5; font-size: 12px; }
+    .studio-segment { display: flex; background: #252126; border: 1px solid #3c343d; border-radius: 11px; padding: 3px; gap: 3px; }
+    .studio-segment button, .studio-toggle { border: 0; background: transparent; padding: 9px 13px; min-height: 40px; color: #c5b9c1; border-radius: 8px; font-size: 13px; }
+    .studio-segment button[aria-pressed="true"] { background: #eadce4; color: #312630; }
+    .studio-toggle { background: #302830; display: flex; align-items: center; gap: 7px; }
+    .toolbar select { background: #252126; color: #daccd5; border: 1px solid #514550; padding: 10px 9px; border-radius: 9px; font-size: 13px; min-height: 44px; }
+    .gallery { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 25px; align-items: start; }
+    .variant-title { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
+    .variant-title .letter { border: 1px solid #69515e; border-radius: 9px; padding: 6px 9px; color: #f3b5bb; font-size: 13px; }
+    .variant-title h2 { margin: 0; font-size: 16px; font-weight: 500; letter-spacing: -.3px; }
+    .variant-title .tag { margin-left: auto; color: #bcb0b8; font-size: 11px; }
+    .variant-caption { padding: 15px 3px 8px; color: #b6aab2; font-size: 13px; line-height: 1.65; margin: 0; }
+    .variant-caption strong { color: #e1d5dd; font-weight: 500; }
+    .app {
+      --bg: #130e0e; --surface: #1d1515; --surface-high: #2a1e1f; --nav: #251b1c;
+      --text: #f5eded; --muted: #cbbabb; --accent: #f7b7ba; --on-accent: #492326;
+      --selected: #6a4649; --on-selected: #ffdade; --line: #493638; --outline: #a48b8f;
+      --good: #b8d5b1; --good-bg: #283126; --warn: #f1c18c; --warn-bg: #3a2a1c;
+      --radius: 23px;
+      position: relative; display: flex; flex-direction: column; height: 830px; min-width: 0;
+      background: var(--bg); color: var(--text); border-radius: 30px; border: 1px solid #574449;
+      overflow: hidden; box-shadow: 0 16px 42px #0003; color-scheme: dark; font-size: 16px;
+    }
+    .app.light { --bg: #fff8f7; --surface: #f6eceb; --surface-high: #edddde; --nav: #f0e2e3; --text: #271819; --muted: #695457; --accent: #874c53; --on-accent: #fff; --selected: #f1d2d7; --on-selected: #522c34; --line: #ddc8ca; --outline: #8c7377; --good: #3c6138; --good-bg: #e3efde; --warn: #805124; --warn-bg: #f8e7cf; color-scheme: light; }
+    .app[data-variant="b"] { --radius: 18px; }
+    .app[data-variant="c"] { --radius: 26px; }
+    .device-bar { height: 31px; padding: 10px 22px 2px; display: flex; align-items: center; justify-content: space-between; font-size: 11px; font-weight: 650; flex-shrink: 0; }
+    .device-status { display: flex; gap: 5px; align-items: center; }
+    .device-status .icon { width: 13px; height: 13px; }
+    .app-main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    .app-header { padding: 15px 17px 13px; min-height: 68px; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .app-header h3 { font-size: 25px; font-weight: 500; letter-spacing: -.75px; margin: 0; line-height: 1.25; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+    .app-header .back { margin-left: -7px; }
+    .icon { width: 23px; height: 23px; flex-shrink: 0; vertical-align: middle; }
+    .icon-button { display: inline-flex; align-items: center; justify-content: center; background: transparent; border: 0; border-radius: 50%; color: var(--muted); padding: 11px; min-width: 44px; min-height: 44px; flex-shrink: 0; }
+    .icon-button:hover { background: var(--surface-high); }
+    .viewport { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line) transparent; padding: 0 16px 23px; flex: 1; min-height: 0; overscroll-behavior: contain; }
+    .bottom-nav { display: flex; flex-shrink: 0; background: var(--nav); padding: 10px 8px 12px; gap: 2px; }
+    .bottom-nav button { flex: 1; border: 0; color: var(--muted); background: transparent; padding: 0; display: flex; align-items: center; flex-direction: column; gap: 5px; font-size: 12px; min-height: 52px; }
+    .bottom-nav .nav-icon { display: grid; place-items: center; width: 58px; height: 31px; border-radius: 24px; }
+    .bottom-nav button[aria-current="page"] { color: var(--on-selected); font-weight: 600; }
+    .bottom-nav button[aria-current="page"] .nav-icon { background: var(--selected); }
+    .section { margin-top: 26px; }
+    .section:first-child { margin-top: 7px; }
+    .section-label { color: var(--accent); font-size: 11px; letter-spacing: 1.2px; font-weight: 700; margin: 0 6px 11px; text-transform: uppercase; }
+    .card { background: var(--surface); border-radius: var(--radius); overflow: hidden; }
+    .card + .card { margin-top: 10px; }
+    .card.pad { padding: 19px; }
+    .card-title { font-size: 19px; font-weight: 550; margin: 0; letter-spacing: -.35px; line-height: 1.3; }
+    .muted { color: var(--muted); }
+    .description { color: var(--muted); font-size: 13px; line-height: 1.55; margin: 5px 0 0; }
+    .row { width: 100%; display: flex; align-items: center; gap: 13px; padding: 17px 17px; min-height: 76px; text-align: left; background: transparent; border: 0; }
+    .row .copy { min-width: 0; flex: 1; }
+    .row .name { display: block; font-weight: 500; line-height: 1.35; font-size: 16px; overflow-wrap: anywhere; }
+    .row .sub { display: block; color: var(--muted); margin-top: 4px; font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
+    button.row:hover { background: var(--surface-high); }
+    .row > .icon { color: var(--muted); width: 21px; }
+    .row .chevron { width: 17px; height: 17px; margin-left: auto; color: var(--muted); }
+    .row .value { font-size: 13px; color: var(--accent); max-width: 42%; text-align: right; overflow-wrap: anywhere; }
+    .row + .row { border-top: 1px solid var(--line); }
+    .row.no-divider { border: 0; }
+    .icon-tile { display: grid; place-items: center; width: 43px; height: 43px; background: var(--surface-high); color: var(--accent); border-radius: 14px; flex-shrink: 0; }
+    .protocol-mark { font-size: 17px; font-weight: 550; letter-spacing: -1px; }
+    .switch { position: relative; width: 48px; height: 29px; background: var(--surface-high); border: 2px solid var(--outline); border-radius: 22px; flex-shrink: 0; }
+    .switch::after { content: ''; position: absolute; width: 17px; height: 17px; border-radius: 50%; left: 4px; top: 4px; background: var(--muted); }
+    [aria-checked="true"] .switch { background: var(--accent); border-color: var(--accent); }
+    [aria-checked="true"] .switch::after { left: 21px; background: var(--on-accent); }
+    .button { border: 1px solid transparent; border-radius: 99px; min-height: 44px; padding: 10px 18px; color: var(--on-accent); background: var(--accent); font-weight: 550; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; line-height: 1.3; }
+    .button:hover { filter: brightness(1.08); }
+    .button.secondary { color: var(--on-selected); background: var(--selected); }
+    .button.outline { color: var(--accent); background: transparent; border-color: var(--outline); }
+    .button.text { color: var(--accent); background: transparent; padding-inline: 9px; }
+    .button .icon { width: 20px; height: 20px; }
+    .button.full { width: 100%; }
+    .button:disabled { opacity: .5; cursor: default; }
+    .actions { display: flex; gap: 9px; margin-top: 19px; flex-wrap: wrap; }
+    .actions > .button { flex: 1; }
+    .status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; line-height: 1.4; color: var(--good); }
+    .status .icon { height: 15px; width: 15px; }
+    .status.offline { color: var(--muted); }
+    .status.warning { color: var(--warn); }
+    .pill { display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px; border-radius: 30px; font-size: 11px; background: var(--good-bg); color: var(--good); line-height: 1.35; }
+    .pill.neutral { background: var(--surface-high); color: var(--muted); }
+    .pill.warning { background: var(--warn-bg); color: var(--warn); }
+    .hero-top { display: flex; gap: 14px; align-items: center; }
+    .hero-top .copy { flex: 1; min-width: 0; }
+    .country { display: grid; place-items: center; width: 52px; height: 52px; background: var(--surface-high); color: var(--accent); border-radius: 17px; font-size: 20px; font-weight: 550; letter-spacing: -1px; flex-shrink: 0; }
+    .hero .status { margin-top: 8px; }
+    .hero .address { color: var(--muted); font-size: 13px; margin-top: 5px; }
+    .hero .actions { margin-top: 17px; }
+    .subhead { display: flex; align-items: center; gap: 8px; margin: 25px 3px 12px; }
+    .subhead h4 { font-size: 19px; font-weight: 550; letter-spacing: -.4px; margin: 0; flex: 1; }
+    .subhead .count { border-radius: 7px; background: var(--surface-high); color: var(--muted); padding: 4px 7px; font-size: 12px; }
+    .subhead .button { min-height: 40px; font-size: 12px; }
+    .inline-note { margin: 13px 4px 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .protocol-tile { background: var(--surface); text-align: left; border: 0; border-radius: var(--radius); padding: 17px; min-height: 139px; display: flex; flex-direction: column; align-items: start; }
+    .protocol-tile .tile-head { display: flex; width: 100%; justify-content: space-between; align-items: center; color: var(--accent); margin-bottom: 15px; }
+    .protocol-tile .tile-head .icon { width: 17px; height: 17px; color: var(--muted); }
+    .protocol-tile .name { font-weight: 550; font-size: 16px; letter-spacing: -.3px; }
+    .protocol-tile .sub { font-size: 12px; color: var(--muted); margin-top: 6px; }
+    .protocol-tile.install { background: transparent; border: 1px dashed var(--outline); }
+    .protocol-tile:hover { background: var(--surface-high); }
+    .summary-strip { display: flex; gap: 0; padding: 15px 0 0; margin-top: 17px; border-top: 1px solid var(--line); }
+    .summary-strip > div { flex: 1; color: var(--muted); font-size: 12px; }
+    .summary-strip > div + div { border-left: 1px solid var(--line); padding-left: 20px; }
+    .summary-strip strong { display: block; font-size: 23px; font-weight: 500; margin-bottom: 4px; color: var(--text); }
+    .tabs { display: flex; border-bottom: 1px solid var(--line); margin: 20px -16px 19px; padding: 0 14px; }
+    .tabs button { position: relative; flex: 1; padding: 13px 4px; min-height: 46px; background: transparent; border: 0; color: var(--muted); font-size: 13px; }
+    .tabs button[aria-pressed="true"] { color: var(--accent); }
+    .tabs button[aria-pressed="true"]::after { content: ''; position: absolute; height: 3px; border-radius: 4px 4px 0 0; bottom: 0; left: 15px; right: 15px; background: var(--accent); }
+    .feature-action { background: var(--selected); border-radius: var(--radius); padding: 19px; width: 100%; text-align: left; border: 0; color: var(--on-selected); display: flex; gap: 14px; align-items: center; }
+    .feature-action .copy { flex: 1; }
+    .feature-action strong { display: block; font-size: 19px; font-weight: 550; margin-bottom: 5px; }
+    .feature-action small { font-size: 13px; line-height: 1.45; }
+    .avatar { display: grid; place-items: center; width: 43px; height: 43px; background: var(--selected); color: var(--on-selected); border-radius: 50%; font-size: 17px; flex-shrink: 0; }
+    .setting-summary { display: flex; gap: 10px; flex-wrap: wrap; margin: 16px 0 0; }
+    .setting-summary button { background: var(--surface-high); color: var(--text); border: 0; min-height: 42px; padding: 9px 14px; border-radius: 12px; font-size: 13px; }
+    .callout { padding: 16px; border-radius: 17px; display: flex; gap: 11px; background: var(--warn-bg); color: var(--warn); margin-bottom: 16px; }
+    .callout .copy { flex: 1; }
+    .callout strong { display: block; font-size: 14px; line-height: 1.4; font-weight: 550; }
+    .callout p { font-size: 12px; line-height: 1.5; margin: 6px 0 0; }
+    .callout .button { color: var(--warn); margin: 8px 0 -5px -9px; min-height: 38px; }
+    .list-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 18px 17px 0; }
+    .list-heading h4 { font-size: 18px; font-weight: 550; margin: 0; }
+    .list-heading .icon { color: var(--accent); }
+    .inbound { padding: 17px; }
+    .inbound-top { display: flex; align-items: center; gap: 12px; }
+    .inbound-top .copy { flex: 1; min-width: 0; }
+    .inbound .name { font-weight: 550; font-size: 17px; }
+    .inbound .sub { color: var(--muted); font-size: 13px; margin: 5px 0 13px; }
+    .inbound-footer { display: flex; align-items: center; gap: 8px; justify-content: space-between; border-top: 1px solid var(--line); padding-top: 12px; font-size: 12px; color: var(--muted); }
+    .log-row { padding: 18px 17px; display: flex; align-items: start; gap: 13px; }
+    .log-row + .log-row { border-top: 1px solid var(--line); }
+    .log-row > .icon { color: var(--good); width: 20px; height: 20px; margin-top: 2px; }
+    .log-row strong { display: block; font-size: 14px; line-height: 1.45; font-weight: 500; }
+    .log-row small { display: block; color: var(--muted); font-size: 12px; margin-top: 5px; line-height: 1.45; }
+    .log-row time { margin-left: auto; font-size: 11px; color: var(--muted); padding-top: 3px; }
+    .sheet-layer { position: absolute; z-index: 5; inset: 0; display: flex; align-items: end; background: #0009; padding-top: 45px; }
+    .sheet { width: 100%; background: var(--surface); border-radius: 25px 25px 0 0; padding: 12px 22px 24px; max-height: 100%; overflow-y: auto; scrollbar-width: thin; }
+    .sheet-handle { width: 31px; height: 4px; border-radius: 3px; background: var(--outline); margin: 0 auto 12px; }
+    .sheet-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .sheet-header h4 { flex: 1; font-size: 22px; font-weight: 500; letter-spacing: -.5px; margin: 0; }
+    .sheet .row { padding-inline: 2px; }
+    .sheet .row + .row { border-color: var(--line); }
+    .field { display: block; margin: 18px 0; font-size: 12px; color: var(--muted); }
+    .field input, .field select { width: 100%; display: block; border: 1px solid var(--outline); background: transparent; color: var(--text); padding: 14px 12px; border-radius: 10px; margin-top: 7px; font-size: 15px; }
+    .field select option { background: var(--surface); }
+    .detail-line { display: flex; gap: 15px; justify-content: space-between; padding: 15px 0; border-bottom: 1px solid var(--line); font-size: 13px; line-height: 1.5; }
+    .detail-line span { color: var(--muted); }
+    .detail-line strong { font-weight: 500; text-align: right; overflow-wrap: anywhere; min-width: 0; }
+    .toast { position: absolute; z-index: 10; bottom: 85px; left: 15px; right: 15px; padding: 14px 17px; background: var(--text); color: var(--bg); font-size: 13px; line-height: 1.4; border-radius: 13px; box-shadow: 0 5px 20px #0004; }
+    .page-hint { font-size: 13px; color: var(--muted); line-height: 1.5; margin: 0 5px 20px; }
+    .empty { text-align: center; padding: 28px 17px; }
+    .empty .icon-tile { margin: 0 auto 18px; width: 58px; height: 58px; border-radius: 20px; }
+    .empty h4 { margin: 0; font-size: 21px; font-weight: 500; }
+    .empty .button { margin-top: 20px; }
+    .review-notes { margin-top: 35px; border-top: 1px solid #3d323b; padding-top: 26px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 25px; }
+    .review-notes h3 { margin: 0 0 9px; font-size: 14px; color: #e5d5de; font-weight: 500; }
+    .review-notes p { margin: 0; color: #b4a7b0; font-size: 13px; line-height: 1.65; }
+    .footer { display: flex; justify-content: space-between; gap: 15px; font-size: 11px; color: #ac9da7; margin-top: 30px; }
+    .gallery.single { grid-template-columns: minmax(0, 410px); justify-content: center; }
+    .gallery.single article[hidden] { display: none; }
+    .gallery.wide { grid-template-columns: minmax(0, 1050px); }
+    .gallery.wide .app { height: 790px; }
+    .gallery.wide .device-bar { display: none; }
+    .gallery.wide .app-main { padding-left: 91px; }
+    .gallery.wide .bottom-nav { position: absolute; top: 0; left: 0; bottom: 0; flex-direction: column; justify-content: center; width: 91px; gap: 23px; border-right: 1px solid var(--line); }
+    .gallery.wide .bottom-nav button { flex: 0; }
+    .gallery.wide .app-header { padding: 23px 28px 15px; }
+    .gallery.wide .viewport { padding: 0 28px 25px; }
+    .gallery.wide .content-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 25px; align-items: start; }
+    .gallery.wide .content-grid > .section { margin-top: 22px; }
+    .gallery.wide .hero { margin-top: 8px; }
+    .gallery.wide .hero .actions { max-width: 340px; }
+    .gallery.wide .sheet { width: 460px; margin: auto; border-radius: 25px; }
+    .gallery.wide .sheet-layer { align-items: center; padding: 30px; }
+    @media (max-width: 1180px) { .studio { padding-inline: 24px; } .gallery { gap: 16px; } .variant-title .tag { display: none; } .app { font-size: 15px; } .row { padding-inline: 14px; gap: 10px; } }
+    @media (max-width: 980px) { .intro { align-items: start; } .prototype-note { max-width: 190px; } .review-notes { gap: 20px; } }
+    @media (max-width: 650px) {
+      .studio { padding: 23px 13px; } .edition { font-size: 10px; letter-spacing: .9px; }
+      .intro { margin: 24px 3px 20px; display: block; } .intro p { font-size: 13px; }
+      .prototype-note { max-width: none; padding: 0; border: 0; margin-top: 14px; font-size: 11px; }
+      .toolbar { gap: 12px; padding-block: 15px; margin-bottom: 20px; } .control { gap: 7px; }
+      .control-label { display: none; } .studio-segment button { padding-inline: 11px; font-size: 12px; }
+      .control.screens { order: -1; flex-basis: 100%; } .screens .studio-segment { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } .screens button { flex: 1; }
+      .studio-toggle { font-size: 12px; } .toolbar select { font-size: 12px; max-width: 145px; }
+      .gallery.single { grid-template-columns: minmax(0, 410px); } .app { height: 790px; border-radius: 24px; }
+      .variant-title { margin-bottom: 12px; } .variant-title h2 { font-size: 15px; }
+      .review-notes { grid-template-columns: 1fr; gap: 22px; margin-top: 20px; } .footer { display: block; line-height: 1.8; }
+      #wide-control, #compare { display: none; }
+      .gallery.wide .app-main { padding-left: 0; } .gallery.wide .bottom-nav { position: static; width: auto; flex-direction: row; gap: 2px; } .gallery.wide .bottom-nav button { flex: 1; }
+      .gallery.wide .content-grid { display: block; } .gallery.wide .app-header { padding: 15px 17px 13px; } .gallery.wide .viewport { padding: 0 16px 23px; }
+    }
+    @media (prefers-reduced-motion: no-preference) { button { transition: background-color .14s ease, color .14s ease; } .switch::after { transition: left .15s ease; } }
+  </style>
+</head>
+<body>
+  <div class="studio">
+    <header class="masthead">
+      <div class="wordmark"><span class="logo" aria-hidden="true">A</span> AntiRKN</div>
+      <div class="edition">Дизайн · 02 / Сентябрь 2026</div>
+    </header>
+    <section class="intro">
+      <div><h1>Меньше шума. Больше порядка.</h1><p>Три компоновки на основе eBookSender. Переключайте экраны,<br class="desktop-break"> открывайте протоколы и пробуйте настройки прямо здесь.</p></div>
+      <div class="prototype-note">Интерактивный HTML-макет<br>Все данные вымышлены. Действия работают только внутри этой страницы.</div>
+    </section>
+    <div class="toolbar" aria-label="Управление макетом">
+      <div class="control"><span class="control-label">Вариант</span><div class="studio-segment" id="variant-controls"><button id="compare" data-view="all" aria-pressed="true">Все три</button><button data-view="a" aria-pressed="false">A</button><button data-view="b" aria-pressed="false">B</button><button data-view="c" aria-pressed="false">C</button></div></div>
+      <div class="control screens"><span class="control-label">Экран</span><div class="studio-segment" id="screen-controls"><button data-screen="server" aria-pressed="true">Сервер</button><button data-screen="settings" aria-pressed="false">Настройки</button><button data-screen="clients" aria-pressed="false">Клиенты</button><button data-screen="sync" aria-pressed="false">Синхронизация</button></div></div>
+      <button class="studio-toggle" id="theme-control" aria-pressed="false">Светлая тема</button>
+      <button class="studio-toggle" id="wide-control" aria-pressed="false">Широкий экран</button>
+      <label class="control"><span class="control-label">Состояние</span><select id="state-control" aria-label="Состояние макета"><option value="normal">Всё в порядке</option><option value="offline">Нет соединения</option><option value="error">Ошибка публикации</option></select></label>
+    </div>
+    <main class="gallery" id="gallery">
+      <article data-card="a"><div class="variant-title"><span class="letter">A</span><h2>Карточки и группы</h2><span class="tag">Ближе к эталону</span></div><div class="app" data-variant="a" aria-label="Вариант A"></div><p class="variant-caption"><strong>Привычная вертикальная компоновка.</strong> Настройки видны сразу в подписанных группах. Протоколы — отдельные строки, управление сервером — ниже.</p></article>
+      <article data-card="b"><div class="variant-title"><span class="letter">B</span><h2>Компактный центр</h2><span class="tag">Меньше прокрутки</span></div><div class="app" data-variant="b" aria-label="Вариант B"></div><p class="variant-caption"><strong>Короткий обзор, отдельные страницы.</strong> Протоколы плитками. В настройках пять понятных разделов с текущими значениями; один переход к параметрам.</p></article>
+      <article data-card="c"><div class="variant-title"><span class="letter">C</span><h2>Сначала действия</h2><span class="tag">По задачам</span></div><div class="app" data-variant="c" aria-label="Вариант C"></div><p class="variant-caption"><strong>Клиенты и частые действия впереди.</strong> Обзор, протоколы и обслуживание разделены вкладками. В настройках основные параметры на виду.</p></article>
+    </main>
+    <section class="review-notes" aria-label="Общие решения">
+      <div><h3>01 / Свои устройства — одна работа</h3><p>Действие, одобренное на своём устройстве, появляется в общей истории без повторного согласия. Только настоящая ошибка требует внимания.</p></div>
+      <div><h3>02 / У каждой детали своё место</h3><p>Инбаунды открываются внутри протокола. Адрес и порт нужны в форме подключения. Версии компонентов — при обновлении. Отдельная вкладка с перечнем ресурсов убрана.</p></div>
+      <div><h3>03 / Настройки с понятными названиями</h3><p>Интерфейс, синхронизация, клиентские профили, резервные копии и обновления. Без настройки анимаций, вложенных раскрытий и технических терминов Google Picker.</p></div>
+    </section>
+    <footer class="footer"><span>Рекомендация для обсуждения: A — наиболее близок к вашим скриншотам.</span><span>Один файл · Без сети и зависимостей · Изменения сбрасываются при перезагрузке</span></footer>
+  </div>
+  <noscript>Для интерактивных макетов включите JavaScript в браузере.</noscript>
+  <script>
+  'use strict';
+  // Standalone review prototype. No network, persistence, credentials or application integration.
+  const paths = {
+    server: '<rect x="4" y="3" width="16" height="7" rx="1.5"/><rect x="4" y="14" width="16" height="7" rx="1.5"/><path d="M7 6.5h.01M7 17.5h.01"/>',
+    users: '<path d="M16 20v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m20 0v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/><circle cx="9" cy="7" r="4"/>',
+    settings: '<path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1M5.6 18.4l2.1-2.1m8.6-8.6 2.1-2.1"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2.2"/>',
+    cloud: '<path d="M7 18h11a4 4 0 0 0 .5-8A6.5 6.5 0 0 0 6 8.5 4.8 4.8 0 0 0 7 18Z"/><path d="m9 12 2 2 4-4"/>',
+    chevron: '<path d="m9 5 7 7-7 7"/>', back: '<path d="m12 4-8 8 8 8M4 12h16"/>',
+    plus: '<path d="M12 4v16M4 12h16"/>', close: '<path d="m6 6 12 12M6 18 18 6"/>',
+    edit: '<path d="m15 4 5 5M4 20l1-6L16 3a2 2 0 0 1 3 0l2 2a2 2 0 0 1 0 3L10 19Z"/>',
+    check: '<path d="m5 12 4 4L19 6"/>', circleCheck: '<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
+    arrow: '<path d="M4 12h16m-7-7 7 7-7 7"/>',
+    refresh: '<path d="M20 7v5h-5M4 17v-5h5M6 5a8 8 0 0 1 13 3M5 16a8 8 0 0 0 13 3"/>',
+    key: '<circle cx="8" cy="8" r="5"/><path d="m12 12 9 9m-4-4 3-3m-6 0 3-3"/>',
+    shield: '<path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6Z"/><path d="m8 12 3 3 5-6"/>',
+    history: '<path d="M3 3v6h6M3 9a9 9 0 1 1 0 6m9-9v6l4 2"/>',
+    folder: '<path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11H3Z"/>',
+    file: '<path d="M14 3H5v18h14V8Zm0 0v5h5M8 13h8m-8 4h5"/>',
+    palette: '<circle cx="8" cy="8" r=".7"/><circle cx="13" cy="6" r=".7"/><circle cx="17" cy="10" r=".7"/><path d="M12 3a9 9 0 0 0 0 18h1a2 2 0 0 0 1-3.7c-1.4-.8-.7-3.3 1-3.3h3a3 3 0 0 0 3-3c0-5-4-8-9-8Z"/>',
+    language: '<path d="M3 5h12M9 2v3m4 0c-1 5-4 8-9 11m1-8c1 3 3 5 7 7m2 6 4-11 4 11m-6-4h4"/>',
+    download: '<path d="M12 3v12m-5-5 5 5 5-5M4 15v6h16v-6"/>',
+    upload: '<path d="M12 16V4m-5 5 5-5 5 5M4 16v5h16v-5"/>',
+    phone: '<rect x="6" y="2" width="12" height="20" rx="2"/><path d="M10 18h4"/>',
+    desktop: '<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/>',
+    link: '<path d="m10 13 4-4m-6 6-1 1a4 4 0 0 1-6-6l4-4a4 4 0 0 1 6 0m2 2 1-1a4 4 0 0 1 6 6l-4 4a4 4 0 0 1-6 0" transform="translate(1 1)"/>',
+    logout: '<path d="M10 4H4v16h6m4-4 4-4-4-4M9 12h12"/>',
+    more: '<circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>',
+    alert: '<circle cx="12" cy="12" r="9"/><path d="M12 7v6m0 3h.01"/>',
+    wifi: '<path d="M3 8a15 15 0 0 1 18 0M6 12a10 10 0 0 1 12 0m-9 4a5 5 0 0 1 6 0m-3 4h.01"/>',
+    battery: '<rect x="2" y="6" width="18" height="12" rx="2"/><path d="M23 10v4M5 9h9v6H5Z"/>',
+    box: '<path d="m12 2 9 5v10l-9 5-9-5V7Zm0 10 9-5m-9 5L3 7m9 5v10M7 4l10 6"/>',
+    search: '<circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/>',
+    qr: '<path d="M3 3h6v6H3Zm12 0h6v6h-6ZM3 15h6v6H3Zm12 0h2v2h-2Zm4 4h2v2h-2Zm-4 0v2m6-6v2"/>',
+  };
+  const icon = (name, extra = '') => `<svg class="icon ${extra}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.box}</svg>`;
+  const escapeHtml = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const apps = {};
+  const params = new URLSearchParams(location.search);
+  const viewNames = ['a', 'b', 'c'];
+  let selectedView = viewNames.includes(params.get('variant')) ? params.get('variant') : (innerWidth < 1050 ? 'a' : 'all');
+  let isLight = params.get('theme') === 'light';
+  let isWide = params.get('wide') === '1';
+  let scenario = 'normal';
+  const screenNames = ['server', 'settings', 'clients', 'sync'];
+  let reviewScreen = screenNames.includes(params.get('screen')) ? params.get('screen') : 'server';
+  function button(label, action, style = '', symbol = '') { return `<button class="button ${style}" data-action="${action}">${symbol ? icon(symbol) : ''}${label}</button>`; }
+  function iconButton(symbol, label, action) { return `<button class="icon-button" aria-label="${label}" title="${label}" data-action="${action}">${icon(symbol)}</button>`; }
+  function row(title, subtitle, symbol, action, suffix = '') {
+    return `<button class="row" data-action="${action}">${symbol ? icon(symbol) : ''}<span class="copy"><span class="name">${title}</span>${subtitle ? `<span class="sub">${subtitle}</span>` : ''}</span>${suffix || icon('chevron','chevron')}</button>`;
+  }
+  function switchRow(s, key, title, subtitle) {
+    return `<button class="row" role="switch" aria-checked="${s.toggles[key]}" aria-label="${title}" data-action="toggle:${key}"><span class="copy"><span class="name">${title}</span><span class="sub">${subtitle}</span></span><span class="switch" aria-hidden="true"></span></button>`;
+  }
+  function section(title, content) { return `<section class="section"><h4 class="section-label">${title}</h4>${content}</section>`; }
+  function card(content, classes = '') { return `<div class="card ${classes}">${content}</div>`; }
+  function head(title, count = '', action = '') { return `<div class="subhead"><h4>${title}</h4>${count ? `<span class="count">${count}</span>` : ''}${action}</div>`; }
+  function status(s) { return `<span class="status ${s.connected ? '' : 'offline'}">${icon(s.connected ? 'circleCheck' : 'history')}${s.connected ? 'SSH подключён' : 'SSH отключён'}</span>`; }
+  function hero(s, compact = false) {
+    return card(`<div class="hero-top"><div class="country">NL</div><div class="copy"><h4 class="card-title">${compact ? 'Нидерланды' : 'Ubuntu 24.04'}</h4><div class="address">${compact ? 'Ubuntu 24.04 · ' : ''}203.0.113.24</div>${status(s)}</div></div><div class="actions">${button(s.connected ? 'Отключиться' : 'Подключиться','connect',s.connected ? 'secondary' : '', 'key')}${button('Доступ SSH','sheet:ssh','outline')}</div>${s.variant === 'b' ? '<div class="summary-strip"><div><strong>2</strong>протокола</div><div><strong>12</strong>клиентов</div><div><strong>1</strong>обновление</div></div>' : ''}`, 'pad hero');
+  }
+  function connectionNote(s) { return !s.connected ? `<p class="inline-note">Сохранённые данные. Подключитесь, чтобы обновить состояние и управлять сервером.</p>` : ''; }
+  function errorBanner(s) { return scenario === 'error' && !s.retried ? `<div class="callout">${icon('alert')}<div class="copy"><strong>Не обновилась ссылка клиента</strong><p>Google Drive временно недоступен. У клиента остаётся прежний профиль.</p>${button('Повторить','retry','text','refresh')}</div></div>` : ''; }
+  const protocols = [ ['VLESS','3 инбаунда','V','vless'], ['AmneziaWG','1 интерфейс','W','awg'], ['TrustTunnel','Не настроен','T','tt'] ];
+  function protocolRows() { return protocols.map(([name, sub, mark, page]) => `<button class="row" data-action="go:${page}"><span class="icon-tile protocol-mark">${mark}</span><span class="copy"><span class="name">${name}</span><span class="sub">${sub}</span></span>${icon('chevron','chevron')}</button>`).join(''); }
+  function protocolTiles() { return `<div class="grid">${protocols.map(([name,sub,mark,page]) => `<button class="protocol-tile ${page === 'tt' ? 'install' : ''}" data-action="go:${page}"><span class="tile-head"><span class="protocol-mark">${mark}</span>${icon(page === 'tt' ? 'plus' : 'arrow')}</span><span class="name">${name}</span><span class="sub">${sub}</span></button>`).join('')}<button class="protocol-tile" data-action="go:clients"><span class="tile-head">${icon('users')}${icon('arrow')}</span><span class="name">Клиенты</span><span class="sub">12 с доступом</span></button></div>`; }
+  function managementRows() { return row('Обновления','Доступно обновление 3x-ui','download','go:updates') + row('Подключение к серверу','Данные для входа по SSH','key','sheet:ssh') + row('История действий','Общая для ваших устройств','history','go:activity'); }
+  function serverPage(s) {
+    const top = errorBanner(s) + hero(s) + connectionNote(s);
+    if (s.variant === 'a') return top + `<div class="content-grid">${section('Протоколы',card(protocolRows()))}${section('Управление',card(row('Клиенты сервера','12 клиентов с доступом','users','go:clients') + row('Обновления','Есть обновление 3x-ui','download','go:updates') + row('История действий','Все ваши устройства','history','go:activity')))}</div>`;
+    if (s.variant === 'b') return top + `<div class="content-grid"><div>${head('Протоколы')}${protocolTiles()}</div>${section('Обслуживание',card(row('Обновления','1 доступно','download','go:updates') + row('История действий','Последнее действие выполнено','history','go:activity')))}</div>`;
+    let content;
+    if (s.serverTab === 'protocols') content = card(protocolRows()) + '<p class="inline-note">Выберите протокол, чтобы открыть его подключения.</p>';
+    else if (s.serverTab === 'manage') content = card(managementRows());
+    else content = `<div class="content-grid"><div><button class="feature-action" data-action="sheet:add-client">${icon('plus')}<span class="copy"><strong>Добавить клиента</strong><small>Выбрать доступ и выдать профиль</small></span>${icon('arrow')}</button>${head('Клиенты сервера','12',button('Все','go:clients','text'))}${card(clientRow('Алексей','VLESS · AmneziaWG','А','alex') + clientRow('Дом','AmneziaWG','Д','home'))}</div>${section('На сервере',card(row('Протоколы','VLESS и AmneziaWG','shield','tab:protocols') + row('Обновить 3x-ui','Доступна новая версия','download','go:updates') + row('Последние действия','Изменения получены с ноутбука','history','go:activity')))}</div>`;
+    return top + `<div class="tabs" aria-label="Раздел сервера">${[['overview','Обзор'],['protocols','Протоколы'],['manage','Управление']].map(([id,title])=>`<button data-action="tab:${id}" aria-pressed="${s.serverTab===id}">${title}</button>`).join('')}</div>` + content;
+  }
+  function appearance(s) { return card(row('Тема',s.themeLabel,'palette','sheet:theme') + row('Язык приложения',s.language,'language','sheet:language')); }
+  function syncSettings(s) { return card(row('Google Drive','Личный аккаунт · подключён','cloud','sheet:account') + switchRow(s,'sync','Автосинхронизация','Изменения на всех ваших устройствах') + row('Мои устройства','Телефон и ноутбук','phone','go:devices')); }
+  function profileSettings(s) { return card(row('Базовый YAML',escapeHtml(s.baseFile),'file','sheet:yaml') + row('Папка профилей','AntiRKN profiles','folder','sheet:folder') + row('Доступ к профилям',s.linkAccess,'link','sheet:access') + switchRow(s,'publish','Обновлять профили','Сохранять изменения по прежним ссылкам')); }
+  function backupSettings() { return card(row('Создать резервную копию','Сохранить данные приложения в файл','download','sheet:backup') + row('Восстановить из копии','Перенести данные на это устройство','history','sheet:restore')); }
+  function updateSettings(s) { return card(switchRow(s,'updates','Проверять обновления','Новые версии компонентов на серверах') + switchRow(s,'suggest','Предлагать установку','Сообщать о доступных обновлениях')); }
+  function settingCategory(title, sub, symbol, target) { return row(title, sub, symbol, `go:${target}`); }
+  function settingsPage(s) {
+    if (s.variant === 'a') return `<div class="content-grid">${section('Интерфейс',appearance(s))}${section('Синхронизация',syncSettings(s))}${section('Клиентские профили',profileSettings(s))}${section('Резервные копии',backupSettings())}${section('Обновления компонентов',updateSettings(s))}</div>`;
+    if (s.variant === 'b') return section('Мои данные',card(row('Личное пространство','Телефон и ноутбук синхронизированы','cloud','go:sync'))) + section('Настройки приложения',card(settingCategory('Интерфейс',`${s.themeLabel} · ${s.language}`,'palette','appearance') + settingCategory('Синхронизация','Google Drive · 2 устройства','refresh','sync-settings') + settingCategory('Клиентские профили','Базовый YAML, папка и ссылки','file','profiles') + settingCategory('Резервные копии','Сохранение и восстановление','history','backup') + settingCategory('Обновления','Проверка версий и уведомления','download','update-settings')));
+    return `<div class="content-grid">${section('На этом устройстве',card(`<h4 class="card-title">Интерфейс</h4><p class="description">Оформление и язык приложения</p><div class="setting-summary"><button data-action="sheet:theme">${icon('palette')} ${s.themeLabel}</button><button data-action="sheet:language">${s.language}</button></div>`,'pad'))}${section('Между устройствами',card(row('Синхронизация','Google Drive · всё синхронизировано','cloud','go:sync') + switchRow(s,'sync','Автосинхронизация','Обмениваться изменениями') + row('Мои устройства','Телефон и ноутбук','phone','go:devices')))}${section('Для клиентов',card(row('Профили и ссылки','Базовый YAML и публикация','file','go:profiles') + switchRow(s,'publish','Обновлять профили','Сохранять прежние ссылки')))}${section('Данные и обслуживание',card(row('Резервные копии','Сохранить или восстановить','history','go:backup') + row('Обновления компонентов','Проверки и уведомления','download','go:update-settings')))}</div>`;
+  }
+  function clientRow(title, subtitle, letter, id) { return `<button class="row" data-action="sheet:client-${id}"><span class="avatar">${letter}</span><span class="copy"><span class="name">${title}</span><span class="sub">${subtitle}</span></span>${icon('chevron','chevron')}</button>`; }
+  const sampleClients = [['Алексей','VLESS · AmneziaWG','alex'],['Дом','AmneziaWG','home'],['Ноутбук','VLESS','laptop'],['Планшет','VLESS','tablet'],['Мария','VLESS','maria'],['Телевизор','AmneziaWG','tv'],['Рабочий ПК','VLESS','work'],['Телефон','VLESS','phone'],['Анна','AmneziaWG','anna'],['Дача','AmneziaWG','country'],['Роутер','AmneziaWG','router'],['Запасной','VLESS','spare']];
+  function clientsPage(s) { return errorBanner(s) + `<p class="page-hint">Доступы и профили ваших клиентов</p>${button('Добавить клиента','sheet:add-client','full','plus')}${head('Клиенты',String(sampleClients.length+s.addedClients.length))}${card(sampleClients.map(([name,sub,id])=>clientRow(name,sub,name[0],id)).join('')+s.addedClients.map((name,i)=>clientRow(escapeHtml(name),'VLESS',escapeHtml(name[0].toUpperCase()),`new${i}`)).join(''))}`; }
+  function activityPage() { return `<p class="page-hint">Действия со всех ваших устройств</p>${section('Сегодня',card('<div class="log-row">'+icon('circleCheck')+'<div><strong>Добавлен клиент «Ноутбук»</strong><small>Нидерланды · выполнено с ноутбука</small></div><time>21:40</time></div><div class="log-row">'+icon('circleCheck')+'<div><strong>Профиль «Дом» обновлён</strong><small>Ссылка сохранена · с телефона</small></div><time>21:32</time></div><div class="log-row">'+icon('circleCheck')+'<div><strong>Изменены настройки VLESS</strong><small>Нидерланды · выполнено с ноутбука</small></div><time>20:15</time></div>'))}`; }
+  function syncPage(s) { return errorBanner(s) + card(`<div class="hero-top"><span class="icon-tile">${icon(scenario === 'offline' ? 'history':'cloud')}</span><div class="copy"><h4 class="card-title">${scenario === 'offline' ? 'Ожидаем соединения' : 'Всё синхронизировано'}</h4><p class="description">${scenario === 'offline' ? 'Ваши изменения сохранены на устройстве' : 'Телефон и ноутбук · только что'}</p></div></div>${button('Синхронизировать','sync','text','refresh')}`,'pad') + section('Ваши устройства',card(row('Этот телефон','Подключён','phone','sheet:device') + row('Личный ноутбук','Последний обмен в 21:40','desktop','sheet:device'))) + `<div class="actions">${button('Подключить устройство','sheet:pair','outline','plus')}</div>` + section('Последние изменения',card('<div class="log-row">'+icon('circleCheck')+'<div><strong>Клиент «Ноутбук» добавлен</strong><small>Изменение получено с вашего ноутбука</small></div></div>'+row('Вся история','Действия со всех устройств','history','go:activity'))); }
+  function inboundCard(name, subtitle, clients, index, s) { return card(`<div class="inbound-top"><div class="copy"><div class="name">${escapeHtml(s.inboundNames[index] || name)}</div><p class="sub">${subtitle}</p></div>${iconButton('edit','Изменить '+name,'sheet:inbound-'+index)}</div><div class="inbound-footer"><span>${clients}</span><span class="pill">Включён</span></div>`,'inbound'); }
+  function vlessPage(s) { return `<p class="page-hint">Нидерланды · подключения VLESS</p>${button('Добавить инбаунд','sheet:inbound-new','full','plus')}${head('Инбаунды','3')}${inboundCard('Основной','XHTTP · Reality','8 клиентов',0,s)}${inboundCard('Межсерверный','XHTTP · Reality','Без клиентов AntiRKN',1,s)}${inboundCard('Резервный','TCP · Reality','4 клиента',2,s)}`; }
+  function awgPage(s) { return `<p class="page-hint">Нидерланды · AmneziaWG</p>${button('Добавить интерфейс','sheet:awg','full','plus')}${head('Интерфейсы','1')}${card(row('awg0','26 подключений · работает','shield','sheet:awg'))}`; }
+  function ttPage() { return card(`<span class="icon-tile">${icon('shield')}</span><h4>Настроить TrustTunnel</h4><p class="description">Добавьте точку подключения,<br>чтобы выдать клиентам доступ.</p>${button('Начать настройку','sheet:tt','','plus')}`,'empty'); }
+  function updatesPage(s) { return `<p class="page-hint">Нидерланды · установленные компоненты</p>${!s.connected ? connectionNote(s) : ''}${section('Доступно обновление',card(`<div class="hero-top"><span class="icon-tile">${icon('box')}</span><div class="copy"><h4 class="card-title">3x-ui</h4><p class="description">Доступна новая версия</p></div></div><div class="actions">${button('Посмотреть обновление','sheet:update-plan','full','download')}</div>`,'pad'))}${section('Остальные компоненты',card(row('Система Ubuntu','Проверить обновления пакетов','server','sheet:system-update') + row('Xray','Обновлений не найдено','shield','sheet:component') + row('AmneziaWG','Обновлений не найдено','shield','sheet:component')))}<div class="actions">${button('Проверить обновления','check-updates','outline full','refresh')}</div>`; }
+  const titles = { server:'Нидерланды',servers:'Серверы',settings:'Настройки',clients:'Клиенты',sync:'Синхронизация',vless:'VLESS',awg:'AmneziaWG',tt:'TrustTunnel',updates:'Обновления',activity:'История действий',appearance:'Интерфейс','sync-settings':'Синхронизация',profiles:'Клиентские профили',backup:'Резервные копии','update-settings':'Обновления',devices:'Мои устройства' };
+  function page(s) {
+    switch(s.page) {
+      case 'server': return serverPage(s);
+      case 'servers': return `${button('Добавить сервер','sheet:add-server','full','plus')}${head('Мои серверы','2')}${card(row('Нидерланды','VLESS · AmneziaWG','server','go:server')+row('Германия','SSH не подключён','server','sheet:other-server'))}`;
+      case 'settings': return settingsPage(s);
+      case 'clients': return clientsPage(s);
+      case 'sync': return syncPage(s);
+      case 'activity': return activityPage();
+      case 'vless': return vlessPage(s);
+      case 'awg': return awgPage(s);
+      case 'tt': return ttPage();
+      case 'updates': return updatesPage(s);
+      case 'appearance': return section('Оформление и язык',appearance(s));
+      case 'sync-settings': return section('Между вашими устройствами',syncSettings(s));
+      case 'profiles': return section('Сборка и публикация',profileSettings(s));
+      case 'backup': return section('Данные приложения',backupSettings());
+      case 'update-settings': return section('Обновления компонентов',updateSettings(s));
+      case 'devices': return section('Подключённые устройства',card(row('Этот телефон','Текущее устройство','phone','sheet:device')+row('Личный ноутбук','Синхронизирован в 21:40','desktop','sheet:device')))+`<div class="actions">${button('Подключить устройство','sheet:pair','outline full','plus')}</div>`;
+      default: return '';
+    }
+  }
+  function render(s, keepScroll = false) {
+    const scroll = keepScroll ? s.el.querySelector('.viewport')?.scrollTop || 0 : 0;
+    const back = !['settings','clients','servers'].includes(s.page);
+    const suffix = s.page === 'settings' || s.page === 'servers' ? iconButton('cloud','Синхронизация','go:sync') : s.page === 'server' ? iconButton('more','Действия сервера','sheet:server-menu') : '';
+    s.el.innerHTML = `<div class="device-bar" aria-hidden="true"><span>21:50</span><span class="device-status">${icon('wifi')}${icon('battery')}</span></div><div class="app-main"><header class="app-header">${back ? `<span class="back">${iconButton('back','Назад','back')}</span>` : ''}<h3>${titles[s.page]}</h3>${suffix}</header><div class="viewport" tabindex="0" aria-label="Содержимое экрана">${page(s)}</div></div><nav class="bottom-nav" aria-label="Основная навигация">${[['servers','server','Серверы'],['clients','users','Клиенты'],['settings','settings','Настройки']].map(([target,symbol,title])=>`<button data-action="nav:${target}" ${s.nav === target ? 'aria-current="page"' : ''}><span class="nav-icon">${icon(symbol)}</span><span>${title}</span></button>`).join('')}</nav>`;
+    s.el.classList.toggle('light',isLight);
+    s.el.querySelector('.viewport').scrollTop = scroll;
+  }
+  function navigate(s,target, remember = true) {
+    if (remember) s.history.push({page:s.page,nav:s.nav,scroll:s.el.querySelector('.viewport')?.scrollTop || 0});
+    s.page = target;
+    if(['settings','clients','servers'].includes(target)) s.nav = target;
+    if(['server','vless','awg','tt','updates'].includes(target)) s.nav = 'servers';
+    render(s);
+    s.el.querySelector('.viewport').focus({preventScroll:true});
+  }
+  const field = (label, name, value = '', type = 'text') => `<label class="field">${label}<input name="${name}" type="${type}" value="${escapeHtml(value)}" required></label>`;
+  const detail = (title, value) => `<div class="detail-line"><span>${title}</span><strong>${value}</strong></div>`;
+  function showSheet(s,type) {
+    closeSheet(s);
+    s.returnFocus = document.activeElement;
+    let title = '', content = '';
+    const choices = (values,prefix,current) => values.map(value=>row(value,'','',`${prefix}:${value}`,value===current ? icon('check') : '<span></span>')).join('');
+    const demoAction = (label='Готово') => button(label,'demo','full');
+    if(type === 'theme') { title='Тема приложения'; content=choices(['Как в системе','Светлая','Тёмная'],'theme',s.themeLabel); }
+    else if(type === 'language') { title='Язык приложения'; content=choices(['Как в системе','Русский','English'],'language',s.language)+'<p class="inline-note">В этом макете тексты экранов представлены на русском.</p>'; }
+    else if(type === 'ssh' || type === 'add-server') { title=type==='ssh'?'Подключение по SSH':'Добавить сервер'; content=`<form data-form="ssh">${field('Название сервера','server','Нидерланды')}${field('Адрес','host','203.0.113.24')}${field('Пользователь','user','admin')}${field('Порт SSH','port','22','number')}<label class="field">Способ входа<select name="auth"><option>Приватный ключ</option><option>Пароль</option></select></label><p class="description">SSH — доступ для управления сервером.</p><div class="actions"><button class="button full" type="submit">Сохранить</button></div></form>`; }
+    else if(type === 'account') { title='Google Drive'; content=card(row('Личный аккаунт','Подключён','cloud','go:sync'))+`<div class="actions">${button('Сменить аккаунт','demo','outline full')}</div>${button('Выйти из аккаунта','demo','text full','logout')}`; }
+    else if(type === 'access') { title='Доступ к профилям'; content=choices(['По ссылке','Только мне'],'access',s.linkAccess)+'<p class="description">По ссылке клиент сможет получить свой профиль без входа в Google.</p>'; }
+    else if(type === 'yaml') { title='Базовый YAML'; content=detail('Текущий файл',escapeHtml(s.baseFile))+'<p class="description">Основа для клиентских профилей. Ваши правила и группы сохраняются.</p><div class="actions">'+button('Выбрать другой файл','pick-yaml','full','folder')+'</div><input class="yaml-input" type="file" accept=".yaml,.yml" hidden>'; }
+    else if(type === 'folder') { title='Папка профилей'; content=detail('Google Drive','AntiRKN profiles')+'<p class="description">Здесь хранятся клиентские профили. Файл и ссылку отдельного клиента можно выбрать в его карточке.</p><div class="actions">'+button('Перейти к клиентам','go:clients','outline full','users')+'</div>'; }
+    else if(type === 'backup' || type === 'restore') { title=type==='backup'?'Создать резервную копию':'Восстановить данные'; content=`<p class="description">${type==='backup'?'Данные приложения сохранятся в зашифрованный файл. Пароль потребуется при восстановлении.':'Выберите зашифрованную копию и введите её пароль.'}</p>${type==='restore'?`<div class="actions">${button('Выбрать файл копии','demo','outline full','folder')}</div>`:''}${field('Пароль копии','backup-password','','password')}<div class="actions">${demoAction(type==='backup'?'Сохранить копию':'Восстановить')}</div>`; }
+    else if(type === 'pair') { title='Подключить устройство'; content='<p class="description">На новом устройстве войдите в тот же Google-аккаунт и восстановите резервную копию.</p><div class="actions">'+button('Создать копию','sheet:backup','full','download')+'</div>'; }
+    else if(type === 'device') { title='Ваше устройство'; content=detail('Пространство','Личное')+detail('Состояние','Синхронизировано')+'<p class="description">Действия и их результаты доступны на всех ваших подключённых устройствах.</p>'; }
+    else if(type.startsWith('inbound-')) { const index=type.slice(8); const names=['Основной','Межсерверный','Резервный']; title=index==='new'?'Новый инбаунд':'Изменить инбаунд'; content=`<form data-form="inbound" data-index="${index}">${field('Название','name',s.inboundNames[index]||names[index]||'')}${field('Порт подключения','port',index==='2'?'8443':'443','number')}<label class="field">Транспорт<select name="transport"><option>XHTTP · Reality</option><option>TCP · Reality</option></select></label>${field('Домен SNI','sni','example.org')}<div class="actions"><button type="submit" class="button full">Сохранить</button></div></form>`; }
+    else if(type === 'awg') { title='Интерфейс AmneziaWG'; content=detail('Интерфейс','awg0')+detail('Подключений','26')+detail('Состояние','Работает')+`<div class="actions">${button('Изменить параметры','demo','outline full','edit')}</div>`; }
+    else if(type === 'tt') { title='Настроить TrustTunnel'; content=field('Название','tt-name','Основной')+field('Домен сервера','domain','vpn.example.org')+'<p class="description">Сертификат будет выпущен для этого домена.</p><div class="actions">'+demoAction('Подготовить установку')+'</div>'; }
+    else if(type === 'add-client') { title='Новый клиент'; content=`<form data-form="client">${field('Имя клиента','name')}<label class="field">Сервер<select><option>Нидерланды</option></select></label><label class="field">Протокол<select><option>VLESS</option><option>AmneziaWG</option></select></label><div class="actions"><button class="button full" type="submit">Добавить клиента</button></div></form>`; }
+    else if(type.startsWith('client-')) { const key=type.slice(7); const sample=sampleClients.find(client=>client[2]===key); const name=sample?.[0]||s.addedClients[Number(key.slice(3))]||'Клиент'; title=escapeHtml(name); content=`<span class="pill">Профиль актуален</span>${detail('Сервер','Нидерланды')}${detail('Доступ',sample?.[1]||'VLESS')}${card(row('Профиль клиента','Ссылка для подключения','link','sheet:share'))}<div class="actions">${button('Изменить файл / ссылку','sheet:binding','outline full','folder')}</div>`; }
+    else if(type === 'share') { title='Профиль клиента'; content='<p class="description">В приложении здесь будет QR-код прямой ссылки. Нажатие на QR копирует ссылку.</p><div class="actions">'+button('Сохранить YAML','demo','outline full','download')+'</div>'; }
+    else if(type === 'binding') { title='Файл клиента'; content=field('Ссылка на Google-файл','url','')+`<div class="actions">${button('Выбрать на Google Drive','demo','outline full','folder')}${button('Проверить файл','demo','full')}</div>`; }
+    else if(type === 'update-plan') { title='Обновление 3x-ui'; content='<p class="description">Установить новую версию панели на сервере «Нидерланды». Настройки и клиенты сохраняются.</p>'+detail('Компонент','3x-ui')+detail('Изменение','Обновление панели')+`<div class="actions">${button('Обновить','demo','full','download')}</div>`; }
+    else if(type === 'system-update') { title='Обновления Ubuntu'; content='<p class="description">Получить список доступных пакетов и показать изменения перед установкой.</p><div class="actions">'+button('Проверить пакеты','demo','full','refresh')+'</div>'; }
+    else if(type === 'component') { title='Обновления компонента'; content='<p class="description">Установлена актуальная версия. Новая проверка появится здесь при подключении к серверу.</p>'; }
+    else if(type === 'server-menu') { title='Нидерланды'; content=row('Изменить подключение','Адрес и данные SSH','key','sheet:ssh')+row('Обновить состояние','Получить данные с сервера','refresh','check-server')+row('История действий','Ваши устройства','history','go:activity'); }
+    else { title='Германия'; content='<p class="description">Для сравнения дизайна детально проработан сервер «Нидерланды».</p><div class="actions">'+button('Открыть Нидерланды','go:server','full')+'</div>'; }
+    const layer=document.createElement('div'); layer.className='sheet-layer';
+    layer.innerHTML=`<section class="sheet" role="dialog" aria-modal="true" aria-label="${title}"><div class="sheet-handle" aria-hidden="true"></div><div class="sheet-header"><h4>${title}</h4>${iconButton('close','Закрыть','close')}</div>${content}</section>`;
+    s.el.append(layer); layer.addEventListener('click',event=>{if(event.target===layer)closeSheet(s);});
+    layer.querySelector('button, input, select')?.focus({preventScroll:true});
+  }
+  function closeSheet(s) { const layer=s.el.querySelector('.sheet-layer'); if(layer){layer.remove();if(s.returnFocus?.isConnected)s.returnFocus.focus({preventScroll:true});} }
+  function toast(s,message) { clearTimeout(s.toastTimer); s.el.querySelector('.toast')?.remove(); const el=document.createElement('div');el.className='toast';el.role='status';el.textContent=message;s.el.append(el);s.toastTimer=setTimeout(()=>el.remove(),3600); }
+  function perform(s,action) {
+    const [kind,...rest]=action.split(':');const value=rest.join(':');
+    if(kind==='sheet')return showSheet(s,value);
+    if(kind==='close')return closeSheet(s);
+    if(kind==='go'){closeSheet(s);return navigate(s,value);}
+    if(kind==='nav'){s.history=[];return navigate(s,value,false);}
+    if(kind==='back'){const previous=s.history.pop();s.page=previous?.page||(s.page==='server'?'servers':'settings');s.nav=previous?.nav||s.nav;render(s);if(previous)s.el.querySelector('.viewport').scrollTop=previous.scroll;return;}
+    if(kind==='tab'){s.serverTab=value;return render(s,true);}
+    if(kind==='toggle'){s.toggles[value]=!s.toggles[value];render(s,true);s.el.querySelector(`[data-action="${action}"]`)?.focus({preventScroll:true});return;}
+    if(kind==='connect'){s.connected=!s.connected;render(s,true);return toast(s,s.connected?'Макет: SSH подключён':'Макет: SSH отключён');}
+    if(kind==='theme'){s.themeLabel=value;closeSheet(s);isLight=value==='Светлая'||(value==='Как в системе'&&matchMedia('(prefers-color-scheme: light)').matches);renderAll(true);updateStudio();return;}
+    if(kind==='language'){s.language=value;closeSheet(s);render(s,true);return toast(s,'Выбор показан. Перевод макета — русский.');}
+    if(kind==='access'){s.linkAccess=value;closeSheet(s);render(s,true);return;}
+    if(kind==='retry'){s.retried=true;render(s,true);return toast(s,'Макет: публикация повторена, ссылка сохранена');}
+    if(kind==='sync')return toast(s,scenario==='offline'?'Макет: обмен возобновится при подключении':'Макет: все изменения синхронизированы');
+    if(kind==='check-server'||kind==='check-updates'){closeSheet(s);return toast(s,s.connected?'Макет: состояние обновлено':'Сначала подключитесь к серверу');}
+    if(kind==='pick-yaml')return s.el.querySelector('.yaml-input').click();
+    if(kind==='demo'){closeSheet(s);return toast(s,'Демонстрация действия. Реальные данные не менялись.');}
+  }
+  function renderAll(keepScroll=false){Object.values(apps).forEach(s=>render(s,keepScroll));}
+  document.querySelectorAll('.app').forEach(el=>{
+    const variant=el.dataset.variant;
+    const s={el,variant,page:reviewScreen,nav:reviewScreen==='server'?'servers':reviewScreen==='clients'?'clients':'settings',history:[],serverTab:'overview',connected:true,toggles:{sync:true,publish:true,updates:true,suggest:true},themeLabel:'Как в системе',language:'Русский',linkAccess:'По ссылке',baseFile:'base.yaml',inboundNames:{},addedClients:[],retried:false};
+    apps[variant]=s;
+    el.addEventListener('click',event=>{const target=event.target.closest('[data-action]');if(target)perform(s,target.dataset.action);});
+    el.addEventListener('submit',event=>{
+      event.preventDefault();const form=event.target;const data=new FormData(form);
+      if(form.dataset.form==='client'){const name=data.get('name').trim();if(!name)return;s.addedClients.push(name);closeSheet(s);navigate(s,'clients');toast(s,'Макет: клиент добавлен');}
+      else if(form.dataset.form==='inbound'){if(form.dataset.index!=='new')s.inboundNames[form.dataset.index]=data.get('name').trim();closeSheet(s);render(s,true);toast(s,'Макет: параметры сохранены');}
+      else {closeSheet(s);toast(s,'Макет: параметры SSH проверены. Подключение не выполнялось.');}
+    });
+    el.addEventListener('change',event=>{if(event.target.classList.contains('yaml-input')&&event.target.files[0]){s.baseFile=event.target.files[0].name;closeSheet(s);render(s,true);toast(s,'Макет: выбран файл. Содержимое не считывалось.');}});
+    el.addEventListener('keydown',event=>{
+      const layer=el.querySelector('.sheet-layer');if(!layer)return;
+      if(event.key==='Escape'){event.preventDefault();closeSheet(s);return;}
+      if(event.key==='Tab'){const focusable=[...layer.querySelectorAll('button,input:not([hidden]),select,a[href]')];const first=focusable[0],last=focusable.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}}
+    });
+  });
+  function updateStudio(){
+    const gallery=document.querySelector('#gallery');
+    gallery.classList.toggle('single',selectedView!=='all');gallery.classList.toggle('wide',isWide&&selectedView!=='all');
+    document.querySelectorAll('[data-card]').forEach(el=>el.hidden=selectedView!=='all'&&el.dataset.card!==selectedView);
+    document.querySelectorAll('[data-view]').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.view===selectedView)));
+    document.querySelectorAll('[data-screen]').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.screen===reviewScreen)));
+    document.querySelector('#theme-control').setAttribute('aria-pressed',String(isLight));document.querySelector('#theme-control').textContent=isLight?'Тёмная тема':'Светлая тема';
+    document.querySelector('#wide-control').setAttribute('aria-pressed',String(isWide));document.querySelector('#wide-control').textContent=isWide?'Мобильный экран':'Широкий экран';
+  }
+  document.querySelector('#variant-controls').addEventListener('click',event=>{const btn=event.target.closest('[data-view]');if(!btn)return;selectedView=btn.dataset.view;if(selectedView==='all')isWide=false;updateStudio();});
+  document.querySelector('#screen-controls').addEventListener('click',event=>{const btn=event.target.closest('[data-screen]');if(!btn)return;reviewScreen=btn.dataset.screen;Object.values(apps).forEach(s=>{s.history=[];navigate(s,reviewScreen,false);});updateStudio();btn.focus({preventScroll:true});});
+  document.querySelector('#theme-control').addEventListener('click',()=>{isLight=!isLight;renderAll(true);updateStudio();});
+  document.querySelector('#wide-control').addEventListener('click',()=>{isWide=!isWide;if(isWide&&selectedView==='all')selectedView='a';updateStudio();});
+  document.querySelector('#state-control').addEventListener('change',event=>{scenario=event.target.value;Object.values(apps).forEach(s=>{s.connected=scenario!=='offline';s.retried=false;});renderAll(true);});
+  const narrow=matchMedia('(max-width: 1049px)');narrow.addEventListener('change',()=>{if(narrow.matches&&selectedView==='all'){selectedView='a';isWide=false;updateStudio();}});
+  if(isWide&&selectedView==='all')selectedView='a';
+  renderAll();updateStudio();
+  </script>
+</body>
+</html>

@@ -808,6 +808,8 @@
   "syncReveal": "Показать содержимое и секреты",
   "syncHide": "Скрыть содержимое",
   "syncSelect": "Выбрать эту версию",
+  "syncDeviceThis": "Это устройство",
+  "syncDeviceOther": "Другое устройство",
   "syncResolve": "Сохранить решение",
   "syncKindServer": "Сервер",
   "syncKindTemplate": "Базовый шаблон",
