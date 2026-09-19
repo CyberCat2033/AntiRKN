@@ -481,4 +481,58 @@ void main() {
       expect(remotes['one']!.submissions, isEmpty);
     },
   );
+  test(
+    'forget inaccessible server retires local resources without claiming revocation',
+    () async {
+      final store = MemoryVpn();
+      final remotes = <String, Remote>{
+        'one': Remote(store)..running = true,
+        'two': Remote(store),
+      };
+      final c = controller(store, remotes);
+      addTearDown(c.dispose);
+      await setup(c);
+      await c.prepare();
+      await c.apply();
+      expect(c.workspace.servers['one']!['pending'], isNotNull);
+      final inaccessible = remotes.remove('one')!;
+      inaccessible.actions.clear();
+      await c.deleteUser(
+        c.workspace.users.singleWhere((user) => user.id == alice),
+      );
+      expect(c.hasPendingRevocation('one'), isTrue);
+      expect(c.hasRunning, isTrue);
+
+      expect(await c.forgetServersLocally({'one'}), isTrue);
+
+      expect(inaccessible.actions, isEmpty);
+      expect(
+        c.workspace.inbounds
+            .where((resource) => resource.serverId == 'one')
+            .every((resource) => resource.deleted && !resource.enabled),
+        isTrue,
+      );
+      expect(
+        c.workspace.inbounds
+            .where((resource) => resource.serverId == 'two')
+            .every((resource) => !resource.deleted && resource.enabled),
+        isTrue,
+      );
+      final forgotten = c.workspace.servers['one']!;
+      expect(forgotten['pending'], isNull);
+      expect(forgotten['job'], isNull);
+      expect(forgotten['operation'], isNull);
+      expect(forgotten['observed'], isEmpty);
+      expect(forgotten['forgottenLocallyAt'], isA<String>());
+      final deleted = c.workspace.users.singleWhere((user) => user.id == alice);
+      expect(deleted.deletion!['targets']['one']['status'], 'abandoned');
+      expect(deleted.revocationComplete, isFalse);
+      expect(deleted.revocationSettled, isTrue);
+      expect(deleted.deletionComplete, isTrue);
+      expect((jsonDecode(store.raw!) as Map)['version'], 5);
+      expect(c.hasPendingRevocation('one'), isFalse);
+      expect(c.hasRunning, isFalse);
+      expect(c.results[bob]!.hasBlockingErrors, isFalse);
+    },
+  );
 }

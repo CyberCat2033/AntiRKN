@@ -431,7 +431,9 @@ Future<void> _restoreBackup(
               (u) => u.deleted && !u.deletionComplete,
             )) {
               restoredTargets.addAll(
-                (user.deletion!['targets'] as Map).keys.cast<String>(),
+                (user.deletion!['targets'] as Map).entries
+                    .where((entry) => !vpnRevocationSettled(entry.value))
+                    .map((entry) => entry.key as String),
               );
             }
             for (final entry in vpn.servers.entries) {

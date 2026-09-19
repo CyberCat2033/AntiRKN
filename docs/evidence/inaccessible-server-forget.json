@@ -1,0 +1,50 @@
+{
+  "date": "2026-09-19T16:41:46+03:00",
+  "scope": "Explicit local forget for an inaccessible saved server",
+  "checks": {
+    "manager_targeted": {
+      "passed": 15,
+      "failed": 0,
+      "tests": [
+        "forget inaccessible server retires local resources without claiming revocation",
+        "blocked deletion offers explicit local forget",
+        "local forget refreshes revisions and never opens SSH",
+        "local forget keeps a server used as an unselected SSH jump",
+        "client_deletion_test.dart"
+      ]
+    },
+    "analysis": {
+      "domain": "pass",
+      "storage": "pass",
+      "manager": "pass"
+    },
+    "workspace": {
+      "status": "pass",
+      "localized_messages": 1020
+    },
+    "storage_selected": {
+      "passed": 40,
+      "failed": 4,
+      "failures": "Previously known namespace migration expectations: three migration flags and one resourceWorkspaceId equality expectation"
+    },
+    "known_unverified_failures": [
+      "Two long server_catalog CRUD scenarios stop at the legacy ssh-edit lookup; the three new focused scenarios pass",
+      "The previously recorded restored-review expectation remains failing"
+    ]
+  },
+  "android": {
+    "target": "android-arm64 release",
+    "apk": "apps/manager/build/app/outputs/flutter-apk/app-release.apk",
+    "bytes": 77809774,
+    "sha256": "5ef558ddcde8e272ca7aeb516a0e1afdfee1c9e42e14600f1c2937a6b44142ab",
+    "install": "adb install -r: Success",
+    "data_cleared": false,
+    "launched": false,
+    "installed_apk_hash_independently_read_back": false
+  },
+  "remote_effects": {
+    "ssh_connection_attempted_by_forget": false,
+    "vps_changed": false,
+    "remote_revocation_claimed": false
+  }
+}

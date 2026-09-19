@@ -163,6 +163,50 @@ class ServerCatalogController extends ChangeNotifier {
     }
   }
 
+  /// Deletes refreshed saved records after local VPN state has deliberately
+  /// abandoned them. This path never opens an SSH connection.
+  Future<void> forgetServersLocally(
+    Set<String> ids, {
+    required Future<bool> Function() abandonVpnState,
+  }) async {
+    if (loading || _disposed || ids.isEmpty) return;
+    loading = true;
+    error = null;
+    notifyListeners();
+    try {
+      final current = await repository.listServers();
+      if (current.any(
+        (server) =>
+            !ids.contains(server.id) &&
+            ids.contains(server.profile.jumpServerId),
+      )) {
+        throw const VaultFailure(VaultIssue.busy);
+      }
+      if (!await abandonVpnState()) {
+        throw const VaultFailure(VaultIssue.writeFailed);
+      }
+      final selected = current
+          .where((server) => ids.contains(server.id))
+          .toList();
+      if (selected.isNotEmpty) await repository.deleteServers(selected);
+      for (final id in ids) {
+        final session = _sessions.remove(id);
+        session?.removeListener(_sessionChanged);
+        session?.dispose();
+        session?.network.dispose();
+      }
+      if (ids.contains(selectedId)) selectedId = null;
+      servers = await repository.listServers();
+    } on VaultFailure catch (e) {
+      error = e.issue;
+    } catch (_) {
+      error = VaultIssue.writeFailed;
+    } finally {
+      loading = false;
+      if (!_disposed) notifyListeners();
+    }
+  }
+
   void select(String id) {
     if (_disposed || loading) return;
     selectedId = id;

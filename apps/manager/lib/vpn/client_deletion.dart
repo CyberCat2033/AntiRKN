@@ -4,12 +4,12 @@ extension ClientDeletion on VpnController {
   Iterable<VpnUser> get pendingDeletions =>
       workspace.users.where((u) => u.deleted && !u.deletionComplete);
   Iterable<VpnUser> get pendingRevocations =>
-      pendingDeletions.where((u) => !u.revocationComplete);
+      pendingDeletions.where((u) => !u.revocationSettled);
   bool hasPendingRevocation(String serverId) => pendingRevocations.any(
     (u) => (u.deletion!['targets'] as Map).entries.any(
       (e) =>
           vpnServerId(e.key as String) == serverId &&
-          e.value['status'] != 'revoked',
+          !vpnRevocationSettled(e.value),
     ),
   );
   bool ownsDeletion(VpnUser user) => user.deletion?['executor'] == _deviceId;
@@ -22,7 +22,7 @@ extension ClientDeletion on VpnController {
       !user.deletionComplete &&
       (user.deletion!['targets'] as Map).values.any(
         (t) =>
-            t['status'] != 'revoked' &&
+            !vpnRevocationSettled(t) &&
             (t['connectionAttempts'] as int? ?? 0) >= 3,
       );
 
@@ -52,7 +52,7 @@ extension ClientDeletion on VpnController {
       for (final entry in (user.deletion!['targets'] as Map).entries) {
         final record = entry.value as Map;
         final target = entry.key as String;
-        if (record['status'] == 'revoked' ||
+        if (vpnRevocationSettled(record) ||
             remote(target) != null ||
             !manual &&
                 ((record['connectionAttempts'] as int? ?? 0) >= 3 ||
@@ -80,7 +80,7 @@ extension ClientDeletion on VpnController {
         final record = Map<String, dynamic>.from(
           user.deletion!['targets'][target.$2] as Map,
         );
-        if (record['status'] == 'revoked') continue;
+        if (vpnRevocationSettled(record)) continue;
         await _deletionTarget(user.id, target.$2, {
           ...record,
           'connectionAttempts': connected
@@ -237,7 +237,7 @@ extension ClientDeletion on VpnController {
     );
     if (!ownsDeletion(user)) {
       for (final e in (user.deletion!['targets'] as Map).entries) {
-        if (e.value['status'] == 'revoked') continue;
+        if (vpnRevocationSettled(e.value)) continue;
         final r = remote(e.key as String);
         if (r == null) throw const FormatException('vpn_connection');
         if (e.value['identity'] != null && e.value['identity'] != r.identity) {
@@ -290,7 +290,7 @@ extension ClientDeletion on VpnController {
                   .deletion!['targets'][target]
               as Map,
         );
-        if (record['status'] == 'revoked' ||
+        if (vpnRevocationSettled(record) ||
             !force &&
                 (record['retryAt'] as int? ?? 0) >
                     DateTime.now().millisecondsSinceEpoch) {
@@ -487,7 +487,7 @@ extension ClientDeletion on VpnController {
       }
       final user = workspace.users.singleWhere((u) => u.id == original.id);
       final file = user.deletion!['file'] as Map?;
-      if (user.revocationComplete &&
+      if (user.revocationSettled &&
           file != null &&
           file['status'] != 'deleted' &&
           (force ||

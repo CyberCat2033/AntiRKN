@@ -303,6 +303,17 @@ class ConnectionChecks extends ChangeNotifier {
     await _save();
   }
 
+  Future<void> forgetServers(Set<String> serverIds) async {
+    bool belongs(ConnectionTarget key) =>
+        serverIds.contains(vpnServerId(key.target));
+    _pending.removeWhere(belongs);
+    _external.removeWhere((key, _) => belongs(key));
+    _results.removeWhere((key, _) => belongs(key));
+    skipped.removeWhere(belongs);
+    await _save();
+    if (!_disposed) notifyListeners();
+  }
+
   void setForeground(bool value) {
     foreground = value;
     if (!value) {

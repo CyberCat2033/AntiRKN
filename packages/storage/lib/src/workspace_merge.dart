@@ -611,7 +611,7 @@ void _validateSyncChange(LocalChange e) {
         if (data['id'] != h.workspaceId ||
             h.entityId != h.workspaceId ||
             h.deleted ||
-            ![1, 2, 3, 4].contains(data['version'])) {
+            ![1, 2, 3, 4, 5].contains(data['version'])) {
           throw const FormatException();
         }
         for (final field in _vpnCollections.keys) {

@@ -18,7 +18,7 @@ class ClientDeletionPanel extends StatelessWidget {
   Future<void> force(BuildContext context, VpnUser user) async {
     final l = AppLocalizations.of(context);
     final servers = (user.deletion!['targets'] as Map).entries
-        .where((e) => e.value['status'] != 'revoked')
+        .where((e) => !vpnRevocationSettled(e.value))
         .map((e) => serverName(vpnServerId(e.key as String)))
         .toSet()
         .join(', ');
@@ -56,7 +56,7 @@ class ClientDeletionPanel extends StatelessWidget {
             AppSectionHeading(title: user.name),
             for (final entry
                 in (user.deletion!['targets'] as Map).entries.where(
-                  (e) => e.value['status'] != 'revoked',
+                  (e) => !vpnRevocationSettled(e.value),
                 ))
               ListTile(
                 title: Text(

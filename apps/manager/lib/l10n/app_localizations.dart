@@ -4532,6 +4532,30 @@ abstract class AppLocalizations {
   /// **'Could not delete the selection. Disconnect these servers and finish pending operations. A server used as an SSH jump by an unselected server must be kept. If the list changed, select it again.'**
   String get catalogServerDeleteBlocked;
 
+  /// No description provided for @catalogForgetServerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Forget inaccessible server?'**
+  String get catalogForgetServerTitle;
+
+  /// No description provided for @catalogForgetServerWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Forget these servers on this device without connecting to them? Their VPN resources and pending operations will be removed from local profiles. Access already issued on a VPS may remain active because revocation cannot be verified. Nothing on the VPS will be changed.'**
+  String get catalogForgetServerWarning;
+
+  /// No description provided for @catalogForgetServerAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Forget locally'**
+  String get catalogForgetServerAction;
+
+  /// No description provided for @catalogServerForgetBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not forget the selection. Another saved server still uses one of these servers as an SSH jump, or the server list changed. Reopen the selection and try again.'**
+  String get catalogServerForgetBlocked;
+
   /// No description provided for @publicationBindTitle.
   ///
   /// In en, this message translates to:

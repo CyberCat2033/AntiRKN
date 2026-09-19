@@ -2547,6 +2547,20 @@ class AppLocalizationsEn extends AppLocalizations {
       'Could not delete the selection. Disconnect these servers and finish pending operations. A server used as an SSH jump by an unselected server must be kept. If the list changed, select it again.';
 
   @override
+  String get catalogForgetServerTitle => 'Forget inaccessible server?';
+
+  @override
+  String get catalogForgetServerWarning =>
+      'Forget these servers on this device without connecting to them? Their VPN resources and pending operations will be removed from local profiles. Access already issued on a VPS may remain active because revocation cannot be verified. Nothing on the VPS will be changed.';
+
+  @override
+  String get catalogForgetServerAction => 'Forget locally';
+
+  @override
+  String get catalogServerForgetBlocked =>
+      'Could not forget the selection. Another saved server still uses one of these servers as an SSH jump, or the server list changed. Reopen the selection and try again.';
+
+  @override
   String get publicationBindTitle => 'Client configuration file';
 
   @override

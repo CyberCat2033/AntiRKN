@@ -1,20 +1,30 @@
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_manager/language_controller.dart';
 import 'package:antirkn_manager/main.dart';
+import 'package:antirkn_manager/ssh/server_catalog_controller.dart';
 import 'package:antirkn_manager/ssh/ssh_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'ssh_support.dart';
+import 'network_support.dart';
 
 class _Repository
     implements ServerRepository, LanguagePreferenceStore, SettingsStore {
   final servers = <String, SshProfile>{};
   final settings = <String, String>{};
   int sequence = 0;
+  int revision = 1;
+  bool failDeleteOnce = false;
+  final deletedRevisions = <int>[];
   @override
   Future<void> deleteServers(List<SavedServer> expected) async {
+    if (failDeleteOnce) {
+      failDeleteOnce = false;
+      throw const VaultFailure(VaultIssue.busy);
+    }
     for (final server in expected) {
+      deletedRevisions.add(server.revision);
       servers.remove(server.id);
     }
   }
@@ -25,7 +35,8 @@ class _Repository
   Future<void> migrateLegacy({String? password}) async {}
   @override
   Future<List<SavedServer>> listServers() async => [
-    for (final entry in servers.entries) SavedServer(entry.key, entry.value, 1),
+    for (final entry in servers.entries)
+      SavedServer(entry.key, entry.value, revision),
   ];
   @override
   String newServerId() => 'server-${++sequence}';
@@ -73,6 +84,94 @@ void main() {
         hostKey: key,
         secrets: const {ServerSecret.sshPassword: 'test-only'},
       );
+
+  test('local forget refreshes revisions and never opens SSH', () async {
+    final repo = _Repository()..servers['a'] = profile('a');
+    final connector = FakeConnector();
+    final c = ServerCatalogController(
+      repository: repo,
+      connector: connector,
+      picker: FakeKeyPicker(),
+      reader: TestInventoryReader(() async => testInventory()),
+    );
+    addTearDown(c.dispose);
+    await c.load();
+    repo.revision = 2;
+    var abandoned = false;
+
+    await c.forgetServersLocally({
+      'a',
+    }, abandonVpnState: () async => abandoned = true);
+
+    expect(c.error, isNull);
+    expect(abandoned, isTrue);
+    expect(repo.deletedRevisions, [2]);
+    expect(repo.servers, isEmpty);
+    expect(connector.calls, 0);
+  });
+
+  test('local forget keeps a server used as an unselected SSH jump', () async {
+    final repo = _Repository()
+      ..servers.addAll({'a': profile('a'), 'b': profile('b', jump: 'a')});
+    final c = ServerCatalogController(
+      repository: repo,
+      connector: FakeConnector(),
+      picker: FakeKeyPicker(),
+      reader: TestInventoryReader(() async => testInventory()),
+    );
+    addTearDown(c.dispose);
+    await c.load();
+    var abandoned = false;
+
+    await c.forgetServersLocally({
+      'a',
+    }, abandonVpnState: () async => abandoned = true);
+
+    expect(c.error, VaultIssue.busy);
+    expect(abandoned, isFalse);
+    expect(repo.servers.keys, containsAll(['a', 'b']));
+  });
+
+  testWidgets('blocked deletion offers explicit local forget', (tester) async {
+    final repository = _Repository()
+      ..servers['a'] = profile('a')
+      ..failDeleteOnce = true;
+    final languages = LanguageController(repository);
+    await languages.load();
+    addTearDown(languages.dispose);
+    await tester.pumpWidget(
+      AntiRknApp(
+        source: '',
+        languages: languages,
+        servers: repository,
+        settings: repository,
+        ssh: SshDependencies(
+          openVault: () async => FakeVault(),
+          connector: FakeConnector(),
+          picker: FakeKeyPicker(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('server-edit')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('server-select-a')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('server-delete-selected')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('ssh-delete-confirm')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('ssh-forget-local-confirm')),
+      findsOneWidget,
+    );
+    expect(find.text('Forget inaccessible server?'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('ssh-forget-local-confirm')));
+    await tester.pumpAndSettle();
+    expect(repository.servers, isEmpty);
+    expect(find.byKey(const ValueKey('server-a')), findsNothing);
+  });
+
   testWidgets('server row keeps its layout while opening and closing', (
     tester,
   ) async {

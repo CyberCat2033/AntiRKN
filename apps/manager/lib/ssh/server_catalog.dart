@@ -61,12 +61,59 @@ class ServerCatalog extends StatefulWidget {
     );
     if (controller.error == null) {
       selection.exit();
-    } else if (context.mounted) {
+      return;
+    }
+    if (!context.mounted) return;
+    if (controller.error == VaultIssue.busy) {
+      final forget = await showDialog<bool>(
+        context: context,
+        builder: (context) => AppFormDialog(
+          title: Text(l.catalogForgetServerTitle),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(l.catalogForgetServerWarning),
+                const SizedBox(height: AppLayout.gap),
+                for (final server in chosen) Text(server.profile.displayName),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(l.sshCancel),
+            ),
+            FilledButton(
+              key: const ValueKey('ssh-forget-local-confirm'),
+              onPressed: () {
+                AppHaptics.deleted();
+                Navigator.pop(context, true);
+              },
+              child: Text(l.catalogForgetServerAction),
+            ),
+          ],
+        ),
+      );
+      if (forget != true || !context.mounted) return;
+      final ids = chosen.map((server) => server.id).toSet();
+      await controller.forgetServersLocally(
+        ids,
+        abandonVpnState: () async =>
+            vpn == null || await vpn.forgetServersLocally(ids),
+      );
+      if (controller.error == null) {
+        selection.exit();
+        return;
+      }
+    }
+    if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             controller.error == VaultIssue.busy
-                ? l.catalogServerDeleteBlocked
+                ? l.catalogServerForgetBlocked
                 : vaultIssueLabel(l, controller.error!),
           ),
         ),

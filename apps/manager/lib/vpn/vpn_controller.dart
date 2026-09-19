@@ -527,6 +527,125 @@ class VpnController extends ChangeNotifier {
     return saved;
   }
 
+  /// Stops tracking inaccessible physical servers without contacting them.
+  /// Remote access may still exist, so queued client revocations are retained
+  /// as explicit `abandoned` audit records rather than reported as revoked.
+  Future<bool> forgetServersLocally(Iterable<String> serverIds) async {
+    final physical = serverIds.toSet();
+    if (busy || !loaded || physical.isEmpty) return false;
+    var saved = false;
+    await _run((token) async {
+      await checkProfileEffects();
+      token.check();
+      final targets = <String>{
+        for (final id in physical) id,
+        for (final id in physical) awgTarget(id),
+        for (final id in physical) ttTarget(id),
+        for (final id in workspace.servers.keys)
+          if (physical.contains(vpnServerId(id))) id,
+      };
+      final abandonedAt = DateTime.now().toUtc().toIso8601String();
+      final nextUsers = <VpnUser>[
+        for (final user in workspace.users)
+          if (!user.deleted ||
+              !(user.deletion!['targets'] as Map).keys.any(
+                (target) => physical.contains(vpnServerId(target as String)),
+              ))
+            user
+          else
+            VpnUser(
+              id: user.id,
+              login: user.login,
+              name: user.name,
+              enabled: false,
+              deletion: {
+                ...user.deletion!,
+                'targets': {
+                  for (final entry
+                      in (user.deletion!['targets'] as Map).entries)
+                    entry.key:
+                        physical.contains(vpnServerId(entry.key as String)) &&
+                            !vpnRevocationSettled(entry.value)
+                        ? {
+                            ...entry.value as Map,
+                            'status': 'abandoned',
+                            'abandonedAt': abandonedAt,
+                            'request': null,
+                            'job': null,
+                            'error': null,
+                            'retryAt': 0,
+                          }
+                        : entry.value,
+                },
+              },
+            ),
+      ];
+      await _write(
+        workspace.copy(
+          users: nextUsers,
+          inbounds: [
+            for (final resource in workspace.inbounds)
+              if (physical.contains(resource.serverId))
+                VlessInbound.fromJson({
+                  ...resource.toJson(),
+                  'spec': {...resource.spec, 'enabled': false, 'deleted': true},
+                })
+              else
+                resource,
+          ],
+          awgInterfaces: [
+            for (final resource in workspace.awgInterfaces)
+              if (physical.contains(resource.serverId))
+                AwgInterface.fromJson({
+                  ...resource.toJson(),
+                  'spec': {...resource.spec, 'enabled': false, 'deleted': true},
+                })
+              else
+                resource,
+          ],
+          ttEndpoints: [
+            for (final resource in workspace.ttEndpoints)
+              if (physical.contains(resource.serverId))
+                TrustTunnelEndpoint.fromJson({
+                  ...resource.toJson(),
+                  'spec': {...resource.spec, 'enabled': false, 'deleted': true},
+                })
+              else
+                resource,
+          ],
+          servers: {
+            for (final entry in workspace.servers.entries)
+              entry.key: !targets.contains(entry.key)
+                  ? entry.value
+                  : {
+                      ...entry.value,
+                      'paused': true,
+                      'authorizedPayload': null,
+                      'appliedPayload': null,
+                      'pending': null,
+                      'job': null,
+                      'operation': null,
+                      'error': null,
+                      'cancelRequested': false,
+                      'observingCancel': false,
+                      'observed': <dynamic>[],
+                      'verifiedAt': null,
+                      'forgottenLocallyAt': abandonedAt,
+                    },
+          },
+        ),
+      );
+      plans = [];
+      observedJobs.removeWhere((id, _) => targets.contains(id));
+      observationErrors.removeWhere((id, _) => targets.contains(id));
+      await connections.forgetServers(physical);
+      await _approveRestored(targets);
+      await _profiles();
+      saved = true;
+    });
+    return saved && error == null;
+  }
+
   Future<RunnerResponse> _request(
     VpnRemote r,
     RunnerRequest request,

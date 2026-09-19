@@ -12,6 +12,12 @@ String newVpnId() => List.generate(
   (_) => Random.secure().nextInt(256).toRadixString(16).padLeft(2, '0'),
 ).join();
 
+/// A terminal revocation state. `abandoned` records that local tracking was
+/// deliberately stopped because the physical server is no longer accessible;
+/// it must never be presented as a confirmed remote revocation.
+bool vpnRevocationSettled(Object? target) =>
+    target is Map && const {'revoked', 'abandoned'}.contains(target['status']);
+
 final class VpnUser {
   VpnUser({
     required this.id,
@@ -56,6 +62,7 @@ final class VpnUser {
               'waiting',
               'running',
               'revoked',
+              'abandoned',
               'error',
             ].contains(target['status'])) {
           throw const FormatException('vpn_user_invalid');
@@ -97,8 +104,11 @@ final class VpnUser {
       (deletion!['targets'] as Map).values.every(
         (t) => t['status'] == 'revoked',
       );
+  bool get revocationSettled =>
+      deleted &&
+      (deletion!['targets'] as Map).values.every(vpnRevocationSettled);
   bool get deletionComplete =>
-      revocationComplete &&
+      revocationSettled &&
       (deletion!['file'] == null || deletion!['file']['status'] == 'deleted');
   Map<String, Object?> toJson() => {
     'id': id,
@@ -233,7 +243,7 @@ final class VpnWorkspace {
   factory VpnWorkspace.empty() => VpnWorkspace(id: newVpnId());
   factory VpnWorkspace.decode(String raw) {
     final j = jsonDecode(raw) as Map;
-    if (![1, 2, 3, 4].contains(j['version'])) {
+    if (![1, 2, 3, 4, 5].contains(j['version'])) {
       throw const FormatException('vpn_version');
     }
     return VpnWorkspace(
@@ -278,7 +288,18 @@ final class VpnWorkspace {
   }
 
   String encode() => jsonEncode({
-    'version': users.any((u) => u.deleted) ? 4 : 3,
+    'version':
+        users.any(
+          (user) =>
+              user.deleted &&
+              (user.deletion!['targets'] as Map).values.any(
+                (target) => target['status'] == 'abandoned',
+              ),
+        )
+        ? 5
+        : users.any((u) => u.deleted)
+        ? 4
+        : 3,
     'id': id,
     'users': users.map((e) => e.toJson()).toList(),
     'inbounds': inbounds.map((e) => e.toJson()).toList(),
