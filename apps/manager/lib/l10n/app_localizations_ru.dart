@@ -2647,7 +2647,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get publicationFileAccessHelp =>
-      'Файл не найден или Google ещё не разрешил AntiRKN доступ. Выберите его через Google Drive и убедитесь, что текущий аккаунт может редактировать файл.';
+      'Файл не найден или у AntiRKN нет доступа. Нажмите «Выбрать в Google Drive» выше, чтобы предоставить доступ. Вставка ID работает только для файлов, к которым приложение уже имеет доступ.';
 
   @override
   String get publicationBindReplace =>

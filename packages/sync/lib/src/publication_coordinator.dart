@@ -14,6 +14,7 @@ final class PublicationCoordinator {
     required this.repository,
     required this.remote,
     this.eligible,
+    this.workspaceId,
     DateTime Function()? now,
     int Function(int)? jitter,
   }) : now = now ?? DateTime.now,
@@ -21,6 +22,7 @@ final class PublicationCoordinator {
   final PublicationRepository repository;
   final PublicationRemoteStore remote;
   final Future<bool> Function(PublicationDraft)? eligible;
+  final String? workspaceId;
   final DateTime Function() now;
   final int Function(int) jitter;
 

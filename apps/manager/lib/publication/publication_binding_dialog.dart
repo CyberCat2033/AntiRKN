@@ -208,13 +208,24 @@ class _PublicationBindingDialogState extends State<PublicationBindingDialog> {
                     title: Text(l.publicationOldContent),
                     children: [SelectableText(excerpt(value.content))],
                   ),
-                  AppExpansionTile(
-                    key: const PageStorageKey('binding-new-preview'),
-                    title: Text(l.publicationNewContent),
-                    children: [
-                      SelectableText(excerpt(utf8.decode(value.draft.bytes))),
-                    ],
-                  ),
+                  if (value.draft case final draft?)
+                    AppExpansionTile(
+                      key: const PageStorageKey('binding-new-preview'),
+                      title: Text(l.publicationNewContent),
+                      children: [
+                        SelectableText(excerpt(utf8.decode(draft.bytes))),
+                      ],
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        l.vpnLastProfile,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ),
                 ],
               ],
             ),

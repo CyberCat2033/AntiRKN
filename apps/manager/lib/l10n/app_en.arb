@@ -969,7 +969,7 @@
   "publicationPickFile": "Choose in Google Drive",
   "publicationPickerSetupHelp": "Configure Google Picker in Settings → Drive: API key and numeric Project number from the same Google Cloud project. Enable Drive API and Picker API in that project.",
   "publicationPickerWaiting": "Choose a file in your browser, then return to AntiRKN. Cancel ends the session.",
-  "publicationFileAccessHelp": "File not found or not yet accessible to AntiRKN. Choose it through Google Drive and ensure the current account can edit it.",
+  "publicationFileAccessHelp": "File not found or not yet accessible to AntiRKN. Use the 'Choose in Google Drive' button above to grant access. Pasting a file ID works only for files this app already has access to.",
   "publicationBindReplace": "Confirmation replaces this file with the client profile and enables future updates to the same ID. The previous file keeps its contents and access, and stops receiving updates. An interrupted replacement can be reviewed again or changed to another file.",
   "publicationOldContent": "Current file contents",
   "publicationNewContent": "Replacement profile",

@@ -4691,7 +4691,7 @@ abstract class AppLocalizations {
   /// No description provided for @publicationFileAccessHelp.
   ///
   /// In en, this message translates to:
-  /// **'File not found or not yet accessible to AntiRKN. Choose it through Google Drive and ensure the current account can edit it.'**
+  /// **'File not found or not yet accessible to AntiRKN. Use the \'Choose in Google Drive\' button above to grant access. Pasting a file ID works only for files this app already has access to.'**
   String get publicationFileAccessHelp;
 
   /// No description provided for @publicationBindReplace.

@@ -2642,7 +2642,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get publicationFileAccessHelp =>
-      'File not found or not yet accessible to AntiRKN. Choose it through Google Drive and ensure the current account can edit it.';
+      'File not found or not yet accessible to AntiRKN. Use the \'Choose in Google Drive\' button above to grant access. Pasting a file ID works only for files this app already has access to.';
 
   @override
   String get publicationBindReplace =>

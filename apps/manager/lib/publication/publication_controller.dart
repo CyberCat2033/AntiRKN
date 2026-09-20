@@ -440,6 +440,7 @@ class PublicationController extends ChangeNotifier {
       repository: repository,
       remote: remote(),
       eligible: (d) async => _bindingEligible(d),
+      workspaceId: vpn.workspace.id,
     ).inspectBinding(userId, target);
   });
 

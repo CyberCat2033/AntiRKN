@@ -26,7 +26,24 @@ class VpnPlanView extends StatelessWidget {
         if (c.visibleError case final error?)
           Semantics(
             liveRegion: true,
-            child: AppNotice(message: vpnMessage(l, error), error: true),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AppNotice(message: vpnMessage(l, error), error: true),
+                Padding(
+                  padding: const EdgeInsets.only(top: 4, bottom: 8),
+                  child: Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: TextButton.icon(
+                      key: const ValueKey('vpn-plan-retry'),
+                      onPressed: c.busy ? null : () => c.prepareAndApply(),
+                      icon: const Icon(Icons.refresh),
+                      label: Text(l.runnerRetry),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
       ],
     );

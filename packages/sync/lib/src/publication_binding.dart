@@ -30,12 +30,17 @@ extension PublicationBinding on PublicationCoordinator {
       throw const PublicationFailure(PublicationIssue.accountChanged);
     }
     final draft = await repository.readPublicationDraft(userId);
-    if (draft == null || eligible != null && !await eligible!(draft)) {
-      throw const PublicationFailure(PublicationIssue.invalid);
+    if (draft != null) {
+      if (eligible != null && !await eligible!(draft)) {
+        throw const PublicationFailure(PublicationIssue.invalid);
+      }
+      await repository.checkPublicationDraft(draft);
     }
-    await repository.checkPublicationDraft(draft);
+    final effectiveWorkspaceId = draft?.workspaceId ?? workspaceId ?? '';
     final folder = await remote.getFile(settings.folderId);
-    final pointer = folder.properties['antirknRegistry.${draft.workspaceId}'];
+    final pointer = effectiveWorkspaceId.isNotEmpty
+        ? folder.properties['antirknRegistry.$effectiveWorkspaceId']
+        : null;
     String? registryId;
     Map<String, dynamic>? entry;
     if (pointer != null) {
@@ -45,7 +50,7 @@ extension PublicationBinding on PublicationCoordinator {
       registryId = pointer.substring(6);
       final snapshot = await _snapshot(registryId);
       final users =
-          _decodeRegistry(snapshot.$2, draft.workspaceId)['users'] as Map;
+          _decodeRegistry(snapshot.$2, effectiveWorkspaceId)['users'] as Map;
       if (users[userId] case final Map existing) {
         entry = Map<String, dynamic>.from(existing);
       }
@@ -63,17 +68,21 @@ extension PublicationBinding on PublicationCoordinator {
     _resourceKey({'fileId': target.fileId, 'resourceKey': target.resourceKey});
     final before = await remote.getFile(target.fileId);
     final owner = before.properties['antirknUser'];
-    if (!before.binary ||
-        before.trashed ||
-        !before.editable ||
-        before.properties['antirknDeleted'] != null ||
+    if (!before.binary || before.trashed) {
+      throw const PublicationFailure(PublicationIssue.invalid);
+    }
+    if (!before.editable) {
+      throw const PublicationFailure(PublicationIssue.forbidden);
+    }
+    if (before.properties['antirknDeleted'] != null ||
         owner != null &&
             !(entry?['pending'] == true &&
                 (owner == entry?['owner'] ||
                     target.fileId == entry?['previous']?['fileId'] &&
                         owner == 'retired:$userId')) ||
-        before.properties['antirknWorkspace'] != null &&
-            before.properties['antirknWorkspace'] != draft.workspaceId) {
+        effectiveWorkspaceId.isNotEmpty &&
+            before.properties['antirknWorkspace'] != null &&
+            before.properties['antirknWorkspace'] != effectiveWorkspaceId) {
       throw const PublicationFailure(PublicationIssue.invalid);
     }
     final bytes = await remote.download(target.fileId);
@@ -117,6 +126,8 @@ extension PublicationBinding on PublicationCoordinator {
       intentSource: await repository.readPublicationDocument('binding/$userId'),
       registryId: registryId,
       entry: entry,
+      workspaceId: effectiveWorkspaceId,
+      userId: userId,
     );
   }
 
@@ -124,9 +135,13 @@ extension PublicationBinding on PublicationCoordinator {
   /// Persisting the consent precedes every remote mutation.
   Future<void> acceptBinding(PublicationBindingPreview preview) async {
     final draft = preview.draft;
-    await repository.checkPublicationDraft(draft);
-    if (eligible != null && !await eligible!(draft) ||
-        await repository.readPublicationDocument('settings') !=
+    if (draft != null) {
+      await repository.checkPublicationDraft(draft);
+      if (eligible != null && !await eligible!(draft)) {
+        throw const PublicationFailure(PublicationIssue.conflict);
+      }
+    }
+    if (await repository.readPublicationDocument('settings') !=
             preview.settingsSource ||
         remote.accountKey !=
             PublicationSettings.fromJson(
@@ -144,11 +159,14 @@ extension PublicationBinding on PublicationCoordinator {
     final settings = PublicationSettings.fromJson(
       jsonDecode(preview.settingsSource) as Map<String, dynamic>,
     );
+    final effectiveWorkspaceId =
+        draft?.workspaceId ?? preview.workspaceId ?? '';
+    final effectiveUserId = draft?.userId ?? preview.userId ?? '';
     final intent = <String, dynamic>{
       'version': 1,
       'id': newVpnId(),
-      'workspaceId': draft.workspaceId,
-      'userId': draft.userId,
+      'workspaceId': effectiveWorkspaceId,
+      'userId': effectiveUserId,
       'accountKey': remote.accountKey,
       'registryId': preview.registryId,
       'fileId': preview.file.id,
@@ -162,12 +180,12 @@ extension PublicationBinding on PublicationCoordinator {
           ? (preview.entry?['previous'])
           : preview.entry,
       'access': settings.access.name,
-      'profileHead': draft.headId,
-      'profileHash': draft.hash,
+      if (draft != null) 'profileHead': draft.headId,
+      if (draft != null) 'profileHash': draft.hash,
     };
     validatePublicationBinding(intent);
     await repository.writePublicationDocument(
-      'binding/${draft.userId}',
+      'binding/$effectiveUserId',
       canonicalJson(intent),
       expectedSource: preview.intentSource,
     );

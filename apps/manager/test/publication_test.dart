@@ -235,7 +235,7 @@ void main() {
         fixtures.alice,
         PublicationTarget('existing'),
       );
-      expect(preview.draft.hash, savedHash);
+      expect(preview.draft!.hash, savedHash);
 
       c.results[fixtures.alice] = {
         'fileId': 'existing',
@@ -293,7 +293,10 @@ void main() {
             home: Scaffold(
               body: ListView(
                 children: [
-                  PublicationSettingsPanel(controller: c),
+                  PublicationSettingsPanel(
+                    controller: c,
+                    configuration: true,
+                  ),
                   UserPublicationView(controller: c, userId: fixtures.alice),
                 ],
               ),

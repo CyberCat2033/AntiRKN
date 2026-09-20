@@ -1145,10 +1145,7 @@ class VpnController extends ChangeNotifier {
         await _observeOperation(id, token);
         continue;
       }
-      if (_restoredTargets.contains(id)) {
-        if (remote(id) != null) await _reviewRestored(id, token);
-        continue;
-      }
+      if (_restoredTargets.contains(id)) continue;
       final connection = remote(id);
       if (connection == null) continue;
       var record = Map<String, dynamic>.from(workspace.servers[id] ?? {});

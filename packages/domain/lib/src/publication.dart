@@ -286,17 +286,20 @@ final class PublicationBindingPreview {
     required this.file,
     required this.content,
     required this.hash,
-    required this.draft,
+    this.draft,
     required this.settingsSource,
     required this.intentSource,
     required this.registryId,
     required this.entry,
+    this.workspaceId,
+    this.userId,
   });
   final PublicationFile file;
   final String content, hash, settingsSource;
   final String? intentSource, registryId;
   final Map<String, dynamic>? entry;
-  final PublicationDraft draft;
+  final PublicationDraft? draft;
+  final String? workspaceId, userId;
   @override
   String toString() => 'PublicationBindingPreview(<private>)';
 }

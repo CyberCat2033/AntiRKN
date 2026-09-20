@@ -153,12 +153,12 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.runAsync(() async {
-        await tester.tap(find.text('Share profile'));
+        await tester.tap(find.byKey(ValueKey('client-qr-${fixtures.alice}')));
         await Future<void>.delayed(const Duration(milliseconds: 100));
       });
       await tester.pumpAndSettle();
       expect(
-        find.textContaining('Warning: The group is empty'),
+        find.textContaining('The group is empty'),
         findsOneWidget,
       );
       final save = find.widgetWithText(FilledButton, 'Save YAML');

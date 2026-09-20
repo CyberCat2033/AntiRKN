@@ -57,8 +57,21 @@ class UsersPage extends StatefulWidget {
       ),
     );
     if (result == null) return;
-    await controller.saveUser(result as VpnUser);
+    final (VpnUser nextUser, PublicationTarget? customTarget) =
+        result is (VpnUser, PublicationTarget?)
+            ? result
+            : (result as VpnUser, null);
+    await controller.saveUser(nextUser);
     if (user == null && controller.error == null) AppHaptics.added();
+    if (customTarget != null &&
+        publications != null &&
+        controller.error == null) {
+      try {
+        final preview =
+            await publications.inspectFile(nextUser.id, customTarget);
+        await publications.bindFile(preview);
+      } catch (_) {}
+    }
     if (controller.error == null && controller.workspace.serverIds.isNotEmpty) {
       await controller.prepareAndApply();
     }
@@ -481,11 +494,14 @@ class _UserForm extends StatefulWidget {
 
 class _UserFormState extends State<_UserForm> {
   late final name = TextEditingController(text: widget.user?.name ?? '');
+  late final customLink = TextEditingController();
   late bool enabled = widget.user?.enabled ?? true;
+  bool picking = false;
   String? error;
   @override
   void dispose() {
     name.dispose();
+    customLink.dispose();
     super.dispose();
   }
 
@@ -511,6 +527,48 @@ class _UserFormState extends State<_UserForm> {
                 setState(() => enabled = v);
               },
             ),
+            if (widget.user == null &&
+                widget.publications?.settings?.enabled == true &&
+                widget.publications?.settings?.folderReady == true) ...[
+              const Divider(),
+              TextField(
+                key: const ValueKey('vpn-user-custom-link'),
+                controller: customLink,
+                decoration: InputDecoration(
+                  labelText: l.publicationFileLink,
+                  hintText: 'https://drive.google.com/...',
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  OutlinedButton.icon(
+                    key: const ValueKey('vpn-user-pick-file'),
+                    onPressed: picking ||
+                            widget.publications?.pickerReady != true
+                        ? null
+                        : () async {
+                            setState(() => picking = true);
+                            try {
+                              final target =
+                                  await widget.publications!.pickFile();
+                              if (target != null && mounted) {
+                                customLink.text = target.resourceKey == null
+                                    ? target.fileId
+                                    : Uri.https('drive.google.com', '/uc', {
+                                        'id': target.fileId,
+                                        'resourcekey': target.resourceKey!,
+                                      }).toString();
+                              }
+                            } catch (_) {}
+                            if (mounted) setState(() => picking = false);
+                          },
+                    icon: const Icon(Icons.folder_open),
+                    label: Text(l.publicationPickFile),
+                  ),
+                ],
+              ),
+            ],
             if (widget.user != null && widget.publications != null)
               ListenableBuilder(
                 listenable: Listenable.merge([name, widget.publications!]),
@@ -568,6 +626,11 @@ class _UserFormState extends State<_UserForm> {
           key: const ValueKey('vpn-user-save'),
           onPressed: () {
             try {
+              PublicationTarget? target;
+              if (widget.user == null &&
+                  customLink.text.trim().isNotEmpty) {
+                target = PublicationTarget.parse(customLink.text.trim());
+              }
               final user = VpnUser(
                 id: widget.user?.id ?? newVpnId(),
                 login:
@@ -579,7 +642,7 @@ class _UserFormState extends State<_UserForm> {
                 name: name.text.trim(),
                 enabled: enabled,
               );
-              Navigator.pop(context, user);
+              Navigator.pop(context, (user, target));
             } catch (_) {
               setState(() => error = 'invalid');
             }
