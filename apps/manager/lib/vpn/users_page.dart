@@ -152,6 +152,46 @@ class _UsersPageState extends State<UsersPage> {
   MotionPreference get motion => widget.motion;
   bool get showAddAction => widget.showAddAction;
   String Function(String) get serverName => widget.serverName;
+  bool _syncing = false;
+
+  Future<void> _syncAndPublish(BuildContext context) async {
+    if (_syncing || controller.busy || !controller.loaded) return;
+    setState(() => _syncing = true);
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await controller.syncAllServersAndProfiles();
+      if (publications != null) {
+        await publications!.forcePublishAll();
+      }
+      if (mounted) {
+        final activeUsers = controller.workspace.users
+            .where((u) => u.enabled && !u.deleted)
+            .length;
+        final published = publications != null
+            ? controller.workspace.users
+                .where((u) => publications!.results[u.id] != null)
+                .length
+            : activeUsers;
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              l.vpnSyncAndPublishDone(published, activeUsers),
+            ),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text(l.vpnSyncAndPublishFailed)),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _syncing = false);
+    }
+  }
+
   @override
   void dispose() {
     ownSelection.dispose();
@@ -264,18 +304,40 @@ class _UsersPageState extends State<UsersPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  FilledButton.icon(
-                    onPressed: c.busy || !c.loaded
-                        ? null
-                        : () => UsersPage.edit(
-                            context,
-                            c,
-                            motion,
-                            null,
-                            publications,
-                          ),
-                    icon: const Icon(Icons.add),
-                    label: Text(l.vpnAddUser),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 10,
+                    children: [
+                      FilledButton.icon(
+                        onPressed: c.busy || !c.loaded || _syncing
+                            ? null
+                            : () => UsersPage.edit(
+                                context,
+                                c,
+                                motion,
+                                null,
+                                publications,
+                              ),
+                        icon: const Icon(Icons.add),
+                        label: Text(l.vpnAddUser),
+                      ),
+                      FilledButton.tonalIcon(
+                        key: const ValueKey('vpn-sync-and-publish'),
+                        onPressed: c.busy || !c.loaded || _syncing
+                            ? null
+                            : () => _syncAndPublish(context),
+                        icon: _syncing
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.cloud_sync),
+                        label: Text(l.vpnSyncAndPublish),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 20),
                 ],

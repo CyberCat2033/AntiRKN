@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_sync/antirkn_sync.dart';
@@ -270,22 +271,36 @@ class PublicationController extends ChangeNotifier {
         eligible: (draft) async =>
             !_suspended && _foreground && _draftEligible(draft),
       );
-      for (final user in vpn.workspace.users.toList()) {
-        _cancel!.check();
-        if (!user.enabled) continue;
-        final queue = await coordinator.publish(
-          user.id,
-          force: force,
-          cancellation: _cancel,
-        );
-        if (queue != null) queues[user.id] = queue;
-        final result = await repository.readPublicationDocument(
-          'result/${user.id}',
-        );
-        if (result != null) {
-          results[user.id] = jsonDecode(result) as Map<String, dynamic>;
+      final activeUsers = vpn.workspace.users
+          .where((u) => u.enabled && !u.deleted)
+          .toList();
+      const concurrency = 4;
+      var nextIndex = 0;
+      Future<void> worker() async {
+        while (!_disposed && !_suspended && _foreground) {
+          _cancel?.check();
+          final index = nextIndex++;
+          if (index >= activeUsers.length) break;
+          final user = activeUsers[index];
+          final queue = await coordinator.publish(
+            user.id,
+            force: force,
+            cancellation: _cancel,
+          );
+          if (queue != null) queues[user.id] = queue;
+          final result = await repository.readPublicationDocument(
+            'result/${user.id}',
+          );
+          if (result != null) {
+            results[user.id] = jsonDecode(result) as Map<String, dynamic>;
+          }
+          _notify();
         }
-        _notify();
+      }
+
+      final workerCount = min(concurrency, activeUsers.length);
+      if (workerCount > 0) {
+        await Future.wait(List.generate(workerCount, (_) => worker()));
       }
     } on PublicationFailure catch (e) {
       error = e.issue;
@@ -315,6 +330,19 @@ class PublicationController extends ChangeNotifier {
     _suspended = false;
     request();
     _notify();
+  }
+
+  Future<void> forcePublishAll() async {
+    if (_disposed || _suspended || editing) return;
+    _timer?.cancel();
+    if (_running != null) {
+      _cancel?.cancel();
+      try {
+        await _running;
+      } catch (_) {}
+    }
+    _start(true);
+    await _running;
   }
 
   void foreground(bool value) {

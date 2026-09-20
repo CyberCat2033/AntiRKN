@@ -1669,6 +1669,63 @@ class VpnController extends ChangeNotifier {
     error = firstIssue;
   });
 
+  /// Forcibly reads latest observations from all physical servers and managed
+  /// protocol endpoints, reconciles any unapplied plans, and rebuilds all client
+  /// profiles.
+  Future<void> syncAllServersAndProfiles() async {
+    if (!loaded) return;
+    try {
+      if (workspace.serverIds.isNotEmpty) {
+        await prepareAndApply();
+      }
+    } catch (_) {}
+    await _run((token) async {
+      final targets = <String>{
+        for (final resource in workspace.inbounds)
+          if (resource.enabled && !resource.deleted && !resource.internal)
+            resource.serverId,
+        for (final resource in workspace.awgInterfaces)
+          if (resource.enabled && !resource.deleted)
+            awgTarget(resource.serverId),
+        for (final resource in workspace.ttEndpoints)
+          if (resource.enabled && !resource.deleted)
+            ttTarget(resource.serverId),
+        for (final serverId in workspace.serverIds) ...[
+          serverId,
+          if (workspace.awgInterfaces.any((i) => i.serverId == serverId))
+            awgTarget(serverId),
+          if (workspace.ttEndpoints.any((i) => i.serverId == serverId))
+            ttTarget(serverId),
+        ],
+      }.toList()..sort();
+      String? firstIssue;
+      for (final target in targets) {
+        try {
+          if (!await ensureConnected(target)) {
+            firstIssue ??= 'vpn_connection';
+            continue;
+          }
+          token.check();
+          await _refreshServer(target, token, rebuildProfiles: false);
+        } on SyncMergeFailure {
+          rethrow;
+        } on VaultFailure {
+          rethrow;
+        } on SshFailure {
+          firstIssue ??= 'vpn_connection';
+        } on RunnerFailure {
+          firstIssue ??= 'vpn_runner';
+        } on FormatException catch (e) {
+          firstIssue ??= e.message;
+        } catch (_) {
+          firstIssue ??= 'vpn_connection';
+        }
+      }
+      await _profiles();
+      error = firstIssue;
+    });
+  }
+
   Future<void> _profiles() async {
     final source = template();
     _lastTemplate = source;

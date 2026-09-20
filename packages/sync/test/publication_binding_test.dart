@@ -391,4 +391,20 @@ void main() {
       expect(remote.updatedProfiles, 0);
     },
   );
+
+  test(
+    're-binding client own previously published file or existing file ID is accepted',
+    () async {
+      final repo = f.Repository(await f.draft('one')), remote = f.Remote();
+      await f.publish(repo, remote);
+      final publishedId = remote.profileId;
+      // Re-inspecting and re-binding the same file for this user should succeed without conflict
+      final reviewed = await inspect(repo, remote, publishedId);
+      expect(reviewed.file.id, publishedId);
+      await f.coordinator(repo, remote).acceptBinding(reviewed);
+      repo.current = await f.draft('two', ancestors: {'one'});
+      expect((await f.publish(repo, remote))['status'], 'published');
+      expect(remote.blobs[publishedId]!.properties['antirknHead'], 'two');
+    },
+  );
 }

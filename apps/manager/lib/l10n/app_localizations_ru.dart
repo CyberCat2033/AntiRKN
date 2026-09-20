@@ -1242,6 +1242,18 @@ class AppLocalizationsRu extends AppLocalizations {
   String get vpnAddUser => 'Добавить клиента';
 
   @override
+  String get vpnSyncAndPublish => 'Считать с серверов и выгрузить на Диск';
+
+  @override
+  String vpnSyncAndPublishDone(int published, int total) {
+    return 'Данные с серверов обновлены, выгружено профилей на Диск: $published из $total';
+  }
+
+  @override
+  String get vpnSyncAndPublishFailed =>
+      'Не удалось полностью синхронизировать данные с серверами или выгрузить на Диск.';
+
+  @override
   String get vpnNoUsers => 'Клиентов пока нет';
 
   @override

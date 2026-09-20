@@ -461,6 +461,19 @@
   "vpnUsers": "Clients",
   "vpnUsersHelp": "Create each client once. AntiRKN prepares personal access to every configured managed inbound on every server.",
   "vpnAddUser": "Add client",
+  "vpnSyncAndPublish": "Sync servers & publish to Drive",
+  "vpnSyncAndPublishDone": "Servers synced and profiles published to Drive: {published} of {total}",
+  "@vpnSyncAndPublishDone": {
+    "placeholders": {
+      "published": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "vpnSyncAndPublishFailed": "Failed to fully sync with servers or publish to Drive.",
   "vpnNoUsers": "No clients yet",
   "vpnLogin": "Client login",
   "vpnName": "Display name",

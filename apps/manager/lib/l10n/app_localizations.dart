@@ -2264,6 +2264,24 @@ abstract class AppLocalizations {
   /// **'Add client'**
   String get vpnAddUser;
 
+  /// No description provided for @vpnSyncAndPublish.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync servers & publish to Drive'**
+  String get vpnSyncAndPublish;
+
+  /// No description provided for @vpnSyncAndPublishDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Servers synced and profiles published to Drive: {published} of {total}'**
+  String vpnSyncAndPublishDone(int published, int total);
+
+  /// No description provided for @vpnSyncAndPublishFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to fully sync with servers or publish to Drive.'**
+  String get vpnSyncAndPublishFailed;
+
   /// No description provided for @vpnNoUsers.
   ///
   /// In en, this message translates to:

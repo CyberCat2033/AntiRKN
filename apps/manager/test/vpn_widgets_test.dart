@@ -152,6 +152,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('vpn-sync-and-publish')), findsOneWidget);
       await tester.runAsync(() async {
         await tester.tap(find.byKey(ValueKey('client-qr-${fixtures.alice}')));
         await Future<void>.delayed(const Duration(milliseconds: 100));

@@ -1239,6 +1239,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get vpnAddUser => 'Add client';
 
   @override
+  String get vpnSyncAndPublish => 'Sync servers & publish to Drive';
+
+  @override
+  String vpnSyncAndPublishDone(int published, int total) {
+    return 'Servers synced and profiles published to Drive: $published of $total';
+  }
+
+  @override
+  String get vpnSyncAndPublishFailed =>
+      'Failed to fully sync with servers or publish to Drive.';
+
+  @override
   String get vpnNoUsers => 'No clients yet';
 
   @override

@@ -62,9 +62,6 @@ extension PublicationBinding on PublicationCoordinator {
         }
       }
     }
-    if (entry?['pending'] != true && entry?['fileId'] == target.fileId) {
-      throw const PublicationFailure(PublicationIssue.conflict);
-    }
     _resourceKey({'fileId': target.fileId, 'resourceKey': target.resourceKey});
     final before = await remote.getFile(target.fileId);
     final owner = before.properties['antirknUser'];
@@ -74,12 +71,15 @@ extension PublicationBinding on PublicationCoordinator {
     if (!before.editable) {
       throw const PublicationFailure(PublicationIssue.forbidden);
     }
+    final isOwnFile = owner == userId ||
+        owner == entry?['owner'] ||
+        (owner != null && owner.startsWith('bound:$userId:')) ||
+        (entry?['pending'] == true &&
+            (owner == entry?['owner'] ||
+                target.fileId == entry?['previous']?['fileId'] &&
+                    owner == 'retired:$userId'));
     if (before.properties['antirknDeleted'] != null ||
-        owner != null &&
-            !(entry?['pending'] == true &&
-                (owner == entry?['owner'] ||
-                    target.fileId == entry?['previous']?['fileId'] &&
-                        owner == 'retired:$userId')) ||
+        (owner != null && !isOwnFile) ||
         effectiveWorkspaceId.isNotEmpty &&
             before.properties['antirknWorkspace'] != null &&
             before.properties['antirknWorkspace'] != effectiveWorkspaceId) {
@@ -317,7 +317,7 @@ extension PublicationBinding on PublicationCoordinator {
     // Fence publishers holding the previous registry before touching new content.
     // Only metadata changes: the old bytes and access permissions are retained.
     final previous = entry['previous'] as Map?;
-    if (previous != null) {
+    if (previous != null && previous['fileId'] != entry['fileId']) {
       _resourceKey(previous);
       PublicationFile? old;
       try {
