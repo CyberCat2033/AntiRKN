@@ -272,8 +272,12 @@ final class _WorkspaceAutoSync
       var merge = await store.readSyncMergeStatus();
       if (!waiting && merge.conflicts.isNotEmpty) {
         waiting = !await apply(() async {
-          for (final conflict in merge.conflicts) {
+          final attempted = <String>{};
+          while (merge.conflicts.isNotEmpty) {
             cancellation.check();
+            final conflict = merge.conflicts.first;
+            final conflictKey = '${conflict.kind.name}:${conflict.entityId}';
+            if (!attempted.add(conflictKey)) break;
             final candidates =
                 conflict.kind == ChangeEntityKind.vpnUser &&
                     conflict.variants.any((event) => event.header.deleted)
@@ -287,12 +291,16 @@ final class _WorkspaceAutoSync
                   ? revision
                   : b.header.changeId.compareTo(a.header.changeId);
             });
-            await store.resolveSyncConflict(
-              conflict,
-              candidates.first.header.changeId,
-            );
+            try {
+              await store.resolveSyncConflict(
+                conflict,
+                candidates.first.header.changeId,
+              );
+            } on SyncMergeFailure catch (e) {
+              if (e.issue != SyncMergeIssue.changed) rethrow;
+            }
+            merge = await store.readSyncMergeStatus();
           }
-          merge = await store.readSyncMergeStatus();
         });
       }
       var recoveryRequested = forceRecovery;

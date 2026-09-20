@@ -700,7 +700,7 @@ class _ManagerShellState extends State<ManagerShell>
     if (!mounted ||
         _applyingSync ||
         _diagnosing ||
-        _index == 1 ||
+        _clientSelection.active ||
         _serverSelection.active ||
         _catalog?.selectedId != null ||
         (_catalog?.hasActiveWork ?? false) ||

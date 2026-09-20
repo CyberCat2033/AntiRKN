@@ -139,7 +139,7 @@ class AutoSyncController extends ChangeNotifier {
       if (_retryAfter != null && _retryAfter! > retry) retry = _retryAfter!;
       if (_failures > 0) _retryAt = DateTime.now().add(retry);
       final delay = _failures == 0 && (_again || (result?.more ?? false))
-          ? debounce
+          ? (_again ? debounce : const Duration(milliseconds: 50))
           : retry;
       _again = false;
       _timer = Timer(delay, _start);

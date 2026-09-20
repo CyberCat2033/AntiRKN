@@ -14,6 +14,7 @@ final class _WorkspaceMerge {
   bool _ready = false;
   String? _allEventsStamp, _acceptedEventsStamp;
   Map<String, LocalChange>? _allEventsCache, _acceptedEventsCache;
+  final Map<String, LocalChange> _decryptedEventCache = {};
   static final ddl = [
     'CREATE TABLE sync_incoming (change_id TEXT PRIMARY KEY, header TEXT NOT NULL, payload BLOB NOT NULL, state INTEGER NOT NULL CHECK(state IN (0,1,2,3)))',
     "CREATE TRIGGER sync_incoming_immutable BEFORE UPDATE OF change_id,header,payload ON sync_incoming BEGIN SELECT RAISE(ABORT, 'immutable_change'); END",
@@ -91,6 +92,15 @@ final class _WorkspaceMerge {
         'SELECT change_id,header,payload FROM $table ${table == 'sync_incoming' && !includeWaiting ? 'WHERE state=1' : ''}',
       );
       for (final row in rows) {
+        final changeId = row['change_id'] as String;
+        final cached = _decryptedEventCache[changeId];
+        if (cached != null) {
+          if (result.containsKey(changeId)) {
+            throw const SyncMergeFailure(SyncMergeIssue.invalid);
+          }
+          result[changeId] = cached;
+          continue;
+        }
         final h = ChangeHeader.fromJson(
           jsonDecode(row['header'] as String) as Map<String, dynamic>,
         );
@@ -103,18 +113,20 @@ final class _WorkspaceMerge {
                   ),
                 )
                 as Map;
-        if (h.changeId != row['change_id'] ||
+        if (h.changeId != changeId ||
             h.workspaceId != store._journal.identity.workspaceId ||
             body.length != 1 ||
             !body.containsKey('source') ||
             (body['source'] == null && !h.deleted) ||
-            result.containsKey(h.changeId)) {
+            result.containsKey(changeId)) {
           throw const SyncMergeFailure(SyncMergeIssue.invalid);
         }
-        result[h.changeId] = LocalChange(
+        final event = LocalChange(
           header: h,
           source: body['source'] as String?,
         );
+        _decryptedEventCache[changeId] = event;
+        result[changeId] = event;
       }
     }
     if (stamp() == currentStamp) {
@@ -284,6 +296,7 @@ final class _WorkspaceMerge {
         }
         expected = stamp();
         again = true;
+        await Future<void>.delayed(Duration.zero);
         break;
       }
     }
@@ -411,6 +424,7 @@ final class _WorkspaceMerge {
       db.execute('INSERT INTO sync_outbox VALUES (?)', [header.changeId]);
       db.execute('UPDATE sync_identity SET sequence=?', [header.sequence]);
       commitProjection(next, projection, writes);
+      _decryptedEventCache[header.changeId] = event;
       advance();
     });
     await drain();
