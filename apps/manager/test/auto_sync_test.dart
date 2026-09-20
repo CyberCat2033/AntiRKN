@@ -27,6 +27,7 @@ class Session implements AutoSyncSession {
   Future<AutoSyncResult> exchange({
     required SyncApplyGate apply,
     required SyncCancellation cancellation,
+    bool forceRecovery = false,
   }) async {
     this.cancellation = cancellation;
     calls++;

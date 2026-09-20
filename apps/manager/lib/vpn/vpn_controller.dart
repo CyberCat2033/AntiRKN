@@ -368,6 +368,9 @@ class VpnController extends ChangeNotifier {
               (t) => t['status'] == 'running',
             ),
       ) ||
+      workspace.servers.keys.any(
+        (id) => observesOperation(id) && currentJob(id)?.terminal != true,
+      ) ||
       workspace.servers.entries.any(
         (e) =>
             !observesOperation(e.key) &&

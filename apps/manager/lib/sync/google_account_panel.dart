@@ -189,7 +189,10 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
                         !sync.enabled ||
                         sync.phase == AutoSyncPhase.syncing
                     ? null
-                    : () => sync.request(immediate: true),
+                    : () => sync.request(
+                        immediate: true,
+                        forceRecovery: (sync.result?.waitingGroups ?? 0) > 0,
+                      ),
                 icon: const Icon(Icons.sync),
               ),
             ),

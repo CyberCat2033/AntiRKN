@@ -1016,6 +1016,9 @@ class _ManagerShellState extends State<ManagerShell>
                                                     as SyncMergeStore,
                                             canResolve: _canReplace,
                                             onResolved: widget.onRestored!,
+                                            onRetry: () async {
+                                              widget.autoSync?.retryRecovery();
+                                            },
                                           ),
                                       ],
                                     ),

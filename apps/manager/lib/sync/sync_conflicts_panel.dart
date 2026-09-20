@@ -9,11 +9,13 @@ class SyncConflictsPanel extends StatefulWidget {
     required this.store,
     required this.canResolve,
     required this.onResolved,
+    this.onRetry,
     super.key,
   });
   final SyncMergeStore store;
   final bool Function() canResolve;
   final Future<void> Function() onResolved;
+  final Future<void> Function()? onRetry;
   @override
   State<SyncConflictsPanel> createState() => _SyncConflictsPanelState();
 }
@@ -59,6 +61,9 @@ class _SyncConflictsPanelState extends State<SyncConflictsPanel> {
     });
     try {
       await widget.store.retrySyncMerge();
+      if (widget.onRetry != null) {
+        await widget.onRetry!();
+      }
       if (mounted) await widget.onResolved();
     } catch (_) {
       if (mounted) setState(() => error = SyncMergeIssue.storage);

@@ -102,8 +102,13 @@ class AutoSyncController extends ChangeNotifier {
     _notify();
   }
 
-  void request({bool immediate = false}) {
+  bool _forceRecovery = false;
+
+  void retryRecovery() => request(immediate: true, forceRecovery: true);
+
+  void request({bool immediate = false, bool forceRecovery = false}) {
     if (!_allowed) return;
+    if (forceRecovery) _forceRecovery = true;
     if (_running != null) {
       _again = true;
       return;
@@ -111,9 +116,9 @@ class AutoSyncController extends ChangeNotifier {
     _timer?.cancel();
     final remaining = _retryAt?.difference(DateTime.now());
     _timer = Timer(
-      remaining != null && remaining > Duration.zero
+      remaining != null && remaining > Duration.zero && !forceRecovery
           ? remaining
-          : immediate
+          : immediate || forceRecovery
           ? Duration.zero
           : debounce,
       _start,
@@ -142,6 +147,8 @@ class AutoSyncController extends ChangeNotifier {
   }
 
   Future<void> _run() async {
+    final forceRecovery = _forceRecovery;
+    _forceRecovery = false;
     _cancel = SyncCancellation();
     phase = AutoSyncPhase.syncing;
     accountError = null;
@@ -153,6 +160,7 @@ class AutoSyncController extends ChangeNotifier {
       _cancel!.check();
       final next = await _session!.exchange(
         cancellation: _cancel!,
+        forceRecovery: forceRecovery,
         apply: (receive) => apply(() async {
           _cancel!.check();
           applying = true;

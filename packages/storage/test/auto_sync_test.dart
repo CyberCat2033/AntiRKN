@@ -446,6 +446,68 @@ void main() {
     },
   );
 
+  test(
+    'forceRecovery breaks out of latched missing predecessor signature and rescans account',
+    () async {
+      final first = db('a', 131);
+      await first.readWorkspaceIdentity();
+      final second = await pair(first, 'b', 132);
+      await first.writeDraft('causal parent');
+      await first.writeDraft('causal child');
+      final a = await open(first);
+      await drain(a);
+
+      final packetFiles = drive.files.values
+          .where(
+            (file) =>
+                (file['name'] as String).startsWith(syncTransportNamePrefix),
+          )
+          .toList();
+      expect(packetFiles, hasLength(3));
+      final parent = Map<String, dynamic>.from(
+        packetFiles[packetFiles.length - 2],
+      );
+      final parentId = parent['id'] as String;
+      final parentBytes = Uint8List.fromList(drive.contents[parentId]!);
+      drive.files.remove(parentId);
+      drive.contents.remove(parentId);
+      drive.log.removeWhere((entry) => entry['fileId'] == parentId);
+
+      final b = await open(second);
+      final stuck = await drain(b);
+      expect(stuck.waitingGroups, 1);
+      expect(
+        (await second.readSyncMergeStatus()).missingChangeIds,
+        hasLength(1),
+      );
+
+      // Restore parent to account files, but do not append to incremental log.
+      drive.files[parentId] = parent;
+      drive.contents[parentId] = parentBytes;
+
+      // Normal cycle without forceRecovery does not rescan immediately due to latch
+      final normalCycle = await cycle(b);
+      expect(normalCycle.waitingGroups, 1);
+
+      // Force recovery clears latch, rescans account, and drains
+      final forceResult = await b.exchange(
+        forceRecovery: true,
+        cancellation: SyncCancellation(),
+        apply: (receive) async {
+          await receive();
+          return true;
+        },
+      );
+      expect(forceResult.more, isTrue);
+
+      final recovered = await drain(b);
+      expect(recovered.waitingGroups, 0);
+      expect(await second.readDraft(), 'causal child');
+      expect((await second.readSyncMergeStatus()).missingChangeIds, isEmpty);
+    },
+  );
+
+
   test('staged packet backlog drains before another remote page', () async {
     final first = db('a', 121);
     await first.readWorkspaceIdentity();

@@ -80,6 +80,7 @@ final class _WorkspaceAutoSync
   Future<AutoSyncResult> exchange({
     required SyncApplyGate apply,
     required SyncCancellation cancellation,
+    bool forceRecovery = false,
   }) async {
     if (_running) throw const SyncTransportFailure(SyncTransportIssue.changed);
     _running = true;
@@ -116,6 +117,14 @@ final class _WorkspaceAutoSync
           state['others'] = 0;
           await journal.saveState(state);
         }
+      }
+      if (forceRecovery) {
+        await journal.rescanAccountPackets();
+        state['missingRecoveryActive'] = true;
+        state.remove('missingRecoverySignature');
+        state['missingRecoveryAttemptAt'] =
+            DateTime.now().toUtc().toIso8601String();
+        await journal.saveState(state);
       }
       final recoveryActive = state['missingRecoveryActive'] == true;
       final stagedBeforeTransfer = (await journal.readStagedObjects(
@@ -286,7 +295,7 @@ final class _WorkspaceAutoSync
           merge = await store.readSyncMergeStatus();
         });
       }
-      var recoveryRequested = false;
+      var recoveryRequested = forceRecovery;
       final missingSignature = merge.missingChangeIds.isEmpty
           ? null
           : (await Sha256().hash(
@@ -295,19 +304,32 @@ final class _WorkspaceAutoSync
       if (missingSignature == null) {
         state.remove('missingRecoveryActive');
         state.remove('missingRecoverySignature');
+        state.remove('missingRecoveryAttemptAt');
       } else if (recoveryActive) {
         if (transfer?.downloadCaughtUp == true) {
           state['missingRecoveryActive'] = false;
           state['missingRecoverySignature'] = missingSignature;
+          state['missingRecoveryAttemptAt'] =
+              DateTime.now().toUtc().toIso8601String();
         }
-      } else if (state['missingRecoverySignature'] != missingSignature) {
-        // A packet may have been skipped before its account key was available,
-        // or an older cursor may already have passed it. Re-enumerate Drive
-        // once for this unresolved causal gap. Do not loop when the provider
-        // genuinely no longer has the predecessor.
-        await journal.rescanAccountPackets();
-        state['missingRecoveryActive'] = true;
-        recoveryRequested = true;
+      } else {
+        final lastAttemptStr = state['missingRecoveryAttemptAt'] as String?;
+        final lastAttempt =
+            lastAttemptStr != null ? DateTime.tryParse(lastAttemptStr) : null;
+        final backoffPassed = lastAttempt == null ||
+            DateTime.now().toUtc().difference(lastAttempt) >
+                const Duration(seconds: 45);
+        final shouldRescan =
+            state['missingRecoverySignature'] != missingSignature ||
+            backoffPassed;
+
+        if (shouldRescan) {
+          await journal.rescanAccountPackets();
+          state['missingRecoveryActive'] = true;
+          state['missingRecoveryAttemptAt'] =
+              DateTime.now().toUtc().toIso8601String();
+          recoveryRequested = true;
+        }
       }
       final more =
           moreExports ||

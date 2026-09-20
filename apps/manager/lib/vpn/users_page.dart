@@ -244,12 +244,14 @@ class _UsersPageState extends State<UsersPage> {
     listenable: Listenable.merge([controller, selection, publications]),
     builder: (context, _) {
       final c = controller, l = AppLocalizations.of(context);
+      final activeUsers = c.workspace.users
+          .where((u) => !u.deleted)
+          .toList(growable: false);
+      final firstUserId = activeUsers.firstOrNull?.id;
+      final protocolSummary = _protocolSummary();
       return DragSelectList(
         selection: selection,
-        ids: c.workspace.users
-            .where((u) => !u.deleted)
-            .map((u) => u.id)
-            .toList(),
+        ids: [for (final u in activeUsers) u.id],
         enabled: !c.busy && c.loaded,
         builder: (scroll, item) => ListView(
           controller: scroll,
@@ -281,7 +283,7 @@ class _UsersPageState extends State<UsersPage> {
             ),
             AppSectionHeading(
               title: l.vpnUsers,
-              count: c.workspace.users.where((u) => !u.deleted).length,
+              count: activeUsers.length,
             ),
             if (showAddAction)
               Row(
@@ -295,9 +297,7 @@ class _UsersPageState extends State<UsersPage> {
                   ),
                   CatalogActions(
                     selection: selection,
-                    available: c.workspace.users
-                        .where((u) => !u.deleted)
-                        .map((u) => u.id),
+                    available: [for (final u in activeUsers) u.id],
                     prefix: 'vpn-user',
                     busy: c.busy || !c.loaded,
                     addLabel: l.vpnAddUser,
@@ -313,7 +313,7 @@ class _UsersPageState extends State<UsersPage> {
                 ],
               ),
             VpnPlanView(controller: c, serverName: serverName),
-            if (!c.workspace.users.any((u) => !u.deleted))
+            if (activeUsers.isEmpty)
               AppEmptyState(
                 title: l.vpnNoUsers,
                 icon: Icons.people_outline,
@@ -323,7 +323,7 @@ class _UsersPageState extends State<UsersPage> {
               child: AppAnimatedCollection(
                 motion: motion,
                 items: {
-                  for (final user in c.workspace.users.where((u) => !u.deleted))
+                  for (final user in activeUsers)
                     user.id: item(
                       user.id,
                       Padding(
@@ -333,10 +333,7 @@ class _UsersPageState extends State<UsersPage> {
                             border: Border(
                               top: BorderSide(
                                 color:
-                                    user.id ==
-                                        c.workspace.users
-                                            .firstWhere((u) => !u.deleted)
-                                            .id
+                                    user.id == firstUserId
                                     ? Colors.transparent
                                     : Theme.of(context)
                                           .colorScheme
@@ -382,7 +379,7 @@ class _UsersPageState extends State<UsersPage> {
                                 children: [
                                   Text(
                                     user.enabled
-                                        ? _protocolSummary()
+                                        ? protocolSummary
                                         : l.vpnDisabled,
                                   ),
                                   if (publications?.queues[user

@@ -23,6 +23,7 @@ abstract interface class AutoSyncSession {
   Future<AutoSyncResult> exchange({
     required SyncApplyGate apply,
     required SyncCancellation cancellation,
+    bool forceRecovery = false,
   });
   Future<void> close();
 }
