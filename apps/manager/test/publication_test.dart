@@ -356,7 +356,12 @@ void main() {
         expect(c.verifiedLinkFor(fixtures.alice), isNull);
         repo.queues.remove(fixtures.alice);
         await c.reload();
-        c.error = PublicationIssue.missing;
+        // Per-user issues are stored in queues, not the global error field.
+        c.queues[fixtures.alice] = {'issue': 'missing', 'userId': fixtures.alice};
+        expect(c.verifiedLinkFor(fixtures.alice), isNull);
+        c.queues.remove(fixtures.alice);
+        // Global errors like 'unauthorized' still block all links.
+        c.error = PublicationIssue.unauthorized;
         expect(c.verifiedLinkFor(fixtures.alice), isNull);
         c.error = PublicationIssue.network;
         expect(c.verifiedLinkFor(fixtures.alice), isNotNull);

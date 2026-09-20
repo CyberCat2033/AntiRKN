@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_sync/antirkn_sync.dart';
@@ -124,6 +123,7 @@ class PublicationController extends ChangeNotifier {
   String? verifiedLinkFor(String userId) {
     final user = vpn.workspace.users.where((u) => u.id == userId).firstOrNull;
     final result = results[userId], issue = queues[userId]?['issue'];
+    // Issues that invalidate a specific client's link.
     const invalidLinkIssues = {
       'missing',
       'conflict',
@@ -132,12 +132,18 @@ class PublicationController extends ChangeNotifier {
       'linkUnavailable',
       'accountChanged',
     };
+    // Global errors that affect ALL clients and must block every link.
+    const globalInvalidIssues = {
+      'accountChanged',
+      'unauthorized',
+      'forbidden',
+    };
     if (user?.enabled != true ||
         settings?.access != PublicationAccess.link ||
         result?['access'] != 'link' ||
         result?['fileId'] is! String ||
         _suspended ||
-        invalidLinkIssues.contains(error?.name) ||
+        globalInvalidIssues.contains(error?.name) ||
         (!bindingPending(userId) && invalidLinkIssues.contains(issue))) {
       return null;
     }
@@ -264,6 +270,7 @@ class PublicationController extends ChangeNotifier {
     if (vpn.busy || canPublish?.call() == false) return;
     _cancel = SyncCancellation();
     error = null;
+    accountError = null;
     try {
       final coordinator = PublicationCoordinator(
         repository: repository,
@@ -274,14 +281,13 @@ class PublicationController extends ChangeNotifier {
       final activeUsers = vpn.workspace.users
           .where((u) => u.enabled && !u.deleted)
           .toList();
-      const concurrency = 4;
-      var nextIndex = 0;
-      Future<void> worker() async {
-        while (!_disposed && !_suspended && _foreground) {
-          _cancel?.check();
-          final index = nextIndex++;
-          if (index >= activeUsers.length) break;
-          final user = activeUsers[index];
+
+      // Sequential execution: avoids concurrent writes to the shared
+      // antirknRegistry file on Google Drive which caused 412/403/429 errors.
+      for (final user in activeUsers) {
+        if (_disposed || _suspended || !_foreground) break;
+        _cancel?.check();
+        try {
           final queue = await coordinator.publish(
             user.id,
             force: force,
@@ -294,24 +300,29 @@ class PublicationController extends ChangeNotifier {
           if (result != null) {
             results[user.id] = jsonDecode(result) as Map<String, dynamic>;
           }
-          _notify();
+        } on PublicationFailure catch (e) {
+          // Per-user error: record it in the queue but continue with others.
+          queues[user.id] = {'issue': e.issue.name, 'userId': user.id};
+        } on SyncTransportFailure catch (e) {
+          if (e.issue == SyncTransportIssue.cancelled) rethrow;
+          queues[user.id] = {
+            'issue': PublicationIssue.network.name,
+            'userId': user.id,
+          };
+        } on SyncMergeFailure {
+          queues[user.id] = {
+            'issue': PublicationIssue.conflict.name,
+            'userId': user.id,
+          };
         }
+        _notify();
       }
-
-      final workerCount = min(concurrency, activeUsers.length);
-      if (workerCount > 0) {
-        await Future.wait(List.generate(workerCount, (_) => worker()));
-      }
-    } on PublicationFailure catch (e) {
-      error = e.issue;
     } on GoogleAccountFailure catch (e) {
       accountError = e.issue;
     } on SyncTransportFailure catch (e) {
       if (e.issue != SyncTransportIssue.cancelled) {
         error = PublicationIssue.network;
       }
-    } on SyncMergeFailure {
-      error = PublicationIssue.conflict;
     } catch (_) {
       error = PublicationIssue.invalid;
     } finally {
@@ -485,7 +496,7 @@ class PublicationController extends ChangeNotifier {
     );
     await coordinator.acceptBinding(preview);
     await reload();
-    // The ordinary worker resumes persisted consent after this editor releases.
+    request(force: true);
   });
 
   Future<List<PublicationFile>> folders() => remote().listFolders();

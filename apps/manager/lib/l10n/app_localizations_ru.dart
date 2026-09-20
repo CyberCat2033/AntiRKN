@@ -3581,20 +3581,20 @@ class AppLocalizationsRu extends AppLocalizations {
       'Перезапуск пока не подтверждён. Подключитесь снова, чтобы проверить состояние.';
 
   @override
-  String get serverClearClients => 'Удалить всех клиентов';
+  String get serverClearClients => 'Удалить сторонних клиентов';
 
   @override
   String get serverClearClientsConfirm =>
-      'Будут удалены все клиенты и пиры во всех managed-протоколах на этом сервере (VLESS, AmneziaWG, TrustTunnel), включая сторонних клиентов. Активные подключения клиентов будут разорваны.';
+      'Будут удалены все сторонние (не принадлежащие AntiRKN) клиенты и пиры в managed-инбаундах на этом сервере (VLESS, AmneziaWG, TrustTunnel). Клиенты AntiRKN сохранятся.';
 
   @override
-  String get serverClearClientsWaiting => 'Удаление всех клиентов…';
+  String get serverClearClientsWaiting => 'Удаление сторонних клиентов…';
 
   @override
   String get serverClearClientsDone =>
-      'Все клиенты удалены из managed-инбаундов.';
+      'Все сторонние клиенты удалены из managed-инбаундов.';
 
   @override
   String get serverClearClientsFailed =>
-      'Не удалось удалить клиентов из managed-инбаундов.';
+      'Не удалось удалить сторонних клиентов из managed-инбаундов.';
 }

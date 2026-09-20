@@ -1373,9 +1373,9 @@
   "serverRebootWaiting": "The server is restarting. Waiting for it to reconnect…",
   "serverRebootDone": "Server restart confirmed.",
   "serverRebootFailed": "The restart is not confirmed yet. Reconnect to check its status.",
-  "serverClearClients": "Delete all clients",
-  "serverClearClientsConfirm": "This will remove all clients and peers across all managed protocols on this server (VLESS, AmneziaWG, TrustTunnel), including third-party clients. Active client connections will be terminated.",
-  "serverClearClientsWaiting": "Deleting all clients…",
-  "serverClearClientsDone": "All clients have been deleted from managed inbounds.",
-  "serverClearClientsFailed": "Failed to delete clients from managed inbounds."
+  "serverClearClients": "Delete unmanaged clients",
+  "serverClearClientsConfirm": "This will remove all third-party (unmanaged) clients and peers from managed inbounds on this server (VLESS, AmneziaWG, TrustTunnel). Your AntiRKN clients will be preserved.",
+  "serverClearClientsWaiting": "Deleting unmanaged clients…",
+  "serverClearClientsDone": "All unmanaged clients have been deleted from managed inbounds.",
+  "serverClearClientsFailed": "Failed to delete unmanaged clients from managed inbounds."
 }

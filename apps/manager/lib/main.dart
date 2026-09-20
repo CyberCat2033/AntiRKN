@@ -1,5 +1,6 @@
 import 'package:antirkn_mihomo_runtime/antirkn_mihomo_runtime.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:antirkn_network_inventory/antirkn_network_inventory.dart';
 import 'network/android_ip_probe_transport.dart';
 import 'network/socket_ip_probe_transport.dart';
@@ -234,6 +235,7 @@ class AntiRknApp extends StatefulWidget {
 }
 
 class _AntiRknAppState extends State<AntiRknApp> {
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   late ThemeMode _theme = widget.initialTheme;
   final MotionPreference _motion = MotionPreference.system;
   bool _settingsError = false;
@@ -277,6 +279,16 @@ class _AntiRknAppState extends State<AntiRknApp> {
     listenable: widget.languages,
     builder: (context, _) => DynamicColorBuilder(
       builder: (light, dark) => MaterialApp(
+        navigatorKey: _navigatorKey,
+        builder: (context, child) => Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (event) {
+            if ((event.buttons & kBackMouseButton) != 0) {
+              _navigatorKey.currentState?.maybePop();
+            }
+          },
+          child: child ?? const SizedBox.shrink(),
+        ),
         title: 'AntiRKN',
         debugShowCheckedModeBanner: false,
         locale: widget.languages.language == AppLanguage.system

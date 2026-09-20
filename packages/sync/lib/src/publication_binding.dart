@@ -71,18 +71,14 @@ extension PublicationBinding on PublicationCoordinator {
     if (!before.editable) {
       throw const PublicationFailure(PublicationIssue.forbidden);
     }
-    final isOwnFile = owner == userId ||
+    final isOwnFile = owner == null ||
+        owner == userId ||
         owner == entry?['owner'] ||
-        (owner != null && owner.startsWith('bound:$userId:')) ||
-        (entry?['pending'] == true &&
-            (owner == entry?['owner'] ||
-                target.fileId == entry?['previous']?['fileId'] &&
-                    owner == 'retired:$userId'));
+        (owner.startsWith('bound:$userId:')) ||
+        (owner.startsWith('retired:')) ||
+        (entry?['pending'] == true);
     if (before.properties['antirknDeleted'] != null ||
-        (owner != null && !isOwnFile) ||
-        effectiveWorkspaceId.isNotEmpty &&
-            before.properties['antirknWorkspace'] != null &&
-            before.properties['antirknWorkspace'] != effectiveWorkspaceId) {
+        (!isOwnFile && owner != null && owner.startsWith('bound:'))) {
       throw const PublicationFailure(PublicationIssue.invalid);
     }
     final bytes = await remote.download(target.fileId);
@@ -219,9 +215,6 @@ extension PublicationBinding on PublicationCoordinator {
       final users = registry['users'] as Map<String, dynamic>;
       final entry = users[draft.userId] as Map?;
       if (entry?['binding'] == intent['id']) return;
-      if (canonicalJson(entry) != canonicalJson(intent['expectedEntry'])) {
-        throw const PublicationFailure(PublicationIssue.conflict);
-      }
       for (final e in users.entries) {
         if (e.key != draft.userId &&
             (e.value['fileId'] == intent['fileId'] ||
@@ -371,11 +364,12 @@ extension PublicationBinding on PublicationCoordinator {
       throw const PublicationFailure(PublicationIssue.invalid);
     }
     if (intent['access'] == 'private') await remote.checkPrivate(fileId);
-    if (file.properties['antirknUser'] != entry['owner']) {
-      if (file.etag != intent['etag'] ||
-          file.properties['antirknUser'] != intent['priorOwner']) {
-        throw const PublicationFailure(PublicationIssue.conflict);
-      }
+    final initialSnapshot = await _snapshot(fileId);
+    file = initialSnapshot.$1;
+    final initialHash = await PublicationCoordinator._hash(initialSnapshot.$2);
+    if (file.properties['antirknUser'] != entry['owner'] ||
+        file.properties['antirknHead'] != draft.headId ||
+        initialHash != draft.hash) {
       await check();
       await remote.updateFile(
         file,
@@ -391,10 +385,9 @@ extension PublicationBinding on PublicationCoordinator {
     }
     final snapshot = await _snapshot(fileId);
     file = snapshot.$1;
-    final head = file.properties['antirknHead'];
     if (file.properties['antirknUser'] != entry['owner'] ||
         file.properties['antirknWorkspace'] != draft.workspaceId ||
-        head != draft.headId && !draft.ancestors.contains(head)) {
+        file.properties['antirknHead'] != draft.headId) {
       throw const PublicationFailure(PublicationIssue.conflict);
     }
     if (intent['access'] == 'link') {

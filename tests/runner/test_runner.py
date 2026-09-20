@@ -199,14 +199,20 @@ class RunnerTests(unittest.TestCase):
         with self.store.db:
             self.store.db.execute('INSERT INTO revoked_clients VALUES (?, ?)', ('ws1', 'u1'))
             self.store.db.execute('INSERT INTO tt_resources VALUES (?, ?)', ('res1', json.dumps({
-                'workspaceId': 'ws1', 'spec': {'id': 'res1'}, 'clients': [{'id': 'u1'}]
+                'workspaceId': 'ws1', 'spec': {'id': 'res1'}, 'clients': [{'id': 'u1', 'username': 'user1'}]
             })))
             self.store.db.execute('INSERT INTO awg_resources VALUES (?, ?)', ('res2', json.dumps({
-                'workspaceId': 'ws1', 'spec': {'id': 'res2'}, 'clients': [{'id': 'u1'}]
+                'workspaceId': 'ws1', 'spec': {'id': 'res2'}, 'clients': [{'id': 'u1', 'publicKey': 'our_key_b64'}]
             })))
         res = self.store.request(dict(version=1, action='clear_managed_clients'))
         self.assertEqual(res['code'], 'ok')
-        self.assertEqual(self.store.db.execute('SELECT COUNT(*) FROM revoked_clients').fetchone()[0], 0)
+        self.assertEqual(res['clearedClients'], {'cleared': 0})
+        # Verify AntiRKN revoked clients are NOT wiped
+        self.assertEqual(self.store.db.execute('SELECT COUNT(*) FROM revoked_clients').fetchone()[0], 1)
+        # Verify AntiRKN clients in resources are preserved
+        row = self.store.db.execute('SELECT data FROM tt_resources WHERE id=?', ('res1',)).fetchone()[0]
+        self.assertEqual(json.loads(row)['clients'], [{'id': 'u1', 'username': 'user1'}])
+
 
 if __name__ == '__main__':
     unittest.main()

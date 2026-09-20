@@ -1373,9 +1373,9 @@
   "serverRebootWaiting": "Сервер перезапускается. Ожидаем восстановления связи…",
   "serverRebootDone": "Перезапуск сервера подтверждён.",
   "serverRebootFailed": "Перезапуск пока не подтверждён. Подключитесь снова, чтобы проверить состояние.",
-  "serverClearClients": "Удалить всех клиентов",
-  "serverClearClientsConfirm": "Будут удалены все клиенты и пиры во всех managed-протоколах на этом сервере (VLESS, AmneziaWG, TrustTunnel), включая сторонних клиентов. Активные подключения клиентов будут разорваны.",
-  "serverClearClientsWaiting": "Удаление всех клиентов…",
-  "serverClearClientsDone": "Все клиенты удалены из managed-инбаундов.",
-  "serverClearClientsFailed": "Не удалось удалить клиентов из managed-инбаундов."
+  "serverClearClients": "Удалить сторонних клиентов",
+  "serverClearClientsConfirm": "Будут удалены все сторонние (не принадлежащие AntiRKN) клиенты и пиры в managed-инбаундах на этом сервере (VLESS, AmneziaWG, TrustTunnel). Клиенты AntiRKN сохранятся.",
+  "serverClearClientsWaiting": "Удаление сторонних клиентов…",
+  "serverClearClientsDone": "Все сторонние клиенты удалены из managed-инбаундов.",
+  "serverClearClientsFailed": "Не удалось удалить сторонних клиентов из managed-инбаундов."
 }
