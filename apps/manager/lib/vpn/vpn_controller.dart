@@ -346,6 +346,20 @@ class VpnController extends ChangeNotifier {
     plans = [];
     await _profiles();
   });
+
+  static bool _isTargetBusy(Map<String, dynamic>? record) {
+    if (record == null) return false;
+    if (record['cancelRequested'] == true ||
+        record['observingCancel'] == true) {
+      return true;
+    }
+    if (record['paused'] == true) return false;
+    if (record['job'] case final Map jobMap) {
+      return !RunnerJob.fromJson(Map<String, dynamic>.from(jobMap)).terminal;
+    }
+    return record['pending'] != null && record['error'] == null;
+  }
+
   bool get hasRunning =>
       pendingRevocations.any(
         (u) =>
@@ -358,8 +372,7 @@ class VpnController extends ChangeNotifier {
         (e) =>
             !observesOperation(e.key) &&
             !_restoredTargets.contains(e.key) &&
-            e.value['pending'] != null &&
-            e.value['paused'] != true,
+            _isTargetBusy(e.value),
       );
 
   bool hasLocalServerState(String serverId) {
@@ -653,7 +666,7 @@ class VpnController extends ChangeNotifier {
           ? ttTarget(serverId)
           : serverId;
       final record = workspace.servers[target];
-      if (record?['pending'] != null) throw const FormatException('vpn_busy');
+      if (_isTargetBusy(record)) throw const FormatException('vpn_busy');
       await _write(
         workspace.copy(
           inbounds: [
@@ -982,13 +995,7 @@ class VpnController extends ChangeNotifier {
       token.check();
       final connection = remote(id);
       final previous = workspace.servers[id];
-      if (previous?['pending'] != null &&
-          (previous?['job'] == null ||
-              !RunnerJob.fromJson(
-                Map<String, dynamic>.from(previous!['job'] as Map),
-              ).terminal ||
-              previous['cancelRequested'] == true ||
-              previous['observingCancel'] == true)) {
+      if (_isTargetBusy(previous)) {
         throw const FormatException('vpn_busy');
       }
       final panelId = (isAwgTarget(id) || isTtTarget(id))

@@ -169,6 +169,26 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                           : Text(vpnMessage(l, d.code)),
                     ),
                   ),
+              if (!usable &&
+                  result?.diagnostics.any(
+                    (d) => d.code == 'vpn_pending_client',
+                  ) == true) ...[
+                const SizedBox(height: 12),
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: FilledButton.icon(
+                    key: const ValueKey('profile-apply-servers'),
+                    onPressed: c.busy ? null : () => c.prepareAndApply(),
+                    icon: c.busy
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.cloud_upload_outlined),
+                    label: Text(l.vpnApply),
+                  ),
+                ),
+              ],
               const SizedBox(height: 20),
               if (usable)
                 CoreConfigCheckAction(controller: c, userId: widget.user.id),
