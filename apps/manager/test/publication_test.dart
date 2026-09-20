@@ -4,6 +4,7 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_manager/l10n/app_localizations.dart';
 import 'package:antirkn_manager/publication/publication_controller.dart';
 import 'package:antirkn_manager/publication/publication_panel.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'vpn_controller_test.dart' as fixtures;
@@ -56,6 +57,18 @@ class Repository implements PublicationRepository {
   }
 
   @override
+  Future<void> writePublicationQueue(
+    String id,
+    String source, {
+    required String? expectedSource,
+  }) async {
+    if (queues[id] != expectedSource) {
+      throw const SyncMergeFailure(SyncMergeIssue.changed);
+    }
+    queues[id] = source;
+  }
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
@@ -94,6 +107,52 @@ class Remote implements PublicationRemoteStore {
 
   @override
   Future<void> checkPrivate(String id) async {}
+
+  @override
+  Future<void> updateFile(
+    PublicationFile expected,
+    Uint8List bytes, {
+    required Map<String, String> properties,
+  }) async {
+    contents[expected.id] = bytes;
+    final digest = sha256.convert(bytes).toString();
+    final f = folders[expected.id]!;
+    final v = int.tryParse(f.version) ?? 1;
+    folders[expected.id] = PublicationFile(
+      id: f.id,
+      name: f.name,
+      mimeType: f.mimeType,
+      version: '${v + 1}',
+      etag: 'etag-${v + 1}',
+      editable: true,
+      properties: {...f.properties, ...properties, 'antirknHash': digest},
+      downloadUrl: f.downloadUrl,
+    );
+  }
+
+  @override
+  Future<void> updateProperties(
+    PublicationFile expected,
+    Map<String, String> properties,
+  ) async {
+    final f = folders[expected.id]!;
+    folders[expected.id] = PublicationFile(
+      id: f.id,
+      name: f.name,
+      mimeType: f.mimeType,
+      version: f.version,
+      etag: f.etag,
+      editable: true,
+      properties: {...f.properties, ...properties},
+      downloadUrl: f.downloadUrl,
+    );
+  }
+
+  @override
+  Future<String> enableLink(String fileId) async => 'perm-$fileId';
+
+  @override
+  Future<void> verifyPublicLink(String url, Uint8List expected) async {}
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -372,4 +431,103 @@ void main() {
       },
     );
   }
+
+  test('bindFile publishes immediately and persists new link across reload', () async {
+    final account = Account()..publicationAuthorized = true;
+    final repo = Repository();
+    final remote = Remote();
+    final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
+    addTearDown(vpn.dispose);
+    final c = PublicationController(
+      repository: repo,
+      account: account,
+      remote: () => remote,
+      vpn: vpn,
+    );
+    addTearDown(c.dispose);
+    await c.ready;
+    final user = VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice');
+    await vpn.load();
+    await vpn.saveUser(user);
+    final saved = vpn.workspace.profiles[fixtures.alice]!;
+    final savedYaml = saved['yaml'] as String;
+    final savedHash = saved['hash'] as String;
+    final draft = PublicationDraft(
+      workspaceId: vpn.workspace.id,
+      deviceId: 'b' * 32,
+      userId: fixtures.alice,
+      name: 'Alice',
+      headId: 'head-1',
+      hash: savedHash,
+      stamp: 'stamp-1',
+      bytes: Uint8List.fromList(utf8.encode(savedYaml)),
+      ancestors: {},
+    );
+    repo.draft = draft;
+    c.settings = const PublicationSettings(
+      accountKey: 'account',
+      folderId: 'folder-1',
+      folderName: 'Folder',
+      access: PublicationAccess.link,
+      enabled: true,
+      folderReady: true,
+    );
+    repo.docs['settings'] = canonicalJson(c.settings!.toJson());
+    remote.folders['folder-1'] = PublicationFile(
+      id: 'folder-1',
+      name: 'Folder',
+      mimeType: 'application/vnd.google-apps.folder',
+      version: '1',
+      etag: 'etag-f',
+      editable: true,
+      properties: {'antirknRegistry.${vpn.workspace.id}': 'ready:registry-1'},
+    );
+    final regBytes = Uint8List.fromList(utf8.encode(canonicalJson({
+      'version': 2,
+      'workspaceId': vpn.workspace.id,
+      'users': <String, dynamic>{},
+    })));
+    final regHash = sha256.convert(regBytes).toString();
+    remote.folders['registry-1'] = PublicationFile(
+      id: 'registry-1',
+      name: 'registry.json',
+      mimeType: 'application/json',
+      version: '1',
+      etag: 'etag-r',
+      editable: true,
+      properties: {
+        'antirknWorkspace': vpn.workspace.id,
+        'antirknUser': 'registry',
+        'antirknHash': regHash,
+      },
+      downloadUrl: 'https://drive.google.com/uc?id=registry-1',
+    );
+    remote.contents['registry-1'] = regBytes;
+
+    remote.folders['custom-file-1'] = const PublicationFile(
+      id: 'custom-file-1',
+      name: 'custom.yml',
+      mimeType: 'text/yaml',
+      version: '1',
+      etag: 'etag-c',
+      editable: true,
+      properties: {},
+      downloadUrl: 'https://drive.google.com/uc?id=custom-file-1',
+    );
+    remote.contents['custom-file-1'] = Uint8List.fromList(utf8.encode('old: content'));
+
+    final preview = await c.inspectFile(user.id, PublicationTarget('custom-file-1'));
+    expect(preview.file.id, 'custom-file-1');
+
+    await c.bindFile(preview);
+
+    expect(c.verifiedLinkFor(user.id), 'https://drive.google.com/uc?id=custom-file-1');
+    expect(c.results[user.id]?['fileId'], 'custom-file-1');
+    expect(c.bindingPending(user.id), isFalse);
+
+    // Simulate reload / restart
+    await c.reload();
+    expect(c.verifiedLinkFor(user.id), 'https://drive.google.com/uc?id=custom-file-1');
+    expect(c.results[user.id]?['fileId'], 'custom-file-1');
+  });
 }

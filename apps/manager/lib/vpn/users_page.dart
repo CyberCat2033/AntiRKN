@@ -74,6 +74,9 @@ class UsersPage extends StatefulWidget {
     }
     if (controller.error == null && controller.workspace.serverIds.isNotEmpty) {
       await controller.prepareAndApply();
+      if (customTarget != null && publications != null) {
+        await publications.publishUser(nextUser.id, force: true);
+      }
     }
   }
 
@@ -162,7 +165,7 @@ class _UsersPageState extends State<UsersPage> {
     try {
       await controller.syncAllServersAndProfiles();
       if (publications != null) {
-        await publications!.forcePublishAll();
+        await publications!.forcePublishAll(force: true);
       }
       if (mounted) {
         final activeUsers = controller.workspace.users
@@ -644,6 +647,24 @@ class _UserFormState extends State<_UserForm> {
                       UserPublicationView(
                         controller: c,
                         userId: widget.user!.id,
+                      ),
+                      Builder(
+                        builder: (context) {
+                          final fileId =
+                              c.bindings[widget.user!.id]?['fileId'] ??
+                              c.results[widget.user!.id]?['fileId'];
+                          if (fileId is String && fileId.isNotEmpty) {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 4, bottom: 8),
+                              child: Text(
+                                '${l.publicationFileLink}: $fileId',
+                                style: Theme.of(context).textTheme.bodySmall,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            );
+                          }
+                          return const SizedBox.shrink();
+                        },
                       ),
                       OutlinedButton.icon(
                         key: const ValueKey('client-change-file'),

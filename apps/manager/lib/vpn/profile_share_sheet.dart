@@ -33,7 +33,9 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && widget.publications?.verifiedLinkFor(widget.user.id) == null) {
+      if (mounted &&
+          (widget.publications?.verifiedLinkFor(widget.user.id) == null ||
+              widget.publications?.bindingPending(widget.user.id) == true)) {
         widget.publications?.publishUser(widget.user.id);
       }
     });
@@ -52,7 +54,7 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
         widget.controller.error == null &&
         result?.yaml != null &&
         result?.hasBlockingErrors == false;
-    if (usable) widget.publications?.publishUser(widget.user.id, force: true);
+    if (usable) await widget.publications?.publishUser(widget.user.id, force: true);
     setState(() {
       regenerating = false;
       message = widget.controller.error != null

@@ -28,11 +28,17 @@ class _PublicationBindingDialogState extends State<PublicationBindingDialog> {
   void initState() {
     super.initState();
     final pending = widget.controller.bindings[widget.user.id];
-    if (widget.controller.bindingPending(widget.user.id) && pending != null) {
+    final result = widget.controller.results[widget.user.id];
+    final current = (widget.controller.bindingPending(widget.user.id)
+            ? pending
+            : null) ??
+        pending ??
+        result;
+    if (current != null && current['fileId'] is String) {
       link.text = targetText(
         PublicationTarget(
-          pending['fileId'] as String,
-          resourceKey: pending['resourceKey'] as String?,
+          current['fileId'] as String,
+          resourceKey: current['resourceKey'] as String?,
         ),
       );
     }

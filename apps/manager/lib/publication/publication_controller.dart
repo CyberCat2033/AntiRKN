@@ -19,6 +19,7 @@ class PublicationController extends ChangeNotifier {
     this.canPublish,
   }) {
     vpn.addListener(_vpnChanged);
+    sync?.addListener(_syncChanged);
     ready = reload();
   }
   final PublicationRepository repository;
@@ -218,6 +219,15 @@ class PublicationController extends ChangeNotifier {
       error = PublicationIssue.invalid;
     }
     _notify();
+
+    // Automatically fulfill any pending bindings
+    if (!_disposed && !_suspended && !editing && authorized) {
+      final hasPending = vpn.workspace.users
+          .any((u) => u.enabled && !u.deleted && bindingPending(u.id));
+      if (hasPending) {
+        request(force: false);
+      }
+    }
   }
 
   void _vpnChanged() {
@@ -263,7 +273,15 @@ class PublicationController extends ChangeNotifier {
 
   Future<void> publishUser(String userId, {bool force = false}) async {
     if (_disposed || _suspended || editing) return;
-    request(force: force, targetUserId: userId);
+    _timer?.cancel();
+    if (_running != null) {
+      _cancel?.cancel();
+      try {
+        await _running;
+      } catch (_) {}
+    }
+    _start(force, targetUserId: userId);
+    await _running;
   }
 
   Future<void> _run(bool force, {String? targetUserId}) async {
@@ -318,6 +336,12 @@ class PublicationController extends ChangeNotifier {
           if (result != null) {
             results[user.id] = jsonDecode(result) as Map<String, dynamic>;
           }
+          final binding = await repository.readPublicationDocument(
+            'binding/${user.id}',
+          );
+          if (binding != null) {
+            bindings[user.id] = jsonDecode(binding) as Map<String, dynamic>;
+          }
         } on PublicationFailure catch (e) {
           // Per-user error: record it in the queue but continue with others.
           queues[user.id] = {'issue': e.issue.name, 'userId': user.id};
@@ -360,7 +384,7 @@ class PublicationController extends ChangeNotifier {
     _notify();
   }
 
-  Future<void> forcePublishAll({bool force = false}) async {
+  Future<void> forcePublishAll({bool force = true}) async {
     if (_disposed || _suspended || editing) return;
     _timer?.cancel();
     if (_running != null) {
@@ -510,9 +534,18 @@ class PublicationController extends ChangeNotifier {
       eligible: (d) async => _bindingEligible(d),
     );
     await coordinator.acceptBinding(preview);
-    await reload();
     final targetId = preview.userId ?? preview.draft?.userId;
-    request(force: true, targetUserId: targetId);
+    if (targetId != null && preview.draft != null) {
+      final queue = await coordinator.publish(targetId, force: true);
+      if (queue != null) queues[targetId] = queue;
+      final result = await repository.readPublicationDocument(
+        'result/$targetId',
+      );
+      if (result != null) {
+        results[targetId] = jsonDecode(result) as Map<String, dynamic>;
+      }
+    }
+    await reload();
   });
 
   Future<List<PublicationFile>> folders() => remote().listFolders();
@@ -626,6 +659,11 @@ class PublicationController extends ChangeNotifier {
     _timer?.cancel();
     _cancel?.cancel();
     vpn.removeListener(_vpnChanged);
+    sync?.removeListener(_syncChanged);
     super.dispose();
+  }
+
+  void _syncChanged() {
+    unawaited(reload());
   }
 }
