@@ -1085,6 +1085,9 @@ class VpnController extends ChangeNotifier {
     await _approveRestored(plans.map((p) => p.serverId));
     plans = [];
     await _reconcile(token);
+    if (hasRunning && !_disposed) {
+      Timer(const Duration(seconds: 1), () => unawaited(reconcile()));
+    }
   });
   bool diagnosticsPaused = false;
   Future<void> reconcile() async {
@@ -1127,6 +1130,9 @@ class VpnController extends ChangeNotifier {
       }
       if (template() != _lastTemplate) await _profiles();
     });
+    if (hasRunning && !_disposed) {
+      Timer(const Duration(seconds: 1), () => unawaited(reconcile()));
+    }
   }
 
   Future<void> _reconcile(CancellationToken token) async {
