@@ -20,7 +20,7 @@ TABLES = {'vless': 'vless_resources', 'awg': 'awg_resources', 'tt': 'tt_resource
 
 
 def validate_payload(p, protocol):
-    sources = [r['adoption']['sourceId'] for r in p['resources'] if 'adoption' in r]
+    sources = [r['adoption']['sourceId'] for r in p['resources'] if 'adoption' in r and not r.get('deleted')]
     if len(set(sources)) != len(sources):
         raise VlessError('vpn_adoption_conflict')
 
@@ -86,13 +86,15 @@ def user_enabled(r, user):
 
 def guard(store, p, r, old, protocol, snapshot):
     validate_spec(r, protocol)
+    if old and old.get('deleted') and r['deleted']:
+        return
     source = r['adoption']['sourceId']
     if protocol == 'vless' and r['adoption']['panelId'] != p['panelId']:
         raise VlessError('vpn_adoption_conflict')
     for rid, other in records(store, protocol).items():
         if rid == r['id']:
             continue
-        if other.get('adopted') and other['spec']['adoption']['sourceId'] == source and (
+        if other.get('adopted') and not other.get('deleted') and other['spec']['adoption']['sourceId'] == source and (
                 protocol != 'vless' or other.get('panelId') == p['panelId']):
             raise VlessError('vpn_adoption_conflict')
     if old:
@@ -101,7 +103,8 @@ def guard(store, p, r, old, protocol, snapshot):
                 protocol == 'vless' and old['panelId'] != p['panelId']):
             raise VlessError('vpn_adoption_conflict')
         if snapshot['fingerprint'] != old['observedHash']:
-            raise VlessError('vpn_adoption_conflict')
+            if not (r['deleted'] and protocol == 'vless' and snapshot.get('row') is None):
+                raise VlessError('vpn_adoption_conflict')
         if old['keyId'] != hashlib.sha256(key(store)).hexdigest():
             raise VlessError('vpn_adoption_conflict')
         # Imported server settings stay authoritative; the compact editor only
@@ -115,6 +118,8 @@ def guard(store, p, r, old, protocol, snapshot):
 
 
 def preflight(store, p, r, old, protocol):
+    if old and old.get('deleted') and r['deleted']:
+        return old.get('observedHash')
     a = adapter(protocol)
     current = a.snapshot(store, p, r)
     guard(store, p, r, old, protocol, current)
@@ -123,6 +128,11 @@ def preflight(store, p, r, old, protocol):
 
 
 def apply(store, req, p, r, old, protocol, checkpoint):
+    if old and old.get('deleted') and r['deleted']:
+        with store.db:
+            store.db.execute('UPDATE jobs SET checkpoint=? WHERE id=?', (checkpoint + 1, req['id']))
+            store.event(req['id'], protocol + '_applying', checkpoint + 1, req['count'])
+        return
     a = adapter(protocol)
     path = store.directory / ('adopt-' + req['id'] + '-' + r['id'] + '.json')
     if not path.exists():
@@ -147,7 +157,7 @@ def apply(store, req, p, r, old, protocol, checkpoint):
     observed = a.snapshot(store, p, r)
     if not a.verify(observed, intent):
         raise VlessError('vpn_adoption_failed')
-    data = dict(intent['record'], adopted=True, workspaceId=p['workspaceId'],
+    data = dict(intent['record'], adopted=True, deleted=r['deleted'], workspaceId=p['workspaceId'],
                 panelId=p['panelId'], spec=r, revision=digest(p),
                 keyId=intent['keyId'], jobId=req['id'],
                 observedHash=observed['fingerprint'])
@@ -161,14 +171,19 @@ def apply(store, req, p, r, old, protocol, checkpoint):
 def state(store, saved, protocol, pending_job=None):
     p = {'workspaceId': saved['workspaceId'], 'panelId': saved['panelId']}
     try:
-        observed = adapter(protocol).snapshot(store, p, saved['spec'])
-        confirmed = observed['fingerprint'] == saved['observedHash']
-        confirmed = confirmed and adapter(protocol).healthy(observed)
-        job = store.db.execute('SELECT status FROM jobs WHERE id=?', (saved['jobId'],)).fetchone()
-        # Public readback must wait for the enclosing job's final restart and
-        # verification, including when another device first discovers this row.
-        confirmed = confirmed and job is not None and (
-            job['status'] == 'succeeded' or saved['jobId'] == pending_job)
+        if saved.get('deleted'):
+            job = store.db.execute('SELECT status FROM jobs WHERE id=?', (saved['jobId'],)).fetchone()
+            confirmed = job is not None and (
+                job['status'] == 'succeeded' or saved['jobId'] == pending_job)
+        else:
+            observed = adapter(protocol).snapshot(store, p, saved['spec'])
+            confirmed = observed['fingerprint'] == saved['observedHash']
+            confirmed = confirmed and adapter(protocol).healthy(observed)
+            job = store.db.execute('SELECT status FROM jobs WHERE id=?', (saved['jobId'],)).fetchone()
+            # Public readback must wait for the enclosing job's final restart and
+            # verification, including when another device first discovers this row.
+            confirmed = confirmed and job is not None and (
+                job['status'] == 'succeeded' or saved['jobId'] == pending_job)
     except (VlessError, OSError, ValueError, KeyError):
         confirmed = False
     return dict(id=saved['spec']['id'], workspaceId=saved['workspaceId'],

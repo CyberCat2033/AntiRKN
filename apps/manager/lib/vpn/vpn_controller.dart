@@ -918,14 +918,14 @@ class VpnController extends ChangeNotifier {
       final source = (spec['adoption'] as Map)['sourceId'];
       final existing = isAwgTarget(target)
           ? workspace.awgInterfaces
-                .where((r) => r.serverId == server)
+                .where((r) => r.serverId == server && !r.deleted)
                 .map((r) => r.spec)
           : isTtTarget(target)
           ? workspace.ttEndpoints
-                .where((r) => r.serverId == server)
+                .where((r) => r.serverId == server && !r.deleted)
                 .map((r) => r.spec)
           : workspace.inbounds
-                .where((r) => r.serverId == server)
+                .where((r) => r.serverId == server && !r.deleted)
                 .map((r) => r.spec);
       if (existing.any((s) => (s['adoption'] as Map?)?['sourceId'] == source)) {
         throw const FormatException('vpn_adoption_conflict');

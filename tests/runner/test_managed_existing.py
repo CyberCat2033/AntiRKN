@@ -115,7 +115,7 @@ class AdoptionTests(unittest.TestCase):
         module = {'vless':vless,'awg':awg,'tt':tt}[protocol]
         module.parse_payload(json.dumps(p))
         preview = module.plan(self.store,dict(id=p['panelId'],payload=json.dumps(p)))
-        request=dict(version=1,action='submit',kind=protocol+'_apply',id=f'{number:032x}',count=3,interval=1,
+        request=dict(version=1,action='submit',kind=protocol+'_apply',id=f'{number:032x}',count=len(p['resources'])+2,interval=1,
                      payload=json.dumps(p),fingerprint=preview['fingerprint'])
         self.assertEqual(self.store.request(request)['code'],'ok')
         return request
@@ -306,3 +306,37 @@ class AdoptionTests(unittest.TestCase):
             with self.subTest(protocol=protocol),self.assertRaises(VlessError):
                 {'vless':vless,'awg':awg,'tt':tt}[protocol].parse_payload(json.dumps(p))
         self.assertEqual(self.api.effects+self.writes,0)
+
+    def test_vless_deletion_succeeds_when_already_deleted_from_panel(self):
+        p = self.payload('vless')
+        self.assertEqual(self.finish(self.submit(p, 'vless'))['status'], 'succeeded')
+        # Simulate panel row deleted externally (e.g. via 3x-ui inbound_remove)
+        self.api.rows = []
+        p['resources'][0]['deleted'] = True
+        p['resources'][0]['enabled'] = False
+        res = self.finish(self.submit(p, 'vless', 2))
+        self.assertEqual(res['status'], 'succeeded')
+        record = existing.records(self.store, 'vless')[p['resources'][0]['id']]
+        self.assertTrue(record.get('deleted'))
+
+    def test_deleted_vless_resource_does_not_conflict_with_new_adoption_of_same_source(self):
+        p = self.payload('vless')
+        self.assertEqual(self.finish(self.submit(p, 'vless'))['status'], 'succeeded')
+        # Delete first resource
+        self.api.rows = []
+        p['resources'][0]['deleted'] = True
+        p['resources'][0]['enabled'] = False
+        self.assertEqual(self.finish(self.submit(p, 'vless', 2))['status'], 'succeeded')
+        # Re-create panel row with same sourceId
+        self.api.rows = [dict(id=7, protocol='vless', remark='New', enable=True,
+            listen='127.0.0.1', port=24443, settings=dict(decryption='none', fallbacks=[],
+            clients=[dict(id='22222222-2222-4222-8222-222222222222', email='newforeign', enable=True)]),
+            streamSettings=dict(network='tcp', security='none'),
+            sniffing=dict(enabled=False), expiryTime=0, total=0)]
+        p2 = self.payload('vless')
+        new_r = copy.deepcopy(p2['resources'][0])
+        new_r['id'] = 'd'*32
+        p2['resources'] = [p['resources'][0], new_r]
+        res = self.finish(self.submit(p2, 'vless', 3))
+        self.assertEqual(res['status'], 'succeeded')
+
