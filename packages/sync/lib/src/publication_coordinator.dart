@@ -25,6 +25,7 @@ final class PublicationCoordinator {
   final String? workspaceId;
   final DateTime Function() now;
   final int Function(int) jitter;
+  String? _cachedRegistryId;
 
   Future<Map<String, dynamic>?> publish(
     String userId, {
@@ -50,6 +51,12 @@ final class PublicationCoordinator {
         ? <String, dynamic>{}
         : jsonDecode(queueSource) as Map<String, dynamic>;
     final same = queue['head'] == draft.headId;
+    if (!force &&
+        same &&
+        queue['status'] == 'published' &&
+        queue['hash'] == draft.hash) {
+      return queue;
+    }
     if (!force &&
         same &&
         (queue['retryAt'] as int? ?? 0) > now().millisecondsSinceEpoch) {
@@ -161,6 +168,9 @@ final class PublicationCoordinator {
             await remote.checkPrivate(fileId);
           }
           final head = file.properties['antirknHead'];
+          if (head != draft.headId && !draft.ancestors.contains(head)) {
+            throw const PublicationFailure(PublicationIssue.conflict);
+          }
           final hash = await _hash(snapshot.$2);
           if (hash != draft.hash || head != draft.headId) {
             await guard();
@@ -188,7 +198,9 @@ final class PublicationCoordinator {
         }
       }
       await guard();
-      await _markCreated(registryId, draft.userId, fileId, guard);
+      if (entry['created'] != true) {
+        await _markCreated(registryId, draft.userId, fileId, guard);
+      }
       final beforeSource = await repository.readPublicationDocument(
         'result/$userId',
       );
@@ -282,6 +294,7 @@ final class PublicationCoordinator {
     PublicationDraft draft,
     Future<void> Function() guard,
   ) async {
+    if (_cachedRegistryId != null) return _cachedRegistryId!;
     final key = 'antirknRegistry.${draft.workspaceId}';
     for (var attempt = 0; attempt < 6; attempt++) {
       final folder = await remote.getFile(settings.folderId);
@@ -310,6 +323,7 @@ final class PublicationCoordinator {
       if (parts[0] == 'ready') {
         final snapshot = await _snapshot(id);
         _decodeRegistry(snapshot.$2, draft.workspaceId);
+        _cachedRegistryId = id;
         return id;
       }
       try {
@@ -337,6 +351,7 @@ final class PublicationCoordinator {
       await guard();
       try {
         await remote.updateProperties(folder, {key: 'ready:$id'});
+        _cachedRegistryId = id;
       } on PublicationFailure catch (e) {
         if (e.issue != PublicationIssue.conflict) rethrow;
       }

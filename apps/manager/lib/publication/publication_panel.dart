@@ -236,7 +236,7 @@ class UserPublicationView extends StatelessWidget {
               key: ValueKey('publication-retry-$userId'),
               onPressed: controller.busy
                   ? null
-                  : () => controller.request(force: true),
+                  : () => controller.request(force: true, targetUserId: userId),
               child: Text(l.runnerRetry),
             ),
         ],

@@ -218,7 +218,6 @@ class PublicationController extends ChangeNotifier {
       error = PublicationIssue.invalid;
     }
     _notify();
-    request();
   }
 
   void _vpnChanged() {
@@ -238,16 +237,16 @@ class PublicationController extends ChangeNotifier {
     unawaited(reload());
   }
 
-  void request({bool force = false}) {
+  void request({bool force = false, String? targetUserId}) {
     if (_disposed || _suspended || !_foreground || editing) return;
     _timer?.cancel();
     _timer = Timer(
-      force ? Duration.zero : const Duration(seconds: 1),
-      () => _start(force),
+      force ? Duration.zero : const Duration(milliseconds: 300),
+      () => _start(force, targetUserId: targetUserId),
     );
   }
 
-  void _start(bool force) {
+  void _start(bool force, {String? targetUserId}) {
     if (_disposed ||
         _suspended ||
         !_foreground ||
@@ -255,17 +254,19 @@ class PublicationController extends ChangeNotifier {
         _running != null) {
       return;
     }
-    _running = _run(force).whenComplete(() {
+    _running = _run(force, targetUserId: targetUserId).whenComplete(() {
       _running = null;
       _notify();
-      if (!_disposed && !_suspended && _foreground) {
-        _timer = Timer(const Duration(seconds: 30), () => _start(false));
-      }
     });
     _notify();
   }
 
-  Future<void> _run(bool force) async {
+  Future<void> publishUser(String userId, {bool force = false}) async {
+    if (_disposed || _suspended || editing) return;
+    request(force: force, targetUserId: userId);
+  }
+
+  Future<void> _run(bool force, {String? targetUserId}) async {
     if (!authorized || settings?.enabled != true || !vpn.loaded) return;
     if (vpn.busy || canPublish?.call() == false) return;
     _cancel = SyncCancellation();
@@ -280,13 +281,30 @@ class PublicationController extends ChangeNotifier {
       );
       final activeUsers = vpn.workspace.users
           .where((u) => u.enabled && !u.deleted)
+          .where((u) => targetUserId == null || u.id == targetUserId)
           .toList();
 
-      // Sequential execution: avoids concurrent writes to the shared
-      // antirknRegistry file on Google Drive which caused 412/403/429 errors.
       for (final user in activeUsers) {
         if (_disposed || _suspended || !_foreground) break;
         _cancel?.check();
+
+        // Fast-path: skip user if profile is already published and unchanged
+        final savedHash = savedProfileHashFor(user.id);
+        final result = results[user.id];
+        final queue = queues[user.id];
+        final isUpToDate = !force &&
+            savedHash != null &&
+            result?['hash'] == savedHash &&
+            result?['fileId'] is String &&
+            result?['url'] is String &&
+            !bindingPending(user.id) &&
+            queue?['status'] == 'published' &&
+            queue?['issue'] == null;
+
+        if (isUpToDate) {
+          continue;
+        }
+
         try {
           final queue = await coordinator.publish(
             user.id,
@@ -339,11 +357,10 @@ class PublicationController extends ChangeNotifier {
 
   void resume() {
     _suspended = false;
-    request();
     _notify();
   }
 
-  Future<void> forcePublishAll() async {
+  Future<void> forcePublishAll({bool force = false}) async {
     if (_disposed || _suspended || editing) return;
     _timer?.cancel();
     if (_running != null) {
@@ -352,15 +369,13 @@ class PublicationController extends ChangeNotifier {
         await _running;
       } catch (_) {}
     }
-    _start(true);
+    _start(force);
     await _running;
   }
 
   void foreground(bool value) {
     _foreground = value;
-    if (value) {
-      request();
-    } else {
+    if (!value) {
       _timer?.cancel();
       _cancel?.cancel();
     }
@@ -496,7 +511,8 @@ class PublicationController extends ChangeNotifier {
     );
     await coordinator.acceptBinding(preview);
     await reload();
-    request(force: true);
+    final targetId = preview.userId ?? preview.draft?.userId;
+    request(force: true, targetUserId: targetId);
   });
 
   Future<List<PublicationFile>> folders() => remote().listFolders();

@@ -22,8 +22,17 @@ abstract interface class DriveHttp {
 
 /// No redirects, TLS bypasses, logging or unbounded response buffering.
 final class NativeDriveHttp implements DriveHttp {
-  NativeDriveHttp({this.timeout = const Duration(seconds: 45)});
+  NativeDriveHttp({this.timeout = const Duration(seconds: 45), HttpClient? client})
+      : _client = client;
   final Duration timeout;
+  final HttpClient? _client;
+
+  static HttpClient? _defaultClient;
+  static HttpClient _getOrCreateDefault(Duration timeout) =>
+      _defaultClient ??= HttpClient()..connectionTimeout = timeout;
+
+  HttpClient get _httpClient => _client ?? _getOrCreateDefault(timeout);
+
   @override
   Future<DriveHttpResponse> send(
     String method,
@@ -32,7 +41,7 @@ final class NativeDriveHttp implements DriveHttp {
     Uint8List? body,
     required int responseLimit,
   }) async {
-    final client = HttpClient()..connectionTimeout = timeout;
+    final client = _httpClient;
     try {
       return await (() async {
         final request = await client.openUrl(method, uri);
@@ -68,8 +77,6 @@ final class NativeDriveHttp implements DriveHttp {
       rethrow;
     } catch (_) {
       throw const SyncTransportFailure(SyncTransportIssue.network);
-    } finally {
-      client.close(force: true);
     }
   }
 }
