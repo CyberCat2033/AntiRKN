@@ -14,9 +14,9 @@ import subprocess
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from panel_discovery import discover as discover_panel, connect_existing, external_access
 from components import ComponentInstaller, ComponentError
-from protocol_remove import ProtocolRemoval, RemovalError, plan as removal_plan
+from protocol_remove import ProtocolRemoval, RemovalError, plan as protocol_removal_plan
 from ssh_harden import SshHardenJob, SshHardenError, plan as ssh_harden_plan
-from inbound_remove import InboundRemove, plan as removal_plan
+from inbound_remove import InboundRemove, plan as inbound_removal_plan
 from observed_inbounds import ObservedInboundEdit, snapshot as inbound_snapshot, plan as inbound_plan, stage_payload
 from apt import AptJob, AptError, plan as apt_plan
 from contract import SCHEMA, validate_request
@@ -309,7 +309,12 @@ class Store:
             except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError, VlessError):
                 return self.response('probe_failed')
         if action == 'protocol_remove_plan':
-            return {**self.response('ok'), 'removalPlan': removal_plan(req['protocol'])}
+            try:
+                return {**self.response('ok'), 'removalPlan': protocol_removal_plan(req['protocol'])}
+            except RemovalError as error:
+                return self.response(error.code)
+            except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError, VlessError):
+                return self.response('protocol_remove_failed')
         if action in ('ssh_harden_plan', 'ssh_harden_status', 'ssh_harden_confirm', 'ssh_harden_commit', 'ssh_harden_abort'):
             try:
                 if action == 'ssh_harden_plan':
@@ -330,7 +335,7 @@ class Store:
         if action == 'inbound_read':
             return {**self.response('ok'), 'inboundSnapshot': inbound_snapshot(self, req)}
         if action == 'inbound_plan':
-            return {**self.response('ok'), 'inboundPlan': (removal_plan(self, req) if 'removals' in json.loads(req['payload']) else inbound_plan(self, req))}
+            return {**self.response('ok'), 'inboundPlan': (inbound_removal_plan(self, req) if 'removals' in json.loads(req['payload']) else inbound_plan(self, req))}
         if action == 'apt_plan':
             return {**self.response('ok'), 'aptPlan': apt_plan()}
         if action == 'reality_scan':
