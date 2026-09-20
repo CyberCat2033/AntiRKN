@@ -11,7 +11,7 @@ import 'publication_test.dart' as f;
 import 'vpn_controller_test.dart' as v;
 
 class Controller extends PublicationController {
-  Controller()
+  Controller({this.mockPickerReady = true})
     : super(
         repository: f.Repository(),
         account: f.Account()..publicationAuthorized = true,
@@ -21,8 +21,9 @@ class Controller extends PublicationController {
     foreground(false);
   }
   int inspected = 0, accepted = 0, picked = 0;
+  final bool mockPickerReady;
   @override
-  bool get pickerReady => true;
+  bool get pickerReady => mockPickerReady ? true : super.pickerReady;
   @override
   Future<PublicationTarget?> pickFile() async {
     picked++;
@@ -176,7 +177,7 @@ void main() {
   testWidgets('picker configuration can be saved and is validated', (
     tester,
   ) async {
-    final c = Controller();
+    final c = Controller(mockPickerReady: false);
     addTearDown(c.dispose);
     await c.ready;
     c.settings = const PublicationSettings(

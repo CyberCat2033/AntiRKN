@@ -217,8 +217,12 @@ final class PublicationTarget {
   static bool _id(String value) =>
       RegExp(r'^[A-Za-z0-9_-]{1,256}$').hasMatch(value);
   factory PublicationTarget.parse(String input) {
-    final value = input.trim();
+    var value = input.trim();
     if (_id(value)) return PublicationTarget(value);
+    if (value.startsWith('drive.google.com/') ||
+        value.startsWith('drive.usercontent.google.com/')) {
+      value = 'https://$value';
+    }
     final uri = Uri.tryParse(value);
     if (uri == null ||
         uri.scheme != 'https' ||
@@ -231,24 +235,34 @@ final class PublicationTarget {
       throw const PublicationFailure(PublicationIssue.invalid);
     }
     String? id;
-    if (uri.host == 'drive.google.com' &&
-        uri.pathSegments.length >= 3 &&
-        uri.pathSegments[0] == 'file' &&
-        uri.pathSegments[1] == 'd') {
-      id = uri.pathSegments[2];
+    if (uri.host == 'drive.google.com') {
+      final segments = uri.pathSegments;
+      final dIndex = segments.indexOf('d');
+      if (dIndex >= 0 && dIndex + 1 < segments.length) {
+        id = segments[dIndex + 1];
+      } else if (['/open', '/uc', '/download'].contains(uri.path) ||
+          ['open', 'uc', 'download'].contains(segments.lastOrNull)) {
+        if (uri.queryParametersAll['id']?.length != 1) {
+          throw const PublicationFailure(PublicationIssue.invalid);
+        }
+        id = uri.queryParameters['id'];
+      }
     } else if (['/open', '/uc', '/download'].contains(uri.path)) {
       if (uri.queryParametersAll['id']?.length != 1) {
         throw const PublicationFailure(PublicationIssue.invalid);
       }
       id = uri.queryParameters['id'];
     }
-    if (id == null ||
-        (uri.queryParametersAll['resourcekey']?.length ?? 0) > 1) {
+    final resourceKeys = [
+      ...?uri.queryParametersAll['resourcekey'],
+      ...?uri.queryParametersAll['resourceKey'],
+    ];
+    if (id == null || resourceKeys.length > 1) {
       throw const PublicationFailure(PublicationIssue.invalid);
     }
     return PublicationTarget(
       id,
-      resourceKey: uri.queryParameters['resourcekey'],
+      resourceKey: resourceKeys.singleOrNull,
     );
   }
   @override

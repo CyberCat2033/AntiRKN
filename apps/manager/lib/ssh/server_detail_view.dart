@@ -421,7 +421,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                             motion: widget.motion,
                             busy: protocolBusy(i),
                             onTap: () => openProtocol(i),
-                            onRemove:
+                            onLongPress:
                                 widget.sections[i].onRemove == null ||
                                     !widget.sections[i].detected
                                 ? null
@@ -713,13 +713,13 @@ class _ProtocolTile extends StatelessWidget {
     required this.section,
     required this.motion,
     required this.onTap,
-    this.onRemove,
+    this.onLongPress,
     this.busy = false,
   });
   final ServerProtocolSection section;
   final MotionPreference motion;
   final VoidCallback onTap;
-  final VoidCallback? onRemove;
+  final VoidCallback? onLongPress;
   final bool busy;
   @override
   Widget build(BuildContext context) {
@@ -751,7 +751,7 @@ class _ProtocolTile extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(AppLayout.radius),
           onTap: busy ? null : onTap,
-          onLongPress: busy ? null : onRemove,
+          onLongPress: busy ? null : onLongPress,
           enableFeedback: false,
           child: Padding(
             padding: const EdgeInsets.all(17),
@@ -773,22 +773,13 @@ class _ProtocolTile extends StatelessWidget {
                         dimension: 19,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    else ...[
-                      if (onRemove != null)
-                        IconButton(
-                          key: ValueKey('remove-protocol-${section.name}'),
-                          tooltip: l.uiRemoveProtocol,
-                          visualDensity: VisualDensity.compact,
-                          icon: const Icon(Icons.delete_outline, size: 19),
-                          onPressed: onRemove,
-                        ),
+                    else
                       Icon(
                         section.count == 0 && !section.detected
                             ? Icons.add
                             : Icons.arrow_forward,
                         size: 19,
                       ),
-                    ],
                   ],
                 ),
                 const SizedBox(height: 22),

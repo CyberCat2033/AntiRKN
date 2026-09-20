@@ -44,7 +44,7 @@ class _PublicationBindingDialogState extends State<PublicationBindingDialog> {
     super.dispose();
   }
 
-  Future<void> inspect({bool pick = false}) async {
+  Future<PublicationBindingPreview?> inspect({bool pick = false}) async {
     setState(() {
       busy = true;
       picking = pick;
@@ -55,16 +55,20 @@ class _PublicationBindingDialogState extends State<PublicationBindingDialog> {
       final target = pick
           ? await widget.controller.pickFile()
           : PublicationTarget.parse(link.text);
-      if (target == null || !mounted) return;
+      if (target == null || !mounted) return null;
       link.text = targetText(target);
       final value = await widget.controller.inspectFile(widget.user.id, target);
       if (mounted) setState(() => preview = value);
+      return value;
     } on PublicationFailure catch (e) {
       if (mounted) setState(() => issue = e.issue.name);
+      return null;
     } on GoogleAccountFailure {
       if (mounted) setState(() => issue = 'picker');
+      return null;
     } catch (_) {
       if (mounted) setState(() => issue = 'invalid');
+      return null;
     } finally {
       if (mounted) {
         setState(() {
@@ -72,6 +76,39 @@ class _PublicationBindingDialogState extends State<PublicationBindingDialog> {
           picking = false;
         });
       }
+    }
+  }
+
+  Future<void> submit() async {
+    if (busy) return;
+    var target = preview;
+    if (target == null) {
+      target = await inspect();
+      if (!mounted || target == null) return;
+    }
+    setState(() {
+      busy = true;
+      issue = null;
+    });
+    try {
+      await widget.controller.bindFile(target);
+      if (mounted) Navigator.pop(context);
+    } on PublicationFailure catch (e) {
+      if (mounted) {
+        setState(() {
+          issue = e.issue.name;
+          preview = null;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          issue = 'conflict';
+          preview = null;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => busy = false);
     }
   }
 
@@ -111,7 +148,11 @@ class _PublicationBindingDialogState extends State<PublicationBindingDialog> {
                   autocorrect: false,
                   enableSuggestions: false,
                   decoration: InputDecoration(labelText: l.publicationFileLink),
-                  onChanged: (_) => setState(() => preview = null),
+                  onSubmitted: busy ? null : (_) => submit(),
+                  onChanged: (_) => setState(() {
+                    preview = null;
+                    issue = null;
+                  }),
                 ),
                 Wrap(
                   spacing: 8,
@@ -134,14 +175,20 @@ class _PublicationBindingDialogState extends State<PublicationBindingDialog> {
                 if (busy) const LinearProgressIndicator(),
                 if (picking) Text(l.publicationPickerWaiting),
                 if (issue != null)
-                  Text(
-                    ['missing', 'forbidden', 'unauthorized'].contains(issue)
-                        ? l.publicationFileAccessHelp
-                        : issue == 'picker'
-                        ? l.publicationPickerSetupHelp
-                        : issue == 'invalid'
-                        ? l.publicationBindInvalid
-                        : publicationMessage(l, issue),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      ['missing', 'forbidden', 'unauthorized'].contains(issue)
+                          ? l.publicationFileAccessHelp
+                          : issue == 'picker'
+                          ? l.publicationPickerSetupHelp
+                          : issue == 'invalid'
+                          ? l.publicationBindInvalid
+                          : publicationMessage(l, issue),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
                   ),
                 if (value != null) ...[
                   const Divider(),
@@ -182,34 +229,9 @@ class _PublicationBindingDialogState extends State<PublicationBindingDialog> {
           ),
           FilledButton(
             key: const ValueKey('publication-bind-confirm'),
-            onPressed: busy || value == null
+            onPressed: busy || (value == null && link.text.trim().isEmpty)
                 ? null
-                : () async {
-                    setState(() {
-                      busy = true;
-                      issue = null;
-                    });
-                    try {
-                      await c.bindFile(value);
-                      if (context.mounted) Navigator.pop(context);
-                    } on PublicationFailure catch (e) {
-                      if (mounted) {
-                        setState(() {
-                          issue = e.issue.name;
-                          preview = null;
-                        });
-                      }
-                    } catch (_) {
-                      if (mounted) {
-                        setState(() {
-                          issue = 'conflict';
-                          preview = null;
-                        });
-                      }
-                    } finally {
-                      if (mounted) setState(() => busy = false);
-                    }
-                  },
+                : submit,
             child: Text(l.publicationBindConfirm),
           ),
         ],
