@@ -360,6 +360,10 @@ class VpnController extends ChangeNotifier {
     return record['pending'] != null && record['error'] == null;
   }
 
+  bool get hasObservedRunning => workspace.servers.keys.any(
+        (id) => observesOperation(id) && currentJob(id)?.terminal != true,
+      );
+
   bool get hasRunning =>
       pendingRevocations.any(
         (u) =>
@@ -367,9 +371,6 @@ class VpnController extends ChangeNotifier {
             (u.deletion!['targets'] as Map).values.any(
               (t) => t['status'] == 'running',
             ),
-      ) ||
-      workspace.servers.keys.any(
-        (id) => observesOperation(id) && currentJob(id)?.terminal != true,
       ) ||
       workspace.servers.entries.any(
         (e) =>
@@ -1088,7 +1089,7 @@ class VpnController extends ChangeNotifier {
     await _approveRestored(plans.map((p) => p.serverId));
     plans = [];
     await _reconcile(token);
-    if (hasRunning && !_disposed) {
+    if ((hasRunning || hasObservedRunning) && !_disposed) {
       Timer(const Duration(seconds: 1), () => unawaited(reconcile()));
     }
   });
@@ -1133,7 +1134,7 @@ class VpnController extends ChangeNotifier {
       }
       if (template() != _lastTemplate) await _profiles();
     });
-    if (hasRunning && !_disposed) {
+    if ((hasRunning || hasObservedRunning) && !_disposed) {
       Timer(const Duration(seconds: 1), () => unawaited(reconcile()));
     }
   }

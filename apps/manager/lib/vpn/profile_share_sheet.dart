@@ -182,16 +182,16 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                   alignment: AlignmentDirectional.centerStart,
                   child: FilledButton.icon(
                     key: const ValueKey('profile-apply-servers'),
-                    onPressed: (c.busy || c.hasRunning)
+                    onPressed: (c.busy || c.hasRunning || c.hasObservedRunning)
                         ? null
                         : () => c.prepareAndApply(),
-                    icon: (c.busy || c.hasRunning)
+                    icon: (c.busy || c.hasRunning || c.hasObservedRunning)
                         ? const SizedBox.square(
                             dimension: 18,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.cloud_upload_outlined),
-                    label: Text(c.hasRunning ? l.vpnApplying : l.vpnApply),
+                    label: Text((c.hasRunning || c.hasObservedRunning) ? l.vpnApplying : l.vpnApply),
                   ),
                 ),
               ],
