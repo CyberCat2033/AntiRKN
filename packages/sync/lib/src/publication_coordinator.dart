@@ -27,6 +27,36 @@ final class PublicationCoordinator {
   final int Function(int) jitter;
   String? _cachedRegistryId;
   Future<String>? _registryFuture;
+  (PublicationFile, Map<String, dynamic>)? _cachedRegistry;
+  Future<(PublicationFile, Map<String, dynamic>)>? _registrySnapshotFuture;
+  Future<void> _registryLock = Future.value();
+
+  Future<T> _lockRegistry<T>(Future<T> Function() action) {
+    final next = _registryLock.then((_) => action());
+    _registryLock = next.then<void>((_) {}, onError: (Object _, StackTrace _) {});
+    return next;
+  }
+
+  Future<(PublicationFile, Map<String, dynamic>)> _fetchRegistry(
+    String registryId,
+    String workspaceId,
+  ) {
+    final cached = _cachedRegistry;
+    if (cached != null) return Future.value(cached);
+    return _registrySnapshotFuture ??= () async {
+      final snapshot = await _snapshot(registryId);
+      final decoded = _decodeRegistry(snapshot.$2, workspaceId);
+      final result = (snapshot.$1, decoded);
+      _cachedRegistry = result;
+      return result;
+    }().whenComplete(() {
+      _registrySnapshotFuture = null;
+    });
+  }
+
+  void _invalidateRegistryCache() {
+    _cachedRegistry = null;
+  }
 
   Future<Map<String, dynamic>?> publish(
     String userId, {
@@ -154,7 +184,7 @@ final class PublicationCoordinator {
               if (e.issue != PublicationIssue.conflict) rethrow;
             }
           }
-          final snapshot = await _snapshot(fileId);
+          final snapshot = await _snapshot(fileId, file: file);
           file = snapshot.$1;
           if (file.properties['antirknWorkspace'] != draft.workspaceId ||
               file.properties['antirknUser'] !=
@@ -187,12 +217,19 @@ final class PublicationCoordinator {
             } else {
               await remote.updateFile(file, draft.bytes, properties: props);
             }
-            final verified = await _snapshot(fileId);
-            file = verified.$1;
-            if (await _hash(verified.$2) != draft.hash ||
-                file.properties['antirknHead'] != draft.headId) {
-              throw const PublicationFailure(PublicationIssue.conflict);
-            }
+            file = PublicationFile(
+              id: file.id,
+              name: file.name,
+              mimeType: file.mimeType,
+              version: file.version,
+              etag: file.etag,
+              editable: file.editable,
+              properties: {...file.properties, ...props},
+              downloadUrl: file.downloadUrl,
+              resourceKey: file.resourceKey,
+              trashed: file.trashed,
+              shared: file.shared,
+            );
           }
           break;
         } on PublicationFailure catch (e) {
@@ -202,7 +239,13 @@ final class PublicationCoordinator {
       }
       await guard();
       if (entry['created'] != true) {
-        await _markCreated(registryId, draft.userId, fileId, guard);
+        await _markCreated(
+          registryId,
+          draft.workspaceId,
+          draft.userId,
+          fileId,
+          guard,
+        );
       }
       final beforeSource = await repository.readPublicationDocument(
         'result/$userId',
@@ -345,8 +388,9 @@ final class PublicationCoordinator {
       final id = parts[1];
       if (parts[0] == 'ready') {
         final snapshot = await _snapshot(id);
-        _decodeRegistry(snapshot.$2, draft.workspaceId);
+        final decoded = _decodeRegistry(snapshot.$2, draft.workspaceId);
         _cachedRegistryId = id;
+        _cachedRegistry = (snapshot.$1, decoded);
         return id;
       }
       try {
@@ -386,11 +430,10 @@ final class PublicationCoordinator {
     String registryId,
     PublicationDraft draft,
     Future<void> Function() guard,
-  ) async {
+  ) => _lockRegistry(() async {
     String? candidate;
     for (var attempt = 0; attempt < 8; attempt++) {
-      final snapshot = await _snapshot(registryId);
-      final value = _decodeRegistry(snapshot.$2, draft.workspaceId);
+      final (file, value) = await _fetchRegistry(registryId, draft.workspaceId);
       final users = value['users'] as Map<String, dynamic>;
       if (users[draft.userId] case final Map existing) {
         if (existing['pending'] == true) {
@@ -400,6 +443,7 @@ final class PublicationCoordinator {
             Map<String, dynamic>.from(existing),
             guard,
           );
+          _invalidateRegistryCache();
           continue;
         }
         return Map<String, dynamic>.from(existing);
@@ -415,53 +459,62 @@ final class PublicationCoordinator {
       await guard();
       try {
         await remote.updateFile(
-          snapshot.$1,
+          file,
           _bytes(next),
           properties: const {},
         );
+        final freshSnapshot = await _snapshot(registryId);
+        _cachedRegistry = (freshSnapshot.$1, next);
+        return {'fileId': candidate, 'created': false};
       } on PublicationFailure catch (e) {
+        _invalidateRegistryCache();
         if (e.issue != PublicationIssue.conflict) rethrow;
       }
     }
     throw const PublicationFailure(PublicationIssue.conflict);
-  }
+  });
 
   Future<void> _markCreated(
     String registryId,
+    String workspaceId,
     String userId,
     String fileId,
     Future<void> Function() guard,
-  ) async {
+  ) => _lockRegistry(() async {
     for (var attempt = 0; attempt < 6; attempt++) {
-      final snapshot = await _snapshot(registryId);
-      final value =
-          jsonDecode(utf8.decode(snapshot.$2)) as Map<String, dynamic>;
+      final (file, value) = await _fetchRegistry(registryId, workspaceId);
       final users = value['users'] as Map<String, dynamic>;
-      final entry = users[userId] as Map<String, dynamic>;
-      if (entry['fileId'] != fileId) {
+      final entry = users[userId] as Map<String, dynamic>?;
+      if (entry == null || entry['fileId'] != fileId) {
+        _invalidateRegistryCache();
         throw const PublicationFailure(PublicationIssue.conflict);
       }
       if (entry['created'] == true) return;
       await guard();
+      final nextUsers = {
+        ...users,
+        userId: {...entry, 'created': true},
+      };
+      final next = {
+        ...value,
+        'users': nextUsers,
+      };
       try {
         await remote.updateFile(
-          snapshot.$1,
-          _bytes({
-            ...value,
-            'users': {
-              ...users,
-              userId: {...entry, 'created': true},
-            },
-          }),
+          file,
+          _bytes(next),
           properties: const {},
         );
+        final freshSnapshot = await _snapshot(registryId);
+        _cachedRegistry = (freshSnapshot.$1, next);
         return;
       } on PublicationFailure catch (e) {
+        _invalidateRegistryCache();
         if (e.issue != PublicationIssue.conflict) rethrow;
       }
     }
     throw const PublicationFailure(PublicationIssue.conflict);
-  }
+  });
 
   Map<String, dynamic> _decodeRegistry(Uint8List bytes, String workspaceId) {
     try {
@@ -498,8 +551,11 @@ final class PublicationCoordinator {
     }
   }
 
-  Future<(PublicationFile, Uint8List)> _snapshot(String id) async {
-    final before = await remote.getFile(id);
+  Future<(PublicationFile, Uint8List)> _snapshot(
+    String id, {
+    PublicationFile? file,
+  }) async {
+    final before = file ?? await remote.getFile(id);
     if (before.trashed || !before.binary) {
       throw const PublicationFailure(PublicationIssue.invalid);
     }

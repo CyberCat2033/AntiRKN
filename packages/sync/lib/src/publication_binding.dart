@@ -274,8 +274,10 @@ extension PublicationBinding on PublicationCoordinator {
           }),
           properties: const {},
         );
+        _invalidateRegistryCache();
         return;
       } on PublicationFailure catch (e) {
+        _invalidateRegistryCache();
         if (e.issue != PublicationIssue.conflict) rethrow;
       }
     }
@@ -435,8 +437,10 @@ extension PublicationBinding on PublicationCoordinator {
           }),
           properties: const {},
         );
+        _invalidateRegistryCache();
         return;
       } on PublicationFailure catch (e) {
+        _invalidateRegistryCache();
         if (e.issue != PublicationIssue.conflict) rethrow;
       }
     }

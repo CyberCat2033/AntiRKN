@@ -17,12 +17,13 @@ Future<PublicationDraft> draft(
   Set<String> ancestors = const {},
   String? content,
   String device = 'cccccccccccccccccccccccccccccccc',
+  String? user,
 }) async {
   final b = bytes(content ?? 'proxies: []\n# $head');
   return PublicationDraft(
     workspaceId: workspace,
     deviceId: device,
-    userId: user,
+    userId: user ?? 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
     name: 'alice',
     headId: head,
     hash: await hash(b),
@@ -78,11 +79,14 @@ class Repository implements PublicationRepository {
     queues[id] = source;
   }
 
+  final drafts = <String, PublicationDraft>{};
   @override
-  Future<PublicationDraft?> readPublicationDraft(String id) async => current;
+  Future<PublicationDraft?> readPublicationDraft(String id) async =>
+      drafts[id] ?? current;
   @override
   Future<void> checkPublicationDraft(PublicationDraft d) async {
-    if (reject || current?.headId != d.headId) {
+    final expected = drafts[d.userId] ?? current;
+    if (reject || expected?.headId != d.headId) {
       throw const SyncMergeFailure(SyncMergeIssue.changed);
     }
   }
@@ -105,7 +109,10 @@ class Remote implements PublicationRemoteStore {
       createdProfiles = 0,
       updatedProfiles = 0,
       enableLinkCalls = 0,
-      verifyPublicLinkCalls = 0;
+      verifyPublicLinkCalls = 0,
+      downloadCalls = 0,
+      registryDownloadCalls = 0,
+      profileDownloadCalls = 0;
   bool loseCreate = false, loseUpdate = false, linkBroken = false;
   String? pauseContent;
   final paused = Completer<void>(), release = Completer<void>();
@@ -238,8 +245,15 @@ class Remote implements PublicationRemoteStore {
   }
 
   @override
-  Future<Uint8List> download(String id) async =>
-      Uint8List.fromList(blobs[id]!.content);
+  Future<Uint8List> download(String id) async {
+    downloadCalls++;
+    if (blobs[id]?.properties['antirknUser'] == 'registry') {
+      registryDownloadCalls++;
+    } else {
+      profileDownloadCalls++;
+    }
+    return Uint8List.fromList(blobs[id]!.content);
+  }
   @override
   Future<void> checkPrivate(String id) async {
     if (shared.contains(id)) {
@@ -496,6 +510,67 @@ void main() {
       final doc = jsonDecode(repo.documents['result/$user']!);
       expect(doc['permissionId'], 'anyoneWithLink');
       expect(doc['access'], 'link');
+    },
+  );
+  test(
+    'session registry cache reuses snapshot across multiple publications in same coordinator',
+    () async {
+      final user1 = '11111111111111111111111111111111';
+      final user2 = '22222222222222222222222222222222';
+      final draft1 = await draft('head-1', user: user1);
+      final draft2 = await draft('head-1', user: user2);
+      final repo = Repository(draft1);
+      repo.drafts[user1] = draft1;
+      repo.drafts[user2] = draft2;
+      final remote = Remote();
+      final coord = coordinator(repo, remote);
+
+      // Initial publish sets up registry entries for both users:
+      await coord.publish(user1);
+      await coord.publish(user2);
+
+      // Now create a coordinator to simulate batch update session:
+      final batchCoord = coordinator(repo, remote);
+      final registryDownloadsBefore = remote.registryDownloadCalls;
+
+      repo.drafts[user1] =
+          await draft('head-2', user: user1, ancestors: {'head-1'});
+      repo.drafts[user2] =
+          await draft('head-2', user: user2, ancestors: {'head-1'});
+
+      final res1 = await batchCoord.publish(user1);
+      expect(res1?['status'], 'published');
+      final registryDownloadsAfterFirst = remote.registryDownloadCalls;
+      // First user in batch downloads registry once:
+      expect(registryDownloadsAfterFirst, registryDownloadsBefore + 1);
+
+      // Second user in batch MUST reuse cached registry without downloading:
+      final res2 = await batchCoord.publish(user2);
+      expect(res2?['status'], 'published');
+      expect(remote.registryDownloadCalls, registryDownloadsAfterFirst);
+    },
+  );
+  test(
+    '1-RTT fast update path skips redundant download after updateFile',
+    () async {
+      final repo = Repository(await draft('head-1')), remote = Remote();
+      final coord = coordinator(repo, remote);
+      final initialResult = await coord.publish(user);
+      expect(initialResult?['status'], 'published');
+
+      final profileDownloadsBeforeUpdate = remote.profileDownloadCalls;
+
+      // Update to head-2 using the same coordinator
+      repo.current = await draft('head-2', ancestors: {'head-1'});
+      final updateResult = await coord.publish(user);
+      expect(updateResult?['status'], 'published');
+      expect(remote.updatedProfiles, 1);
+
+      // Profile is downloaded exactly 1 time for pre-check causality,
+      // and NOT a second time after updateFile (which was eliminated):
+      final profileDownloadsDuringUpdate =
+          remote.profileDownloadCalls - profileDownloadsBeforeUpdate;
+      expect(profileDownloadsDuringUpdate, 1);
     },
   );
 }
