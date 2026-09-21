@@ -170,19 +170,34 @@ class _UsersPageState extends State<UsersPage> {
       if (mounted) {
         final activeUsers = controller.workspace.users
             .where((u) => u.enabled && !u.deleted)
-            .length;
+            .toList(growable: false);
         final published = publications != null
-            ? controller.workspace.users
-                .where((u) => publications!.results[u.id] != null)
+            ? activeUsers
+                .where((u) {
+                  final q = publications!.queues[u.id];
+                  final r = publications!.results[u.id];
+                  final expectedHash =
+                      controller.workspace.profiles[u.id]?['hash'];
+                  return q?['status'] == 'published' &&
+                      q?['issue'] == null &&
+                      r != null &&
+                      r['hash'] == expectedHash;
+                })
                 .length
-            : activeUsers;
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(
-              l.vpnSyncAndPublishDone(published, activeUsers),
+            : activeUsers.length;
+        if (published == 0 && activeUsers.isNotEmpty) {
+          messenger.showSnackBar(
+            SnackBar(content: Text(l.vpnSyncAndPublishFailed)),
+          );
+        } else {
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(
+                l.vpnSyncAndPublishDone(published, activeUsers.length),
+              ),
             ),
-          ),
-        );
+          );
+        }
       }
     } catch (_) {
       if (mounted) {

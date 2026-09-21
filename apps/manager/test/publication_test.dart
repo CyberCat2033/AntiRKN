@@ -56,12 +56,17 @@ class Repository implements PublicationRepository {
     docs[id] = source;
   }
 
+  int failQueueWrites = 0;
   @override
   Future<void> writePublicationQueue(
     String id,
     String source, {
     required String? expectedSource,
   }) async {
+    if (failQueueWrites > 0) {
+      failQueueWrites--;
+      throw const SyncMergeFailure(SyncMergeIssue.changed);
+    }
     if (queues[id] != expectedSource) {
       throw const SyncMergeFailure(SyncMergeIssue.changed);
     }
@@ -104,6 +109,37 @@ class Remote implements PublicationRemoteStore {
 
   @override
   Future<Uint8List> download(String id) async => contents[id] ?? Uint8List(0);
+
+  @override
+  Future<void> createYaml({
+    required String fileId,
+    required String folderId,
+    required String name,
+    required String workspaceId,
+    required String userId,
+    required String headId,
+    required String executorId,
+    required Uint8List bytes,
+  }) async {
+    final digest = sha256.convert(bytes).toString();
+    folders[fileId] = PublicationFile(
+      id: fileId,
+      name: name,
+      mimeType: 'application/x-yaml',
+      version: '1',
+      etag: 'etag-1',
+      editable: true,
+      properties: {
+        'antirknWorkspace': workspaceId,
+        'antirknUser': userId,
+        'antirknHead': headId,
+        'antirknExecutor': executorId,
+        'antirknHash': digest,
+      },
+      downloadUrl: 'https://drive.google.com/uc?id=$fileId',
+    );
+    contents[fileId] = bytes;
+  }
 
   @override
   Future<void> checkPrivate(String id) async {}
@@ -530,4 +566,233 @@ void main() {
     expect(c.verifiedLinkFor(user.id), 'https://drive.google.com/uc?id=custom-file-1');
     expect(c.results[user.id]?['fileId'], 'custom-file-1');
   });
+
+  test('forcePublishAll waits if suspended and completes once resumed', () async {
+    final account = Account()..publicationAuthorized = true;
+    final repo = Repository();
+    final remote = Remote();
+    final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
+    addTearDown(vpn.dispose);
+    final c = PublicationController(
+      repository: repo,
+      account: account,
+      remote: () => remote,
+      vpn: vpn,
+    );
+    addTearDown(c.dispose);
+    await c.ready;
+    final user = VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice');
+    await vpn.load();
+    await vpn.saveUser(user);
+    final saved = vpn.workspace.profiles[fixtures.alice]!;
+    final savedYaml = saved['yaml'] as String;
+    final savedHash = saved['hash'] as String;
+    final draft = PublicationDraft(
+      workspaceId: vpn.workspace.id,
+      deviceId: 'b' * 32,
+      userId: fixtures.alice,
+      name: 'Alice',
+      headId: 'head-1',
+      hash: savedHash,
+      stamp: 'stamp-1',
+      bytes: Uint8List.fromList(utf8.encode(savedYaml)),
+      ancestors: {},
+    );
+    repo.draft = draft;
+    final settings = const PublicationSettings(
+      accountKey: 'account',
+      folderId: 'test-folder',
+      folderName: 'Folder',
+      access: PublicationAccess.link,
+      enabled: true,
+      folderReady: true,
+    );
+    repo.docs['settings'] = canonicalJson(settings.toJson());
+    await c.reload();
+    remote.folders['test-folder'] = PublicationFile(
+      id: 'test-folder',
+      name: 'Folder',
+      mimeType: 'application/vnd.google-apps.folder',
+      version: '1',
+      etag: 'etag-f',
+      editable: true,
+      properties: {'antirknRegistry.${vpn.workspace.id}': 'ready:registry-1'},
+    );
+    final regBytes = Uint8List.fromList(utf8.encode(canonicalJson({
+      'version': 2,
+      'workspaceId': vpn.workspace.id,
+      'users': <String, dynamic>{},
+    })));
+    final regHash = sha256.convert(regBytes).toString();
+    remote.folders['registry-1'] = PublicationFile(
+      id: 'registry-1',
+      name: 'registry.json',
+      mimeType: 'application/json',
+      version: '1',
+      etag: 'etag-r',
+      editable: true,
+      properties: {
+        'antirknWorkspace': vpn.workspace.id,
+        'antirknUser': 'registry',
+        'antirknHash': regHash,
+      },
+      downloadUrl: 'https://drive.google.com/uc?id=registry-1',
+    );
+    remote.contents['registry-1'] = regBytes;
+
+    await c.suspend();
+    final publishFuture = c.forcePublishAll();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    c.resume();
+    await publishFuture;
+
+    expect(c.queues[fixtures.alice]?['issue'], isNull);
+    expect(c.queues[fixtures.alice]?['status'], 'published');
+    expect(c.results[fixtures.alice]?['hash'], savedHash);
+  });
+
+  test('PublicationController retries transient SyncMergeFailure up to 3 times', () async {
+    final account = Account()..publicationAuthorized = true;
+    final repo = Repository();
+    final remote = Remote();
+    final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
+    addTearDown(vpn.dispose);
+    final c = PublicationController(
+      repository: repo,
+      account: account,
+      remote: () => remote,
+      vpn: vpn,
+    );
+    addTearDown(c.dispose);
+    await c.ready;
+    final user = VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice');
+    await vpn.load();
+    await vpn.saveUser(user);
+    final saved = vpn.workspace.profiles[fixtures.alice]!;
+    final savedYaml = saved['yaml'] as String;
+    final savedHash = saved['hash'] as String;
+    final draft = PublicationDraft(
+      workspaceId: vpn.workspace.id,
+      deviceId: 'b' * 32,
+      userId: fixtures.alice,
+      name: 'Alice',
+      headId: 'head-1',
+      hash: savedHash,
+      stamp: 'stamp-1',
+      bytes: Uint8List.fromList(utf8.encode(savedYaml)),
+      ancestors: {},
+    );
+    repo.draft = draft;
+    final settings = const PublicationSettings(
+      accountKey: 'account',
+      folderId: 'test-folder',
+      folderName: 'Folder',
+      access: PublicationAccess.link,
+      enabled: true,
+      folderReady: true,
+    );
+    repo.docs['settings'] = canonicalJson(settings.toJson());
+    await c.reload();
+    remote.folders['test-folder'] = PublicationFile(
+      id: 'test-folder',
+      name: 'Folder',
+      mimeType: 'application/vnd.google-apps.folder',
+      version: '1',
+      etag: 'etag-f',
+      editable: true,
+      properties: {'antirknRegistry.${vpn.workspace.id}': 'ready:registry-1'},
+    );
+    final regBytes = Uint8List.fromList(utf8.encode(canonicalJson({
+      'version': 2,
+      'workspaceId': vpn.workspace.id,
+      'users': <String, dynamic>{},
+    })));
+    final regHash = sha256.convert(regBytes).toString();
+    remote.folders['registry-1'] = PublicationFile(
+      id: 'registry-1',
+      name: 'registry.json',
+      mimeType: 'application/json',
+      version: '1',
+      etag: 'etag-r',
+      editable: true,
+      properties: {
+        'antirknWorkspace': vpn.workspace.id,
+        'antirknUser': 'registry',
+        'antirknHash': regHash,
+      },
+      downloadUrl: 'https://drive.google.com/uc?id=registry-1',
+    );
+    remote.contents['registry-1'] = regBytes;
+
+    // First attempt will fail due to transient merge issue, second attempt will succeed
+    repo.failQueueWrites = 1;
+    await c.forcePublishAll();
+
+    expect(c.queues[fixtures.alice]?['issue'], isNull);
+    expect(c.queues[fixtures.alice]?['status'], 'published');
+    expect(c.results[fixtures.alice]?['hash'], savedHash);
+  });
+
+  test('active publication count strictly filters deleted users and requires matching hashes', () {
+    final active1 = VpnUser(id: '1' * 32, login: 'active1', name: 'Active 1');
+    final active2 = VpnUser(id: '2' * 32, login: 'active2', name: 'Active 2');
+    final active3 = VpnUser(id: '3' * 32, login: 'active3', name: 'Active 3');
+    final deleted = VpnUser(
+      id: '4' * 32,
+      login: 'deleted',
+      name: 'Deleted',
+      enabled: false,
+      deletion: {
+        'version': 1,
+        'id': 'd' * 32,
+        'targets': <String, dynamic>{},
+        'deletedAt': '2026-09-01T00:00:00.000Z',
+      },
+    );
+
+    final users = [active1, active2, active3, deleted];
+    final profiles = {
+      active1.id: {'hash': 'hash-active1'},
+      active2.id: {'hash': 'hash-active2-current'},
+      active3.id: {'hash': 'hash-active3'},
+      deleted.id: {'hash': 'hash-deleted'},
+    };
+
+    // active1: properly published
+    final queues = <String, Map<String, dynamic>>{
+      active1.id: {'status': 'published', 'issue': null},
+      active2.id: {'status': 'error', 'issue': 'changed'}, // failed with issue
+      active3.id: {'status': 'published', 'issue': null}, // published with outdated hash
+      deleted.id: {'status': 'published', 'issue': null}, // deleted user with old published record
+    };
+    final results = <String, Map<String, dynamic>>{
+      active1.id: {'hash': 'hash-active1'},
+      active2.id: {'hash': 'hash-active2-old'},
+      active3.id: {'hash': 'hash-active3-outdated'},
+      deleted.id: {'hash': 'hash-deleted'},
+    };
+
+    final activeUsers = users
+        .where((u) => u.enabled && !u.deleted)
+        .toList(growable: false);
+    expect(activeUsers.length, 3);
+
+    final published = activeUsers
+        .where((u) {
+          final q = queues[u.id];
+          final r = results[u.id];
+          final expectedHash = profiles[u.id]?['hash'];
+          return q?['status'] == 'published' &&
+              q?['issue'] == null &&
+              r != null &&
+              r['hash'] == expectedHash;
+        })
+        .length;
+
+    // Only active1 satisfies all conditions
+    expect(published, 1);
+    // Deleted users must never be included even if present in results
+    expect(activeUsers.any((u) => u.id == deleted.id), isFalse);
+  });
 }
+

@@ -718,7 +718,7 @@ class _ManagerShellState extends State<ManagerShell>
         (_catalog?.hasActiveWork ?? false) ||
         (_catalog?.hasUnsavedEdits ?? false) ||
         (_vpn?.busy ?? false) ||
-        (_publications?.editing ?? false) ||
+        (_publications?.busy ?? false) ||
         (_vpn?.hasRunning ?? false) ||
         _controller.savingDraft ||
         _controller.draftSaveFailed ||

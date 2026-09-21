@@ -323,39 +323,51 @@ class PublicationController extends ChangeNotifier {
           continue;
         }
 
-        try {
-          final queue = await coordinator.publish(
-            user.id,
-            force: force,
-            cancellation: _cancel,
-          );
-          if (queue != null) queues[user.id] = queue;
-          final result = await repository.readPublicationDocument(
-            'result/${user.id}',
-          );
-          if (result != null) {
-            results[user.id] = jsonDecode(result) as Map<String, dynamic>;
+        Map<String, dynamic>? publishQueue;
+        for (var attempt = 0; attempt < 3; attempt++) {
+          if (_disposed || _suspended || !_foreground) break;
+          try {
+            publishQueue = await coordinator.publish(
+              user.id,
+              force: force,
+              cancellation: _cancel,
+            );
+            if (publishQueue?['issue'] != 'changed' || attempt == 2) break;
+            await Future<void>.delayed(const Duration(milliseconds: 300));
+          } on PublicationFailure catch (e) {
+            // Per-user error: record it in the queue but continue with others.
+            queues[user.id] = {'issue': e.issue.name, 'userId': user.id};
+            break;
+          } on SyncTransportFailure catch (e) {
+            if (e.issue == SyncTransportIssue.cancelled) rethrow;
+            queues[user.id] = {
+              'issue': PublicationIssue.network.name,
+              'userId': user.id,
+            };
+            break;
+          } on SyncMergeFailure {
+            if (attempt == 2) {
+              queues[user.id] = {
+                'issue': PublicationIssue.conflict.name,
+                'userId': user.id,
+              };
+            } else {
+              await Future<void>.delayed(const Duration(milliseconds: 300));
+            }
           }
-          final binding = await repository.readPublicationDocument(
-            'binding/${user.id}',
-          );
-          if (binding != null) {
-            bindings[user.id] = jsonDecode(binding) as Map<String, dynamic>;
-          }
-        } on PublicationFailure catch (e) {
-          // Per-user error: record it in the queue but continue with others.
-          queues[user.id] = {'issue': e.issue.name, 'userId': user.id};
-        } on SyncTransportFailure catch (e) {
-          if (e.issue == SyncTransportIssue.cancelled) rethrow;
-          queues[user.id] = {
-            'issue': PublicationIssue.network.name,
-            'userId': user.id,
-          };
-        } on SyncMergeFailure {
-          queues[user.id] = {
-            'issue': PublicationIssue.conflict.name,
-            'userId': user.id,
-          };
+        }
+        if (publishQueue != null) queues[user.id] = publishQueue;
+        final resultDoc = await repository.readPublicationDocument(
+          'result/${user.id}',
+        );
+        if (resultDoc != null) {
+          results[user.id] = jsonDecode(resultDoc) as Map<String, dynamic>;
+        }
+        final bindingDoc = await repository.readPublicationDocument(
+          'binding/${user.id}',
+        );
+        if (bindingDoc != null) {
+          bindings[user.id] = jsonDecode(bindingDoc) as Map<String, dynamic>;
         }
         _notify();
       }
@@ -385,7 +397,12 @@ class PublicationController extends ChangeNotifier {
   }
 
   Future<void> forcePublishAll({bool force = true}) async {
-    if (_disposed || _suspended || editing) return;
+    if (_disposed || editing) return;
+    for (var i = 0; i < 20 && _suspended; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      if (_disposed || editing) return;
+    }
+    if (_suspended) return;
     _timer?.cancel();
     if (_running != null) {
       _cancel?.cancel();
