@@ -180,6 +180,44 @@ class VlessTests(unittest.TestCase):
             with self.assertRaises(VlessError):self.submit(p)
         self.assertEqual(self.api.effects,0)
 
+    def test_state_reconciles_manually_deleted_panel_inbound(self):
+        req = self.submit()
+        self.assertEqual(self.finish(req)['status'], 'succeeded')
+        self.assertEqual(len(self.api.rows), 2)
+        deleted_id = self.api.rows[0]['id']
+        self.api.rows = [r for r in self.api.rows if r['id'] != deleted_id]
+        st = state(self.store, 'b' * 32)
+        self.assertEqual(len(st), 2)
+        deleted_obs = [s for s in st if not s['exists']][0]
+        self.assertTrue(deleted_obs['deleted'])
+        self.assertTrue(deleted_obs['confirmed'])
+        self.assertFalse(deleted_obs['exists'])
+
+    def test_preflight_allows_deleting_manually_removed_panel_inbound(self):
+        p = payload()
+        req = self.submit(p)
+        self.assertEqual(self.finish(req)['status'], 'succeeded')
+        self.api.rows = self.api.rows[1:]
+        p_del = copy.deepcopy(p)
+        p_del['resources'][0]['deleted'] = True
+        p_del['resources'][0]['enabled'] = False
+        preview = plan(self.store, dict(id=p_del['panelId'], payload=json.dumps(p_del)))
+        self.assertIn('fingerprint', preview)
+        second = self.submit(p_del, 2)
+        self.assertEqual(self.finish(second)['status'], 'succeeded')
+
+    def test_preflight_allows_adding_inbound_when_old_was_manually_deleted_from_panel(self):
+        p = payload()
+        req = self.submit(p)
+        self.assertEqual(self.finish(req)['status'], 'succeeded')
+        self.api.rows = self.api.rows[1:]
+        p_new = copy.deepcopy(p)
+        p_new['resources'] = [p['resources'][1], spec(3, 'raw')]
+        preview = plan(self.store, dict(id=p_new['panelId'], payload=json.dumps(p_new)))
+        self.assertIn('fingerprint', preview)
+        second = self.submit(p_new, 2)
+        self.assertEqual(self.finish(second)['status'], 'succeeded')
+
 class RealityMaterialTests(unittest.TestCase):
     def test_regenerate_changes_only_reality_material_and_is_stable_on_retry(self):
         from vless import material

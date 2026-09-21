@@ -233,10 +233,10 @@ def preflight(store, payload, api):
         if previous and previous['workspaceId'] != payload['workspaceId']: raise VlessError('vless_conflict')
         if current and (not previous or digest(normal(current)) != previous['observedHash']):
             raise VlessError('vless_conflict')
-        if previous and not current and not previous.get('deleted'): raise VlessError('vless_conflict')
+        if previous and not current and not (previous.get('deleted') or r.get('deleted')): raise VlessError('vless_conflict')
     # Every currently managed resource in this workspace must participate, so a
     # stale device cannot silently drop clients/resources through a partial list.
-    if any(p['workspaceId'] == payload['workspaceId'] and rid not in {r['id'] for r in payload['resources']} for rid, p in saved.items()):
+    if any(p['workspaceId'] == payload['workspaceId'] and not p.get('deleted') and locate(rows, p['workspaceId'], rid) is not None and rid not in {r['id'] for r in payload['resources']} for rid, p in saved.items()):
         raise VlessError('vless_conflict')
     active = [r for r in payload['resources'] if r['enabled'] and not r['deleted'] and 'adoption' not in r]
     reserved = [(r['listen'], r['port'], r['id']) for r in active]
@@ -292,9 +292,16 @@ def state(store, panel_id, pending_job=None):
             result.append(managed_existing.state(store, saved, 'vless', pending_job))
             continue
         current = locate(rows, saved['workspaceId'], rid)
+        if current is None and not saved.get('deleted'):
+            saved['deleted'] = True
+            saved['observedHash'] = None
+            with store.db:
+                store.db.execute('INSERT INTO vless_resources VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data',
+                    (rid, canonical(saved)))
         confirmed = (current is None if saved.get('deleted') else current is not None and digest(normal(current)) == saved['observedHash'])
         result.append(dict(id=rid, spec=saved['spec'], workspaceId=saved['workspaceId'],
-            confirmed=confirmed, publicKey=saved['publicKey'], shortId=saved['shortId'],
+            confirmed=confirmed, deleted=bool(saved.get('deleted')), exists=(current is not None),
+            publicKey=saved['publicKey'], shortId=saved['shortId'],
             clients=saved['clients'], revision=saved['revision']))
     return result
 
@@ -333,7 +340,7 @@ class VlessApply:
             already = current is None if r['deleted'] else current is not None and subset(desired, normal(current))
             if not already:
                 if current and (not previous or digest(normal(current)) != previous['observedHash']): raise VlessError('vless_conflict')
-                if not current and previous and not previous.get('deleted'): raise VlessError('vless_conflict')
+                if not current and previous and not (previous.get('deleted') or r.get('deleted')): raise VlessError('vless_conflict')
                 if r['deleted']:
                     if current: api.call('/panel/api/inbounds/del/%d' % current['id'], {})
                 elif current:

@@ -458,6 +458,16 @@ class InboundsPanelState extends State<InboundsPanel> {
                                 _queried = null;
                                 await runner!.discoverPanel();
                               }
+                              if (c.error == null &&
+                                  inbounds.any(
+                                    (r) =>
+                                        !c.adoptionConfirmed(serverId, r.id) &&
+                                        !r.deleted,
+                                  )) {
+                                await c.prepareAndApply(
+                                  serverIds: {serverId},
+                                );
+                              }
                             },
                       icon: const Icon(Icons.refresh),
                     ),

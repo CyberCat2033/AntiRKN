@@ -1343,6 +1343,7 @@ class VpnController extends ChangeNotifier {
   }
 
   Future<void> refreshServer(String id) => _run((token) async {
+    if (error == 'vless_conflict') error = null;
     await ensureConnected(id);
     token.check();
     await _refreshServer(id, token);
@@ -1359,15 +1360,17 @@ class VpnController extends ChangeNotifier {
       throw const FormatException('vpn_identity');
     }
     final result = await _request(r, _stateRequest(id, r.panelId), token);
+    final observations = _observations(result, id) ?? [];
     await _record(id, {
       ...current,
       'identity': r.identity,
       'panelId': r.panelId,
-      'observed': _observations(result, id),
+      'observed': observations,
+      'error': current['error'] == 'vless_conflict' ? null : current['error'],
       'verifiedAt': DateTime.now().toUtc().toIso8601String(),
     });
     if (isTtTarget(id)) {
-      final recovered = (_observations(result, id) ?? [])
+      final recovered = observations
           .where(
             (o) =>
                 o['workspaceId'] == workspace.resourceWorkspaceId(id) &&
@@ -1389,7 +1392,7 @@ class VpnController extends ChangeNotifier {
       return;
     }
     if (isAwgTarget(id)) {
-      final recovered = (_observations(result, id) ?? [])
+      final recovered = observations
           .where(
             (o) =>
                 o['workspaceId'] == workspace.resourceWorkspaceId(id) &&
@@ -1412,11 +1415,13 @@ class VpnController extends ChangeNotifier {
       if (rebuildProfiles) await _profiles();
       return;
     }
-    final recovered = (_observations(result, id) ?? [])
+    final recovered = observations
         .where(
           (o) =>
               o['workspaceId'] == workspace.resourceWorkspaceId(id) &&
-              !workspace.inbounds.any((i) => i.id == o['id']),
+              !workspace.inbounds.any((i) => i.id == o['id']) &&
+              o['deleted'] != true &&
+              o['exists'] != false,
         )
         .map(
           (o) => VlessInbound(
@@ -1425,9 +1430,26 @@ class VpnController extends ChangeNotifier {
           ),
         )
         .toList();
-    if (recovered.isNotEmpty) {
+    var changed = false;
+    final updatedInbounds = workspace.inbounds.map((ib) {
+      if (ib.serverId != id || ib.deleted) return ib;
+      final obs = observations.firstWhere(
+        (o) => o['id'] == ib.id,
+        orElse: () => <String, dynamic>{},
+      );
+      if (obs.isNotEmpty &&
+          (obs['deleted'] == true || obs['exists'] == false)) {
+        changed = true;
+        return VlessInbound(
+          serverId: id,
+          spec: {...ib.spec, 'deleted': true, 'enabled': false},
+        );
+      }
+      return ib;
+    }).toList();
+    if (recovered.isNotEmpty || changed) {
       await _write(
-        workspace.copy(inbounds: [...workspace.inbounds, ...recovered]),
+        workspace.copy(inbounds: [...updatedInbounds, ...recovered]),
       );
     }
     if (rebuildProfiles) await _profiles();
