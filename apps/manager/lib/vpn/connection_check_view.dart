@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import 'connection_checks.dart';
 import 'vpn_controller.dart';
+import 'vpn_strings.dart';
 
 String connectionCheckMessage(AppLocalizations l, ConnectionCheck check) {
   if (check.status == ConnectionCheckStatus.working) return l.connectionWorking;
@@ -40,6 +41,20 @@ class ConnectionCheckView extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context), c = controller.connections;
     final running = c.current == target, result = c.result(target);
+    final available = c.available(target);
+    final reasonCode = !running && result == null && !available
+        ? c.unavailableReasonCode(target)
+        : null;
+    final reasonText = switch (reasonCode) {
+      'vpn_disabled' => l.vpnDisabled,
+      'vpn_pending' => l.vpnApplying,
+      'vpn_pending_readback' => l.vpnPendingReadback,
+      'vpn_conflict' || 'vless_conflict' || 'awg_conflict' => l.vpnConflict,
+      'vpn_user_deleted' => l.vpnUserDeleted,
+      'target_unavailable' => l.connectionNetworkProblem,
+      null => null,
+      final code => vpnMessage(l, code),
+    };
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Column(
@@ -48,6 +63,22 @@ class ConnectionCheckView extends StatelessWidget {
           if (running) Text(l.connectionChecking),
           if (!running && result != null)
             Text(connectionCheckMessage(l, result)),
+          if (!running && result == null && reasonText != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                reasonText,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: reasonCode == 'vpn_conflict' ||
+                              reasonCode == 'vless_conflict' ||
+                              reasonCode == 'awg_conflict' ||
+                              (reasonCode?.contains('conflict') ?? false) ||
+                              (reasonCode?.contains('failed') ?? false)
+                          ? Theme.of(context).colorScheme.error
+                          : Theme.of(context).colorScheme.outline,
+                    ),
+              ),
+            ),
           Wrap(
             spacing: 8,
             runSpacing: 4,
@@ -61,7 +92,7 @@ class ConnectionCheckView extends StatelessWidget {
                     : controller.busy ||
                           controller.coreValidationBusy ||
                           c.queueRunning ||
-                          !c.available(target)
+                          !available
                     ? null
                     : () => c.check(target),
                 icon: Icon(

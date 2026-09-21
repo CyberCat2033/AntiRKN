@@ -638,6 +638,8 @@ class InboundsPanelState extends State<InboundsPanel> {
                               r.spec.containsKey('adoption') &&
                                   !c.adoptionConfirmed(serverId, r.id)
                               ? l.vpnAdopting
+                              : !c.adoptionConfirmed(serverId, r.id)
+                              ? l.vpnPendingReadback
                               : r.internal
                               ? l.vpnInternal
                               : l.vpnClientAccess,

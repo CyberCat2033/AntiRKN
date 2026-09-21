@@ -340,3 +340,52 @@ class AdoptionTests(unittest.TestCase):
         res = self.finish(self.submit(p2, 'vless', 3))
         self.assertEqual(res['status'], 'succeeded')
 
+    def test_unadopted_deleted_resource_does_not_conflict_with_plan(self):
+        p = self.payload('vless')
+        # Resource marked deleted without ever having been adopted in store.db
+        p['resources'][0]['deleted'] = True
+        p['resources'][0]['enabled'] = False
+        res = self.finish(self.submit(p, 'vless', 1))
+        self.assertEqual(res['status'], 'succeeded')
+
+    def test_deleted_vless_resource_succeeds_when_panel_row_was_modified(self):
+        p = self.payload('vless')
+        self.assertEqual(self.finish(self.submit(p, 'vless'))['status'], 'succeeded')
+        # Row modified in panel (remark or traffic counter)
+        self.api.rows[0]['remark'] = 'modified_externally'
+        p['resources'][0]['deleted'] = True
+        p['resources'][0]['enabled'] = False
+        res = self.finish(self.submit(p, 'vless', 2))
+        self.assertEqual(res['status'], 'succeeded')
+        record = existing.records(self.store, 'vless')[p['resources'][0]['id']]
+        self.assertTrue(record.get('deleted'))
+
+    def test_state_reconciles_externally_removed_adopted_inbound(self):
+        p = self.payload('vless')
+        self.assertEqual(self.finish(self.submit(p, 'vless'))['status'], 'succeeded')
+        # Delete panel row externally
+        self.api.rows = []
+        st = vless.state(self.store, p['panelId'])
+        self.assertEqual(len(st), 1)
+        self.assertTrue(st[0]['confirmed'])
+        self.assertTrue(st[0]['deleted'])
+        self.assertFalse(st[0]['exists'])
+        record = existing.records(self.store, 'vless')[p['resources'][0]['id']]
+        self.assertTrue(record.get('deleted'))
+
+    def test_apply_new_inbound_succeeds_when_old_adopted_inbound_was_externally_removed(self):
+        from test_vless import spec
+        p = self.payload('vless')
+        self.assertEqual(self.finish(self.submit(p, 'vless'))['status'], 'succeeded')
+        # Delete panel row externally
+        self.api.rows = []
+        # Submit plan with new inbound
+        new_p = copy.deepcopy(p)
+        new_p['resources'] = [spec(3)]
+        with patch('vless.material', return_value=dict(privateKey='A'*43,publicKey='B'*43,shortId='0123456789abcdef')), \
+             patch('vless.secret', side_effect=lambda label: hashlib.sha256(label.encode()).digest()), \
+             patch('vless.command', return_value=b''):
+            res = self.finish(self.submit(new_p, 'vless', 2))
+        self.assertEqual(res['status'], 'succeeded')
+
+

@@ -86,7 +86,7 @@ def user_enabled(r, user):
 
 def guard(store, p, r, old, protocol, snapshot):
     validate_spec(r, protocol)
-    if old and old.get('deleted') and r['deleted']:
+    if (not old or old.get('deleted')) and r.get('deleted'):
         return
     source = r['adoption']['sourceId']
     if protocol == 'vless' and r['adoption']['panelId'] != p['panelId']:
@@ -102,9 +102,8 @@ def guard(store, p, r, old, protocol, snapshot):
                 old['spec']['adoption'] != r['adoption'] or
                 protocol == 'vless' and old['panelId'] != p['panelId']):
             raise VlessError('vpn_adoption_conflict')
-        if snapshot['fingerprint'] != old['observedHash']:
-            if not (r['deleted'] and protocol == 'vless' and snapshot.get('row') is None):
-                raise VlessError('vpn_adoption_conflict')
+        if snapshot['fingerprint'] != old['observedHash'] and not r.get('deleted'):
+            raise VlessError('vpn_adoption_conflict')
         if old['keyId'] != hashlib.sha256(key(store)).hexdigest():
             raise VlessError('vpn_adoption_conflict')
         # Imported server settings stay authoritative; the compact editor only
@@ -118,8 +117,8 @@ def guard(store, p, r, old, protocol, snapshot):
 
 
 def preflight(store, p, r, old, protocol):
-    if old and old.get('deleted') and r['deleted']:
-        return old.get('observedHash')
+    if r.get('deleted') and (not old or old.get('deleted')):
+        return old.get('observedHash') if old else None
     a = adapter(protocol)
     current = a.snapshot(store, p, r)
     guard(store, p, r, old, protocol, current)
@@ -128,7 +127,7 @@ def preflight(store, p, r, old, protocol):
 
 
 def apply(store, req, p, r, old, protocol, checkpoint):
-    if old and old.get('deleted') and r['deleted']:
+    if r.get('deleted') and (not old or old.get('deleted')):
         with store.db:
             store.db.execute('UPDATE jobs SET checkpoint=? WHERE id=?', (checkpoint + 1, req['id']))
             store.event(req['id'], protocol + '_applying', checkpoint + 1, req['count'])
@@ -170,13 +169,27 @@ def apply(store, req, p, r, old, protocol, checkpoint):
 
 def state(store, saved, protocol, pending_job=None):
     p = {'workspaceId': saved['workspaceId'], 'panelId': saved['panelId']}
+    row = None
     try:
-        if saved.get('deleted'):
+        observed = adapter(protocol).snapshot(store, p, saved['spec'])
+        row = observed.get('row') if protocol == 'vless' else observed.get('resource')
+    except (VlessError, OSError, ValueError, KeyError):
+        pass
+    if row is None and not saved.get('deleted'):
+        saved['deleted'] = True
+        saved['observedHash'] = None
+        with store.db:
+            store.db.execute('INSERT INTO ' + TABLES[protocol] + ' VALUES (?,?) '
+                             'ON CONFLICT(id) DO UPDATE SET data=excluded.data',
+                             (saved['spec']['id'], canonical(saved)))
+    if saved.get('deleted'):
+        confirmed = (row is None)
+        if not confirmed and saved.get('jobId'):
             job = store.db.execute('SELECT status FROM jobs WHERE id=?', (saved['jobId'],)).fetchone()
             confirmed = job is not None and (
                 job['status'] == 'succeeded' or saved['jobId'] == pending_job)
-        else:
-            observed = adapter(protocol).snapshot(store, p, saved['spec'])
+    else:
+        try:
             confirmed = observed['fingerprint'] == saved['observedHash']
             confirmed = confirmed and adapter(protocol).healthy(observed)
             job = store.db.execute('SELECT status FROM jobs WHERE id=?', (saved['jobId'],)).fetchone()
@@ -184,11 +197,13 @@ def state(store, saved, protocol, pending_job=None):
             # verification, including when another device first discovers this row.
             confirmed = confirmed and job is not None and (
                 job['status'] == 'succeeded' or saved['jobId'] == pending_job)
-    except (VlessError, OSError, ValueError, KeyError):
-        confirmed = False
+        except (VlessError, OSError, ValueError, KeyError):
+            confirmed = False
     return dict(id=saved['spec']['id'], workspaceId=saved['workspaceId'],
-                spec=saved['spec'], confirmed=confirmed, clients=saved['clients'],
-                proxy=saved['proxy'], revision=saved['revision'])
+                spec=saved['spec'], confirmed=confirmed,
+                deleted=bool(saved.get('deleted')), exists=(row is not None),
+                clients=saved.get('clients', []),
+                proxy=saved.get('proxy', {}), revision=saved.get('revision', ''))
 
 
 def intent(old, snapshot, after, clients, proxy):

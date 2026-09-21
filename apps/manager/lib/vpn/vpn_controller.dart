@@ -611,6 +611,11 @@ class VpnController extends ChangeNotifier {
       : r.vlessState;
   Future<void> saveInbound(VlessInbound inbound) => _run((token) async {
     if (!loaded) return;
+    if (error == 'vless_conflict' ||
+        error == 'vpn_conflict' ||
+        error == 'vpn_adoption_conflict') {
+      error = null;
+    }
     await _write(
       workspace.copy(
         inbounds: [
@@ -1343,7 +1348,11 @@ class VpnController extends ChangeNotifier {
   }
 
   Future<void> refreshServer(String id) => _run((token) async {
-    if (error == 'vless_conflict') error = null;
+    if (error == 'vless_conflict' ||
+        error == 'vpn_conflict' ||
+        error == 'vpn_adoption_conflict') {
+      error = null;
+    }
     await ensureConnected(id);
     token.check();
     await _refreshServer(id, token);
@@ -1366,7 +1375,11 @@ class VpnController extends ChangeNotifier {
       'identity': r.identity,
       'panelId': r.panelId,
       'observed': observations,
-      'error': current['error'] == 'vless_conflict' ? null : current['error'],
+      'error': (current['error'] == 'vless_conflict' ||
+              current['error'] == 'vpn_conflict' ||
+              current['error'] == 'vpn_adoption_conflict')
+          ? null
+          : current['error'],
       'verifiedAt': DateTime.now().toUtc().toIso8601String(),
     });
     if (isTtTarget(id)) {

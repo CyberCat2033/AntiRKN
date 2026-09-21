@@ -284,4 +284,80 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('ConnectionCheckView shows unavailable reason when resource unconfirmed', (
+    tester,
+  ) async {
+    final store = f.MemoryVpn(),
+        probe = Probe(),
+        remote = f.Remote(f.MemoryVpn());
+    final c = create(store, remote, probe, 'one');
+    addTearDown(c.dispose);
+    await c.load();
+    final inboundId = '1' * 32;
+    c.workspace = c.workspace.copy(
+      inbounds: [f.inbound('one', inboundId)],
+      servers: {
+        'one': {
+          'identity': 'identity-one',
+          'observed': <dynamic>[],
+          'pending': null,
+          'error': null,
+        },
+      },
+    );
+    final key = (target: 'one', resource: inboundId);
+    expect(c.connections.available(key), isFalse);
+    expect(c.connections.unavailableReasonCode(key), 'vpn_pending_readback');
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('ru'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        home: Scaffold(
+          body: ConnectionCheckView(
+            controller: c,
+            target: key,
+            onEdit: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Сервер ещё не подтвердил этот ресурс.'), findsOneWidget);
+
+    c.workspace = c.workspace.copy(
+      servers: {
+        'one': {
+          'identity': 'identity-one',
+          'observed': <dynamic>[],
+          'pending': null,
+          'error': 'vless_conflict',
+        },
+      },
+    );
+    expect(c.connections.unavailableReasonCode(key), 'vless_conflict');
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('ru'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        home: Scaffold(
+          body: ConnectionCheckView(
+            controller: c,
+            target: key,
+            onEdit: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text(
+        'Конфигурация сервера изменилась. Обновите сведения и разберите конфликт перед повторным применением.',
+      ),
+      findsOneWidget,
+    );
+  });
 }

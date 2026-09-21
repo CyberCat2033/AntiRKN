@@ -97,7 +97,62 @@ class VpnJobView extends StatelessWidget {
             ),
           ),
         ],
-        if (record['error'] case final String error) Text(vpnMessage(l, error)),
+        if (record['error'] case final String error) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Material(
+              color: Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.4),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: Theme.of(context).colorScheme.error.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.warning_amber_rounded,
+                      color: Theme.of(context).colorScheme.error,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            vpnMessage(l, error),
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onErrorContainer,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          OutlinedButton.icon(
+                            key: ValueKey('vpn-error-refresh-$serverId'),
+                            onPressed: c.busy
+                                ? null
+                                : () async {
+                                    await c.refreshServer(serverId);
+                                    if (c.error == null) {
+                                      await c.prepareAndApply(serverIds: {serverId});
+                                    }
+                                  },
+                            icon: const Icon(Icons.refresh, size: 16),
+                            label: Text(l.sshRefresh),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
         if (job != null) ...[
           if (job.status != 'succeeded') ...[
             Text(runnerStateLabel(l, job.status)),
