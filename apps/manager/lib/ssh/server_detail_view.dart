@@ -169,8 +169,11 @@ class _ServerDetailViewState extends State<ServerDetailView> {
       widget.diagnostics!.stop();
       return;
     }
-    if (index == 1) widget.session.editSettings();
-    if (index != 1 && selected == 1) widget.session.closeSettings();
+    if (index == 1) {
+      widget.session.editSettings();
+    } else {
+      widget.session.closeSettings();
+    }
     setState(() {
       selected = index;
       visited.add(index);
@@ -528,7 +531,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
         return const Center(child: CircularProgressIndicator());
       }
       final requiresConnection =
-          !c.hasSavedProfile || c.challenge != null || c.showPrivilegePrompt;
+          !c.hasSavedProfile || c.challenge != null;
       final index = requiresConnection ? 1 : selected;
       final section = index >= 5 ? widget.sections[index - 5] : null;
       final selecting = section?.selection?.active == true;
@@ -552,7 +555,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
             selection!.exit();
             return;
           }
-          if (index == 0 || requiresConnection) {
+          if (index == 0 || (index == 1 && requiresConnection)) {
             widget.onBack?.call();
           } else {
             open(0);
@@ -584,7 +587,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                       tooltip: l.uiBack,
                       onPressed: c.vaultBusy || c.picking
                           ? null
-                          : index == 0 || requiresConnection
+                          : index == 0 || (index == 1 && requiresConnection)
                           ? widget.onBack
                           : () {
                               final selection = index >= 5
@@ -617,6 +620,17 @@ class _ServerDetailViewState extends State<ServerDetailView> {
               ListTile(
                 leading: const Icon(Icons.error_outline),
                 title: Text(sshIssueLabel(l, c.error!)),
+                onTap: () => open(1),
+              ),
+            if (c.showPrivilegePrompt)
+              ListTile(
+                leading: const Icon(Icons.lock_outline),
+                title: Text(
+                  c.privileges == null
+                      ? l.privilegesUnknown
+                      : privilegeStatusLabel(l, c.privileges!.status),
+                ),
+                trailing: const Icon(Icons.chevron_right),
                 onTap: () => open(1),
               ),
             if (c.runner.error != null ||

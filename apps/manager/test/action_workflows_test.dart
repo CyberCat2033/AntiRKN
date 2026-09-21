@@ -211,6 +211,47 @@ void main() {
       session.network.dispose();
     },
   );
+  testWidgets(
+    'privilege prompt allows back navigation to server overview and displays sudo password',
+    (tester) async {
+      final repo = Repository(), connector = ssh.FakeConnector();
+      final session = ssh.controller(repo.vault, connector, repository: repo);
+      await ssh.prepare(session);
+      await session.save();
+      repo.vault.saved = repo.vault.saved!.withHostKey(connector.key);
+      await session.connect();
+      session.needsPrivilegeInput = true;
+      expect(session.showPrivilegePrompt, isTrue);
+
+      var backPushed = false;
+      await tester.pumpWidget(
+        app(
+          ServerDetailView(
+            session: session,
+            motion: MotionPreference.off,
+            onBack: () => backPushed = true,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('SSH access'), findsOneWidget);
+      expect(backPushed, isFalse);
+
+      await tester.tap(find.text('SSH access'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('sudo-password')), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('server-list-back')));
+      await tester.pumpAndSettle();
+      expect(backPushed, isFalse);
+      expect(find.byKey(const ValueKey('sudo-password')), findsNothing);
+      expect(find.text('SSH access'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      session.dispose();
+      session.network.dispose();
+    },
+  );
   testWidgets('removal warns before connecting; cancelling has no effects', (
     tester,
   ) async {

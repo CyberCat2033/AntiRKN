@@ -202,4 +202,20 @@ void main() {
       expect(c.privileges!.status, PrivilegeStatus.invalidPassword);
     },
   );
+
+  test(
+    'canCheckPrivileges is true while settings are expanded; fallback to password.text',
+    () async {
+      c.editSettings();
+      expect(c.settingsExpanded, isTrue);
+      expect(c.canCheckPrivileges, isTrue);
+      c.sudoPassword.clear();
+      c.password.text = 'active-draft-password';
+      connector.connection.privilegeChecker = (_, _) async =>
+          const PrivilegeCheck(PrivilegeStatus.sudoWithPassword);
+      await c.checkPrivileges();
+      expect(connector.connection.lastSudoPassword, 'active-draft-password');
+      expect(c.privileges!.granted, isTrue);
+    },
+  );
 }

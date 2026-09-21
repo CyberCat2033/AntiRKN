@@ -409,8 +409,7 @@ class _SshPanelState extends State<SshPanel> {
                 ),
               ),
             ),
-            if (!expanded &&
-                (c.showPrivilegePrompt ||
+            if ((c.showPrivilegePrompt ||
                     c.isRoot ||
                     c.profile?.hardenRecovery != null) &&
                 (c.stage == SshStage.connected ||

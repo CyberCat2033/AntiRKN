@@ -159,10 +159,12 @@ class SshController extends ChangeNotifier {
   bool get canCheckPrivileges =>
       stage == SshStage.connected &&
       !runner.busy &&
-      !vaultBusy &&
-      !settingsExpanded;
+      !vaultBusy;
   String? get _effectiveSudoPassword {
     if (sudoPassword.text.isNotEmpty) return sudoPassword.text;
+    if (password.text.isNotEmpty && authMethod == SshAuthMethod.password) {
+      return password.text;
+    }
     final profile = _vault?.profile;
     return profile?.authMethod == SshAuthMethod.password
         ? profile?.secrets[ServerSecret.sshPassword]
@@ -753,6 +755,7 @@ class SshController extends ChangeNotifier {
   }) async {
     if (!editing || _connection != null) return;
     error = null;
+    needsPrivilegeInput = false;
     replacingServer = replaceServer;
     stage = SshStage.connecting;
     final generation = _generation;
