@@ -168,7 +168,9 @@ final class PublicationCoordinator {
             await remote.checkPrivate(fileId);
           }
           final head = file.properties['antirknHead'];
-          if (head != draft.headId && !draft.ancestors.contains(head)) {
+          if (!force &&
+              head != draft.headId &&
+              !draft.ancestors.contains(head)) {
             throw const PublicationFailure(PublicationIssue.conflict);
           }
           final hash = await _hash(snapshot.$2);

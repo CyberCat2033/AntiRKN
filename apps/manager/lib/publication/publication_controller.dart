@@ -333,7 +333,7 @@ class PublicationController extends ChangeNotifier {
           try {
             publishQueue = await coordinator.publish(
               user.id,
-              force: force,
+              force: true,
               cancellation: _cancel,
             );
             if (publishQueue?['issue'] != 'changed' || attempt == 2) break;

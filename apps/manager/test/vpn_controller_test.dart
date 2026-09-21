@@ -665,7 +665,7 @@ void main() {
           'revision': vlessRevision(c.workspace.desired('one', panel)),
           'publicKey': 'A' * 43,
           'shortId': '0123456789abcdef',
-          'clients': [],
+          'clients': <dynamic>[],
         },
         {
           'id': deleted.id,
@@ -675,7 +675,7 @@ void main() {
           'deleted': true,
           'exists': false,
           'revision': 'older-stale-revision-00000000000',
-          'clients': [],
+          'clients': <dynamic>[],
         },
       ];
 
@@ -721,7 +721,7 @@ void main() {
             'revision': vlessRevision(payload),
             'publicKey': 'A' * 43,
             'shortId': '0123456789abcdef',
-            'clients': [],
+            'clients': <dynamic>[],
           },
       ];
 

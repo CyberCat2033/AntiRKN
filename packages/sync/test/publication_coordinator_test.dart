@@ -271,8 +271,11 @@ class Remote implements PublicationRemoteStore {
 
 PublicationCoordinator coordinator(Repository repo, Remote remote) =>
     PublicationCoordinator(repository: repo, remote: remote, jitter: (_) => 0);
-Future<Map<String, dynamic>> publish(Repository repo, Remote remote) async =>
-    (await coordinator(repo, remote).publish(user, force: true))!;
+Future<Map<String, dynamic>> publish(
+  Repository repo,
+  Remote remote, {
+  bool force = true,
+}) async => (await coordinator(repo, remote).publish(user, force: force))!;
 
 void main() {
   test(
@@ -333,7 +336,7 @@ void main() {
       await draft('head-3', ancestors: {'head-1', 'head-2'}),
     );
     remote.pauseContent = utf8.decode(old.current!.bytes);
-    final stale = publish(old, remote);
+    final stale = publish(old, remote, force: false);
     await remote.paused.future;
     expect((await publish(newer, remote))['status'], 'published');
     remote.release.complete();
@@ -341,6 +344,17 @@ void main() {
     expect(remote.blobs[remote.profileId]!.properties['antirknHead'], 'head-3');
     expect(remote.updatedProfiles, 1);
   });
+  test(
+    'force publish overrides remote conflict when local draft is not a descendant of remote head',
+    () async {
+      final repo = Repository(await draft('head-1')), remote = Remote();
+      await publish(repo, remote);
+      repo.current = await draft('head-2', ancestors: {'unrelated-base'});
+      expect((await publish(repo, remote, force: false))['issue'], 'conflict');
+      expect((await publish(repo, remote, force: true))['status'], 'published');
+      expect(remote.blobs[remote.profileId]!.properties['antirknHead'], 'head-2');
+    },
+  );
   test(
     'external edit and deletion preserve previous publication and never create replacements',
     () async {
