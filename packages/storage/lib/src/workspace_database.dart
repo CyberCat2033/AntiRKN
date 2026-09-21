@@ -195,6 +195,10 @@ final class WorkspaceDatabase
   late final _WorkspaceMerge _merge = _WorkspaceMerge(this);
   bool _closed = false;
   bool _restored = false;
+  bool _initialized = false;
+  final _documentCache = <String, (int, String)>{};
+  int? _cachedWorkspaceRevision;
+  VpnWorkspace? _cachedWorkspace;
   @override
   bool needsLegacyPassword = false;
 
@@ -208,9 +212,12 @@ final class WorkspaceDatabase
       if (!migrate && _db.userVersion != 5) {
         throw const SyncPacketFailure(SyncPacketIssue.storage);
       }
-      await _journal.initialize();
-      await _sync.initialize();
-      await _merge.initialize();
+      if (!_initialized) {
+        await _journal.initialize();
+        await _sync.initialize();
+        await _merge.initialize();
+        _initialized = true;
+      }
       return action();
     });
     _pending = next.then<void>((_) {}, onError: (Object _, StackTrace _) {});
@@ -507,6 +514,23 @@ final class WorkspaceDatabase
     );
   });
 
+  Future<VpnWorkspace> _getVpnWorkspace(Row row) async {
+    final rev = row['revision'] as int;
+    if (rev == _cachedWorkspaceRevision && _cachedWorkspace != null) {
+      return _cachedWorkspace!;
+    }
+    final workspace = VpnWorkspace.decode(
+      await _decrypt(
+        'vpn-workspace-v1',
+        rev,
+        row['payload'] as Uint8List,
+      ),
+    );
+    _cachedWorkspaceRevision = rev;
+    _cachedWorkspace = workspace;
+    return workspace;
+  }
+
   @override
   Future<PublicationDraft?> readPublicationDraft(
     String userId,
@@ -517,13 +541,7 @@ final class WorkspaceDatabase
       'vpn-workspace-v1',
     ]).firstOrNull;
     if (row == null) return null;
-    final workspace = VpnWorkspace.decode(
-      await _decrypt(
-        'vpn-workspace-v1',
-        row['revision'] as int,
-        row['payload'] as Uint8List,
-      ),
-    );
+    final workspace = await _getVpnWorkspace(row);
     final user = workspace.users
         .where((u) => u.id == userId && u.enabled)
         .firstOrNull;
@@ -586,13 +604,7 @@ final class WorkspaceDatabase
     final row = _db.select('SELECT * FROM documents WHERE id=?', [
       'vpn-workspace-v1',
     ]).single;
-    final workspace = VpnWorkspace.decode(
-      await _decrypt(
-        'vpn-workspace-v1',
-        row['revision'] as int,
-        row['payload'] as Uint8List,
-      ),
-    );
+    final workspace = await _getVpnWorkspace(row);
     if (!workspace.users.any(
           (u) => u.id == draft.userId && u.enabled && u.login == draft.name,
         ) ||
@@ -686,6 +698,9 @@ final class WorkspaceDatabase
         [id, payload, revision],
       );
       _journal.commit(changes);
+      _documentCache[id] = (revision, source);
+      _cachedWorkspaceRevision = null;
+      _cachedWorkspace = null;
       return revision;
     });
   });
@@ -714,11 +729,18 @@ final class WorkspaceDatabase
   Future<String?> _readDocument(String id) => _serial(() async {
     final rows = _db.select('SELECT * FROM documents WHERE id=?', [id]);
     if (rows.isEmpty) return null;
-    return _decrypt(
+    final rev = rows.single['revision'] as int;
+    if (_documentCache[id] case (final cachedRev, final cachedSource)
+        when cachedRev == rev) {
+      return cachedSource;
+    }
+    final source = await _decrypt(
       id,
-      rows.single['revision'] as int,
+      rev,
       rows.single['payload'] as Uint8List,
     );
+    _documentCache[id] = (rev, source);
+    return source;
   });
   Future<void> _writeDocument(
     String id,
@@ -759,6 +781,11 @@ final class WorkspaceDatabase
         [id, payload, revision],
       );
       _journal.commit(changes);
+      _documentCache[id] = (revision, source);
+      if (id == 'vpn-workspace-v1') {
+        _cachedWorkspaceRevision = null;
+        _cachedWorkspace = null;
+      }
     });
   });
 

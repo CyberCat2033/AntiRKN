@@ -340,4 +340,51 @@ void main() {
       await c.suspend();
     },
   );
+
+  testWidgets(
+    'UsersPage safely renders client avatar with empty or whitespace name without crashing',
+    (tester) async {
+      final vpn = f.controller(f.MemoryVpn(), {});
+      final repo = p.Repository(), remote = p.Remote();
+      final c = PublicationController(
+        repository: repo,
+        account: p.Account()..publicationAuthorized = true,
+        remote: () => remote,
+        vpn: vpn,
+        canPublish: () => false,
+      );
+      addTearDown(c.dispose);
+      addTearDown(vpn.dispose);
+      await c.ready;
+      await tester.runAsync(() async {
+        await vpn.load();
+        await vpn.saveUser(
+          VpnUser(id: f.alice, login: 'alice', name: '   '),
+        );
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: Scaffold(
+            body: UsersPage(
+              controller: vpn,
+              publications: c,
+              serverName: (id) => 'Server $id',
+              exporter: Export(),
+              motion: MotionPreference.off,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(ValueKey('client-avatar-${f.alice}')), findsOneWidget);
+      expect(find.text('?'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await c.suspend();
+    },
+  );
 }

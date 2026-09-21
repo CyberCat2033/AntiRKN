@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_manager/l10n/app_localizations.dart';
 import 'package:antirkn_manager/publication/publication_controller.dart';
 import 'package:antirkn_manager/publication/publication_panel.dart';
+import 'package:antirkn_manager/sync/auto_sync_controller.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -17,6 +19,9 @@ class Account
   String get accountKey => 'account';
   @override
   bool get supported => true;
+  GoogleDriveAccount? account;
+  @override
+  Future<GoogleDriveAccount?> restore() async => account;
   @override
   Future<GoogleDriveAccount?> authorizePublications() async {
     publicationAuthorized = true;
@@ -1229,5 +1234,157 @@ void main() {
     expect(forcedResult.upToDate, 0);
     expect(forcedResult.failed, 0);
   });
+
+  test(
+    'concurrent AutoSync exchange and batch publication run simultaneously without busy or conflict errors',
+    () async {
+      final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
+      final repo = Repository();
+      final remote = Remote();
+      final account = Account()..publicationAuthorized = true;
+      account.account = const GoogleDriveAccount(
+        email: 'test@example.com',
+        displayName: 'Test',
+        permissionId: 'perm-1',
+      );
+      final c = PublicationController(
+        repository: repo,
+        account: account,
+        remote: () => remote,
+        vpn: vpn,
+      );
+      addTearDown(c.dispose);
+      addTearDown(vpn.dispose);
+
+      final session = _TestAutoSyncSession();
+      final changes = StreamController<void>.broadcast();
+      addTearDown(changes.close);
+      final autoSync = AutoSyncController(
+        accountService: account,
+        settings: _TestSettingsStore(),
+        changes: changes.stream,
+        openSession: () async => session,
+        apply: (_) async => true,
+      );
+      addTearDown(autoSync.dispose);
+
+      await vpn.load();
+      await vpn.saveUser(
+        VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice'),
+      );
+      await vpn.saveUser(VpnUser(id: fixtures.bob, login: 'bob', name: 'Bob'));
+      final aliceSaved = vpn.workspace.profiles[fixtures.alice]!;
+      final bobSaved = vpn.workspace.profiles[fixtures.bob]!;
+
+      repo.drafts[fixtures.alice] = PublicationDraft(
+        workspaceId: vpn.workspace.id,
+        deviceId: 'a' * 32,
+        userId: fixtures.alice,
+        name: 'Alice',
+        headId: 'head-alice',
+        hash: aliceSaved['hash'] as String,
+        stamp: 'stamp-1',
+        bytes: Uint8List.fromList(utf8.encode(aliceSaved['yaml'] as String)),
+        ancestors: {},
+      );
+      repo.drafts[fixtures.bob] = PublicationDraft(
+        workspaceId: vpn.workspace.id,
+        deviceId: 'b' * 32,
+        userId: fixtures.bob,
+        name: 'Bob',
+        headId: 'head-bob',
+        hash: bobSaved['hash'] as String,
+        stamp: 'stamp-1',
+        bytes: Uint8List.fromList(utf8.encode(bobSaved['yaml'] as String)),
+        ancestors: {},
+      );
+
+      final settings = const PublicationSettings(
+        accountKey: 'account',
+        folderId: 'test-folder',
+        folderName: 'Folder',
+        access: PublicationAccess.link,
+        enabled: true,
+        folderReady: true,
+      );
+      repo.docs['settings'] = canonicalJson(settings.toJson());
+      await c.reload();
+
+      remote.folders['test-folder'] = PublicationFile(
+        id: 'test-folder',
+        name: 'Folder',
+        mimeType: 'application/vnd.google-apps.folder',
+        version: '1',
+        etag: 'etag-f',
+        editable: true,
+        properties: {'antirknRegistry.${vpn.workspace.id}': 'ready:registry-1'},
+      );
+      final regBytes = Uint8List.fromList(utf8.encode(canonicalJson({
+        'version': 2,
+        'workspaceId': vpn.workspace.id,
+        'users': <String, dynamic>{},
+      })));
+      final regHash = sha256.convert(regBytes).toString();
+      remote.folders['registry-1'] = PublicationFile(
+        id: 'registry-1',
+        name: 'registry.json',
+        mimeType: 'application/json',
+        version: '1',
+        etag: 'etag-r',
+        editable: true,
+        properties: {
+          'antirknWorkspace': vpn.workspace.id,
+          'antirknUser': 'registry',
+          'antirknHash': regHash,
+        },
+        downloadUrl: 'https://drive.google.com/uc?id=registry-1',
+      );
+      remote.contents['registry-1'] = regBytes;
+
+      await autoSync.ready;
+      // Trigger concurrent AutoSync request and batch publication
+      autoSync.request(immediate: true);
+      final publishResult = await c.forcePublishAll(force: true);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(publishResult.uploaded, 2);
+      expect(publishResult.failed, 0);
+      expect(c.error, isNull);
+      expect(c.accountError, isNull);
+      expect(session.executed, isTrue);
+      expect(autoSync.phase, AutoSyncPhase.synced);
+    },
+  );
+}
+
+class _TestAutoSyncSession implements AutoSyncSession {
+  bool executed = false;
+  @override
+  Future<AutoSyncResult> exchange({
+    required SyncApplyGate apply,
+    required SyncCancellation cancellation,
+    bool forceRecovery = false,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    executed = true;
+    return AutoSyncResult(
+      otherWorkspaces: 0,
+      waitingForEditor: false,
+      lastSuccess: DateTime.now(),
+    );
+  }
+
+  @override
+  Future<void> close() async {}
+}
+
+class _TestSettingsStore implements SettingsStore {
+  final map = <String, String>{};
+  @override
+  Future<String?> readSetting(String key) async => map[key];
+  @override
+  Future<void> writeSetting(String key, String value) async {
+    map[key] = value;
+  }
 }
 
