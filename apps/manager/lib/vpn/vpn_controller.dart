@@ -190,6 +190,7 @@ class VpnController extends ChangeNotifier {
   }
 
   bool get busy => _busy || connections.busy || _upgradeBusy;
+  bool get workspaceBusy => _busy || _upgradeBusy;
   set busy(bool value) => _busy = value;
   String? error;
   Timer? _identityNoticeTimer;

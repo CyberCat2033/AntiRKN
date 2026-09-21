@@ -173,16 +173,7 @@ class _UsersPageState extends State<UsersPage> {
             .toList(growable: false);
         final published = publications != null
             ? activeUsers
-                .where((u) {
-                  final q = publications!.queues[u.id];
-                  final r = publications!.results[u.id];
-                  final expectedHash =
-                      controller.workspace.profiles[u.id]?['hash'];
-                  return q?['status'] == 'published' &&
-                      q?['issue'] == null &&
-                      r != null &&
-                      r['hash'] == expectedHash;
-                })
+                .where((u) => publications!.isUserUpToDate(u.id))
                 .length
             : activeUsers.length;
         if (published == 0 && activeUsers.isNotEmpty) {
@@ -217,7 +208,9 @@ class _UsersPageState extends State<UsersPage> {
   }
 
   Future<void> _profile(BuildContext context, VpnUser user) async {
-    await controller.refreshProfiles();
+    if (controller.workspace.profiles[user.id] == null) {
+      await controller.regenerateProfile(user.id);
+    }
     if (!context.mounted) return;
     final content = ProfileShareSheet(
       controller: controller,
@@ -447,10 +440,11 @@ class _UsersPageState extends State<UsersPage> {
                                   round: true,
                                   key: ValueKey('client-avatar-${user.id}'),
                                   text: user.name
-                                      .trim()
-                                      .characters
-                                      .first
-                                      .toUpperCase(),
+                                          .trim()
+                                          .characters
+                                          .firstOrNull
+                                          ?.toUpperCase() ??
+                                      '?',
                                 ),
                               ),
                               title: Text(user.name),

@@ -290,7 +290,7 @@ class PublicationController extends ChangeNotifier {
 
   Future<void> _run(bool force, {String? targetUserId}) async {
     if (!authorized || settings?.enabled != true || !vpn.loaded) return;
-    if (vpn.busy || canPublish?.call() == false) return;
+    if (vpn.workspaceBusy || canPublish?.call() == false) return;
     _cancel = SyncCancellation();
     error = null;
     accountError = null;
@@ -311,18 +311,7 @@ class PublicationController extends ChangeNotifier {
         _cancel?.check();
 
         // Fast-path: skip user if profile is already published and unchanged
-        final savedHash = savedProfileHashFor(user.id);
-        final result = results[user.id];
-        final queue = queues[user.id];
-        final isUpToDate = !force &&
-            savedHash != null &&
-            result?['hash'] == savedHash &&
-            result?['fileId'] is String &&
-            result?['url'] is String &&
-            !bindingPending(user.id) &&
-            queue?['status'] == 'published' &&
-            queue?['issue'] == null;
-
+        final isUpToDate = !force && isUserUpToDate(user.id);
         if (isUpToDate) {
           continue;
         }
@@ -341,6 +330,16 @@ class PublicationController extends ChangeNotifier {
           } on PublicationFailure catch (e) {
             // Per-user error: record it in the queue but continue with others.
             queues[user.id] = {'issue': e.issue.name, 'userId': user.id};
+            break;
+          } on GoogleAccountFailure catch (e) {
+            if (e.issue == GoogleAccountIssue.reauthorize ||
+                e.issue == GoogleAccountIssue.denied) {
+              rethrow;
+            }
+            queues[user.id] = {
+              'issue': PublicationIssue.unauthorized.name,
+              'userId': user.id,
+            };
             break;
           } on SyncTransportFailure catch (e) {
             if (e.issue == SyncTransportIssue.cancelled) rethrow;
@@ -465,6 +464,19 @@ class PublicationController extends ChangeNotifier {
       bindings[userId] != null &&
       bindings[userId]?['id'] != results[userId]?['binding'];
 
+  bool isUserUpToDate(String userId) {
+    final savedHash = savedProfileHashFor(userId);
+    final result = results[userId];
+    final queue = queues[userId];
+    return savedHash != null &&
+        result?['hash'] == savedHash &&
+        result?['fileId'] is String &&
+        result?['url'] is String &&
+        !bindingPending(userId) &&
+        queue?['status'] == 'published' &&
+        queue?['issue'] == null;
+  }
+
   String? savedProfileHashFor(String userId) {
     final hash = vpn.workspace.profiles[userId]?['hash'];
     return hash is String && hash.isNotEmpty ? hash : null;
@@ -476,8 +488,6 @@ class PublicationController extends ChangeNotifier {
         .firstOrNull;
     if (_disposed ||
         user?.enabled != true ||
-        vpn.busy ||
-        canPublish?.call() == false ||
         savedProfileHashFor(draft.userId) != draft.hash) {
       return false;
     }
@@ -485,9 +495,7 @@ class PublicationController extends ChangeNotifier {
     // profile. Its draft remains publishable. Core validation only applies
     // when it checked the exact draft that is about to be published.
     if (vpn.results[draft.userId]?.sha256Hash == draft.hash &&
-        (vpn.coreValidationBusy ||
-            vpn.coreCheckFor(draft.userId)?.status ==
-                CoreConfigStatus.invalid)) {
+        vpn.coreCheckFor(draft.userId)?.status == CoreConfigStatus.invalid) {
       return false;
     }
     return true;

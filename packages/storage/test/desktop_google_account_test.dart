@@ -404,6 +404,21 @@ void main() {
   );
 
   test(
+    'concurrent accessToken calls queue and succeed without throwing busy',
+    () async {
+      final auth = service();
+      await auth.signIn();
+      now = now.add(const Duration(hours: 2));
+      final first = auth.accessToken();
+      final second = auth.accessToken();
+      final results = await Future.wait([first, second]);
+      expect(results[0], isNotEmpty);
+      expect(results[1], equals(results[0]));
+      await auth.close();
+    },
+  );
+
+  test(
     'encrypted file: restart, wrong key, corruption, stale writer, and logout tombstone',
     () async {
       final directory = await Directory.systemTemp.createTemp(

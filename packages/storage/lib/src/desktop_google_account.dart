@@ -138,15 +138,31 @@ final class DesktopGoogleAccountService
       _accountKey ??
       (throw const SyncTransportFailure(SyncTransportIssue.unauthorized));
 
-  Future<T> _operation<T>(Future<T> Function() action) async {
+  Future<T> _operation<T>(
+    Future<T> Function() action, {
+    bool interactive = false,
+  }) async {
     if (_closed) {
       throw const GoogleAccountFailure(GoogleAccountIssue.unavailable);
     }
-    if (_pending != null) {
+    if (interactive && _pending != null) {
       throw const GoogleAccountFailure(GoogleAccountIssue.busy);
     }
+    final previous = _pending;
     final done = Completer<void>();
     _pending = done.future;
+    if (previous != null) {
+      try {
+        await previous;
+      } catch (_) {}
+    }
+    if (_closed) {
+      if (identical(_pending, done.future)) {
+        _pending = null;
+      }
+      done.complete();
+      throw const GoogleAccountFailure(GoogleAccountIssue.unavailable);
+    }
     try {
       return await action();
     } on GoogleAccountFailure {
@@ -160,7 +176,9 @@ final class DesktopGoogleAccountService
     } catch (_) {
       throw const GoogleAccountFailure(GoogleAccountIssue.storage);
     } finally {
-      _pending = null;
+      if (identical(_pending, done.future)) {
+        _pending = null;
+      }
       done.complete();
     }
   }
@@ -246,7 +264,7 @@ final class DesktopGoogleAccountService
     } finally {
       _cancellation = null;
     }
-  });
+  }, interactive: true);
 
   Future<void> _stillCurrent() async {
     if (await store.read() != _stored) {
