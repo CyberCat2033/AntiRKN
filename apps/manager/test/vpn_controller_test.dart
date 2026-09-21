@@ -42,6 +42,7 @@ class Remote implements RunnerTransport {
   final actions = <String>[];
   bool loseReply = false, running = false, failBeforeSubmit = false;
   List<Map<String, dynamic>> state = [];
+  List<Map<String, dynamic>>? customState;
   final jobs = <String, Map<String, dynamic>>{};
   @override
   String get bundledRelease => 'f' * 64;
@@ -64,7 +65,7 @@ class Remote implements RunnerTransport {
     'alive': true,
     'jobs': jobs,
     'vlessPlan': ?plan,
-    'vlessState': ?state,
+    'vlessState': ?(customState ?? state),
   };
   @override
   Future<RunnerResponse> request(
@@ -78,7 +79,7 @@ class Remote implements RunnerTransport {
       return RunnerResponse.fromJson(response(plan: {'fingerprint': 'e' * 64}));
     }
     if (a == 'vless_state') {
-      return RunnerResponse.fromJson(response(state: state));
+      return RunnerResponse.fromJson(response(state: customState ?? state));
     }
     final id = r['id'] as String;
     if (a == 'submit') {
@@ -95,7 +96,7 @@ class Remote implements RunnerTransport {
         jsonDecode(r['payload'] as String) as Map,
       );
       submissions[id] = p;
-      state = [
+      state = customState ?? [
         for (final s in p['resources'] as List)
           {
             'id': s['id'],
@@ -633,6 +634,123 @@ void main() {
       expect(c.workspace.servers['ghost']?['authorizedPayload'], isNull);
       expect(c.workspace.servers['ghost']?['paused'], isTrue);
       expect(c.workspace.serverIds, {'one', 'two'});
+    },
+  );
+
+  test(
+    'reconcile succeeds and confirms active resource when deleted inbounds have older revision or are omitted',
+    () async {
+      final store = MemoryVpn();
+      final remote = Remote(store);
+      final c = controller(store, {'one': remote});
+      addTearDown(c.dispose);
+      await setup(c);
+
+      final inbounds = c.workspace.inbounds.where((r) => r.serverId == 'one').toList();
+      expect(inbounds.length, 2);
+      final active = inbounds[0];
+      final deleted = inbounds[1];
+
+      // Mark one inbound deleted
+      await c.deleteInbounds([deleted]);
+      expect(c.workspace.inbounds.where((r) => r.serverId == 'one' && r.deleted), hasLength(1));
+
+      // Custom mock state where deleted inbound has an older revision and active inbound has expected revision
+      remote.customState = [
+        {
+          'id': active.id,
+          'workspaceId': c.workspace.resourceWorkspaceId('one'),
+          'spec': active.spec,
+          'confirmed': true,
+          'revision': vlessRevision(c.workspace.desired('one', panel)),
+          'publicKey': 'A' * 43,
+          'shortId': '0123456789abcdef',
+          'clients': [],
+        },
+        {
+          'id': deleted.id,
+          'workspaceId': c.workspace.resourceWorkspaceId('one'),
+          'spec': {...deleted.spec, 'deleted': true, 'enabled': false},
+          'confirmed': true,
+          'deleted': true,
+          'exists': false,
+          'revision': 'older-stale-revision-00000000000',
+          'clients': [],
+        },
+      ];
+
+      await c.prepareAndApply(serverIds: {'one'});
+      expect(c.error, isNull);
+      expect(c.workspace.servers['one']?['pending'], isNull);
+      expect(c.workspace.servers['one']?['paused'], isFalse);
+      expect(c.adoptionConfirmed('one', active.id), isTrue);
+    },
+  );
+
+  test(
+    'resume unpauses and completes when remote job status is succeeded',
+    () async {
+      final store = MemoryVpn();
+      final remote = Remote(store);
+      final c = controller(store, {'one': remote});
+      addTearDown(c.dispose);
+      await setup(c);
+
+      final inbounds = c.workspace.inbounds.where((r) => r.serverId == 'one').toList();
+      final payload = c.workspace.desired('one', panel);
+      final jobId = '1' * 32;
+      final req = RunnerRequest.vlessApply(jobId, payload, 'f' * 64);
+      remote.jobs[jobId] = {
+        'id': jobId,
+        'kind': 'vless_apply',
+        'count': 2,
+        'interval': 1,
+        'status': 'succeeded',
+        'checkpoint': 2,
+        'sequence': 1,
+        'cancelRequested': false,
+        'events': <Object?>[],
+      };
+      remote.customState = [
+        for (final ib in inbounds)
+          {
+            'id': ib.id,
+            'workspaceId': c.workspace.resourceWorkspaceId('one'),
+            'spec': ib.spec,
+            'confirmed': true,
+            'revision': vlessRevision(payload),
+            'publicKey': 'A' * 43,
+            'shortId': '0123456789abcdef',
+            'clients': [],
+          },
+      ];
+
+      // Simulate a server paused with pending request whose job already succeeded on remote
+      await store.writeVpn(
+        jsonEncode({
+          ...jsonDecode(store.raw!) as Map,
+          'servers': {
+            'one': {
+              'identity': 'identity-one',
+              'panelId': panel,
+              'paused': true,
+              'error': 'vpn_conflict',
+              'pending': req.json,
+            },
+          },
+        }),
+        expectedRevision: store.revision,
+      );
+      await c.load();
+
+      expect(c.workspace.servers['one']?['paused'], isTrue);
+      expect(c.workspace.servers['one']?['pending'], isNotNull);
+
+      await c.resume('one');
+      expect(c.error, isNull);
+      expect(c.workspace.servers['one']?['paused'], isFalse);
+      expect(c.workspace.servers['one']?['pending'], isNull);
+      expect(c.adoptionConfirmed('one', inbounds.first.id), isTrue);
     },
   );
 }

@@ -1297,12 +1297,18 @@ class VpnController extends ChangeNotifier {
                 jsonDecode(request.json['payload'] as String) as Map,
               );
               final expected = vlessRevision(payload);
-              final ids = (payload['resources'] as List)
+              final activeIds = (payload['resources'] as List)
+                  .where((r) => (r as Map)['deleted'] != true)
                   .map((r) => (r as Map)['id'])
                   .toSet();
-              if (_observations(state, id) == null ||
-                  !ids.every(
-                    (rid) => _observations(state, id)!.any(
+              final deletedIds = (payload['resources'] as List)
+                  .where((r) => (r as Map)['deleted'] == true)
+                  .map((r) => (r as Map)['id'])
+                  .toSet();
+              final observations = _observations(state, id);
+              if (observations == null ||
+                  !activeIds.every(
+                    (rid) => observations.any(
                       (r) =>
                           r['id'] == rid &&
                           r['workspaceId'] ==
@@ -1310,6 +1316,19 @@ class VpnController extends ChangeNotifier {
                           r['confirmed'] == true &&
                           r['revision'] == expected,
                     ),
+                  ) ||
+                  !deletedIds.every(
+                    (rid) {
+                      final obs = observations
+                          .where((r) => r['id'] == rid)
+                          .firstOrNull;
+                      return obs == null ||
+                          (obs['workspaceId'] ==
+                                  workspace.resourceWorkspaceId(id) &&
+                              obs['confirmed'] == true &&
+                              (obs['deleted'] == true ||
+                                  obs['exists'] == false));
+                    },
                   )) {
                 throw const FormatException('vpn_conflict');
               }
@@ -1380,6 +1399,10 @@ class VpnController extends ChangeNotifier {
               current['error'] == 'vpn_adoption_conflict')
           ? null
           : current['error'],
+      if (current['error'] == 'vless_conflict' ||
+          current['error'] == 'vpn_conflict' ||
+          current['error'] == 'vpn_adoption_conflict')
+        'paused': false,
       'verifiedAt': DateTime.now().toUtc().toIso8601String(),
     });
     if (isTtTarget(id)) {
@@ -1636,8 +1659,21 @@ class VpnController extends ChangeNotifier {
       token,
     );
     if (status.jobs.length != 1 ||
-        status.jobs.single.id != request['id'] ||
-        !const {
+        status.jobs.single.id != request['id']) {
+      throw const FormatException('vpn_conflict');
+    }
+    if (status.jobs.single.status == 'succeeded') {
+      await _record(id, {
+        ...workspace.servers[id]!,
+        'paused': false,
+        'cancelRequested': false,
+        'error': null,
+      });
+      await _approveRestored([id]);
+      await _reconcile(token);
+      return;
+    }
+    if (!const {
           'failed',
           'partially_applied',
         }.contains(status.jobs.single.status)) {

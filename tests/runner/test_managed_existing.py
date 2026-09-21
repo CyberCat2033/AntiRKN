@@ -388,4 +388,32 @@ class AdoptionTests(unittest.TestCase):
             res = self.finish(self.submit(new_p, 'vless', 2))
         self.assertEqual(res['status'], 'succeeded')
 
+    def test_deleted_adopted_inbound_updates_revision_in_subsequent_plan(self):
+        from test_vless import spec
+        p = self.payload('vless')
+        self.assertEqual(self.finish(self.submit(p, 'vless'))['status'], 'succeeded')
+        # Delete adopted inbound
+        p['resources'][0]['deleted'] = True
+        p['resources'][0]['enabled'] = False
+        res1 = self.finish(self.submit(p, 'vless', 2))
+        self.assertEqual(res1['status'], 'succeeded')
+        record1 = existing.records(self.store, 'vless')[p['resources'][0]['id']]
+        self.assertEqual(record1['revision'], vless.digest(p))
+
+        # Subsequent plan adds a new inbound while retaining the deleted adopted inbound
+        new_p = copy.deepcopy(p)
+        new_p['resources'].append(spec(3))
+        with patch('vless.material', return_value=dict(privateKey='A'*43,publicKey='B'*43,shortId='0123456789abcdef')), \
+             patch('vless.secret', side_effect=lambda label: hashlib.sha256(label.encode()).digest()), \
+             patch('vless.command', return_value=b''):
+            res2 = self.finish(self.submit(new_p, 'vless', 3))
+        self.assertEqual(res2['status'], 'succeeded')
+        record2 = existing.records(self.store, 'vless')[p['resources'][0]['id']]
+        self.assertEqual(record2['revision'], vless.digest(new_p))
+        st = vless.state(self.store, p['panelId'])
+        obs = {r['id']: r for r in st}
+        self.assertEqual(obs[p['resources'][0]['id']]['revision'], vless.digest(new_p))
+        self.assertTrue(obs[p['resources'][0]['id']]['confirmed'])
+
+
 

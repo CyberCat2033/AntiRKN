@@ -128,7 +128,17 @@ def preflight(store, p, r, old, protocol):
 
 def apply(store, req, p, r, old, protocol, checkpoint):
     if r.get('deleted') and (not old or old.get('deleted')):
+        record = dict(old) if old else dict(
+            adopted=True, deleted=True, workspaceId=p['workspaceId'],
+            spec=r, clients=[], proxy={},
+        )
+        if protocol == 'vless':
+            record['panelId'] = p['panelId']
+        record['revision'] = digest(p)
+        record['jobId'] = req['id']
         with store.db:
+            store.db.execute('INSERT INTO ' + TABLES[protocol] + ' VALUES (?,?) '
+                             'ON CONFLICT(id) DO UPDATE SET data=excluded.data', (r['id'], canonical(record)))
             store.db.execute('UPDATE jobs SET checkpoint=? WHERE id=?', (checkpoint + 1, req['id']))
             store.event(req['id'], protocol + '_applying', checkpoint + 1, req['count'])
         return
@@ -168,7 +178,7 @@ def apply(store, req, p, r, old, protocol, checkpoint):
 
 
 def state(store, saved, protocol, pending_job=None):
-    p = {'workspaceId': saved['workspaceId'], 'panelId': saved['panelId']}
+    p = {'workspaceId': saved['workspaceId'], 'panelId': saved.get('panelId')}
     row = None
     try:
         observed = adapter(protocol).snapshot(store, p, saved['spec'])
