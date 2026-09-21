@@ -295,44 +295,9 @@ class _UsersPageState extends State<UsersPage> {
     return names.isEmpty ? l.uiNoClientAccess : names.join(' · ');
   }
 
-  bool _needsAttention(String id) {
-    final c = controller,
-        record = c.workspace.servers[id],
-        job = c.currentJob(id);
-    // A shared job is observed automatically. Only an actual failure needs
-    // attention here; a restored pending marker alone is not a warning.
-    if (c.observesOperation(id)) {
-      return c.observationErrors[id] != null ||
-          job != null &&
-              [
-                'failed',
-                'partially_applied',
-                'needs_attention',
-              ].contains(job.status);
-    }
-    return record != null &&
-        record['forgottenLocallyAt'] == null &&
-        (record['error'] != null ||
-            record['pending'] != null &&
-                (!c.observesOperation(id) || job?.terminal != true) ||
-            c.needsRestoreReview(id) && !c.observesOperation(id) ||
-            c.observationErrors[id] != null ||
-            job != null &&
-                (!job.terminal ||
-                    [
-                      'failed',
-                      'partially_applied',
-                      'needs_attention',
-                    ].contains(job.status)) ||
-            !c.observesOperation(id) &&
-                record['paused'] != true &&
-                record['authorizedPayload'] != null &&
-                record['authorizedPayload'] != record['appliedPayload']);
-  }
-
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([controller, selection, publications]),
+    listenable: Listenable.merge([controller, selection]),
     builder: (context, _) {
       final c = controller, l = AppLocalizations.of(context);
       final activeUsers = c.workspace.users
@@ -445,159 +410,244 @@ class _UsersPageState extends State<UsersPage> {
                   for (final user in activeUsers)
                     user.id: item(
                       user.id,
-                      Padding(
-                        padding: EdgeInsets.zero,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            border: Border(
-                              top: BorderSide(
-                                color:
-                                    user.id == firstUserId
-                                    ? Colors.transparent
-                                    : Theme.of(context)
-                                          .colorScheme
-                                          .outlineVariant
-                                          .withValues(alpha: .55),
-                              ),
-                            ),
-                            color:
-                                selection.active &&
-                                    selection.ids.contains(user.id)
-                                ? Theme.of(
-                                    context,
-                                  ).colorScheme.secondaryContainer
-                                : null,
-                          ),
-                          child: Material(
-                            type: MaterialType.transparency,
-                            clipBehavior: Clip.hardEdge,
-                            child: ListTile(
-                              key: ValueKey('client-${user.id}'),
-                              leading: CatalogSelectionLeading(
-                                active: selection.active,
-                                selected: selection.ids.contains(user.id),
-                                checkboxKey: ValueKey(
-                                  'client-select-${user.id}',
-                                ),
-                                onChanged: c.busy
-                                    ? null
-                                    : (_) => selection.toggle(user.id),
-                                child: AppIconTile(
-                                  round: true,
-                                  key: ValueKey('client-avatar-${user.id}'),
-                                  text: user.name
-                                          .trim()
-                                          .characters
-                                          .firstOrNull
-                                          ?.toUpperCase() ??
-                                      '?',
-                                ),
-                              ),
-                              title: Text(user.name),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    user.enabled
-                                        ? protocolSummary
-                                        : l.vpnDisabled,
-                                  ),
-                                  if (publications?.queues[user
-                                          .id]?['status'] ==
-                                      'error')
-                                    Text(
-                                      publicationMessage(
-                                        l,
-                                        publications!.queues[user.id]?['issue']
-                                            as String?,
-                                      ),
-                                    ),
-                                  if (c.results[user.id]?.hasBlockingErrors ==
-                                      true)
-                                    Text(
-                                      vpnMessage(
-                                        l,
-                                        c
-                                            .results[user.id]!
-                                            .diagnostics
-                                            .first
-                                            .code,
-                                      ),
-                                    ),
-                                  if (!selection.active)
-                                    CoreConfigCheckAction(
-                                      controller: c,
-                                      userId: user.id,
-                                    ),
-                                ],
-                              ),
-                              onTap: c.busy
-                                  ? null
-                                  : selection.active
-                                  ? () => selection.toggle(user.id)
-                                  : () => UsersPage.edit(
-                                      context,
-                                      c,
-                                      motion,
-                                      user,
-                                      publications,
-                                    ),
-                              trailing: selection.active
-                                  ? null
-                                  : IconButton(
-                                      key: ValueKey('client-qr-${user.id}'),
-                                      tooltip: l.uiShareProfile,
-                                      onPressed: c.busy
-                                          ? null
-                                          : () => _profile(context, user),
-                                      icon: const Icon(Icons.qr_code_2),
-                                    ),
-                            ),
-                          ),
-                        ),
+                      _UserTile(
+                        user: user,
+                        isFirst: user.id == firstUserId,
+                        controller: c,
+                        selection: selection,
+                        publications: publications,
+                        protocolSummary: protocolSummary,
+                        motion: motion,
+                        onProfile: _profile,
                       ),
                     ),
                 },
               ),
             ),
             ClientDeletionPanel(controller: c, serverName: serverName),
-            for (final id in c.workspace.serverIds.where(_needsAttention))
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Card.filled(
-                  child: ListTile(
-                    leading: const AppIconTile(icon: Icons.pending_actions),
-                    title: Text(serverName(vpnServerId(id))),
-                    subtitle: Text(
-                      c.workspace.servers[id]?['error'] != null
-                          ? vpnMessage(
-                              l,
-                              c.workspace.servers[id]!['error'] as String,
-                            )
-                          : c.currentJob(id) != null
-                          ? runnerStateLabel(l, c.currentJob(id)!.status)
-                          : l.uiOperationPending,
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => showAppDetails(
-                      context,
-                      title: serverName(vpnServerId(id)),
-                      children: [
-                        ListenableBuilder(
-                          listenable: c,
-                          builder: (context, _) =>
-                              VpnJobView(controller: c, serverId: id),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+            _AttentionServersSection(
+              controller: c,
+              serverName: serverName,
+            ),
           ],
         ),
       );
     },
   );
+}
+
+class _UserTile extends StatelessWidget {
+  const _UserTile({
+    required this.user,
+    required this.isFirst,
+    required this.controller,
+    required this.selection,
+    required this.publications,
+    required this.protocolSummary,
+    required this.motion,
+    required this.onProfile,
+  });
+
+  final VpnUser user;
+  final bool isFirst;
+  final VpnController controller;
+  final CatalogSelection selection;
+  final PublicationController? publications;
+  final String protocolSummary;
+  final MotionPreference motion;
+  final void Function(BuildContext, VpnUser) onProfile;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final c = controller;
+    final isSelected = selection.active && selection.ids.contains(user.id);
+    return Padding(
+      padding: EdgeInsets.zero,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            top: BorderSide(
+              color: isFirst
+                  ? Colors.transparent
+                  : Theme.of(context)
+                        .colorScheme
+                        .outlineVariant
+                        .withValues(alpha: .55),
+            ),
+          ),
+          color: isSelected
+              ? Theme.of(context).colorScheme.secondaryContainer
+              : null,
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          clipBehavior: Clip.hardEdge,
+          child: ListTile(
+            key: ValueKey('client-${user.id}'),
+            leading: CatalogSelectionLeading(
+              active: selection.active,
+              selected: isSelected,
+              checkboxKey: ValueKey('client-select-${user.id}'),
+              onChanged: c.busy ? null : (_) => selection.toggle(user.id),
+              child: AppIconTile(
+                round: true,
+                key: ValueKey('client-avatar-${user.id}'),
+                text: user.name.trim().characters.firstOrNull?.toUpperCase() ?? '?',
+              ),
+            ),
+            title: Text(user.name),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  user.enabled ? protocolSummary : l.vpnDisabled,
+                ),
+                if (publications != null)
+                  ListenableBuilder(
+                    listenable: publications!,
+                    builder: (context, _) {
+                      final queue = publications!.queues[user.id];
+                      if (queue?['status'] == 'error') {
+                        return Text(
+                          publicationMessage(
+                            l,
+                            queue?['issue'] as String?,
+                          ),
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                if (c.results[user.id]?.hasBlockingErrors == true)
+                  Text(
+                    vpnMessage(
+                      l,
+                      c.results[user.id]!.diagnostics.first.code,
+                    ),
+                  ),
+                if (!selection.active)
+                  CoreConfigCheckAction(
+                    controller: c,
+                    userId: user.id,
+                  ),
+              ],
+            ),
+            onTap: c.busy
+                ? null
+                : selection.active
+                ? () => selection.toggle(user.id)
+                : () => UsersPage.edit(
+                    context,
+                    c,
+                    motion,
+                    user,
+                    publications,
+                  ),
+            trailing: selection.active
+                ? null
+                : IconButton(
+                    key: ValueKey('client-qr-${user.id}'),
+                    tooltip: l.uiShareProfile,
+                    onPressed: c.busy ? null : () => onProfile(context, user),
+                    icon: const Icon(Icons.qr_code_2),
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AttentionServersSection extends StatelessWidget {
+  const _AttentionServersSection({
+    required this.controller,
+    required this.serverName,
+  });
+
+  final VpnController controller;
+  final String Function(String) serverName;
+
+  static bool needsAttention(VpnController c, String id) {
+    final record = c.workspace.servers[id],
+        job = c.currentJob(id);
+    // A shared job is observed automatically. Only an actual failure needs
+    // attention here; a restored pending marker alone is not a warning.
+    if (c.observesOperation(id)) {
+      return c.observationErrors[id] != null ||
+          job != null &&
+              [
+                'failed',
+                'partially_applied',
+                'needs_attention',
+              ].contains(job.status);
+    }
+    return record != null &&
+        record['forgottenLocallyAt'] == null &&
+        (record['error'] != null ||
+            record['pending'] != null &&
+                (!c.observesOperation(id) || job?.terminal != true) ||
+            c.needsRestoreReview(id) && !c.observesOperation(id) ||
+            c.observationErrors[id] != null ||
+            job != null &&
+                (!job.terminal ||
+                    [
+                      'failed',
+                      'partially_applied',
+                      'needs_attention',
+                    ].contains(job.status)) ||
+            !c.observesOperation(id) &&
+                record['paused'] != true &&
+                record['authorizedPayload'] != null &&
+                record['authorizedPayload'] != record['appliedPayload']);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final attentionIds = controller.workspace.serverIds
+        .where((id) => needsAttention(controller, id))
+        .toList(growable: false);
+    if (attentionIds.isEmpty) return const SizedBox.shrink();
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final id in attentionIds)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Card.filled(
+              child: ListTile(
+                leading: const AppIconTile(icon: Icons.pending_actions),
+                title: Text(serverName(vpnServerId(id))),
+                subtitle: Text(
+                  controller.workspace.servers[id]?['error'] != null
+                      ? vpnMessage(
+                          l,
+                          controller.workspace.servers[id]!['error'] as String,
+                        )
+                      : controller.currentJob(id) != null
+                      ? runnerStateLabel(l, controller.currentJob(id)!.status)
+                      : l.uiOperationPending,
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => showAppDetails(
+                  context,
+                  title: serverName(vpnServerId(id)),
+                  children: [
+                    ListenableBuilder(
+                      listenable: controller,
+                      builder: (context, _) =>
+                          VpnJobView(controller: controller, serverId: id),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 }
 
 class _UserForm extends StatefulWidget {

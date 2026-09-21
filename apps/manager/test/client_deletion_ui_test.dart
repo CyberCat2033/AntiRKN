@@ -190,4 +190,85 @@ void main() {
       },
     );
   }
+
+  testWidgets(
+    'UsersPage isolates publication queue updates and displays attention server cards',
+    (tester) async {
+      final store = f.MemoryVpn();
+      final remotes = {'srv1': f.Remote(store)};
+      final vpn = f.controller(store, remotes);
+      final repo = p.Repository(), remote = p.Remote();
+      final c = PublicationController(
+        repository: repo,
+        account: p.Account()..publicationAuthorized = true,
+        remote: () => remote,
+        vpn: vpn,
+        canPublish: () => false,
+      );
+      addTearDown(c.dispose);
+      addTearDown(vpn.dispose);
+      await c.ready;
+      await tester.runAsync(() async {
+        await vpn.load();
+        await vpn.saveUser(
+          VpnUser(id: f.alice, login: 'alice', name: 'Alice'),
+        );
+        await c.configure(PublicationAccess.link);
+        repo.docs['result/${f.alice}'] = jsonEncode({
+          'fileId': 'bound-file',
+          'registryId': 'registry',
+        });
+        await c.reload();
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: Scaffold(
+            body: UsersPage(
+              controller: vpn,
+              publications: c,
+              serverName: (id) => 'Server $id',
+              exporter: Export(),
+              motion: MotionPreference.off,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Alice'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('client-avatar-${f.alice}')),
+        findsOneWidget,
+      );
+      expect(find.byIcon(Icons.pending_actions), findsNothing);
+
+      // Now set publication error in queue for Alice and notify publications
+      c.queues[f.alice] = {
+        'status': 'error',
+        'issue': 'linkUnavailable',
+      };
+      c.notifyListeners();
+      await tester.pump();
+      // Alice tile should now display the publication error message
+      expect(find.textContaining('without Google sign-in'), findsOneWidget);
+
+      await tester.runAsync(() async {
+        await vpn.saveInbound(f.inbound('srv1', '1' * 32));
+      });
+      vpn.workspace = vpn.workspace.copy(
+        servers: {
+          'srv1': {'error': 'unreachable'},
+        },
+      );
+      await tester.pump();
+      expect(find.byIcon(Icons.pending_actions), findsOneWidget);
+      expect(find.text('Server srv1'), findsOneWidget);
+
+      expect(tester.takeException(), isNull);
+      await c.suspend();
+    },
+  );
 }
