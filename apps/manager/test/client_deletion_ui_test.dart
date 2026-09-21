@@ -3,6 +3,7 @@ import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_manager/l10n/app_localizations.dart';
 import 'package:antirkn_manager/publication/publication_controller.dart';
+import 'package:antirkn_manager/vpn/profile_share_sheet.dart';
 import 'package:antirkn_manager/vpn/users_page.dart';
 import 'package:antirkn_manager/vpn/vpn_controller.dart';
 import 'package:flutter/material.dart';
@@ -267,6 +268,74 @@ void main() {
       expect(find.byIcon(Icons.pending_actions), findsOneWidget);
       expect(find.text('Server srv1'), findsOneWidget);
 
+      expect(tester.takeException(), isNull);
+      await c.suspend();
+    },
+  );
+
+  testWidgets(
+    'UsersPage opens ProfileShareSheet immediately without blocking when profile is uncompiled',
+    (tester) async {
+      final vpn = f.controller(f.MemoryVpn(), {});
+      final repo = p.Repository(), remote = p.Remote();
+      final c = PublicationController(
+        repository: repo,
+        account: p.Account()..publicationAuthorized = true,
+        remote: () => remote,
+        vpn: vpn,
+        canPublish: () => false,
+      );
+      addTearDown(c.dispose);
+      addTearDown(vpn.dispose);
+      await c.ready;
+      await tester.runAsync(() async {
+        await vpn.load();
+        await vpn.saveUser(
+          VpnUser(id: f.alice, login: 'alice', name: 'Alice'),
+        );
+      });
+      // Ensure profile is uncompiled/missing in workspace.profiles and results
+      vpn.workspace = vpn.workspace.copy(profiles: {});
+      vpn.results.clear();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: Scaffold(
+            body: UsersPage(
+              controller: vpn,
+              publications: c,
+              serverName: (id) => 'Server $id',
+              exporter: Export(),
+              motion: MotionPreference.off,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final qrBtn = find.byKey(ValueKey('client-qr-${f.alice}'));
+      expect(qrBtn, findsOneWidget);
+
+      // Tap on QR button: must open dialog immediately without waiting for server sync
+      await tester.tap(qrBtn);
+      await tester.pump(); // exactly one frame
+
+      // ProfileShareSheet is already mounted in the widget tree on the very next frame
+      expect(find.byType(ProfileShareSheet), findsOneWidget);
+      expect(find.text('Alice'), findsAtLeastNWidgets(1));
+
+      // Verify that profile-generating-card is displayed while regenerating in background
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(find.byKey(const ValueKey('profile-generating-card')), findsOneWidget);
+      expect(find.byKey(const ValueKey('profile-close')), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('profile-close')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byType(ProfileShareSheet), findsNothing);
       expect(tester.takeException(), isNull);
       await c.suspend();
     },

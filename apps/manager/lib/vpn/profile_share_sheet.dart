@@ -33,15 +33,20 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted &&
-          (widget.publications?.verifiedLinkFor(widget.user.id) == null ||
-              widget.publications?.bindingPending(widget.user.id) == true)) {
+      if (!mounted) return;
+      final profileMissing =
+          widget.controller.workspace.profiles[widget.user.id] == null &&
+          widget.controller.results[widget.user.id] == null;
+      if (profileMissing && !widget.controller.busy && !regenerating) {
+        _regenerate(initial: true);
+      } else if (widget.publications?.verifiedLinkFor(widget.user.id) == null ||
+          widget.publications?.bindingPending(widget.user.id) == true) {
         widget.publications?.publishUser(widget.user.id);
       }
     });
   }
 
-  Future<void> _regenerate() async {
+  Future<void> _regenerate({bool initial = false}) async {
     final l = AppLocalizations.of(context);
     setState(() {
       regenerating = true;
@@ -54,7 +59,13 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
         widget.controller.error == null &&
         result?.yaml != null &&
         result?.hasBlockingErrors == false;
-    if (usable) await widget.publications?.publishUser(widget.user.id, force: true);
+    if (usable) {
+      await widget.publications?.publishUser(
+        widget.user.id,
+        force: !initial,
+      );
+    }
+    if (!mounted) return;
     setState(() {
       regenerating = false;
       message = widget.controller.error != null
@@ -125,7 +136,31 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: AppLayout.gap),
-              if (publication != null && link == null)
+              if (regenerating && result == null) ...[
+                Card.filled(
+                  key: const ValueKey('profile-generating-card'),
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppLayout.gap),
+                    child: Row(
+                      children: [
+                        const SizedBox.square(
+                          dimension: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        const SizedBox(width: AppLayout.gap),
+                        Expanded(
+                          child: Text(
+                            l.vpnRegeneratingProfile,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppLayout.gap),
+              ],
+              if (publication != null && link == null && !(regenerating && result == null))
                 UserPublicationView(
                   controller: publication,
                   userId: widget.user.id,
@@ -154,7 +189,7 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
               ] else if (usable &&
                   publication?.settings?.access == PublicationAccess.private)
                 Text(l.publicationPrivateHelp),
-              if (!usable)
+              if (!usable && !(regenerating && result == null))
                 Text(
                   c.template().isEmpty ? l.vpnEmptyTemplate : l.vpnLastProfile,
                 ),

@@ -248,10 +248,6 @@ class _UsersPageState extends State<UsersPage> {
   }
 
   Future<void> _profile(BuildContext context, VpnUser user) async {
-    if (controller.workspace.profiles[user.id] == null) {
-      await controller.regenerateProfile(user.id);
-    }
-    if (!context.mounted) return;
     final content = ProfileShareSheet(
       controller: controller,
       user: user,
