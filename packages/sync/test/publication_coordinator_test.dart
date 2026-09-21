@@ -381,6 +381,18 @@ void main() {
     },
   );
   test(
+    'forceUpload overrides up-to-date hash and re-uploads profile bytes',
+    () async {
+      final repo = Repository(await draft('head-1')), remote = Remote();
+      await publish(repo, remote);
+      expect(remote.updatedProfiles, 0);
+      await coordinator(repo, remote).publish(user, force: true, forceUpload: false);
+      expect(remote.updatedProfiles, 0);
+      await coordinator(repo, remote).publish(user, force: true, forceUpload: true);
+      expect(remote.updatedProfiles, 1);
+    },
+  );
+  test(
     'external edit and deletion preserve previous publication and never create replacements',
     () async {
       final repo = Repository(await draft('head-1')), remote = Remote();

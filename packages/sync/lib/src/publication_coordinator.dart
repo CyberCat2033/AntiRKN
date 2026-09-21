@@ -61,6 +61,7 @@ final class PublicationCoordinator {
   Future<Map<String, dynamic>?> publish(
     String userId, {
     bool force = false,
+    bool forceUpload = false,
     SyncCancellation? cancellation,
   }) async {
     final cancel = cancellation ?? SyncCancellation();
@@ -215,26 +216,27 @@ final class PublicationCoordinator {
             throw const PublicationFailure(PublicationIssue.conflict);
           }
           final remoteHash = f.properties['antirknHash'];
-          final canSkipDownload = (previousEtag != null &&
+          final canSkipDownload = forceUpload ||
+              (previousEtag != null &&
                   previousEtag == f.etag &&
                   remoteHash != null) ||
               (head == draft.headId && remoteHash == draft.hash);
           final String hash;
           if (canSkipDownload) {
-            hash = remoteHash!;
+            hash = remoteHash ?? '';
           } else {
             final snapshot = await _snapshot(fileId, file: f);
             file = snapshot.$1;
             hash = await _hash(snapshot.$2);
           }
-          if (hash != draft.hash || head != draft.headId) {
+          if (forceUpload || hash != draft.hash || head != draft.headId) {
             await guard();
             final props = {
               'antirknHead': draft.headId,
               'antirknExecutor': draft.deviceId,
               'antirknHash': draft.hash,
             };
-            if (hash == draft.hash) {
+            if (!forceUpload && hash == draft.hash) {
               file = await remote.updateProperties(file, props);
             } else {
               file = await remote.updateFile(file, draft.bytes, properties: props);

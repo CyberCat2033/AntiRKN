@@ -1048,7 +1048,6 @@ class VpnController extends ChangeNotifier {
       throw const FormatException('vpn_busy');
     }
     plans = [];
-    final next = <VpnPlan>[];
     final availableTargets = serverIds ?? workspace.serverIds;
     final selected = availableTargets.where((id) {
       if (serverIds != null && !serverIds.contains(id)) return false;
@@ -1069,47 +1068,49 @@ class VpnController extends ChangeNotifier {
     if (blockingRevocations.isNotEmpty) {
       throw const FormatException('vpn_busy');
     }
-    for (final id in selected) {
-      await ensureConnected(id);
-      token.check();
-      final connection = remote(id);
-      final previous = workspace.servers[id];
-      if (_isTargetBusy(previous)) {
-        throw const FormatException('vpn_busy');
-      }
-      final panelId = (isAwgTarget(id) || isTtTarget(id))
-          ? workspace.resourceWorkspaceId(id)
-          : connection?.panelId ?? previous?['panelId'] as String?;
-      if (panelId == null) throw const FormatException('vpn_panel_required');
-      final payload = workspace.desired(id, panelId);
-      if (connection == null || hasPendingRevocation(vpnServerId(id))) {
-        next.add(
-          VpnPlan(
+    final plansList = await Future.wait(
+      selected.map((id) async {
+        await ensureConnected(id);
+        token.check();
+        final connection = remote(id);
+        final previous = workspace.servers[id];
+        if (_isTargetBusy(previous)) {
+          throw const FormatException('vpn_busy');
+        }
+        final panelId = (isAwgTarget(id) || isTtTarget(id))
+            ? workspace.resourceWorkspaceId(id)
+            : connection?.panelId ?? previous?['panelId'] as String?;
+        if (panelId == null) throw const FormatException('vpn_panel_required');
+        final payload = workspace.desired(id, panelId);
+        if (connection == null || hasPendingRevocation(vpnServerId(id))) {
+          return VpnPlan(
             id,
             payload,
             connection?.identity ?? previous?['identity'] as String?,
             null,
-          ),
+          );
+        }
+        if (previous?['identity'] != null &&
+            previous?['identity'] != connection.identity) {
+          throw const FormatException('vpn_identity');
+        }
+        final response = await _request(
+          connection,
+          _planRequest(id, panelId, payload),
+          token,
         );
-        continue;
-      }
-      if (previous?['identity'] != null &&
-          previous?['identity'] != connection.identity) {
-        throw const FormatException('vpn_identity');
-      }
-      final response = await _request(
-        connection,
-        _planRequest(id, panelId, payload),
-        token,
-      );
-      if (_preview(response, id) == null) {
-        throw const FormatException('vpn_failed');
-      }
-      next.add(
-        VpnPlan(id, payload, connection.identity, _preview(response, id)),
-      );
-    }
-    plans = next;
+        if (_preview(response, id) == null) {
+          throw const FormatException('vpn_failed');
+        }
+        return VpnPlan(
+          id,
+          payload,
+          connection.identity,
+          _preview(response, id),
+        );
+      }),
+    );
+    plans = plansList;
   });
   void dismissPlans() {
     if (!busy) {
@@ -1897,14 +1898,81 @@ class VpnController extends ChangeNotifier {
       }
     }
 
-    // 4. Sequentially apply server observations in memory & local SQLite
+    // 4. Accumulate server observations in memory & write once to SQLite
+    final updatedServers = {...workspace.servers};
+    final recoveredAwg = <AwgInterface>[];
+    final recoveredTt = <TrustTunnelEndpoint>[];
     String? firstIssue;
+    var serverChanges = false;
+
     for (final res in results) {
       if (res.error != null) {
         firstIssue ??= res.error;
         continue;
       }
-      await _applyServerObservations(res.target, res.remote!, res.observations!);
+      final id = res.target;
+      final r = res.remote!;
+      final observations = res.observations!;
+      final current = updatedServers[id] ?? {};
+      updatedServers[id] = {
+        ...current,
+        'identity': r.identity,
+        'panelId': r.panelId,
+        'observed': observations,
+        'error': (current['error'] == 'vless_conflict' ||
+                current['error'] == 'vpn_conflict' ||
+                current['error'] == 'vpn_adoption_conflict')
+            ? null
+            : current['error'],
+        if (current['error'] == 'vless_conflict' ||
+            current['error'] == 'vpn_conflict' ||
+            current['error'] == 'vpn_adoption_conflict')
+          'paused': false,
+        'verifiedAt': DateTime.now().toUtc().toIso8601String(),
+      };
+      serverChanges = true;
+
+      if (isTtTarget(id)) {
+        final recovered = observations
+            .where(
+              (o) =>
+                  o['workspaceId'] == workspace.resourceWorkspaceId(id) &&
+                  !workspace.ttEndpoints.any((i) => i.id == o['id']) &&
+                  !recoveredTt.any((i) => i.id == o['id']),
+            )
+            .map(
+              (o) => TrustTunnelEndpoint(
+                serverId: vpnServerId(id),
+                spec: Map<String, Object?>.from(o['spec'] as Map),
+              ),
+            );
+        recoveredTt.addAll(recovered);
+      } else if (isAwgTarget(id)) {
+        final recovered = observations
+            .where(
+              (o) =>
+                  o['workspaceId'] == workspace.resourceWorkspaceId(id) &&
+                  !workspace.awgInterfaces.any((i) => i.id == o['id']) &&
+                  !recoveredAwg.any((i) => i.id == o['id']),
+            )
+            .map(
+              (o) => AwgInterface(
+                serverId: vpnServerId(id),
+                spec: Map<String, Object?>.from(o['spec'] as Map),
+              ),
+            );
+        recoveredAwg.addAll(recovered);
+      }
+    }
+
+    if (serverChanges || recoveredAwg.isNotEmpty || recoveredTt.isNotEmpty) {
+      await _write(
+        workspace.copy(
+          servers: updatedServers,
+          awgInterfaces: [...workspace.awgInterfaces, ...recoveredAwg],
+          ttEndpoints: [...workspace.ttEndpoints, ...recoveredTt],
+        ),
+      );
     }
 
     // 5. Rebuild client profiles once for all refreshed servers

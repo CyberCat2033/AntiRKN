@@ -355,6 +355,7 @@ class PublicationController extends ChangeNotifier {
               publishQueue = await coordinator.publish(
                 user.id,
                 force: true,
+                forceUpload: force,
                 cancellation: _cancel,
               );
               if (publishQueue?['issue'] != 'changed' || attempt == 2) {
