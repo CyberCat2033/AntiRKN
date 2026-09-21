@@ -101,7 +101,11 @@ class Remote implements PublicationRemoteStore {
   Future<void> trashFile(PublicationFile expected, String deletionId) async =>
       throw UnimplementedError();
   final blobs = <String, Blob>{'folder': Blob(bytes(''), {}, folder: true)};
-  int ids = 0, createdProfiles = 0, updatedProfiles = 0;
+  int ids = 0,
+      createdProfiles = 0,
+      updatedProfiles = 0,
+      enableLinkCalls = 0,
+      verifyPublicLinkCalls = 0;
   bool loseCreate = false, loseUpdate = false, linkBroken = false;
   String? pauseContent;
   final paused = Completer<void>(), release = Completer<void>();
@@ -245,6 +249,7 @@ class Remote implements PublicationRemoteStore {
 
   @override
   Future<String> enableLink(String id) async {
+    enableLinkCalls++;
     shared.add(id);
     return 'anyoneWithLink';
   }
@@ -256,6 +261,7 @@ class Remote implements PublicationRemoteStore {
 
   @override
   Future<void> verifyPublicLink(String url, Uint8List expected) async {
+    verifyPublicLinkCalls++;
     final id = Uri.parse(url).queryParameters['id'];
     if (linkBroken ||
         !shared.contains(id) ||
@@ -420,6 +426,76 @@ void main() {
       expect(res['issue'], 'linkUnavailable');
       expect(res['status'], 'error');
       expect(res['attempt'], 1);
+    },
+  );
+  test(
+    'fast update path skips redundant enableLink and verifyPublicLink when updating already published profile',
+    () async {
+      final repo = Repository(await draft('head-1')), remote = Remote();
+      final initialResult = await publish(repo, remote);
+      expect(initialResult['status'], 'published');
+      expect(remote.createdProfiles, 1);
+      expect(remote.updatedProfiles, 0);
+      expect(remote.enableLinkCalls, 1);
+      expect(remote.verifyPublicLinkCalls, 1);
+
+      final initialDoc = jsonDecode(repo.documents['result/$user']!);
+      expect(initialDoc['head'], 'head-1');
+      expect(initialDoc['url'], startsWith('https://drive.google.com/uc?id='));
+      expect(initialDoc['permissionId'], 'anyoneWithLink');
+
+      // Update to head-2
+      repo.current = await draft('head-2', ancestors: {'head-1'});
+      final updateResult = await publish(repo, remote);
+      expect(updateResult['status'], 'published');
+      expect(remote.createdProfiles, 1);
+      expect(remote.updatedProfiles, 1);
+      // Calls to enableLink and verifyPublicLink MUST NOT increase on update:
+      expect(remote.enableLinkCalls, 1);
+      expect(remote.verifyPublicLinkCalls, 1);
+
+      final updatedDoc = jsonDecode(repo.documents['result/$user']!);
+      expect(updatedDoc['head'], 'head-2');
+      expect(updatedDoc['fileId'], initialDoc['fileId']);
+      expect(updatedDoc['url'], initialDoc['url']);
+      expect(updatedDoc['permissionId'], initialDoc['permissionId']);
+    },
+  );
+  test(
+    'fast update path still enables and verifies link if previous publication was private or unlinked',
+    () async {
+      final repo = Repository(await draft('head-1')), remote = Remote();
+      // First publish with private access
+      repo.documents['settings'] = canonicalJson(
+        const PublicationSettings(
+          accountKey: 'account',
+          folderId: 'folder',
+          folderName: 'Test',
+          access: PublicationAccess.private,
+        ).toJson(),
+      );
+      final privateResult = await publish(repo, remote);
+      expect(privateResult['status'], 'published');
+      expect(remote.enableLinkCalls, 0);
+      expect(remote.verifyPublicLinkCalls, 0);
+
+      // Now switch access to link
+      repo.documents['settings'] = canonicalJson(
+        const PublicationSettings(
+          accountKey: 'account',
+          folderId: 'folder',
+          folderName: 'Test',
+          access: PublicationAccess.link,
+        ).toJson(),
+      );
+      repo.current = await draft('head-2', ancestors: {'head-1'});
+      final linkResult = await publish(repo, remote);
+      expect(linkResult['status'], 'published');
+      expect(remote.enableLinkCalls, 1);
+      expect(remote.verifyPublicLinkCalls, 1);
+      final doc = jsonDecode(repo.documents['result/$user']!);
+      expect(doc['permissionId'], 'anyoneWithLink');
+      expect(doc['access'], 'link');
     },
   );
 }

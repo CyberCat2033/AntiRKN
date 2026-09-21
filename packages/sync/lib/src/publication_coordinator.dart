@@ -217,24 +217,22 @@ final class PublicationCoordinator {
           : null;
       if (settings.access == PublicationAccess.link) {
         await guard();
-        permissionId = await remote.enableLink(fileId);
-        file = await remote.getFile(fileId);
-        url ??= file.downloadUrl;
-        if (url == null) {
-          throw const PublicationFailure(PublicationIssue.linkUnavailable);
+        if (permissionId == null || url == null) {
+          permissionId = await remote.enableLink(fileId);
+          file = await remote.getFile(fileId);
+          url = file.downloadUrl;
+          if (url == null) {
+            throw const PublicationFailure(PublicationIssue.linkUnavailable);
+          }
+          await remote.verifyPublicLink(url, draft.bytes);
         }
-        await remote.verifyPublicLink(url, draft.bytes);
       } else if (permissionId != null) {
         await guard();
         await remote.removeLink(fileId, permissionId);
         permissionId = null;
       }
       await guard();
-      final finalSnapshot = await _snapshot(fileId);
-      if (finalSnapshot.$1.properties['antirknHead'] != draft.headId ||
-          await _hash(finalSnapshot.$2) != draft.hash) {
-        throw const PublicationFailure(PublicationIssue.conflict);
-      }
+      final executor = file!.properties['antirknExecutor'] ?? draft.deviceId;
       final result = <String, dynamic>{
         'version': entry['binding'] == null ? 1 : 2,
         'binding': ?entry['binding'],
@@ -244,7 +242,7 @@ final class PublicationCoordinator {
         'registryId': registryId,
         'head': draft.headId,
         'hash': draft.hash,
-        'executor': finalSnapshot.$1.properties['antirknExecutor'],
+        'executor': executor,
         'access': settings.access.name,
         'url': url,
         'permissionId': permissionId,
