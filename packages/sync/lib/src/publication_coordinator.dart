@@ -97,17 +97,17 @@ final class PublicationCoordinator {
       cancel.check();
     }
 
-    await saveQueue({
-      ...queue,
-      'version': 1,
-      'head': draft.headId,
-      'hash': draft.hash,
-      'status': 'waiting',
-      'attempt': same ? queue['attempt'] ?? 0 : 0,
-      'retryAt': 0,
-      'issue': null,
-    });
     try {
+      await saveQueue({
+        ...queue,
+        'version': 1,
+        'head': draft.headId,
+        'hash': draft.hash,
+        'status': 'waiting',
+        'attempt': same ? queue['attempt'] ?? 0 : 0,
+        'retryAt': 0,
+        'issue': null,
+      });
       await guard();
       final registryId = await _registry(settings, draft, guard);
       if (intentSource != null) {
@@ -252,25 +252,29 @@ final class PublicationCoordinator {
         canonicalJson(result),
         expectedSource: beforeSource,
       );
-      await saveQueue({
+      final successQueue = {
         ...queue,
         'status': 'published',
         'issue': null,
         'attempt': 0,
         'retryAt': now().millisecondsSinceEpoch + 300000,
-      });
-      return queue;
+      };
+      await saveQueue(successQueue);
+      return successQueue;
     } on SyncTransportFailure catch (e) {
       if (e.issue == SyncTransportIssue.cancelled) rethrow;
       rethrow;
     } on SyncMergeFailure {
-      await saveQueue({
+      final nextQueue = {
         ...queue,
         'status': 'waiting',
         'issue': 'changed',
         'retryAt': now().millisecondsSinceEpoch + 5000,
-      });
-      return queue;
+      };
+      try {
+        await saveQueue(nextQueue);
+      } catch (_) {}
+      return nextQueue;
     } on PublicationFailure catch (e) {
       final attempt = (queue['attempt'] as int? ?? 0) + 1;
       final seconds =
@@ -278,14 +282,17 @@ final class PublicationCoordinator {
       final retry = e.retryAfter != null && e.retryAfter!.inSeconds > seconds
           ? e.retryAfter!.inSeconds
           : seconds;
-      await saveQueue({
+      final nextQueue = {
         ...queue,
         'status': 'error',
         'issue': e.issue.name,
         'attempt': attempt,
         'retryAt': now().millisecondsSinceEpoch + retry * 1000,
-      });
-      return queue;
+      };
+      try {
+        await saveQueue(nextQueue);
+      } catch (_) {}
+      return nextQueue;
     }
   }
 

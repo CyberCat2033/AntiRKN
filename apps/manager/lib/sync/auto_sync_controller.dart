@@ -212,7 +212,9 @@ class AutoSyncController extends ChangeNotifier {
       request(immediate: true);
     } else {
       _timer?.cancel();
-      _cancel?.cancel();
+      if (_running == null) {
+        _cancel?.cancel();
+      }
     }
   }
 

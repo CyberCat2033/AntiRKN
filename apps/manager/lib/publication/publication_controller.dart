@@ -256,10 +256,14 @@ class PublicationController extends ChangeNotifier {
     );
   }
 
-  void _start(bool force, {String? targetUserId}) {
+  void _start(
+    bool force, {
+    String? targetUserId,
+    bool ignoreForeground = false,
+  }) {
     if (_disposed ||
         _suspended ||
-        !_foreground ||
+        (!_foreground && !ignoreForeground) ||
         editing ||
         _running != null) {
       return;
@@ -280,7 +284,7 @@ class PublicationController extends ChangeNotifier {
         await _running;
       } catch (_) {}
     }
-    _start(force, targetUserId: userId);
+    _start(force, targetUserId: userId, ignoreForeground: true);
     await _running;
   }
 
@@ -295,7 +299,7 @@ class PublicationController extends ChangeNotifier {
         repository: repository,
         remote: remote(),
         eligible: (draft) async =>
-            !_suspended && _foreground && _draftEligible(draft),
+            !_disposed && !_suspended && _draftEligible(draft),
       );
       final activeUsers = vpn.workspace.users
           .where((u) => u.enabled && !u.deleted)
@@ -303,7 +307,7 @@ class PublicationController extends ChangeNotifier {
           .toList();
 
       for (final user in activeUsers) {
-        if (_disposed || _suspended || !_foreground) break;
+        if (_disposed || _suspended) break;
         _cancel?.check();
 
         // Fast-path: skip user if profile is already published and unchanged
@@ -325,7 +329,7 @@ class PublicationController extends ChangeNotifier {
 
         Map<String, dynamic>? publishQueue;
         for (var attempt = 0; attempt < 3; attempt++) {
-          if (_disposed || _suspended || !_foreground) break;
+          if (_disposed || _suspended) break;
           try {
             publishQueue = await coordinator.publish(
               user.id,
@@ -410,7 +414,7 @@ class PublicationController extends ChangeNotifier {
         await _running;
       } catch (_) {}
     }
-    _start(force);
+    _start(force, ignoreForeground: true);
     await _running;
   }
 
@@ -418,7 +422,9 @@ class PublicationController extends ChangeNotifier {
     _foreground = value;
     if (!value) {
       _timer?.cancel();
-      _cancel?.cancel();
+      if (_running == null) {
+        _cancel?.cancel();
+      }
     }
   }
 

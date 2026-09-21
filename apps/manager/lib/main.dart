@@ -688,16 +688,14 @@ class _ManagerShellState extends State<ManagerShell>
     }
     // An unfocused desktop window is still visible (e.g. beside a browser).
     // Android retains its existing foreground-only scheduling policy.
-    widget.autoSync?.foreground(
-      state == AppLifecycleState.resumed ||
-          (state == AppLifecycleState.inactive &&
-              widget.googleAccount is CancelableGoogleSignIn),
-    );
-    _publications?.foreground(
-      state == AppLifecycleState.resumed ||
-          state == AppLifecycleState.inactive &&
-              widget.googleAccount is CancelableGoogleSignIn,
-    );
+    final isDesktop = widget.googleAccount is CancelableGoogleSignIn ||
+        defaultTargetPlatform == TargetPlatform.linux ||
+        defaultTargetPlatform == TargetPlatform.macOS ||
+        defaultTargetPlatform == TargetPlatform.windows;
+    final inForeground = state == AppLifecycleState.resumed ||
+        (isDesktop && state != AppLifecycleState.detached);
+    widget.autoSync?.foreground(inForeground);
+    _publications?.foreground(inForeground);
     if (state == AppLifecycleState.resumed) {
       _networkController.tick();
       if (!(_sshController?.unlocked ?? true)) _sshController?.initialise();

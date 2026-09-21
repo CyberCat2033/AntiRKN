@@ -266,4 +266,46 @@ void main() {
       },
     );
   }
+
+  testWidgets('foreground(false) does not cancel an in-flight auto-sync exchange', (
+    tester,
+  ) async {
+    final account = AccountService();
+    await account.signIn();
+    final changes = StreamController<void>.broadcast();
+    final session = Session()..hold = Completer<void>();
+    final controller = AutoSyncController(
+      accountService: account,
+      settings: Settings(),
+      changes: changes.stream,
+      openSession: () async => session,
+      apply: (_) async => true,
+    );
+    await tester.pump(Duration.zero);
+    await tester.pump(Duration.zero);
+    expect(session.calls, 1);
+    expect(session.active, 1);
+    expect(() => session.cancellation!.check(), returnsNormally);
+
+    // Window loses focus / becomes inactive
+    controller.foreground(false);
+    await tester.pump(Duration.zero);
+
+    // In-flight exchange must NOT be cancelled
+    expect(() => session.cancellation!.check(), returnsNormally);
+    expect(session.active, 1);
+
+    // Complete the exchange
+    session.hold!.complete();
+    session.hold = null;
+    await tester.pump(Duration.zero);
+
+    expect(session.calls, 1);
+    expect(session.active, 0);
+    expect(controller.phase, AutoSyncPhase.synced);
+
+    await tester.runAsync(controller.stop);
+    controller.dispose();
+    await tester.runAsync(changes.close);
+  });
 }

@@ -30,16 +30,18 @@ class Account
 class Repository implements PublicationRepository {
   final docs = <String, String>{}, queues = <String, String>{};
   PublicationDraft? draft;
+  final drafts = <String, PublicationDraft>{};
   @override
   Future<String?> readPublicationDocument(String id) async => docs[id];
   @override
   Future<String?> readPublicationQueue(String id) async => queues[id];
   @override
   Future<PublicationDraft?> readPublicationDraft(String id) async =>
-      draft?.userId == id ? draft : null;
+      drafts[id] ?? (draft?.userId == id ? draft : null);
   @override
   Future<void> checkPublicationDraft(PublicationDraft value) async {
-    if (draft?.stamp != value.stamp) {
+    final d = drafts[value.userId] ?? draft;
+    if (d?.stamp != value.stamp) {
       throw const SyncMergeFailure(SyncMergeIssue.changed);
     }
   }
@@ -793,6 +795,109 @@ void main() {
     expect(published, 1);
     // Deleted users must never be included even if present in results
     expect(activeUsers.any((u) => u.id == deleted.id), isFalse);
+  });
+
+  test('PublicationController does not abort in-flight publication or break loop when window loses focus (foreground false)', () async {
+    final account = Account()..publicationAuthorized = true;
+    final repo = Repository();
+    final remote = Remote();
+    final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
+    addTearDown(vpn.dispose);
+    final c = PublicationController(
+      repository: repo,
+      account: account,
+      remote: () => remote,
+      vpn: vpn,
+    );
+    addTearDown(c.dispose);
+    await c.ready;
+
+    final userAlice = VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice');
+    final userBob = VpnUser(id: fixtures.bob, login: 'bob', name: 'Bob');
+    await vpn.load();
+    await vpn.saveUser(userAlice);
+    await vpn.saveUser(userBob);
+
+    final aliceSaved = vpn.workspace.profiles[fixtures.alice]!;
+    final bobSaved = vpn.workspace.profiles[fixtures.bob]!;
+
+    final aliceDraft = PublicationDraft(
+      workspaceId: vpn.workspace.id,
+      deviceId: 'b' * 32,
+      userId: fixtures.alice,
+      name: 'Alice',
+      headId: 'head-alice',
+      hash: aliceSaved['hash'] as String,
+      stamp: 'stamp-alice',
+      bytes: Uint8List.fromList(utf8.encode(aliceSaved['yaml'] as String)),
+      ancestors: {},
+    );
+    final bobDraft = PublicationDraft(
+      workspaceId: vpn.workspace.id,
+      deviceId: 'b' * 32,
+      userId: fixtures.bob,
+      name: 'Bob',
+      headId: 'head-bob',
+      hash: bobSaved['hash'] as String,
+      stamp: 'stamp-bob',
+      bytes: Uint8List.fromList(utf8.encode(bobSaved['yaml'] as String)),
+      ancestors: {},
+    );
+
+    repo.drafts[fixtures.alice] = aliceDraft;
+    repo.drafts[fixtures.bob] = bobDraft;
+
+    final settings = const PublicationSettings(
+      accountKey: 'account',
+      folderId: 'test-folder',
+      folderName: 'Folder',
+      access: PublicationAccess.link,
+      enabled: true,
+      folderReady: true,
+    );
+    repo.docs['settings'] = canonicalJson(settings.toJson());
+    await c.reload();
+
+    remote.folders['test-folder'] = PublicationFile(
+      id: 'test-folder',
+      name: 'Folder',
+      mimeType: 'application/vnd.google-apps.folder',
+      version: '1',
+      etag: 'etag-f',
+      editable: true,
+      properties: {'antirknRegistry.${vpn.workspace.id}': 'ready:registry-1'},
+    );
+    final regBytes = Uint8List.fromList(utf8.encode(canonicalJson({
+      'version': 2,
+      'workspaceId': vpn.workspace.id,
+      'users': <String, dynamic>{},
+    })));
+    final regHash = sha256.convert(regBytes).toString();
+    remote.folders['registry-1'] = PublicationFile(
+      id: 'registry-1',
+      name: 'registry.json',
+      mimeType: 'application/json',
+      version: '1',
+      etag: 'etag-r',
+      editable: true,
+      properties: {
+        'antirknWorkspace': vpn.workspace.id,
+        'antirknUser': 'registry',
+        'antirknHash': regHash,
+      },
+      downloadUrl: 'https://drive.google.com/uc?id=registry-1',
+    );
+    remote.contents['registry-1'] = regBytes;
+
+    // Start publishing and immediately simulate window becoming inactive / losing focus
+    final future = c.forcePublishAll(force: false);
+    c.foreground(false);
+    await future;
+
+    expect(c.queues[fixtures.alice]?['status'], 'published');
+    expect(c.queues[fixtures.alice]?['issue'], isNull);
+    expect(c.queues[fixtures.bob]?['status'], 'published');
+    expect(c.queues[fixtures.bob]?['issue'], isNull);
   });
 }
 

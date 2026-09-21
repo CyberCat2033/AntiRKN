@@ -60,6 +60,7 @@ class Repository implements PublicationRepository {
     documents[id] = source;
   }
 
+  bool failErrorQueueWrite = false;
   @override
   Future<String?> readPublicationQueue(String id) async => queues[id];
   @override
@@ -68,6 +69,9 @@ class Repository implements PublicationRepository {
     String source, {
     required String? expectedSource,
   }) async {
+    if (failErrorQueueWrite && !source.contains('"issue":null')) {
+      throw const SyncMergeFailure(SyncMergeIssue.changed);
+    }
     if (queues[id] != expectedSource) {
       throw const SyncMergeFailure(SyncMergeIssue.changed);
     }
@@ -379,6 +383,29 @@ void main() {
       repo.current = null;
       expect(await coordinator(repo, remote).publish(user), isNull);
       expect(remote.blobs.length, 1);
+    },
+  );
+  test(
+    'publish returns nextQueue with issue changed and status waiting even if queue persistence fails',
+    () async {
+      final repo = Repository(await draft('head-1'))
+        ..reject = true
+        ..failErrorQueueWrite = true;
+      final remote = Remote();
+      final res = await publish(repo, remote);
+      expect(res['issue'], 'changed');
+      expect(res['status'], 'waiting');
+    },
+  );
+  test(
+    'publish returns nextQueue with publication issue and status error even if queue persistence fails',
+    () async {
+      final repo = Repository(await draft('head-1'))..failErrorQueueWrite = true;
+      final remote = Remote()..linkBroken = true;
+      final res = await publish(repo, remote);
+      expect(res['issue'], 'linkUnavailable');
+      expect(res['status'], 'error');
+      expect(res['attempt'], 1);
     },
   );
 }

@@ -165,7 +165,7 @@ class _UsersPageState extends State<UsersPage> {
     try {
       await controller.syncAllServersAndProfiles();
       if (publications != null) {
-        await publications!.forcePublishAll(force: true);
+        await publications!.forcePublishAll(force: false);
       }
       if (mounted) {
         final activeUsers = controller.workspace.users
