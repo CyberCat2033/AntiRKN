@@ -147,42 +147,19 @@ if all((ROOT / 'server/runner' / p).exists() for p in paths):
     bundle = json.dumps({'release': release, 'files': payload, 'hashes': hashes}, sort_keys=True)
     installer = (ROOT / 'server/runner/install.py').read_text()
     probe = (ROOT / 'server/runner/inspect.py').read_text()
-    predecessor = json.loads((ROOT / 'schemas/runner-predecessor.json').read_text())
-    predecessor_v2 = json.loads((ROOT / 'schemas/runner-predecessor-v2.json').read_text())
-    predecessor_v3 = json.loads((ROOT / 'schemas/runner-predecessor-v3.json').read_text())
-    predecessor_v4 = json.loads((ROOT / 'schemas/runner-predecessor-v4.json').read_text())
-    predecessor_v5 = json.loads((ROOT / 'schemas/runner-predecessor-v5.json').read_text())
-    predecessor_v6 = json.loads((ROOT / 'schemas/runner-predecessor-v6.json').read_text())
-    predecessor_v7 = json.loads((ROOT / 'schemas/runner-predecessor-v7.json').read_text())
-    predecessor_v8 = json.loads((ROOT / 'schemas/runner-predecessor-v8.json').read_text())
-    predecessor_v9 = json.loads((ROOT / 'schemas/runner-predecessor-v9.json').read_text())
-    predecessor_v10 = json.loads((ROOT / 'schemas/runner-predecessor-v10.json').read_text())
-    predecessor_v11 = json.loads((ROOT / 'schemas/runner-predecessor-v11.json').read_text())
-    predecessor_v12 = json.loads((ROOT / 'schemas/runner-predecessor-v12.json').read_text())
-    predecessor_v13 = json.loads((ROOT / 'schemas/runner-predecessor-v13.json').read_text())
-    predecessor_v14 = json.loads((ROOT / 'schemas/runner-predecessor-v14.json').read_text())
-    predecessor_v15 = json.loads((ROOT / 'schemas/runner-predecessor-v15.json').read_text())
-    predecessor_v16 = json.loads((ROOT / 'schemas/runner-predecessor-v16.json').read_text())
-    predecessor_v17 = json.loads((ROOT / 'schemas/runner-predecessor-v17.json').read_text())
-    predecessor_v18 = json.loads((ROOT / 'schemas/runner-predecessor-v18.json').read_text())
-    predecessor_v19 = json.loads((ROOT / 'schemas/runner-predecessor-v19.json').read_text())
-    predecessor_v20 = json.loads((ROOT / 'schemas/runner-predecessor-v20.json').read_text())
-    predecessor_v21 = json.loads((ROOT / 'schemas/runner-predecessor-v21.json').read_text())
-    predecessor_v22 = json.loads((ROOT / 'schemas/runner-predecessor-v22.json').read_text())
-    predecessor_v23 = json.loads((ROOT / 'schemas/runner-predecessor-v23.json').read_text())
-    predecessor_v24 = json.loads((ROOT / 'schemas/runner-predecessor-v24.json').read_text())
-    predecessor_v25 = json.loads((ROOT / 'schemas/runner-predecessor-v25.json').read_text())
-    predecessor_v26 = json.loads((ROOT / 'schemas/runner-predecessor-v26.json').read_text())
-    predecessor_v27 = json.loads((ROOT / 'schemas/runner-predecessor-v27.json').read_text())
-    predecessor_v28 = json.loads((ROOT / 'schemas/runner-predecessor-v28.json').read_text())
-    predecessor_v29 = json.loads((ROOT / 'schemas/runner-predecessor-v29.json').read_text())
-    predecessor_v30 = json.loads((ROOT / 'schemas/runner-predecessor-v30.json').read_text())
-    predecessor_v31 = json.loads((ROOT / 'schemas/runner-predecessor-v31.json').read_text())
-    predecessor_v32 = json.loads((ROOT / 'schemas/runner-predecessor-v32.json').read_text())
-    predecessor_v33 = json.loads((ROOT / 'schemas/runner-predecessor-v33.json').read_text())
-    predecessor_v34 = json.loads((ROOT / 'schemas/runner-predecessor-v34.json').read_text())
-    predecessor_v35 = json.loads((ROOT / 'schemas/runner-predecessor-v35.json').read_text())
-    probe = 'PREDECESSOR_V35 = ' + repr(predecessor_v35) + '\n' + 'PREDECESSOR_V34 = ' + repr(predecessor_v34) + '\n' + 'PREDECESSOR_V33 = ' + repr(predecessor_v33) + '\n' + 'PREDECESSOR_V32 = ' + repr(predecessor_v32) + '\n' + 'PREDECESSOR_V31 = ' + repr(predecessor_v31) + '\n' + 'PREDECESSOR_V30 = ' + repr(predecessor_v30) + '\n' + 'PREDECESSOR_V29 = ' + repr(predecessor_v29) + '\n' + 'PREDECESSOR_V28 = ' + repr(predecessor_v28) + '\n' + 'PREDECESSOR_V27 = ' + repr(predecessor_v27) + '\n' + 'PREDECESSOR_V26 = ' + repr(predecessor_v26) + '\n' + 'PREDECESSOR_V25 = ' + repr(predecessor_v25) + '\n' + 'PREDECESSOR_V24 = ' + repr(predecessor_v24) + '\n' + 'PREDECESSOR_V23 = ' + repr(predecessor_v23) + '\n' + 'PREDECESSOR_V22 = ' + repr(predecessor_v22) + '\n' + 'PREDECESSOR_V21 = ' + repr(predecessor_v21) + '\n' + 'PREDECESSOR_V20 = ' + repr(predecessor_v20) + '\n' + 'PREDECESSOR_V19 = ' + repr(predecessor_v19) + '\n' + 'PREDECESSOR_V18 = ' + repr(predecessor_v18) + '\n' + 'PREDECESSOR_V17 = ' + repr(predecessor_v17) + '\n' + 'PREDECESSOR_V16 = ' + repr(predecessor_v16) + '\n' + 'PREDECESSOR_V15 = ' + repr(predecessor_v15) + '\n' + 'PREDECESSOR_V14 = ' + repr(predecessor_v14) + '\n' + 'PREDECESSOR_V13 = ' + repr(predecessor_v13) + '\n' + 'PREDECESSOR_V12 = ' + repr(predecessor_v12) + '\n' + 'PREDECESSOR_V11 = ' + repr(predecessor_v11) + '\n' + 'PREDECESSOR_V10 = ' + repr(predecessor_v10) + '\n' + 'PREDECESSOR_V9 = ' + repr(predecessor_v9) + '\n' + 'PREDECESSOR_V8 = ' + repr(predecessor_v8) + '\n' + 'PREDECESSOR_V7 = ' + repr(predecessor_v7) + '\n' + 'PREDECESSOR_V6 = ' + repr(predecessor_v6) + '\n' + 'PREDECESSOR_V5 = ' + repr(predecessor_v5) + '\n' + 'PREDECESSOR_V4 = ' + repr(predecessor_v4) + '\n' + 'PREDECESSOR_V3 = ' + repr(predecessor_v3) + '\n' + 'PREDECESSOR = ' + repr(predecessor) + '\nPREDECESSOR_V2 = ' + repr(predecessor_v2) + '\n' + probe
+    import zlib
+    predecessors_map = {}
+    for i in range(1, 36):
+        suffix = f'-v{i}' if i > 1 else ''
+        schema_file = ROOT / f'schemas/runner-predecessor{suffix}.json'
+        predecessors_map[f'v{i}'] = json.loads(schema_file.read_text())
+    predecessors_blob = base64.b64encode(zlib.compress(json.dumps(predecessors_map, separators=(',', ':')).encode('utf-8'), 9)).decode('ascii')
+    probe_unpack = (
+        'import base64, json, zlib\n'
+        f'_ALL_PREDECESSORS = json.loads(zlib.decompress(base64.b64decode("""{predecessors_blob}""")))\n'
+        "globals().update({('PREDECESSOR' if v == 'v1' else f'PREDECESSOR_{v.upper()}'): d for v, d in _ALL_PREDECESSORS.items()})\n"
+    )
+    probe = probe_unpack + probe
     panel_probe = release_source + (ROOT / 'server/runner/panel.py').read_text().replace('from panel_release import RELEASE', '')
     panel_probe += "\nprint('__ANTIRKN_RUNNER_INPUT__', file=sys.stderr, flush=True)\nreq = json.loads(sys.stdin.buffer.read(4096))\nprint(json.dumps(dict(version=1,code='ok',alive=False,jobs=[],panelPlan=panel_plan(req['port']))))\n"
     component_probe = release_source + (ROOT / 'server/runner/panel.py').read_text().replace('from panel_release import RELEASE', '') + '\n' + component_source + (ROOT / 'server/runner/components.py').read_text().replace('from component_releases import RELEASES', '').replace('from panel import atomic_file, digest, safe_file, PanelError', '')

@@ -121,5 +121,10 @@ PrivilegeStatus sudoFailureStatus(RemoteCommandResult result) {
       error.contains('no password was supplied')) {
     return PrivilegeStatus.passwordRequired;
   }
+  if (error.contains('argument list too long') ||
+      error.contains('command not found') ||
+      error.contains('no such file or directory')) {
+    return PrivilegeStatus.unavailable;
+  }
   return PrivilegeStatus.denied;
 }
