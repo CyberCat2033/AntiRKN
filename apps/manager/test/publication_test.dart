@@ -1102,13 +1102,126 @@ void main() {
       properties: const {},
     );
 
-    await c.forcePublishAll(force: true);
+    final batchResult = await c.forcePublishAll(force: true);
 
     // Alice should fail with invalid or conflict
     expect(c.queues[fixtures.alice]?['issue'], isNotNull);
     // Bob must succeed despite Alice failing
     expect(c.queues[fixtures.bob]?['status'], 'published');
     expect(c.queues[fixtures.bob]?['issue'], isNull);
+    expect(batchResult.uploaded, 1);
+    expect(batchResult.failed, 1);
+    expect(batchResult.upToDate, 0);
+  });
+
+  test('forcePublishAll returns honest PublicationBatchResult with upToDate count on fast-path', () async {
+    final account = Account()..publicationAuthorized = true;
+    final repo = Repository();
+    final remote = Remote();
+    final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
+    addTearDown(vpn.dispose);
+    final c = PublicationController(
+      repository: repo,
+      account: account,
+      remote: () => remote,
+      vpn: vpn,
+    );
+    addTearDown(c.dispose);
+    await c.ready;
+
+    final userAlice = VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice');
+    final userBob = VpnUser(id: fixtures.bob, login: 'bob', name: 'Bob');
+    await vpn.load();
+    await vpn.saveUser(userAlice);
+    await vpn.saveUser(userBob);
+
+    final aliceSaved = vpn.workspace.profiles[fixtures.alice]!;
+    final bobSaved = vpn.workspace.profiles[fixtures.bob]!;
+
+    repo.drafts[fixtures.alice] = PublicationDraft(
+      workspaceId: vpn.workspace.id,
+      deviceId: 'a' * 32,
+      userId: fixtures.alice,
+      name: 'Alice',
+      headId: 'head-alice',
+      hash: aliceSaved['hash'] as String,
+      stamp: 'stamp-1',
+      bytes: Uint8List.fromList(utf8.encode(aliceSaved['yaml'] as String)),
+      ancestors: {},
+    );
+    repo.drafts[fixtures.bob] = PublicationDraft(
+      workspaceId: vpn.workspace.id,
+      deviceId: 'b' * 32,
+      userId: fixtures.bob,
+      name: 'Bob',
+      headId: 'head-bob',
+      hash: bobSaved['hash'] as String,
+      stamp: 'stamp-1',
+      bytes: Uint8List.fromList(utf8.encode(bobSaved['yaml'] as String)),
+      ancestors: {},
+    );
+
+    final settings = const PublicationSettings(
+      accountKey: 'account',
+      folderId: 'test-folder',
+      folderName: 'Folder',
+      access: PublicationAccess.link,
+      enabled: true,
+      folderReady: true,
+    );
+    repo.docs['settings'] = canonicalJson(settings.toJson());
+    await c.reload();
+
+    remote.folders['test-folder'] = PublicationFile(
+      id: 'test-folder',
+      name: 'Folder',
+      mimeType: 'application/vnd.google-apps.folder',
+      version: '1',
+      etag: 'etag-f',
+      editable: true,
+      properties: {'antirknRegistry.${vpn.workspace.id}': 'ready:registry-1'},
+    );
+    final regBytes = Uint8List.fromList(utf8.encode(canonicalJson({
+      'version': 2,
+      'workspaceId': vpn.workspace.id,
+      'users': <String, dynamic>{},
+    })));
+    final regHash = sha256.convert(regBytes).toString();
+    remote.folders['registry-1'] = PublicationFile(
+      id: 'registry-1',
+      name: 'registry.json',
+      mimeType: 'application/json',
+      version: '1',
+      etag: 'etag-r',
+      editable: true,
+      properties: {
+        'antirknWorkspace': vpn.workspace.id,
+        'antirknUser': 'registry',
+        'antirknHash': regHash,
+      },
+      downloadUrl: 'https://drive.google.com/uc?id=registry-1',
+    );
+    remote.contents['registry-1'] = regBytes;
+
+    // First publish: initial upload of both users
+    final initialResult = await c.forcePublishAll(force: true);
+    expect(initialResult.uploaded, 2);
+    expect(initialResult.upToDate, 0);
+    expect(initialResult.failed, 0);
+    expect(c.isUserUpToDate(fixtures.alice), isTrue);
+    expect(c.isUserUpToDate(fixtures.bob), isTrue);
+
+    // Second publish with force: false (no changes): both should skip via fast-path
+    final fastPathResult = await c.forcePublishAll(force: false);
+    expect(fastPathResult.uploaded, 0);
+    expect(fastPathResult.upToDate, 2);
+    expect(fastPathResult.failed, 0);
+
+    // Third publish with force: true: should re-upload both despite being up to date
+    final forcedResult = await c.forcePublishAll(force: true);
+    expect(forcedResult.uploaded, 2);
+    expect(forcedResult.upToDate, 0);
+    expect(forcedResult.failed, 0);
   });
 }
 

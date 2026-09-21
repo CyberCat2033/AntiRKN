@@ -473,6 +473,43 @@
       }
     }
   },
+  "vpnSyncAndPublishUpToDate": "Servers synced. All {total} profiles on Drive are already up to date.",
+  "@vpnSyncAndPublishUpToDate": {
+    "placeholders": {
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "vpnSyncAndPublishPartial": "Servers synced: {uploaded} of {total} published to Drive ({upToDate} already up to date).",
+  "@vpnSyncAndPublishPartial": {
+    "placeholders": {
+      "uploaded": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "upToDate": {
+        "type": "int"
+      }
+    }
+  },
+  "vpnSyncAndPublishWithErrors": "Servers synced: {uploaded} published, {failed} failed of {total}.",
+  "@vpnSyncAndPublishWithErrors": {
+    "placeholders": {
+      "uploaded": {
+        "type": "int"
+      },
+      "failed": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "vpnSyncAndPublishTooltip": "Click to sync servers and publish changed profiles. Press and hold to force re-upload all profiles.",
   "vpnSyncAndPublishFailed": "Failed to fully sync with servers or publish to Drive.",
   "vpnNoUsers": "No clients yet",
   "vpnLogin": "Client login",

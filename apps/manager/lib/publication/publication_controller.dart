@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_sync/antirkn_sync.dart';
@@ -7,6 +8,20 @@ import 'package:flutter/foundation.dart';
 
 import '../sync/auto_sync_controller.dart';
 import '../vpn/vpn_controller.dart';
+
+class PublicationBatchResult {
+  final int uploaded;
+  final int upToDate;
+  final int failed;
+
+  const PublicationBatchResult({
+    this.uploaded = 0,
+    this.upToDate = 0,
+    this.failed = 0,
+  });
+
+  int get total => uploaded + upToDate + failed;
+}
 
 class PublicationController extends ChangeNotifier {
   PublicationController({
@@ -41,7 +56,7 @@ class PublicationController extends ChangeNotifier {
       _disposed = false,
       _suspended = false,
       _foreground = true;
-  Future<void>? _running;
+  Future<PublicationBatchResult>? _running;
   SyncCancellation? _cancel;
   Timer? _timer;
   String? _profileStamp;
@@ -256,7 +271,7 @@ class PublicationController extends ChangeNotifier {
     );
   }
 
-  void _start(
+  Future<PublicationBatchResult>? _start(
     bool force, {
     String? targetUserId,
     bool ignoreForeground = false,
@@ -266,13 +281,16 @@ class PublicationController extends ChangeNotifier {
         (!_foreground && !ignoreForeground) ||
         editing ||
         _running != null) {
-      return;
+      return _running;
     }
-    _running = _run(force, targetUserId: targetUserId).whenComplete(() {
-      _running = null;
+    final future = _run(force, targetUserId: targetUserId);
+    _running = future;
+    future.whenComplete(() {
+      if (_running == future) _running = null;
       _notify();
     });
     _notify();
+    return future;
   }
 
   Future<void> publishUser(String userId, {bool force = false}) async {
@@ -284,16 +302,23 @@ class PublicationController extends ChangeNotifier {
         await _running;
       } catch (_) {}
     }
-    _start(force, targetUserId: userId, ignoreForeground: true);
-    await _running;
+    final future = _start(force, targetUserId: userId, ignoreForeground: true);
+    await future;
   }
 
-  Future<void> _run(bool force, {String? targetUserId}) async {
-    if (!authorized || settings?.enabled != true || !vpn.loaded) return;
-    if (vpn.workspaceBusy || canPublish?.call() == false) return;
+  Future<PublicationBatchResult> _run(bool force, {String? targetUserId}) async {
+    if (!authorized || settings?.enabled != true || !vpn.loaded) {
+      return const PublicationBatchResult();
+    }
+    if (vpn.workspaceBusy || canPublish?.call() == false) {
+      return const PublicationBatchResult();
+    }
     _cancel = SyncCancellation();
     error = null;
     accountError = null;
+    var uploadedCount = 0;
+    var upToDateCount = 0;
+    var failedCount = 0;
     try {
       final coordinator = PublicationCoordinator(
         repository: repository,
@@ -306,74 +331,93 @@ class PublicationController extends ChangeNotifier {
           .where((u) => targetUserId == null || u.id == targetUserId)
           .toList();
 
-      for (final user in activeUsers) {
-        if (_disposed || _suspended) break;
-        _cancel?.check();
+      var nextIndex = 0;
+      final concurrency = activeUsers.isEmpty ? 1 : min(4, activeUsers.length);
 
-        // Fast-path: skip user if profile is already published and unchanged
-        final isUpToDate = !force && isUserUpToDate(user.id);
-        if (isUpToDate) {
-          continue;
-        }
+      Future<void> worker() async {
+        while (!_disposed && !_suspended) {
+          _cancel?.check();
+          if (nextIndex >= activeUsers.length) return;
+          final user = activeUsers[nextIndex++];
 
-        Map<String, dynamic>? publishQueue;
-        for (var attempt = 0; attempt < 3; attempt++) {
-          if (_disposed || _suspended) break;
-          try {
-            publishQueue = await coordinator.publish(
-              user.id,
-              force: true,
-              cancellation: _cancel,
-            );
-            if (publishQueue?['issue'] != 'changed' || attempt == 2) break;
-            await Future<void>.delayed(const Duration(milliseconds: 300));
-          } on PublicationFailure catch (e) {
-            // Per-user error: record it in the queue but continue with others.
-            queues[user.id] = {'issue': e.issue.name, 'userId': user.id};
-            break;
-          } on GoogleAccountFailure catch (e) {
-            if (e.issue == GoogleAccountIssue.reauthorize ||
-                e.issue == GoogleAccountIssue.denied) {
-              rethrow;
-            }
-            queues[user.id] = {
-              'issue': PublicationIssue.unauthorized.name,
-              'userId': user.id,
-            };
-            break;
-          } on SyncTransportFailure catch (e) {
-            if (e.issue == SyncTransportIssue.cancelled) rethrow;
-            queues[user.id] = {
-              'issue': PublicationIssue.network.name,
-              'userId': user.id,
-            };
-            break;
-          } on SyncMergeFailure {
-            if (attempt == 2) {
+          // Fast-path: skip user if profile is already published and unchanged
+          final isUpToDate = !force && isUserUpToDate(user.id);
+          if (isUpToDate) {
+            upToDateCount++;
+            continue;
+          }
+
+          var success = false;
+          Map<String, dynamic>? publishQueue;
+          for (var attempt = 0; attempt < 3; attempt++) {
+            if (_disposed || _suspended) break;
+            try {
+              publishQueue = await coordinator.publish(
+                user.id,
+                force: true,
+                cancellation: _cancel,
+              );
+              if (publishQueue?['issue'] != 'changed' || attempt == 2) {
+                success = publishQueue?['issue'] == null &&
+                    publishQueue?['status'] == 'published';
+                break;
+              }
+              await Future<void>.delayed(const Duration(milliseconds: 300));
+            } on PublicationFailure catch (e) {
+              // Per-user error: record it in the queue but continue with others.
+              queues[user.id] = {'issue': e.issue.name, 'userId': user.id};
+              break;
+            } on GoogleAccountFailure catch (e) {
+              if (e.issue == GoogleAccountIssue.reauthorize ||
+                  e.issue == GoogleAccountIssue.denied) {
+                rethrow;
+              }
               queues[user.id] = {
-                'issue': PublicationIssue.conflict.name,
+                'issue': PublicationIssue.unauthorized.name,
                 'userId': user.id,
               };
-            } else {
-              await Future<void>.delayed(const Duration(milliseconds: 300));
+              break;
+            } on SyncTransportFailure catch (e) {
+              if (e.issue == SyncTransportIssue.cancelled) rethrow;
+              queues[user.id] = {
+                'issue': PublicationIssue.network.name,
+                'userId': user.id,
+              };
+              break;
+            } on SyncMergeFailure {
+              if (attempt == 2) {
+                queues[user.id] = {
+                  'issue': PublicationIssue.conflict.name,
+                  'userId': user.id,
+                };
+              } else {
+                await Future<void>.delayed(const Duration(milliseconds: 300));
+              }
             }
           }
+          if (success) {
+            uploadedCount++;
+          } else {
+            failedCount++;
+          }
+          if (publishQueue != null) queues[user.id] = publishQueue;
+          final resultDoc = await repository.readPublicationDocument(
+            'result/${user.id}',
+          );
+          if (resultDoc != null) {
+            results[user.id] = jsonDecode(resultDoc) as Map<String, dynamic>;
+          }
+          final bindingDoc = await repository.readPublicationDocument(
+            'binding/${user.id}',
+          );
+          if (bindingDoc != null) {
+            bindings[user.id] = jsonDecode(bindingDoc) as Map<String, dynamic>;
+          }
+          _notify();
         }
-        if (publishQueue != null) queues[user.id] = publishQueue;
-        final resultDoc = await repository.readPublicationDocument(
-          'result/${user.id}',
-        );
-        if (resultDoc != null) {
-          results[user.id] = jsonDecode(resultDoc) as Map<String, dynamic>;
-        }
-        final bindingDoc = await repository.readPublicationDocument(
-          'binding/${user.id}',
-        );
-        if (bindingDoc != null) {
-          bindings[user.id] = jsonDecode(bindingDoc) as Map<String, dynamic>;
-        }
-        _notify();
       }
+
+      await Future.wait(List.generate(concurrency, (_) => worker()));
     } on GoogleAccountFailure catch (e) {
       accountError = e.issue;
     } on SyncTransportFailure catch (e) {
@@ -385,6 +429,11 @@ class PublicationController extends ChangeNotifier {
     } finally {
       _cancel = null;
     }
+    return PublicationBatchResult(
+      uploaded: uploadedCount,
+      upToDate: upToDateCount,
+      failed: failedCount,
+    );
   }
 
   Future<void> suspend() async {
@@ -399,13 +448,13 @@ class PublicationController extends ChangeNotifier {
     _notify();
   }
 
-  Future<void> forcePublishAll({bool force = true}) async {
-    if (_disposed || editing) return;
+  Future<PublicationBatchResult> forcePublishAll({bool force = true}) async {
+    if (_disposed || editing) return const PublicationBatchResult();
     for (var i = 0; i < 20 && _suspended; i++) {
       await Future<void>.delayed(const Duration(milliseconds: 100));
-      if (_disposed || editing) return;
+      if (_disposed || editing) return const PublicationBatchResult();
     }
-    if (_suspended) return;
+    if (_suspended) return const PublicationBatchResult();
     _timer?.cancel();
     if (_running != null) {
       _cancel?.cancel();
@@ -413,8 +462,8 @@ class PublicationController extends ChangeNotifier {
         await _running;
       } catch (_) {}
     }
-    _start(force, ignoreForeground: true);
-    await _running;
+    final future = _start(force, ignoreForeground: true);
+    return (await future) ?? const PublicationBatchResult();
   }
 
   void foreground(bool value) {

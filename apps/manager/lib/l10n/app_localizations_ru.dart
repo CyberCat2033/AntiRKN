@@ -1250,6 +1250,25 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
+  String vpnSyncAndPublishUpToDate(int total) {
+    return 'Данные с серверов обновлены. Все профили на Диске уже актуальны ($total).';
+  }
+
+  @override
+  String vpnSyncAndPublishPartial(int uploaded, int total, int upToDate) {
+    return 'Данные с серверов обновлены: выгружено $uploaded из $total ($upToDate уже актуально).';
+  }
+
+  @override
+  String vpnSyncAndPublishWithErrors(int uploaded, int failed, int total) {
+    return 'Данные с серверов обновлены: выгружено $uploaded, ошибок $failed из $total.';
+  }
+
+  @override
+  String get vpnSyncAndPublishTooltip =>
+      'Нажмите для синхронизации и быстрой выгрузки изменений. Удерживайте для принудительной повторной выгрузки всех профилей на Диск.';
+
+  @override
   String get vpnSyncAndPublishFailed =>
       'Не удалось полностью синхронизировать данные с серверами или выгрузить на Диск.';
 

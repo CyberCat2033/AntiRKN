@@ -157,34 +157,74 @@ class _UsersPageState extends State<UsersPage> {
   String Function(String) get serverName => widget.serverName;
   bool _syncing = false;
 
-  Future<void> _syncAndPublish(BuildContext context) async {
+  Future<void> _syncAndPublish(BuildContext context, {bool force = false}) async {
     if (_syncing || controller.busy || !controller.loaded) return;
     setState(() => _syncing = true);
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     try {
       await controller.syncAllServersAndProfiles();
+      PublicationBatchResult? batchResult;
       if (publications != null) {
-        await publications!.forcePublishAll(force: false);
+        batchResult = await publications!.forcePublishAll(force: force);
       }
       if (mounted) {
         final activeUsers = controller.workspace.users
             .where((u) => u.enabled && !u.deleted)
             .toList(growable: false);
-        final published = publications != null
-            ? activeUsers
-                .where((u) => publications!.isUserUpToDate(u.id))
-                .length
-            : activeUsers.length;
-        if (published == 0 && activeUsers.isNotEmpty) {
-          messenger.showSnackBar(
-            SnackBar(content: Text(l.vpnSyncAndPublishFailed)),
-          );
+        if (batchResult != null) {
+          if (batchResult.failed > 0) {
+            messenger.showSnackBar(
+              SnackBar(
+                content: Text(
+                  l.vpnSyncAndPublishWithErrors(
+                    batchResult.uploaded,
+                    batchResult.failed,
+                    activeUsers.length,
+                  ),
+                ),
+              ),
+            );
+          } else if (batchResult.uploaded == 0 && batchResult.upToDate > 0) {
+            messenger.showSnackBar(
+              SnackBar(
+                content: Text(
+                  l.vpnSyncAndPublishUpToDate(batchResult.upToDate),
+                ),
+              ),
+            );
+          } else if (batchResult.upToDate > 0 && batchResult.uploaded > 0) {
+            messenger.showSnackBar(
+              SnackBar(
+                content: Text(
+                  l.vpnSyncAndPublishPartial(
+                    batchResult.uploaded,
+                    activeUsers.length,
+                    batchResult.upToDate,
+                  ),
+                ),
+              ),
+            );
+          } else {
+            messenger.showSnackBar(
+              SnackBar(
+                content: Text(
+                  l.vpnSyncAndPublishDone(
+                    batchResult.uploaded,
+                    activeUsers.length,
+                  ),
+                ),
+              ),
+            );
+          }
         } else {
           messenger.showSnackBar(
             SnackBar(
               content: Text(
-                l.vpnSyncAndPublishDone(published, activeUsers.length),
+                l.vpnSyncAndPublishDone(
+                  activeUsers.length,
+                  activeUsers.length,
+                ),
               ),
             ),
           );
@@ -332,21 +372,27 @@ class _UsersPageState extends State<UsersPage> {
                         icon: const Icon(Icons.add),
                         label: Text(l.vpnAddUser),
                       ),
-                      FilledButton.tonalIcon(
-                        key: const ValueKey('vpn-sync-and-publish'),
-                        onPressed: c.busy || !c.loaded || _syncing
-                            ? null
-                            : () => _syncAndPublish(context),
-                        icon: _syncing
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.cloud_sync),
-                        label: Text(l.vpnSyncAndPublish),
+                      Tooltip(
+                        message: l.vpnSyncAndPublishTooltip,
+                        child: FilledButton.tonalIcon(
+                          key: const ValueKey('vpn-sync-and-publish'),
+                          onPressed: c.busy || !c.loaded || _syncing
+                              ? null
+                              : () => _syncAndPublish(context, force: false),
+                          onLongPress: c.busy || !c.loaded || _syncing
+                              ? null
+                              : () => _syncAndPublish(context, force: true),
+                          icon: _syncing
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.cloud_sync),
+                          label: Text(l.vpnSyncAndPublish),
+                        ),
                       ),
                     ],
                   ),

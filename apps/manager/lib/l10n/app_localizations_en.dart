@@ -1247,6 +1247,25 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String vpnSyncAndPublishUpToDate(int total) {
+    return 'Servers synced. All $total profiles on Drive are already up to date.';
+  }
+
+  @override
+  String vpnSyncAndPublishPartial(int uploaded, int total, int upToDate) {
+    return 'Servers synced: $uploaded of $total published to Drive ($upToDate already up to date).';
+  }
+
+  @override
+  String vpnSyncAndPublishWithErrors(int uploaded, int failed, int total) {
+    return 'Servers synced: $uploaded published, $failed failed of $total.';
+  }
+
+  @override
+  String get vpnSyncAndPublishTooltip =>
+      'Click to sync servers and publish changed profiles. Press and hold to force re-upload all profiles.';
+
+  @override
   String get vpnSyncAndPublishFailed =>
       'Failed to fully sync with servers or publish to Drive.';
 

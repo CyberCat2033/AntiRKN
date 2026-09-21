@@ -2276,6 +2276,30 @@ abstract class AppLocalizations {
   /// **'Servers synced and profiles published to Drive: {published} of {total}'**
   String vpnSyncAndPublishDone(int published, int total);
 
+  /// No description provided for @vpnSyncAndPublishUpToDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Servers synced. All {total} profiles on Drive are already up to date.'**
+  String vpnSyncAndPublishUpToDate(int total);
+
+  /// No description provided for @vpnSyncAndPublishPartial.
+  ///
+  /// In en, this message translates to:
+  /// **'Servers synced: {uploaded} of {total} published to Drive ({upToDate} already up to date).'**
+  String vpnSyncAndPublishPartial(int uploaded, int total, int upToDate);
+
+  /// No description provided for @vpnSyncAndPublishWithErrors.
+  ///
+  /// In en, this message translates to:
+  /// **'Servers synced: {uploaded} published, {failed} failed of {total}.'**
+  String vpnSyncAndPublishWithErrors(int uploaded, int failed, int total);
+
+  /// No description provided for @vpnSyncAndPublishTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Click to sync servers and publish changed profiles. Press and hold to force re-upload all profiles.'**
+  String get vpnSyncAndPublishTooltip;
+
   /// No description provided for @vpnSyncAndPublishFailed.
   ///
   /// In en, this message translates to:

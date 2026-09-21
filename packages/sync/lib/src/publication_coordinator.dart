@@ -26,6 +26,7 @@ final class PublicationCoordinator {
   final DateTime Function() now;
   final int Function(int) jitter;
   String? _cachedRegistryId;
+  Future<String>? _registryFuture;
 
   Future<Map<String, dynamic>?> publish(
     String userId, {
@@ -297,6 +298,21 @@ final class PublicationCoordinator {
   }
 
   Future<String> _registry(
+    PublicationSettings settings,
+    PublicationDraft draft,
+    Future<void> Function() guard,
+  ) {
+    if (_cachedRegistryId != null) return Future.value(_cachedRegistryId!);
+    return _registryFuture ??= _resolveRegistry(
+      settings,
+      draft,
+      guard,
+    ).whenComplete(() {
+      _registryFuture = null;
+    });
+  }
+
+  Future<String> _resolveRegistry(
     PublicationSettings settings,
     PublicationDraft draft,
     Future<void> Function() guard,
