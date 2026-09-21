@@ -3473,6 +3473,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Mihomo cannot check this connection configuration.';
 
   @override
+  String get connectionBusy =>
+      'The server or check service is busy. Try again in a moment.';
+
+  @override
+  String get connectionTimeout =>
+      'Connection check timed out. Verify server and port availability.';
+
+  @override
   String get connectionNotTested => 'Not tested';
 
   @override

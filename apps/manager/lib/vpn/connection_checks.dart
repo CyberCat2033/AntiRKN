@@ -26,10 +26,11 @@ class ConnectionChecks extends ChangeNotifier {
   final _external =
       <ConnectionTarget, ({Map<String, Object?> spec, String identity})>{};
   final _results = <ConnectionTarget, _Entry>{};
+  final _busyBackoff = <ConnectionTarget, DateTime>{};
   CancellationToken? _token;
   ConnectionTarget? current;
   bool _disposed = false, _scheduled = false, foreground = true;
-  bool get busy => _token != null;
+  bool get busy => _token != null || current != null;
   Future<void> _writes = Future.value();
   static const _key = 'mihomo.pendingConnectionChecks';
 
@@ -265,7 +266,9 @@ class ConnectionChecks extends ChangeNotifier {
         !_ready(key) ||
         entry.signature != _signature(key) ||
         DateTime.now().difference(entry.check.at) >
-            const Duration(minutes: 5)) {
+            (entry.check.code == 'busy'
+                ? const Duration(seconds: 15)
+                : const Duration(minutes: 5))) {
       return null;
     }
     return entry.check;
@@ -342,6 +345,7 @@ class ConnectionChecks extends ChangeNotifier {
 
   Future<void> mark(ConnectionTarget key) async {
     _results.remove(key);
+    _busyBackoff.remove(key);
     final value = spec(key);
     if (value?['enabled'] == true && value?['deleted'] != true) {
       _pending.add(key);
@@ -357,6 +361,7 @@ class ConnectionChecks extends ChangeNotifier {
     _pending.removeWhere(belongs);
     _external.removeWhere((key, _) => belongs(key));
     _results.removeWhere((key, _) => belongs(key));
+    _busyBackoff.removeWhere((key, _) => belongs(key));
     skipped.removeWhere(belongs);
     await _save();
     if (!_disposed) notifyListeners();
@@ -407,7 +412,13 @@ class ConnectionChecks extends ChangeNotifier {
           .toList();
       _pending.removeAll(missing);
       if (missing.isNotEmpty) unawaited(_save());
-      final next = _pending.where(_ready).firstOrNull;
+      final now = DateTime.now();
+      final next = _pending.where((k) {
+        if (!_ready(k)) return false;
+        final last = _busyBackoff[k];
+        return last == null ||
+            now.difference(last) > const Duration(seconds: 15);
+      }).firstOrNull;
       if (next != null) await check(next);
     });
   }
@@ -485,7 +496,14 @@ class ConnectionChecks extends ChangeNotifier {
         return result;
       }
       if (owner.enterConnectionTraffic != null) {
-        if (!await owner.enterConnectionTraffic!()) {
+        var entered = await owner.enterConnectionTraffic!();
+        for (var attempt = 0; !entered && attempt < 4; attempt++) {
+          if (token.isCancelled) break;
+          await Future<void>.delayed(const Duration(milliseconds: 400));
+          if (token.isCancelled) break;
+          entered = await owner.enterConnectionTraffic!();
+        }
+        if (!entered) {
           result = outcome(ConnectionCheckStatus.notTested, 'busy');
           return result;
         }
@@ -532,8 +550,13 @@ class ConnectionChecks extends ChangeNotifier {
       if (trafficEntered) await owner.leaveConnectionTraffic?.call();
       if (!_disposed && signature == _signature(key)) {
         _results[key] = _Entry(signature, result);
-        if (result.status != ConnectionCheckStatus.cancelled) {
-          _pending.remove(key);
+        if (result.code == 'busy') {
+          _busyBackoff[key] = DateTime.now();
+        } else {
+          _busyBackoff.remove(key);
+          if (result.status != ConnectionCheckStatus.cancelled) {
+            _pending.remove(key);
+          }
         }
         await _save();
       }

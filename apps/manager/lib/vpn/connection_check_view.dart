@@ -12,6 +12,8 @@ String connectionCheckMessage(AppLocalizations l, ConnectionCheck check) {
     return l.connectionCancelled;
   }
   return switch (check.code) {
+    'busy' || 'probe_busy' => l.connectionBusy,
+    'timeout' => l.connectionTimeout,
     'vpn_active' => l.connectionVpnActive,
     'network_changed' => l.connectionNetworkChanged,
     'control_failed' || 'target_unavailable' => l.connectionNetworkProblem,
@@ -20,6 +22,7 @@ String connectionCheckMessage(AppLocalizations l, ConnectionCheck check) {
     'cleanup_pending' => l.connectionCleanupPending,
     'changed' => l.connectionChanged,
     'runtime_unavailable' || 'core_failure' => l.connectionCoreUnavailable,
+    'input_limit' ||
     'invalid_proxy' ||
     'unsupported' ||
     'udp_unsupported' => l.connectionUnsupported,
@@ -40,76 +43,82 @@ class ConnectionCheckView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context), c = controller.connections;
-    final running = c.current == target, result = c.result(target);
-    final available = c.available(target);
-    final reasonCode = !running && result == null && !available
-        ? c.unavailableReasonCode(target)
-        : null;
-    final reasonText = switch (reasonCode) {
-      'vpn_disabled' => l.vpnDisabled,
-      'vpn_pending' => l.vpnApplying,
-      'vpn_pending_readback' => l.vpnPendingReadback,
-      'vpn_conflict' || 'vless_conflict' || 'awg_conflict' => l.vpnConflict,
-      'vpn_user_deleted' => l.vpnUserDeleted,
-      'target_unavailable' => l.connectionNetworkProblem,
-      null => null,
-      final code => vpnMessage(l, code),
-    };
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (running) Text(l.connectionChecking),
-          if (!running && result != null)
-            Text(connectionCheckMessage(l, result)),
-          if (!running && result == null && reasonText != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Text(
-                reasonText,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: reasonCode == 'vpn_conflict' ||
-                              reasonCode == 'vless_conflict' ||
-                              reasonCode == 'awg_conflict' ||
-                              (reasonCode?.contains('conflict') ?? false) ||
-                              (reasonCode?.contains('failed') ?? false)
-                          ? Theme.of(context).colorScheme.error
-                          : Theme.of(context).colorScheme.outline,
-                    ),
-              ),
-            ),
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
+    return ListenableBuilder(
+      listenable: Listenable.merge([controller, c]),
+      builder: (context, _) {
+        final running = c.current == target, result = c.result(target);
+        final available = c.available(target);
+        final reasonCode = !running && result == null && !available
+            ? c.unavailableReasonCode(target)
+            : null;
+        final reasonText = switch (reasonCode) {
+          'vpn_disabled' => l.vpnDisabled,
+          'vpn_pending' => l.vpnApplying,
+          'vpn_pending_readback' => l.vpnPendingReadback,
+          'vpn_conflict' || 'vless_conflict' || 'awg_conflict' => l.vpnConflict,
+          'vpn_user_deleted' => l.vpnUserDeleted,
+          'target_unavailable' => l.connectionNetworkProblem,
+          null => null,
+          final code => vpnMessage(l, code),
+        };
+        return Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TextButton.icon(
-                key: ValueKey(
-                  'connection-check-${target.target}-${target.resource}',
+              if (running) Text(l.connectionChecking),
+              if (!running && result != null)
+                Text(connectionCheckMessage(l, result)),
+              if (!running && result == null && reasonText != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    reasonText,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: reasonCode == 'vpn_conflict' ||
+                                  reasonCode == 'vless_conflict' ||
+                                  reasonCode == 'awg_conflict' ||
+                                  (reasonCode?.contains('conflict') ?? false) ||
+                                  (reasonCode?.contains('failed') ?? false)
+                              ? Theme.of(context).colorScheme.error
+                              : Theme.of(context).colorScheme.outline,
+                        ),
+                  ),
                 ),
-                onPressed: running
-                    ? c.cancel
-                    : controller.busy ||
-                          controller.coreValidationBusy ||
-                          c.queueRunning ||
-                          !available
-                    ? null
-                    : () => c.check(target),
-                icon: Icon(
-                  running ? Icons.stop_circle_outlined : Icons.network_check,
-                ),
-                label: Text(running ? l.connectionStop : l.connectionCheck),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  TextButton.icon(
+                    key: ValueKey(
+                      'connection-check-${target.target}-${target.resource}',
+                    ),
+                    onPressed: running
+                        ? c.cancel
+                        : c.busy ||
+                              controller.busy ||
+                              controller.coreValidationBusy ||
+                              c.queueRunning ||
+                              !available
+                        ? null
+                        : () => c.check(target),
+                    icon: Icon(
+                      running ? Icons.stop_circle_outlined : Icons.network_check,
+                    ),
+                    label: Text(running ? l.connectionStop : l.connectionCheck),
+                  ),
+                  if (!running && result?.status == ConnectionCheckStatus.failed)
+                    TextButton.icon(
+                      onPressed: controller.busy ? null : onEdit,
+                      icon: const Icon(Icons.tune),
+                      label: Text(l.connectionReconfigure),
+                    ),
+                ],
               ),
-              if (!running && result?.status == ConnectionCheckStatus.failed)
-                TextButton.icon(
-                  onPressed: controller.busy ? null : onEdit,
-                  icon: const Icon(Icons.tune),
-                  label: Text(l.connectionReconfigure),
-                ),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

@@ -6158,6 +6158,18 @@ abstract class AppLocalizations {
   /// **'Mihomo cannot check this connection configuration.'**
   String get connectionUnsupported;
 
+  /// No description provided for @connectionBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'The server or check service is busy. Try again in a moment.'**
+  String get connectionBusy;
+
+  /// No description provided for @connectionTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection check timed out. Verify server and port availability.'**
+  String get connectionTimeout;
+
   /// No description provided for @connectionNotTested.
   ///
   /// In en, this message translates to:

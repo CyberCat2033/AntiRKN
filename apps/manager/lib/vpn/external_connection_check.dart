@@ -117,6 +117,7 @@ class _ExternalConnectionCheckState extends State<ExternalConnectionCheck> {
               onPressed: running
                   ? c.cancel
                   : reading ||
+                        c.busy ||
                         widget.controller.busy ||
                         widget.runner.busy ||
                         widget.runner.actionPending ||

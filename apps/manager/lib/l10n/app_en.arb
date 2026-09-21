@@ -1331,6 +1331,8 @@
   "connectionChanged": "Connection settings changed during the check. Run it again.",
   "connectionCoreUnavailable": "Could not run the Mihomo check. Try again.",
   "connectionUnsupported": "Mihomo cannot check this connection configuration.",
+  "connectionBusy": "The server or check service is busy. Try again in a moment.",
+  "connectionTimeout": "Connection check timed out. Verify server and port availability.",
   "connectionNotTested": "Not tested",
   "connectionAfterSave": "The app will check the connection after saving.",
   "connectionProgress": "Checked: {done} of {total}. Skipped: {skipped}.",

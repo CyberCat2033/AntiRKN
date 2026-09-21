@@ -3478,6 +3478,14 @@ class AppLocalizationsRu extends AppLocalizations {
       'Mihomo не может проверить эту конфигурацию подключения.';
 
   @override
+  String get connectionBusy =>
+      'Сервер или служба проверки заняты. Повторите попытку через несколько секунд.';
+
+  @override
+  String get connectionTimeout =>
+      'Время ожидания ответа сервера истекло. Проверьте доступность порта и сервера.';
+
+  @override
   String get connectionNotTested => 'Не проверено';
 
   @override

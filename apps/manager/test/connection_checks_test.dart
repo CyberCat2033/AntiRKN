@@ -360,4 +360,170 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('connectionCheckMessage formats busy and timeout explicitly', (
+    tester,
+  ) async {
+    late BuildContext ctx;
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('ru'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        home: Builder(
+          builder: (c) {
+            ctx = c;
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+    final l = AppLocalizations.of(ctx);
+    final now = DateTime.now().toUtc();
+    expect(
+      connectionCheckMessage(
+        l,
+        ConnectionCheck(
+          status: ConnectionCheckStatus.notTested,
+          code: 'busy',
+          at: now,
+        ),
+      ),
+      'Сервер или служба проверки заняты. Повторите попытку через несколько секунд.',
+    );
+    expect(
+      connectionCheckMessage(
+        l,
+        ConnectionCheck(
+          status: ConnectionCheckStatus.notTested,
+          code: 'timeout',
+          at: now,
+        ),
+      ),
+      'Время ожидания ответа сервера истекло. Проверьте доступность порта и сервера.',
+    );
+  });
+
+  testWidgets('ConnectionCheckView disables button when another check is busy', (
+    tester,
+  ) async {
+    final store = f.MemoryVpn(),
+        probe = Probe(),
+        remote = f.Remote(f.MemoryVpn());
+    final c = create(store, remote, probe, 'one');
+    addTearDown(c.dispose);
+    await c.load();
+    final inboundId = '1' * 32;
+    c.workspace = c.workspace.copy(
+      inbounds: [f.inbound('one', inboundId)],
+      servers: {
+        'one': {
+          'identity': 'identity-one',
+          'workspaceId': c.workspace.resourceWorkspaceId('one'),
+          'observed': [
+            {
+              'id': inboundId,
+              'workspaceId': c.workspace.resourceWorkspaceId('one'),
+              'spec': f.inbound('one', inboundId).spec,
+              'confirmed': true,
+              'revision': '1',
+            },
+          ],
+          'pending': null,
+          'error': null,
+        },
+      },
+    );
+    final target1 = (target: 'one', resource: inboundId);
+    final target2 = (target: 'one', resource: '2' * 32);
+    expect(c.connections.available(target1), isTrue);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('en'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        home: Scaffold(
+          body: ConnectionCheckView(
+            controller: c,
+            target: target1,
+            onEdit: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final buttonFinder = find.byKey(ValueKey('connection-check-one-$inboundId'));
+    expect(tester.widget<TextButton>(buttonFinder).onPressed, isNotNull);
+
+    // Simulate another check in progress (target2 is running, so c.connections.busy is true)
+    c.connections.current = target2;
+    c.notifyListeners();
+    await tester.pump();
+    expect(c.connections.busy, isTrue);
+    // Button for target1 must now be disabled because c.busy is true
+    expect(tester.widget<TextButton>(buttonFinder).onPressed, isNull);
+
+    // When check completes, button becomes enabled again
+    c.connections.current = null;
+    c.notifyListeners();
+    await tester.pump();
+    expect(tester.widget<TextButton>(buttonFinder).onPressed, isNotNull);
+  });
+
+  test('transient busy does not discard target from pending and expires after 15s', () async {
+    final store = f.MemoryVpn(), probe = Probe();
+    final realRemote = DiagnosticRemote(store, {'closed': true, 'stable': true});
+    final c = VpnController(
+      repository: store,
+      remote: (id) => VpnRemote(
+        transport: realRemote,
+        panelId: f.panel,
+        identity: 'identity-$id',
+      ),
+      template: () => f.template,
+      enterConnectionTraffic: () async => false, // Always busy
+      connectionProbe: ConnectionProbeEngine(
+        core: probe,
+        network: Net(),
+        controls: [
+          for (var i = 1; i <= 10; i++)
+            IpControl('c$i', 'p$i', IpProbeTarget('192.0.2.$i', 443)),
+        ],
+      ),
+      timer: (d, f) => Timer(Duration.zero, () {}),
+    );
+    addTearDown(c.dispose);
+    await c.load();
+    await c.saveUser(VpnUser(id: f.alice, login: 'alice', name: 'Alice'));
+    final inbound = f.inbound('one', '1' * 32);
+    await c.saveInbound(inbound);
+    c.workspace = c.workspace.copy(
+      servers: {
+        'one': {
+          'identity': 'identity-one',
+          'workspaceId': c.workspace.resourceWorkspaceId('one'),
+          'observed': [
+            {
+              'id': inbound.id,
+              'workspaceId': c.workspace.resourceWorkspaceId('one'),
+              'spec': inbound.spec,
+              'confirmed': true,
+              'revision': '1',
+            },
+          ],
+          'pending': null,
+          'error': null,
+        },
+      },
+    );
+    final key = (target: 'one', resource: inbound.id);
+    expect(c.connections.available(key), isTrue);
+
+    // Running check will encounter enterConnectionTraffic == false
+    final result = await c.connections.check(key);
+    expect(result?.code, 'busy');
+    expect(c.connections.result(key)?.code, 'busy');
+  });
 }
+
