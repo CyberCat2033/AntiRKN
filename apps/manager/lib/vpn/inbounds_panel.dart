@@ -178,16 +178,17 @@ class InboundsPanelState extends State<InboundsPanel> {
   Future<bool> waitForJob(String id, {bool managed = false}) async {
     for (var i = 0; i < 180 && mounted; i++) {
       if (managed) {
-        await controller.refreshServer(serverId);
+        await controller.reconcile();
       } else {
         await runner!.refresh();
       }
       final job = managed ? controller.currentJob(serverId) : runner!.selected;
-      if (job?.id != id) return false;
-      if (job!.terminal) return job.status == 'succeeded';
-      if ((managed ? controller.error != null : runner!.error != null)) {
-        return false;
+      if (job != null && job.id == id && job.terminal) {
+        if (managed) await controller.refreshServer(serverId);
+        return job.status == 'succeeded';
       }
+      if (job != null && job.id != id) return false;
+      if (!managed && runner!.error != null) return false;
       await Future<void>.delayed(const Duration(milliseconds: 500));
     }
     return false;

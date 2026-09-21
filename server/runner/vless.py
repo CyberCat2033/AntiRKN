@@ -247,7 +247,10 @@ def preflight(store, payload, api):
         current = locate(rows, payload['workspaceId'], rid)
         for other in rows:
             if other.get('enable') and other.get('port') == port and (not current or other['id'] != current['id']):
-                # Pinned panel enforces port uniqueness for local inbounds.
+                other_listen = other.get('listen') or ''
+                # Two specific non-wildcard addresses on the same port can coexist.
+                if other_listen not in ('', '0.0.0.0', '::') and address not in ('0.0.0.0', '::') and other_listen != address:
+                    continue
                 raise VlessError('vless_port_busy')
         if current is None or not current.get('enable') or (current.get('listen'), current.get('port')) != (address, port):
             try:

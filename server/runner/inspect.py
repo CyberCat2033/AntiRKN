@@ -35,7 +35,7 @@ PROGRAMS = V25_PROGRAMS
 def inspect_runner():
     hashes, unsafe = {}, False
     names_by_version = {'v1': ('runner.py', 'contract.py'),
-        'v2': ('runner.py', 'contract.py', 'panel.py', 'panel_api.py', 'panel_release.py'), 'v3': ('runner.py', 'contract.py', 'panel.py', 'panel_api.py', 'panel_release.py', 'vless.py', 'vless_contract.py'), 'v4': tuple(n for n in LEGACY_PROGRAMS if n not in ('panel_discovery.py', 'apt.py', 'observed_inbounds.py')), 'v5': tuple(n for n in LEGACY_PROGRAMS if n not in ('apt.py', 'observed_inbounds.py')), 'v6': LEGACY_PROGRAMS, 'v7': LEGACY_PROGRAMS, 'v8': V9_PROGRAMS, 'v9': V9_PROGRAMS, 'v10': V10_PROGRAMS, 'v11': V11_PROGRAMS, 'v12': V11_PROGRAMS, 'v13': V11_PROGRAMS, 'v14': V11_PROGRAMS, 'v15': V15_PROGRAMS, 'v16': V16_PROGRAMS, 'v17': V17_PROGRAMS, 'v18': V18_PROGRAMS, 'v19': V19_PROGRAMS, 'v20': V20_PROGRAMS, 'v21': V21_PROGRAMS, 'v22': V22_PROGRAMS, 'v23': V23_PROGRAMS, 'v24': V24_PROGRAMS, 'v25': V25_PROGRAMS, 'v26': PROGRAMS, 'v27': PROGRAMS, 'v28': PROGRAMS, 'v29': PROGRAMS, 'v30': PROGRAMS, 'v31': PROGRAMS, 'v32': PROGRAMS, 'v33': PROGRAMS, 'v34': PROGRAMS}
+        'v2': ('runner.py', 'contract.py', 'panel.py', 'panel_api.py', 'panel_release.py'), 'v3': ('runner.py', 'contract.py', 'panel.py', 'panel_api.py', 'panel_release.py', 'vless.py', 'vless_contract.py'), 'v4': tuple(n for n in LEGACY_PROGRAMS if n not in ('panel_discovery.py', 'apt.py', 'observed_inbounds.py')), 'v5': tuple(n for n in LEGACY_PROGRAMS if n not in ('apt.py', 'observed_inbounds.py')), 'v6': LEGACY_PROGRAMS, 'v7': LEGACY_PROGRAMS, 'v8': V9_PROGRAMS, 'v9': V9_PROGRAMS, 'v10': V10_PROGRAMS, 'v11': V11_PROGRAMS, 'v12': V11_PROGRAMS, 'v13': V11_PROGRAMS, 'v14': V11_PROGRAMS, 'v15': V15_PROGRAMS, 'v16': V16_PROGRAMS, 'v17': V17_PROGRAMS, 'v18': V18_PROGRAMS, 'v19': V19_PROGRAMS, 'v20': V20_PROGRAMS, 'v21': V21_PROGRAMS, 'v22': V22_PROGRAMS, 'v23': V23_PROGRAMS, 'v24': V24_PROGRAMS, 'v25': V25_PROGRAMS, 'v26': PROGRAMS, 'v27': PROGRAMS, 'v28': PROGRAMS, 'v29': PROGRAMS, 'v30': PROGRAMS, 'v31': PROGRAMS, 'v32': PROGRAMS, 'v33': PROGRAMS, 'v34': PROGRAMS, 'v35': PROGRAMS}
     directories = {BASE} | {BASE / version for version in names_by_version}
     paths = [BASE, UNIT]
     for version, names in names_by_version.items():
@@ -61,7 +61,7 @@ def inspect_runner():
     release, state, upgradable = None, 'missing', False
     try:
         predecessors = []
-        for version, expected in [('v1', PREDECESSOR), ('v2', PREDECESSOR_V2), ('v3', PREDECESSOR_V3), ('v4', PREDECESSOR_V4), ('v5', PREDECESSOR_V5), ('v6', PREDECESSOR_V6), ('v7', PREDECESSOR_V7), ('v8', PREDECESSOR_V8), ('v9', PREDECESSOR_V9), ('v10', PREDECESSOR_V10), ('v11', PREDECESSOR_V11), ('v12', PREDECESSOR_V12), ('v13', PREDECESSOR_V13), ('v14', PREDECESSOR_V14), ('v15', PREDECESSOR_V15), ('v16', PREDECESSOR_V16), ('v17', PREDECESSOR_V17), ('v18', PREDECESSOR_V18), ('v19', PREDECESSOR_V19), ('v20', PREDECESSOR_V20), ('v21', PREDECESSOR_V21), ('v22', PREDECESSOR_V22), ('v23', PREDECESSOR_V23), ('v24', PREDECESSOR_V24), ('v25', PREDECESSOR_V25), ('v26', PREDECESSOR_V26), ('v27', PREDECESSOR_V27), ('v28', PREDECESSOR_V28), ('v29', PREDECESSOR_V29), ('v30', PREDECESSOR_V30), ('v31', PREDECESSOR_V31), ('v32', PREDECESSOR_V32), ('v33', PREDECESSOR_V33)]:
+        for version, expected in [('v1', PREDECESSOR), ('v2', PREDECESSOR_V2), ('v3', PREDECESSOR_V3), ('v4', PREDECESSOR_V4), ('v5', PREDECESSOR_V5), ('v6', PREDECESSOR_V6), ('v7', PREDECESSOR_V7), ('v8', PREDECESSOR_V8), ('v9', PREDECESSOR_V9), ('v10', PREDECESSOR_V10), ('v11', PREDECESSOR_V11), ('v12', PREDECESSOR_V12), ('v13', PREDECESSOR_V13), ('v14', PREDECESSOR_V14), ('v15', PREDECESSOR_V15), ('v16', PREDECESSOR_V16), ('v17', PREDECESSOR_V17), ('v18', PREDECESSOR_V18), ('v19', PREDECESSOR_V19), ('v20', PREDECESSOR_V20), ('v21', PREDECESSOR_V21), ('v22', PREDECESSOR_V22), ('v23', PREDECESSOR_V23), ('v24', PREDECESSOR_V24), ('v25', PREDECESSOR_V25), ('v26', PREDECESSOR_V26), ('v27', PREDECESSOR_V27), ('v28', PREDECESSOR_V28), ('v29', PREDECESSOR_V29), ('v30', PREDECESSOR_V30), ('v31', PREDECESSOR_V31), ('v32', PREDECESSOR_V32), ('v33', PREDECESSOR_V33), ('v34', PREDECESSOR_V34)]:
             if hashes[str(BASE / version)]:
                 manifest = json.loads((BASE / version / 'manifest.json').read_text())
                 if isinstance(expected, list):
@@ -72,11 +72,11 @@ def inspect_runner():
                     if hashes[str(BASE / version / name)] != expected['hashes'][name]: raise ValueError()
                 predecessors.append(manifest)
         unit_hash = hashes[str(UNIT)]
-        if hashes[str(BASE / 'v34')]:
-            manifest = json.loads((BASE / 'v34/manifest.json').read_text())
+        if hashes[str(BASE / 'v35')]:
+            manifest = json.loads((BASE / 'v35/manifest.json').read_text())
             if set(manifest) != {'release','hashes'} or set(manifest['hashes']) != set(PROGRAMS) | {'antirkn-runner.service'}: raise ValueError()
             for name in PROGRAMS:
-                if hashes[str(BASE / 'v34' / name)] != manifest['hashes'][name]: raise ValueError()
+                if hashes[str(BASE / 'v35' / name)] != manifest['hashes'][name]: raise ValueError()
             expected = hashlib.sha256(json.dumps(manifest['hashes'], sort_keys=True).encode()).hexdigest()
             if manifest['release'] != expected: raise ValueError()
             release = expected

@@ -165,6 +165,15 @@ class VlessTests(unittest.TestCase):
         self.assertEqual(self.job(req)['checkpoint'],1);self.assertEqual(len(self.api.rows),1)
         self.store.db.execute('DROP TRIGGER fail_resource');self.store.recover();self.assertEqual(self.finish(req)['status'],'succeeded')
         self.assertEqual(len(self.api.rows),2)
+    def test_plan_allows_coexisting_inbounds_on_different_listen_ips(self):
+        self.api.rows.append(dict(id=99, protocol='vless', port=23401, listen='127.0.0.2', enable=True, remark='other', settings={}, streamSettings={}))
+        preview = plan(self.store, dict(id='b'*32, payload=json.dumps(payload())))
+        self.assertIn('fingerprint', preview)
+    def test_plan_rejects_colliding_port_on_wildcard_or_same_ip(self):
+        self.api.rows.append(dict(id=99, protocol='vless', port=23401, listen='0.0.0.0', enable=True, remark='wildcard', settings={}, streamSettings={}))
+        with self.assertRaises(VlessError) as ctx:
+            plan(self.store, dict(id='b'*32, payload=json.dumps(payload())))
+        self.assertEqual(str(ctx.exception), 'vless_port_busy')
     def test_tls_hostname_mismatch_blocks_before_any_mutation(self):
         p=payload();p['resources'][0].update(transport='xhttp',security='tls',certificate='/fixture.crt',certificateKey='/fixture.key')
         with patch('vless.command',return_value=b'Hostname example.com does NOT match certificate\n'):
