@@ -88,6 +88,75 @@ ProfileResult _compile((String, String, String, Map<String, String>) input) {
   }
 }
 
+Map<String, ProfileResult> _compileBatch(
+  (String, String, List<String>, Map<String, String>) input,
+) {
+  final workspace = VpnWorkspace.decode(input.$1);
+  final template = input.$2;
+  final userIds = input.$3;
+  final serverNames = input.$4;
+  final results = <String, ProfileResult>{};
+  const compiler = ProfileCompiler();
+
+  for (final userId in userIds) {
+    try {
+      final pending = <ProfileAccessException>[];
+      final accesses = [
+        ...vlessUserAccesses(
+          workspace,
+          userId,
+          serverNames: serverNames,
+          onPending: pending.add,
+        ),
+        ...awgUserAccesses(
+          workspace,
+          userId,
+          serverNames: serverNames,
+          onPending: pending.add,
+        ),
+        ...ttUserAccesses(
+          workspace,
+          userId,
+          serverNames: serverNames,
+          onPending: pending.add,
+        ),
+      ];
+      if (pending.isNotEmpty) {
+        results[userId] = ProfileResult(
+          groups: [],
+          diagnostics: [
+            for (final issue in pending)
+              ProfileDiagnostic(
+                issue.code,
+                DiagnosticSeverity.error,
+                subject: issue.subject,
+              ),
+          ],
+        );
+        continue;
+      }
+      results[userId] = compiler.compile(
+        template: template,
+        userId: userId,
+        accesses: accesses,
+      );
+    } on ProfileAccessException catch (e) {
+      results[userId] = ProfileResult(
+        groups: [],
+        diagnostics: [
+          ProfileDiagnostic(e.code, DiagnosticSeverity.error, subject: e.subject),
+        ],
+      );
+    } on FormatException catch (e) {
+      results[userId] = ProfileResult(
+        groups: [],
+        diagnostics: [ProfileDiagnostic(e.message, DiagnosticSeverity.error)],
+      );
+    }
+  }
+  return results;
+}
+
 /// A single workspace coordinator owns client -> all resources reconciliation.
 /// Polling resumes only persisted, explicitly approved intentions.
 class VpnController extends ChangeNotifier {
@@ -1849,41 +1918,50 @@ class VpnController extends ChangeNotifier {
     final encoded = workspace.encode();
     final histories = {...workspace.profiles};
     var changed = false;
+    final activeUserIds = <String>[];
     for (final user in workspace.users) {
       if (user.deleted) {
         results.remove(user.id);
         changed = histories.remove(user.id) != null || changed;
-        continue;
+      } else {
+        activeUserIds.add(user.id);
       }
-      final result = await compute(_compile, (
+    }
+    if (activeUserIds.isNotEmpty) {
+      final batchResults = await compute(_compileBatch, (
         encoded,
         source,
-        user.id,
+        activeUserIds,
         profileServerNames,
       ));
       if (_disposed) return;
-      results[user.id] = result;
-      if (user.enabled &&
-          result.yaml != null &&
-          !result.hasBlockingErrors &&
-          histories[user.id]?['hash'] != result.sha256Hash) {
-        final previous = histories[user.id];
-        final history = [
-          if (previous != null)
-            {
-              'hash': previous['hash'],
-              'yaml': previous['yaml'],
-              'at': previous['at'],
-            },
-          ...?previous?['history'] as List?,
-        ].take(5).toList();
-        histories[user.id] = {
-          'hash': result.sha256Hash,
-          'yaml': result.yaml,
-          'at': DateTime.now().toUtc().toIso8601String(),
-          'history': history,
-        };
-        changed = true;
+      for (final user in workspace.users) {
+        if (user.deleted) continue;
+        final result = batchResults[user.id];
+        if (result == null) continue;
+        results[user.id] = result;
+        if (user.enabled &&
+            result.yaml != null &&
+            !result.hasBlockingErrors &&
+            histories[user.id]?['hash'] != result.sha256Hash) {
+          final previous = histories[user.id];
+          final history = [
+            if (previous != null)
+              {
+                'hash': previous['hash'],
+                'yaml': previous['yaml'],
+                'at': previous['at'],
+              },
+            ...?previous?['history'] as List?,
+          ].take(5).toList();
+          histories[user.id] = {
+            'hash': result.sha256Hash,
+            'yaml': result.yaml,
+            'at': DateTime.now().toUtc().toIso8601String(),
+            'history': history,
+          };
+          changed = true;
+        }
       }
     }
     if (changed) await _write(workspace.copy(profiles: histories));

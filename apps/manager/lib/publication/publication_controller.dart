@@ -364,6 +364,14 @@ class PublicationController extends ChangeNotifier {
               }
               await Future<void>.delayed(const Duration(milliseconds: 300));
             } on PublicationFailure catch (e) {
+              final isRetryable = e.issue == PublicationIssue.network ||
+                  e.issue == PublicationIssue.rateLimited ||
+                  e.issue == PublicationIssue.unavailable;
+              if (isRetryable && attempt < 2) {
+                final delayMs = 500 * (1 << attempt) + Random().nextInt(300);
+                await Future<void>.delayed(Duration(milliseconds: delayMs));
+                continue;
+              }
               // Per-user error: record it in the queue but continue with others.
               queues[user.id] = {'issue': e.issue.name, 'userId': user.id};
               break;
@@ -372,6 +380,12 @@ class PublicationController extends ChangeNotifier {
                   e.issue == GoogleAccountIssue.denied) {
                 rethrow;
               }
+              if (attempt < 2) {
+                await Future<void>.delayed(
+                  Duration(milliseconds: 500 * (1 << attempt)),
+                );
+                continue;
+              }
               queues[user.id] = {
                 'issue': PublicationIssue.unauthorized.name,
                 'userId': user.id,
@@ -379,6 +393,11 @@ class PublicationController extends ChangeNotifier {
               break;
             } on SyncTransportFailure catch (e) {
               if (e.issue == SyncTransportIssue.cancelled) rethrow;
+              if (attempt < 2) {
+                final delayMs = 500 * (1 << attempt) + Random().nextInt(300);
+                await Future<void>.delayed(Duration(milliseconds: delayMs));
+                continue;
+              }
               queues[user.id] = {
                 'issue': PublicationIssue.network.name,
                 'userId': user.id,
