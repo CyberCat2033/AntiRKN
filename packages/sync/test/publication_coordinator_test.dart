@@ -153,7 +153,7 @@ class Remote implements PublicationRemoteStore {
   }
 
   @override
-  Future<void> createYaml({
+  Future<PublicationFile> createYaml({
     required String fileId,
     required String folderId,
     required String name,
@@ -181,6 +181,7 @@ class Remote implements PublicationRemoteStore {
         throw const PublicationFailure(PublicationIssue.network);
       }
     }
+    return getFile(fileId);
   }
 
   @override
@@ -189,16 +190,18 @@ class Remote implements PublicationRemoteStore {
     String folderId,
     String workspaceId,
     Uint8List data,
-  ) => createYaml(
-    fileId: id,
-    folderId: folderId,
-    name: 'registry',
-    workspaceId: workspaceId,
-    userId: 'registry',
-    headId: 'registry',
-    executorId: 'registry',
-    bytes: data,
-  );
+  ) async {
+    await createYaml(
+      fileId: id,
+      folderId: folderId,
+      name: 'registry',
+      workspaceId: workspaceId,
+      userId: 'registry',
+      headId: 'registry',
+      executorId: 'registry',
+      bytes: data,
+    );
+  }
   Blob _check(PublicationFile expected) {
     final b = blobs[expected.id];
     if (b == null) throw const PublicationFailure(PublicationIssue.missing);
@@ -209,7 +212,7 @@ class Remote implements PublicationRemoteStore {
   }
 
   @override
-  Future<void> updateProperties(
+  Future<PublicationFile> updateProperties(
     PublicationFile expected,
     Map<String, String> properties,
   ) async {
@@ -217,10 +220,11 @@ class Remote implements PublicationRemoteStore {
     final b = _check(expected);
     b.properties = {...b.properties, ...properties};
     b.version++;
+    return getFile(expected.id);
   }
 
   @override
-  Future<void> updateFile(
+  Future<PublicationFile> updateFile(
     PublicationFile expected,
     Uint8List data, {
     required Map<String, String> properties,
@@ -242,6 +246,7 @@ class Remote implements PublicationRemoteStore {
         throw const PublicationFailure(PublicationIssue.network);
       }
     }
+    return getFile(expected.id);
   }
 
   @override
@@ -566,11 +571,10 @@ void main() {
       expect(updateResult?['status'], 'published');
       expect(remote.updatedProfiles, 1);
 
-      // Profile is downloaded exactly 1 time for pre-check causality,
-      // and NOT a second time after updateFile (which was eliminated):
+      // Profile is NOT downloaded at all during fast update path (0 pre-download, 0 post-download):
       final profileDownloadsDuringUpdate =
           remote.profileDownloadCalls - profileDownloadsBeforeUpdate;
-      expect(profileDownloadsDuringUpdate, 1);
+      expect(profileDownloadsDuringUpdate, 0);
     },
   );
 }

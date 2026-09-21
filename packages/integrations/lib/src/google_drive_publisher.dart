@@ -268,7 +268,7 @@ final class GoogleDrivePublisher
   }
 
   @override
-  Future<void> createYaml({
+  Future<PublicationFile> createYaml({
     required String fileId,
     required String folderId,
     required String name,
@@ -283,6 +283,9 @@ final class GoogleDrivePublisher
     }
     final boundary =
         'antirkn-${List.generate(24, (_) => Random.secure().nextInt(256).toRadixString(16).padLeft(2, '0')).join()}';
+    final hashDigest = (await Sha256().hash(
+      bytes,
+    )).bytes.map((v) => v.toRadixString(16).padLeft(2, '0')).join();
     final metadata = jsonEncode({
       'id': _id(fileId),
       'name': name,
@@ -293,9 +296,7 @@ final class GoogleDrivePublisher
         'antirknUser': userId,
         'antirknHead': headId,
         'antirknExecutor': executorId,
-        'antirknHash': (await Sha256().hash(
-          bytes,
-        )).bytes.map((v) => v.toRadixString(16).padLeft(2, '0')).join(),
+        'antirknHash': hashDigest,
       },
     });
     final body = BytesBuilder(copy: false)
@@ -306,12 +307,30 @@ final class GoogleDrivePublisher
       )
       ..add(bytes)
       ..add(utf8.encode('\r\n--$boundary--\r\n'));
-    await _send(
+    final response = await _send(
       'POST',
       _uri('files', {'uploadType': 'multipart'}, true),
       body: body.takeBytes(),
       headers: {'Content-Type': 'multipart/related; boundary=$boundary'},
     );
+    final json = _json(response);
+    return json['id'] is String
+        ? _file(json)
+        : PublicationFile(
+            id: fileId,
+            name: name,
+            mimeType: 'application/yaml',
+            version: '1',
+            etag: json['etag'] as String? ?? '',
+            editable: true,
+            properties: {
+              'antirknWorkspace': workspaceId,
+              'antirknUser': userId,
+              'antirknHead': headId,
+              'antirknExecutor': executorId,
+              'antirknHash': hashDigest,
+            },
+          );
   }
 
   Map<String, Object?> _propertyBody(Map<String, String> properties) => {
@@ -328,11 +347,11 @@ final class GoogleDrivePublisher
   }
 
   @override
-  Future<void> updateProperties(
+  Future<PublicationFile> updateProperties(
     PublicationFile expected,
     Map<String, String> properties,
   ) async {
-    await _send(
+    final response = await _send(
       'PUT',
       _v2('files/${_id(expected.id)}'),
       body: Uint8List.fromList(
@@ -345,6 +364,22 @@ final class GoogleDrivePublisher
         'If-Match': _etag(expected),
       },
     );
+    final json = _json(response);
+    return json['id'] is String
+        ? _file(json)
+        : PublicationFile(
+            id: expected.id,
+            name: expected.name,
+            mimeType: expected.mimeType,
+            version: json['version'] as String? ?? expected.version,
+            etag: json['etag'] as String? ?? expected.etag,
+            editable: expected.editable,
+            properties: {...expected.properties, ...properties},
+            shared: expected.shared,
+            trashed: expected.trashed,
+            downloadUrl: expected.downloadUrl,
+            resourceKey: expected.resourceKey,
+          );
   }
 
   @override
@@ -376,7 +411,7 @@ final class GoogleDrivePublisher
   }
 
   @override
-  Future<void> updateFile(
+  Future<PublicationFile> updateFile(
     PublicationFile expected,
     Uint8List bytes, {
     required Map<String, String> properties,
@@ -386,13 +421,14 @@ final class GoogleDrivePublisher
     }
     final boundary =
         'antirkn-${List.generate(24, (_) => Random.secure().nextInt(256).toRadixString(16).padLeft(2, '0')).join()}';
+    final hashDigest = (await Sha256().hash(
+      bytes,
+    )).bytes.map((v) => v.toRadixString(16).padLeft(2, '0')).join();
     final metadata = jsonEncode(
       _propertyBody({
         ...expected.properties,
         ...properties,
-        'antirknHash': (await Sha256().hash(
-          bytes,
-        )).bytes.map((v) => v.toRadixString(16).padLeft(2, '0')).join(),
+        'antirknHash': hashDigest,
       }),
     );
     final body = BytesBuilder(copy: false)
@@ -403,7 +439,7 @@ final class GoogleDrivePublisher
       )
       ..add(bytes)
       ..add(utf8.encode('\r\n--$boundary--\r\n'));
-    await _send(
+    final response = await _send(
       'PUT',
       _v2('files/${_id(expected.id)}', {'uploadType': 'multipart'}, true),
       body: body.takeBytes(),
@@ -412,6 +448,26 @@ final class GoogleDrivePublisher
         'If-Match': _etag(expected),
       },
     );
+    final json = _json(response);
+    return json['id'] is String
+        ? _file(json)
+        : PublicationFile(
+            id: expected.id,
+            name: expected.name,
+            mimeType: expected.mimeType,
+            version: json['version'] as String? ?? expected.version,
+            etag: json['etag'] as String? ?? expected.etag,
+            editable: expected.editable,
+            properties: {
+              ...expected.properties,
+              ...properties,
+              'antirknHash': hashDigest,
+            },
+            shared: expected.shared,
+            trashed: expected.trashed,
+            downloadUrl: expected.downloadUrl,
+            resourceKey: expected.resourceKey,
+          );
   }
 
   @override

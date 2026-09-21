@@ -58,7 +58,7 @@ abstract interface class PublicationRemoteStore {
   Future<PublicationFile> getFile(String fileId);
   Future<List<PublicationFile>> listFolders();
   Future<void> createFolder(String fileId, String name);
-  Future<void> createYaml({
+  Future<PublicationFile> createYaml({
     required String fileId,
     required String folderId,
     required String name,
@@ -68,12 +68,12 @@ abstract interface class PublicationRemoteStore {
     required String executorId,
     required Uint8List bytes,
   });
-  Future<void> updateFile(
+  Future<PublicationFile> updateFile(
     PublicationFile expected,
     Uint8List bytes, {
     required Map<String, String> properties,
   });
-  Future<void> updateProperties(
+  Future<PublicationFile> updateProperties(
     PublicationFile expected,
     Map<String, String> properties,
   );

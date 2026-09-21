@@ -158,6 +158,16 @@ final class PublicationCoordinator {
       _resourceKey(entry);
       final fileId = entry['fileId'] as String;
       await saveQueue({...queue, 'fileId': fileId, 'registryId': registryId});
+      final beforeSource = await repository.readPublicationDocument(
+        'result/$userId',
+      );
+      final previous = beforeSource == null
+          ? <String, dynamic>{}
+          : jsonDecode(beforeSource) as Map<String, dynamic>;
+      final previousEtag = previous['fileId'] == fileId
+          ? previous['etag'] as String?
+          : null;
+
       PublicationFile? file;
       for (var attempt = 0; attempt < 4; attempt++) {
         try {
@@ -170,7 +180,7 @@ final class PublicationCoordinator {
             }
             await guard();
             try {
-              await remote.createYaml(
+              file = await remote.createYaml(
                 fileId: fileId,
                 folderId: settings.folderId,
                 name: '${draft.name}.yml',
@@ -184,27 +194,39 @@ final class PublicationCoordinator {
               if (e.issue != PublicationIssue.conflict) rethrow;
             }
           }
-          final snapshot = await _snapshot(fileId, file: file);
-          file = snapshot.$1;
-          if (file.properties['antirknWorkspace'] != draft.workspaceId ||
-              file.properties['antirknUser'] !=
+          file ??= await remote.getFile(fileId);
+          final f = file;
+          if (f.properties['antirknWorkspace'] != draft.workspaceId ||
+              f.properties['antirknUser'] !=
                   (entry['owner'] ?? draft.userId) ||
-              !file.editable ||
-              file.properties['antirknDeleted'] != null ||
-              !file.binary ||
-              file.trashed) {
+              !f.editable ||
+              f.properties['antirknDeleted'] != null ||
+              !f.binary ||
+              f.trashed) {
             throw const PublicationFailure(PublicationIssue.invalid);
           }
           if (settings.access == PublicationAccess.private) {
             await remote.checkPrivate(fileId);
           }
-          final head = file.properties['antirknHead'];
+          final head = f.properties['antirknHead'];
           if (!force &&
               head != draft.headId &&
               !draft.ancestors.contains(head)) {
             throw const PublicationFailure(PublicationIssue.conflict);
           }
-          final hash = await _hash(snapshot.$2);
+          final remoteHash = f.properties['antirknHash'];
+          final canSkipDownload = (previousEtag != null &&
+                  previousEtag == f.etag &&
+                  remoteHash != null) ||
+              (head == draft.headId && remoteHash == draft.hash);
+          final String hash;
+          if (canSkipDownload) {
+            hash = remoteHash!;
+          } else {
+            final snapshot = await _snapshot(fileId, file: f);
+            file = snapshot.$1;
+            hash = await _hash(snapshot.$2);
+          }
           if (hash != draft.hash || head != draft.headId) {
             await guard();
             final props = {
@@ -213,23 +235,10 @@ final class PublicationCoordinator {
               'antirknHash': draft.hash,
             };
             if (hash == draft.hash) {
-              await remote.updateProperties(file, props);
+              file = await remote.updateProperties(file, props);
             } else {
-              await remote.updateFile(file, draft.bytes, properties: props);
+              file = await remote.updateFile(file, draft.bytes, properties: props);
             }
-            file = PublicationFile(
-              id: file.id,
-              name: file.name,
-              mimeType: file.mimeType,
-              version: file.version,
-              etag: file.etag,
-              editable: file.editable,
-              properties: {...file.properties, ...props},
-              downloadUrl: file.downloadUrl,
-              resourceKey: file.resourceKey,
-              trashed: file.trashed,
-              shared: file.shared,
-            );
           }
           break;
         } on PublicationFailure catch (e) {
@@ -247,12 +256,6 @@ final class PublicationCoordinator {
           guard,
         );
       }
-      final beforeSource = await repository.readPublicationDocument(
-        'result/$userId',
-      );
-      final previous = beforeSource == null
-          ? <String, dynamic>{}
-          : jsonDecode(beforeSource) as Map<String, dynamic>;
       String? permissionId = previous['fileId'] == fileId
           ? previous['permissionId'] as String?
           : null;
@@ -290,6 +293,7 @@ final class PublicationCoordinator {
         'access': settings.access.name,
         'url': url,
         'permissionId': permissionId,
+        'etag': file.etag,
       };
       await repository.writePublicationDocument(
         'result/$userId',

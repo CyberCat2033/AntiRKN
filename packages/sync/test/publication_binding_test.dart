@@ -21,33 +21,35 @@ class FaultRemote extends f.Remote {
   final creationStarted = Completer<void>(),
       creationRelease = Completer<void>();
   @override
-  Future<void> updateFile(
+  Future<PublicationFile> updateFile(
     PublicationFile expected,
     Uint8List data, {
     required Map<String, String> properties,
   }) async {
-    await super.updateFile(expected, data, properties: properties);
+    final res = await super.updateFile(expected, data, properties: properties);
     if (loseRegistry && expected.properties['antirknUser'] == 'registry') {
       loseRegistry = false;
       throw const PublicationFailure(PublicationIssue.network);
     }
+    return res;
   }
 
   @override
-  Future<void> updateProperties(
+  Future<PublicationFile> updateProperties(
     PublicationFile expected,
     Map<String, String> properties,
   ) async {
-    await super.updateProperties(expected, properties);
+    final res = await super.updateProperties(expected, properties);
     if (loseRetirement &&
         properties['antirknUser']?.startsWith('retired:') == true) {
       loseRetirement = false;
       throw const PublicationFailure(PublicationIssue.network);
     }
+    return res;
   }
 
   @override
-  Future<void> createYaml({
+  Future<PublicationFile> createYaml({
     required String fileId,
     required String folderId,
     required String name,
@@ -62,7 +64,7 @@ class FaultRemote extends f.Remote {
       creationStarted.complete();
       await creationRelease.future;
     }
-    await super.createYaml(
+    return super.createYaml(
       fileId: fileId,
       folderId: folderId,
       name: name,

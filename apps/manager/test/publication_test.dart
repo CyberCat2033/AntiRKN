@@ -113,7 +113,7 @@ class Remote implements PublicationRemoteStore {
   Future<Uint8List> download(String id) async => contents[id] ?? Uint8List(0);
 
   @override
-  Future<void> createYaml({
+  Future<PublicationFile> createYaml({
     required String fileId,
     required String folderId,
     required String name,
@@ -124,7 +124,7 @@ class Remote implements PublicationRemoteStore {
     required Uint8List bytes,
   }) async {
     final digest = sha256.convert(bytes).toString();
-    folders[fileId] = PublicationFile(
+    final created = PublicationFile(
       id: fileId,
       name: name,
       mimeType: 'application/x-yaml',
@@ -140,14 +140,16 @@ class Remote implements PublicationRemoteStore {
       },
       downloadUrl: 'https://drive.google.com/uc?id=$fileId',
     );
+    folders[fileId] = created;
     contents[fileId] = bytes;
+    return created;
   }
 
   @override
   Future<void> checkPrivate(String id) async {}
 
   @override
-  Future<void> updateFile(
+  Future<PublicationFile> updateFile(
     PublicationFile expected,
     Uint8List bytes, {
     required Map<String, String> properties,
@@ -156,7 +158,7 @@ class Remote implements PublicationRemoteStore {
     final digest = sha256.convert(bytes).toString();
     final f = folders[expected.id]!;
     final v = int.tryParse(f.version) ?? 1;
-    folders[expected.id] = PublicationFile(
+    final updated = PublicationFile(
       id: f.id,
       name: f.name,
       mimeType: f.mimeType,
@@ -166,15 +168,17 @@ class Remote implements PublicationRemoteStore {
       properties: {...f.properties, ...properties, 'antirknHash': digest},
       downloadUrl: f.downloadUrl,
     );
+    folders[expected.id] = updated;
+    return updated;
   }
 
   @override
-  Future<void> updateProperties(
+  Future<PublicationFile> updateProperties(
     PublicationFile expected,
     Map<String, String> properties,
   ) async {
     final f = folders[expected.id]!;
-    folders[expected.id] = PublicationFile(
+    final updated = PublicationFile(
       id: f.id,
       name: f.name,
       mimeType: f.mimeType,
@@ -184,6 +188,8 @@ class Remote implements PublicationRemoteStore {
       properties: {...f.properties, ...properties},
       downloadUrl: f.downloadUrl,
     );
+    folders[expected.id] = updated;
+    return updated;
   }
 
   @override
