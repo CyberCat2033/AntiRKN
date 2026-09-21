@@ -40,7 +40,10 @@ class Remote implements RunnerTransport {
   final MemoryVpn store;
   final submissions = <String, Map<String, dynamic>>{};
   final actions = <String>[];
-  bool loseReply = false, running = false, failBeforeSubmit = false;
+  bool loseReply = false,
+      running = false,
+      failBeforeSubmit = false,
+      failState = false;
   List<Map<String, dynamic>> state = [];
   List<Map<String, dynamic>>? customState;
   final jobs = <String, Map<String, dynamic>>{};
@@ -79,6 +82,7 @@ class Remote implements RunnerTransport {
       return RunnerResponse.fromJson(response(plan: {'fingerprint': 'e' * 64}));
     }
     if (a == 'vless_state') {
+      if (failState) throw const SshFailure(SshIssue.disconnected);
       return RunnerResponse.fromJson(response(state: customState ?? state));
     }
     final id = r['id'] as String;
@@ -753,4 +757,54 @@ void main() {
       expect(c.adoptionConfirmed('one', inbounds.first.id), isTrue);
     },
   );
+  test(
+    'syncAllServersAndProfiles polls servers in parallel and rebuilds profiles',
+    () async {
+      final store = MemoryVpn(), remotes = <String, Remote>{};
+      remotes.addAll({
+        'one': Remote(store),
+        'two': Remote(store),
+      });
+      final c = controller(store, remotes);
+      await setup(c);
+      await c.prepare();
+      await c.apply();
+
+      remotes['one']!.actions.clear();
+      remotes['two']!.actions.clear();
+
+      await c.syncAllServersAndProfiles();
+
+      expect(c.error, isNull);
+      expect(remotes['one']!.actions, contains('vless_state'));
+      expect(remotes['two']!.actions, contains('vless_state'));
+      expect(c.results[alice]?.hasBlockingErrors, isFalse);
+      expect(c.results[bob]?.hasBlockingErrors, isFalse);
+    },
+  );
+  test(
+    'syncAllServersAndProfiles isolates single server failure without aborting remaining servers',
+    () async {
+      final store = MemoryVpn(), remotes = <String, Remote>{};
+      remotes.addAll({
+        'one': Remote(store),
+        'two': Remote(store),
+      });
+      final c = controller(store, remotes);
+      await setup(c);
+      await c.prepare();
+      await c.apply();
+
+      remotes['one']!.actions.clear();
+      remotes['two']!.actions.clear();
+      remotes['two']!.failState = true;
+
+      await c.syncAllServersAndProfiles();
+
+      expect(c.error, 'vpn_connection');
+      expect(remotes['one']!.actions, contains('vless_state'));
+      expect(c.results[alice], isNotNull);
+    },
+  );
 }
+

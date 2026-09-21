@@ -1390,6 +1390,16 @@ class VpnController extends ChangeNotifier {
     }
     final result = await _request(r, _stateRequest(id, r.panelId), token);
     final observations = _observations(result, id) ?? [];
+    await _applyServerObservations(id, r, observations);
+    if (rebuildProfiles) await _profiles();
+  }
+
+  Future<void> _applyServerObservations(
+    String id,
+    VpnRemote r,
+    List<Map<String, dynamic>> observations,
+  ) async {
+    final current = workspace.servers[id] ?? {};
     await _record(id, {
       ...current,
       'identity': r.identity,
@@ -1425,7 +1435,6 @@ class VpnController extends ChangeNotifier {
           workspace.copy(ttEndpoints: [...workspace.ttEndpoints, ...recovered]),
         );
       }
-      if (rebuildProfiles) await _profiles();
       return;
     }
     if (isAwgTarget(id)) {
@@ -1449,7 +1458,6 @@ class VpnController extends ChangeNotifier {
           ),
         );
       }
-      if (rebuildProfiles) await _profiles();
       return;
     }
     final recovered = observations
@@ -1489,7 +1497,6 @@ class VpnController extends ChangeNotifier {
         workspace.copy(inbounds: [...updatedInbounds, ...recovered]),
       );
     }
-    if (rebuildProfiles) await _profiles();
   }
 
   Future<void> _observeOperation(String id, CancellationToken token) async {
@@ -1718,28 +1725,7 @@ class VpnController extends ChangeNotifier {
       for (final resource in workspace.ttEndpoints)
         if (resource.enabled && !resource.deleted) ttTarget(resource.serverId),
     }.toList()..sort();
-    String? firstIssue;
-    for (final target in targets) {
-      try {
-        if (!await ensureConnected(target)) {
-          throw const FormatException('vpn_connection');
-        }
-        token.check();
-        await _refreshServer(target, token, rebuildProfiles: false);
-      } on SyncMergeFailure {
-        rethrow;
-      } on VaultFailure {
-        rethrow;
-      } on SshFailure {
-        firstIssue ??= 'vpn_connection';
-      } on RunnerFailure {
-        firstIssue ??= 'vpn_runner';
-      } on FormatException catch (e) {
-        firstIssue ??= e.message;
-      }
-    }
-    await _profiles();
-    error = firstIssue;
+    error = await _refreshTargets(targets, token);
   });
 
   /// Forcibly reads latest observations from all physical servers and managed
@@ -1771,32 +1757,90 @@ class VpnController extends ChangeNotifier {
             ttTarget(serverId),
         ],
       }.toList()..sort();
-      String? firstIssue;
-      for (final target in targets) {
-        try {
-          if (!await ensureConnected(target)) {
-            firstIssue ??= 'vpn_connection';
-            continue;
-          }
-          token.check();
-          await _refreshServer(target, token, rebuildProfiles: false);
-        } on SyncMergeFailure {
-          rethrow;
-        } on VaultFailure {
-          rethrow;
-        } on SshFailure {
-          firstIssue ??= 'vpn_connection';
-        } on RunnerFailure {
-          firstIssue ??= 'vpn_runner';
-        } on FormatException catch (e) {
-          firstIssue ??= e.message;
-        } catch (_) {
-          firstIssue ??= 'vpn_connection';
-        }
-      }
-      await _profiles();
-      error = firstIssue;
+      error = await _refreshTargets(targets, token);
     });
+  }
+
+  Future<_TargetPollResult> _pollTarget(
+    String target,
+    CancellationToken token,
+  ) async {
+    try {
+      if (!await ensureConnected(target)) {
+        return _TargetPollResult.error(target, 'vpn_connection');
+      }
+      token.check();
+      final r = remote(target);
+      if (r == null) {
+        return _TargetPollResult.error(target, 'vpn_connection');
+      }
+      final current = workspace.servers[target] ?? {};
+      if (current['identity'] != null && current['identity'] != r.identity) {
+        return _TargetPollResult.error(target, 'vpn_identity');
+      }
+      final result = await _request(r, _stateRequest(target, r.panelId), token);
+      final observations = _observations(result, target) ?? [];
+      return _TargetPollResult.success(target, r, observations);
+    } on SyncMergeFailure catch (e) {
+      return _TargetPollResult.fatal(target, e);
+    } on VaultFailure catch (e) {
+      return _TargetPollResult.fatal(target, e);
+    } on SshFailure {
+      return _TargetPollResult.error(target, 'vpn_connection');
+    } on RunnerFailure {
+      return _TargetPollResult.error(target, 'vpn_runner');
+    } on FormatException catch (e) {
+      return _TargetPollResult.error(target, e.message);
+    } catch (_) {
+      return _TargetPollResult.error(target, 'vpn_connection');
+    }
+  }
+
+  Future<String?> _refreshTargets(
+    List<String> targets,
+    CancellationToken token,
+  ) async {
+    if (targets.isEmpty) {
+      await _profiles();
+      return null;
+    }
+
+    // 1. Pre-connect all distinct physical servers concurrently
+    final physicalServers = targets.map(vpnServerId).toSet().toList()..sort();
+    await Future.wait(physicalServers.map((serverId) async {
+      try {
+        await ensureConnected(serverId);
+      } catch (_) {}
+    }));
+    if (_disposed) return null;
+    token.check();
+
+    // 2. Poll all targets concurrently
+    final results = await Future.wait(
+      targets.map((target) => _pollTarget(target, token)),
+    );
+    if (_disposed) return null;
+
+    // 3. Rethrow fatal merge/storage failures
+    for (final res in results) {
+      if (res.rethrowError case final error?) {
+        throw error;
+      }
+    }
+
+    // 4. Sequentially apply server observations in memory & local SQLite
+    String? firstIssue;
+    for (final res in results) {
+      if (res.error != null) {
+        firstIssue ??= res.error;
+        continue;
+      }
+      await _applyServerObservations(res.target, res.remote!, res.observations!);
+    }
+
+    // 5. Rebuild client profiles once for all refreshed servers
+    await _profiles();
+    return firstIssue;
   }
 
   Future<void> _profiles() async {
@@ -1856,3 +1900,26 @@ class VpnController extends ChangeNotifier {
     super.dispose();
   }
 }
+
+final class _TargetPollResult {
+  const _TargetPollResult.success(this.target, this.remote, this.observations)
+      : error = null,
+        rethrowError = null;
+
+  const _TargetPollResult.error(this.target, this.error)
+      : remote = null,
+        observations = null,
+        rethrowError = null;
+
+  const _TargetPollResult.fatal(this.target, this.rethrowError)
+      : remote = null,
+        observations = null,
+        error = null;
+
+  final String target;
+  final VpnRemote? remote;
+  final List<Map<String, dynamic>>? observations;
+  final String? error;
+  final Object? rethrowError;
+}
+
