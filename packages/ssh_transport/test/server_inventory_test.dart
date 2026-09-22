@@ -132,6 +132,31 @@ void main() {
     },
   );
   test(
+    'core inventory probes (services, files, containers, module) execute concurrently (Audit #2)',
+    () async {
+      final responses = cleanResponses();
+      var coreActive = 0, corePeak = 0;
+      final coreCommands = {
+        InventoryProbes.services,
+        InventoryProbes.serviceFiles,
+        InventoryProbes.containers,
+        InventoryProbes.module,
+      };
+      await ServerInventoryReader((command) async {
+        final stripped = command.substring(InventoryProbes.prefix.length);
+        if (coreCommands.contains(stripped)) {
+          coreActive++;
+          if (coreActive > corePeak) corePeak = coreActive;
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+          coreActive--;
+        }
+        return responses[stripped]!;
+      }).read(CancellationToken());
+      expect(corePeak, greaterThan(1));
+      expect(corePeak, lessThanOrEqualTo(3));
+    },
+  );
+  test(
     'official AWG 1/2/3 family is detected by image or container name without guessing version',
     () async {
       for (final image in [

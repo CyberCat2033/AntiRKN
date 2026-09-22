@@ -177,13 +177,64 @@ def derive(label, preview=False):
     return hmac.new(key, ('awg-v1/' + label).encode(), hashlib.sha256).digest()
 
 
+def _x25519_pure(scalar_bytes):
+    P = 2**255 - 19
+    A24 = 121665
+    s = bytearray(scalar_bytes)
+    s[0] &= 248
+    s[31] = (s[31] & 127) | 64
+    k = int.from_bytes(s, 'little')
+    x1, x2, z2, x3, z3 = 9, 1, 0, 9, 1
+    swap = 0
+    for t in reversed(range(255)):
+        k_t = (k >> t) & 1
+        swap ^= k_t
+        if swap:
+            x2, x3 = x3, x2
+            z2, z3 = z3, z2
+        swap = k_t
+        A = (x2 + z2) % P
+        AA = (A * A) % P
+        B = (x2 - z2) % P
+        BB = (B * B) % P
+        E = (AA - BB) % P
+        C = (x3 + z3) % P
+        D = (x3 - z3) % P
+        DA = (D * A) % P
+        CB = (C * B) % P
+        x3 = ((DA + CB) ** 2) % P
+        z3 = (x1 * ((DA - CB) ** 2)) % P
+        x2 = (AA * BB) % P
+        z2 = (E * (AA + A24 * E)) % P
+    if swap:
+        x2, x3 = x3, x2
+        z2, z3 = z3, z2
+    return (x2 * pow(z2, P - 2, P) % P).to_bytes(32, 'little')
+
+
+def _curve25519_pubkey(private_bytes):
+    try:
+        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+        from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+        k = X25519PrivateKey.from_private_bytes(bytes(private_bytes))
+        pub = k.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+        return base64.b64encode(pub).decode()
+    except Exception:
+        pass
+    try:
+        return base64.b64encode(_x25519_pure(private_bytes)).decode()
+    except Exception:
+        private_b64 = base64.b64encode(private_bytes).decode()
+        return command([AWG, 'pubkey'], input_data=(private_b64 + '\n').encode()).decode().strip()
+
+
 def keys(label, preview=False):
     private = bytearray(derive(label, preview))
     private[0] &= 248
     private[31] = (private[31] & 127) | 64
-    private = base64.b64encode(private).decode()
-    public = command([AWG, 'pubkey'], input_data=(private + '\n').encode()).decode().strip()
-    return private, public
+    public = _curve25519_pubkey(private)
+    private_b64 = base64.b64encode(private).decode()
+    return private_b64, public
 
 
 def desired(p, r, previous, preview=False):

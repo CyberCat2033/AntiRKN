@@ -74,19 +74,22 @@ final class ServerInventoryReader {
         ),
       ),
     );
-    final units = await probe(
-      InventoryProbes.services,
-      (s) => parseUnits(s, live: true),
+    final coreProbes = await parallelReads(
+      [
+        () => probe(InventoryProbes.services, (s) => parseUnits(s, live: true)),
+        () => probe(InventoryProbes.serviceFiles, (s) => parseUnits(s, live: false)),
+        () => probe(InventoryProbes.containers, parseContainers),
+        () => probe(InventoryProbes.module, (s) {
+          if (s.trim() == '@missing' || s.trim() == '@present') return s.trim();
+          return parseVersion(s);
+        }),
+      ],
+      (runProbe) => runProbe(),
     );
-    final files = await probe(
-      InventoryProbes.serviceFiles,
-      (s) => parseUnits(s, live: false),
-    );
-    final containers = await probe(InventoryProbes.containers, parseContainers);
-    final module = await probe(InventoryProbes.module, (s) {
-      if (s.trim() == '@missing' || s.trim() == '@present') return s.trim();
-      return parseVersion(s);
-    });
+    final units = coreProbes[0] as InventoryValue<Map<String, ServiceState>>;
+    final files = coreProbes[1] as InventoryValue<Map<String, ServiceState>>;
+    final containers = coreProbes[2] as InventoryValue<List<ContainerObservation>>;
+    final module = coreProbes[3] as InventoryValue<String?>;
     final found = {
       for (final c in VpnComponent.values) c: <ComponentInstallation>[],
     };

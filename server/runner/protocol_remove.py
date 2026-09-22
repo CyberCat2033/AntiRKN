@@ -34,6 +34,20 @@ def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 
 
+def prune_quarantines(directory, keep=2):
+    try:
+        entries = []
+        for p in directory.iterdir():
+            if p.is_dir() and p.name.startswith('remove-'):
+                entries.append(p)
+        entries.sort(key=lambda p: p.stat().st_mtime)
+        while len(entries) > keep:
+            oldest = entries.pop(0)
+            shutil.rmtree(oldest, ignore_errors=True)
+    except Exception:
+        pass
+
+
 def exists(path):
     return path.exists() or path.is_symlink()
 
@@ -274,6 +288,7 @@ class ProtocolRemoval:
 
     def step(self, checkpoint):
         if checkpoint == 0:
+            prune_quarantines(self.store.directory, keep=2)
             record = discover(self.request['protocol'])
             if record['fingerprint'] != self.request['fingerprint']:
                 raise RemovalError()
@@ -331,6 +346,9 @@ class ProtocolRemoval:
                 table = {'vless':'vless_resources','amneziawg':'awg_resources','trusttunnel':'tt_resources'}[record['protocol']]
                 with self.store.db:
                     self.store.db.execute('DELETE FROM ' + table)
+                for unit in record['units']:
+                    run(['/usr/bin/systemctl', 'reset-failed', unit], check=False)
+                prune_quarantines(self.store.directory, keep=2)
             else:
                 raise RemovalError()
         with self.store.db:

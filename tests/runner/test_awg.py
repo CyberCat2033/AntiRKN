@@ -58,3 +58,19 @@ class AwgTests(unittest.TestCase):
         result['endpoint'] = '203.0.113.1'
         p = payload(); p['resources'] = [result]
         awg.parse_payload(json.dumps(p))
+
+    def test_in_process_x25519_key_derivation_without_subprocess(self):
+        # Audit #17: X25519 key derivation runs in-process without spawning awg pubkey
+        raw_key = b'12345678901234567890123456789012'
+        pure_pub = awg._x25519_pure(raw_key)
+        self.assertEqual(len(pure_pub), 32)
+        curve_pub = awg._curve25519_pubkey(raw_key)
+        import base64
+        self.assertEqual(curve_pub, base64.b64encode(pure_pub).decode())
+        with patch.object(awg, 'command') as mock_cmd:
+            priv_b64, pub_b64 = awg.keys('test-label', preview=True)
+            self.assertTrue(priv_b64)
+            self.assertTrue(pub_b64)
+            # Confirms subprocess command was NOT invoked
+            mock_cmd.assert_not_called()
+

@@ -71,3 +71,31 @@ class RemovalTests(unittest.TestCase):
                 with self.assertRaises(removal.RemovalError):
                     removal.quarantine(source, backup)
             self.assertEqual(source.read_text(), 'changed')
+
+    def test_prune_quarantines_retains_bounded_recent_directories(self):
+        # Audit #24: Quarantine directories are pruned to prevent uncontrolled disk growth
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            dirs = []
+            for i in range(5):
+                d = root / f'remove-job{i}'
+                d.mkdir()
+                (d / 'data').write_text(f'data-{i}')
+                # Set distinct mtimes
+                os.utime(d, (1000 + i * 10, 1000 + i * 10))
+                dirs.append(d)
+            # Unrelated directory should not be touched
+            other = root / 'other-dir'
+            other.mkdir()
+
+            removal.prune_quarantines(root, keep=2)
+            # Oldest 3 remove-* directories should be removed
+            self.assertFalse(dirs[0].exists())
+            self.assertFalse(dirs[1].exists())
+            self.assertFalse(dirs[2].exists())
+            # Newest 2 should be preserved
+            self.assertTrue(dirs[3].exists())
+            self.assertTrue(dirs[4].exists())
+            # Non-remove dir must be preserved
+            self.assertTrue(other.exists())
+
