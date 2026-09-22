@@ -34,6 +34,7 @@ extension ClientDeletion on VpnController {
     final user = workspace.users.singleWhere((u) => u.id == userId);
     if (!canForceDelete(user)) throw const FormatException('vpn_conflict');
     await _saveDeletion(userId, {...user.deletion!, 'hidden': true});
+    await _reconcileDeletions(token, only: userId, force: true);
   });
 
   Future<void> _connectDeletionServers(
@@ -64,18 +65,24 @@ extension ClientDeletion on VpnController {
         (targets[vpnServerId(target)] ??= []).add((user.id, target));
       }
     }
-    // Each physical server is contacted once per round, even with many clients
-    // and protocols. Persist failures before another automatic round can run.
+    // Each physical server is contacted concurrently once per round, even with
+    // many clients and protocols. Persist failures sequentially before another
+    // automatic round can run.
+    final connectionResults = <String, bool?>{};
+    await Future.wait(
+      targets.keys.map((serverId) async {
+        token.check();
+        try {
+          connectionResults[serverId] = await connect(serverId);
+        } catch (_) {
+          connectionResults[serverId] = false;
+        }
+      }),
+    );
+    token.check();
     for (final entry in targets.entries) {
-      token.check();
       await checkProfileEffects();
-      bool? connected;
-      try {
-        connected = await connect(entry.key);
-      } catch (_) {
-        connected = false;
-      }
-      token.check();
+      final connected = connectionResults[entry.key];
       if (connected == null) continue;
       for (final target in entry.value) {
         final user = workspace.users.singleWhere((u) => u.id == target.$1);
@@ -506,7 +513,9 @@ extension ClientDeletion on VpnController {
       }
       final user = workspace.users.singleWhere((u) => u.id == original.id);
       final file = user.deletion!['file'] as Map?;
-      if (user.revocationSettled &&
+      final canCleanupFile =
+          user.revocationSettled || user.deletion?['hidden'] == true;
+      if (canCleanupFile &&
           file != null &&
           file['status'] != 'deleted' &&
           (force ||

@@ -563,4 +563,92 @@ void main() {
       expect(c.pendingRevocations, isEmpty);
     },
   );
+
+  test(
+    'forceDeleteClient triggers published file cleanup even when server is unreachable (Audit #23)',
+    () async {
+      final store = f.MemoryVpn();
+      final c = f.controller(store, {});
+      addTearDown(c.dispose);
+      await c.load();
+      await c.saveUser(VpnUser(id: f.alice, login: 'alice', name: 'Alice'));
+      await c.saveInbound(f.inbound('one', '1' * 32));
+
+      var fileDeleted = false;
+      c.deletePublishedFile = (u, guard) async {
+        await guard();
+        fileDeleted = true;
+      };
+
+      await c.deleteUser(
+        user(c),
+        file: {
+          'accountKey': 'account',
+          'fileId': 'exact-file',
+          'registryId': 'registry',
+          'folderId': 'folder',
+        },
+      );
+
+      // Simulate unreachable server with 3 failed connection attempts
+      final saved = jsonDecode(store.raw!) as Map<String, dynamic>;
+      final deleted = (saved['users'] as List).firstWhere(
+        (u) => u['id'] == f.alice,
+      ) as Map<String, dynamic>;
+      final target = (deleted['deletion']['targets']['one'] as Map);
+      target['connectionAttempts'] = 3;
+      target['connectAfter'] = 0;
+      store.raw = jsonEncode(saved);
+
+      await c.load();
+
+      expect(c.canForceDelete(user(c)), true);
+      expect(user(c).deletion!['file']['status'], 'waiting');
+      expect(fileDeleted, false);
+
+      // Force delete client when server is unreachable
+      await c.forceDeleteClient(f.alice);
+
+      // File must be deleted from Google Drive, not leaked
+      expect(fileDeleted, true);
+      expect(user(c).deletion!['hidden'], true);
+      expect(user(c).deletion!['file']['status'], 'deleted');
+      expect(user(c).deletion!['file']['error'], isNull);
+    },
+  );
+
+  test(
+    '_connectDeletionServers connects to multiple physical servers concurrently (Audit #25)',
+    () async {
+      final store = f.MemoryVpn();
+      var concurrentConnections = 0;
+      var maxConcurrent = 0;
+      final connectedServers = <String>[];
+
+      final c = f.controller(
+        store,
+        {},
+        connectForDeletion: (serverId) async {
+          concurrentConnections++;
+          if (concurrentConnections > maxConcurrent) {
+            maxConcurrent = concurrentConnections;
+          }
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+          connectedServers.add(serverId);
+          concurrentConnections--;
+          return true;
+        },
+      );
+      addTearDown(c.dispose);
+      await c.load();
+      await c.saveUser(VpnUser(id: f.alice, login: 'alice', name: 'Alice'));
+      await c.saveInbound(f.inbound('one', '1' * 32));
+      await c.saveInbound(f.inbound('two', '2' * 32));
+
+      await c.deleteUsers([user(c)], awaitReconcile: true);
+
+      expect(connectedServers, containsAll(['one', 'two']));
+      expect(maxConcurrent, greaterThanOrEqualTo(2));
+    },
+  );
 }

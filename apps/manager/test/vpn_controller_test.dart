@@ -174,10 +174,12 @@ VpnController controller(
   String Function()? source,
   WorkspaceRecoveryStore? recovery,
   CoreConfigValidator? coreValidator,
+  Future<bool?> Function(String serverId)? connectForDeletion,
 }) => VpnController(
   repository: store,
   coreValidator: coreValidator,
   recovery: recovery,
+  connectForDeletion: connectForDeletion,
   template: source ?? () => template,
   serverName: (id) => switch (id) {
     'one' => 'Server one',
