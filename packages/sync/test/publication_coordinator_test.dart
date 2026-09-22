@@ -393,22 +393,28 @@ void main() {
     },
   );
   test(
-    'external edit and deletion preserve previous publication and never create replacements',
+    'external edit blocks update with readback error; external deletion is recovered by recreation (Audit #37)',
     () async {
       final repo = Repository(await draft('head-1')), remote = Remote();
       await publish(repo, remote);
       final prior = repo.documents['result/$user'];
-      final file = remote.blobs[remote.profileId]!;
+      final oldProfileId = remote.profileId;
+      final file = remote.blobs[oldProfileId]!;
       file.content = bytes('external edit');
       file.version++;
       repo.current = await draft('head-2', ancestors: {'head-1'});
       expect((await publish(repo, remote))['issue'], 'readback');
       expect(repo.documents['result/$user'], prior);
       expect(remote.updatedProfiles, 0);
-      remote.blobs.remove(remote.profileId);
-      expect((await publish(repo, remote))['issue'], 'missing');
-      expect(remote.createdProfiles, 1);
-      expect(repo.documents['result/$user'], prior);
+      // Simulate manual deletion of the Drive file after a successful publication.
+      remote.blobs.remove(oldProfileId);
+      // Fix #37: coordinator must recover by creating a new file with a fresh fileId.
+      final result = await publish(repo, remote);
+      expect(result['status'], 'published');
+      expect(remote.createdProfiles, 2);
+      final newDoc = jsonDecode(repo.documents['result/$user']!) as Map;
+      expect(newDoc['fileId'], isNot(oldProfileId));
+      expect(remote.blobs.containsKey(newDoc['fileId']), isTrue);
     },
   );
   test(

@@ -167,7 +167,7 @@ final class PublicationCoordinator {
         registryFence = (registryId, canonicalJson(entry));
       }
       _resourceKey(entry);
-      final fileId = entry['fileId'] as String;
+      var fileId = entry['fileId'] as String;
       await saveQueue({...queue, 'fileId': fileId, 'registryId': registryId});
       final beforeSource = await repository.readPublicationDocument(
         'result/$userId',
@@ -185,9 +185,26 @@ final class PublicationCoordinator {
           try {
             file = await remote.getFile(fileId);
           } on PublicationFailure catch (e) {
-            if (e.issue != PublicationIssue.missing ||
-                entry['created'] == true) {
+            if (e.issue != PublicationIssue.missing) {
               rethrow;
+            }
+            if (entry['created'] == true) {
+              // Drive file was deleted externally after a successful publication.
+              // Reset the registry entry to allow recreation with a fresh fileId.
+              await guard();
+              fileId = await _resetEntry(
+                registryId,
+                draft.workspaceId,
+                draft.userId,
+                fileId,
+                guard,
+              );
+              await saveQueue({
+                ...queue,
+                'fileId': fileId,
+                'registryId': registryId,
+              });
+              entry['created'] = false;
             }
             await guard();
             try {
@@ -524,6 +541,47 @@ final class PublicationCoordinator {
         final freshSnapshot = await _snapshot(registryId);
         _cachedRegistry = (freshSnapshot.$1, next);
         return;
+      } on PublicationFailure catch (e) {
+        _invalidateRegistryCache();
+        if (e.issue != PublicationIssue.conflict) rethrow;
+      }
+    }
+    throw const PublicationFailure(PublicationIssue.conflict);
+  });
+
+  /// Resets a registry entry after the Drive file was externally deleted.
+  ///
+  /// Generates a fresh [fileId] and writes `{fileId: newId, created: false}`
+  /// into the registry, so the next [createYaml] call can recreate the file.
+  /// Returns the new [fileId].
+  Future<String> _resetEntry(
+    String registryId,
+    String workspaceId,
+    String userId,
+    String oldFileId,
+    Future<void> Function() guard,
+  ) => _lockRegistry(() async {
+    for (var attempt = 0; attempt < 6; attempt++) {
+      final (file, value) = await _fetchRegistry(registryId, workspaceId);
+      final users = value['users'] as Map<String, dynamic>;
+      final entry = users[userId] as Map<String, dynamic>?;
+      // If the registry was already updated concurrently, accept the new fileId.
+      if (entry == null || entry['fileId'] != oldFileId) {
+        _invalidateRegistryCache();
+        throw const PublicationFailure(PublicationIssue.conflict);
+      }
+      final newFileId = await remote.generateFileId();
+      await guard();
+      final nextUsers = {
+        ...users,
+        userId: {'fileId': newFileId, 'created': false},
+      };
+      final next = {...value, 'users': nextUsers};
+      try {
+        await remote.updateFile(file, _bytes(next), properties: const {});
+        final freshSnapshot = await _snapshot(registryId);
+        _cachedRegistry = (freshSnapshot.$1, next);
+        return newFileId;
       } on PublicationFailure catch (e) {
         _invalidateRegistryCache();
         if (e.issue != PublicationIssue.conflict) rethrow;
