@@ -571,7 +571,8 @@ class Store:
                     status = installer.abort()
                     code = 'component_partial' if status == 'partially_applied' else 'cancelled'
                 else:
-                    installer.step(row['checkpoint'])
+                    if installer.step(row['checkpoint']) is False:
+                        return 0.5
                     if row['checkpoint'] + 1 < req['count']:
                         return 0.1
                     status, code = 'succeeded', 'succeeded'

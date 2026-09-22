@@ -10,6 +10,7 @@ from pathlib import Path, PurePosixPath
 import platform
 import re
 import shutil
+import signal
 import stat
 import subprocess
 import tarfile
@@ -25,6 +26,7 @@ BIN = Path('/usr/local/bin')
 CONFIG = Path('/etc/antirkn-components')
 UNITS = Path('/etc/systemd/system')
 STEPS = 6
+BUILD_PROCESSES = {}
 
 
 class ComponentError(Exception):
@@ -319,42 +321,92 @@ class ComponentInstaller:
 
     def build(self):
         output = self.directory / 'output'
-        output.mkdir(mode=0o700, exist_ok=True)
-        for name, artifact in self.release['archives'].items():
-            extract(self.directory / (name + '.archive'), self.directory / name, 'zip' if name == 'tools' else 'tar')
-            for filename, expected in artifact.get('files', {}).items():
-                matches = list((self.directory / name).glob('*/' + filename))
-                if len(matches) != 1 or digest(matches[0]) != expected:
-                    raise ComponentError('component_checksum_failed')
-                shutil.copyfile(matches[0], output / filename)
+        prepared = self.directory / '.build_prepared'
+        if not prepared.exists():
+            output.mkdir(mode=0o700, exist_ok=True)
+            for name, artifact in self.release['archives'].items():
+                extract(self.directory / (name + '.archive'), self.directory / name, 'zip' if name == 'tools' else 'tar')
+                for filename, expected in artifact.get('files', {}).items():
+                    matches = list((self.directory / name).glob('*/' + filename))
+                    if len(matches) != 1 or digest(matches[0]) != expected:
+                        raise ComponentError('component_checksum_failed')
+                    shutil.copyfile(matches[0], output / filename)
+            if self.component == 'amneziawg':
+                source = self.directory / 'source' / ('amneziawg-go-' + self.release['commit'])
+                (source / 'version.go').write_text('package main\nconst Version = "v' + self.release['version'] + '"\n')
+            atomic_file(prepared, b'ok')
+
         if self.component == 'amneziawg':
             source = self.directory / 'source' / ('amneziawg-go-' + self.release['commit'])
-            (source / 'version.go').write_text('package main\nconst Version = "v' + self.release['version'] + '"\n')
-            env = dict(PATH='/usr/bin:/bin', HOME=str(self.directory), CGO_ENABLED='0', GOOS='linux', GOARCH='amd64',
-                GOTOOLCHAIN='local', GOPROXY='https://proxy.golang.org', GOSUMDB='sum.golang.org',
-                GOCACHE=str(self.directory / 'go-cache'), GOPATH=str(self.directory / 'go-path'), GOMAXPROCS='2')
-            # No make/generate hooks; -mod=readonly preserves the upstream sums.
-            process = subprocess.Popen([str(self.directory / 'go/go/bin/go'), 'build', '-mod=readonly', '-trimpath',
-                '-buildvcs=false', '-o', str(output / 'amneziawg-go'), '.'], cwd=source, env=env,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-            deadline = time.monotonic() + 1200
-            try:
-                while process.poll() is None:
-                    if self.cancelled() or time.monotonic() > deadline:
-                        import signal
+            target_bin = output / 'amneziawg-go'
+            state_file = self.directory / 'build_pid.json'
+            job_id = self.request['id']
+
+            if job_id not in BUILD_PROCESSES:
+                if state_file.exists():
+                    try:
+                        info = json.loads(state_file.read_text())
+                        pid = info.get('pid')
+                        deadline = info.get('deadline', 0)
+                    except Exception:
+                        pid, deadline = None, 0
+                    if pid:
+                        alive = False
+                        try:
+                            os.kill(pid, 0)
+                            alive = True
+                        except OSError:
+                            alive = False
+                        if alive:
+                            if self.cancelled() or time.time() > deadline:
+                                try:
+                                    os.killpg(pid, signal.SIGTERM)
+                                except OSError:
+                                    pass
+                                state_file.unlink(missing_ok=True)
+                                raise ComponentError('cancelled' if self.cancelled() else 'component_build_failed')
+                            return False
+                        else:
+                            state_file.unlink(missing_ok=True)
+                            if not target_bin.is_file():
+                                raise ComponentError('component_build_failed')
+                if not target_bin.is_file():
+                    env = dict(PATH='/usr/bin:/bin', HOME=str(self.directory), CGO_ENABLED='0', GOOS='linux', GOARCH='amd64',
+                        GOTOOLCHAIN='local', GOPROXY='https://proxy.golang.org', GOSUMDB='sum.golang.org',
+                        GOCACHE=str(self.directory / 'go-cache'), GOPATH=str(self.directory / 'go-path'), GOMAXPROCS='2')
+                    # No make/generate hooks; -mod=readonly preserves the upstream sums.
+                    process = subprocess.Popen([str(self.directory / 'go/go/bin/go'), 'build', '-mod=readonly', '-trimpath',
+                        '-buildvcs=false', '-o', str(target_bin), '.'], cwd=source, env=env,
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+                    deadline = time.time() + 1200
+                    BUILD_PROCESSES[job_id] = (process, deadline)
+                    atomic_file(state_file, json.dumps(dict(pid=process.pid, deadline=deadline)).encode())
+                    return False
+            else:
+                process, deadline = BUILD_PROCESSES[job_id]
+                if self.cancelled() or time.time() > deadline:
+                    try:
                         os.killpg(process.pid, signal.SIGTERM)
                         try:
-                            process.wait(timeout=10)
+                            process.wait(timeout=2)
                         except subprocess.TimeoutExpired:
                             os.killpg(process.pid, signal.SIGKILL)
                             process.wait()
-                        raise ComponentError('cancelled' if self.cancelled() else 'component_build_failed')
-                    time.sleep(0.3)
-                if process.returncode:
+                    except OSError:
+                        pass
+                    BUILD_PROCESSES.pop(job_id, None)
+                    state_file.unlink(missing_ok=True)
+                    raise ComponentError('cancelled' if self.cancelled() else 'component_build_failed')
+
+                ret = process.poll()
+                if ret is None:
+                    return False
+
+                BUILD_PROCESSES.pop(job_id, None)
+                state_file.unlink(missing_ok=True)
+                if ret != 0:
                     raise ComponentError('component_build_failed')
-            finally:
-                if process.poll() is None:
-                    process.terminate()
+
         for name in names(self.component):
             (output / name).chmod(0o755)
         self.verify(output)
@@ -362,6 +414,7 @@ class ComponentInstaller:
             with path.open('rb') as stream:
                 os.fsync(stream.fileno())
         sync_directory(output)
+        return True
 
     def step(self, number):
         if number == 0:
@@ -373,7 +426,7 @@ class ComponentInstaller:
             self.directory.mkdir(mode=0o700, exist_ok=True)
             atomic_file(self.directory / 'plan.json', encode(plan))
             self.checkpoint(1, 'component_prepared')
-            return
+            return True
         safe_directory(self.directory)
         safe_file(self.directory / 'plan.json')
         plan = json.loads((self.directory / 'plan.json').read_text())
@@ -383,9 +436,12 @@ class ComponentInstaller:
             for name, artifact in self.release['archives'].items():
                 self.download(name, artifact)
             self.checkpoint(2, 'component_downloaded')
+            return True
         elif number == 2:
-            self.build()
+            if not self.build():
+                return False
             self.checkpoint(3, 'component_built')
+            return True
         elif number == 3:
             # Revalidate before the first public effect. An interrupted staging
             # directory is private; the published pointer is still unchanged.
@@ -419,6 +475,7 @@ class ComponentInstaller:
             if (target / 'manifest.json').read_bytes() != encode(record):
                 raise ComponentError()
             self.checkpoint(4, 'component_staged')
+            return True
         elif number == 4:
             safe_file(self.directory / 'target.json')
             target = json.loads((self.directory / 'target.json').read_text())
@@ -466,6 +523,7 @@ class ComponentInstaller:
             subprocess.run(['/usr/bin/systemctl', 'daemon-reload'], check=True, timeout=30,
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             self.checkpoint(5, 'component_switched')
+            return True
         elif number == 5:
             record = installed(self.component)
             if record != json.loads((self.directory / 'target.json').read_text()):
@@ -476,7 +534,30 @@ class ComponentInstaller:
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 subprocess.run(['/usr/bin/systemctl', 'is-active', '--quiet', unit], check=True, timeout=20)
             self.checkpoint(6, 'component_checked')
+            return True
 
     def abort(self):
+        job_id = self.request['id']
+        proc_entry = BUILD_PROCESSES.pop(job_id, None)
+        if proc_entry:
+            process = proc_entry[0] if isinstance(proc_entry, tuple) else proc_entry
+            try:
+                os.killpg(process.pid, signal.SIGTERM)
+                try:
+                    process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    os.killpg(process.pid, signal.SIGKILL)
+                    process.wait()
+            except OSError:
+                pass
+        state_file = self.directory / 'build_pid.json'
+        if state_file.exists():
+            try:
+                pid = json.loads(state_file.read_text()).get('pid')
+                if pid:
+                    os.killpg(pid, signal.SIGTERM)
+            except OSError:
+                pass
+            state_file.unlink(missing_ok=True)
         # Staging/pointer change may have completed without its checkpoint.
         return 'partially_applied' if (self.directory / 'target.json').exists() else 'cancelled'
