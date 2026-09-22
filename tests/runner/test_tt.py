@@ -182,6 +182,42 @@ class TrustTunnelTests(unittest.TestCase):
             with self.assertRaises(cert.TtError):cert.decode(json.dumps(dict(p,email=value)))
         with self.assertRaises(cert.TtError):cert.decode(json.dumps(dict(p,autoDetectIps='true')))
 
+    def test_issue_captures_certbot_stderr_and_classifies_errors(self):
+        with tempfile.TemporaryDirectory() as d:
+            cert_dir = Path(d)
+            p = dict(id='b'*32, domain='vpn.example.com', mode='acme', listen='0.0.0.0', expectedIps=[], autoDetectIps=True,
+                email='', certificate='', privateKey='', certificatePem='', privateKeyPem='')
+            (cert_dir / ('b'*32)).mkdir(parents=True, exist_ok=True)
+            with patch.object(cert, 'CERT_ROOT', cert_dir), patch.object(cert, 'dns_check'), patch.object(cert, 'available', return_value=True):
+                # 1. Rate limited
+                fail_res = types.SimpleNamespace(returncode=1, stdout=b'', stderr=b'An error occurred: rateLimited: too many certificates already issued for example.com')
+                with patch.object(cert, 'run', return_value=fail_res):
+                    with self.assertRaises(cert.TtError) as ctx:
+                        cert.issue(p)
+                    self.assertEqual(ctx.exception.code, 'tt_acme_rate_limited')
+                err_file = cert_dir / ('b'*32) / 'last_error.log'
+                self.assertTrue(err_file.exists())
+                self.assertIn('rateLimited', err_file.read_text())
+
+                # Verify public() surfaces errorDetail
+                rec = dict(id='b'*32, domain='vpn.example.com', mode='acme', error='tt_acme_rate_limited', spec=p)
+                pub = cert.public(rec)
+                self.assertIn('rateLimited', pub.get('errorDetail', ''))
+
+                # 2. DNS NXDOMAIN
+                fail_dns = types.SimpleNamespace(returncode=1, stdout=b'', stderr=b'DNS problem: NXDOMAIN looking up A for vpn.example.com')
+                with patch.object(cert, 'run', return_value=fail_dns):
+                    with self.assertRaises(cert.TtError) as ctx:
+                        cert.issue(p)
+                    self.assertEqual(ctx.exception.code, 'tt_acme_dns_failed')
+                self.assertIn('NXDOMAIN', err_file.read_text())
+
+                # 3. Success clears last_error.log
+                succ_res = types.SimpleNamespace(returncode=0, stdout=b'Congratulations!', stderr=b'')
+                with patch.object(cert, 'run', return_value=succ_res):
+                    cert.issue(p)
+                self.assertFalse(err_file.exists())
+
     def test_certbot_install_uses_hardened_apt_job_and_verifies_binary(self):
         package = {'installed': False, 'version': None}
         installed = {'installed': True, 'version': 'certbot 2.9.0'}

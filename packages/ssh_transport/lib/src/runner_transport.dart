@@ -49,10 +49,7 @@ final class SshRunnerTransport implements RunnerTransport {
     }
     final result = await _privileged(
       python(runnerInstaller),
-      jsonEncode({
-        'fingerprint': plan.fingerprint,
-        'bundle': jsonDecode(runnerBundle),
-      }),
+      '{"fingerprint":${jsonEncode(plan.fingerprint)},"bundle":$runnerBundle}',
       cancellation,
       sudoPassword: sudoPassword,
       timeout: const Duration(minutes: 4),

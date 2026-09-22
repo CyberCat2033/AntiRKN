@@ -120,8 +120,15 @@ def source_pair(spec):
 
 
 def public(r):
-    return {**{k: r.get(k) for k in ('id', 'domain', 'mode', 'expiresAt', 'fingerprint',
+    res = {**{k: r.get(k) for k in ('id', 'domain', 'mode', 'expiresAt', 'fingerprint',
         'lastCheck', 'lastSuccess', 'nextCheck', 'lastRenewal', 'error', 'sourceCertificate', 'sourceKey')}, 'configuration': r['spec']}
+    err_path = path_for(r['id']) / 'last_error.log'
+    if err_path.exists():
+        try:
+            res['errorDetail'] = err_path.read_bytes().decode('utf-8', errors='replace')[:2048]
+        except Exception:
+            pass
+    return res
 
 
 def candidates():
@@ -373,7 +380,28 @@ def issue(p, renew=False):
         args += ['--email', p['email']] if p['email'] else ['--register-unsafely-without-email']
     result = run(args, timeout=600, check=False)
     if result.returncode:
-        raise TtError('tt_acme_failed')
+        err = (result.stderr or result.stdout or b'').decode('utf-8', errors='replace')
+        if err:
+            try:
+                atomic_file(base / 'last_error.log', err.encode('utf-8'))
+            except OSError:
+                pass
+        err_lower = err.lower()
+        if 'problem binding to port' in err_lower or 'could not bind to ipv4 or ipv6' in err_lower:
+            code = 'tt_acme_port_busy'
+        elif 'rate' in err_lower and 'limit' in err_lower:
+            code = 'tt_acme_rate_limited'
+        elif 'nxdomain' in err_lower or 'dns problem' in err_lower:
+            code = 'tt_acme_dns_failed'
+        elif 'connection refused' in err_lower or 'timeout during connect' in err_lower:
+            code = 'tt_acme_unreachable'
+        else:
+            code = 'tt_acme_failed'
+        raise TtError(code)
+    try:
+        (base / 'last_error.log').unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 class CertificateJob:

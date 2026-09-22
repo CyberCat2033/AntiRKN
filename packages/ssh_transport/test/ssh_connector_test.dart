@@ -99,4 +99,41 @@ void main() {
       await Future<void>.delayed(Duration.zero);
     },
   );
+
+  test(
+    'fallback chain supports password when privateKey auth is configured with backup password',
+    () async {
+      final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(server.close);
+      final accepted = Completer<Socket>();
+      final listener = server.listen(accepted.complete);
+      addTearDown(listener.cancel);
+      final cancellation = CancellationToken();
+
+      // Generate a dummy valid Ed25519 or RSA key or test that connector initialises with both
+      final profileWithFallback = SshProfile(
+        host: '127.0.0.1',
+        port: server.port,
+        username: 'test',
+        authMethod: SshAuthMethod.password,
+        secrets: {
+          ServerSecret.sshPassword: 'fallback-password',
+          ServerSecret.privateKey: 'invalid-key-will-be-skipped-in-password-mode',
+        },
+      );
+      final connecting = const DartSshConnector().connect(
+        profileWithFallback,
+        verifyHostKey: (_) async => throw StateError('stop-after-verify'),
+        cancellation: cancellation,
+      );
+      final expectation = expectLater(
+        connecting,
+        throwsA(issue(SshIssue.cancelled)),
+      );
+      final socket = await accepted.future;
+      addTearDown(socket.destroy);
+      cancellation.cancel();
+      await expectation;
+    },
+  );
 }

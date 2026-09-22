@@ -116,10 +116,9 @@ final class DirectSshConnector implements SshConnector {
     ConnectionTask<Socket>? task;
     Object? verificationFailure;
     final identities = <SSHIdentity>[];
+    final passwordString = profile.secrets[ServerSecret.sshPassword];
     final password = <String?>[
-      profile.authMethod == SshAuthMethod.password
-          ? profile.secrets[ServerSecret.sshPassword]
-          : null,
+      passwordString != null && passwordString.isNotEmpty ? passwordString : null,
     ];
     final trustedKey = profile.hostKey;
     Future<bool> Function(TrustedHostKey)? verifier = verifyHostKey;
@@ -135,9 +134,41 @@ final class DirectSshConnector implements SshConnector {
             cancellation,
           ),
         );
-      }
-      if (profile.authMethod == SshAuthMethod.agent) {
+        if (linuxSshAgentAvailable) {
+          try {
+            identities.addAll(await linuxAgentIdentities(cancellation));
+          } catch (_) {}
+        }
+      } else if (profile.authMethod == SshAuthMethod.agent) {
         identities.addAll(await linuxAgentIdentities(cancellation));
+        if (profile.secrets[ServerSecret.privateKey]?.isNotEmpty == true) {
+          try {
+            identities.addAll(
+              await _decodeKeys(
+                profile.secrets[ServerSecret.privateKey]!,
+                profile.secrets[ServerSecret.keyPassphrase],
+                cancellation,
+              ),
+            );
+          } catch (_) {}
+        }
+      } else if (profile.authMethod == SshAuthMethod.password) {
+        if (profile.secrets[ServerSecret.privateKey]?.isNotEmpty == true) {
+          try {
+            identities.addAll(
+              await _decodeKeys(
+                profile.secrets[ServerSecret.privateKey]!,
+                profile.secrets[ServerSecret.keyPassphrase],
+                cancellation,
+              ),
+            );
+          } catch (_) {}
+        }
+        if (linuxSshAgentAvailable) {
+          try {
+            identities.addAll(await linuxAgentIdentities(cancellation));
+          } catch (_) {}
+        }
       }
       if (forwarded == null) {
         final starting = Socket.startConnect(profile.host, profile.port);
@@ -165,7 +196,7 @@ final class DirectSshConnector implements SshConnector {
         transportSocket,
         username: profile.username,
         identities: identities,
-        onPasswordRequest: profile.authMethod == SshAuthMethod.password
+        onPasswordRequest: password.first != null
             ? () => cancellation.isCancelled ? null : password.first
             : null,
         onVerifyHostKey: (algorithm, fingerprint) async {

@@ -2003,6 +2003,7 @@ class VpnController extends ChangeNotifier {
         profileServerNames,
       ));
       if (_disposed) return;
+      await Future<void>.delayed(Duration.zero);
       for (final user in workspace.users) {
         if (user.deleted) continue;
         final result = batchResults[user.id];
@@ -2032,7 +2033,10 @@ class VpnController extends ChangeNotifier {
         }
       }
     }
-    if (changed) await _write(workspace.copy(profiles: histories));
+    if (changed) {
+      await Future<void>.delayed(Duration.zero);
+      await _write(workspace.copy(profiles: histories));
+    }
   }
 
   @override

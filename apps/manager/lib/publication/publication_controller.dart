@@ -324,7 +324,7 @@ class PublicationController extends ChangeNotifier {
         repository: repository,
         remote: remote(),
         eligible: (draft) async =>
-            !_disposed && !_suspended && _draftEligible(draft),
+            !_disposed && !_suspended && await _draftEligible(draft),
       );
       final activeUsers = vpn.workspace.users
           .where((u) => u.enabled && !u.deleted)
@@ -551,7 +551,7 @@ class PublicationController extends ChangeNotifier {
     return hash is String && hash.isNotEmpty ? hash : null;
   }
 
-  bool _draftEligible(PublicationDraft draft) {
+  Future<bool> _draftEligible(PublicationDraft draft) async {
     final user = vpn.workspace.users
         .where((candidate) => candidate.id == draft.userId)
         .firstOrNull;
@@ -559,6 +559,12 @@ class PublicationController extends ChangeNotifier {
         user?.enabled != true ||
         savedProfileHashFor(draft.userId) != draft.hash) {
       return false;
+    }
+    // Audit #38: Automatic validation with mihomo coreValidator before publication
+    if (vpn.coreValidator != null &&
+        vpn.results[draft.userId]?.sha256Hash == draft.hash &&
+        vpn.coreCheckFor(draft.userId) == null) {
+      await vpn.validateCoreProfile(draft.userId);
     }
     // A failed current compilation deliberately retains the last generated
     // profile. Its draft remains publishable. Core validation only applies
@@ -570,7 +576,7 @@ class PublicationController extends ChangeNotifier {
     return true;
   }
 
-  bool _bindingEligible(PublicationDraft draft) => _draftEligible(draft);
+  Future<bool> _bindingEligible(PublicationDraft draft) => _draftEligible(draft);
 
   Future<T> _bindingEdit<T>(Future<T> Function() action) async {
     if (editing || _disposed) {
@@ -617,7 +623,7 @@ class PublicationController extends ChangeNotifier {
     return PublicationCoordinator(
       repository: repository,
       remote: remote(),
-      eligible: (d) async => _bindingEligible(d),
+      eligible: (d) => _bindingEligible(d),
       workspaceId: vpn.workspace.id,
     ).inspectBinding(userId, target);
   });
@@ -631,7 +637,7 @@ class PublicationController extends ChangeNotifier {
     final coordinator = PublicationCoordinator(
       repository: repository,
       remote: remote(),
-      eligible: (d) async => _bindingEligible(d),
+      eligible: (d) => _bindingEligible(d),
     );
     await coordinator.acceptBinding(preview);
     final targetId = preview.userId ?? preview.draft?.userId;
