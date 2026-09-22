@@ -415,5 +415,58 @@ class AdoptionTests(unittest.TestCase):
         self.assertEqual(obs[p['resources'][0]['id']]['revision'], vless.digest(new_p))
         self.assertTrue(obs[p['resources'][0]['id']]['confirmed'])
 
+    def test_vless_state_does_not_mark_deleted_on_transient_panel_network_error(self):
+        p = self.payload('vless')
+        self.assertEqual(self.finish(self.submit(p, 'vless'))['status'], 'succeeded')
+        rid = p['resources'][0]['id']
+        saved = existing.records(self.store, 'vless')[rid]
+        self.assertFalse(saved.get('deleted'))
 
+        # Simulate transient network error during panel API call
+        with patch.object(self.api, 'call', side_effect=OSError('Connection refused')):
+            with self.assertRaises(OSError):
+                existing.state(self.store, saved, 'vless')
 
+        # Verify that the resource in store.db was NOT marked as deleted
+        record = existing.records(self.store, 'vless')[rid]
+        self.assertFalse(record.get('deleted'))
+
+        # Simulate panel API 500 error / ValueError
+        with patch.object(self.api, 'call', side_effect=ValueError('panel_api_failed')):
+            with self.assertRaises(ValueError):
+                existing.state(self.store, saved, 'vless')
+
+        record = existing.records(self.store, 'vless')[rid]
+        self.assertFalse(record.get('deleted'))
+
+    def test_awg_state_does_not_mark_deleted_on_transient_io_error(self):
+        p = self.payload('awg')
+        self.assertEqual(self.finish(self.submit(p, 'awg'))['status'], 'succeeded')
+        rid = p['resources'][0]['id']
+        saved = existing.records(self.store, 'awg')[rid]
+        self.assertFalse(saved.get('deleted'))
+
+        # Simulate transient I/O error reading resource
+        with patch('managed_awg.external.read_resource', side_effect=OSError('Disk I/O error')):
+            with self.assertRaises(OSError):
+                existing.state(self.store, saved, 'awg')
+
+        # Verify record in store.db was NOT marked deleted
+        record = existing.records(self.store, 'awg')[rid]
+        self.assertFalse(record.get('deleted'))
+
+    def test_tt_state_does_not_mark_deleted_on_transient_io_error(self):
+        p = self.payload('tt')
+        self.assertEqual(self.finish(self.submit(p, 'tt'))['status'], 'succeeded')
+        rid = p['resources'][0]['id']
+        saved = existing.records(self.store, 'tt')[rid]
+        self.assertFalse(saved.get('deleted'))
+
+        # Simulate transient I/O error reading snapshot
+        with patch('managed_tt.external.snapshot', side_effect=OSError('Disk I/O error')):
+            with self.assertRaises(OSError):
+                existing.state(self.store, saved, 'tt')
+
+        # Verify record in store.db was NOT marked deleted
+        record = existing.records(self.store, 'tt')[rid]
+        self.assertFalse(record.get('deleted'))

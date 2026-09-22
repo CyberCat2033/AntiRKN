@@ -183,8 +183,11 @@ def state(store, saved, protocol, pending_job=None):
     try:
         observed = adapter(protocol).snapshot(store, p, saved['spec'])
         row = observed.get('row') if protocol == 'vless' else observed.get('resource')
-    except (VlessError, OSError, ValueError, KeyError):
-        pass
+    except VlessError as error:
+        if getattr(error, 'code', None) in ('vpn_adoption_conflict', 'awg_conflict', 'tt_conflict'):
+            row = None
+        else:
+            raise
     if row is None and not saved.get('deleted'):
         saved['deleted'] = True
         saved['observedHash'] = None
