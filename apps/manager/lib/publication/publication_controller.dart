@@ -295,6 +295,12 @@ class PublicationController extends ChangeNotifier {
 
   Future<void> publishUser(String userId, {bool force = false}) async {
     if (_disposed || _suspended || editing) return;
+    if (!authorized || needsAuthorization) {
+      accountError = GoogleAccountIssue.reauthorize;
+      error = PublicationIssue.unauthorized;
+      _notify();
+      return;
+    }
     _timer?.cancel();
     if (_running != null) {
       _cancel?.cancel();
@@ -307,7 +313,15 @@ class PublicationController extends ChangeNotifier {
   }
 
   Future<PublicationBatchResult> _run(bool force, {String? targetUserId}) async {
-    if (!authorized || settings?.enabled != true || !vpn.loaded) {
+    if (!authorized ||
+        needsAuthorization ||
+        settings?.enabled != true ||
+        !vpn.loaded) {
+      if (!authorized || needsAuthorization) {
+        accountError = GoogleAccountIssue.reauthorize;
+        error = PublicationIssue.unauthorized;
+        _notify();
+      }
       return const PublicationBatchResult();
     }
     if (vpn.workspaceBusy || canPublish?.call() == false) {
@@ -336,7 +350,13 @@ class PublicationController extends ChangeNotifier {
 
       Future<void> worker() async {
         while (!_disposed && !_suspended) {
-          _cancel?.check();
+          if (error != null) return;
+          try {
+            _cancel?.check();
+          } on SyncTransportFailure catch (e) {
+            if (e.issue == SyncTransportIssue.cancelled) return;
+            rethrow;
+          }
           if (nextIndex >= activeUsers.length) return;
           final user = activeUsers[nextIndex++];
 
@@ -358,6 +378,13 @@ class PublicationController extends ChangeNotifier {
                 forceUpload: force,
                 cancellation: _cancel,
               );
+              if (publishQueue?['issue'] == 'unauthorized') {
+                error = PublicationIssue.unauthorized;
+                accountError = GoogleAccountIssue.reauthorize;
+                _cancel?.cancel();
+                success = false;
+                break;
+              }
               if (publishQueue?['issue'] != 'changed' || attempt == 2) {
                 success = publishQueue?['issue'] == null &&
                     publishQueue?['status'] == 'published';
@@ -365,6 +392,13 @@ class PublicationController extends ChangeNotifier {
               }
               await Future<void>.delayed(const Duration(milliseconds: 300));
             } on PublicationFailure catch (e) {
+              if (e.issue == PublicationIssue.unauthorized) {
+                error = PublicationIssue.unauthorized;
+                accountError = GoogleAccountIssue.reauthorize;
+                queues[user.id] = {'issue': e.issue.name, 'userId': user.id};
+                _cancel?.cancel();
+                break;
+              }
               final isRetryable = e.issue == PublicationIssue.network ||
                   e.issue == PublicationIssue.rateLimited ||
                   e.issue == PublicationIssue.unavailable;
@@ -377,9 +411,16 @@ class PublicationController extends ChangeNotifier {
               queues[user.id] = {'issue': e.issue.name, 'userId': user.id};
               break;
             } on GoogleAccountFailure catch (e) {
+              accountError = e.issue;
               if (e.issue == GoogleAccountIssue.reauthorize ||
                   e.issue == GoogleAccountIssue.denied) {
-                rethrow;
+                error = PublicationIssue.unauthorized;
+                queues[user.id] = {
+                  'issue': PublicationIssue.unauthorized.name,
+                  'userId': user.id,
+                };
+                _cancel?.cancel();
+                break;
               }
               if (attempt < 2) {
                 await Future<void>.delayed(
@@ -393,7 +434,17 @@ class PublicationController extends ChangeNotifier {
               };
               break;
             } on SyncTransportFailure catch (e) {
-              if (e.issue == SyncTransportIssue.cancelled) rethrow;
+              if (e.issue == SyncTransportIssue.cancelled) return;
+              if (e.issue == SyncTransportIssue.unauthorized) {
+                error = PublicationIssue.unauthorized;
+                accountError = GoogleAccountIssue.reauthorize;
+                queues[user.id] = {
+                  'issue': PublicationIssue.unauthorized.name,
+                  'userId': user.id,
+                };
+                _cancel?.cancel();
+                break;
+              }
               if (attempt < 2) {
                 final delayMs = 500 * (1 << attempt) + Random().nextInt(300);
                 await Future<void>.delayed(Duration(milliseconds: delayMs));
@@ -434,15 +485,22 @@ class PublicationController extends ChangeNotifier {
             bindings[user.id] = jsonDecode(bindingDoc) as Map<String, dynamic>;
           }
           _notify();
+          await Future<void>.delayed(Duration.zero);
         }
       }
 
       await Future.wait(List.generate(concurrency, (_) => worker()));
     } on GoogleAccountFailure catch (e) {
       accountError = e.issue;
+      if (e.issue == GoogleAccountIssue.reauthorize ||
+          e.issue == GoogleAccountIssue.denied) {
+        error = PublicationIssue.unauthorized;
+      }
     } on SyncTransportFailure catch (e) {
       if (e.issue != SyncTransportIssue.cancelled) {
-        error = PublicationIssue.network;
+        error = e.issue == SyncTransportIssue.unauthorized
+            ? PublicationIssue.unauthorized
+            : PublicationIssue.network;
       }
     } catch (_) {
       error = PublicationIssue.invalid;
@@ -452,7 +510,10 @@ class PublicationController extends ChangeNotifier {
     return PublicationBatchResult(
       uploaded: uploadedCount,
       upToDate: upToDateCount,
-      failed: failedCount,
+      failed: max(
+        failedCount,
+        (error != null || accountError != null) ? 1 : 0,
+      ),
     );
   }
 
@@ -475,6 +536,12 @@ class PublicationController extends ChangeNotifier {
       if (_disposed || editing) return const PublicationBatchResult();
     }
     if (_suspended) return const PublicationBatchResult();
+    if (!authorized || needsAuthorization) {
+      accountError = GoogleAccountIssue.reauthorize;
+      error = PublicationIssue.unauthorized;
+      _notify();
+      return const PublicationBatchResult(failed: 1);
+    }
     _timer?.cancel();
     if (_running != null) {
       _cancel?.cancel();

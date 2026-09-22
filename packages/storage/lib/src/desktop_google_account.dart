@@ -217,7 +217,8 @@ final class DesktopGoogleAccountService
   @override
   Future<GoogleDriveAccount?> signIn() => _signIn(false);
   @override
-  bool get publicationAuthorized => _session?.publications == true;
+  bool get publicationAuthorized =>
+      _session?.publications == true && _session?.reauthorize != true;
   @override
   Future<GoogleDriveAccount?> authorizePublications() => _signIn(true);
   Future<GoogleDriveAccount?> _signIn(

@@ -172,7 +172,20 @@ class _UsersPageState extends State<UsersPage> {
         final activeUsers = controller.workspace.users
             .where((u) => u.enabled && !u.deleted)
             .toList(growable: false);
-        if (batchResult != null) {
+        final isAuthError = publications?.needsAuthorization == true ||
+            publications?.accountError == GoogleAccountIssue.reauthorize ||
+            publications?.error == PublicationIssue.unauthorized;
+        if (isAuthError) {
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(l.googleReauthorize),
+              action: SnackBarAction(
+                label: l.googleSignIn,
+                onPressed: () => publications?.authorize(),
+              ),
+            ),
+          );
+        } else if (batchResult != null) {
           if (batchResult.failed > 0) {
             messenger.showSnackBar(
               SnackBar(
@@ -232,9 +245,24 @@ class _UsersPageState extends State<UsersPage> {
       }
     } catch (_) {
       if (mounted) {
-        messenger.showSnackBar(
-          SnackBar(content: Text(l.vpnSyncAndPublishFailed)),
-        );
+        final isAuthError = publications?.needsAuthorization == true ||
+            publications?.accountError == GoogleAccountIssue.reauthorize ||
+            publications?.error == PublicationIssue.unauthorized;
+        if (isAuthError) {
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(l.googleReauthorize),
+              action: SnackBarAction(
+                label: l.googleSignIn,
+                onPressed: () => publications?.authorize(),
+              ),
+            ),
+          );
+        } else {
+          messenger.showSnackBar(
+            SnackBar(content: Text(l.vpnSyncAndPublishFailed)),
+          );
+        }
       }
     } finally {
       if (mounted) setState(() => _syncing = false);
@@ -357,6 +385,10 @@ class _UsersPageState extends State<UsersPage> {
                       ),
                     ],
                   ),
+                  if (_syncing) ...[
+                    const SizedBox(height: 12),
+                    const LinearProgressIndicator(),
+                  ],
                   const SizedBox(height: 20),
                 ],
               ),

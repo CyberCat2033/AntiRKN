@@ -89,13 +89,16 @@ class Remote implements PublicationRemoteStore {
   final contents = <String, Uint8List>{};
   int ids = 0, creates = 0;
   bool lost = false;
+  PublicationIssue? failWithIssue;
   @override
   String get accountKey => 'account';
   @override
   Future<String> generateFileId() async => 'folder-${++ids}';
   @override
-  Future<PublicationFile> getFile(String id) async =>
-      folders[id] ?? (throw const PublicationFailure(PublicationIssue.missing));
+  Future<PublicationFile> getFile(String id) async {
+    if (failWithIssue != null) throw PublicationFailure(failWithIssue!);
+    return folders[id] ?? (throw const PublicationFailure(PublicationIssue.missing));
+  }
   @override
   Future<void> createFolder(String id, String name) async {
     creates++;
@@ -1353,6 +1356,83 @@ void main() {
       expect(c.accountError, isNull);
       expect(session.executed, isTrue);
       expect(autoSync.phase, AutoSyncPhase.synced);
+    },
+  );
+
+  test(
+    'unauthorized error aborts batch immediately and fails subsequent calls fast',
+    () async {
+      final repo = Repository(), remote = Remote(), account = Account();
+      account.publicationAuthorized = true;
+      final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
+      final c = PublicationController(
+        repository: repo,
+        account: account,
+        remote: () => remote,
+        vpn: vpn,
+      );
+      addTearDown(c.dispose);
+      addTearDown(vpn.dispose);
+
+      await vpn.load();
+      final userIds = [
+        fixtures.alice,
+        fixtures.bob,
+        'c' * 32,
+        'd' * 32,
+        'e' * 32,
+        'f' * 32,
+      ];
+      for (var i = 0; i < userIds.length; i++) {
+        final uid = userIds[i];
+        final login = 'user$i';
+        await vpn.saveUser(VpnUser(id: uid, login: login, name: 'User $i'));
+        final saved = vpn.workspace.profiles[uid]!;
+        repo.drafts[uid] = PublicationDraft(
+          workspaceId: vpn.workspace.id,
+          deviceId: 'a' * 32,
+          userId: uid,
+          name: 'User $i',
+          headId: 'head-$uid',
+          hash: saved['hash'] as String,
+          stamp: 'stamp-$uid',
+          bytes: Uint8List.fromList(utf8.encode(saved['yaml'] as String)),
+          ancestors: {},
+        );
+      }
+
+      final settings = const PublicationSettings(
+        accountKey: 'account',
+        folderId: 'test-folder',
+        folderName: 'Folder',
+        access: PublicationAccess.link,
+        enabled: true,
+        folderReady: true,
+      );
+      repo.docs['settings'] = canonicalJson(settings.toJson());
+      await c.reload();
+
+      // Remote fails with unauthorized
+      remote.failWithIssue = PublicationIssue.unauthorized;
+
+      final batchResult = await c.forcePublishAll(force: true);
+
+      // Circuit breaker stops workers: only the initial concurrent batch (4) runs,
+      // remaining users (user-5, user-6) are not attempted (failed is 4, not 6).
+      expect(batchResult.failed, 4);
+      expect(batchResult.failed, lessThan(userIds.length));
+      expect(batchResult.uploaded, 0);
+      expect(c.error, PublicationIssue.unauthorized);
+      expect(c.accountError, GoogleAccountIssue.reauthorize);
+      expect(c.needsAuthorization, isTrue);
+
+      // Subsequent call fails fast with failed: 1 without performing remote calls
+      final secondResult = await c.forcePublishAll(force: true);
+      expect(secondResult.failed, 1);
+
+      // User publish also immediately aborts without remote work
+      await c.publishUser('e' * 32);
+      expect(c.needsAuthorization, isTrue);
     },
   );
 }

@@ -314,6 +314,7 @@ void main() {
       await auth.close();
       final reopened = service();
       expect(await reopened.restore(), isNotNull);
+      expect(reopened.publicationAuthorized, isFalse);
       await expectLater(
         reopened.accessToken(),
         throwsA(issue(GoogleAccountIssue.reauthorize)),
@@ -506,11 +507,20 @@ void main() {
         return s;
       }
 
-      Future<AutoSyncResult> drain(AutoSyncSession s) async {
+      Future<AutoSyncResult> drain(
+        AutoSyncSession s, {
+        WorkspaceDatabase? db,
+        bool autoResolveConflicts = true,
+      }) async {
         for (var i = 0; i < 30; i++) {
           final result = await s.exchange(
             cancellation: SyncCancellation(),
             apply: (receive) async {
+              if (!autoResolveConflicts &&
+                  db != null &&
+                  (await db.readSyncMergeStatus()).conflicts.isNotEmpty) {
+                return false;
+              }
               await receive();
               return true;
             },
@@ -575,8 +585,14 @@ void main() {
       await linux.writeDraft('desktop concurrent');
       await android.writeDraft('phone concurrent');
       await drain(a);
-      expect((await drain(b)).conflicts, greaterThan(0));
-      expect((await drain(a)).conflicts, greaterThan(0));
+      expect(
+        (await drain(b, db: android, autoResolveConflicts: false)).conflicts,
+        greaterThan(0),
+      );
+      expect(
+        (await drain(a, db: linux, autoResolveConflicts: false)).conflicts,
+        greaterThan(0),
+      );
       expect(await linux.readDraft(), 'desktop concurrent');
       expect(await android.readDraft(), 'phone concurrent');
       final conflict = (await linux.readSyncMergeStatus()).conflicts.single;
