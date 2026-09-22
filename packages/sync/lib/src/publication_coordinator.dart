@@ -41,9 +41,19 @@ final class PublicationCoordinator {
     String registryId,
     String workspaceId,
   ) {
-    final cached = _cachedRegistry;
-    if (cached != null) return Future.value(cached);
     return _registrySnapshotFuture ??= () async {
+      final cached = _cachedRegistry;
+      if (cached != null && cached.$1.id == registryId) {
+        final current = await remote.getFile(registryId);
+        if (current.etag == cached.$1.etag) {
+          return cached;
+        }
+        final snapshot = await _snapshot(registryId, file: current);
+        final decoded = _decodeRegistry(snapshot.$2, workspaceId);
+        final result = (snapshot.$1, decoded);
+        _cachedRegistry = result;
+        return result;
+      }
       final snapshot = await _snapshot(registryId);
       final decoded = _decodeRegistry(snapshot.$2, workspaceId);
       final result = (snapshot.$1, decoded);

@@ -589,4 +589,52 @@ void main() {
       expect(profileDownloadsDuringUpdate, 0);
     },
   );
+  test(
+    'stale registry cache is invalidated when remote registry ETag changes (Audit #36)',
+    () async {
+      final user1 = '11111111111111111111111111111111';
+      final user2 = '22222222222222222222222222222222';
+      final user3 = '33333333333333333333333333333333';
+      final draft1 = await draft('head-1', user: user1);
+      final draft2 = await draft('head-1', user: user2);
+      final draft3 = await draft('head-1', user: user3);
+      final repo = Repository(draft1);
+      repo.drafts[user1] = draft1;
+      repo.drafts[user2] = draft2;
+      repo.drafts[user3] = draft3;
+      final remote = Remote();
+      final coord = coordinator(repo, remote);
+
+      // Publish user1 with coordinator:
+      final res1 = await coord.publish(user1);
+      expect(res1?['status'], 'published');
+      final downloadsAfter1 = remote.registryDownloadCalls;
+
+      // Simulate a concurrent update on Drive from another coordinator/admin:
+      final otherCoord = coordinator(repo, remote);
+      final res2 = await otherCoord.publish(user2);
+      expect(res2?['status'], 'published');
+      final downloadsAfter2 = remote.registryDownloadCalls;
+      expect(downloadsAfter2, greaterThan(downloadsAfter1));
+
+      // Now original coord publishes user3:
+      // Since otherCoord modified registry.json on Drive (new ETag),
+      // coord must detect that cached ETag is stale, re-download the registry,
+      // and NOT overwrite user2:
+      final res3 = await coord.publish(user3);
+      expect(res3?['status'], 'published');
+      expect(remote.registryDownloadCalls, greaterThan(downloadsAfter2));
+
+      // Verify that all 3 users exist in the final registry:
+      final registryFile = remote.blobs.values.firstWhere(
+        (b) => b.properties['antirknUser'] == 'registry',
+      );
+      final registryJson = jsonDecode(utf8.decode(registryFile.content)) as Map;
+      final usersMap = registryJson['users'] as Map;
+      expect(usersMap.containsKey(user1), isTrue);
+      expect(usersMap.containsKey(user2), isTrue);
+      expect(usersMap.containsKey(user3), isTrue);
+    },
+  );
 }
+
