@@ -535,4 +535,32 @@ void main() {
       );
     },
   );
+
+  test(
+    'deleteUsers returns immediately without blocking on remote server reconciliation when awaitReconcile is false',
+    () async {
+      final store = f.MemoryVpn(), remotes = <String, f.Remote>{};
+      remotes.addAll({'one': f.Remote(store), 'two': f.Remote(store)});
+      final c = f.controller(store, remotes);
+      addTearDown(c.dispose);
+      await f.setup(c);
+      await c.prepare();
+      await c.apply();
+
+      final targetUser = user(c);
+      await c.deleteUsers([targetUser]);
+
+      expect(user(c).deleted, true);
+      expect(user(c).enabled, false);
+
+      // Wait for background reconciliation initiated by unawaited(reconcile()) to finish
+      while (c.busy) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      expect(c.busy, false);
+      expect(user(c).deletionComplete, true);
+      expect(c.pendingRevocations, isEmpty);
+    },
+  );
 }

@@ -139,85 +139,102 @@ extension ClientDeletion on VpnController {
     });
   }
 
-  Future<void> deleteUser(VpnUser expected, {Map<String, dynamic>? file}) =>
-      deleteUsers([expected], files: {expected.id: ?file});
+  Future<void> deleteUser(
+    VpnUser expected, {
+    Map<String, dynamic>? file,
+    bool awaitReconcile = true,
+  }) => deleteUsers(
+    [expected],
+    files: {expected.id: ?file},
+    awaitReconcile: awaitReconcile,
+  );
 
   Future<void> deleteUsers(
     List<VpnUser> expected, {
     Map<String, Map<String, dynamic>> files = const {},
-  }) => _run((token) async {
-    if (!loaded ||
-        expected.isEmpty ||
-        expected.map((u) => u.id).toSet().length != expected.length) {
-      throw const FormatException('vpn_conflict');
-    }
-    for (final before in expected) {
-      final user = workspace.users.where((u) => u.id == before.id).firstOrNull;
-      if (user == null ||
-          user.deleted ||
-          canonicalJson(user.toJson()) != canonicalJson(before.toJson())) {
+    bool awaitReconcile = false,
+  }) async {
+    await _run((token) async {
+      if (!loaded ||
+          expected.isEmpty ||
+          expected.map((u) => u.id).toSet().length != expected.length) {
         throw const FormatException('vpn_conflict');
       }
-    }
-    await checkProfileEffects();
-    final targets = {
-      ...workspace.serverIds,
-      for (final e in workspace.servers.entries)
-        if ((e.value['observed'] as List? ?? []).isNotEmpty ||
-            e.value['pending'] != null ||
-            e.value['appliedPayload'] != null)
-          e.key,
-    };
-    final deleted = {
-      for (final user in expected)
-        user.id: VpnUser(
-          id: user.id,
-          login: user.login,
-          name: user.name,
-          enabled: false,
-          deletion: {
-            'version': 1,
-            'id': newVpnId(),
-            'executor': _deviceId,
-            'targets': {
-              for (final id in targets)
-                id: {
-                  'status': 'waiting',
-                  'identity': workspace.servers[id]?['identity'],
-                },
+      for (final before in expected) {
+        final user = workspace.users
+            .where((u) => u.id == before.id)
+            .firstOrNull;
+        if (user == null ||
+            user.deleted ||
+            canonicalJson(user.toJson()) != canonicalJson(before.toJson())) {
+          throw const FormatException('vpn_conflict');
+        }
+      }
+      await checkProfileEffects();
+      final targets = {
+        ...workspace.serverIds,
+        for (final e in workspace.servers.entries)
+          if ((e.value['observed'] as List? ?? []).isNotEmpty ||
+              e.value['pending'] != null ||
+              e.value['appliedPayload'] != null)
+            e.key,
+      };
+      final deleted = {
+        for (final user in expected)
+          user.id: VpnUser(
+            id: user.id,
+            login: user.login,
+            name: user.name,
+            enabled: false,
+            deletion: {
+              'version': 1,
+              'id': newVpnId(),
+              'executor': _deviceId,
+              'targets': {
+                for (final id in targets)
+                  id: {
+                    'status': 'waiting',
+                    'identity': workspace.servers[id]?['identity'],
+                  },
+              },
+              if (files[user.id] case final file?)
+                'file': {...file, 'status': 'waiting'},
             },
-            if (files[user.id] case final file?)
-              'file': {...file, 'status': 'waiting'},
+          ),
+      };
+      final profiles = {...workspace.profiles}
+        ..removeWhere((id, _) => deleted.containsKey(id));
+      final servers = {
+        for (final e in workspace.servers.entries)
+          e.key: {
+            ...e.value,
+            if (targets.contains(e.key) && e.value['pending'] == null) ...{
+              'authorizedPayload': null,
+              'paused': true,
+            },
           },
+      };
+      // User tombstone, queued revocations and removal of cached YAML are one
+      // transaction. A failed save must never revoke access or delete a file.
+      await _write(
+        workspace.copy(
+          users: [for (final u in workspace.users) deleted[u.id] ?? u],
+          profiles: profiles,
+          servers: servers,
         ),
-    };
-    final profiles = {...workspace.profiles}
-      ..removeWhere((id, _) => deleted.containsKey(id));
-    final servers = {
-      for (final e in workspace.servers.entries)
-        e.key: {
-          ...e.value,
-          if (targets.contains(e.key) && e.value['pending'] == null) ...{
-            'authorizedPayload': null,
-            'paused': true,
-          },
-        },
-    };
-    // User tombstone, queued revocations and removal of cached YAML are one
-    // transaction. A failed save must never revoke access or delete a file.
-    await _write(
-      workspace.copy(
-        users: [for (final u in workspace.users) deleted[u.id] ?? u],
-        profiles: profiles,
-        servers: servers,
-      ),
-    );
-    plans = [];
-    results.removeWhere((id, _) => deleted.containsKey(id));
-    if (deleted.containsKey(selectedUserId)) selectedUserId = null;
-    _notify();
-    await _reconcileDeletions(token);
-  });
+      );
+      plans = [];
+      results.removeWhere((id, _) => deleted.containsKey(id));
+      if (deleted.containsKey(selectedUserId)) selectedUserId = null;
+      _notify();
+      if (awaitReconcile) {
+        await _reconcileDeletions(token);
+      }
+    });
+    if (!awaitReconcile && !_disposed) {
+      unawaited(reconcile());
+    }
+  }
 
   Future<void> _deletionGuard(String userId, String deletionId) async {
     await checkProfileEffects();
