@@ -141,3 +141,53 @@ class XrayTransactionTests(unittest.TestCase):
         with patch.object(x.vless,'access_for_panel',return_value={}), patch.object(x.panel,'client',side_effect=[x.PanelError('panel_api_failed'),api]), patch.object(x.panel,'versions',return_value=dict(panelVersion='3.8.0',xrayVersion=info['current'])), patch.object(x,'cache_versions'), patch.object(x,'command') as command:
             REAL_RESTART(self.store,info,info['current'])
             command.assert_called_once_with(['/usr/bin/systemctl','restart','x-ui.service'])
+
+    def test_check_connectivity_validates_open_inbound_ports(self):
+        info = dict(before=dict(configuration=dict(inbounds=[
+            dict(port=443, enable=True, listen='127.0.0.1'),
+            dict(port=8443, enable=False, listen='0.0.0.0'),
+        ])))
+        with patch.object(x.socket, 'create_connection') as mock_conn:
+            mock_conn.return_value.__enter__ = Mock()
+            mock_conn.return_value.__exit__ = Mock()
+            self.assertTrue(x.check_connectivity(info))
+            mock_conn.assert_called_once_with(('127.0.0.1', 443), timeout=2)
+
+        with patch.object(x.socket, 'create_connection', side_effect=OSError('refused')):
+            self.assertFalse(x.check_connectivity(info))
+
+    def test_watchdog_auto_commits_when_connectivity_confirmed_on_timeout(self):
+        self.begin()
+        x.apply(self.store, self.key)
+        info = x.load(self.store, self.key)
+        self.assertEqual(info['phase'], 'awaiting_checks')
+        info['deadline'] = time.time() - 1
+        x.save(self.store, info)
+
+        with patch('runner.Store', side_effect=lambda d: Store(self.root)), \
+             patch('runner.STATE', self.root), \
+             patch.object(x, 'check_connectivity', return_value=True):
+            x.watchdog(self.key)
+
+        updated = x.load(self.store, self.key)
+        self.assertEqual(updated['phase'], 'committed')
+        self.assertEqual(self.binary.read_bytes(), b'new')
+        self.assertIn('retired', self.events)
+
+    def test_watchdog_rolls_back_when_connectivity_fails_on_timeout(self):
+        self.begin()
+        x.apply(self.store, self.key)
+        info = x.load(self.store, self.key)
+        self.assertEqual(info['phase'], 'awaiting_checks')
+        info['deadline'] = time.time() - 1
+        x.save(self.store, info)
+
+        with patch('runner.Store', side_effect=lambda d: Store(self.root)), \
+             patch('runner.STATE', self.root), \
+             patch.object(x, 'check_connectivity', return_value=False):
+            x.watchdog(self.key)
+
+        updated = x.load(self.store, self.key)
+        self.assertEqual(updated['phase'], 'rolled_back')
+        self.assertEqual(self.binary.read_bytes(), b'old')
+        self.assertIn('retired', self.events)

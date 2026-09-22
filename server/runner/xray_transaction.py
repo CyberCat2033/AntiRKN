@@ -6,6 +6,7 @@ import platform
 import stat
 from pathlib import Path
 import secrets
+import socket
 import subprocess
 import sys
 import time
@@ -303,6 +304,29 @@ def status(store,req):
         info.update(phase='not_changed',code='xray_check_watchdog');save(store,info)
     return public(info)
 
+def check_connectivity(info):
+    inbounds = info.get('before', {}).get('configuration', {}).get('inbounds', [])
+    enabled = [r for r in inbounds if r.get('enable')]
+    if not enabled:
+        return False
+    for r in enabled:
+        port = r.get('port')
+        if not port or not isinstance(port, int):
+            return False
+        listen = r.get('listen')
+        targets = [listen] if listen and listen not in ('0.0.0.0', '::', '') else ['127.0.0.1', '::1']
+        bound = False
+        for host in targets:
+            try:
+                with socket.create_connection((host, port), timeout=2):
+                    bound = True
+                    break
+            except (OSError, socket.error):
+                pass
+        if not bound:
+            return False
+    return True
+
 def watchdog(key):
     from runner import Store,STATE
     started=time.monotonic()
@@ -315,6 +339,12 @@ def watchdog(key):
                     if info:retire(info)
                     return
                 if info['phase'] in ('rolling_back','recovery_required') or expired(info) or time.monotonic()-started>=600:
+                    healthy=False
+                    if info['phase']=='awaiting_checks':
+                        try:healthy=unchanged(store,info,new=True) and check_connectivity(info)
+                        except Exception:healthy=False
+                    if healthy:
+                        info.update(phase='committed',code='committed');save(store,info);retire(info);return
                     rollback(store,info);return
         finally:store.close()
         time.sleep(1)
