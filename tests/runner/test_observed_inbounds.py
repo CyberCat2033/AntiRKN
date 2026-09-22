@@ -12,13 +12,15 @@ from vless import VlessError, normal, digest
 
 class Api:
     def __init__(self):
-        self.effects = 0; self.lose = False
+        self.effects = 0; self.lose = False; self.list_calls = 0
         self.row = dict(id=42, remark='Existing', enable=True, listen='127.0.0.1', port=45678, protocol='vless', up=45, down=50, total=12345,
             settings=json.dumps(dict(clients=[dict(id='private-existing-uuid', email='existing', enable=True)], decryption='none', custom='keep')),
             streamSettings=json.dumps(dict(network='xhttp', security='reality', xhttpSettings=dict(path='/', extraUnknown='keep'), realitySettings=dict(privateKey='private-existing-key', shortIds=['1234']))),
             sniffing='{"enabled":false}', customPanelField='keep')
     def call(self, path, data=None):
-        if path.endswith('/list'): return [copy.deepcopy(self.row)]
+        if path.endswith('/list'):
+            self.list_calls += 1
+            return [copy.deepcopy(self.row)]
         if '/update/' in path:
             self.row = copy.deepcopy(data); self.effects += 1
             if self.lose: self.lose = False; raise OSError('response lost')
@@ -78,3 +80,22 @@ class ObservedTests(unittest.TestCase):
         with self.assertRaises(VlessError): wanted(self.api.row, dict(settings='{}'))
         self.api.row['remark'] = 'AntiRKN:some-resource'
         with self.assertRaises(VlessError): wanted(self.api.row, dict(remark='new'))
+    def test_preflight_and_step_batch_inbounds_list_calls(self):
+        from observed_inbounds import read
+        p = dict(inboundId=42, panelId='b'*32, observedHash=digest(normal(self.api.row)), patch=dict(remark='Edited'))
+        self.api.list_calls = 0
+        preview = plan(self.store, dict(id='b'*32, payload=json.dumps(p)))
+        # Preflight should only call /list once
+        self.assertEqual(self.api.list_calls, 1)
+        r = dict(version=1, action='submit', id='a'*32, kind='inbound_update', count=3, interval=1, fingerprint=preview['fingerprint'], payload=json.dumps(p))
+        self.store.request(r)
+        self.api.list_calls = 0
+        self.store.tick()  # checkpoint 0
+        # Checkpoint 0 should only call /list once
+        self.assertEqual(self.api.list_calls, 1)
+    def test_read_with_prefetched_rows_makes_zero_api_calls(self):
+        from observed_inbounds import read
+        self.api.list_calls = 0
+        _, row = read(self.store, 'b'*32, 42, rows=[self.api.row])
+        self.assertEqual(row['id'], 42)
+        self.assertEqual(self.api.list_calls, 0)

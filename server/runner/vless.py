@@ -226,7 +226,7 @@ def preflight(store, payload, api):
     for r in payload['resources']:
         if 'adoption' in r:
             import managed_existing
-            adopted[r['id']] = managed_existing.preflight(store, payload, r, saved.get(r['id']), 'vless')
+            adopted[r['id']] = managed_existing.preflight(store, payload, r, saved.get(r['id']), 'vless', inbounds=rows)
             continue
         current = locate(rows, payload['workspaceId'], r['id'])
         previous = saved.get(r['id'])
@@ -289,7 +289,7 @@ def state(store, panel_id, pending_job=None):
         if saved['panelId'] != panel_id: continue
         if saved.get('adopted'):
             import managed_existing
-            result.append(managed_existing.state(store, saved, 'vless', pending_job))
+            result.append(managed_existing.state(store, saved, 'vless', pending_job, inbounds=rows))
             continue
         current = locate(rows, saved['workspaceId'], rid)
         if current is None and not saved.get('deleted'):

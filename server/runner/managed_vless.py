@@ -11,9 +11,11 @@ from vless import VlessError, canonical, digest, normal, subset
 from vless_contract import SCHEMA
 
 
-def snapshot(store, p, r):
-    api = vless.panel_for(store, p['panelId'])
-    row = next((row for row in api.call('/panel/api/inbounds/list')
+def snapshot(store, p, r, inbounds=None):
+    if inbounds is None:
+        api = vless.panel_for(store, p['panelId'])
+        inbounds = api.call('/panel/api/inbounds/list')
+    row = next((row for row in inbounds
                 if str(row['id']) == r['adoption']['sourceId']), None)
     if row is None and not r['deleted']:
         raise VlessError('vpn_adoption_conflict')

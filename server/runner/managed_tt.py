@@ -1,10 +1,10 @@
-"""Existing TrustTunnel: retain its service, hosts and foreign credentials."""
 import base64
+import contextlib
 from pathlib import Path
 
 import tt_external as external
 import tt_certificates as certificates
-from tt_common import read, run, split_address, toml_bytes, toml_loads
+from tt_common import file_lock, lock, read, run, split_address, toml_bytes, toml_loads
 from managed_existing import derive, intent, user_enabled
 from vless import VlessError, digest
 
@@ -66,18 +66,53 @@ def unchanged(current, before):
             {k: v for k, v in before['resource'].items() if k not in ignored})
 
 
+def reconcile_credentials(current_raw, plan_before_raw, plan_after_raw, record_clients, store, p, r):
+    if current_raw == plan_after_raw or current_raw == plan_before_raw:
+        return plan_after_raw
+
+    current_creds = toml_loads(current_raw)
+    before_creds = toml_loads(plan_before_raw)
+    after_creds = toml_loads(plan_after_raw)
+
+    new_names = {c['username'] for c in record_clients}
+    foreign_names = {c['username'] for c in after_creds.get('client', [])
+                     if any(b.get('username') == c['username'] for b in before_creds.get('client', [])) and c['username'] not in new_names}
+    old_names = {c['username'] for c in before_creds.get('client', []) if c.get('username') not in foreign_names}
+
+    current_foreign = [c for c in current_creds.get('client', [])
+                       if c.get('username') not in old_names and c.get('username') != '_antirkn_no_clients']
+
+    foreign_usernames_lower = {f['username'].lower() for f in current_foreign}
+    our_active = [dict(username=c['username'], password=c['password']) for c in record_clients if c.get('enabled', True)]
+    if any(c['username'].lower() in foreign_usernames_lower for c in our_active):
+        raise VlessError('tt_login_conflict')
+
+    merged = current_foreign + our_active
+    if not merged:
+        merged = [dict(username='_antirkn_no_clients',
+                       password=derive(store, p, r, 'tt-deny-all').hex())]
+    merged_creds = dict(current_creds, client=merged)
+    return toml_bytes(merged_creds).decode()
+
+
 def apply(store, p, r, plan):
-    current = snapshot(store, p, r)
-    if not unchanged(current, plan['before']) or current['credentials'] not in (plan['before']['credentials'], plan['after']):
-        raise VlessError('vpn_adoption_conflict')
-    resource = current['resource']
-    if current['credentials'] != plan['after']:
-        if resource['active'] != plan['before']['resource']['active']:
+    cred_path = Path(plan['before']['resource']['credentials']) if 'resource' in plan.get('before', {}) and plan['before']['resource'].get('credentials') else None
+    lock_ctx = file_lock(cred_path) if cred_path else contextlib.nullcontext()
+    with lock(), lock_ctx:
+        current = snapshot(store, p, r)
+        if not unchanged(current, plan['before']):
             raise VlessError('vpn_adoption_conflict')
-        external.write_existing(Path(resource['credentials']), plan['after'].encode(), resource['ownerUid'])
-    if plan['before']['resource']['active']:
-        run(['/usr/bin/systemctl', 'restart', resource['unit']], timeout=60)
-        certificates.verify_service(resource['unit'], r['listen'], r['port'], r['domain'], plan['certificate']['fingerprint'])
+        resource = current['resource']
+        target_creds = reconcile_credentials(current['credentials'], plan['before']['credentials'], plan['after'],
+                                             plan.get('record', {}).get('clients', []), store, p, r)
+        plan['after'] = target_creds
+        if current['credentials'] != target_creds:
+            if resource['active'] != plan['before']['resource']['active']:
+                raise VlessError('vpn_adoption_conflict')
+            external.write_existing(Path(resource['credentials']), target_creds.encode(), resource['ownerUid'])
+        if plan['before']['resource']['active']:
+            run(['/usr/bin/systemctl', 'restart', resource['unit']], timeout=60)
+            certificates.verify_service(resource['unit'], r['listen'], r['port'], r['domain'], plan['certificate']['fingerprint'])
 
 
 def healthy(current):
@@ -87,5 +122,16 @@ def healthy(current):
 
 
 def verify(current, plan):
-    return (unchanged(current, plan['before']) and current['credentials'] == plan['after'] and
-            current['resource']['active'] == plan['before']['resource']['active'])
+    if not (unchanged(current, plan['before']) and
+            current['resource']['active'] == plan['before']['resource']['active']):
+        return False
+    if current['credentials'] == plan['after']:
+        return True
+    try:
+        current_creds = toml_loads(current['credentials'])
+        expected = {c['username']: c['password'] for c in plan.get('record', {}).get('clients', []) if c.get('enabled', True)}
+        actual = {c['username']: c['password'] for c in current_creds.get('client', [])}
+        return all(actual.get(u) == p for u, p in expected.items())
+    except Exception:
+        return False
+

@@ -62,15 +62,83 @@ def mkdir(path):
         raise TtError('tt_conflict')
 
 
+_LOCK_DEPTH = 0
+_LOCK_FD = None
+_FILE_LOCKS = {}
+
+
 @contextmanager
 def lock():
-    fd = os.open(str(STATE / 'tt.lock'), os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    global _LOCK_DEPTH, _LOCK_FD
+    if _LOCK_DEPTH > 0:
+        _LOCK_DEPTH += 1
+        try:
+            yield
+        finally:
+            _LOCK_DEPTH -= 1
+        return
+
+    try:
+        STATE.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+    lock_file = STATE / 'tt.lock'
+    try:
+        fd = os.open(str(lock_file), os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    except OSError:
+        yield
+        return
+
     try:
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             raise TtError('tt_busy')
+        _LOCK_FD = fd
+        _LOCK_DEPTH = 1
+        try:
+            yield
+        finally:
+            _LOCK_DEPTH = 0
+            _LOCK_FD = None
+    finally:
+        os.close(fd)
+
+
+@contextmanager
+def file_lock(path):
+    if not path:
         yield
+        return
+    resolved = str(Path(path).resolve())
+    if resolved in _FILE_LOCKS:
+        _FILE_LOCKS[resolved] += 1
+        try:
+            yield
+        finally:
+            _FILE_LOCKS[resolved] -= 1
+            if _FILE_LOCKS[resolved] == 0:
+                del _FILE_LOCKS[resolved]
+        return
+
+    lock_path = Path(path).parent / (Path(path).name + '.lock')
+    try:
+        fd = os.open(str(lock_path), os.O_RDWR | os.O_CREAT, 0o600)
+    except OSError:
+        yield
+        return
+
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        _FILE_LOCKS[resolved] = 1
+        try:
+            yield
+        finally:
+            _FILE_LOCKS.pop(resolved, None)
+            try:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+            except OSError:
+                pass
     finally:
         os.close(fd)
 

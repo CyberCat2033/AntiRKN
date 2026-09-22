@@ -15,7 +15,7 @@ import stat
 
 from panel import atomic_file
 from tt_common import (ROOT, TtError, active, address, available, canonical, digest,
-    domain, identifier, ip, lock, read, run, safe_path, split_address, toml_bytes,
+    domain, file_lock, identifier, ip, lock, read, run, safe_path, split_address, toml_bytes,
     toml_loads)
 import tt_certificates as certificates
 from tt import check_socks
@@ -132,22 +132,23 @@ def discovery():
 
 def write_existing(path, data, owner):
     """Replace only the selected file, retaining its owner, group and mode."""
-    path=safe_path(path,owner_uid=owner);before=path.stat()
-    directory=os.open(str(path.parent),os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
-    temporary='.antirkn-tt-'+secrets.token_hex(16)
-    try:
-        fd=os.open(temporary,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600,dir_fd=directory)
-        with os.fdopen(fd,'wb') as stream:
-            stream.write(data);stream.flush()
-            os.fchown(stream.fileno(),before.st_uid,before.st_gid)
-            os.fchmod(stream.fileno(),stat.S_IMODE(before.st_mode))
-            os.fsync(stream.fileno())
-        os.rename(temporary,path.name,src_dir_fd=directory,dst_dir_fd=directory)
-        os.fsync(directory)
-    finally:
-        try:os.unlink(temporary,dir_fd=directory)
-        except FileNotFoundError:pass
-        os.close(directory)
+    with file_lock(path):
+        path=safe_path(path,owner_uid=owner);before=path.stat()
+        directory=os.open(str(path.parent),os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+        temporary='.antirkn-tt-'+secrets.token_hex(16)
+        try:
+            fd=os.open(temporary,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600,dir_fd=directory)
+            with os.fdopen(fd,'wb') as stream:
+                stream.write(data);stream.flush()
+                os.fchown(stream.fileno(),before.st_uid,before.st_gid)
+                os.fchmod(stream.fileno(),stat.S_IMODE(before.st_mode))
+                os.fsync(stream.fileno())
+            os.rename(temporary,path.name,src_dir_fd=directory,dst_dir_fd=directory)
+            os.fsync(directory)
+        finally:
+            try:os.unlink(temporary,dir_fd=directory)
+            except FileNotFoundError:pass
+            os.close(directory)
 
 
 def decode(req):

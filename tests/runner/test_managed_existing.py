@@ -470,3 +470,106 @@ class AdoptionTests(unittest.TestCase):
         # Verify record in store.db was NOT marked deleted
         record = existing.records(self.store, 'tt')[rid]
         self.assertFalse(record.get('deleted'))
+
+    def test_vless_snapshot_with_prefetched_inbounds_skips_panel_call(self):
+        p = self.payload('vless')
+        r = p['resources'][0]
+        called = []
+        original_call = self.api.call
+        def tracking_call(path, data=None):
+            called.append(path)
+            return original_call(path, data)
+
+        with patch.object(self.api, 'call', side_effect=tracking_call):
+            # snapshot with explicit inbounds must not call panel API
+            snap = managed_vless.snapshot(self.store, p, r, inbounds=self.api.rows)
+            self.assertEqual(called, [])
+            self.assertEqual(snap['row']['id'], 7)
+
+    def test_vless_state_batches_inbounds_list_for_multiple_adopted_resources(self):
+        # Create 2 adopted VLESS resources in store
+        p1 = self.payload('vless')
+        self.assertEqual(self.finish(self.submit(p1, 'vless', 1))['status'], 'succeeded')
+
+        r2 = copy.deepcopy(p1['resources'][0])
+        r2['id'] = 'd' * 32
+        r2['name'] = 'Imported 2'
+        r2['adoption'] = dict(sourceId='7', observedHash='0'*64, panelId='a'*32, panelPort=2053)
+        p2 = dict(version=1, workspaceId='a'*32, panelId='a'*32, resources=[r2], users=[dict(id='c'*32, enabled=True)])
+        r2['adoption']['observedHash'] = existing.adapter('vless').snapshot(self.store, p2, r2)['fingerprint']
+        # Insert second record directly into database
+        record2 = dict(adopted=True, deleted=False, workspaceId='a'*32, panelId='a'*32, spec=r2,
+                       clients=[], proxy={}, revision='0'*64, jobId='1'*32,
+                       observedHash=r2['adoption']['observedHash'])
+        with self.store.db:
+            self.store.db.execute('INSERT INTO vless_resources VALUES (?, ?)', (r2['id'], vless.canonical(record2)))
+
+        list_calls = []
+        original_call = self.api.call
+        def counting_call(path, data=None):
+            if path.endswith('/list'):
+                list_calls.append(path)
+            return original_call(path, data)
+
+        with patch.object(self.api, 'call', side_effect=counting_call):
+            st = vless.state(self.store, 'a'*32)
+            self.assertEqual(len(st), 2)
+            # Exactly 1 /inbounds/list call was made instead of 1 + 2 = 3 calls
+            self.assertEqual(len(list_calls), 1)
+
+    def test_tt_apply_merges_concurrent_credentials_modification(self):
+        p = self.payload('tt')
+        self.assertEqual(self.finish(self.submit(p, 'tt'))['status'], 'succeeded')
+        r = p['resources'][0]
+
+        # Prepare a plan for adding a user to TT
+        p2 = copy.deepcopy(p)
+        p2['users'].append(dict(id='e'*32, login='bob', enabled=True))
+        req = self.submit(p2, 'tt', 2)
+
+        orig_apply = managed_tt.apply
+        def hook_apply(store, p, r, plan):
+            self.credentials += '[[client]]\nusername="charlie"\npassword="secret-charlie"\n'
+            return orig_apply(store, p, r, plan)
+
+        with patch('managed_tt.apply', side_effect=hook_apply):
+            res = self.finish(req)
+        self.assertEqual(res['status'], 'succeeded')
+
+        # Verify that 'charlie' was preserved AND 'bob' was added
+        from tt_common import toml_loads
+        final_creds = toml_loads(self.credentials)
+        usernames = {c['username'] for c in final_creds['client']}
+        self.assertIn('foreign', usernames)
+        self.assertIn('charlie', usernames)
+        self.assertIn('alice', usernames)
+        self.assertIn('bob', usernames)
+
+    def test_tt_apply_detects_username_collision_with_concurrent_client(self):
+        p = self.payload('tt')
+        r = p['resources'][0]
+        old = None
+        current = managed_tt.snapshot(self.store, p, r)
+        intent = managed_tt.build(self.store, p, r, old, current)
+
+        # Simulate concurrent addition of a foreign client with the same username 'alice'
+        self.credentials += '[[client]]\nusername="alice"\npassword="intruder-password"\n'
+
+        with self.assertRaises(VlessError) as ctx:
+            managed_tt.apply(self.store, p, r, intent)
+        self.assertEqual(ctx.exception.code, 'tt_login_conflict')
+
+    def test_tt_common_lock_and_file_lock_reentrancy(self):
+        import tt_common
+        # Test re-entrancy of lock()
+        with tt_common.lock():
+            with tt_common.lock():
+                pass
+
+        # Test re-entrancy of file_lock()
+        test_file = Path(self.temp.name) / 'credentials.toml'
+        test_file.write_text('test')
+        with tt_common.file_lock(test_file):
+            with tt_common.file_lock(test_file):
+                self.assertTrue(test_file.exists())
+

@@ -19,9 +19,11 @@ def decode(raw):
     return p
 
 
-def read(store, panel_id, inbound_id):
+def read(store, panel_id, inbound_id, rows=None):
     api = panel_for(store, panel_id)
-    row = next((r for r in api.call('/panel/api/inbounds/list') if r['id'] == inbound_id), None)
+    if rows is None:
+        rows = api.call('/panel/api/inbounds/list')
+    row = next((r for r in rows if r['id'] == inbound_id), None)
     if row is None:
         raise VlessError('vless_conflict')
     return api, row
@@ -79,13 +81,15 @@ def wanted(row, patch):
     return result
 
 
-def preflight(store, panel_id, p):
-    api, current = read(store, panel_id, p['inboundId'])
+def preflight(store, panel_id, p, rows=None):
+    api = panel_for(store, panel_id)
+    if rows is None:
+        rows = api.call('/panel/api/inbounds/list')
+    _, current = read(store, panel_id, p['inboundId'], rows=rows)
     if p.get('observedHash') != digest(normal(current)):
         raise VlessError('vless_conflict')
     desired = wanted(current, p.get('patch'))
     if desired['enable'] and (desired['port'], desired['listen'], desired['enable']) != (current['port'], current['listen'], current['enable']):
-        rows = api.call('/panel/api/inbounds/list')
         if any(r['id'] != current['id'] and r.get('enable') and r['port'] == desired['port'] for r in rows):
             raise VlessError('vless_port_busy')
         try:
@@ -135,13 +139,15 @@ class ObservedInboundEdit:
 
     def step(self, checkpoint):
         p, req = self.payload, self.req
-        api, current = read(self.store, p['panelId'], p['inboundId'])
         if checkpoint == 0:
-            if preflight(self.store, p['panelId'], p)['fingerprint'] != req['fingerprint']:
+            rows = panel_for(self.store, p['panelId']).call('/panel/api/inbounds/list')
+            api, current = read(self.store, p['panelId'], p['inboundId'], rows=rows)
+            if preflight(self.store, p['panelId'], p, rows=rows)['fingerprint'] != req['fingerprint']:
                 raise VlessError('vless_conflict')
             if not self.backup.exists(): atomic_file(self.backup, canonical(current).encode())
             code = 'vless_preparing'
         elif checkpoint == 1:
+            api, current = read(self.store, p['panelId'], p['inboundId'])
             safe_file(self.backup, 262144)
             original = json.loads(self.backup.read_text())
             desired = wanted(original, p['patch'])
@@ -154,6 +160,7 @@ class ObservedInboundEdit:
             if not subset(normal(desired), normal(observed)): raise VlessError('vless_api_failed')
             code = 'vless_applying'
         else:
+            api, current = read(self.store, p['panelId'], p['inboundId'])
             api.call('/panel/api/server/restartXrayService', {})
             deadline = time.monotonic() + 20
             while time.monotonic() < deadline:

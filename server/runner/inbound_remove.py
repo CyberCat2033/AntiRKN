@@ -67,15 +67,16 @@ class InboundRemove:
             if json.loads(self.backup.read_text()) != p:
                 raise VlessError('vless_conflict')
             if checkpoint == 1:
+                rows = {r['id']: r for r in api.call('/panel/api/inbounds/list')}
                 for entry in p['removals']:
-                    rows = {r['id']: r for r in api.call('/panel/api/inbounds/list')}
                     current = rows.get(entry['inboundId'])
                     # A lost reply is reconciled by reading back; never delete a reused ID.
                     if current is not None:
                         check(current, entry)
                         api.call('/panel/api/inbounds/del/%d' % entry['inboundId'], {})
-                    if any(r['id'] == entry['inboundId'] for r in api.call('/panel/api/inbounds/list')):
-                        raise VlessError('vless_api_failed')
+                after_rows = {r['id'] for r in api.call('/panel/api/inbounds/list')}
+                if any(entry['inboundId'] in after_rows for entry in p['removals']):
+                    raise VlessError('vless_api_failed')
             else:
                 api.call('/panel/api/server/restartXrayService', {})
                 deadline = time.monotonic() + 20

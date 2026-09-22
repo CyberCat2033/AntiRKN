@@ -216,7 +216,8 @@ def clear_managed_clients(store):
                             new_client_list = kept
                         creds = dict(client=new_client_list)
                         new_bytes = tt_common.toml_bytes(creds)
-                        atomic_file(cred_path, new_bytes)
+                        with tt_common.file_lock(cred_path):
+                            atomic_file(cred_path, new_bytes)
                         unit = 'antirkn-tt@' + rid + '.service'
                         if tt_common.active(unit):
                             tt_common.run(['/usr/bin/systemctl', 'restart', unit], timeout=60)

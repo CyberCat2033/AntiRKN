@@ -116,11 +116,11 @@ def guard(store, p, r, old, protocol, snapshot):
         raise VlessError('vpn_adoption_conflict')
 
 
-def preflight(store, p, r, old, protocol):
+def preflight(store, p, r, old, protocol, inbounds=None):
     if r.get('deleted') and (not old or old.get('deleted')):
         return old.get('observedHash') if old else None
     a = adapter(protocol)
-    current = a.snapshot(store, p, r)
+    current = a.snapshot(store, p, r, inbounds=inbounds) if protocol == 'vless' else a.snapshot(store, p, r)
     guard(store, p, r, old, protocol, current)
     a.build(store, p, r, old, current, preview=True)
     return current['fingerprint']
@@ -177,11 +177,12 @@ def apply(store, req, p, r, old, protocol, checkpoint):
         store.event(req['id'], protocol + '_applying', checkpoint + 1, req['count'])
 
 
-def state(store, saved, protocol, pending_job=None):
+def state(store, saved, protocol, pending_job=None, inbounds=None):
     p = {'workspaceId': saved['workspaceId'], 'panelId': saved.get('panelId')}
     row = None
     try:
-        observed = adapter(protocol).snapshot(store, p, saved['spec'])
+        a = adapter(protocol)
+        observed = a.snapshot(store, p, saved['spec'], inbounds=inbounds) if protocol == 'vless' else a.snapshot(store, p, saved['spec'])
         row = observed.get('row') if protocol == 'vless' else observed.get('resource')
     except VlessError as error:
         if getattr(error, 'code', None) in ('vpn_adoption_conflict', 'awg_conflict', 'tt_conflict'):
