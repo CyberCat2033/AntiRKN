@@ -1215,6 +1215,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get componentsChecking => 'Checking state and API';
 
   @override
+  String get componentsBuilding => 'Building executables on server';
+
+  @override
+  String componentStepProgress(int current, int total, String step) {
+    return 'Step $current of $total: $step';
+  }
+
+  @override
   String get componentsPlanSummary =>
       'Install the panel and Xray with automatic startup. Panel access is through SSH.';
 

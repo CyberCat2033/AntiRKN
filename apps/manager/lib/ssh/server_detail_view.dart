@@ -507,7 +507,15 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                       'protocol_remove' => l.uiRemoveProtocol,
                       _ => l.uiServerChanges,
                     }),
-                    subtitle: Text(runnerStateLabel(l, job.status)),
+                    subtitle: Text(
+                      !job.terminal && job.kind == 'component_install'
+                          ? componentStepProgressText(
+                              l,
+                              job.checkpoint,
+                              job.count,
+                            )
+                          : runnerStateLabel(l, job.status),
+                    ),
                   ),
               ],
             ),

@@ -2222,6 +2222,18 @@ abstract class AppLocalizations {
   /// **'Checking state and API'**
   String get componentsChecking;
 
+  /// No description provided for @componentsBuilding.
+  ///
+  /// In en, this message translates to:
+  /// **'Building executables on server'**
+  String get componentsBuilding;
+
+  /// No description provided for @componentStepProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Step {current} of {total}: {step}'**
+  String componentStepProgress(int current, int total, String step);
+
   /// No description provided for @componentsPlanSummary.
   ///
   /// In en, this message translates to:

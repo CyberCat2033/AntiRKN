@@ -79,9 +79,19 @@ class RunnerPanel extends StatelessWidget {
               Semantics(
                 liveRegion: true,
                 child: Text(
-                  active && event != null
-                      ? runnerEventLabel(l, event.code)
-                      : runnerStateLabel(l, job.status),
+                  active
+                      ? (job.kind == 'component_install'
+                          ? componentStepProgressText(
+                              l,
+                              job.checkpoint,
+                              job.count,
+                            )
+                          : (event != null
+                              ? runnerEventLabel(l, event.code)
+                              : runnerStateLabel(l, job.status)))
+                      : (failed && event != null
+                          ? runnerEventLabel(l, event.code)
+                          : runnerStateLabel(l, job.status)),
                 ),
               ),
               if (active)
@@ -143,7 +153,8 @@ class RunnerPanel extends StatelessWidget {
               ),
             SoftwareOverview(controller: c, motion: motion),
             if (c.componentPlan == null &&
-                failed &&
+                c.activeComponent == null &&
+                (active || failed) &&
                 job.kind == 'component_install')
               ComponentInstallationView(controller: c),
             AptMaintenanceView(controller: c),

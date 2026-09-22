@@ -454,6 +454,21 @@
   "componentsConfiguring": "Configuring panel in isolated network",
   "componentsStarting": "Starting service",
   "componentsChecking": "Checking state and API",
+  "componentsBuilding": "Building executables on server",
+  "componentStepProgress": "Step {current} of {total}: {step}",
+  "@componentStepProgress": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "step": {
+        "type": "String"
+      }
+    }
+  },
   "componentsPlanSummary": "Install the panel and Xray with automatic startup. Panel access is through SSH.",
   "componentsRunnerSummary": "The server job service will also be set up.",
   "componentsDetails": "Details",

@@ -93,7 +93,31 @@ class SoftwareOverview extends StatelessWidget {
           ? c.panelPlan != null || c.panelUpdatePlan != null
           : c.componentPlan?.component == key;
       final applyAction = !detected || canUpdate;
-      final action = hasPlan || c.selected?.terminal == false
+      final installingThis =
+          c.selected?.kind == 'component_install' &&
+          c.selected?.terminal == false &&
+          c.activeComponent == key;
+      final action = installingThis
+          ? SizedBox(
+              width: 80,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '${c.selected!.checkpoint}/${c.selected!.count}',
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+                  const SizedBox(height: 4),
+                  LinearProgressIndicator(
+                    value: c.selected!.count > 0 && c.selected!.checkpoint > 0
+                        ? c.selected!.checkpoint / c.selected!.count
+                        : null,
+                  ),
+                ],
+              ),
+            )
+          : hasPlan || c.selected?.terminal == false
           ? null
           : OutlinedButton(
               key: ValueKey(
@@ -179,7 +203,14 @@ class SoftwareOverview extends StatelessWidget {
           PanelUpdateView(controller: c),
         ]);
       }
-      if (c.componentPlan?.component == key) {
+      if (c.componentPlan?.component == key ||
+          (c.activeComponent == key &&
+              c.selected?.kind == 'component_install' &&
+              (c.selected?.terminal == false ||
+                  const {
+                    'failed',
+                    'partially_applied',
+                  }.contains(c.selected?.status)))) {
         content.add(ComponentInstallationView(controller: c));
       }
     }

@@ -1218,6 +1218,14 @@ class AppLocalizationsRu extends AppLocalizations {
   String get componentsChecking => 'Проверка состояния и API';
 
   @override
+  String get componentsBuilding => 'Сборка исполняемых файлов на сервере';
+
+  @override
+  String componentStepProgress(int current, int total, String step) {
+    return 'Шаг $current из $total: $step';
+  }
+
+  @override
   String get componentsPlanSummary =>
       'Установить панель и Xray с автозапуском. Доступ к панели — через SSH.';
 

@@ -45,13 +45,54 @@ class ComponentInstallationView extends StatelessWidget {
           ),
         ],
         if (c.selected?.kind == 'component_install' &&
+            c.selected?.terminal == false) ...[
+          const SizedBox(height: 8),
+          Semantics(
+            liveRegion: true,
+            child: Text(
+              componentStepProgressText(
+                l,
+                c.selected!.checkpoint,
+                c.selected!.count,
+              ),
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+          ),
+          const SizedBox(height: 6),
+          LinearProgressIndicator(
+            value: c.selected!.count > 0 && c.selected!.checkpoint > 0
+                ? c.selected!.checkpoint / c.selected!.count
+                : null,
+          ),
+          if (c.selected!.cancelRequested) ...[
+            const SizedBox(height: 4),
+            Text(l.runnerCancelRequested),
+          ],
+          const SizedBox(height: 4),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton(
+              key: const ValueKey('component-cancel'),
+              onPressed:
+                  !c.busy && !c.actionPending && !c.selected!.cancelRequested
+                      ? () async {
+                          if (await c.ensureReady()) await c.cancelJob();
+                        }
+                      : null,
+              child: Text(l.runnerCancel),
+            ),
+          ),
+        ],
+        if (c.selected?.kind == 'component_install' &&
             const {
               'failed',
               'partially_applied',
             }.contains(c.selected?.status)) ...[
+          const SizedBox(height: 8),
           if (c.selected?.status == 'partially_applied')
             Text(l.componentsPartial),
           TextButton(
+            key: const ValueKey('component-retry'),
             onPressed: c.canRequestAction ? c.retryJob : null,
             child: Text(l.runnerRetry),
           ),
@@ -59,6 +100,27 @@ class ComponentInstallationView extends StatelessWidget {
       ],
     );
   }
+}
+
+String componentActiveStepLabel(AppLocalizations l, int checkpoint) =>
+    switch (checkpoint) {
+      0 => l.protocolPrepared,
+      1 => l.componentsDownloading,
+      2 => l.componentsBuilding,
+      3 => l.componentsExtracting,
+      4 => l.protocolSwitched,
+      5 => l.componentsChecking,
+      _ => l.uiOperationPending,
+    };
+
+String componentStepProgressText(
+  AppLocalizations l,
+  int checkpoint,
+  int total,
+) {
+  final current = (checkpoint + 1).clamp(1, total > 0 ? total : 1);
+  final stepLabel = componentActiveStepLabel(l, checkpoint);
+  return l.componentStepProgress(current, total > 0 ? total : 6, stepLabel);
 }
 
 class ComponentUpdateSettings extends StatelessWidget {

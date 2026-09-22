@@ -116,6 +116,7 @@ class RunnerController extends ChangeNotifier {
   bool panelLoginRequired = false;
   ComponentPlan? componentPlan;
   RunnerInstallation? componentRunnerPlan;
+  String? activeComponent;
 
   Map<String, dynamic>? panelDiscovery;
   PanelAccess? panelAccess;
@@ -239,11 +240,15 @@ class RunnerController extends ChangeNotifier {
     panelAccess = null;
     panelDiscovery = null;
     panelVerifiedAt = null;
+    activeComponent = null;
     _identity = current;
     if (raw != null) {
       final json = decodeRunnerObject(raw);
       if (json['version'] != 1) throw const RunnerFailure(RunnerIssue.storage);
       if (json['identity'] == current) {
+        if (json['activeComponent'] case final String comp) {
+          activeComponent = comp;
+        }
         if (json['operation'] case final Map metadata) {
           operation = ServerOperation.fromJson(metadata);
           operation!.validatePending(json['pending'] as Map?);
@@ -262,6 +267,9 @@ class RunnerController extends ChangeNotifier {
         }
         if (json['pending'] case final Map request) {
           pending = RunnerRequest.fromJson(Map<String, Object?>.from(request));
+          if (pending?.json['component'] case final String comp) {
+            activeComponent ??= comp;
+          }
         }
         cursor = json['cursor'] as int;
         if (cursor < 0 || cursor > (selected?.sequence ?? 0)) {
@@ -298,6 +306,7 @@ class RunnerController extends ChangeNotifier {
           : selected?.toJson(),
       'cursor': observesOperation ? (previous?['cursor'] ?? 0) : cursor,
       if (operation != null) 'operation': operation!.toJson(),
+      if (activeComponent != null) 'activeComponent': activeComponent,
       'panelDiscovery': panelDiscovery,
       'panelAccess': panelAccess?.toJson(),
       'panelVerifiedAt': panelVerifiedAt?.toUtc().toIso8601String(),
@@ -855,6 +864,9 @@ class RunnerController extends ChangeNotifier {
   void dismissJob() {
     if (selected?.terminal == true) {
       dismissedJobId = selected!.id;
+      if (selected?.kind == 'component_install') {
+        activeComponent = null;
+      }
       _notify();
     }
   }
@@ -1087,6 +1099,7 @@ class RunnerController extends ChangeNotifier {
 
   Future<void> prepareComponent(String component) =>
       _run((remote, token) async {
+        activeComponent = component;
         panelPlan = null;
         panelUpdatePlan = null;
         aptPlan = null;
@@ -1123,6 +1136,9 @@ class RunnerController extends ChangeNotifier {
     if (busy) return;
     componentPlan = null;
     componentRunnerPlan = null;
+    if (selected == null || selected?.terminal == true) {
+      activeComponent = null;
+    }
     _notify();
   }
 
@@ -1316,6 +1332,7 @@ class RunnerController extends ChangeNotifier {
     if (!canApplyComponent) return Future.value();
     final plan = componentPlan!;
     final runnerPlan = componentRunnerPlan!;
+    activeComponent = plan.component;
     return _run((remote, token) async {
       final current = await remote.request(
         RunnerRequest.componentPlan(plan.component),
