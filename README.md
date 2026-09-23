@@ -1,90 +1,22 @@
 # AntiRKN
 
-Разрабатываемое приложение управления VPN-инфраструктурой для Linux, Windows и Android. Текущий объём и фактическая приёмка — в [прогрессе](docs/progress.md).
+AntiRKN is an app for managing personal VPN infrastructure on Android, Linux and Windows. It connects to your Ubuntu server over SSH, manages VLESS, AmneziaWG and TrustTunnel connections, creates client configurations, and can synchronize the workspace through your own Google Drive account. The app is under active development; this repository contains source code, not a signed release.
 
-Реализованы:
+Google Drive access is used for two features:
 
-- Общий компилятор Mihomo: отбор подтверждённых доступов пользователя, детерминированный YAML, сохранение политики `base.yml`, диагностика ссылок/циклов/пустых групп.
-- Выбор базового `.yml`/`.yaml` системным файловым диалогом и независимая копия содержимого в памяти. Отмена и ошибка чтения сохраняют текущий текст.
-- Предпросмотр групп из редактируемого шаблона и тестовых имён узлов, явно отмеченных в интерфейсе.
-- Адаптивная навигация, общие темы и reduced motion.
-- Русский/английский интерфейс, автовыбор по ОС и сохраняемый ручной выбор в настройках. Язык не меняет YAML и черновики.
-- Раздел «Сервер»: вход по SSH паролем, приватным ключом из системного диалога или через локальный SSH-agent Linux. Подтверждение отпечатка до аутентификации, закрепление доверия и блокировка замены ключа.
-- Настоящий каталог IPv4/IPv6, routes/rules Ubuntu x86_64 без ограничения версии Ubuntu и общий выбор адреса службы/клиента. Ошибки обновления сохраняют предыдущий каталог и выбор.
-- Несколько серверов, SSH jump, фактические root/sudo-права, сохранённые наблюдения и SQLite с AEAD-шифрованием credentials. Данные открываются автоматически; мастер-пароль нужен только для переноса старого vault.
-- Резервная копия рабочего пространства в зашифрованный `.antirkn` с отдельным паролем; импорт с просмотром состава и атомарной заменой данных. [Формат и границы](docs/adr/0015-workspace-backup.md).
-- Установка и обновление TrustTunnel/AmneziaWG через подтверждённый план; проверка новых релизов с устройства, сохраняемые настройки отключения, backup и восстановление. [Описание и границы](docs/adr/0012-component-installation-updates.md).
-- Клиенты и несколько VLESS RAW/XHTTP-инбаундов, персональные доступы и YAML.
-- Установка 3x-ui/Xray через подтверждённый GUI-план и долговременное задание systemd. Закреплённый архив, закрытая первоначальная настройка, API через SSH, журнал, отмена и восстановление. [Описание и границы](docs/adr/0010-panel-installation.md).
+- `drive.appdata`: synchronize encrypted workspace data between your devices in the private app data folder.
+- `drive.file`: create and update configuration files that you choose to publish in your Drive. A published file may be shared by its link according to the access setting you select.
 
-Установка требует Ubuntu x86_64 с Python 3.8+/SQLite, systemd 235+, nsenter, ca-certificates и достаточным местом. Существующие установки не перезаписываются. Настройка endpoint/ACME/peers TrustTunnel/AWG, обновления 3x-ui/APT, синхронизация, hardening, scanner и публикация остаются будущими стадиями. SSH-вход выполняет инвентаризацию; установка начинается только после подтверждения плана. Шаблон и настройки сохраняются локально.
+The app displays your Google account name and email to identify the connected account. OAuth tokens remain in local application storage. [Privacy policy](PRIVACY.md) · [Google Drive setup](docs/google-drive-setup.md)
 
-## Запуск
+## Build from source
 
-Нужен согласованный Flutter SDK 3.41.x с Dart 3.11.x и инструментами целевой платформы. Точная локальная среда и её ограничения описаны в [compatibility.md](docs/compatibility.md). `pubspec.lock` хранится в корне workspace.
+Install Flutter 3.41.x with Dart 3.11.x and the platform tools for your target system. From the repository root:
 
 ```sh
 flutter pub get --enforce-lockfile
 cd apps/manager
-flutter gen-l10n
 flutter run -d linux
 ```
 
-Windows: `flutter run -d windows` на Windows с установленными native build tools. Android: `flutter run -d <device-id>`. Эти команды не означают, что соответствующие платформы уже прошли приёмку.
-
-Официальный Flutter 3.41.2 stable установлен в `/opt/flutter`, Dart 3.11.0 входит в SDK. Обычные `flutter` и `dart` запускаются через `/usr/local/bin`; Android использует Java 17. `flutter doctor` подтвердил готовность Android/Linux. [Точная версия и проверка SDK](docs/evidence/flutter-sdk.json).
-
-Собранные debug-артефакты: Linux — `apps/manager/build/linux/x64/debug/bundle/antirkn_manager`; Android — `apps/manager/build/app/outputs/flutter-apk/app-debug.apk`. На Android проверены импорт YAML системным диалогом, отмена/навигация, запуск и сохранение ручного выбора языка; полная приёмка платформ ещё не завершена. Это не подписанные релизные дистрибутивы.
-
-## Локальный сервер для тестов
-
-```bash
-./tool/test-server.sh start
-./tool/reset-test-server.sh
-./tool/run-linux.sh
-```
-
-SSH: `127.0.0.1:2222`, пользователь `root`, приватный ключ `artifacts/local-server/client`. Сброс удаляет только одноразовую VM и её ключи; данные приложения сохраняются. [Все команды, пароль/sudo и повторение испытаний](docs/local-test-server.md).
-
-## Проверки
-
-```sh
-bash tool/verify.sh
-```
-
-Тестовые YAML для самостоятельного `mihomo -t`:
-
-```sh
-dart run tool/compile_fixtures.dart /tmp/antirkn-fixtures
-mihomo -t -d /tmp/antirkn-core-test -f /tmp/antirkn-fixtures/mixed_with_ru.yml
-```
-
-Fixtures используют публичные нерабочие значения и не предназначены для подключения. Продуктовый валидатор произвольных секретных профилей пока не реализован. GUI не заявляет проверку ядром или сетевого соединения.
-
-Переводы: `apps/manager/lib/l10n/app_en.arb` и `app_ru.arb`; после изменения выполнить `flutter gen-l10n`. Generated Dart-файлы не редактировать вручную. `tool/check_workspace.py` проверяет полноту переводов, placeholders, границы зависимостей и исходный hash `base.yml`.
-
-В разделе «Шаблоны» нажмите «Выбрать YAML-файл». Корневой `base.yml` можно выбрать как пример; он не встроен в приложение. Редактор сохраняет независимую копию в зашифрованной локальной SQLite. Поддерживаются UTF-8 и файлы до 256 КиБ; исходник не перезаписывается. [Решение об импорте](docs/adr/0003-template-import.md).
-
-В разделе серверов нажмите «+», введите адрес/порт/пользователя и выберите способ входа. «Сохранить подключение» записывает зашифрованную копию; «Сохранить и подключиться» также запускает SSH. При первом входе сверьте отпечаток с консолью VPS и подтвердите доверие. После успешного входа появятся версия ОС и реальный каталог адресов.
-
-Для импорта нужен приватный ключ, например `id_ed25519`, а не `id_ed25519.pub`. На Linux диалог открывается в `~/.ssh`, если папка существует. Приложение не сохраняет связь с исходным файлом и не меняет его. SSH-agent использует `SSH_AUTH_SOCK` и запрашивает подпись локально; приватный ключ агента не копируется в приложение.
-
-Секреты защищены локальным ключом ОС; Linux без Secret Service использует приватный ключ в каталоге учётной записи (0700/0600). Отдельной разблокировки и автоблокировки нет. [Текущая модель хранения](docs/adr/0007-local-database-and-server-list.md).
-
-После подключения нажмите «Установить компоненты», выберите 3x-ui/Xray и свободный локальный порт панели, затем подготовьте и проверьте план. «Применить план» устанавливает выбранный компонент; прогресс и результат возвращаются после повторного подключения. Реквизиты панели доступны после проверки API через SSH. Это ещё не настроенный VPN: создание VLESS-доступов и выдача YAML — следующий отдельный пункт.
-
-Локальный Git-репозиторий ведётся по [AGENTS.md](AGENTS.md): после завершения каждой согласованной стадии обязательны проверки, обновление отчёта и локальный коммит.
-
-## Резервное копирование
-
-В «Настройки → Резервные копии» выберите «Создать копию», задайте отдельный пароль от 12 символов и место сохранения `.antirkn`. Файл содержит серверы, клиентов, сохранённые секреты, протокольные настройки, шаблоны, историю и очередь изменений. Для восстановления нужны этот файл и пароль; приложение пароль не сохраняет.
-
-«Восстановить из копии» показывает дату и состав перед заменой. Если текущие данные нужны, сначала экспортируйте их отдельной копией. После подтверждения SSH-сеансы закроются и приложение откроет восстановленные данные с прежними credentials. Личные настройки устройства сохранятся. Незавершённые VPN-операции требуют проверки состояния сервера и нового решения владельца; автоматическая отправка старых намерений приостановлена.
-
-Восстановление проверяется на чистом хранилище с другим локальным ключом. Копия не включает серверную файловую систему и ключи, доступные только через SSH-agent. Файл ограничен 64 МиБ; облачная синхронизация — отдельная будущая возможность. При невозможности открыть повреждённое локальное хранилище backup можно восстановить в чистой установке; отдельного стартового мастера восстановления пока нет.
-
-## Документы
-
-- [ТЗ 0.8](TECHNICAL_PLAN.md), [задание агенту](AGENT_TASK.md).
-- [Подтверждённые требования](docs/requirements.md), [архитектурные решения](docs/adr/0001-p0-workspace.md), [локализация](docs/adr/0002-localization.md).
-- [Совместимость и результаты](docs/compatibility.md), [прогресс и следующие задачи](docs/progress.md).
+For Android, configure your own Google Cloud OAuth clients as described in the [Drive setup guide](docs/google-drive-setup.md). Client secrets, OAuth tokens and user data must stay outside the repository. Local checks are available through `bash tool/verify.sh`.
