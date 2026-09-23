@@ -135,6 +135,17 @@ final class DriveFixture implements DriveHttp {
       }
       return json({'id': metadata['id']});
     }
+    if (path.startsWith('/upload/drive/v3/files/') &&
+        request.method == 'PATCH' && query['uploadType'] == 'media') {
+      final id = path.split('/').last;
+      if (!files.containsKey(id)) return json({}, 404);
+      final builder = BytesBuilder();
+      await for (final chunk in request) {
+        builder.add(chunk);
+      }
+      insert(id, files[id]!['name'] as String, builder.takeBytes());
+      return json({'id': id});
+    }
     if (path == '/drive/v3/changes/startPageToken') {
       return json({'startPageToken': '${log.length}'});
     }

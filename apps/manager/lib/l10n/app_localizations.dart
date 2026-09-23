@@ -3935,19 +3935,13 @@ abstract class AppLocalizations {
   /// No description provided for @backupSummary.
   ///
   /// In en, this message translates to:
-  /// **'Created: {date}\nServers: {servers}\nClients: {users}\nChanges: {changes}\nQueued: {pending}'**
-  String backupSummary(
-    String date,
-    int servers,
-    int users,
-    int changes,
-    int pending,
-  );
+  /// **'Created: {date}\nServers: {servers}\nClients: {users}'**
+  String backupSummary(String date, int servers, int users);
 
   /// No description provided for @backupReplaceHelp.
   ///
   /// In en, this message translates to:
-  /// **'Current servers, clients, templates and history will be replaced by the backup. Save a separate backup of your current data first if you need it. SSH connections will close. The app will reopen the restored workspace; unfinished VPN operations will require a new decision. This device’s preferences will be retained.'**
+  /// **'Current servers, clients and templates will be replaced by the backup. Save a separate backup of your current data first if you need it. SSH connections will close. The app will reopen the restored workspace; unfinished VPN operations will require a new decision. This device’s preferences will be retained.'**
   String get backupReplaceHelp;
 
   /// No description provided for @backupActiveWork.
@@ -4253,7 +4247,7 @@ abstract class AppLocalizations {
   /// No description provided for @autoSyncHelp.
   ///
   /// In en, this message translates to:
-  /// **'After saving, on opening, and every 30 seconds while the app is in the foreground.'**
+  /// **'The current snapshot uploads when the app closes or enters the background. A failed upload is retried on the next launch.'**
   String get autoSyncHelp;
 
   /// No description provided for @autoSyncDisabled.
@@ -4319,7 +4313,7 @@ abstract class AppLocalizations {
   /// No description provided for @autoSyncPairing.
   ///
   /// In en, this message translates to:
-  /// **'Sign in to the same Google account on your devices. Servers, clients and settings sync automatically while the app is open.'**
+  /// **'Sign in to the same Google account on your devices. An empty device loads the snapshot at launch; changes upload when the app closes or enters the background. Do not edit on two devices at once.'**
   String get autoSyncPairing;
 
   /// No description provided for @googleDesktopConfigurationError.
@@ -5195,7 +5189,7 @@ abstract class AppLocalizations {
   /// No description provided for @uiSyncAutomaticHelp.
   ///
   /// In en, this message translates to:
-  /// **'Changes across all your devices'**
+  /// **'Upload on background or exit'**
   String get uiSyncAutomaticHelp;
 
   /// No description provided for @uiPairDeviceHelp.

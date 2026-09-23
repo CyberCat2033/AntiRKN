@@ -59,12 +59,11 @@ class DatabaseRemote implements RunnerTransport {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late Directory directory;
-  late WorkspaceDatabase a, b;
+  late WorkspaceDatabase a;
   final stores = <WorkspaceDatabase>[];
   final controllers = <VpnController>[];
   final runners = <RunnerController>[];
   late FailableRemote server;
-  late int baseline;
   WorkspaceDatabase open(String name) {
     final db = WorkspaceDatabase.open(
       '${directory.path}/$name.sqlite',
@@ -72,26 +71,6 @@ void main() {
     );
     stores.add(db);
     return db;
-  }
-
-  Future<void> copyToB() async {
-    final backup = await a.createBackup('public-operation-fixture');
-    final target = open('b');
-    await target.restoreBackup(
-      await target.prepareRestore(backup, 'public-operation-fixture'),
-    );
-    await target.close();
-    b = open('b');
-    baseline = (await a.readChanges()).last.header.sequence;
-  }
-
-  Future<void> sync(WorkspaceDatabase source, WorkspaceDatabase target) async {
-    final packets = await source.preparePendingPackets();
-    final status = await target.receiveSyncPackets(
-      packets.map((p) => p.bytes).toList(),
-    );
-    expect(status.conflicts, isEmpty);
-    expect(status.blockedGroups, 0);
   }
 
   VpnController control(WorkspaceDatabase db, {bool online = true}) {
@@ -164,96 +143,6 @@ void main() {
   });
 
   test(
-    'received running operation is observed after restart without submit or outbox echo',
-    () async {
-      await copyToB();
-      final owner = control(a);
-      await owner.load();
-      server.running = true;
-      await owner.prepare();
-      await owner.apply();
-      final id = owner.operation('one')!.operationId;
-      expect(owner.operation('one')!.expectedRevision, 'e' * 64);
-      await sync(a, b);
-      final receiver = control(b);
-      await receiver.load();
-      final before = (await b.readChanges()).length;
-      server.actions.clear();
-      await receiver.reconcile();
-      expect(receiver.error, isNull);
-      expect(receiver.observesOperation('one'), isTrue);
-      expect(
-        receiver.hasRunning,
-        isFalse,
-        reason: 'Observation must not starve incoming completion sync',
-      );
-      expect(receiver.currentJob('one')!.id, id);
-      expect(receiver.currentJob('one')!.status, 'running');
-      expect(server.actions, ['status']);
-      expect((await b.readChanges()).length, before);
-      final next = control(b);
-      await next.load();
-      server.actions.clear();
-      await next.reconcile();
-      expect(next.currentJob('one')!.id, id);
-      expect(server.actions, ['status']);
-      await next.takeOver('one');
-      expect(
-        next.observesOperation('one'),
-        isTrue,
-        reason: 'Running work needs no resubmission or ownership change',
-      );
-      expect(server.actions, ['status', 'status']);
-    },
-  );
-
-  test(
-    'missing job needs explicit takeover and keeps ID, fingerprint and personal keys',
-    () async {
-      await copyToB();
-      final owner = control(a);
-      await owner.load();
-      await owner.prepare();
-      server.failBeforeSubmit = true;
-      await owner.apply();
-      final id = owner.operation('one')!.operationId;
-      expect(server.submissions, isEmpty);
-      await sync(a, b);
-      final receiver = control(b);
-      await receiver.load();
-      server.actions.clear();
-      await receiver.reconcile();
-      expect(server.actions, ['status']);
-      expect(receiver.currentJob('one'), isNull);
-      await receiver.takeOver('one');
-      expect(receiver.error, isNull);
-      expect(server.submissions.keys, [id]);
-      expect(
-        receiver.operation('one')!.executorDeviceId,
-        (await b.readWorkspaceIdentity()).deviceId,
-      );
-      expect(receiver.workspace.servers['one']!['pending'], isNull);
-      expect(
-        server.actions.indexOf('status'),
-        lessThan(server.actions.indexOf('submit')),
-      );
-      // Deliver the handoff and result to the original device. Its still-open
-      // controller cannot write or submit from the stale local snapshot.
-      await sync(b, a);
-      server.actions.clear();
-      await owner.reconcile();
-      expect(owner.error, anyOf('sync_conflict', 'vpn_storage_conflict'));
-      expect(server.actions, isNot(contains('submit')));
-      final reloaded = control(a);
-      await reloaded.load();
-      expect(
-        reloaded.operation('one')!.executorDeviceId,
-        (await b.readWorkspaceIdentity()).deviceId,
-      );
-    },
-  );
-
-  test(
     'unsynced edits fence an old controller before submit, preserving the new revision',
     () async {
       final owner = control(a);
@@ -274,71 +163,6 @@ void main() {
         VpnWorkspace.decode((await a.readVpn()).source!).users.single.enabled,
         isFalse,
       );
-    },
-  );
-
-  test(
-    'two offline approvals retain their conflict and block execution after delivery',
-    () async {
-      // Persist the panel binding before branching to allow offline approval.
-      final initial = control(a);
-      await initial.load();
-      await initial.prepare();
-      await initial.apply();
-      await copyToB();
-      final left = control(a, online: false), right = control(b, online: false);
-      await left.load();
-      await right.load();
-      await left.saveUser(
-        VpnUser(id: vpn.alice, login: 'alice', name: 'Left', enabled: false),
-      );
-      await right.saveUser(
-        VpnUser(id: vpn.alice, login: 'alice', name: 'Right', enabled: false),
-      );
-      await left.prepare();
-      await right.prepare();
-      await left.apply();
-      await right.apply();
-      expect(left.error, isNull);
-      expect(right.error, isNull);
-      expect(
-        left.operation('one')!.operationId,
-        isNot(right.operation('one')!.operationId),
-      );
-      final status = await a.receiveSyncPackets(
-        (await b.preparePendingPackets(
-          afterSequence: baseline,
-        )).map((p) => p.bytes).toList(),
-      );
-      expect(status.conflicts, isNotEmpty);
-      server.actions.clear();
-      final stale = control(a);
-      await stale.load();
-      await stale.reconcile();
-      expect(stale.error, 'sync_conflict');
-      expect(server.actions, isNot(contains('submit')));
-    },
-  );
-
-  test(
-    'unknown server fate prevents takeover and leaves executor unchanged',
-    () async {
-      await copyToB();
-      final owner = control(a);
-      await owner.load();
-      await owner.prepare();
-      server.failBeforeSubmit = true;
-      await owner.apply();
-      await sync(a, b);
-      final receiver = control(b);
-      await receiver.load();
-      final before = (await b.readVpn()).source;
-      server.statusUnavailable = true;
-      await receiver.takeOver('one');
-      expect(receiver.error, 'vpn_connection');
-      expect(receiver.observesOperation('one'), isTrue);
-      expect((await b.readVpn()).source, before);
-      expect(server.submissions, isEmpty);
     },
   );
 
@@ -384,43 +208,4 @@ void main() {
     },
   );
 
-  test(
-    'received generic runner request reads status, explicit retry transfers the same ID',
-    () async {
-      await copyToB();
-      final mirror = MemoryRunnerJournal();
-      final remote = FakeRunnerTransport(mirror)..installed = true;
-      final owner = runner(a, remote);
-      await owner.refresh();
-      // Use public diagnostic action to record a complete durable intent.
-      remote.loseSubmitResponse = true;
-      await owner.startDiagnostic();
-      expect(owner.pending, isNotNull);
-      final id = owner.pending!.id;
-      expect(
-        owner.operation!.executorDeviceId,
-        (await a.readWorkspaceIdentity()).deviceId,
-      );
-      await sync(a, b);
-      final received = runner(b, remote);
-      final before = await b.readRunnerJournal('one');
-      await received.refresh();
-      expect(received.observesOperation, isTrue);
-      expect(received.selected!.id, id);
-      expect(remote.submissions, 1);
-      expect(await b.readRunnerJournal('one'), before);
-      // Simulate a request that never reached the runner after owner persisted it.
-      remote.job = null;
-      remote.loseSubmitResponse = false;
-      final retry = runner(b, remote);
-      await retry.restoreLocal();
-      await retry.retryPending();
-      expect(retry.error, isNull);
-      expect(remote.job!.id, id);
-      expect(
-        retry.operation!.executorDeviceId,
-        (await b.readWorkspaceIdentity()).deviceId,
-      );
-    },
-  );
 }

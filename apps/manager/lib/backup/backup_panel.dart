@@ -168,8 +168,6 @@ class _BackupDialogState extends State<_BackupDialog> {
                         summary.createdAt.toLocal().toString(),
                         summary.servers,
                         summary.users,
-                        summary.changes,
-                        summary.pending,
                       ),
                     ),
                     const SizedBox(height: AppLayout.gap),

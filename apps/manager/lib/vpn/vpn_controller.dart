@@ -144,7 +144,11 @@ Map<String, ProfileResult> _compileBatch(
       results[userId] = ProfileResult(
         groups: [],
         diagnostics: [
-          ProfileDiagnostic(e.code, DiagnosticSeverity.error, subject: e.subject),
+          ProfileDiagnostic(
+            e.code,
+            DiagnosticSeverity.error,
+            subject: e.subject,
+          ),
         ],
       );
     } on FormatException catch (e) {
@@ -431,8 +435,8 @@ class VpnController extends ChangeNotifier {
   }
 
   bool get hasObservedRunning => workspace.servers.keys.any(
-        (id) => observesOperation(id) && currentJob(id)?.terminal != true,
-      );
+    (id) => observesOperation(id) && currentJob(id)?.terminal != true,
+  );
 
   bool get hasRunning =>
       pendingRevocations.any(
@@ -1218,18 +1222,19 @@ class VpnController extends ChangeNotifier {
   Future<void> _reconcile(CancellationToken token) async {
     _restoredTargets = await recovery?.readRestoredTargets() ?? {};
     var changed = false;
-    final reconcileTargets = {
-      ...workspace.serverIds,
-      for (final e in workspace.servers.entries)
-        if (e.value['pending'] != null ||
-            e.value['job'] != null ||
-            e.value['operation'] != null)
-          e.key,
-    }.where((id) {
-      final server = vpnServerId(id);
-      return serverIds == null ||
-          serverIds!().map(vpnServerId).contains(server);
-    }).toList();
+    final reconcileTargets =
+        {
+          ...workspace.serverIds,
+          for (final e in workspace.servers.entries)
+            if (e.value['pending'] != null ||
+                e.value['job'] != null ||
+                e.value['operation'] != null)
+              e.key,
+        }.where((id) {
+          final server = vpnServerId(id);
+          return serverIds == null ||
+              serverIds!().map(vpnServerId).contains(server);
+        }).toList();
     for (final id in reconcileTargets) {
       // A force-hidden revocation and the current desired payload may coexist
       // durably, but must never execute concurrently on the physical server.
@@ -1388,19 +1393,16 @@ class VpnController extends ChangeNotifier {
                           r['revision'] == expected,
                     ),
                   ) ||
-                  !deletedIds.every(
-                    (rid) {
-                      final obs = observations
-                          .where((r) => r['id'] == rid)
-                          .firstOrNull;
-                      return obs == null ||
-                          (obs['workspaceId'] ==
-                                  workspace.resourceWorkspaceId(id) &&
-                              obs['confirmed'] == true &&
-                              (obs['deleted'] == true ||
-                                  obs['exists'] == false));
-                    },
-                  )) {
+                  !deletedIds.every((rid) {
+                    final obs = observations
+                        .where((r) => r['id'] == rid)
+                        .firstOrNull;
+                    return obs == null ||
+                        (obs['workspaceId'] ==
+                                workspace.resourceWorkspaceId(id) &&
+                            obs['confirmed'] == true &&
+                            (obs['deleted'] == true || obs['exists'] == false));
+                  })) {
                 throw const FormatException('vpn_conflict');
               }
               record = {
@@ -1475,7 +1477,8 @@ class VpnController extends ChangeNotifier {
       'identity': r.identity,
       'panelId': r.panelId,
       'observed': observations,
-      'error': (current['error'] == 'vless_conflict' ||
+      'error':
+          (current['error'] == 'vless_conflict' ||
               current['error'] == 'vpn_conflict' ||
               current['error'] == 'vpn_adoption_conflict')
           ? null
@@ -1736,8 +1739,7 @@ class VpnController extends ChangeNotifier {
       RunnerRequest.status(request['id'] as String, 0),
       token,
     );
-    if (status.jobs.length != 1 ||
-        status.jobs.single.id != request['id']) {
+    if (status.jobs.length != 1 || status.jobs.single.id != request['id']) {
       throw const FormatException('vpn_conflict');
     }
     if (status.jobs.single.status == 'succeeded') {
@@ -1752,9 +1754,9 @@ class VpnController extends ChangeNotifier {
       return;
     }
     if (!const {
-          'failed',
-          'partially_applied',
-        }.contains(status.jobs.single.status)) {
+      'failed',
+      'partially_applied',
+    }.contains(status.jobs.single.status)) {
       throw const FormatException('vpn_conflict');
     }
     await _record(id, {
@@ -1877,11 +1879,13 @@ class VpnController extends ChangeNotifier {
 
     // 1. Pre-connect all distinct physical servers concurrently
     final physicalServers = targets.map(vpnServerId).toSet().toList()..sort();
-    await Future.wait(physicalServers.map((serverId) async {
-      try {
-        await ensureConnected(serverId);
-      } catch (_) {}
-    }));
+    await Future.wait(
+      physicalServers.map((serverId) async {
+        try {
+          await ensureConnected(serverId);
+        } catch (_) {}
+      }),
+    );
     if (_disposed) return null;
     token.check();
 
@@ -1919,7 +1923,8 @@ class VpnController extends ChangeNotifier {
         'identity': r.identity,
         'panelId': r.panelId,
         'observed': observations,
-        'error': (current['error'] == 'vless_conflict' ||
+        'error':
+            (current['error'] == 'vless_conflict' ||
                 current['error'] == 'vpn_conflict' ||
                 current['error'] == 'vpn_adoption_conflict')
             ? null
@@ -2013,21 +2018,10 @@ class VpnController extends ChangeNotifier {
             result.yaml != null &&
             !result.hasBlockingErrors &&
             histories[user.id]?['hash'] != result.sha256Hash) {
-          final previous = histories[user.id];
-          final history = [
-            if (previous != null)
-              {
-                'hash': previous['hash'],
-                'yaml': previous['yaml'],
-                'at': previous['at'],
-              },
-            ...?previous?['history'] as List?,
-          ].take(5).toList();
           histories[user.id] = {
             'hash': result.sha256Hash,
             'yaml': result.yaml,
             'at': DateTime.now().toUtc().toIso8601String(),
-            'history': history,
           };
           changed = true;
         }
@@ -2053,18 +2047,18 @@ class VpnController extends ChangeNotifier {
 
 final class _TargetPollResult {
   const _TargetPollResult.success(this.target, this.remote, this.observations)
-      : error = null,
-        rethrowError = null;
+    : error = null,
+      rethrowError = null;
 
   const _TargetPollResult.error(this.target, this.error)
-      : remote = null,
-        observations = null,
-        rethrowError = null;
+    : remote = null,
+      observations = null,
+      rethrowError = null;
 
   const _TargetPollResult.fatal(this.target, this.rethrowError)
-      : remote = null,
-        observations = null,
-        error = null;
+    : remote = null,
+      observations = null,
+      error = null;
 
   final String target;
   final VpnRemote? remote;
@@ -2072,4 +2066,3 @@ final class _TargetPollResult {
   final String? error;
   final Object? rethrowError;
 }
-

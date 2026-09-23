@@ -20,7 +20,7 @@ void main() {
   late Directory sourceDirectory, directory;
   late Uint8List backup;
   late WorkspaceIdentity sourceIdentity;
-  late List<LocalChange> changes, pending;
+  late List<LocalChange> changes;
   late String source;
   final stores = <WorkspaceDatabase>[];
   WorkspaceDatabase open([String name = 'destination']) {
@@ -46,7 +46,6 @@ void main() {
       await removed.saveProfile(null);
       changes = await db.readChanges();
       await db.acknowledgeChanges([changes.first.header.changeId]);
-      pending = await db.readPendingChanges();
       backup = await db.createBackup(password);
       source = await BackupEnvelope.open(backup, password);
     } finally {
@@ -68,7 +67,7 @@ void main() {
   });
 
   test(
-    'portable restore retains all credentials, revisions, tombstones and outbox with a new device identity',
+    'portable restore retains current credentials and revisions with a new device identity',
     () async {
       final db = open();
       final original = await db.readWorkspaceIdentity();
@@ -80,8 +79,6 @@ void main() {
       final plan = await db.prepareRestore(backup, password);
       expect(plan.summary.servers, 1);
       expect(plan.summary.users, 1);
-      expect(plan.summary.changes, changes.length);
-      expect(plan.summary.pending, pending.length);
       expect(plan.toString(), isNot(contains(fixtureSecret)));
       await db.restoreBackup(plan);
       await expectLater(
@@ -99,31 +96,33 @@ void main() {
       expect(server.revision, 7);
       expect(server.profile.secrets, fixtureServer().secrets);
       expect(server.profile.hostKey!.fingerprint, 'SHA256:fixture-trust');
-      expect((await restored.readVpn()).source, fixtureVpn().encode());
+      expect((await restored.readVpn()).source, fixtureCurrentVpnSource());
       expect((await restored.readVpn()).revision, 9);
       expect(await restored.readDraft(), 'private-template-fixture');
       expect(
         await restored.readRunnerJournal(fixtureServerId),
         contains('private-runner-fixture'),
       );
-      expect(history(await restored.readChanges()), history(changes));
-      expect(history(await restored.readPendingChanges()), history(pending));
+      expect((await restored.readChanges()).length, lessThan(changes.length));
+      expect(source, isNot(contains('"changes"')));
+      expect(source, isNot(contains('"outbox"')));
+      expect(source, isNot(contains('"incoming"')));
+      expect(source, isNot(contains('"syncPackets"')));
+      expect(source, isNot(contains('private-old-yaml-fixture')));
       expect(await restored.readLanguage(), AppLanguage.en);
       expect(await restored.readSetting('theme'), 'light');
       expect(await restored.readRestoredTargets(), {fixtureServerId});
       await restored.approveRestoredTargets([fixtureServerId]);
       expect(await restored.readRestoredTargets(), isEmpty);
-      await expectLater(
-        (await restored.openServer(
-          'deleted-fixture',
-        )).saveProfile(fixtureServer()),
-        throwsA(isA<VaultFailure>()),
-      );
+      await (await restored.openServer(
+        'deleted-fixture',
+      )).saveProfile(fixtureServer());
+      final beforeEdit = await restored.readChanges();
       await restored.writeDraft('edited after restore');
       final last = (await restored.readChanges()).last;
       expect(last.header.deviceId, identity.deviceId);
-      expect(last.header.sequence, changes.length + 1);
-      final old = changes.singleWhere(
+      expect(last.header.sequence, beforeEdit.length + 1);
+      final old = beforeEdit.singleWhere(
         (e) => e.header.entityKind == ChangeEntityKind.template,
       );
       expect(last.header.baseChangeId, old.header.changeId);
@@ -171,19 +170,18 @@ void main() {
   );
 
   test(
-    'valid encryption cannot hide an inconsistent snapshot, broken causal chain or unknown format',
+    'valid encryption cannot hide invalid current records or unknown format',
     () async {
       final db = open();
       await db.writeDraft('keep');
       for (final mutate in <void Function(Map<String, dynamic>)>[
         (data) => data['version'] = 99,
-        (data) => (data['changes'] as List).removeLast(),
         (data) =>
-            ((data['changes'] as List)[1]['header'] as Map)['baseChangeId'] =
-                'a' * 32,
+            (data['servers'] as List).add((data['servers'] as List).first),
+        (data) => (data['documents'] as List).first['revision'] = 0,
         (data) =>
             ((data['documents'] as List).first as Map)['source'] = 'modified',
-        (data) => (data['outbox'] as List).add('f' * 32),
+        (data) => data['outbox'] = <String>['f' * 32],
       ]) {
         final data = jsonDecode(source) as Map<String, dynamic>;
         mutate(data);
@@ -198,7 +196,7 @@ void main() {
   );
 
   test(
-    'concurrent edit or acknowledgement invalidates preview; device preferences are retained',
+    'concurrent edit invalidates preview; device preferences are retained',
     () async {
       final db = open(), second = open();
       await db.writeDraft('before');
@@ -209,14 +207,6 @@ void main() {
         throwsA(failure(BackupIssue.changed)),
       );
       expect(await db.readDraft(), 'concurrent');
-      final acknowledged = await db.prepareRestore(backup, password);
-      await second.acknowledgeChanges([
-        (await second.readPendingChanges()).first.header.changeId,
-      ]);
-      await expectLater(
-        db.restoreBackup(acknowledged),
-        throwsA(failure(BackupIssue.changed)),
-      );
       final retained = await db.prepareRestore(backup, password);
       await second.writeLanguage(AppLanguage.ru);
       await db.restoreBackup(retained);
@@ -365,6 +355,64 @@ void main() {
   );
 
   test(
+    'repeated edits do not grow the portable archive with history',
+    () async {
+      final db = open();
+      for (var i = 0; i < 200; i++) {
+        await db.writeDraft('current-$i');
+      }
+      final bytes = await db.createBackup(password);
+      final source = await BackupEnvelope.open(bytes, password);
+      expect(bytes.length, lessThan(4096));
+      expect(source, contains('current-199'));
+      expect(source, isNot(contains('current-198')));
+      expect(source, isNot(contains('"changes"')));
+    },
+  );
+
+  test('runner job keeps current status without old progress events', () async {
+    final db = open();
+    const serverId = 'runner-fixture';
+    final journal = jsonEncode({
+      'version': 1,
+      'identity': 'fixture',
+      'pending': null,
+      'selected': {
+        'id': '1' * 32,
+        'kind': 'diagnostic',
+        'status': 'succeeded',
+        'checkpoint': 1,
+        'count': 1,
+        'interval': 1,
+        'sequence': 1,
+        'cancelRequested': false,
+        'events': [
+          {
+            'sequence': 1,
+            'timestamp': 1,
+            'code': 'succeeded',
+            'progress': 1,
+            'total': 1,
+          },
+        ],
+      },
+      'cursor': 1,
+    });
+    await db.writeRunnerJournal(serverId, journal);
+    final source = await BackupEnvelope.open(
+      await db.createBackup(password),
+      password,
+    );
+    final row = ((jsonDecode(source) as Map)['documents'] as List)
+        .cast<Map>()
+        .singleWhere((record) => record['id'] == 'runner/$serverId');
+    final selected =
+        (jsonDecode(row['source'] as String) as Map)['selected'] as Map;
+    expect(selected['status'], 'succeeded');
+    expect(selected['events'], isEmpty);
+  });
+
+  test(
     'restore survives a separate process exiting before SQLite close',
     () async {
       final db = open();
@@ -384,8 +432,7 @@ void main() {
       expect(worker.stdout, contains('backup_fixture_committed_without_close'));
       final restored = open();
       expect(await restored.readDraft(), 'private-template-fixture');
-      expect(history(await restored.readChanges()), history(changes));
-      expect(history(await restored.readPendingChanges()), history(pending));
+      expect((await restored.readChanges()).length, lessThan(changes.length));
       expect(
         (await restored.listServers()).single.profile.secrets,
         fixtureServer().secrets,

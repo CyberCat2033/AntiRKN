@@ -829,8 +829,8 @@
   "backupFileError": "Could not read or save the file. Check access and try again.",
   "backupWorking": "Processing backup…",
   "backupSaved": "Encrypted backup saved.",
-  "backupSummary": "Created: {date}\nServers: {servers}\nClients: {users}\nChanges: {changes}\nQueued: {pending}",
-  "backupReplaceHelp": "Current servers, clients, templates and history will be replaced by the backup. Save a separate backup of your current data first if you need it. SSH connections will close. The app will reopen the restored workspace; unfinished VPN operations will require a new decision. This device’s preferences will be retained.",
+  "backupSummary": "Created: {date}\nServers: {servers}\nClients: {users}",
+  "backupReplaceHelp": "Current servers, clients and templates will be replaced by the backup. Save a separate backup of your current data first if you need it. SSH connections will close. The app will reopen the restored workspace; unfinished VPN operations will require a new decision. This device’s preferences will be retained.",
   "backupActiveWork": "Wait for the current operation or data save to finish, then try again.",
   "backupClose": "Close",
   "backupCancel": "Cancel",
@@ -846,12 +846,6 @@
         "type": "int"
       },
       "users": {
-        "type": "int"
-      },
-      "changes": {
-        "type": "int"
-      },
-      "pending": {
         "type": "int"
       }
     }
@@ -938,7 +932,7 @@
   "googleReauthorize": "Please sign in to Google again.",
   "googleUnavailable": "Google sign-in is unavailable. Check Google Play services and try again.",
   "autoSyncTitle": "Automatic sync",
-  "autoSyncHelp": "After saving, on opening, and every 30 seconds while the app is in the foreground.",
+  "autoSyncHelp": "The current snapshot uploads when the app closes or enters the background. A failed upload is retried on the next launch.",
   "autoSyncDisabled": "Automatic sync is off.",
   "autoSyncWaiting": "Waiting to sync",
   "autoSyncWorking": "Exchanging data with Google Drive…",
@@ -949,7 +943,7 @@
   "autoSyncError": "The exchange did not finish. Your data is saved; the app will retry automatically.",
   "autoSyncNow": "Sync now",
   "autoSyncLast": "Last exchange: {time}",
-  "autoSyncPairing": "Sign in to the same Google account on your devices. Servers, clients and settings sync automatically while the app is open.",
+  "autoSyncPairing": "Sign in to the same Google account on your devices. An empty device loads the snapshot at launch; changes upload when the app closes or enters the background. Do not edit on two devices at once.",
   "@autoSyncLast": {
     "placeholders": {
       "time": {
@@ -1137,7 +1131,7 @@
   "uiUpdatesShort": "Updates",
   "uiUpdatesAutomaticHelp": "New versions of server components",
   "uiUpdatesSuggestionsHelp": "Notify about available updates",
-  "uiSyncAutomaticHelp": "Changes across all your devices",
+  "uiSyncAutomaticHelp": "Upload on background or exit",
   "uiPairDeviceHelp": "Sign in to the same Google account",
   "uiPublicProfileHelp": "The profile is available by direct link. Open the client to get its QR code and link.",
   "uiPublicationAutoHelp": "Save changes at the same profile links",

@@ -39,6 +39,26 @@ DriveHttpResponse reply(
 );
 
 void main() {
+  test('one named snapshot is updated in place with its account key', () async {
+    final fixture = DriveFixture();
+    await fixture.start();
+    addTearDown(fixture.close);
+    final store = GoogleDriveSyncStore(tokens: FixtureTokens(), http: fixture);
+    expect(await store.findSnapshot(), isNull);
+    final key = Uint8List.fromList(List.filled(32, 7));
+    await store.createSnapshotKey(key);
+    expect(await store.readSnapshotKey(), key);
+    await store.writeSnapshot(null, Uint8List.fromList([1, 2]));
+    final first = (await store.findSnapshot())!;
+    await store.writeSnapshot(first.id, Uint8List.fromList([3, 4, 5]));
+    final next = (await store.findSnapshot())!;
+    expect(next.id, first.id);
+    expect(next.version, isNot(first.version));
+    expect(await store.readSnapshot(next.id), [3, 4, 5]);
+    expect(fixture.files.values.where((f) => f['name'] == syncSnapshotName),
+        hasLength(1));
+  });
+
   test(
     'real HTTP fixture: IDs, resumable upload, duplicate, metadata/media, list and changes',
     () async {

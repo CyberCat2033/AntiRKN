@@ -45,7 +45,14 @@ void main() {
       );
       expect(await first.writeVpn(workspace.encode(), expectedRevision: 0), 1);
       final second = open();
-      expect((await second.readVpn()).source, workspace.encode());
+      final stored = VpnWorkspace.decode((await second.readVpn()).source!);
+      expect(stored.users.single.id, workspace.users.single.id);
+      expect(stored.users.single.login, workspace.users.single.login);
+      expect(stored.users.single.name, workspace.users.single.name);
+      expect(stored.servers['one']?['pending'], workspace.servers['one']?['pending']);
+      expect(stored.servers['one']?['resourceWorkspaceId'], workspace.id);
+      expect(stored.profiles['b' * 32]?['yaml'], 'private-personal-yaml');
+      expect(stored.profiles['b' * 32]?['publicationWorkspaceId'], workspace.id);
       await first.writeVpn(
         workspace
             .copy(

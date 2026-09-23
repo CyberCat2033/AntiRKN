@@ -181,20 +181,6 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
                 key: const ValueKey('google-sync-status'),
               ),
               subtitle: Text(account.email),
-              trailing: IconButton(
-                key: const ValueKey('google-sync-now'),
-                tooltip: l.autoSyncNow,
-                onPressed:
-                    _busy ||
-                        !sync.enabled ||
-                        sync.phase == AutoSyncPhase.syncing
-                    ? null
-                    : () => sync.request(
-                        immediate: true,
-                        forceRecovery: (sync.result?.waitingGroups ?? 0) > 0,
-                      ),
-                icon: const Icon(Icons.sync),
-              ),
             ),
             const Divider(indent: 17, endIndent: 17),
             if ((sync.result?.otherWorkspaces ?? 0) > 0)

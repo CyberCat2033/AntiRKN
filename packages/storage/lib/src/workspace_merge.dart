@@ -121,10 +121,7 @@ final class _WorkspaceMerge {
             result.containsKey(changeId)) {
           throw const SyncMergeFailure(SyncMergeIssue.invalid);
         }
-        final event = LocalChange(
-          header: h,
-          source: body['source'] as String?,
-        );
+        final event = LocalChange(header: h, source: body['source'] as String?);
         _decryptedEventCache[changeId] = event;
         result[changeId] = event;
       }
@@ -249,7 +246,7 @@ final class _WorkspaceMerge {
         _MergeProjection projection;
         CausalGraph graph;
         try {
-          graph = CausalGraph(next.values);
+          graph = CausalGraph(next.values, allowPrunedParents: true);
           projection = _projectMerge(graph, preferredHeads());
           _materializedDocuments(
             projection.entities,
@@ -311,7 +308,7 @@ final class _WorkspaceMerge {
     final expected = stamp();
     final all = await events(includeWaiting: true);
     final accepted = _acceptedFrom(all);
-    final graph = CausalGraph(accepted.values);
+    final graph = CausalGraph(accepted.values, allowPrunedParents: true);
     final conflicts = <SyncConflict>[];
     for (final row in db.select(
       'SELECT * FROM sync_conflicts ORDER BY entity_kind,entity_id',
@@ -360,7 +357,10 @@ final class _WorkspaceMerge {
 
   Future<void> resolve(SyncConflict conflict, String choice) async {
     final expected = stamp();
-    final graph = CausalGraph((await events()).values);
+    final graph = CausalGraph(
+      (await events()).values,
+      allowPrunedParents: true,
+    );
     final key = (conflict.kind, conflict.entityId);
     final ids = graph.tips[key] ?? [];
     if (canonicalJson(ids) != canonicalJson(conflict.changeIds) ||
@@ -405,7 +405,10 @@ final class _WorkspaceMerge {
       mergeParents: parents.skip(1).map((h) => h.changeId).toList(),
     );
     final event = LocalChange(header: header, source: chosen.source);
-    final next = CausalGraph([...graph.events.values, event]);
+    final next = CausalGraph([
+      ...graph.events.values,
+      event,
+    ], allowPrunedParents: true);
     final projection = _projectMerge(next, preferredHeads());
     final writes = await prepareWrites(projection);
     final payload = await store._encrypt(

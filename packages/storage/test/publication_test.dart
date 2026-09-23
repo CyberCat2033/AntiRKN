@@ -125,7 +125,7 @@ void main() {
     },
   );
   test(
-    'backup and encrypted sync carry settings/results but keep device queue local',
+    'single snapshot carries publication settings and results but keeps device queue local',
     () async {
       const password = 'public-publication-backup-fixture';
       await db.writePublicationDocument(
@@ -168,42 +168,27 @@ void main() {
         expect(await other.readPublicationDocument('settings'), settings);
         expect(await other.readPublicationQueue(user), isNull);
         expect(await other.readPublicationDocument('binding/$user'), binding);
-        final baseline = (await db.readChanges()).last.header.sequence;
         const result =
             '{"version":2,"binding":"fixture-operation","fileId":"private-published-fixture","registryId":"registry","head":"fixture-head","hash":"fixture","executor":"fixture-device","access":"link","url":"https://drive.google.com/uc?id=fixture","permissionId":"anyone"}';
         await db.writePublicationDocument(
-          'result/$user',
-          result,
-          expectedSource: null,
+          'result/$user', result, expectedSource: null,
         );
         final newerBinding = canonicalJson({
           ...jsonDecode(binding) as Map<String, dynamic>,
           'etag': 'new-etag',
         });
         await db.writePublicationDocument(
-          'binding/$user',
-          newerBinding,
-          expectedSource: binding,
+          'binding/$user', newerBinding, expectedSource: binding,
         );
-        final packets = await db.preparePendingPackets(afterSequence: baseline);
-        expect(packets, hasLength(2));
-        expect(
-          utf8.decode(packets.first.bytes, allowMalformed: true),
-          isNot(contains('private-published-fixture')),
+        final current = await db.createBackup(password);
+        await other.restoreBackup(
+          await other.prepareRestore(current, password),
         );
-        final pending = (await other.readPendingChanges()).length;
-        expect(
-          (await other.receiveSyncPackets(
-            packets.map((p) => p.bytes).toList(),
-          )).conflicts,
-          isEmpty,
-        );
+        await other.close();
+        other = WorkspaceDatabase.open('${dir.path}/b.sqlite', key: otherKey());
         expect(await other.readPublicationDocument('result/$user'), result);
-        expect(
-          await other.readPublicationDocument('binding/$user'),
-          newerBinding,
-        );
-        expect((await other.readPendingChanges()).length, pending);
+        expect(await other.readPublicationDocument('binding/$user'), newerBinding);
+        expect(await other.readPublicationQueue(user), isNull);
       } finally {
         await other.close();
       }

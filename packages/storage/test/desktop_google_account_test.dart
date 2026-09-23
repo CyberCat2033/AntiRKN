@@ -469,7 +469,7 @@ void main() {
   );
 
   test(
-    'desktop and Android accounts share binding; paired databases converge both ways and after restart/offline',
+    'desktop and Android accounts share one snapshot; offline upload retries without losing local data',
     () async {
       final directory = await Directory.systemTemp.createTemp(
         'desktop-android-sync-',
@@ -507,41 +507,18 @@ void main() {
         return s;
       }
 
-      Future<AutoSyncResult> drain(
-        AutoSyncSession s, {
-        WorkspaceDatabase? db,
-        bool autoResolveConflicts = true,
-      }) async {
-        for (var i = 0; i < 30; i++) {
-          final result = await s.exchange(
-            cancellation: SyncCancellation(),
-            apply: (receive) async {
-              if (!autoResolveConflicts &&
-                  db != null &&
-                  (await db.readSyncMergeStatus()).conflicts.isNotEmpty) {
-                return false;
-              }
-              await receive();
-              return true;
-            },
-          );
-          if (!result.more) return result;
-        }
-        throw StateError('exchange did not drain');
+      Future<void> upload(AutoSyncSession session, {bool retry = false}) async {
+        await session.exchange(
+          cancellation: SyncCancellation(),
+          apply: (_) async => true,
+          forceRecovery: retry,
+        );
       }
 
       final linux = database('linux', 41);
-      var android = database('android', 42);
       await linux.writeDraft('initial template');
       final desktop = service(secrets: linux.googleSessionStore());
       await desktop.signIn();
-      final archive = await linux.createBackup('public-backup-password');
-      await android.restoreBackup(
-        await android.prepareRestore(archive, 'public-backup-password'),
-      );
-      await android.close();
-      android = database('android', 42);
-      expect(await android.googleSessionStore().read(), isNull);
       final phone = AndroidGoogleAccountService(
         projectId: client.projectId,
         keys: Keys(),
@@ -552,65 +529,35 @@ void main() {
       await phone.signIn();
       expect(phone.accountKey, desktop.accountKey);
       final a = await open(linux, desktop);
-      var b = await open(android, phone);
       http.reject = true;
-      await expectLater(drain(a), throwsA(isA<SyncTransportFailure>()));
+      await expectLater(upload(a), throwsA(isA<SyncTransportFailure>()));
       http.reject = false;
-      await drain(a);
-      expect(
-        oauth.refreshes,
-        1,
-        reason: 'production cycle forwards invalidation to desktop account',
-      );
-      await drain(b);
-      await linux.writeDraft('from desktop');
-      await drain(a);
-      await drain(b);
-      expect(await android.readDraft(), 'from desktop');
-      await android.writeDraft('from phone');
-      await drain(b);
-      await drain(a);
-      expect(await linux.readDraft(), 'from phone');
-      http.offline = true;
-      await android.writeDraft('offline phone edit');
-      await expectLater(drain(b), throwsA(anything));
-      await b.close();
+      await upload(a, retry: true);
+      expect(oauth.refreshes, 1);
+
+      var android = database('android', 42);
+      expect(await android.pullCurrentSnapshot(
+        phone,
+        remote: GoogleDriveSyncStore(tokens: phone, http: http),
+      ), isTrue);
       await android.close();
       android = database('android', 42);
-      b = await open(android, phone);
+      expect(await android.readDraft(), 'initial template');
+      expect(await android.googleSessionStore().read(), isNull);
+      final b = await open(android, phone);
+      await android.writeDraft('from phone');
+      http.offline = true;
+      await expectLater(upload(b), throwsA(anything));
       http.offline = false;
-      await drain(b);
-      await drain(a);
-      expect(await linux.readDraft(), 'offline phone edit');
-      await linux.writeDraft('desktop concurrent');
-      await android.writeDraft('phone concurrent');
-      await drain(a);
-      expect(
-        (await drain(b, db: android, autoResolveConflicts: false)).conflicts,
-        greaterThan(0),
-      );
-      expect(
-        (await drain(a, db: linux, autoResolveConflicts: false)).conflicts,
-        greaterThan(0),
-      );
-      expect(await linux.readDraft(), 'desktop concurrent');
-      expect(await android.readDraft(), 'phone concurrent');
-      final conflict = (await linux.readSyncMergeStatus()).conflicts.single;
-      final chosen = conflict.variants.firstWhere(
-        (v) => v.source == 'phone concurrent',
-      );
-      await linux.resolveSyncConflict(conflict, chosen.header.changeId);
-      await drain(a);
-      await drain(b);
-      expect((await android.readSyncMergeStatus()).conflicts, isEmpty);
-      expect(await linux.readDraft(), 'phone concurrent');
-      expect(await android.readDraft(), 'phone concurrent');
-      // Restore changes workspace data but keeps this installation's Google login.
-      await a.close();
-      await linux.restoreBackup(
-        await linux.prepareRestore(archive, 'public-backup-password'),
-      );
+      await upload(b, retry: true);
+      expect(await linux.pullCurrentSnapshot(
+        desktop,
+        remote: GoogleDriveSyncStore(tokens: desktop, http: http),
+      ), isTrue);
       expect(await linux.googleSessionStore().read(), isNotNull);
+      await linux.close();
+      final refreshed = database('linux', 41);
+      expect(await refreshed.readDraft(), 'from phone');
       await desktop.close();
     },
     timeout: const Timeout(Duration(minutes: 2)),

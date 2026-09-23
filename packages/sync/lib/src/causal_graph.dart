@@ -7,7 +7,7 @@ SyncEntityKey syncEntityKey(LocalChange change) =>
 /// Pure causal graph: device clocks and transport arrival order are irrelevant.
 /// Callers admit complete transaction groups and validate entity payloads.
 final class CausalGraph {
-  CausalGraph(Iterable<LocalChange> input) {
+  CausalGraph(Iterable<LocalChange> input, {this.allowPrunedParents = false}) {
     final branchSets = <SyncEntityKey, Set<String>>{};
     final deviceSequences = <(String, int), String>{};
     for (final event in input) {
@@ -24,6 +24,7 @@ final class CausalGraph {
       final h = event.header;
       for (final id in h.parents) {
         final parent = events[id];
+        if (parent == null && allowPrunedParents) continue;
         if (parent == null ||
             syncEntityKey(parent) != syncEntityKey(event) ||
             parent.header.workspaceId != h.workspaceId ||
@@ -47,12 +48,16 @@ final class CausalGraph {
   }
   final events = <String, LocalChange>{};
   final tips = <SyncEntityKey, List<String>>{};
+  final bool allowPrunedParents;
 
   Set<String> ancestors(String id) {
     final result = <String>{}, pending = <String>[id];
     while (pending.isNotEmpty) {
       final current = pending.removeLast();
-      if (result.add(current)) pending.addAll(events[current]!.header.parents);
+      final event = events[current];
+      if (event != null && result.add(current)) {
+        pending.addAll(event.header.parents);
+      }
     }
     return result;
   }

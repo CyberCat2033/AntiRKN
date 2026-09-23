@@ -2208,19 +2208,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get backupSaved => 'Encrypted backup saved.';
 
   @override
-  String backupSummary(
-    String date,
-    int servers,
-    int users,
-    int changes,
-    int pending,
-  ) {
-    return 'Created: $date\nServers: $servers\nClients: $users\nChanges: $changes\nQueued: $pending';
+  String backupSummary(String date, int servers, int users) {
+    return 'Created: $date\nServers: $servers\nClients: $users';
   }
 
   @override
   String get backupReplaceHelp =>
-      'Current servers, clients, templates and history will be replaced by the backup. Save a separate backup of your current data first if you need it. SSH connections will close. The app will reopen the restored workspace; unfinished VPN operations will require a new decision. This device’s preferences will be retained.';
+      'Current servers, clients and templates will be replaced by the backup. Save a separate backup of your current data first if you need it. SSH connections will close. The app will reopen the restored workspace; unfinished VPN operations will require a new decision. This device’s preferences will be retained.';
 
   @override
   String get backupActiveWork =>
@@ -2396,7 +2390,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get autoSyncHelp =>
-      'After saving, on opening, and every 30 seconds while the app is in the foreground.';
+      'The current snapshot uploads when the app closes or enters the background. A failed upload is retried on the next launch.';
 
   @override
   String get autoSyncDisabled => 'Automatic sync is off.';
@@ -2436,7 +2430,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get autoSyncPairing =>
-      'Sign in to the same Google account on your devices. Servers, clients and settings sync automatically while the app is open.';
+      'Sign in to the same Google account on your devices. An empty device loads the snapshot at launch; changes upload when the app closes or enters the background. Do not edit on two devices at once.';
 
   @override
   String get googleDesktopConfigurationError =>
@@ -2923,7 +2917,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get uiUpdatesSuggestionsHelp => 'Notify about available updates';
 
   @override
-  String get uiSyncAutomaticHelp => 'Changes across all your devices';
+  String get uiSyncAutomaticHelp => 'Upload on background or exit';
 
   @override
   String get uiPairDeviceHelp => 'Sign in to the same Google account';

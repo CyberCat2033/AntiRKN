@@ -14,9 +14,9 @@ import 'package:sqlite3/sqlite3.dart';
 
 import 'profile_codec.dart';
 import 'backup_envelope.dart';
+import 'backup_file_store.dart';
 import 'secret_vault.dart';
 import 'google_session_store.dart';
-import 'sync_transport_database.dart';
 import 'package:antirkn_integrations/antirkn_integrations.dart';
 
 part 'workspace_journal.dart';
@@ -520,11 +520,7 @@ final class WorkspaceDatabase
       return _cachedWorkspace!;
     }
     final workspace = VpnWorkspace.decode(
-      await _decrypt(
-        'vpn-workspace-v1',
-        rev,
-        row['payload'] as Uint8List,
-      ),
+      await _decrypt('vpn-workspace-v1', rev, row['payload'] as Uint8List),
     );
     _cachedWorkspaceRevision = rev;
     _cachedWorkspace = workspace;
@@ -555,14 +551,34 @@ final class WorkspaceDatabase
     final events = await _merge.events();
     final headId = _merge.preferredHeads()[(ChangeEntityKind.profile, userId)];
     if (headId == null) return null;
+    if (!events.containsKey(headId)) {
+      throw const SyncMergeFailure(SyncMergeIssue.changed);
+    }
     final ancestors = <String>{};
     final waiting = [headId];
     while (waiting.isNotEmpty) {
       final id = waiting.removeLast();
       if (!ancestors.add(id)) continue;
       final event = events[id];
-      if (event == null) throw const SyncMergeFailure(SyncMergeIssue.changed);
+      if (event == null) continue;
       waiting.addAll(event.header.parents);
+    }
+    final previous = _db.select('SELECT * FROM documents WHERE id=?', [
+      'publication/result/$userId',
+    ]).firstOrNull;
+    if (previous != null) {
+      final result =
+          jsonDecode(
+                await _decrypt(
+                  'publication/result/$userId',
+                  previous['revision'] as int,
+                  previous['payload'] as Uint8List,
+                ),
+              )
+              as Map;
+      if (result['head'] case final String publishedHead) {
+        ancestors.add(publishedHead);
+      }
     }
     final bytes = Uint8List.fromList(utf8.encode(profile['yaml'] as String));
     final hash = (await Sha256().hash(
@@ -730,15 +746,13 @@ final class WorkspaceDatabase
     final rows = _db.select('SELECT * FROM documents WHERE id=?', [id]);
     if (rows.isEmpty) return null;
     final rev = rows.single['revision'] as int;
-    if (_documentCache[id] case (final cachedRev, final cachedSource)
-        when cachedRev == rev) {
+    if (_documentCache[id] case (
+      final cachedRev,
+      final cachedSource,
+    ) when cachedRev == rev) {
       return cachedSource;
     }
-    final source = await _decrypt(
-      id,
-      rev,
-      rows.single['payload'] as Uint8List,
-    );
+    final source = await _decrypt(id, rev, rows.single['payload'] as Uint8List);
     _documentCache[id] = (rev, source);
     return source;
   });

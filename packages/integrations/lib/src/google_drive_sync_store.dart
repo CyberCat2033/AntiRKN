@@ -4,7 +4,8 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'drive_http.dart';
 
 /// Drive v3 adapter for appDataFolder. No OAuth token persistence or app UI.
-final class GoogleDriveSyncStore implements SyncRemoteStore, SyncAccountStore {
+final class GoogleDriveSyncStore
+    implements SyncRemoteStore, SyncAccountStore, SyncSnapshotStore {
   GoogleDriveSyncStore({
     required SyncAccessTokenProvider tokens,
     DriveHttp? http,
@@ -237,14 +238,14 @@ final class GoogleDriveSyncStore implements SyncRemoteStore, SyncAccountStore {
   Future<void> _createObject(
     String fileId,
     String name,
-    Uint8List bytes,
-  ) async {
+    Uint8List bytes, {
+    int maxBytes = syncTransportPacketLimit,
+  }) async {
     _id(fileId);
-    if (bytes.isEmpty || bytes.length > syncTransportPacketLimit) {
+    if (bytes.isEmpty || bytes.length > maxBytes) {
       throw const SyncTransportFailure(SyncTransportIssue.invalid);
     }
-    // Durable fileId is owned by the journal. Restarting a failed upload uses
-    // a new resumable session with that SAME ID and re-sends the bounded packet.
+    // The generated ID is reused throughout this resumable creation request.
     final init = await _send(
       'POST',
       Uri.https('www.googleapis.com', '/upload/drive/v3/files', {
@@ -329,6 +330,95 @@ final class GoogleDriveSyncStore implements SyncRemoteStore, SyncAccountStore {
   @override
   Future<SyncRemotePage> listAccountKeys({String? pageToken}) =>
       _listObjects(syncAccountKeyPrefix, pageToken);
+
+  Future<SyncRemoteFile?> _singleNamed(String name) async {
+    String? page;
+    SyncRemoteFile? match;
+    do {
+      final result = await _listObjects(name, page);
+      for (final file in result.files) {
+        if (file.name != name || file.removed) continue;
+        if (match != null) {
+          throw const SyncTransportFailure(SyncTransportIssue.conflict);
+        }
+        match = file;
+      }
+      page = result.nextPageToken;
+    } while (page != null);
+    return match;
+  }
+
+  @override
+  Future<SyncRemoteFile?> findSnapshot() => _singleNamed(syncSnapshotName);
+
+  @override
+  Future<Uint8List> readSnapshot(String fileId) async {
+    _id(fileId);
+    return (await _send(
+      'GET',
+      _uri('files/$fileId', {'alt': 'media'}),
+      limit: maxWorkspaceBackupBytes,
+    )).bytes;
+  }
+
+  @override
+  Future<void> writeSnapshot(String? fileId, Uint8List bytes) async {
+    if (bytes.isEmpty || bytes.length > maxWorkspaceBackupBytes) {
+      throw const SyncTransportFailure(SyncTransportIssue.limit);
+    }
+    if (fileId == null) {
+      await _createObject(
+        await generateFileId(),
+        syncSnapshotName,
+        bytes,
+        maxBytes: maxWorkspaceBackupBytes,
+      );
+      return;
+    }
+    _id(fileId);
+    final result = _json(
+      await _send(
+        'PATCH',
+        Uri.https('www.googleapis.com', '/upload/drive/v3/files/$fileId', {
+          'uploadType': 'media',
+          'fields': 'id',
+        }),
+        contentType: 'application/octet-stream',
+        body: bytes,
+        limit: 32768,
+      ),
+    );
+    if (result['id'] != fileId) {
+      throw const SyncTransportFailure(SyncTransportIssue.conflict);
+    }
+  }
+
+  @override
+  Future<Uint8List?> readSnapshotKey() async {
+    final file = await _singleNamed(syncSnapshotKeyName);
+    if (file == null) return null;
+    if (file.size > 4096) {
+      throw const SyncTransportFailure(SyncTransportIssue.limit);
+    }
+    final bytes = await download(file.id);
+    if (bytes.length != file.size || bytes.length > 4096) {
+      throw const SyncTransportFailure(SyncTransportIssue.invalid);
+    }
+    return bytes;
+  }
+
+  @override
+  Future<void> createSnapshotKey(Uint8List bytes) async {
+    if (bytes.length != 32 || await _singleNamed(syncSnapshotKeyName) != null) {
+      throw const SyncTransportFailure(SyncTransportIssue.conflict);
+    }
+    await _createObject(
+      await generateFileId(),
+      syncSnapshotKeyName,
+      bytes,
+      maxBytes: 4096,
+    );
+  }
 
   Future<SyncRemotePage> _listObjects(String prefix, String? pageToken) async {
     if (pageToken != null) _token(pageToken);

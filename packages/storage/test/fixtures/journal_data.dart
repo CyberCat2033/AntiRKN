@@ -124,6 +124,14 @@ VpnWorkspace fixtureVpn([String id = fixtureWorkspaceId]) => VpnWorkspace(
   },
 );
 
+String fixtureCurrentVpnSource() {
+  final source = jsonDecode(fixtureVpn().encode()) as Map<String, dynamic>;
+  for (final profile in (source['profiles'] as Map).values) {
+    (profile as Map).remove('history');
+  }
+  return jsonEncode(source);
+}
+
 /// Independent writer for the shipped schema v1 and its original AAD.
 Future<void> createV1(String path, {int vpnVersion = 3}) async {
   final db = sqlite3.open(path);

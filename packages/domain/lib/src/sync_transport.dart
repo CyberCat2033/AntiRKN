@@ -91,6 +91,20 @@ abstract interface class SyncAccountStore {
   Future<void> createAccountKey(String fileId, String name, Uint8List bytes);
 }
 
+/// One mutable workspace snapshot and one account-private encryption key.
+/// Implementations reject duplicate names instead of choosing an arbitrary file.
+abstract interface class SyncSnapshotStore {
+  String get accountKey;
+  Future<SyncRemoteFile?> findSnapshot();
+  Future<Uint8List> readSnapshot(String fileId);
+  Future<void> writeSnapshot(String? fileId, Uint8List bytes);
+  Future<Uint8List?> readSnapshotKey();
+  Future<void> createSnapshotKey(Uint8List bytes);
+}
+
+const syncSnapshotName = 'antirkn-current-snapshot-v1';
+const syncSnapshotKeyName = 'antirkn-current-snapshot-key-v1';
+
 const syncAccountKeyPrefix = 'antirkn-account-key-v1-';
 
 /// Capture startToken BEFORE enumeration. Then replay changes from that token.

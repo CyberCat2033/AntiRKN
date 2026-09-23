@@ -83,11 +83,10 @@ void main() {
       await settle();
       await tester.tap(find.text('Settings').last);
       await settle();
-      await tester.scrollUntilVisible(
-        find.byKey(const ValueKey('backup-import')),
-        250,
-        scrollable: find.byType(Scrollable).first,
-      );
+      await tester.ensureVisible(find.text('Backups').last);
+      await tester.tap(find.text('Backups').last);
+      await settle();
+      await tester.ensureVisible(find.byKey(const ValueKey('backup-import')));
       await tester.pump();
       await tester.tap(find.byKey(const ValueKey('backup-import')));
       await tester.pumpAndSettle();
@@ -101,7 +100,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('backup-proceed')));
       await settle();
       expect(opened.length, 3);
-      expect(find.text('restored.example'), findsOneWidget);
+      expect(find.text('restored.example'), findsWidgets);
       expect(
         await tester.runAsync(() => opened.last.readDraft()),
         'restored-template-fixture',

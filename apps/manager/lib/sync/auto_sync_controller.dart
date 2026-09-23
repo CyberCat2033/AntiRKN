@@ -14,8 +14,8 @@ enum AutoSyncPhase {
   error,
 }
 
-/// One foreground worker per open workspace. Timers only schedule work; a
-/// canceled run is joined before changing the account or closing its database.
+/// One worker per workspace. Automatic uploads start on background/exit; at
+/// startup only a previously failed local snapshot may be retried.
 class AutoSyncController extends ChangeNotifier {
   AutoSyncController({
     required this.accountService,
@@ -43,7 +43,6 @@ class AutoSyncController extends ChangeNotifier {
   GoogleAccountIssue? accountError;
   SyncTransportIssue? transportError;
   AutoSyncSession? _session;
-  StreamSubscription<void>? _subscription;
   Timer? _timer;
   Future<void>? _running;
   Future<void>? _stopping;
@@ -52,9 +51,6 @@ class AutoSyncController extends ChangeNotifier {
       _suspended = false,
       _disposed = false,
       _again = false;
-  int _failures = 0;
-  Duration? _retryAfter;
-  DateTime? _retryAt;
 
   bool _diagnosticsPaused = false;
   Future<void> pauseDiagnostics(bool value) async {
@@ -65,7 +61,7 @@ class AutoSyncController extends ChangeNotifier {
       _cancel?.cancel();
       await _running;
     } else {
-      request();
+      _notify();
     }
   }
 
@@ -73,7 +69,6 @@ class AutoSyncController extends ChangeNotifier {
       !_disposed &&
       !_suspended &&
       !_diagnosticsPaused &&
-      _foreground &&
       enabled &&
       account != null;
   void _notify() {
@@ -81,7 +76,6 @@ class AutoSyncController extends ChangeNotifier {
   }
 
   Future<void> _initialize() async {
-    _subscription = changes.listen((_) => request());
     try {
       enabled = await settings.readSetting('googleAutoSync') != 'false';
       account = await accountService.restore();
@@ -91,7 +85,7 @@ class AutoSyncController extends ChangeNotifier {
           : enabled
           ? AutoSyncPhase.waiting
           : AutoSyncPhase.disabled;
-      request(immediate: true);
+      request(immediate: true, forceRecovery: true);
     } on GoogleAccountFailure catch (error) {
       accountError = error.issue;
       phase = AutoSyncPhase.error;
@@ -104,8 +98,6 @@ class AutoSyncController extends ChangeNotifier {
 
   bool _forceRecovery = false;
 
-  void retryRecovery() => request(immediate: true, forceRecovery: true);
-
   void request({bool immediate = false, bool forceRecovery = false}) {
     if (!_allowed) return;
     if (forceRecovery) _forceRecovery = true;
@@ -114,35 +106,20 @@ class AutoSyncController extends ChangeNotifier {
       return;
     }
     _timer?.cancel();
-    final remaining = _retryAt?.difference(DateTime.now());
     _timer = Timer(
-      remaining != null && remaining > Duration.zero && !forceRecovery
-          ? remaining
-          : immediate || forceRecovery
-          ? Duration.zero
-          : debounce,
+      immediate || forceRecovery ? Duration.zero : debounce,
       _start,
     );
   }
 
   void _start() {
     if (!_allowed || _running != null) return;
-    _retryAt = null;
     _running = _run().whenComplete(() {
       _running = null;
-      if (!_allowed) return;
-      var retry = _failures == 0
-          ? interval
-          : Duration(
-              seconds: (5 * (1 << (_failures - 1).clamp(0, 6))).clamp(5, 300),
-            );
-      if (_retryAfter != null && _retryAfter! > retry) retry = _retryAfter!;
-      if (_failures > 0) _retryAt = DateTime.now().add(retry);
-      final delay = _failures == 0 && (_again || (result?.more ?? false))
-          ? (_again ? debounce : const Duration(milliseconds: 50))
-          : retry;
-      _again = false;
-      _timer = Timer(delay, _start);
+      if (_allowed && _again) {
+        _again = false;
+        _timer = Timer(debounce, _start);
+      }
     });
   }
 
@@ -153,7 +130,6 @@ class AutoSyncController extends ChangeNotifier {
     phase = AutoSyncPhase.syncing;
     accountError = null;
     transportError = null;
-    _retryAfter = null;
     _notify();
     try {
       _session ??= await openSession();
@@ -175,7 +151,6 @@ class AutoSyncController extends ChangeNotifier {
       );
       _cancel!.check();
       result = next;
-      _failures = 0;
       phase = next.waitingForEditor
           ? AutoSyncPhase.editing
           : next.conflicts > 0
@@ -188,18 +163,14 @@ class AutoSyncController extends ChangeNotifier {
     } on GoogleAccountFailure catch (error) {
       accountError = error.issue;
       phase = AutoSyncPhase.error;
-      _failures++;
     } on SyncTransportFailure catch (error) {
       if (error.issue != SyncTransportIssue.cancelled) {
         transportError = error.issue;
-        _retryAfter = error.retryAfter;
         phase = AutoSyncPhase.error;
-        _failures++;
       }
     } catch (_) {
       transportError = SyncTransportIssue.storage;
       phase = AutoSyncPhase.error;
-      _failures++;
     } finally {
       _cancel = null;
       _notify();
@@ -207,15 +178,21 @@ class AutoSyncController extends ChangeNotifier {
   }
 
   void foreground(bool value) {
+    if (_foreground == value) return;
     _foreground = value;
-    if (value) {
+    if (!value) {
       request(immediate: true);
-    } else {
-      _timer?.cancel();
-      if (_running == null) {
-        _cancel?.cancel();
-      }
     }
+  }
+
+  /// Desktop exit can wait for the local save and the best-effort upload.
+  Future<void> flushOnExit() async {
+    await ready;
+    if (!_allowed) return;
+    _timer?.cancel();
+    final pending = _running;
+    if (pending != null) await pending;
+    await _run();
   }
 
   Future<void> setEnabled(bool value) async {
@@ -230,7 +207,6 @@ class AutoSyncController extends ChangeNotifier {
     }
     phase = value ? AutoSyncPhase.waiting : AutoSyncPhase.disabled;
     _notify();
-    request(immediate: true);
   }
 
   Future<void> suspendAccount() async {
@@ -248,15 +224,13 @@ class AutoSyncController extends ChangeNotifier {
     account = value;
     _suspended = false;
     result = null;
-    _failures = 0;
-    _retryAt = null;
     phase = value == null
         ? AutoSyncPhase.disconnected
         : enabled
         ? AutoSyncPhase.waiting
         : AutoSyncPhase.disabled;
     _notify();
-    request(immediate: true);
+    request(immediate: true, forceRecovery: true);
   }
 
   /// Owner must join this before replacing the workspace database.
@@ -267,8 +241,6 @@ class AutoSyncController extends ChangeNotifier {
     _timer?.cancel();
     _cancel?.cancel();
     await ready;
-    final subscription = _subscription;
-    if (subscription != null) await subscription.cancel();
     final pending = _running;
     if (pending != null) await pending;
     final session = _session;

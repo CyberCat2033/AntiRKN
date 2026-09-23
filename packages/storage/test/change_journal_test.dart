@@ -135,10 +135,14 @@ void main() {
           delta.any(
             (e) => e.header.entityKind == ChangeEntityKind.vpnServerState,
           ),
-          isFalse,
+          isTrue,
         );
         final latest = VpnWorkspace.decode((await reopened.readVpn()).source!);
-        expect(latest.servers, vpn.servers);
+        for (final entry in vpn.servers.entries) {
+          final stored = Map<String, dynamic>.from(latest.servers[entry.key]!);
+          expect(stored.remove('resourceWorkspaceId'), vpn.id);
+          expect(stored, entry.value);
+        }
       },
     );
   }
@@ -348,10 +352,12 @@ void main() {
       expect(user.source, isNull);
       expect(resource.header.deleted, isTrue);
       expect(jsonDecode(resource.source!)['spec']['deleted'], isTrue);
-      expect(
-        VpnWorkspace.decode((await db.readVpn()).source!).servers,
-        vpn.servers,
-      );
+      final savedServers = VpnWorkspace.decode((await db.readVpn()).source!).servers;
+      for (final entry in vpn.servers.entries) {
+        final stored = Map<String, dynamic>.from(savedServers[entry.key]!);
+        expect(stored.remove('resourceWorkspaceId'), vpn.id);
+        expect(stored, entry.value);
+      }
       await expectLater(
         db.writeVpn(vpn.encode(), expectedRevision: 1),
         throwsA(isA<VaultFailure>()),

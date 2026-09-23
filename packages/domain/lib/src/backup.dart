@@ -25,12 +25,10 @@ final class BackupSummary {
     required this.workspaceId,
     required this.servers,
     required this.users,
-    required this.changes,
-    required this.pending,
   });
   final DateTime createdAt;
   final String workspaceId;
-  final int servers, users, changes, pending;
+  final int servers, users;
 }
 
 /// An authenticated preview bound to the destination revision. Release it on

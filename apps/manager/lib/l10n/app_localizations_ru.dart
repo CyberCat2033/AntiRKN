@@ -2213,19 +2213,13 @@ class AppLocalizationsRu extends AppLocalizations {
   String get backupSaved => 'Зашифрованная резервная копия сохранена.';
 
   @override
-  String backupSummary(
-    String date,
-    int servers,
-    int users,
-    int changes,
-    int pending,
-  ) {
-    return 'Создана: $date\nСерверов: $servers\nКлиентов: $users\nИзменений: $changes\nВ очереди: $pending';
+  String backupSummary(String date, int servers, int users) {
+    return 'Создана: $date\nСерверов: $servers\nКлиентов: $users';
   }
 
   @override
   String get backupReplaceHelp =>
-      'Текущие серверы, клиенты, шаблоны и история будут заменены содержимым копии. Сначала сохраните отдельную копию текущих данных, если они нужны. SSH-соединения закроются. Приложение откроет восстановленное хранилище; незавершённые VPN-операции потребуют нового решения. Личные настройки этого устройства сохранятся.';
+      'Текущие серверы, клиенты и шаблоны будут заменены содержимым копии. Сначала сохраните отдельную копию текущих данных, если они нужны. SSH-соединения закроются. Приложение откроет восстановленное хранилище; незавершённые VPN-операции потребуют нового решения. Личные настройки этого устройства сохранятся.';
 
   @override
   String get backupActiveWork =>
@@ -2402,7 +2396,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get autoSyncHelp =>
-      'После сохранения, при открытии и каждые 30 секунд, пока приложение на экране.';
+      'Текущий снимок отправляется при уходе приложения в фон или закрытии. Незавершённая отправка повторяется при следующем запуске.';
 
   @override
   String get autoSyncDisabled => 'Автосинхронизация выключена.';
@@ -2442,7 +2436,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get autoSyncPairing =>
-      'Войдите в один Google-аккаунт на своих устройствах. Серверы, клиенты и настройки синхронизируются автоматически, пока приложение открыто.';
+      'Войдите в один Google-аккаунт на своих устройствах. Снимок загружается при запуске на пустом устройстве и отправляется при уходе приложения в фон или закрытии. Не редактируйте данные на двух устройствах одновременно.';
 
   @override
   String get googleDesktopConfigurationError =>
@@ -2928,7 +2922,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get uiUpdatesSuggestionsHelp => 'Сообщать о доступных обновлениях';
 
   @override
-  String get uiSyncAutomaticHelp => 'Изменения на всех ваших устройствах';
+  String get uiSyncAutomaticHelp => 'Отправка при закрытии или уходе в фон';
 
   @override
   String get uiPairDeviceHelp => 'Войти в тот же Google-аккаунт';

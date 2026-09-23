@@ -6,74 +6,256 @@ extension WorkspaceAutomaticSync on WorkspaceDatabase {
     SyncRemoteStore? remote,
     DriveHttp? http,
   }) async {
-    final identity = await readWorkspaceIdentity();
-    final account = tokens.accountKey;
-    final binding = (await Sha256().hash(
-      utf8.encode(
-        jsonEncode([account, identity.workspaceId, identity.deviceId]),
+    final cloud = remote ?? GoogleDriveSyncStore(tokens: tokens, http: http);
+    if (cloud is! SyncSnapshotStore || cloud.accountKey != tokens.accountKey) {
+      throw const SyncTransportFailure(SyncTransportIssue.changed);
+    }
+    return _SnapshotAutoSync(this, cloud as SyncSnapshotStore);
+  }
+
+  /// Called before controllers open. An unbound or locally edited workspace is
+  /// never replaced implicitly, including on the first launch of this format.
+  Future<bool> pullCurrentSnapshot(
+    SyncAccessTokenProvider tokens, {
+    SyncSnapshotStore? remote,
+  }) async {
+    final cloud = remote ?? GoogleDriveSyncStore(tokens: tokens);
+    if (cloud.accountKey != tokens.accountKey) {
+      throw const SyncTransportFailure(SyncTransportIssue.changed);
+    }
+    final localState = await _serial(
+      () => (
+        empty:
+            _db.select('SELECT 1 FROM servers LIMIT 1').isEmpty &&
+            _db.select('SELECT 1 FROM documents LIMIT 1').isEmpty,
+        sequence:
+            _db
+                    .select(
+                      'SELECT sequence FROM sync_identity WHERE singleton=1',
+                    )
+                    .single['sequence']
+                as int,
+        workspaceId: _journal.identity.workspaceId,
       ),
-    )).bytes.map((v) => v.toRadixString(16).padLeft(2, '0')).join();
-    final journal = await SyncTransportDatabase.open(
-      '$_path.drive-$binding.sqlite',
-      key: SecretKeyData(
-        Uint8List.fromList(await _key.extractBytes()),
-        overwriteWhenDestroyed: true,
-      ),
-      accountKey: account,
-      workspaceId: identity.workspaceId,
-      deviceId: identity.deviceId,
     );
-    final cycleTokens = _CycleTokens(tokens);
-    return _WorkspaceAutoSync(
-      this,
-      journal,
-      remote ?? GoogleDriveSyncStore(tokens: cycleTokens, http: http),
-      cycleTokens,
-    );
+    final localFile = File('$_path.current-snapshot');
+    if (await localFile.exists()) {
+      final uploaded = await readSetting('syncSnapshotUploaded');
+      final digest = (await Sha256().hash(
+        await localFile.readAsBytes(),
+      )).bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
+      if (uploaded != digest) return false;
+    }
+    if (!localState.empty &&
+        (await readSetting('syncSnapshotBound') != localState.workspaceId ||
+            await readSetting('syncSnapshotLocalSequence') !=
+                '${localState.sequence}')) {
+      return false;
+    }
+    final file = await cloud.findSnapshot();
+    if (file == null) return false;
+    if (!localState.empty &&
+        await readSetting('syncSnapshotRemoteFileId') == file.id &&
+        await readSetting('syncSnapshotRemoteVersion') == file.version) {
+      return false;
+    }
+    final key = await _SnapshotAutoSync.readKey(cloud);
+    if (key == null) {
+      throw const SyncTransportFailure(SyncTransportIssue.invalid);
+    }
+    try {
+      final bytes = await cloud.readSnapshot(file.id);
+      final source = await _SnapshotAutoSync.open(
+        bytes,
+        key,
+        'cloud:${cloud.accountKey}',
+      );
+      final snapshot = await _validateBackupInBackground(source);
+      if (!localState.empty &&
+          snapshot.summary.workspaceId != localState.workspaceId) {
+        throw const SyncTransportFailure(SyncTransportIssue.conflict);
+      }
+      final stamp = await _serial(() => _backupStamp(this));
+      final plan = _RestorePlan(this, stamp, snapshot)
+        ..cloudBound = true
+        ..remoteFileId = file.id
+        ..remoteVersion = file.version;
+      await _restoreBackup(this, plan);
+      return true;
+    } finally {
+      key.destroy();
+    }
   }
 }
 
-/// Account onboarding shares keys automatically; causal merge and operation
-/// ownership checks still apply to every imported event.
-final class _WorkspaceAutoSync
-    implements AutoSyncSession, SyncPacketStore, ChangeJournalStore {
-  _WorkspaceAutoSync(this.store, this.journal, this.remote, this.tokens);
-  final _CycleTokens tokens;
+/// A local snapshot is written atomically before any network request. A failed
+/// upload leaves its encrypted bytes and an unmatched receipt for next start.
+final class _SnapshotAutoSync implements AutoSyncSession {
+  _SnapshotAutoSync(this.store, this.remote);
   final WorkspaceDatabase store;
-  final SyncTransportDatabase journal;
-  final SyncRemoteStore remote;
-  late final _accountSync = _WorkspaceAccountSync(store, journal, remote);
-  String? _exportStamp;
-  bool _running = false;
+  final SyncSnapshotStore remote;
+  bool _closed = false, _running = false;
+  static const _magic = [65, 110, 116, 105, 82, 75, 78, 83, 1];
+  File get _local => File('${store._path}.current-snapshot');
 
-  Future<bool> _export(SyncCancellation cancellation) async {
-    final known = await journal.exportedIds();
-    return store._serial(() async {
-      final stamp = store._merge.stamp();
-      if (stamp == _exportStamp) return false;
-      final events = (await store._merge.events()).values;
-      final key = await store._sync.readKey();
-      var count = 0;
-      try {
-        for (final event in events) {
-          cancellation.check();
-          if (known.contains(event.header.changeId)) continue;
-          if (count++ >= 40) return true;
-          final bytes = await _sealPacketInBackground(
-            journal.workspaceId,
-            key.version,
-            Uint8List.fromList(await key.secret.extractBytes()),
-            _accountChange(event, journal.workspaceId),
-          );
-          cancellation.check();
-          await journal.enqueue(event.header.changeId, bytes);
-        }
-        _exportStamp = stamp;
-        return false;
-      } finally {
-        key.dispose();
+  static Future<Uint8List> seal(
+    String source,
+    SecretKey key,
+    String scope,
+  ) async {
+    final plain = utf8.encode(source);
+    try {
+      if (plain.length > maxWorkspaceBackupBytes - 37) {
+        throw const SyncTransportFailure(SyncTransportIssue.limit);
       }
-    });
+      final box = await AesGcm.with256bits().encrypt(
+        plain,
+        secretKey: key,
+        aad: utf8.encode('antirkn:single-snapshot:1:$scope'),
+      );
+      return Uint8List.fromList([..._magic, ...box.concatenation()]);
+    } finally {
+      plain.fillRange(0, plain.length, 0);
+    }
+  }
+
+  static Future<String> open(
+    Uint8List bytes,
+    SecretKey key,
+    String scope,
+  ) async {
+    if (bytes.length < 37 ||
+        bytes.length > maxWorkspaceBackupBytes ||
+        !List.generate(
+          _magic.length,
+          (i) => bytes[i] == _magic[i],
+        ).every((value) => value)) {
+      throw const SyncTransportFailure(SyncTransportIssue.invalid);
+    }
+    try {
+      final plain = await AesGcm.with256bits().decrypt(
+        SecretBox.fromConcatenation(
+          bytes.sublist(_magic.length),
+          nonceLength: 12,
+          macLength: 16,
+        ),
+        secretKey: key,
+        aad: utf8.encode('antirkn:single-snapshot:1:$scope'),
+      );
+      try {
+        return utf8.decode(plain);
+      } finally {
+        plain.fillRange(0, plain.length, 0);
+      }
+    } catch (_) {
+      throw const SyncTransportFailure(SyncTransportIssue.invalid);
+    }
+  }
+
+  static Future<SecretKeyData?> readKey(SyncSnapshotStore remote) async {
+    final bytes = await remote.readSnapshotKey();
+    if (bytes == null) return null;
+    if (bytes.length != 32) {
+      throw const SyncTransportFailure(SyncTransportIssue.invalid);
+    }
+    return SecretKeyData(
+      Uint8List.fromList(bytes),
+      overwriteWhenDestroyed: true,
+    );
+  }
+
+  Future<SecretKeyData> _key(SyncRemoteFile? file) async {
+    final existing = await readKey(remote);
+    if (existing != null) return existing;
+    if (file != null) {
+      throw const SyncTransportFailure(SyncTransportIssue.invalid);
+    }
+    final raw = Uint8List.fromList(
+      await (await AesGcm.with256bits().newSecretKey()).extractBytes(),
+    );
+    try {
+      await remote.createSnapshotKey(raw);
+    } on SyncTransportFailure catch (error) {
+      if (error.issue != SyncTransportIssue.conflict) rethrow;
+      final raced = await readKey(remote);
+      if (raced == null) rethrow;
+      raw.fillRange(0, raw.length, 0);
+      return raced;
+    }
+    return SecretKeyData(raw, overwriteWhenDestroyed: true);
+  }
+
+  Future<String> _digest(Uint8List bytes) async => (await Sha256().hash(
+    bytes,
+  )).bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
+
+  Future<AutoSyncResult> _recordUpload(
+    _BackupSnapshot snapshot,
+    SyncRemoteFile written,
+    int capturedSequence,
+    String digest,
+  ) async {
+    await store.writeSetting('syncSnapshotBound', snapshot.summary.workspaceId);
+    await store.writeSetting('syncSnapshotRemoteFileId', written.id);
+    await store.writeSetting('syncSnapshotRemoteVersion', written.version);
+    await store.writeSetting('syncSnapshotLocalSequence', '$capturedSequence');
+    await store.writeSetting('syncSnapshotUploaded', digest);
+    return AutoSyncResult(lastSuccess: DateTime.now().toUtc());
+  }
+
+  Future<AutoSyncResult> _upload(
+    Uint8List local,
+    SyncCancellation cancel,
+    int capturedSequence,
+  ) async {
+    cancel.check();
+    final digest = await _digest(local);
+    final source = await open(local, store._key, 'local');
+    final snapshot = await _validateBackupInBackground(source);
+    if (snapshot.summary.workspaceId !=
+        (await store.readWorkspaceIdentity()).workspaceId) {
+      throw const SyncTransportFailure(SyncTransportIssue.changed);
+    }
+    final file = await remote.findSnapshot();
+    final bound = await store.readSetting('syncSnapshotBound');
+    if (file != null &&
+        (bound != snapshot.summary.workspaceId ||
+            await store.readSetting('syncSnapshotRemoteFileId') != file.id ||
+            await store.readSetting('syncSnapshotRemoteVersion') !=
+                file.version)) {
+      // A previous upload may have succeeded while its response was lost.
+      // A different remote snapshot is never overwritten implicitly.
+      final existingKey = await readKey(remote);
+      if (existingKey == null) {
+        throw const SyncTransportFailure(SyncTransportIssue.invalid);
+      }
+      try {
+        final remoteSource = await open(
+          await remote.readSnapshot(file.id),
+          existingKey,
+          'cloud:${remote.accountKey}',
+        );
+        if (remoteSource != source) {
+          throw const SyncTransportFailure(SyncTransportIssue.conflict);
+        }
+        return _recordUpload(snapshot, file, capturedSequence, digest);
+      } finally {
+        existingKey.destroy();
+      }
+    }
+    final key = await _key(file);
+    try {
+      final encrypted = await seal(source, key, 'cloud:${remote.accountKey}');
+      cancel.check();
+      await remote.writeSnapshot(file?.id, encrypted);
+      final written = await remote.findSnapshot();
+      if (written == null) {
+        throw const SyncTransportFailure(SyncTransportIssue.notFound);
+      }
+      return _recordUpload(snapshot, written, capturedSequence, digest);
+    } finally {
+      key.destroy();
+    }
   }
 
   @override
@@ -82,364 +264,45 @@ final class _WorkspaceAutoSync
     required SyncCancellation cancellation,
     bool forceRecovery = false,
   }) async {
-    if (_running) throw const SyncTransportFailure(SyncTransportIssue.changed);
+    if (_closed || _running) {
+      throw const SyncTransportFailure(SyncTransportIssue.changed);
+    }
     _running = true;
-    tokens.clear();
     try {
-      cancellation.check();
-      final state = await journal.readState();
-      var rejected = state['rejected'] as int? ?? 0;
-      var others = state['others'] as int? ?? 0;
-      if (remote is SyncAccountStore) {
-        final vpn = await store.readVpn();
-        if (vpn.source != null &&
-            _withAccountNamespaces(vpn.source!, vpn.source) != vpn.source) {
-          if (!await apply(() async {
-            cancellation.check();
-            await store.writeVpn(vpn.source!, expectedRevision: vpn.revision);
-          })) {
-            return const AutoSyncResult(waitingForEditor: true);
-          }
-        }
-        await _accountSync.prepare(cancellation);
-        cancellation.check();
-        final known = Set<String>.from(
-          state['accountWorkspaces'] as List? ?? [],
-        );
-        final discovered = _accountSync._keys.keys.toSet();
-        if (state['accountSyncVersion'] != 1 ||
-            !known.containsAll(discovered)) {
-          await journal.rescanAccountPackets();
-          others = 0;
-          state['accountSyncVersion'] = 1;
-          state['accountWorkspaces'] = {...known, ...discovered}.toList()
-            ..sort();
-          state['others'] = 0;
-          await journal.saveState(state);
-        }
-      }
+      Uint8List local;
+      int capturedSequence;
       if (forceRecovery) {
-        await journal.rescanAccountPackets();
-        state['missingRecoveryActive'] = true;
-        state.remove('missingRecoverySignature');
-        state['missingRecoveryAttemptAt'] =
-            DateTime.now().toUtc().toIso8601String();
-        await journal.saveState(state);
-      }
-      final recoveryActive = state['missingRecoveryActive'] == true;
-      final stagedBeforeTransfer = (await journal.readStagedObjects(
-        limit: 1,
-      )).isNotEmpty;
-      final prioritizeIncoming = recoveryActive || stagedBeforeTransfer;
-      final moreExports = prioritizeIncoming
-          ? false
-          : await _export(cancellation);
-      SyncTransportResult? transfer;
-      Object? transferError;
-      // Do not let a full account scan grow the durable inbox faster than the
-      // UI-safe receive batches can consume it. Once staged bytes exist, drain
-      // them before performing any more remote packet I/O.
-      if (!stagedBeforeTransfer) {
-        try {
-          transfer =
-              await SyncTransportEngine(
-                remote: remote,
-                journal: journal,
-                packets: this,
-                changes: this,
-              ).exchange(
-                uploadLimit: prioritizeIncoming ? 0 : 20,
-                downloadPageLimit: 1,
-                cancellation: cancellation,
-              );
-        } catch (error) {
-          transferError = error;
+        if (!await _local.exists()) return const AutoSyncResult();
+        local = await _local.readAsBytes();
+        if (await store.readSetting('syncSnapshotUploaded') ==
+            await _digest(local)) {
+          return const AutoSyncResult();
         }
-      }
-      cancellation.check();
-      var waiting = false;
-      // Keep each foreground lock short enough for Flutter to render and
-      // accept input while a large account history is being recovered.
-      final inbox = await journal.readStagedObjects(limit: 20);
-      // Validate before asking for an editor lock. Own/replayed events and
-      // unrelated workspaces must not interrupt editing or refresh the UI.
-      final incoming = <(StagedSyncObject, LocalChange, Uint8List)>[];
-      for (final object in inbox) {
-        cancellation.check();
-        if (object.removed) {
-          await journal.consumeObject(object);
-          continue;
-        }
-        try {
-          final packet = await _accountSync.localPacket(object.bytes);
-          final event = await store.verifySyncPacket(packet);
-          final known = await store._serial(() async {
-            final rows = store._db.select(
-              'SELECT header,payload FROM sync_changes WHERE change_id=? UNION ALL SELECT header,payload FROM sync_incoming WHERE change_id=?',
-              [event.header.changeId, event.header.changeId],
-            );
-            if (rows.isEmpty) return false;
-            final row = rows.single;
-            final header = ChangeHeader.fromJson(
-              jsonDecode(row['header'] as String) as Map<String, dynamic>,
-            );
-            final value =
-                jsonDecode(
-                      await store._decrypt(
-                        _LocalChangeJournal._scope(header),
-                        1,
-                        row['payload'] as Uint8List,
-                      ),
-                    )
-                    as Map;
-            if (canonicalJson(header.toJson()) !=
-                    canonicalJson(event.header.toJson()) ||
-                _accountChange(
-                      LocalChange(
-                        header: header,
-                        source: value['source'] as String?,
-                      ),
-                      journal.workspaceId,
-                    ).source !=
-                    event.source) {
-              throw const SyncMergeFailure(SyncMergeIssue.invalid);
-            }
-            return true;
-          });
-          if (known) {
-            await journal.enqueue(
-              event.header.changeId,
-              object.bytes,
-              delivered: true,
-            );
-            await journal.consumeObject(object);
-          } else {
-            incoming.add((object, event, packet));
-          }
-        } on SyncPacketFailure catch (error) {
-          if (error.issue == SyncPacketIssue.storage) rethrow;
-          if (error.issue == SyncPacketIssue.workspace) {
-            others++;
-          } else {
-            rejected++;
-          }
-          await journal.consumeObject(object);
-        } on SyncMergeFailure catch (error) {
-          if (error.issue != SyncMergeIssue.invalid) rethrow;
-          rejected++;
-          await journal.consumeObject(object);
-        }
-      }
-      if (incoming.isNotEmpty) {
-        waiting = !await apply(() async {
-          cancellation.check();
-          try {
-            await store.receiveSyncPackets([
-              for (final entry in incoming) entry.$3,
-            ]);
-            for (final (object, event, _) in incoming) {
-              cancellation.check();
-              await journal.enqueue(
-                event.header.changeId,
-                object.bytes,
-                delivered: true,
-              );
-              await journal.consumeObject(object);
-            }
-          } on SyncMergeFailure catch (error) {
-            if (error.issue != SyncMergeIssue.invalid) rethrow;
-            // Preserve the old quarantine behavior for a malformed member,
-            // while keeping the normal valid path to one graph projection.
-            for (final (object, event, packet) in incoming) {
-              cancellation.check();
-              try {
-                await store.receiveSyncPackets([packet]);
-                await journal.enqueue(
-                  event.header.changeId,
-                  object.bytes,
-                  delivered: true,
-                );
-                await journal.consumeObject(object);
-              } on SyncMergeFailure catch (error) {
-                if (error.issue != SyncMergeIssue.invalid) rethrow;
-                rejected++;
-                await journal.consumeObject(object);
-              }
-            }
-          }
-        });
-      }
-      var merge = await store.readSyncMergeStatus();
-      if (!waiting && merge.conflicts.isNotEmpty) {
-        waiting = !await apply(() async {
-          final attempted = <String>{};
-          while (merge.conflicts.isNotEmpty) {
-            cancellation.check();
-            final conflict = merge.conflicts.first;
-            final conflictKey = '${conflict.kind.name}:${conflict.entityId}';
-            if (!attempted.add(conflictKey)) break;
-            final candidates =
-                conflict.kind == ChangeEntityKind.vpnUser &&
-                    conflict.variants.any((event) => event.header.deleted)
-                ? conflict.variants
-                      .where((event) => event.header.deleted)
-                      .toList()
-                : conflict.variants.toList();
-            candidates.sort((a, b) {
-              final revision = b.header.revision.compareTo(a.header.revision);
-              return revision != 0
-                  ? revision
-                  : b.header.changeId.compareTo(a.header.changeId);
-            });
-            try {
-              await store.resolveSyncConflict(
-                conflict,
-                candidates.first.header.changeId,
-              );
-            } on SyncMergeFailure catch (e) {
-              if (e.issue != SyncMergeIssue.changed) rethrow;
-            }
-            merge = await store.readSyncMergeStatus();
-          }
-        });
-      }
-      var recoveryRequested = forceRecovery;
-      final missingSignature = merge.missingChangeIds.isEmpty
-          ? null
-          : (await Sha256().hash(
-              utf8.encode(canonicalJson(merge.missingChangeIds)),
-            )).bytes.map((v) => v.toRadixString(16).padLeft(2, '0')).join();
-      if (missingSignature == null) {
-        state.remove('missingRecoveryActive');
-        state.remove('missingRecoverySignature');
-        state.remove('missingRecoveryAttemptAt');
-      } else if (recoveryActive) {
-        if (transfer?.downloadCaughtUp == true) {
-          state['missingRecoveryActive'] = false;
-          state['missingRecoverySignature'] = missingSignature;
-          state['missingRecoveryAttemptAt'] =
-              DateTime.now().toUtc().toIso8601String();
-        }
+        capturedSequence =
+            int.tryParse(
+              await store.readSetting('syncSnapshotPendingSequence') ?? '',
+            ) ??
+            -1;
       } else {
-        final lastAttemptStr = state['missingRecoveryAttemptAt'] as String?;
-        final lastAttempt =
-            lastAttemptStr != null ? DateTime.tryParse(lastAttemptStr) : null;
-        final backoffPassed = lastAttempt == null ||
-            DateTime.now().toUtc().difference(lastAttempt) >
-                const Duration(seconds: 45);
-        final shouldRescan =
-            state['missingRecoverySignature'] != missingSignature ||
-            backoffPassed;
-
-        if (shouldRescan) {
-          await journal.rescanAccountPackets();
-          state['missingRecoveryActive'] = true;
-          state['missingRecoveryAttemptAt'] =
-              DateTime.now().toUtc().toIso8601String();
-          recoveryRequested = true;
-        }
+        cancellation.check();
+        final captured = await _currentSnapshot(store);
+        capturedSequence = captured.sequence;
+        local = await seal(captured.source, store._key, 'local');
+        await writeBackupFile(_local.path, local);
+        await store.writeSetting(
+          'syncSnapshotPendingSequence',
+          '$capturedSequence',
+        );
+        await _compactCurrentHistory(store);
       }
-      final more =
-          moreExports ||
-          (stagedBeforeTransfer && !waiting) ||
-          recoveryRequested ||
-          (transfer != null && !transfer.downloadCaughtUp) ||
-          (await journal.pendingExports(limit: 1)).isNotEmpty ||
-          (!waiting && (await journal.readStagedObjects(limit: 1)).isNotEmpty);
-      final last = !more && !waiting && transferError == null
-          ? DateTime.now().toUtc()
-          : (state['last'] == null
-                ? null
-                : DateTime.parse(state['last'] as String));
-      await journal.saveState({
-        ...state,
-        'last': last?.toIso8601String(),
-        'rejected': rejected,
-        'others': others,
-      });
-      if (transferError != null) throw transferError;
-      return AutoSyncResult(
-        more: more,
-        waitingForEditor: waiting,
-        conflicts: merge.conflicts.length,
-        waitingGroups: merge.waitingGroups + merge.blockedGroups,
-        rejected: rejected + merge.rejectedGroups,
-        otherWorkspaces: others,
-        lastSuccess: last,
-      );
+      return await _upload(local, cancellation, capturedSequence);
     } finally {
       _running = false;
-      tokens.clear();
     }
-  }
-
-  @override
-  Future<List<EncryptedChangePacket>> preparePendingPackets({
-    int afterSequence = 0,
-    int limit = 100,
-  }) => journal.pendingExports(afterSequence: afterSequence, limit: limit);
-  @override
-  Future<LocalChange> verifySyncPacket(Uint8List bytes) =>
-      store.verifySyncPacket(bytes);
-  @override
-  Future<WorkspaceIdentity> readWorkspaceIdentity() =>
-      store.readWorkspaceIdentity();
-  @override
-  Future<List<LocalChange>> readChanges({
-    int afterSequence = 0,
-    int limit = 100,
-  }) => store.readChanges(afterSequence: afterSequence, limit: limit);
-  @override
-  Future<List<LocalChange>> readPendingChanges({
-    int afterSequence = 0,
-    int limit = 100,
-  }) => store.readPendingChanges(afterSequence: afterSequence, limit: limit);
-  @override
-  Future<void> acknowledgeChanges(List<String> changeIds) async {
-    await store._serial(
-      () => store._transaction(() {
-        for (final id in changeIds) {
-          store._db.execute('DELETE FROM sync_outbox WHERE change_id=?', [id]);
-        }
-      }),
-    );
-    await journal.deliveredExports(changeIds);
   }
 
   @override
   Future<void> close() async {
-    _accountSync.close();
-    await journal.close();
-  }
-}
-
-// One identity-checked token per bounded cycle, never persisted. Checking the
-// source binding on every request still fences account changes immediately.
-final class _CycleTokens
-    implements SyncAccessTokenProvider, RefreshableSyncAccessTokenProvider {
-  _CycleTokens(this.source) : accountKey = source.accountKey;
-  final SyncAccessTokenProvider source;
-  @override
-  final String accountKey;
-  String? _token;
-  void clear() => _token = null;
-  @override
-  Future<void> invalidateAccessToken(String rejected) async {
-    if (_token == rejected) clear();
-    if (source case final RefreshableSyncAccessTokenProvider refreshable) {
-      await refreshable.invalidateAccessToken(rejected);
-    }
-  }
-
-  @override
-  Future<String> accessToken() async {
-    if (source.accountKey != accountKey) {
-      throw const SyncTransportFailure(SyncTransportIssue.changed);
-    }
-    final value = _token ??= await source.accessToken();
-    if (source.accountKey != accountKey) {
-      throw const SyncTransportFailure(SyncTransportIssue.changed);
-    }
-    return value;
+    _closed = true;
   }
 }

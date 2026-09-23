@@ -9,12 +9,12 @@ import 'settings_hub.dart';
 import 'desktop_back_gesture.dart';
 import 'catalog_selection.dart';
 import 'dart:async';
+import 'dart:ui' show AppExitResponse;
 import 'package:antirkn_integrations/antirkn_integrations.dart';
 import 'publication/publication_controller.dart';
 import 'publication/publication_panel.dart';
 import 'sync/auto_sync_controller.dart';
 import 'sync/google_account_panel.dart';
-import 'sync/sync_conflicts_panel.dart';
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_storage/antirkn_storage.dart';
@@ -56,13 +56,26 @@ class WorkspaceLauncher extends StatefulWidget {
   State<WorkspaceLauncher> createState() => _WorkspaceLauncherState();
 }
 
-class _WorkspaceLauncherState extends State<WorkspaceLauncher> {
+class _WorkspaceLauncherState extends State<WorkspaceLauncher>
+    with WidgetsBindingObserver {
   late Future<Widget> _app = _load();
   WorkspaceDatabase? _database;
   AutoSyncController? _sync;
   GoogleSyncAccountService? _google;
   LanguageController? _languages;
   int _generation = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  Future<AppExitResponse> didRequestAppExit() async {
+    await _sync?.flushOnExit();
+    return AppExitResponse.exit;
+  }
 
   Future<void> _reopen() async {
     final old = _database,
@@ -91,6 +104,22 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher> {
   Future<Widget> _load() async {
     final database = await widget.openWorkspace();
     try {
+      final google = localGoogleAccountService(database);
+      if (google.supported &&
+          await database.readSetting('googleAutoSync') != 'false') {
+        try {
+          if (await google.restore() != null &&
+              await database.pullCurrentSnapshot(google)) {
+            if (google case final CancelableGoogleSignIn lifecycle) {
+              await lifecycle.close();
+            }
+            await database.close();
+            return _load();
+          }
+        } catch (_) {
+          // An unavailable or invalid cloud file must not block local data.
+        }
+      }
       final languages = LanguageController(database);
       await languages.load();
       final source = await database.readDraft() ?? '';
@@ -98,7 +127,6 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher> {
       final motion = await database.readSetting('motion');
       _database = database;
       _languages = languages;
-      final google = localGoogleAccountService(database);
       _google = google;
       _sync = google.supported
           ? AutoSyncController(
@@ -145,6 +173,7 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     final sync = _sync,
         database = _database,
         languages = _languages,
@@ -413,7 +442,6 @@ class _ManagerShellState extends State<ManagerShell>
   bool _diagnosing = false;
   ComponentUpdatesController? _diagnosticUpdates;
   late final IpDiagnosticsController _diagnostics;
-  int _syncRevision = 0;
   String _serverNameSnapshot = '';
   static const _icons = [Icons.dns_outlined, Icons.people_outline, Icons.tune];
 
@@ -688,13 +716,18 @@ class _ManagerShellState extends State<ManagerShell>
     }
     // An unfocused desktop window is still visible (e.g. beside a browser).
     // Android retains its existing foreground-only scheduling policy.
-    final isDesktop = widget.googleAccount is CancelableGoogleSignIn ||
+    final isDesktop =
+        widget.googleAccount is CancelableGoogleSignIn ||
         defaultTargetPlatform == TargetPlatform.linux ||
         defaultTargetPlatform == TargetPlatform.macOS ||
         defaultTargetPlatform == TargetPlatform.windows;
-    final inForeground = state == AppLifecycleState.resumed ||
+    final inForeground =
+        state == AppLifecycleState.resumed ||
         (isDesktop && state != AppLifecycleState.detached);
-    widget.autoSync?.foreground(inForeground);
+    final syncForeground =
+        state == AppLifecycleState.resumed ||
+        (isDesktop && state == AppLifecycleState.inactive);
+    widget.autoSync?.foreground(syncForeground);
     _publications?.foreground(inForeground);
     if (state == AppLifecycleState.resumed) {
       _networkController.tick();
@@ -740,7 +773,6 @@ class _ManagerShellState extends State<ManagerShell>
       await _vpn?.load();
       await _repairOrphanedVpnState();
       await _publications?.reload();
-      _syncRevision++;
       return true;
     } catch (_) {
       // If refreshing a projection fails, reopen before exposing stale forms.
@@ -774,7 +806,6 @@ class _ManagerShellState extends State<ManagerShell>
       _clientSelection.exit();
     }
     setState(() => _index = value);
-    widget.autoSync?.request();
   }
 
   @override
@@ -1017,19 +1048,6 @@ class _ManagerShellState extends State<ManagerShell>
                                           afterAccountChange: () =>
                                               _publications?.resume(),
                                         ),
-                                        if (widget.servers is SyncMergeStore &&
-                                            widget.onRestored != null)
-                                          SyncConflictsPanel(
-                                            key: ValueKey(_syncRevision),
-                                            store:
-                                                widget.servers
-                                                    as SyncMergeStore,
-                                            canResolve: _canReplace,
-                                            onResolved: widget.onRestored!,
-                                            onRetry: () async {
-                                              widget.autoSync?.retryRecovery();
-                                            },
-                                          ),
                                       ],
                                     ),
                                   ),

@@ -62,7 +62,7 @@ class MockAutoSyncController extends AutoSyncController {
 
 void main() {
   testWidgets(
-    'desktop keeps autoSync in foreground on inactive and hidden, only detached disables it',
+    'desktop saves on hidden and detached while inactive remains foreground',
     (tester) async {
       final languages = LanguageController(TestLanguageStore());
       final autoSync = MockAutoSyncController();
@@ -89,7 +89,7 @@ void main() {
       // Hidden (e.g. window obscured or minimized on desktop)
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
       await tester.pump();
-      expect(autoSync.foregroundEvents.last, isTrue);
+      expect(autoSync.foregroundEvents.last, isFalse);
 
       // Resumed
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);

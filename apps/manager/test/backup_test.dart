@@ -15,8 +15,6 @@ class Plan implements WorkspaceRestorePlan {
     workspaceId: 'a' * 32,
     servers: 2,
     users: 3,
-    changes: 18,
-    pending: 4,
   );
   @override
   void dispose() => disposed = true;

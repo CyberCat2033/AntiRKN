@@ -3,7 +3,6 @@ export 'src/android_google_account.dart';
 export 'src/desktop_google_account.dart';
 export 'src/google_account_factory.dart';
 export 'src/google_session_store.dart';
-export 'src/sync_transport_database.dart';
 export 'src/profile_exporter.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:shared_preferences/shared_preferences.dart';
