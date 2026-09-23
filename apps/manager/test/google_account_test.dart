@@ -60,6 +60,7 @@ void main() {
     AccountService service, {
     String locale = 'ru',
     double scale = 1,
+    void Function(bool)? afterAccountChange,
   }) async {
     tester.view.physicalSize = const Size(390, 850);
     tester.view.devicePixelRatio = 1;
@@ -75,7 +76,11 @@ void main() {
           child: Scaffold(
             body: ListView(
               children: [
-                GoogleAccountPanel(service: service, accountDetails: true),
+                GoogleAccountPanel(
+                  service: service,
+                  accountDetails: true,
+                  afterAccountChange: afterAccountChange,
+                ),
               ],
             ),
           ),
@@ -136,6 +141,21 @@ void main() {
       await tester.pumpAndSettle();
     },
   );
+  testWidgets('only a completed sign-in reports new authorization', (
+    tester,
+  ) async {
+    final service = AccountService();
+    final changes = <bool>[];
+    await mount(tester, service, afterAccountChange: changes.add);
+    service.cancel = true;
+    await tester.tap(find.byKey(const ValueKey('google-sign-in')));
+    await tester.pumpAndSettle();
+    expect(changes, [false]);
+    service.cancel = false;
+    await tester.tap(find.byKey(const ValueKey('google-sign-in')));
+    await tester.pumpAndSettle();
+    expect(changes, [false, true]);
+  });
   testWidgets('actual app opens Google sign-in from synchronization settings', (
     tester,
   ) async {

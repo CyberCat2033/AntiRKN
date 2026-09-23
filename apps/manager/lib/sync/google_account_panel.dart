@@ -18,7 +18,7 @@ class GoogleAccountPanel extends StatefulWidget {
   final bool showTitle, accountDetails;
   final AutoSyncController? sync;
   final Future<void> Function()? beforeAccountChange;
-  final void Function()? afterAccountChange;
+  final void Function(bool signedIn)? afterAccountChange;
   @override
   State<GoogleAccountPanel> createState() => _GoogleAccountPanelState();
 }
@@ -55,6 +55,7 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
 
   Future<void> _act(bool signIn) async {
     if (_busy) return;
+    var signedIn = false;
     setState(() {
       _busy = true;
       _signingIn = signIn;
@@ -65,7 +66,10 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
       await widget.sync?.suspendAccount();
       if (signIn) {
         final account = await widget.service.signIn();
-        if (account != null) _account = account;
+        if (account != null) {
+          _account = account;
+          signedIn = true;
+        }
       } else {
         await widget.service.signOut();
         _account = null;
@@ -76,7 +80,7 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
       _error = GoogleAccountIssue.unavailable;
     } finally {
       await widget.sync?.accountChanged(_account);
-      widget.afterAccountChange?.call();
+      widget.afterAccountChange?.call(signedIn);
       if (mounted) {
         setState(() {
           _busy = false;

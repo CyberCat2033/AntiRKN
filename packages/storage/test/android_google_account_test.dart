@@ -176,7 +176,7 @@ void main() {
       final first = service();
       await first.signIn();
       final binding = first.accountKey;
-      expect(first.publicationAuthorized, isFalse);
+      expect(first.publicationAuthorized, isTrue);
       await first.authorizePublications();
       expect(first.publicationAuthorized, isTrue);
       expect(first.accountKey, binding);
@@ -184,7 +184,7 @@ void main() {
       await restored.restore();
       expect(restored.publicationAuthorized, isTrue);
       await restored.accessToken();
-      expect(bridge.publications, 2);
+      expect(bridge.publications, 3);
       expect(bridge.calls.last, isFalse);
       await restored.signOut();
       expect(restored.publicationAuthorized, isFalse);

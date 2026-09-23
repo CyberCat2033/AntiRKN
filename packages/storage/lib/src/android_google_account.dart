@@ -174,7 +174,7 @@ final class AndroidGoogleAccountService
       GoogleDriveSyncStore(tokens: _Token(token), http: _http).readAccount();
 
   @override
-  Future<GoogleDriveAccount?> signIn() => _signIn(false);
+  Future<GoogleDriveAccount?> signIn() => _signIn(true);
   @override
   Future<GoogleDriveAccount?> authorizePublications() => _signIn(true);
   Future<GoogleDriveAccount?> _signIn(bool publications) =>

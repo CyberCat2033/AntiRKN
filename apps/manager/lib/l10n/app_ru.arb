@@ -926,7 +926,7 @@
   "publicationTitle": "Публикация профилей",
   "publicationHelp": "Автоматически сохранять клиентские YAML в Google Drive и обновлять тот же файл. Настройте папку на одном устройстве, затем синхронизируйте остальные.",
   "publicationAuthorize": "Разрешить публикацию в Drive",
-  "publicationAuthorizeHelp": "Для публикации подтвердите доступ к файлам приложения в Google. Синхронизация использует отдельное разрешение.",
+  "publicationAuthorizeHelp": "Разрешите AntiRKN доступ к данным синхронизации и опубликованным файлам клиентов в Google.",
   "publicationAccess": "Доступ к профилям",
   "publicationPrivate": "Приватный файл",
   "publicationLink": "Доступ по ссылке",

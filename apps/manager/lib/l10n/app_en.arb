@@ -959,7 +959,7 @@
   "publicationTitle": "Profile publication",
   "publicationHelp": "Automatically save client YAML profiles to Google Drive and update the same file. Set up the folder on one device, then sync the others.",
   "publicationAuthorize": "Allow publishing to Drive",
-  "publicationAuthorizeHelp": "To publish, grant access to application files in Google. Sync uses a separate permission.",
+  "publicationAuthorizeHelp": "Grant AntiRKN access to its sync data and published client files in Google.",
   "publicationAccess": "Profile access",
   "publicationPrivate": "Private file",
   "publicationLink": "Anyone with the link",

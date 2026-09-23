@@ -2463,7 +2463,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get publicationAuthorizeHelp =>
-      'To publish, grant access to application files in Google. Sync uses a separate permission.';
+      'Grant AntiRKN access to its sync data and published client files in Google.';
 
   @override
   String get publicationAccess => 'Profile access';

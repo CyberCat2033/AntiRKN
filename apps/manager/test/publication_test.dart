@@ -1433,6 +1433,25 @@ void main() {
       // User publish also immediately aborts without remote work
       await c.publishUser('e' * 32);
       expect(c.needsAuthorization, isTrue);
+
+      // Old per-user failures remain in the queue, but a fresh Google grant
+      // must let publication contact Drive again.
+      await c.authorize();
+      expect(c.authorized, isTrue);
+      expect(c.needsAuthorization, isFalse);
+      remote.failWithIssue = null;
+      remote.folders['test-folder'] = const PublicationFile(
+        id: 'test-folder',
+        name: 'Folder',
+        mimeType: 'application/vnd.google-apps.folder',
+        version: '1',
+        etag: 'folder-etag',
+        editable: true,
+        properties: {},
+      );
+      await c.forcePublishAll(force: true);
+      expect(remote.ids, greaterThan(0));
+      expect(c.error, isNot(PublicationIssue.unauthorized));
     },
   );
 }
@@ -1467,4 +1486,3 @@ class _TestSettingsStore implements SettingsStore {
     map[key] = value;
   }
 }
-

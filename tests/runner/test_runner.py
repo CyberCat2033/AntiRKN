@@ -160,6 +160,20 @@ class RunnerTests(unittest.TestCase):
             self.assertIn('antirkn-runner.service', m['hashes'])
             self.assertIn('runner.py', m['hashes'])
 
+    def test_v38_predecessor_manifests_valid(self):
+        schema_path = Path(__file__).resolve().parents[2] / 'schemas/runner-predecessor-v38.json'
+        manifests = json.loads(schema_path.read_text())
+        self.assertEqual(len(manifests), 7)
+        self.assertEqual(len({m['release'] for m in manifests}), len(manifests))
+        for manifest in manifests:
+            hashes = manifest['hashes']
+            self.assertEqual(
+                manifest['release'],
+                hashlib.sha256(json.dumps(hashes, sort_keys=True).encode()).hexdigest(),
+            )
+            self.assertIn('antirkn-runner.service', hashes)
+            self.assertIn('runner.py', hashes)
+
     def test_protocol_remove_plan_action(self):
         with patch('runner.protocol_removal_plan', return_value={'test': 123}) as mock_plan:
             res = self.store.request(dict(version=1, action='protocol_remove_plan', protocol='vless'))

@@ -4367,7 +4367,7 @@ abstract class AppLocalizations {
   /// No description provided for @publicationAuthorizeHelp.
   ///
   /// In en, this message translates to:
-  /// **'To publish, grant access to application files in Google. Sync uses a separate permission.'**
+  /// **'Grant AntiRKN access to its sync data and published client files in Google.'**
   String get publicationAuthorizeHelp;
 
   /// No description provided for @publicationAccess.

@@ -125,7 +125,14 @@ class Keys implements VaultKeyStore {
   }
 }
 
-class AndroidBridge implements GoogleAuthorizationBridge {
+class AndroidBridge
+    implements GoogleAuthorizationBridge, PublicationGoogleAuthorizationBridge {
+  @override
+  Future<String?> authorizePublications({
+    required bool interactive,
+    String? email,
+  }) => authorize(interactive: interactive, email: email);
+
   @override
   Future<String?> authorize({required bool interactive, String? email}) async =>
       'public-fixture-token';
@@ -174,14 +181,14 @@ void main() {
       final first = service();
       await first.signIn();
       final binding = first.accountKey;
-      expect(first.publicationAuthorized, isFalse);
+      expect(first.publicationAuthorized, isTrue);
       oauth.error = GoogleAccountIssue.denied;
       await expectLater(
         first.authorizePublications(),
         throwsA(issue(GoogleAccountIssue.denied)),
       );
       expect(first.accountKey, binding);
-      expect(first.publicationAuthorized, isFalse);
+      expect(first.publicationAuthorized, isTrue);
       oauth.error = null;
       await first.authorizePublications();
       expect(first.publicationAuthorized, isTrue);

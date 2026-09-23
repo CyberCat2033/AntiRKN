@@ -2469,7 +2469,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get publicationAuthorizeHelp =>
-      'Для публикации подтвердите доступ к файлам приложения в Google. Синхронизация использует отдельное разрешение.';
+      'Разрешите AntiRKN доступ к данным синхронизации и опубликованным файлам клиентов в Google.';
 
   @override
   String get publicationAccess => 'Доступ к профилям';

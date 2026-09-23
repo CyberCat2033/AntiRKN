@@ -182,10 +182,14 @@ class PublicationController extends ChangeNotifier {
       !authorized ||
       error == PublicationIssue.forbidden ||
       error == PublicationIssue.unauthorized ||
-      accountError == GoogleAccountIssue.reauthorize ||
-      queues.values.any(
-        (q) => ['unauthorized', 'forbidden'].contains(q['issue']),
-      );
+      accountError == GoogleAccountIssue.reauthorize;
+  void accountAuthorizationChanged() {
+    if (!authorized) return;
+    error = null;
+    accountError = null;
+    _notify();
+    request(force: true);
+  }
   void _notify() {
     if (!_disposed) notifyListeners();
   }

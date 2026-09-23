@@ -1045,8 +1045,13 @@ class _ManagerShellState extends State<ManagerShell>
                                           sync: widget.autoSync,
                                           beforeAccountChange:
                                               _publications?.suspend,
-                                          afterAccountChange: () =>
-                                              _publications?.resume(),
+                                          afterAccountChange: (signedIn) {
+                                            _publications?.resume();
+                                            if (signedIn) {
+                                              _publications
+                                                  ?.accountAuthorizationChanged();
+                                            }
+                                          },
                                         ),
                                       ],
                                     ),
