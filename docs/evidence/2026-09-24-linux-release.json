@@ -1,0 +1,17 @@
+{
+  "kind": "linux-release-build",
+  "sourceCommit": "88d2643724397b9d458d8adae14a620d6e5048dd",
+  "platform": "linux-x64",
+  "mode": "release",
+  "bundle": "apps/manager/build/linux/x64/release/bundle/",
+  "archive": "apps/manager/build/releases/antirkn-linux-x64-88d2643.tar.gz",
+  "archiveBytes": 39919150,
+  "archiveSha256": "93623b9b50d3d549d32147b2e2cb6d295722c4e4db30b1a2693e67ee507b7394",
+  "executableSha256": "e16b707ed86d87307fd447ceec8c211758ccf924ad44687f92d2465b3621098f",
+  "archiveListingChecked": true,
+  "localDependenciesChecked": true,
+  "runtimeTested": false,
+  "userDataOpened": false,
+  "androidReleaseBuilt": false,
+  "pushed": false
+}
