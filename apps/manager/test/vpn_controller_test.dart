@@ -1026,6 +1026,44 @@ void main() {
     },
   );
   test(
+    'ordinary publish rebuilds a changed base template without checking unchanged servers',
+    () async {
+      final store = MemoryVpn();
+      final remotes = <String, Remote>{
+        'one': Remote(store),
+        'two': Remote(store),
+      };
+      var source = template;
+      final c = controller(store, remotes, source: () => source);
+      addTearDown(c.dispose);
+      await setup(c);
+      await c.prepare();
+      await c.apply();
+      expect(c.hasCurrentVerifiedProfiles, isTrue);
+      final oldHash = c.workspace.profiles[alice]?['hash'];
+
+      source = template.replaceFirst(
+        '"MATCH,ALL"',
+        '"DOMAIN-SUFFIX,example.com,ALL","MATCH,ALL"',
+      );
+      for (final remote in remotes.values) {
+        remote.actions.clear();
+        remote.failState = true;
+      }
+      expect(c.hasCurrentVerifiedProfiles, isFalse);
+
+      final sync = await c.syncAllServersAndProfiles(
+        allowVerifiedSnapshot: true,
+      );
+
+      expect(sync.verified, isTrue);
+      expect(sync.usedSavedVerification, isTrue);
+      expect(c.workspace.profiles[alice]?['hash'], isNot(oldHash));
+      expect(c.results[alice]?.hasBlockingErrors, isFalse);
+      expect(remotes.values.every((remote) => remote.actions.isEmpty), isTrue);
+    },
+  );
+  test(
     'syncAllServersAndProfiles isolates single server failure without aborting remaining servers',
     () async {
       final store = MemoryVpn(), remotes = <String, Remote>{};

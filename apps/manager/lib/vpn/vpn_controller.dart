@@ -2133,6 +2133,11 @@ class VpnController extends ChangeNotifier {
     if (!loaded || busy) {
       return ServerProfileSyncResult(revision: revision, issue: 'vpn_busy');
     }
+    // A template edit changes local YAML, not the confirmed server payload.
+    if (allowVerifiedSnapshot && _lastTemplate != template()) {
+      await refreshProfiles();
+      if (error != null) return failed(error!);
+    }
     if (allowVerifiedSnapshot && hasCurrentVerifiedProfiles) {
       try {
         await checkProfileEffects();
