@@ -13,7 +13,7 @@ import os
 import re
 import secrets
 
-from panel import atomic_file, safe_file
+from panel import PanelError, atomic_file, safe_file
 from vless import VlessError, canonical, digest
 
 TABLES = {'vless': 'vless_resources', 'awg': 'awg_resources', 'tt': 'tt_resources'}
@@ -120,7 +120,9 @@ def preflight(store, p, r, old, protocol, inbounds=None):
     if r.get('deleted') and (not old or old.get('deleted')):
         return old.get('observedHash') if old else None
     a = adapter(protocol)
-    current = a.snapshot(store, p, r, inbounds=inbounds) if protocol == 'vless' else a.snapshot(store, p, r)
+    current = (a.snapshot(store, p, r, inbounds=inbounds,
+                          expected_hash=old['observedHash'] if old else r['adoption']['observedHash'])
+               if protocol == 'vless' else a.snapshot(store, p, r))
     guard(store, p, r, old, protocol, current)
     a.build(store, p, r, old, current, preview=True)
     return current['fingerprint']
@@ -145,10 +147,16 @@ def apply(store, req, p, r, old, protocol, checkpoint):
     a = adapter(protocol)
     path = store.directory / ('adopt-' + req['id'] + '-' + r['id'] + '.json')
     if not path.exists():
-        current = a.snapshot(store, p, r)
+        current = (a.snapshot(store, p, r, expected_hash=old['observedHash'] if old else r['adoption']['observedHash'])
+                   if protocol == 'vless' else a.snapshot(store, p, r))
         guard(store, p, r, old, protocol, current)
         key(store)
         intent = a.build(store, p, r, old, current)
+        if protocol == 'vless' and r['deleted'] and current['row'] is not None:
+            from panel_clients import capture
+            from vless import panel_for
+            api = panel_for(store, p['panelId'])
+            intent['cleanupClients'] = capture(current['row'], api.call('/panel/api/clients/list'))
         intent['keyId'] = hashlib.sha256(key(store)).hexdigest()
         intent['requestHash'] = digest(dict(payload=p, protocol=protocol, resource=r['id']))
         atomic_file(path, canonical(intent).encode())
@@ -163,9 +171,14 @@ def apply(store, req, p, r, old, protocol, checkpoint):
     if digest(old) != intent['oldHash']:
         raise VlessError('vpn_adoption_conflict')
     a.apply(store, p, r, intent)
-    observed = a.snapshot(store, p, r)
+    observed = (a.snapshot(store, p, r, prefer_detail=True) if protocol == 'vless'
+                else a.snapshot(store, p, r))
     if not a.verify(observed, intent):
         raise VlessError('vpn_adoption_failed')
+    if protocol == 'vless' and r['deleted']:
+        from panel_clients import cleanup
+        from vless import panel_for
+        cleanup(panel_for(store, p['panelId']), intent.get('cleanupClients', []))
     data = dict(intent['record'], adopted=True, deleted=r['deleted'], workspaceId=p['workspaceId'],
                 panelId=p['panelId'], spec=r, revision=digest(p),
                 keyId=intent['keyId'], jobId=req['id'],
@@ -182,7 +195,9 @@ def state(store, saved, protocol, pending_job=None, inbounds=None):
     row = None
     try:
         a = adapter(protocol)
-        observed = a.snapshot(store, p, saved['spec'], inbounds=inbounds) if protocol == 'vless' else a.snapshot(store, p, saved['spec'])
+        observed = (a.snapshot(store, p, saved['spec'], inbounds=inbounds,
+                               expected_hash=saved.get('observedHash'))
+                    if protocol == 'vless' else a.snapshot(store, p, saved['spec']))
         row = observed.get('row') if protocol == 'vless' else observed.get('resource')
     except VlessError as error:
         if getattr(error, 'code', None) in ('vpn_adoption_conflict', 'awg_conflict', 'tt_conflict'):
@@ -204,6 +219,8 @@ def state(store, saved, protocol, pending_job=None, inbounds=None):
                 job['status'] == 'succeeded' or saved['jobId'] == pending_job)
     else:
         try:
+            if protocol == 'vless' and observed['fingerprint'] != saved['observedHash']:
+                observed = recover_vless_readback(store, saved, observed)
             confirmed = observed['fingerprint'] == saved['observedHash']
             confirmed = confirmed and adapter(protocol).healthy(observed)
             job = store.db.execute('SELECT status FROM jobs WHERE id=?', (saved['jobId'],)).fetchone()
@@ -218,6 +235,44 @@ def state(store, saved, protocol, pending_job=None, inbounds=None):
                 deleted=bool(saved.get('deleted')), exists=(row is not None),
                 clients=saved.get('clients', []),
                 proxy=saved.get('proxy', {}), revision=saved.get('revision', ''))
+
+
+def recover_vless_readback(store, saved, observed):
+    """Rebind an older list fingerprint only to this job's verified intent."""
+    if observed['row'] is None or not saved.get('jobId'):
+        return observed
+    job = store.db.execute('SELECT request, status FROM jobs WHERE id=?', (saved['jobId'],)).fetchone()
+    if job is None or job['status'] not in ('running', 'partially_applied', 'succeeded'):
+        return observed
+    try:
+        request = json.loads(job['request'])
+        if request.get('kind') != 'vless_apply':
+            return observed
+        import vless
+        payload = vless.parse_payload(request['payload'])
+        resource = next((r for r in payload['resources'] if r['id'] == saved['spec']['id']), None)
+        if (resource != saved['spec'] or payload['workspaceId'] != saved['workspaceId']
+                or payload['panelId'] != saved['panelId'] or digest(payload) != saved['revision']):
+            return observed
+        path = store.directory / ('adopt-' + saved['jobId'] + '-' + resource['id'] + '.json')
+        safe_file(path)
+        intent = json.loads(path.read_text())
+        if (intent['requestHash'] != digest(dict(payload=payload, protocol='vless', resource=resource['id']))
+                or intent['keyId'] != saved['keyId']
+                or intent['record']['clients'] != saved['clients']
+                or intent['record']['proxy'] != saved['proxy']):
+            return observed
+        detail = adapter('vless').snapshot(store, payload, resource, prefer_detail=True)
+        if not adapter('vless').verify(detail, intent):
+            return observed
+        saved['observedHash'] = detail['fingerprint']
+        with store.db:
+            store.db.execute('INSERT INTO vless_resources VALUES (?,?) '
+                             'ON CONFLICT(id) DO UPDATE SET data=excluded.data',
+                             (resource['id'], canonical(saved)))
+        return detail
+    except (OSError, ValueError, KeyError, TypeError, PanelError, VlessError):
+        return observed
 
 
 def intent(old, snapshot, after, clients, proxy):

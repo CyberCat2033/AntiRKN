@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from urllib.parse import unquote
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'server/runner'))
 from runner import Store
@@ -15,8 +16,25 @@ def spec(number=1,transport='raw'):
     return dict(id=f'{number:032x}',name='Managed VLESS',enabled=True,deleted=False,listen='127.0.0.1',port=23400+number,endpoint='203.0.113.10',externalPort=23400+number,transport=transport,security='reality',sni='example.com',target='example.com:443',path='/',host='',mode='auto',certificate='',certificateKey='',region='')
 def payload():return dict(version=1,workspaceId='a'*32,panelId='b'*32,resources=[spec(),spec(2,'xhttp')],users=[dict(id='c'*32,enabled=True),dict(id='d'*32,enabled=True)])
 class Api:
-    def __init__(self):self.rows=[];self.effects=0;self.crash=False;self.list_calls=0;self.get_calls=0;self.annotate_list=False;self.extra_list_field=False
+    def __init__(self):self.rows=[];self.effects=0;self.crash=False;self.list_calls=0;self.get_calls=0;self.annotate_list=False;self.extra_list_field=False;self.client_records={}
+    def clients(self):
+        attached = {}
+        for row in self.rows:
+            for client in normal(row).get('settings', {}).get('clients', []):
+                email = client.get('email')
+                if email:
+                    attached.setdefault(email, []).append(row['id'])
+                    if email not in self.client_records:
+                        self.client_records[email] = dict(id=len(self.client_records)+1, email=email, uuid=client.get('id', ''))
+        return [dict(record, inboundIds=attached.get(email, [])) for email,record in self.client_records.items()]
     def call(self,path,data=None):
+        if path == '/panel/api/clients/list':return copy.deepcopy(self.clients())
+        if path.startswith('/panel/api/clients/get/'):
+            email=unquote(path.rsplit('/',1)[1]);record=next((r for r in self.clients() if r['email']==email),None)
+            if record is None:raise ValueError('missing client')
+            return dict(client={k:v for k,v in record.items() if k!='inboundIds'},inboundIds=record['inboundIds'])
+        if path.startswith('/panel/api/clients/del/'):
+            email=unquote(path.rsplit('/',1)[1]);self.client_records.pop(email);return None
         if path.endswith('/list'):
             self.list_calls+=1
             rows=copy.deepcopy(self.rows)
@@ -48,7 +66,7 @@ class Api:
 class VlessTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.store=Store(Path(self.temp.name));self.api=Api()
-        self.patches=[patch('vless.panel_for',return_value=self.api),patch('vless.material',return_value=dict(privateKey='A'*43,publicKey='B'*43,shortId='0123456789abcdef')),patch('vless.secret',side_effect=lambda label:hashlib.sha256(label.encode()).digest()),patch('vless.command',return_value=b'')]
+        self.patches=[patch('vless.panel_for',return_value=self.api),patch('vless.material',return_value=dict(privateKey='A'*43,publicKey='B'*43,shortId='0123456789abcdef')),patch('vless.secret',side_effect=lambda label:hashlib.sha256(label.encode()).digest()),patch('vless.command',return_value=b''),patch('vless.safe_file')]
         for p in self.patches:p.start()
     def tearDown(self):
         for p in self.patches:p.stop()
@@ -267,9 +285,13 @@ class VlessTests(unittest.TestCase):
         job=self.finish(req);self.assertEqual(job['status'],'partially_applied');self.assertEqual(len(self.api.rows),1)
         self.assertTrue((Path(self.temp.name)/('vless-backup-'+req['id']+'.json')).exists())
     def test_delete_only_owned_resource(self):
-        req=self.submit();self.finish(req);p=payload();p['resources'][0].update(enabled=False,deleted=True)
+        req=self.submit();self.finish(req)
+        emails = {c['email'] for c in self.api.clients()}
+        p=payload();p['resources'][0].update(enabled=False,deleted=True)
         second=self.submit(p,2);self.assertEqual(self.finish(second)['status'],'succeeded');self.assertEqual(len(self.api.rows),1)
         self.assertTrue(state(self.store,'b'*32)[0]['confirmed'])
+        self.assertEqual({c['email'] for c in self.api.clients()},
+                         {email for email in emails if p['resources'][1]['id'] in email})
     def test_contract_rejects_unknown_fields_injection_invalid_combinations_and_duplicates(self):
         for change in [dict(listen='$(id)'),dict(port=True),dict(endpoint='0.0.0.0'),dict(transport='ws'),dict(transport='raw',security='tls'),dict(transport='xhttp',mode='packet-up'),dict(certificate='/etc/../key')]:
             p=payload();p['resources'][0].update(change)

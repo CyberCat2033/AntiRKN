@@ -1371,7 +1371,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get vpnDeleteHelp =>
-      'Следующий план удалит этот inbound для всех клиентов.';
+      'Следующий план удалит этот inbound и осиротевшие записи клиентов на сервере. Клиенты в приложении сохранятся.';
 
   @override
   String get vpnPlan => 'План клиентских доступов';
@@ -3172,7 +3172,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get inboundDeleteSelectionHelp =>
-      'Удалить выбранные inbounds вместе с их подключениями? Записи клиентов сохранятся, затронутые профили будут обновлены.';
+      'Удалить выбранные inbounds вместе с их подключениями? Осиротевшие записи клиентов на сервере тоже удалятся. Клиенты в приложении сохранятся, затронутые профили обновятся.';
 
   @override
   String get inboundDeleteIncomplete =>

@@ -2489,7 +2489,7 @@ abstract class AppLocalizations {
   /// No description provided for @vpnDeleteHelp.
   ///
   /// In en, this message translates to:
-  /// **'The next plan will remove this inbound for all clients.'**
+  /// **'The next plan will remove this inbound and its orphaned server client records. Clients in this app remain.'**
   String get vpnDeleteHelp;
 
   /// No description provided for @vpnPlan.
@@ -5609,7 +5609,7 @@ abstract class AppLocalizations {
   /// No description provided for @inboundDeleteSelectionHelp.
   ///
   /// In en, this message translates to:
-  /// **'Delete the selected inbounds and their connections? Client records are retained and affected profiles will be updated.'**
+  /// **'Delete the selected inbounds and their connections? Orphaned server client records will also be deleted. Clients in this app remain, and affected profiles will be updated.'**
   String get inboundDeleteSelectionHelp;
 
   /// No description provided for @inboundDeleteIncomplete.

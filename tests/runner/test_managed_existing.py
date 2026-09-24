@@ -163,6 +163,48 @@ class AdoptionTests(unittest.TestCase):
         self.assertEqual(self.api.effects,1);self.assertEqual(len(self.api.rows),1)
         self.assertEqual(len(self.api.rows[0]['settings']['clients']),2)
 
+    def test_vless_point_readback_confirms_adoption_with_list_only_annotations(self):
+        self.api.extra_list_field = True
+        p = self.payload('vless')
+        self.assertEqual(self.finish(self.submit(p, 'vless'))['status'], 'succeeded')
+        self.assertTrue(vless.state(self.store, 'a'*32)[0]['confirmed'])
+        self.api.rows[0]['settings']['clients'].append(dict(id='new-foreign', email='new-foreign'))
+        self.assertFalse(vless.state(self.store, 'a'*32)[0]['confirmed'])
+        with self.assertRaises(VlessError): self.submit(p, 'vless', 2)
+
+    def test_vless_legacy_list_fingerprint_recovers_from_own_verified_intent(self):
+        p = self.payload('vless')
+        self.assertEqual(self.finish(self.submit(p, 'vless'))['status'], 'succeeded')
+        record = existing.records(self.store, 'vless')[p['resources'][0]['id']]
+        record['observedHash'] = vless.digest(vless.normal({**self.api.rows[0], 'listOnlyDiagnostic': 'old'}))
+        with self.store.db:
+            self.store.db.execute('UPDATE vless_resources SET data=? WHERE id=?',
+                                  (vless.canonical(record), p['resources'][0]['id']))
+        self.api.extra_list_field = True
+        self.assertTrue(vless.state(self.store, 'a'*32)[0]['confirmed'])
+        repaired = existing.records(self.store, 'vless')[p['resources'][0]['id']]
+        self.assertEqual(repaired['observedHash'], vless.digest(vless.normal(self.api.rows[0])))
+
+    def test_vless_failed_point_readback_does_not_mark_adopted_row_deleted(self):
+        p = self.payload('vless')
+        self.assertEqual(self.finish(self.submit(p, 'vless'))['status'], 'succeeded')
+        self.api.extra_list_field = True
+        original = self.api.call
+        with patch.object(self.api, 'call', side_effect=lambda path, data=None:
+                          None if '/inbounds/get/' in path else original(path, data)):
+            with self.assertRaisesRegex(VlessError, 'vless_api_failed'):
+                vless.state(self.store, 'a'*32)
+        self.assertFalse(existing.records(self.store, 'vless')[p['resources'][0]['id']]['deleted'])
+
+    def test_deleting_adopted_vless_cleans_panel_clients_including_foreign(self):
+        p = self.payload('vless')
+        self.assertEqual(self.finish(self.submit(p, 'vless'))['status'], 'succeeded')
+        self.assertEqual({c['email'] for c in self.api.clients()},
+                         {'foreign', 'ar_' + p['resources'][0]['id'] + '_' + p['users'][0]['id']})
+        p['resources'][0].update(enabled=False, deleted=True)
+        self.assertEqual(self.finish(self.submit(p, 'vless', 2))['status'], 'succeeded')
+        self.assertEqual(self.api.clients(), [])
+
     def test_awg_preserves_server_keys_hooks_and_peers_and_allocates_free_address(self):
         original=self.raw;p=self.payload('awg')
         self.assertEqual(self.finish(self.submit(p,'awg'))['status'],'succeeded')
@@ -572,4 +614,3 @@ class AdoptionTests(unittest.TestCase):
         with tt_common.file_lock(test_file):
             with tt_common.file_lock(test_file):
                 self.assertTrue(test_file.exists())
-

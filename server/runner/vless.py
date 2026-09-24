@@ -372,7 +372,12 @@ class VlessApply:
             check_revocations(self.store, p, persist=True)
             backup = self.store.directory / ('vless-backup-' + job_id + '.json')
             if not backup.exists():
-                atomic_file(backup, canonical(dict(rows=rows, resources=owned_rows(self.store))).encode())
+                from panel_clients import capture
+                deleted = [r for r in p['resources'] if r['deleted'] and 'adoption' not in r]
+                listed = api.call('/panel/api/clients/list') if deleted else []
+                refs = {r['id']: capture(row, listed) for r in deleted
+                        if (row := locate(rows, p['workspaceId'], r['id'])) is not None}
+                atomic_file(backup, canonical(dict(rows=rows, resources=owned_rows(self.store), clientRefs=refs)).encode())
             code = 'vless_preparing'
         elif checkpoint <= len(p['resources']):
             r = p['resources'][checkpoint - 1]
@@ -408,6 +413,11 @@ class VlessApply:
                 observed = locate(api.call('/panel/api/inbounds/list'), p['workspaceId'], r['id'])
             if r['deleted']:
                 if observed is not None: raise VlessError('vless_api_failed')
+                from panel_clients import cleanup
+                backup = self.store.directory / ('vless-backup-' + job_id + '.json')
+                safe_file(backup, 16777216)
+                refs = json.loads(backup.read_text()).get('clientRefs', {}).get(r['id'], [])
+                cleanup(api, refs)
             elif observed is None or not subset(desired, normal(observed)):
                 raise VlessError('vless_api_failed')
             keys = material(p['workspaceId'], r['id'], r.get('realitySeed'))

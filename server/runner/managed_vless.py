@@ -11,7 +11,7 @@ from vless import VlessError, canonical, digest, normal, subset
 from vless_contract import SCHEMA
 
 
-def snapshot(store, p, r, inbounds=None):
+def snapshot(store, p, r, inbounds=None, expected_hash=None, prefer_detail=False):
     if inbounds is None:
         api = vless.panel_for(store, p['panelId'])
         inbounds = api.call('/panel/api/inbounds/list')
@@ -19,6 +19,15 @@ def snapshot(store, p, r, inbounds=None):
                 if str(row['id']) == r['adoption']['sourceId']), None)
     if row is None and not r['deleted']:
         raise VlessError('vpn_adoption_conflict')
+    if row is not None and (prefer_detail or expected_hash is not None and digest(normal(row)) != expected_hash):
+        api = vless.panel_for(store, p['panelId'])
+        detail = api.call('/panel/api/inbounds/get/%d' % row['id'])
+        if not isinstance(detail, dict) or detail.get('id') != row['id'] or detail.get('remark') != row.get('remark'):
+            raise VlessError('vless_api_failed')
+        # The list API can add computed fields absent from point readback. A
+        # saved point fingerprint must be compared to the same API shape.
+        if prefer_detail or digest(normal(detail)) == expected_hash:
+            row = detail
     return dict(row=row, fingerprint=digest(normal(row)) if row else digest(None))
 
 
@@ -141,7 +150,7 @@ def build(store, p, r, old, current, preview=False):
 
 
 def apply(store, p, r, plan):
-    current = snapshot(store, p, r)
+    current = snapshot(store, p, r, expected_hash=plan['before']['fingerprint'])
     if current['fingerprint'] != plan['before']['fingerprint'] and not verify(current, plan):
         raise VlessError('vpn_adoption_conflict')
     if verify(current, plan):

@@ -1367,7 +1367,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get vpnDeleteHelp =>
-      'The next plan will remove this inbound for all clients.';
+      'The next plan will remove this inbound and its orphaned server client records. Clients in this app remain.';
 
   @override
   String get vpnPlan => 'Client access plan';
@@ -3165,7 +3165,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get inboundDeleteSelectionHelp =>
-      'Delete the selected inbounds and their connections? Client records are retained and affected profiles will be updated.';
+      'Delete the selected inbounds and their connections? Orphaned server client records will also be deleted. Clients in this app remain, and affected profiles will be updated.';
 
   @override
   String get inboundDeleteIncomplete =>

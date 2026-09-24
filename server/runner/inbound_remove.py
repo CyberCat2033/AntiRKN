@@ -4,6 +4,7 @@ import re
 import time
 from panel import atomic_file, safe_file
 from vless import VlessError, canonical, digest, normal, panel_for
+from panel_clients import capture, cleanup
 
 
 def decode(raw):
@@ -61,11 +62,24 @@ class InboundRemove:
                 raise VlessError('vless_conflict')
             # Authorize the exact set before the first effect. No credentials in journal.
             if not self.backup.exists():
-                atomic_file(self.backup, canonical(p).encode())
+                rows = {r['id']: r for r in api.call('/panel/api/inbounds/list')}
+                listed = api.call('/panel/api/clients/list')
+                clients = {}
+                for entry in p['removals']:
+                    row = rows.get(entry['inboundId'])
+                    check(row, entry)
+                    clients[str(entry['inboundId'])] = capture(row, listed)
+                atomic_file(self.backup, canonical(dict(payload=p, clients=clients)).encode())
         else:
-            safe_file(self.backup, 262144)
-            if json.loads(self.backup.read_text()) != p:
+            safe_file(self.backup, 16777216)
+            backup = json.loads(self.backup.read_text())
+            # Older in-flight jobs have only the deletion payload in their
+            # backup. Keep them resumable; their vanished rows cannot supply
+            # client IDs for retrospective cleanup.
+            legacy = backup == p
+            if (not legacy and (not isinstance(backup, dict) or backup.get('payload') != p)):
                 raise VlessError('vless_conflict')
+            clients = {} if legacy else backup['clients']
             if checkpoint == 1:
                 rows = {r['id']: r for r in api.call('/panel/api/inbounds/list')}
                 for entry in p['removals']:
@@ -74,6 +88,7 @@ class InboundRemove:
                     if current is not None:
                         check(current, entry)
                         api.call('/panel/api/inbounds/del/%d' % entry['inboundId'], {})
+                    cleanup(api, clients.get(str(entry['inboundId']), []))
                 after_rows = {r['id'] for r in api.call('/panel/api/inbounds/list')}
                 if any(entry['inboundId'] in after_rows for entry in p['removals']):
                     raise VlessError('vless_api_failed')
