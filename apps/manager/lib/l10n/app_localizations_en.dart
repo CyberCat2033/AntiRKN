@@ -1033,6 +1033,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'The installed runner version is incompatible with this build.';
 
   @override
+  String runnerVersionDetails(String installed, String bundled) {
+    return 'Installed: $installed · App: $bundled. Update the app or report these IDs.';
+  }
+
+  @override
   String get runnerInstallFailed =>
       'Setup could not be confirmed. Some changes may have been applied. Refresh the server state before retrying.';
 

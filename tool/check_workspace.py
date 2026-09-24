@@ -12,6 +12,25 @@ expected_base = 'f20fc58fce6c4bb1a53d82a2070ad3d4aea2e663d0c1489af23e5b5aa8495ce
 if hashlib.sha256((ROOT / 'base.yml').read_bytes()).hexdigest() != expected_base:
     errors.append('base.yml changed: review the source-template policy and fixture baseline')
 
+# A runner source edit changes its release hash. Require an explicit version
+# bump and a reviewed release lock instead of silently shipping a second build
+# under the same server directory name.
+runner_lock = json.loads((ROOT / 'schemas/runner-release-lock.json').read_text())
+runner_unit = (ROOT / 'server/runner/antirkn-runner.service').read_text()
+runner_version = re.search(r'/antirkn-runner/v(\d+)/runner\.py daemon', runner_unit)
+if runner_version is None or int(runner_version.group(1)) != runner_lock['version']:
+    errors.append('runner service version differs from the release lock')
+runner_hashes = {
+    name: hashlib.sha256((ROOT / 'server/runner' / name).read_bytes()).hexdigest()
+    for name in runner_lock['hashes']
+}
+runner_release = hashlib.sha256(json.dumps(runner_hashes, sort_keys=True).encode()).hexdigest()
+if runner_hashes != runner_lock['hashes'] or runner_release != runner_lock['release']:
+    errors.append('runner source differs from the release lock: bump its version and register the predecessor')
+runner_bundle = (ROOT / 'packages/ssh_transport/lib/src/runner_bundle.g.dart').read_text()
+if f"const runnerRelease =\n    '{runner_lock['release']}';" not in runner_bundle:
+    errors.append('bundled runner release differs from the release lock')
+
 arb_root = ROOT / 'apps/manager/lib/l10n'
 catalogs = {lang: json.loads((arb_root / f'app_{lang}.arb').read_text()) for lang in ['en', 'ru']}
 keys = lambda c: {k for k in c if not k.startswith('@')}

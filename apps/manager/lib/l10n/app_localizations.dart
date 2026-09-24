@@ -1904,6 +1904,12 @@ abstract class AppLocalizations {
   /// **'The installed runner version is incompatible with this build.'**
   String get runnerIncompatible;
 
+  /// No description provided for @runnerVersionDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Installed: {installed} · App: {bundled}. Update the app or report these IDs.'**
+  String runnerVersionDetails(String installed, String bundled);
+
   /// No description provided for @runnerInstallFailed.
   ///
   /// In en, this message translates to:

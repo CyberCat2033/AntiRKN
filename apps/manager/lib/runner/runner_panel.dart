@@ -52,6 +52,15 @@ class RunnerPanel extends StatelessWidget {
                   error: true,
                 ),
               ),
+            if (c.error == RunnerIssue.incompatible)
+              if (c.installation?.release case final String installed)
+                if (c.bundledRelease case final String bundled)
+                  SelectableText(
+                    l.runnerVersionDetails(
+                      _shortRelease(installed),
+                      _shortRelease(bundled),
+                    ),
+                  ),
             if (c.responseCode != null && c.responseCode != 'ok')
               AppNotice(
                 message: runnerCodeLabel(l, c.responseCode!),
@@ -81,17 +90,17 @@ class RunnerPanel extends StatelessWidget {
                 child: Text(
                   active
                       ? (job.kind == 'component_install'
-                          ? componentStepProgressText(
-                              l,
-                              job.checkpoint,
-                              job.count,
-                            )
-                          : (event != null
-                              ? runnerEventLabel(l, event.code)
-                              : runnerStateLabel(l, job.status)))
+                            ? componentStepProgressText(
+                                l,
+                                job.checkpoint,
+                                job.count,
+                              )
+                            : (event != null
+                                  ? runnerEventLabel(l, event.code)
+                                  : runnerStateLabel(l, job.status)))
                       : (failed && event != null
-                          ? runnerEventLabel(l, event.code)
-                          : runnerStateLabel(l, job.status)),
+                            ? runnerEventLabel(l, event.code)
+                            : runnerStateLabel(l, job.status)),
                 ),
               ),
               if (active)
@@ -164,6 +173,9 @@ class RunnerPanel extends StatelessWidget {
     },
   );
 }
+
+String _shortRelease(String release) =>
+    release.length > 16 ? release.substring(0, 16) : release;
 
 String runnerIssueLabel(AppLocalizations l, RunnerIssue issue) =>
     switch (issue) {

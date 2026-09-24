@@ -1036,6 +1036,11 @@ class AppLocalizationsRu extends AppLocalizations {
       'Установленная версия исполнителя несовместима с этой сборкой.';
 
   @override
+  String runnerVersionDetails(String installed, String bundled) {
+    return 'На сервере: $installed · В приложении: $bundled. Обновите приложение или сообщите эти номера.';
+  }
+
+  @override
   String get runnerInstallFailed =>
       'Настройка не подтверждена. Часть изменений могла примениться. Обновите сведения перед повтором.';
 

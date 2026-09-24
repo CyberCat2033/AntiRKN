@@ -394,6 +394,13 @@
   "runnerPrerequisites": "This runner requires Ubuntu x86_64, a running systemd 235+, and Python 3.8+ with SQLite. No changes were applied.",
   "runnerConflict": "The server state conflicts with this plan or request. Refresh the details before continuing.",
   "runnerIncompatible": "The installed runner version is incompatible with this build.",
+  "runnerVersionDetails": "Installed: {installed} · App: {bundled}. Update the app or report these IDs.",
+  "@runnerVersionDetails": {
+    "placeholders": {
+      "installed": {"type": "String"},
+      "bundled": {"type": "String"}
+    }
+  },
   "runnerInstallFailed": "Setup could not be confirmed. Some changes may have been applied. Refresh the server state before retrying.",
   "runnerInvalidResponse": "The runner returned an invalid response. Check the saved result before retrying.",
   "runnerUnavailable": "The job service is unavailable. Check the SSH connection and administrative access.",
