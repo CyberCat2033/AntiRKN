@@ -18,6 +18,20 @@ class DeviceStore extends f.MemoryVpn implements ChangeJournalStore {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class CountingStore extends f.MemoryVpn {
+  int writes = 0;
+  int? failAt;
+
+  @override
+  Future<int> writeVpn(String source, {required int expectedRevision}) {
+    writes++;
+    if (writes == failAt) {
+      throw const VaultFailure(VaultIssue.writeFailed);
+    }
+    return super.writeVpn(source, expectedRevision: expectedRevision);
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   VpnUser user(VpnController c) =>
@@ -653,4 +667,52 @@ void main() {
       expect(maxConcurrent, 4);
     },
   );
+
+  test('one connection round commits all deletion attempts together', () async {
+    final store = CountingStore();
+    final contacted = <String>[];
+    final c = f.controller(
+      store,
+      {},
+      connectForDeletion: (serverId) async {
+        contacted.add(serverId);
+        return false;
+      },
+    );
+    addTearDown(c.dispose);
+    await f.setup(c);
+    final before = store.writes;
+
+    await c.deleteUsers(c.workspace.users.toList(), awaitReconcile: true);
+
+    expect(c.error, isNull);
+    expect(contacted.toSet(), {'one', 'two'});
+    expect(store.writes - before, 2); // Tombstones, then one round checkpoint.
+    for (final deleted in c.workspace.users) {
+      expect(deleted.deleted, true);
+      for (final target in (deleted.deletion!['targets'] as Map).values) {
+        expect(target['connectionAttempts'], 1);
+        expect(target['error'], 'vpn_connection');
+      }
+    }
+  });
+
+  test('failed connection checkpoint leaves every tombstone waiting', () async {
+    final store = CountingStore();
+    final c = f.controller(store, {}, connectForDeletion: (_) async => false);
+    addTearDown(c.dispose);
+    await f.setup(c);
+    store.failAt = store.writes + 2;
+
+    await c.deleteUsers(c.workspace.users.toList(), awaitReconcile: true);
+
+    expect(c.error, 'vpn_storage');
+    expect(c.workspace.users.every((user) => user.deleted), true);
+    for (final deleted in c.workspace.users) {
+      for (final target in (deleted.deletion!['targets'] as Map).values) {
+        expect(target['status'], 'waiting');
+        expect(target.containsKey('connectionAttempts'), false);
+      }
+    }
+  });
 }

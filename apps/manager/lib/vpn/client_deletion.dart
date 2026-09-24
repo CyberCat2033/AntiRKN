@@ -66,8 +66,7 @@ extension ClientDeletion on VpnController {
       }
     }
     // Each physical server is contacted concurrently once per round, even with
-    // many clients and protocols. Persist failures sequentially before another
-    // automatic round can run.
+    // many clients and protocols.
     final connectionResults = <String, bool?>{};
     await _mapServersBounded(targets.keys.toList(), (serverId) async {
       token.check();
@@ -78,28 +77,60 @@ extension ClientDeletion on VpnController {
       }
     }, cancellation: token);
     token.check();
+    final deletions = <String, Map<String, dynamic>>{};
     for (final entry in targets.entries) {
-      await checkProfileEffects();
       final connected = connectionResults[entry.key];
       if (connected == null) continue;
       for (final target in entry.value) {
         final user = workspace.users.singleWhere((u) => u.id == target.$1);
+        final deletion = deletions[user.id] ?? user.deletion!;
         final record = Map<String, dynamic>.from(
-          user.deletion!['targets'][target.$2] as Map,
+          (deletion['targets'] as Map)[target.$2] as Map,
         );
         if (vpnRevocationSettled(record)) continue;
-        await _deletionTarget(user.id, target.$2, {
-          ...record,
-          'connectionAttempts': connected
-              ? 0
-              : ((manual ? 0 : record['connectionAttempts'] as int? ?? 0) + 1)
-                    .clamp(0, 3),
-          'connectAfter': DateTime.now().millisecondsSinceEpoch + 5000,
-          if (!connected) 'error': 'vpn_connection',
-          if (connected && record['error'] == 'vpn_connection') 'error': null,
-        });
+        deletions[user.id] = {
+          ...deletion,
+          'targets': {
+            ...deletion['targets'] as Map,
+            target.$2: {
+              ...record,
+              'connectionAttempts': connected
+                  ? 0
+                  : ((manual ? 0 : record['connectionAttempts'] as int? ?? 0) +
+                            1)
+                        .clamp(0, 3),
+              'connectAfter': DateTime.now().millisecondsSinceEpoch + 5000,
+              if (!connected) 'error': 'vpn_connection',
+              if (connected && record['error'] == 'vpn_connection')
+                'error': null,
+            },
+          },
+        };
       }
     }
+    if (deletions.isEmpty) return;
+    await checkProfileEffects();
+    token.check();
+    // The connection results are one checkpoint. The revision check and the
+    // entire set of changed tombstones commit together before any revocation.
+    await _write(
+      workspace.copy(
+        users: [
+          for (final user in workspace.users)
+            if (deletions[user.id] case final deletion?)
+              VpnUser(
+                id: user.id,
+                login: user.login,
+                name: user.name,
+                enabled: false,
+                deletion: deletion,
+              )
+            else
+              user,
+        ],
+      ),
+    );
+    _notify();
   }
 
   Future<void> _saveDeletion(

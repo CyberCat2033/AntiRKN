@@ -159,6 +159,65 @@ final class _WorkspaceMerge {
       ): r['change_id'] as String,
   };
 
+  String? preferredHead(ChangeEntityKind kind, String entityId) =>
+      db.select(
+            'SELECT change_id FROM sync_heads WHERE entity_kind=? AND entity_id=?',
+            [kind.name, entityId],
+          ).firstOrNull?['change_id']
+          as String?;
+
+  /// Publication needs only the causal IDs of one profile. Both journals have
+  /// a primary-key index on change_id, so avoid loading and decrypting every
+  /// event for each draft in a batch.
+  Future<Set<String>> acceptedAncestors(String headId) async {
+    final ancestors = <String>{};
+    final waiting = <String>[headId];
+    while (waiting.isNotEmpty) {
+      final id = waiting.removeLast();
+      if (!ancestors.add(id)) continue;
+      final rows = db.select(
+        '''
+        SELECT header,payload FROM sync_changes WHERE change_id=?
+        UNION ALL
+        SELECT header,payload FROM sync_incoming WHERE change_id=? AND state=1
+      ''',
+        [id, id],
+      );
+      if (rows.length > 1) {
+        throw const SyncMergeFailure(SyncMergeIssue.invalid);
+      }
+      if (rows.isEmpty) {
+        if (id == headId) {
+          throw const SyncMergeFailure(SyncMergeIssue.changed);
+        }
+        // Compaction can remove an older parent while retaining the head.
+        continue;
+      }
+      final header = ChangeHeader.fromJson(
+        jsonDecode(rows.single['header'] as String) as Map<String, dynamic>,
+      );
+      final body =
+          jsonDecode(
+                await store._decrypt(
+                  _LocalChangeJournal._scope(header),
+                  1,
+                  rows.single['payload'] as Uint8List,
+                ),
+              )
+              as Map;
+      if (header.changeId != id ||
+          header.workspaceId != store._journal.identity.workspaceId ||
+          body.length != 1 ||
+          !body.containsKey('source') ||
+          (body['source'] == null && !header.deleted) ||
+          body['source'] != null && body['source'] is! String) {
+        throw const SyncMergeFailure(SyncMergeIssue.invalid);
+      }
+      waiting.addAll(header.parents);
+    }
+    return ancestors;
+  }
+
   Future<SyncMergeStatus> receive(List<Uint8List> packets) async {
     final expected = stamp();
     final known = await events(includeWaiting: true);

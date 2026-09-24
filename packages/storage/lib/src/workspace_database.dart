@@ -629,22 +629,9 @@ final class WorkspaceDatabase
               profile['hash'] is! String) {
             return null;
           }
-          final events = await _merge.events();
-          final headId = _merge
-              .preferredHeads()[(ChangeEntityKind.profile, userId)];
+          final headId = _merge.preferredHead(ChangeEntityKind.profile, userId);
           if (headId == null) return null;
-          if (!events.containsKey(headId)) {
-            throw const SyncMergeFailure(SyncMergeIssue.changed);
-          }
-          final ancestors = <String>{};
-          final waiting = [headId];
-          while (waiting.isNotEmpty) {
-            final id = waiting.removeLast();
-            if (!ancestors.add(id)) continue;
-            final event = events[id];
-            if (event == null) continue;
-            waiting.addAll(event.header.parents);
-          }
+          final ancestors = await _merge.acceptedAncestors(headId);
           final previous = _db.select('SELECT * FROM documents WHERE id=?', [
             'publication/result/$userId',
           ]).firstOrNull;

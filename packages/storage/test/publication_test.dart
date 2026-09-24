@@ -100,6 +100,43 @@ void main() {
     },
   );
   test(
+    'a profile draft excludes another client\'s long change history',
+    () async {
+      final otherId = '2' * 32;
+      final original = (await db.readPublicationDraft(user))!;
+      for (var index = 0; index < 32; index++) {
+        final saved = await db.readVpn();
+        final workspace = VpnWorkspace.decode(saved.source!);
+        final yaml = 'mode: rule\n# other profile revision $index';
+        final hash = (await Sha256().hash(
+          utf8.encode(yaml),
+        )).bytes.map((v) => v.toRadixString(16).padLeft(2, '0')).join();
+        await db.writeVpn(
+          workspace
+              .copy(
+                users: [
+                  ...workspace.users,
+                  if (index == 0)
+                    VpnUser(id: otherId, login: 'other', name: 'Other'),
+                ],
+                profiles: {
+                  ...workspace.profiles,
+                  otherId: {'yaml': yaml, 'hash': hash},
+                },
+              )
+              .encode(),
+          expectedRevision: saved.revision,
+        );
+      }
+      final current = (await db.readPublicationDraft(user))!;
+      final other = (await db.readPublicationDraft(otherId))!;
+      expect(current.headId, original.headId);
+      expect(current.ancestors, original.ancestors);
+      expect(current.ancestors, isNot(contains(other.headId)));
+      expect(other.ancestors.length, greaterThan(20));
+    },
+  );
+  test(
     'unrelated server observations do not invalidate a retained profile',
     () async {
       final draft = (await db.readPublicationDraft(user))!;
@@ -171,14 +208,18 @@ void main() {
         const result =
             '{"version":2,"binding":"fixture-operation","fileId":"private-published-fixture","registryId":"registry","head":"fixture-head","hash":"fixture","executor":"fixture-device","access":"link","url":"https://drive.google.com/uc?id=fixture","permissionId":"anyone"}';
         await db.writePublicationDocument(
-          'result/$user', result, expectedSource: null,
+          'result/$user',
+          result,
+          expectedSource: null,
         );
         final newerBinding = canonicalJson({
           ...jsonDecode(binding) as Map<String, dynamic>,
           'etag': 'new-etag',
         });
         await db.writePublicationDocument(
-          'binding/$user', newerBinding, expectedSource: binding,
+          'binding/$user',
+          newerBinding,
+          expectedSource: binding,
         );
         final current = await db.createBackup(password);
         await other.restoreBackup(
@@ -187,7 +228,10 @@ void main() {
         await other.close();
         other = WorkspaceDatabase.open('${dir.path}/b.sqlite', key: otherKey());
         expect(await other.readPublicationDocument('result/$user'), result);
-        expect(await other.readPublicationDocument('binding/$user'), newerBinding);
+        expect(
+          await other.readPublicationDocument('binding/$user'),
+          newerBinding,
+        );
         expect(await other.readPublicationQueue(user), isNull);
       } finally {
         await other.close();
