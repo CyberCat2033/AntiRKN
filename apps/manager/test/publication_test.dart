@@ -1268,6 +1268,68 @@ void main() {
     expect(batchResult.upToDate, 0);
   });
 
+  test(
+    'unchanged private publication skips Drive without a public URL',
+    () async {
+      final account = Account()..publicationAuthorized = true;
+      final repo = Repository();
+      final remote = Remote()..failWithIssue = PublicationIssue.network;
+      final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
+      addTearDown(vpn.dispose);
+      final c = PublicationController(
+        repository: repo,
+        account: account,
+        remote: () => remote,
+        vpn: vpn,
+      );
+      addTearDown(c.dispose);
+      await c.ready;
+      await vpn.load();
+      await vpn.saveUser(
+        VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice'),
+      );
+      final hash = vpn.workspace.profiles[fixtures.alice]!['hash'] as String;
+      repo.docs['settings'] = canonicalJson(
+        const PublicationSettings(
+          accountKey: 'account',
+          folderId: 'folder',
+          folderName: 'Folder',
+          access: PublicationAccess.private,
+          enabled: true,
+          folderReady: true,
+        ).toJson(),
+      );
+      repo.docs['result/${fixtures.alice}'] = canonicalJson({
+        'fileId': 'private-file',
+        'registryId': 'registry',
+        'head': 'head-1',
+        'hash': hash,
+        'access': 'private',
+        'url': null,
+        'permissionId': null,
+      });
+      repo.queues[fixtures.alice] = canonicalJson({
+        'status': 'published',
+        'issue': null,
+        'head': 'head-1',
+        'hash': hash,
+      });
+      await c.reload();
+
+      expect(c.isUserUpToDate(fixtures.alice), isTrue);
+      final skipped = await c.forcePublishAll(force: false);
+      expect(skipped.upToDate, 1);
+      expect(skipped.failed, 0);
+      expect(remote.ids, 0);
+
+      c.results[fixtures.alice]!['access'] = 'link';
+      expect(c.isUserUpToDate(fixtures.alice), isFalse);
+      c.results[fixtures.alice]!['access'] = 'private';
+      c.results[fixtures.alice]!['permissionId'] = 'public-permission';
+      expect(c.isUserUpToDate(fixtures.alice), isFalse);
+    },
+  );
+
   test('forcePublishAll returns honest PublicationBatchResult with upToDate count on fast-path', () async {
     final account = Account()..publicationAuthorized = true;
     final repo = Repository();

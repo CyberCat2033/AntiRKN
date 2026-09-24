@@ -214,8 +214,10 @@ extension PublicationBinding on PublicationCoordinator {
       throw const PublicationFailure(PublicationIssue.conflict);
     }
     for (var attempt = 0; attempt < 8; attempt++) {
-      final snapshot = await _snapshot(registryId);
-      final registry = _decodeRegistry(snapshot.$2, draft.workspaceId);
+      final (registryFile, registry) = await _fetchRegistry(
+        registryId,
+        draft.workspaceId,
+      );
       final users = registry['users'] as Map<String, dynamic>;
       final entry = users[draft.userId] as Map?;
       if (entry?['binding'] == intent['id']) return;
@@ -254,7 +256,7 @@ extension PublicationBinding on PublicationCoordinator {
       await guard();
       try {
         await remote.updateFile(
-          snapshot.$1,
+          registryFile,
           PublicationCoordinator._bytes({
             ...registry,
             'version': 2,

@@ -130,8 +130,9 @@ final class PublicationCoordinator {
       }
       await repository.checkPublicationDraft(draft);
       if (registryFence case final fence?) {
-        final snapshot = await _snapshot(fence.$1);
-        final value = _decodeRegistry(snapshot.$2, draft.workspaceId);
+        // A matching ETag validates the cached registry without downloading
+        // it again. A changed ETag still gets a full hash-checked snapshot.
+        final (_, value) = await _fetchRegistry(fence.$1, draft.workspaceId);
         if (canonicalJson((value['users'] as Map)[userId]) != fence.$2) {
           throw const PublicationFailure(PublicationIssue.conflict);
         }

@@ -205,6 +205,51 @@ void main() {
   );
 
   test(
+    'bound publication reuses unchanged registry and detects an external edit',
+    () async {
+      final repo = f.Repository(await f.draft('one')), remote = f.Remote();
+      await f.publish(repo, remote);
+      remote.blobs['legacy'] = f.Blob(f.bytes('external'), {});
+      final coord = f.coordinator(repo, remote);
+      await coord.acceptBinding(
+        await coord.inspectBinding(f.user, PublicationTarget('legacy')),
+      );
+      expect(
+        (await coord.publish(f.user, force: true))?['status'],
+        'published',
+      );
+
+      final before = remote.registryDownloadCalls;
+      expect(
+        (await coord.publish(f.user, force: true))?['status'],
+        'published',
+      );
+      expect(remote.registryDownloadCalls, before);
+
+      repo.current = await f.draft('two', ancestors: {'one'});
+      remote.pauseContent = utf8.decode(repo.current!.bytes);
+      final pending = coord.publish(f.user, force: true);
+      await remote.paused.future;
+      final registry = remote.blobs.entries
+          .singleWhere(
+            (entry) => entry.value.properties['antirknUser'] == 'registry',
+          )
+          .value;
+      final changed =
+          jsonDecode(utf8.decode(registry.content)) as Map<String, dynamic>;
+      final users = changed['users'] as Map<String, dynamic>;
+      users[f.user] = {...users[f.user] as Map, 'fileId': 'other-file'};
+      registry.content = f.bytes(canonicalJson(changed));
+      registry.properties['antirknHash'] = await f.hash(registry.content);
+      registry.version++;
+      remote.release.complete();
+
+      expect((await pending)?['issue'], 'conflict');
+      expect(remote.registryDownloadCalls, greaterThan(before));
+    },
+  );
+
+  test(
     'changed preview or local draft rejects consent before remote mutation',
     () async {
       final repo = f.Repository(await f.draft('one')), remote = f.Remote();

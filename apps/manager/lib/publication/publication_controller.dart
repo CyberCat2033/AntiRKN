@@ -686,13 +686,24 @@ class PublicationController extends ChangeNotifier {
     final savedHash = savedProfileHashFor(userId);
     final result = results[userId];
     final queue = queues[userId];
+    final access = settings?.access;
+    final accessReady = switch (access) {
+      PublicationAccess.private => result?['permissionId'] == null,
+      PublicationAccess.link =>
+        result?['url'] is String && result?['permissionId'] is String,
+      _ => false,
+    };
     return savedHash != null &&
         result?['hash'] == savedHash &&
         result?['fileId'] is String &&
-        result?['url'] is String &&
+        result?['registryId'] is String &&
+        result?['access'] == access?.name &&
+        accessReady &&
         !bindingPending(userId) &&
         queue?['status'] == 'published' &&
-        queue?['issue'] == null;
+        queue?['issue'] == null &&
+        queue?['head'] == result?['head'] &&
+        queue?['hash'] == savedHash;
   }
 
   String? savedProfileHashFor(String userId) {
