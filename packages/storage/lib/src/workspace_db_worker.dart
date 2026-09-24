@@ -273,6 +273,9 @@ Future<Object?> _dispatchDatabase(
     ),
   ),
   'readPublicationQueue' => await db.readPublicationQueue(args[0] as String),
+  'readPublicationStateBatch' => await db.readPublicationStateBatch(
+    args[0] as List<String>,
+  ),
   'writePublicationQueue' => await _unit(
     db.writePublicationQueue(
       args[0] as String,

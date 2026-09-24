@@ -121,6 +121,7 @@ final class WorkspaceDatabase
     implements
         ServerRepository,
         PublicationRepository,
+        PublicationStateBatchReader,
         RunnerJournalStore,
         ConditionalRunnerJournalStore,
         VpnRepository,
@@ -562,6 +563,60 @@ final class WorkspaceDatabase
           return source == null
               ? null
               : _decrypt('publication-queue/$userId', 1, base64Decode(source));
+        });
+  @override
+  Future<Map<String, Map<String, String?>>> readPublicationStateBatch(
+    List<String> userIds,
+  ) => _dbWorker != null
+      ? _remoteCall('readPublicationStateBatch', [userIds])
+      : _serial(() async {
+          final ids = userIds.toSet().toList();
+          for (final id in ids) {
+            _publicationId('queue/$id');
+          }
+          if (ids.isEmpty) return <String, Map<String, String?>>{};
+          final result = <String, Map<String, String?>>{
+            for (final id in ids)
+              id: {'queue': null, 'result': null, 'binding': null},
+          };
+          // SQLite builds may have a 999-variable limit. Bound each query.
+          for (var offset = 0; offset < ids.length; offset += 400) {
+            final group = ids.skip(offset).take(400);
+            final names = [
+              for (final id in group) ...[
+                'publication/result/$id',
+                'publication/binding/$id',
+              ],
+            ];
+            final placeholders = List.filled(names.length, '?').join(',');
+            final rows = _db.select(
+              'SELECT id, revision, payload FROM documents WHERE id IN ($placeholders)',
+              names,
+            );
+            for (final row in rows) {
+              final name = row['id'] as String;
+              final id = name.split('/').last;
+              final field = name.startsWith('publication/result/')
+                  ? 'result'
+                  : 'binding';
+              result[id]![field] = await _decrypt(
+                name,
+                row['revision'] as int,
+                row['payload'] as Uint8List,
+              );
+            }
+          }
+          for (final id in ids) {
+            final source = await _publicationQueueFiles(id).read();
+            if (source != null) {
+              result[id]!['queue'] = await _decrypt(
+                'publication-queue/$id',
+                1,
+                base64Decode(source),
+              );
+            }
+          }
+          return result;
         });
   @override
   Future<void> writePublicationQueue(

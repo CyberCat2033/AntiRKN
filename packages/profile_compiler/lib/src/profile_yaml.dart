@@ -210,7 +210,14 @@ Map<String, List<String>> _comments(
   return comments;
 }
 
-String writeProfileYaml(String template, List<Object?> proxies) {
+final class ProfileYamlTemplate {
+  const ProfileYamlTemplate(this.original, this.whole, this.comments);
+  final YamlMap original;
+  final bool whole;
+  final Map<String, List<String>> comments;
+}
+
+ProfileYamlTemplate prepareProfileYaml(String template) {
   final original = loadYamlNode(template) as YamlMap;
   final oldProxies = original.nodes['proxies'];
   // A flow-style root cannot contain a block-style proxies child. Expand it
@@ -224,6 +231,21 @@ String writeProfileYaml(String template, List<Object?> proxies) {
       : oldProxies is YamlList
       ? _comments(template, oldProxies)
       : <String, List<String>>{};
+  return ProfileYamlTemplate(original, whole, comments);
+}
+
+String writeProfileYaml(String template, List<Object?> proxies) =>
+    writeProfileYamlPrepared(template, proxies, prepareProfileYaml(template));
+
+/// Reuses the source tree and comment locations across a client batch.
+String writeProfileYamlPrepared(
+  String template,
+  List<Object?> proxies,
+  ProfileYamlTemplate prepared,
+) {
+  final original = prepared.original;
+  final whole = prepared.whole;
+  final comments = prepared.comments;
   final ordered = proxies.map(_ordered).toList();
   final editor = YamlEditor(whole ? '' : template);
   if (whole) {

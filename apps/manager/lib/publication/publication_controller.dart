@@ -208,20 +208,29 @@ class PublicationController extends ChangeNotifier {
       final nextQueues = <String, Map<String, dynamic>>{},
           nextResults = <String, Map<String, dynamic>>{},
           nextBindings = <String, Map<String, dynamic>>{};
-      for (final user in vpn.workspace.users) {
-        final q = await repository.readPublicationQueue(user.id),
-            r = await repository.readPublicationDocument('result/${user.id}');
-        final b = await repository.readPublicationDocument(
-          'binding/${user.id}',
-        );
+      final userIds = [for (final user in vpn.workspace.users) user.id];
+      final batch = repository is PublicationStateBatchReader
+          ? await (repository as PublicationStateBatchReader)
+                .readPublicationStateBatch(userIds)
+          : null;
+      for (final id in userIds) {
+        final q = batch == null
+            ? await repository.readPublicationQueue(id)
+            : batch[id]?['queue'];
+        final r = batch == null
+            ? await repository.readPublicationDocument('result/$id')
+            : batch[id]?['result'];
+        final b = batch == null
+            ? await repository.readPublicationDocument('binding/$id')
+            : batch[id]?['binding'];
         if (b != null) {
-          nextBindings[user.id] = jsonDecode(b) as Map<String, dynamic>;
+          nextBindings[id] = jsonDecode(b) as Map<String, dynamic>;
         }
         if (q != null) {
-          nextQueues[user.id] = jsonDecode(q) as Map<String, dynamic>;
+          nextQueues[id] = jsonDecode(q) as Map<String, dynamic>;
         }
         if (r != null) {
-          nextResults[user.id] = jsonDecode(r) as Map<String, dynamic>;
+          nextResults[id] = jsonDecode(r) as Map<String, dynamic>;
         }
       }
       if (_disposed || generation != _reloadGeneration) return;

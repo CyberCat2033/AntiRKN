@@ -210,6 +210,12 @@ Map<String, ProfileResult> _compileBatch(
   final serverNames = input.$4;
   final results = <String, ProfileResult>{};
   const compiler = ProfileCompiler();
+  PreparedProfileTemplate? prepared;
+  try {
+    prepared = compiler.prepare(template);
+  } catch (_) {
+    // Preserve the compiler's existing per-user diagnostics for bad templates.
+  }
 
   for (final userId in userIds) {
     try {
@@ -248,11 +254,17 @@ Map<String, ProfileResult> _compileBatch(
         );
         continue;
       }
-      results[userId] = compiler.compile(
-        template: template,
-        userId: userId,
-        accesses: accesses,
-      );
+      results[userId] = prepared == null
+          ? compiler.compile(
+              template: template,
+              userId: userId,
+              accesses: accesses,
+            )
+          : compiler.compilePrepared(
+              prepared: prepared,
+              userId: userId,
+              accesses: accesses,
+            );
     } on ProfileAccessException catch (e) {
       results[userId] = ProfileResult(
         groups: [],

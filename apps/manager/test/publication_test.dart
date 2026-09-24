@@ -84,6 +84,29 @@ class Repository implements PublicationRepository {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class BatchRepository extends Repository implements PublicationStateBatchReader {
+  int batchReads = 0;
+
+  @override
+  Future<Map<String, Map<String, String?>>> readPublicationStateBatch(
+    List<String> userIds,
+  ) async {
+    batchReads++;
+    return {
+      for (final id in userIds)
+        id: {
+          'queue': queues[id],
+          'result': docs['result/$id'],
+          'binding': docs['binding/$id'],
+        },
+    };
+  }
+
+  @override
+  Future<String?> readPublicationQueue(String id) =>
+      throw StateError('reload used a per-user queue read');
+}
+
 class Remote implements PublicationRemoteStore {
   final folders = <String, PublicationFile>{};
   final contents = <String, Uint8List>{};
@@ -245,6 +268,27 @@ class BlockingRemote extends Remote {
 }
 
 void main() {
+  test('reload reads publication states in one batch', () async {
+    final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
+    final repo = BatchRepository();
+    final c = PublicationController(
+      repository: repo,
+      account: Account(),
+      remote: Remote.new,
+      vpn: vpn,
+    );
+    addTearDown(() {
+      c.dispose();
+      vpn.dispose();
+    });
+    await c.ready;
+    await vpn.load();
+    await vpn.saveUser(VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice'));
+    repo.queues[fixtures.alice] = '{"status":"waiting"}';
+    await c.reload();
+    expect(c.queues[fixtures.alice]?['status'], 'waiting');
+    expect(repo.batchReads, greaterThanOrEqualTo(1));
+  });
   test('publishes a profile when server verification becomes ready', () async {
     final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
     final repo = Repository();

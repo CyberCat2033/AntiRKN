@@ -44,6 +44,49 @@ void main() {
     await db.close();
     await dir.delete(recursive: true);
   });
+  test('batch reads local queues and encrypted result and binding', () async {
+    const queue = '{"status":"waiting"}';
+    const result =
+        '{"version":1,"access":"private","fileId":"fixture-file","registryId":"fixture-registry","head":"fixture-head","hash":"fixture-hash","executor":"fixture-device"}';
+    final binding = canonicalJson({
+      'version': 1,
+      'id': 'a' * 32,
+      'workspaceId': (await db.readWorkspaceIdentity()).workspaceId,
+      'userId': user,
+      'accountKey': 'fixture-account',
+      'fileId': 'fixture-file',
+      'name': 'Fixture',
+      'etag': 'fixture-etag',
+      'hash': 'fixture-hash',
+      'access': 'private',
+    });
+    await db.writePublicationQueue(user, queue, expectedSource: null);
+    await db.writePublicationDocument(
+      'result/$user',
+      result,
+      expectedSource: null,
+    );
+    await db.writePublicationDocument(
+      'binding/$user',
+      binding,
+      expectedSource: null,
+    );
+    await db.close();
+    db = await WorkspaceDatabase.openIsolated(
+      '${dir.path}/a.sqlite',
+      key: key(),
+    );
+    final other = '2' * 32;
+    final batch = await db.readPublicationStateBatch([user, other, user]);
+    expect(batch[user], {'queue': queue, 'result': result, 'binding': binding});
+    expect(batch[other], {'queue': null, 'result': null, 'binding': null});
+    expect(batch.length, 2);
+    final many = [
+      for (var i = 0; i < 400; i++) i.toRadixString(16).padLeft(32, '0'),
+      user,
+    ];
+    expect((await db.readPublicationStateBatch(many))[user]?['result'], result);
+  });
   test(
     'encrypted queue survives reopen without journal events; stale writer rejected',
     () async {

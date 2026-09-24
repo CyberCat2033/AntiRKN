@@ -131,6 +131,14 @@ abstract interface class PublicationRepository {
   Future<void> checkPublicationDraft(PublicationDraft draft);
 }
 
+/// Optional one-shot read for the publication list. Keys are user IDs and
+/// each value contains the raw queue, result, and binding documents.
+abstract interface class PublicationStateBatchReader {
+  Future<Map<String, Map<String, String?>>> readPublicationStateBatch(
+    List<String> userIds,
+  );
+}
+
 final class PublicationSettings {
   const PublicationSettings({
     required this.accountKey,

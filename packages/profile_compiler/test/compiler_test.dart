@@ -16,6 +16,26 @@ void main() {
   Set<String> codes(ProfileResult result) =>
       result.diagnostics.map((d) => d.code).toSet();
 
+  test('prepared template produces the same independent client profiles', () {
+    final prepared = compiler.prepare(template);
+    final variants = fixtureVariants();
+    for (final entry in variants.entries) {
+      final first = compiler.compilePrepared(
+        prepared: prepared,
+        userId: 'user-a',
+        accesses: entry.value,
+      );
+      final original = compiler.compile(
+        template: template,
+        userId: 'user-a',
+        accesses: entry.value,
+      );
+      expect(first.yaml, original.yaml, reason: entry.key);
+      expect(first.sha256Hash, original.sha256Hash, reason: entry.key);
+      expect(codes(first), codes(original), reason: entry.key);
+    }
+  });
+
   for (final entry in fixtureVariants().entries) {
     test(
       '${entry.key}: preserves template policy and deterministic output',

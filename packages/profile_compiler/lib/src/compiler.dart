@@ -29,6 +29,14 @@ final class GroupPreview {
   final bool complete;
 }
 
+/// Parsed once for a batch; profile-specific proxy lists remain independent.
+final class PreparedProfileTemplate {
+  const PreparedProfileTemplate(this.source, this.root, this.yamlPlan);
+  final String source;
+  final Map<String, Object?> root;
+  final ProfileYamlTemplate yamlPlan;
+}
+
 final class ProfileResult {
   ProfileResult({
     required List<GroupPreview> groups,
@@ -68,22 +76,7 @@ final class ProfileCompiler {
     required List<PreparedProxy> accesses,
   }) {
     try {
-      final selected = accesses
-          .where(
-            (a) =>
-                a.identity.userId == userId &&
-                a.identity.active &&
-                a.identity.confirmed,
-          )
-          .toList();
-      final ids = <String>{};
-      for (final node in selected) {
-        node.validate();
-        if (!ids.add(node.identity.id)) {
-          throw const FormatException('duplicate_access_id');
-        }
-      }
-      selected.sort((a, b) => a.identity.id.compareTo(b.identity.id));
+      final selected = _select(userId, accesses);
       return _run(template, [
         for (final node in selected) ProxyDescriptor(node.name, node.typeLabel),
       ], selected);
@@ -92,13 +85,68 @@ final class ProfileCompiler {
     }
   }
 
+  PreparedProfileTemplate prepare(String template) => PreparedProfileTemplate(
+    template,
+    parseTemplate(template),
+    prepareProfileYaml(template),
+  );
+
+  ProfileResult compilePrepared({
+    required PreparedProfileTemplate prepared,
+    required String userId,
+    required List<PreparedProxy> accesses,
+  }) {
+    try {
+      final selected = _select(userId, accesses);
+      return _runPrepared(prepared, [
+        for (final node in selected) ProxyDescriptor(node.name, node.typeLabel),
+      ], selected);
+    } on FormatException catch (e) {
+      return _failure(e.message);
+    }
+  }
+
+  List<PreparedProxy> _select(String userId, List<PreparedProxy> accesses) {
+    final selected = accesses
+        .where(
+          (a) =>
+              a.identity.userId == userId &&
+              a.identity.active &&
+              a.identity.confirmed,
+        )
+        .toList();
+    final ids = <String>{};
+    for (final node in selected) {
+      node.validate();
+      if (!ids.add(node.identity.id)) {
+        throw const FormatException('duplicate_access_id');
+      }
+    }
+    selected.sort((a, b) => a.identity.id.compareTo(b.identity.id));
+    return selected;
+  }
+
   ProfileResult _run(
     String template,
     List<ProxyDescriptor> proxies,
     List<PreparedProxy>? selected,
   ) {
     try {
-      final root = parseTemplate(template);
+      return _runPrepared(prepare(template), proxies, selected);
+    } on YamlException {
+      return _failure('invalid_yaml');
+    } on FormatException catch (e) {
+      return _failure(e.message);
+    }
+  }
+
+  ProfileResult _runPrepared(
+    PreparedProfileTemplate prepared,
+    List<ProxyDescriptor> proxies,
+    List<PreparedProxy>? selected,
+  ) {
+    try {
+      final root = prepared.root;
       final existing = root['proxies'] ?? <Object?>[];
       if (existing is! List) return _failure('invalid_proxies');
       if (proxies.length + existing.length > 5000) {
@@ -106,10 +154,10 @@ final class ProfileCompiler {
       }
       String? yaml;
       if (selected != null) {
-        yaml = writeProfileYaml(template, [
+        yaml = writeProfileYamlPrepared(prepared.source, [
           ...existing,
           for (final node in selected) node.fields,
-        ]);
+        ], prepared.yamlPlan);
       }
       final diagnostics = <ProfileDiagnostic>[];
       void warn(String code, [String? subject]) => diagnostics.add(

@@ -43,6 +43,10 @@ void main() {
     test('ordered blocks with one separator; root style: ${source[0]}', () {
       final before = canonicalJson(nodes);
       final output = writeProfileYaml(source, nodes);
+      expect(
+        writeProfileYamlPrepared(source, nodes, prepareProfileYaml(source)),
+        output,
+      );
       final root = loadYaml(output) as Map;
       final proxies = root['proxies'] as List;
       expect(proxies, nodes);
@@ -97,6 +101,13 @@ rules: ["MATCH,DIRECT"]
         ...(original['proxies'] as List),
         ...nodes,
       ]);
+      expect(
+        writeProfileYamlPrepared(source, [
+          ...(original['proxies'] as List),
+          ...nodes,
+        ], prepareProfileYaml(source)),
+        output,
+      );
       expect((loadYaml(output) as Map)['proxies'][0], original['proxies'][0]);
       for (final comment in [
         '# Root heading',
