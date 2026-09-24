@@ -28,6 +28,7 @@ part 'workspace_account_sync.dart';
 part 'workspace_publications.dart';
 part 'vpn_write_worker.dart';
 part 'workspace_vpn_overlay.dart';
+part 'workspace_db_worker.dart';
 
 Future<WorkspaceDatabase> openLocalWorkspace() async {
   final support = await getApplicationSupportDirectory();
@@ -42,10 +43,9 @@ Future<WorkspaceDatabase> openLocalWorkspace() async {
     await guard.lock(FileLock.blockingExclusive);
     if (Platform.isLinux) await _chmod(directory.path, '700');
     final key = await _deviceKey(directory);
-    store = WorkspaceDatabase.open(
+    store = await WorkspaceDatabase.openIsolated(
       '${directory.path}/manager.sqlite',
       key: key,
-      offloadVpnWrites: true,
       legacy: EncryptedSecretVault(
         files: LocalVaultFileStore(File('${support.path}/vault/v1.json')),
         keys: const PlatformVaultKeyStore(),
@@ -137,12 +137,15 @@ final class WorkspaceDatabase
         TemplateDraftStore,
         LanguagePreferenceStore {
   WorkspaceDatabase._(
-    this._db,
+    Database db,
     this._key,
     this._legacy,
     this._path,
     this._offloadVpnWrites,
-  );
+  ) : _db = db;
+
+  WorkspaceDatabase._proxy(this._key, this._legacy, this._path)
+    : _offloadVpnWrites = false;
   factory WorkspaceDatabase.open(
     String path, {
     required SecretKeyData key,
@@ -184,8 +187,33 @@ final class WorkspaceDatabase
       rethrow;
     }
   }
+  static Future<WorkspaceDatabase> openIsolated(
+    String path, {
+    required SecretKeyData key,
+    SecretVault? legacy,
+  }) async {
+    final proxy = WorkspaceDatabase._proxy(key, legacy, path);
+    try {
+      proxy._worker = await _DbWorkerClient.start(
+        path,
+        key,
+        () => proxy._localChanges.add(null),
+      );
+      return proxy;
+    } catch (_) {
+      key.destroy();
+      await proxy._localChanges.close();
+      rethrow;
+    }
+  }
+
   final String _path;
   final bool _offloadVpnWrites;
+  _DbWorkerClient? _worker;
+
+  _DbWorkerClient? get _dbWorker => _worker;
+  Future<T> _remoteCall<T>(String action, [List<Object?> args = const []]) =>
+      _dbWorker!.request<T>(action, args);
 
   /// Uses the device key and a separate file, so restore keeps this device's
   /// login and portable backup / E2EE never contains Google OAuth credentials.
@@ -195,7 +223,7 @@ final class WorkspaceDatabase
   );
   final _localChanges = StreamController<void>.broadcast();
   Stream<void> get localChanges => _localChanges.stream;
-  final Database _db;
+  late final Database _db;
   final SecretKeyData _key;
   final SecretVault? _legacy;
   static final _cipher = AesGcm.with256bits();
@@ -318,25 +346,31 @@ final class WorkspaceDatabase
   );
 
   @override
-  Future<List<SavedServer>> listServers() => _serial(() async {
-    final records = <SavedServer>[];
-    for (final row in _db.select(
-      'SELECT * FROM servers ORDER BY updated_at, id',
-    )) {
-      records.add(await _decode(row));
-    }
-    return records;
-  });
+  Future<List<SavedServer>> listServers() => _dbWorker != null
+      ? _remoteCall('listServers')
+      : _serial(() async {
+          final records = <SavedServer>[];
+          for (final row in _db.select(
+            'SELECT * FROM servers ORDER BY updated_at, id',
+          )) {
+            records.add(await _decode(row));
+          }
+          return records;
+        });
 
   @override
-  Future<SecretVault> openServer(String id) => _serial(() async {
-    final rows = _db.select('SELECT * FROM servers WHERE id = ?', [id]);
-    return _ServerStore(
-      this,
-      id,
-      rows.isEmpty ? null : await _decode(rows.single),
-    );
-  });
+  Future<SecretVault> openServer(String id) => _dbWorker != null
+      ? _remoteCall<SavedServer?>('openServer', [
+          id,
+        ]).then((record) => _RemoteServerStore(this, id, record))
+      : _serial(() async {
+          final rows = _db.select('SELECT * FROM servers WHERE id = ?', [id]);
+          return _ServerStore(
+            this,
+            id,
+            rows.isEmpty ? null : await _decode(rows.single),
+          );
+        });
 
   Future<SavedServer?> _save(
     String id,
@@ -400,71 +434,83 @@ final class WorkspaceDatabase
   });
 
   @override
-  Future<void> deleteServers(List<SavedServer> expected) => _serial(() async {
-    _checkSyncEffectsNow();
-    final ids = expected.map((s) => s.id).toSet();
-    if (ids.isEmpty || ids.length != expected.length) {
-      throw const VaultFailure(VaultIssue.busy);
-    }
-    final rows = _db.select('SELECT * FROM servers');
-    final stamp = canonicalJson({
-      for (final row in rows) row['id'] as String: row['revision'],
-    });
-    final sources = <String, String>{};
-    for (final row in rows) {
-      final id = row['id'] as String;
-      final source = await _decrypt(
-        'server:$id',
-        row['revision'] as int,
-        row['payload'] as Uint8List,
-      );
-      final profile = decodeProfile(jsonDecode(source) as Map<String, dynamic>);
-      if (!ids.contains(id) && ids.contains(profile.jumpServerId)) {
-        throw const VaultFailure(VaultIssue.busy);
-      }
-      if (ids.contains(id)) sources[id] = source;
-    }
-    for (final server in expected) {
-      _checkRevision('servers', server.id, server.revision);
-      if (!sources.containsKey(server.id) ||
-          _journal.serverWasDeleted(server.id)) {
-        throw const VaultFailure(VaultIssue.busy);
-      }
-    }
-    final changes = await _journal.prepare({
-      for (final e in sources.entries) ..._serverEntities(e.key, e.value),
-    }, {});
-    _transaction(() {
-      final currentStamp = canonicalJson({
-        for (final row in _db.select('SELECT id, revision FROM servers'))
-          row['id'] as String: row['revision'],
-      });
-      if (stamp != currentStamp) throw const VaultFailure(VaultIssue.busy);
-      _checkSyncEffectsNow();
-      for (final server in expected) {
-        _checkRevision('servers', server.id, server.revision);
-      }
-      for (final id in ids) {
-        _db.execute('DELETE FROM servers WHERE id=?', [id]);
-      }
-      _journal.commit(changes);
-    });
-  });
+  Future<void> deleteServers(List<SavedServer> expected) => _dbWorker != null
+      ? _remoteCall('deleteServers', [expected])
+      : _serial(() async {
+          _checkSyncEffectsNow();
+          final ids = expected.map((s) => s.id).toSet();
+          if (ids.isEmpty || ids.length != expected.length) {
+            throw const VaultFailure(VaultIssue.busy);
+          }
+          final rows = _db.select('SELECT * FROM servers');
+          final stamp = canonicalJson({
+            for (final row in rows) row['id'] as String: row['revision'],
+          });
+          final sources = <String, String>{};
+          for (final row in rows) {
+            final id = row['id'] as String;
+            final source = await _decrypt(
+              'server:$id',
+              row['revision'] as int,
+              row['payload'] as Uint8List,
+            );
+            final profile = decodeProfile(
+              jsonDecode(source) as Map<String, dynamic>,
+            );
+            if (!ids.contains(id) && ids.contains(profile.jumpServerId)) {
+              throw const VaultFailure(VaultIssue.busy);
+            }
+            if (ids.contains(id)) sources[id] = source;
+          }
+          for (final server in expected) {
+            _checkRevision('servers', server.id, server.revision);
+            if (!sources.containsKey(server.id) ||
+                _journal.serverWasDeleted(server.id)) {
+              throw const VaultFailure(VaultIssue.busy);
+            }
+          }
+          final changes = await _journal.prepare({
+            for (final e in sources.entries) ..._serverEntities(e.key, e.value),
+          }, {});
+          _transaction(() {
+            final currentStamp = canonicalJson({
+              for (final row in _db.select('SELECT id, revision FROM servers'))
+                row['id'] as String: row['revision'],
+            });
+            if (stamp != currentStamp) {
+              throw const VaultFailure(VaultIssue.busy);
+            }
+            _checkSyncEffectsNow();
+            for (final server in expected) {
+              _checkRevision('servers', server.id, server.revision);
+            }
+            for (final id in ids) {
+              _db.execute('DELETE FROM servers WHERE id=?', [id]);
+            }
+            _journal.commit(changes);
+          });
+        });
 
   @override
-  Future<String?> readSetting(String key) => _serial(() {
-    final rows = _db.select('SELECT value FROM settings WHERE key = ?', [key]);
-    return rows.isEmpty ? null : rows.single['value'] as String;
-  });
+  Future<String?> readSetting(String key) => _dbWorker != null
+      ? _remoteCall('readSetting', [key])
+      : _serial(() {
+          final rows = _db.select('SELECT value FROM settings WHERE key = ?', [
+            key,
+          ]);
+          return rows.isEmpty ? null : rows.single['value'] as String;
+        });
   @override
-  Future<void> writeSetting(String key, String value) => _serial(
-    () => _transaction(() {
-      _db.execute(
-        'INSERT INTO settings VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
-        [key, value],
-      );
-    }),
-  );
+  Future<void> writeSetting(String key, String value) => _dbWorker != null
+      ? _remoteCall('writeSetting', [key, value])
+      : _serial(
+          () => _transaction(() {
+            _db.execute(
+              'INSERT INTO settings VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
+              [key, value],
+            );
+          }),
+        );
   @override
   Future<AppLanguage> readLanguage() async {
     final value = await readSetting('language');
@@ -477,14 +523,22 @@ final class WorkspaceDatabase
       writeSetting('language', language.name);
 
   @override
-  Future<String?> readPublicationDocument(String id) =>
-      _readDocument(_publicationId(id));
+  Future<String?> readPublicationDocument(String id) => _dbWorker != null
+      ? _remoteCall('readPublicationDocument', [id])
+      : _readDocument(_publicationId(id));
   @override
   Future<void> writePublicationDocument(
     String id,
     String source, {
     required String? expectedSource,
   }) {
+    if (_dbWorker != null) {
+      return _remoteCall('writePublicationDocument', [
+        id,
+        source,
+        expectedSource,
+      ]);
+    }
     final key = _publicationId(id);
     _validatePublicationDocument(key, source);
     return _writeDocument(
@@ -501,35 +555,45 @@ final class WorkspaceDatabase
   }
 
   @override
-  Future<String?> readPublicationQueue(String userId) => _serial(() async {
-    final source = await _publicationQueueFiles(userId).read();
-    return source == null
-        ? null
-        : _decrypt('publication-queue/$userId', 1, base64Decode(source));
-  });
+  Future<String?> readPublicationQueue(String userId) => _dbWorker != null
+      ? _remoteCall('readPublicationQueue', [userId])
+      : _serial(() async {
+          final source = await _publicationQueueFiles(userId).read();
+          return source == null
+              ? null
+              : _decrypt('publication-queue/$userId', 1, base64Decode(source));
+        });
   @override
   Future<void> writePublicationQueue(
     String userId,
     String source, {
     required String? expectedSource,
-  }) => _serial(() async {
-    if (utf8.encode(source).length > 65536) {
-      throw const PublicationFailure(PublicationIssue.size);
-    }
-    final files = _publicationQueueFiles(userId);
-    final before = await files.read();
-    final plain = before == null
-        ? null
-        : await _decrypt('publication-queue/$userId', 1, base64Decode(before));
-    if (plain != expectedSource) {
-      throw const SyncMergeFailure(SyncMergeIssue.changed);
-    }
-    if (source == plain) return;
-    await files.replace(
-      before,
-      base64Encode(await _encrypt('publication-queue/$userId', 1, source)),
-    );
-  });
+  }) => _dbWorker != null
+      ? _remoteCall('writePublicationQueue', [userId, source, expectedSource])
+      : _serial(() async {
+          if (utf8.encode(source).length > 65536) {
+            throw const PublicationFailure(PublicationIssue.size);
+          }
+          final files = _publicationQueueFiles(userId);
+          final before = await files.read();
+          final plain = before == null
+              ? null
+              : await _decrypt(
+                  'publication-queue/$userId',
+                  1,
+                  base64Decode(before),
+                );
+          if (plain != expectedSource) {
+            throw const SyncMergeFailure(SyncMergeIssue.changed);
+          }
+          if (source == plain) return;
+          await files.replace(
+            before,
+            base64Encode(
+              await _encrypt('publication-queue/$userId', 1, source),
+            ),
+          );
+        });
 
   Future<VpnWorkspace> _getVpnWorkspace() async {
     final projection = await _vpnOverlay.read();
@@ -544,121 +608,137 @@ final class WorkspaceDatabase
   }
 
   @override
-  Future<PublicationDraft?> readPublicationDraft(
-    String userId,
-  ) => _serial(() async {
-    _publicationId('queue/$userId');
-    _checkSyncEffectsNow();
-    final row = _db.select('SELECT * FROM documents WHERE id=?', [
-      'vpn-workspace-v1',
-    ]).firstOrNull;
-    if (row == null) return null;
-    final workspace = await _getVpnWorkspace();
-    final user = workspace.users
-        .where((u) => u.id == userId && u.enabled)
-        .firstOrNull;
-    final profile = workspace.profiles[userId];
-    if (user == null ||
-        profile == null ||
-        profile['yaml'] is! String ||
-        profile['hash'] is! String) {
-      return null;
-    }
-    final events = await _merge.events();
-    final headId = _merge.preferredHeads()[(ChangeEntityKind.profile, userId)];
-    if (headId == null) return null;
-    if (!events.containsKey(headId)) {
-      throw const SyncMergeFailure(SyncMergeIssue.changed);
-    }
-    final ancestors = <String>{};
-    final waiting = [headId];
-    while (waiting.isNotEmpty) {
-      final id = waiting.removeLast();
-      if (!ancestors.add(id)) continue;
-      final event = events[id];
-      if (event == null) continue;
-      waiting.addAll(event.header.parents);
-    }
-    final previous = _db.select('SELECT * FROM documents WHERE id=?', [
-      'publication/result/$userId',
-    ]).firstOrNull;
-    if (previous != null) {
-      final result =
-          jsonDecode(
-                await _decrypt(
-                  'publication/result/$userId',
-                  previous['revision'] as int,
-                  previous['payload'] as Uint8List,
-                ),
-              )
-              as Map;
-      if (result['head'] case final String publishedHead) {
-        ancestors.add(publishedHead);
-      }
-    }
-    final bytes = Uint8List.fromList(utf8.encode(profile['yaml'] as String));
-    final hash = (await Sha256().hash(
-      bytes,
-    )).bytes.map((v) => v.toRadixString(16).padLeft(2, '0')).join();
-    if (hash != profile['hash']) {
-      throw const PublicationFailure(PublicationIssue.invalid);
-    }
-    return PublicationDraft(
-      workspaceId: profile['publicationWorkspaceId'] as String? ?? workspace.id,
-      deviceId: _journal.identity.deviceId,
-      userId: userId,
-      name: user.login,
-      headId: headId,
-      hash: hash,
-      bytes: bytes,
-      ancestors: ancestors,
-      stamp: _publicationInputStamp(),
-    );
-  });
+  Future<PublicationDraft?> readPublicationDraft(String userId) =>
+      _dbWorker != null
+      ? _remoteCall('readPublicationDraft', [userId])
+      : _serial(() async {
+          _publicationId('queue/$userId');
+          _checkSyncEffectsNow();
+          final row = _db.select('SELECT * FROM documents WHERE id=?', [
+            'vpn-workspace-v1',
+          ]).firstOrNull;
+          if (row == null) return null;
+          final workspace = await _getVpnWorkspace();
+          final user = workspace.users
+              .where((u) => u.id == userId && u.enabled)
+              .firstOrNull;
+          final profile = workspace.profiles[userId];
+          if (user == null ||
+              profile == null ||
+              profile['yaml'] is! String ||
+              profile['hash'] is! String) {
+            return null;
+          }
+          final events = await _merge.events();
+          final headId = _merge
+              .preferredHeads()[(ChangeEntityKind.profile, userId)];
+          if (headId == null) return null;
+          if (!events.containsKey(headId)) {
+            throw const SyncMergeFailure(SyncMergeIssue.changed);
+          }
+          final ancestors = <String>{};
+          final waiting = [headId];
+          while (waiting.isNotEmpty) {
+            final id = waiting.removeLast();
+            if (!ancestors.add(id)) continue;
+            final event = events[id];
+            if (event == null) continue;
+            waiting.addAll(event.header.parents);
+          }
+          final previous = _db.select('SELECT * FROM documents WHERE id=?', [
+            'publication/result/$userId',
+          ]).firstOrNull;
+          if (previous != null) {
+            final result =
+                jsonDecode(
+                      await _decrypt(
+                        'publication/result/$userId',
+                        previous['revision'] as int,
+                        previous['payload'] as Uint8List,
+                      ),
+                    )
+                    as Map;
+            if (result['head'] case final String publishedHead) {
+              ancestors.add(publishedHead);
+            }
+          }
+          final bytes = Uint8List.fromList(
+            utf8.encode(profile['yaml'] as String),
+          );
+          final hash = (await Sha256().hash(
+            bytes,
+          )).bytes.map((v) => v.toRadixString(16).padLeft(2, '0')).join();
+          if (hash != profile['hash']) {
+            throw const PublicationFailure(PublicationIssue.invalid);
+          }
+          return PublicationDraft(
+            workspaceId:
+                profile['publicationWorkspaceId'] as String? ?? workspace.id,
+            deviceId: _journal.identity.deviceId,
+            userId: userId,
+            name: user.login,
+            headId: headId,
+            hash: hash,
+            bytes: bytes,
+            ancestors: ancestors,
+            stamp: _publicationInputStamp(),
+          );
+        });
   @override
-  Future<void> checkPublicationDraft(
-    PublicationDraft draft,
-  ) => _serial(() async {
-    _journal.checkIdentity();
-    _checkSyncEffectsNow();
-    if (_journal.identity.deviceId != draft.deviceId) {
-      throw const SyncMergeFailure(SyncMergeIssue.changed);
-    }
-    if (draft.stamp != _publicationInputStamp()) {
-      throw const SyncMergeFailure(SyncMergeIssue.changed);
-    }
-    // Queue/result documents and unrelated server observations must not fence
-    // a retained profile. Recheck its causal head, exact bytes and user instead.
-    if (_merge.preferredHeads()[(ChangeEntityKind.profile, draft.userId)] !=
-        draft.headId) {
-      throw const SyncMergeFailure(SyncMergeIssue.changed);
-    }
-    final workspace = await _getVpnWorkspace();
-    if (!workspace.users.any(
-          (u) => u.id == draft.userId && u.enabled && u.login == draft.name,
-        ) ||
-        workspace.profiles[draft.userId]?['hash'] != draft.hash ||
-        (workspace.profiles[draft.userId]?['publicationWorkspaceId'] ??
-                workspace.id) !=
-            draft.workspaceId) {
-      throw const SyncMergeFailure(SyncMergeIssue.changed);
-    }
-  });
+  Future<void> checkPublicationDraft(PublicationDraft draft) =>
+      _dbWorker != null
+      ? _remoteCall('checkPublicationDraft', [draft])
+      : _serial(() async {
+          _journal.checkIdentity();
+          _checkSyncEffectsNow();
+          if (_journal.identity.deviceId != draft.deviceId) {
+            throw const SyncMergeFailure(SyncMergeIssue.changed);
+          }
+          if (draft.stamp != _publicationInputStamp()) {
+            throw const SyncMergeFailure(SyncMergeIssue.changed);
+          }
+          // Queue/result documents and unrelated server observations must not fence
+          // a retained profile. Recheck its causal head, exact bytes and user instead.
+          if (_merge.preferredHeads()[(
+                ChangeEntityKind.profile,
+                draft.userId,
+              )] !=
+              draft.headId) {
+            throw const SyncMergeFailure(SyncMergeIssue.changed);
+          }
+          final workspace = await _getVpnWorkspace();
+          if (!workspace.users.any(
+                (u) =>
+                    u.id == draft.userId && u.enabled && u.login == draft.name,
+              ) ||
+              workspace.profiles[draft.userId]?['hash'] != draft.hash ||
+              (workspace.profiles[draft.userId]?['publicationWorkspaceId'] ??
+                      workspace.id) !=
+                  draft.workspaceId) {
+            throw const SyncMergeFailure(SyncMergeIssue.changed);
+          }
+        });
 
   @override
-  Future<String?> readDraft() => _readDocument('template-draft');
+  Future<String?> readDraft() => _dbWorker != null
+      ? _remoteCall('readDraft')
+      : _readDocument('template-draft');
   @override
-  Future<VpnStoredDocument> readVpn() => _serial(() async {
-    final projection = await _vpnOverlay.read();
-    return VpnStoredDocument(
-      projection.source,
-      projection.revision,
-      workspaceId: _journal.identity.workspaceId,
-    );
-  });
+  Future<VpnStoredDocument> readVpn() => _dbWorker != null
+      ? _remoteCall('readVpn')
+      : _serial(() async {
+          final projection = await _vpnOverlay.read();
+          return VpnStoredDocument(
+            projection.source,
+            projection.revision,
+            workspaceId: _journal.identity.workspaceId,
+          );
+        });
   @override
   Future<int> writeVpn(String source, {required int expectedRevision}) =>
-      _offloadVpnWrites
+      _dbWorker != null
+      ? _remoteCall('writeVpn', [source, expectedRevision])
+      : _offloadVpnWrites
       ? _offloadVpnWrite(source, expectedRevision: expectedRevision)
       : _writeVpnLocal(source, expectedRevision: expectedRevision);
 
@@ -666,13 +746,17 @@ final class WorkspaceDatabase
   Future<int> writeVpnWorkspace(
     VpnWorkspace workspace, {
     required int expectedRevision,
-  }) => _offloadVpnWrites
+  }) => _dbWorker != null
+      ? _remoteCall('writeVpnWorkspace', [workspace, expectedRevision])
+      : _offloadVpnWrites
       ? _offloadVpnWrite(workspace, expectedRevision: expectedRevision)
       : _writeVpnLocal(workspace.encode(), expectedRevision: expectedRevision);
 
   @override
   Future<int> upsertVpnUser(VpnUser user, {required int expectedRevision}) =>
-      _offloadVpnWrites
+      _dbWorker != null
+      ? _remoteCall('upsertVpnUser', [user, expectedRevision])
+      : _offloadVpnWrites
       ? _offloadVpnWrite(user, expectedRevision: expectedRevision)
       : _upsertVpnUserLocal(user, expectedRevision: expectedRevision);
 
@@ -681,7 +765,9 @@ final class WorkspaceDatabase
     String userId,
     Map<String, dynamic> profile, {
     required int expectedRevision,
-  }) => _offloadVpnWrites
+  }) => _dbWorker != null
+      ? _remoteCall('upsertVpnProfile', [userId, profile, expectedRevision])
+      : _offloadVpnWrites
       ? _offloadVpnWrite(
           _VpnProfilePatch(userId, profile),
           expectedRevision: expectedRevision,
@@ -785,26 +871,36 @@ final class WorkspaceDatabase
   }
 
   @override
-  Future<void> writeDraft(String source) =>
-      _writeDocument('template-draft', source);
+  Future<void> writeDraft(String source) => _dbWorker != null
+      ? _remoteCall('writeDraft', [source])
+      : _writeDocument('template-draft', source);
   @override
-  Future<String?> readRunnerJournal(String serverId) =>
-      _readDocument('runner/$serverId');
+  Future<String?> readRunnerJournal(String serverId) => _dbWorker != null
+      ? _remoteCall('readRunnerJournal', [serverId])
+      : _readDocument('runner/$serverId');
   @override
   Future<void> writeRunnerJournal(String serverId, String source) =>
-      _writeDocument('runner/$serverId', source);
+      _dbWorker != null
+      ? _remoteCall('writeRunnerJournal', [serverId, source])
+      : _writeDocument('runner/$serverId', source);
 
   @override
   Future<void> writeRunnerJournalIfUnchanged(
     String serverId,
     String source, {
     required String? expectedSource,
-  }) => _writeDocument(
-    'runner/$serverId',
-    source,
-    conditional: true,
-    expectedSource: expectedSource,
-  );
+  }) => _dbWorker != null
+      ? _remoteCall('writeRunnerJournalIfUnchanged', [
+          serverId,
+          source,
+          expectedSource,
+        ])
+      : _writeDocument(
+          'runner/$serverId',
+          source,
+          conditional: true,
+          expectedSource: expectedSource,
+        );
 
   Future<String?> _readDocument(String id) => _serial(() async {
     final rows = _db.select('SELECT * FROM documents WHERE id=?', [id]);
@@ -875,9 +971,11 @@ final class WorkspaceDatabase
   }
 
   Future<void> inspectLegacy() async {
-    if (_db
-        .select("SELECT id FROM migrations WHERE id = 'legacy-vault-v1'")
-        .isNotEmpty) {
+    if (_dbWorker != null
+        ? await _remoteCall<bool>('legacyMigrated')
+        : _db
+              .select("SELECT id FROM migrations WHERE id = 'legacy-vault-v1'")
+              .isNotEmpty) {
       return;
     }
     try {
@@ -897,10 +995,32 @@ final class WorkspaceDatabase
   }
 
   @override
-  Future<void> migrateLegacy({String? password}) => _serial(() async {
-    if (_db
-        .select("SELECT id FROM migrations WHERE id = 'legacy-vault-v1'")
-        .isNotEmpty) {
+  Future<void> migrateLegacy({String? password}) => _dbWorker != null
+      ? _migrateLegacyRemote(password)
+      : _serial(() async {
+          if (_legacyMigrationDone()) {
+            needsLegacyPassword = false;
+            return;
+          }
+          final legacy = _legacy;
+          SshProfile? profile;
+          try {
+            if (legacy != null && await legacy.inspect() != null) {
+              await legacy.unlock(password: password);
+              profile = legacy.profile;
+            }
+            await _importLegacyProfile(profile);
+          } finally {
+            legacy?.lock();
+          }
+        });
+
+  bool _legacyMigrationDone() => _db
+      .select("SELECT 1 FROM migrations WHERE id = 'legacy-vault-v1'")
+      .isNotEmpty;
+
+  Future<void> _migrateLegacyRemote(String? password) async {
+    if (await _remoteCall<bool>('legacyMigrated')) {
       needsLegacyPassword = false;
       return;
     }
@@ -911,44 +1031,40 @@ final class WorkspaceDatabase
         await legacy.unlock(password: password);
         profile = legacy.profile;
       }
-      final id = newServerId();
-      final payload = profile == null
-          ? null
-          : await _encrypt(
-              'server:$id',
-              1,
-              jsonEncode({...encodeProfile(profile), 'id': id}),
-            );
-      final changes = await _journal.prepare(
-        {},
-        _serverEntities(
-          id,
-          profile == null
-              ? null
-              : jsonEncode({...encodeProfile(profile), 'id': id}),
-        ),
-      );
-      _transaction(() {
-        if (_db
-            .select("SELECT id FROM migrations WHERE id = 'legacy-vault-v1'")
-            .isNotEmpty) {
-          return;
-        }
-        if (payload != null) {
-          _db.execute('INSERT INTO servers VALUES (?, ?, 1, ?)', [
-            id,
-            payload,
-            DateTime.now().millisecondsSinceEpoch,
-          ]);
-        }
-        _db.execute("INSERT INTO migrations VALUES ('legacy-vault-v1')");
-        _journal.commit(changes);
-      });
+      await _remoteCall<void>('importLegacyProfile', [profile]);
       needsLegacyPassword = false;
     } finally {
       legacy?.lock();
     }
-  });
+  }
+
+  Future<void> _importLegacyProfile(SshProfile? profile) async {
+    if (_legacyMigrationDone()) {
+      needsLegacyPassword = false;
+      return;
+    }
+    final id = newServerId();
+    final source = profile == null
+        ? null
+        : jsonEncode({...encodeProfile(profile), 'id': id});
+    final payload = source == null
+        ? null
+        : await _encrypt('server:$id', 1, source);
+    final changes = await _journal.prepare({}, _serverEntities(id, source));
+    _transaction(() {
+      if (_legacyMigrationDone()) return;
+      if (payload != null) {
+        _db.execute('INSERT INTO servers VALUES (?, ?, 1, ?)', [
+          id,
+          payload,
+          DateTime.now().millisecondsSinceEpoch,
+        ]);
+      }
+      _db.execute("INSERT INTO migrations VALUES ('legacy-vault-v1')");
+      _journal.commit(changes);
+    });
+    needsLegacyPassword = false;
+  }
 
   @override
   Future<SyncMergeStatus> receiveSyncPackets(List<Uint8List> packets) {
@@ -958,6 +1074,7 @@ final class WorkspaceDatabase
       return Future.error(const SyncMergeFailure(SyncMergeIssue.limit));
     }
     final owned = packets.map(Uint8List.fromList).toList();
+    if (_dbWorker != null) return _remoteCall('receiveSyncPackets', [owned]);
     return _serial(() async {
       await _vpnOverlay.materialize();
       return _merge.receive(owned);
@@ -965,24 +1082,31 @@ final class WorkspaceDatabase
   }
 
   @override
-  Future<SyncMergeStatus> readSyncMergeStatus() =>
-      _serial(() => _merge.status());
+  Future<SyncMergeStatus> readSyncMergeStatus() => _dbWorker != null
+      ? _remoteCall('readSyncMergeStatus')
+      : _serial(() => _merge.status());
   @override
-  Future<SyncMergeStatus> retrySyncMerge() => _serial(() async {
-    await _vpnOverlay.materialize();
-    await _merge.drain();
-    return _merge.status();
-  });
+  Future<SyncMergeStatus> retrySyncMerge() => _dbWorker != null
+      ? _remoteCall('retrySyncMerge')
+      : _serial(() async {
+          await _vpnOverlay.materialize();
+          await _merge.drain();
+          return _merge.status();
+        });
   @override
   Future<void> resolveSyncConflict(
     SyncConflict conflict,
     String selectedChangeId,
-  ) => _serial(() async {
-    await _vpnOverlay.materialize();
-    await _merge.resolve(conflict, selectedChangeId);
-  });
+  ) => _dbWorker != null
+      ? _remoteCall('resolveSyncConflict', [conflict, selectedChangeId])
+      : _serial(() async {
+          await _vpnOverlay.materialize();
+          await _merge.resolve(conflict, selectedChangeId);
+        });
   @override
-  Future<void> checkSyncEffects() => _serial(_checkSyncEffectsNow);
+  Future<void> checkSyncEffects() => _dbWorker != null
+      ? _remoteCall('checkSyncEffects')
+      : _serial(_checkSyncEffectsNow);
   void _checkSyncEffectsNow() {
     if (_db.select('SELECT 1 FROM sync_conflicts LIMIT 1').isNotEmpty ||
         _db
@@ -993,14 +1117,17 @@ final class WorkspaceDatabase
   }
 
   @override
-  Future<WorkspaceIdentity> readWorkspaceIdentity() =>
-      _serial(() => _journal.identity);
+  Future<WorkspaceIdentity> readWorkspaceIdentity() => _dbWorker != null
+      ? _remoteCall('readWorkspaceIdentity')
+      : _serial(() => _journal.identity);
 
   @override
   Future<List<EncryptedChangePacket>> preparePendingPackets({
     int afterSequence = 0,
     int limit = 100,
-  }) => _serial(() => _sync.prepare(afterSequence, limit));
+  }) => _dbWorker != null
+      ? _remoteCall('preparePendingPackets', [afterSequence, limit])
+      : _serial(() => _sync.prepare(afterSequence, limit));
 
   @override
   Future<LocalChange> verifySyncPacket(Uint8List bytes) {
@@ -1008,6 +1135,7 @@ final class WorkspaceDatabase
       return Future.error(const SyncPacketFailure(SyncPacketIssue.tooLarge));
     }
     final owned = Uint8List.fromList(bytes);
+    if (_dbWorker != null) return _remoteCall('verifySyncPacket', [owned]);
     return _serial(() => _sync.verify(owned), migrate: false);
   }
 
@@ -1015,49 +1143,62 @@ final class WorkspaceDatabase
   Future<List<LocalChange>> readChanges({
     int afterSequence = 0,
     int limit = 100,
-  }) => _serial(
-    () => _journal.read(
-      pending: false,
-      afterSequence: afterSequence,
-      limit: limit,
-    ),
-  );
+  }) => _dbWorker != null
+      ? _remoteCall('readChanges', [afterSequence, limit])
+      : _serial(
+          () => _journal.read(
+            pending: false,
+            afterSequence: afterSequence,
+            limit: limit,
+          ),
+        );
 
   @override
   Future<List<LocalChange>> readPendingChanges({
     int afterSequence = 0,
     int limit = 100,
-  }) => _serial(
-    () => _journal.read(
-      pending: true,
-      afterSequence: afterSequence,
-      limit: limit,
-    ),
-  );
+  }) => _dbWorker != null
+      ? _remoteCall('readPendingChanges', [afterSequence, limit])
+      : _serial(
+          () => _journal.read(
+            pending: true,
+            afterSequence: afterSequence,
+            limit: limit,
+          ),
+        );
 
   @override
   Future<void> acknowledgeChanges(List<String> changeIds) {
     final ids = List<String>.of(changeIds);
+    if (_dbWorker != null) return _remoteCall('acknowledgeChanges', [ids]);
     return _serial(() => _transaction(() => _journal.acknowledge(ids)));
   }
 
   @override
-  Future<Uint8List> createBackup(String password) =>
-      _createBackup(this, password);
+  Future<Uint8List> createBackup(String password) => _dbWorker != null
+      ? _remoteCall('createBackup', [password])
+      : _createBackup(this, password);
 
   @override
-  Future<Set<String>> readRestoredTargets() => _serial(() {
-    final rows = _db.select(
-      "SELECT value FROM settings WHERE key='backupRestoredTargets'",
-    );
-    return rows.isEmpty
-        ? <String>{}
-        : Set<String>.from(jsonDecode(rows.single['value'] as String) as List);
-  });
+  Future<Set<String>> readRestoredTargets() => _dbWorker != null
+      ? _remoteCall('readRestoredTargets')
+      : _serial(() {
+          final rows = _db.select(
+            "SELECT value FROM settings WHERE key='backupRestoredTargets'",
+          );
+          return rows.isEmpty
+              ? <String>{}
+              : Set<String>.from(
+                  jsonDecode(rows.single['value'] as String) as List,
+                );
+        });
 
   @override
   Future<void> approveRestoredTargets(Iterable<String> targets) {
     final approved = targets.toSet();
+    if (_dbWorker != null) {
+      return _remoteCall('approveRestoredTargets', [approved.toList()]);
+    }
     return _serial(
       () => _transaction(() {
         final rows = _db.select(
@@ -1081,13 +1222,80 @@ final class WorkspaceDatabase
   Future<WorkspaceRestorePlan> prepareRestore(
     Uint8List bytes,
     String password,
-  ) => _prepareRestore(this, bytes, password);
+  ) => bytes.length > maxWorkspaceBackupBytes
+      ? Future.error(const BackupFailure(BackupIssue.tooLarge))
+      : _dbWorker != null
+      ? _remoteCall<(int, BackupSummary)>('prepareRestore', [
+          Uint8List.fromList(bytes),
+          password,
+        ]).then((result) => _RemoteRestorePlan(this, result.$1, result.$2))
+      : _prepareRestore(this, bytes, password);
   @override
-  Future<void> restoreBackup(WorkspaceRestorePlan plan) =>
-      _restoreBackup(this, plan);
+  Future<void> restoreBackup(WorkspaceRestorePlan plan) {
+    if (_dbWorker != null) {
+      if (plan is! _RemoteRestorePlan ||
+          !identical(plan.owner, this) ||
+          plan.disposed) {
+        return Future.error(const BackupFailure(BackupIssue.changed));
+      }
+      plan.disposed = true;
+      return _remoteCall('restoreBackup', [plan.id]);
+    }
+    return _restoreBackup(this, plan);
+  }
+
+  Future<_CapturedSnapshot> _captureSnapshot() => _dbWorker != null
+      ? _remoteCall('captureSnapshot')
+      : _currentSnapshot(this);
+
+  Future<void> _compactHistory() => _dbWorker != null
+      ? _remoteCall('compactHistory')
+      : _compactCurrentHistory(this);
+
+  Future<({bool empty, int sequence, String workspaceId})>
+  _snapshotLocalState() => _dbWorker != null
+      ? _remoteCall('snapshotState')
+      : _serial(
+          () => (
+            empty:
+                _db.select('SELECT 1 FROM servers LIMIT 1').isEmpty &&
+                _db.select('SELECT 1 FROM documents LIMIT 1').isEmpty,
+            sequence:
+                _db
+                        .select(
+                          'SELECT sequence FROM sync_identity WHERE singleton=1',
+                        )
+                        .single['sequence']
+                    as int,
+            workspaceId: _journal.identity.workspaceId,
+          ),
+        );
+
+  Future<String> _snapshotStamp() => _dbWorker != null
+      ? _remoteCall('snapshotStamp')
+      : _serial(() => _backupStamp(this));
+
+  Future<void> _restoreCloudSnapshot(
+    _BackupSnapshot snapshot,
+    String stamp,
+    String fileId,
+    String version,
+  ) => _dbWorker != null
+      ? _remoteCall('restoreCloudSnapshot', [snapshot, stamp, fileId, version])
+      : _restoreCloudSnapshotInWorker(this, snapshot, stamp, fileId, version);
 
   Future<void> close() async {
     if (_closed) return;
+    if (_dbWorker case final worker?) {
+      _closed = true;
+      try {
+        await worker.close();
+      } finally {
+        _key.destroy();
+        await _localChanges.close();
+      }
+      return;
+    }
     await _pending;
     if (_closed) return;
     _closed = true;

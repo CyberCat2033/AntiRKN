@@ -24,7 +24,7 @@ void main() {
       late Uint8List backup;
       final opened = <WorkspaceDatabase>[];
       Future<WorkspaceDatabase> open() async {
-        final db = WorkspaceDatabase.open(
+        final db = await WorkspaceDatabase.openIsolated(
           '${directory.path}/target.sqlite',
           key: SecretKeyData(List.filled(32, 24)),
         );

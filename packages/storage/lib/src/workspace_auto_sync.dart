@@ -23,21 +23,7 @@ extension WorkspaceAutomaticSync on WorkspaceDatabase {
     if (cloud.accountKey != tokens.accountKey) {
       throw const SyncTransportFailure(SyncTransportIssue.changed);
     }
-    final localState = await _serial(
-      () => (
-        empty:
-            _db.select('SELECT 1 FROM servers LIMIT 1').isEmpty &&
-            _db.select('SELECT 1 FROM documents LIMIT 1').isEmpty,
-        sequence:
-            _db
-                    .select(
-                      'SELECT sequence FROM sync_identity WHERE singleton=1',
-                    )
-                    .single['sequence']
-                as int,
-        workspaceId: _journal.identity.workspaceId,
-      ),
-    );
+    final localState = await _snapshotLocalState();
     final localFile = File('$_path.current-snapshot');
     if (await localFile.exists()) {
       final uploaded = await readSetting('syncSnapshotUploaded');
@@ -75,12 +61,8 @@ extension WorkspaceAutomaticSync on WorkspaceDatabase {
           snapshot.summary.workspaceId != localState.workspaceId) {
         throw const SyncTransportFailure(SyncTransportIssue.conflict);
       }
-      final stamp = await _serial(() => _backupStamp(this));
-      final plan = _RestorePlan(this, stamp, snapshot)
-        ..cloudBound = true
-        ..remoteFileId = file.id
-        ..remoteVersion = file.version;
-      await _restoreBackup(this, plan);
+      final stamp = await _snapshotStamp();
+      await _restoreCloudSnapshot(snapshot, stamp, file.id, file.version);
       return true;
     } finally {
       key.destroy();
@@ -285,7 +267,7 @@ final class _SnapshotAutoSync implements AutoSyncSession {
             -1;
       } else {
         cancellation.check();
-        final captured = await _currentSnapshot(store);
+        final captured = await store._captureSnapshot();
         capturedSequence = captured.sequence;
         local = await seal(captured.source, store._key, 'local');
         await writeBackupFile(_local.path, local);
@@ -293,7 +275,7 @@ final class _SnapshotAutoSync implements AutoSyncSession {
           'syncSnapshotPendingSequence',
           '$capturedSequence',
         );
-        await _compactCurrentHistory(store);
+        await store._compactHistory();
       }
       return await _upload(local, cancellation, capturedSequence);
     } finally {

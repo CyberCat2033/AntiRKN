@@ -137,6 +137,29 @@ void main() {
     },
   );
 
+  test('isolated database uploads and restores a current snapshot', () async {
+    final first = await WorkspaceDatabase.openIsolated(
+      '${directory.path}/isolated-first.sqlite',
+      key: SecretKeyData(List.filled(32, 31)),
+    );
+    stores.add(first);
+    await first.writeDraft('isolated private draft');
+    await _upload(await session(first));
+    final second = await WorkspaceDatabase.openIsolated(
+      '${directory.path}/isolated-second.sqlite',
+      key: SecretKeyData(List.filled(32, 32)),
+    );
+    stores.add(second);
+    expect(await second.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+    await second.close();
+    final reopened = await WorkspaceDatabase.openIsolated(
+      '${directory.path}/isolated-second.sqlite',
+      key: SecretKeyData(List.filled(32, 32)),
+    );
+    stores.add(reopened);
+    expect(await reopened.readDraft(), 'isolated private draft');
+  });
+
   test(
     'saved snapshot bounds the local journal and later edits still work',
     () async {

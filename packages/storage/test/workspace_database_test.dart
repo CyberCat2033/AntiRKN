@@ -409,6 +409,25 @@ void main() {
   }
 
   test(
+    'isolated database migrates the legacy vault on the caller isolate',
+    () async {
+      final legacy = EncryptedSecretVault(files: _Files(), keys: _Keys());
+      await legacy.create(VaultMode.system);
+      await legacy.saveProfile(profile('legacy.example', name: 'Old server'));
+      legacy.lock();
+      final db = await WorkspaceDatabase.openIsolated(
+        path,
+        key: SecretKeyData(List.filled(32, 51)),
+        legacy: legacy,
+      );
+      addTearDown(db.close);
+      await db.inspectLegacy();
+      expect((await db.listServers()).single.profile.name, 'Old server');
+      expect(db.needsLegacyPassword, isFalse);
+    },
+  );
+
+  test(
     'migration rollback cannot leave an imported server without its marker',
     () async {
       final legacy = EncryptedSecretVault(files: _Files(), keys: _Keys());
