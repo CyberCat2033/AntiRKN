@@ -210,7 +210,141 @@ class Remote implements PublicationRemoteStore {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class BlockingRemote extends Remote {
+  final entered = Completer<void>();
+  final release = Completer<void>();
+  bool blockFirstYaml = true;
+
+  @override
+  Future<PublicationFile> createYaml({
+    required String fileId,
+    required String folderId,
+    required String name,
+    required String workspaceId,
+    required String userId,
+    required String headId,
+    required String executorId,
+    required Uint8List bytes,
+  }) async {
+    if (blockFirstYaml) {
+      blockFirstYaml = false;
+      entered.complete();
+      await release.future;
+    }
+    return super.createYaml(
+      fileId: fileId,
+      folderId: folderId,
+      name: name,
+      workspaceId: workspaceId,
+      userId: userId,
+      headId: headId,
+      executorId: executorId,
+      bytes: bytes,
+    );
+  }
+}
+
 void main() {
+  test(
+    'request during an active publication runs the new target afterward',
+    () async {
+      const thirdUser = 'cccccccccccccccccccccccccccccccc';
+      final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
+      final repo = Repository();
+      final remote = BlockingRemote();
+      final c = PublicationController(
+        repository: repo,
+        account: Account()..publicationAuthorized = true,
+        remote: () => remote,
+        vpn: vpn,
+      );
+      addTearDown(() {
+        c.dispose();
+        vpn.dispose();
+      });
+      await c.ready;
+      await vpn.load();
+      for (final (id, name) in [
+        (fixtures.alice, 'Alice'),
+        (fixtures.bob, 'Bob'),
+        (thirdUser, 'Charlie'),
+      ]) {
+        await vpn.saveUser(
+          VpnUser(id: id, login: name.toLowerCase(), name: name),
+        );
+        final profile = vpn.workspace.profiles[id]!;
+        repo.drafts[id] = PublicationDraft(
+          workspaceId: vpn.workspace.id,
+          deviceId: 'b' * 32,
+          userId: id,
+          name: name,
+          headId: 'head-$id',
+          hash: profile['hash'] as String,
+          stamp: 'stamp-$id',
+          bytes: Uint8List.fromList(utf8.encode(profile['yaml'] as String)),
+          ancestors: {},
+        );
+      }
+      await c.configure(PublicationAccess.private);
+      await c.setEnabled(true);
+      expect(c.settings?.enabled, isTrue);
+      expect(c.settings?.folderReady, isTrue);
+      expect(vpn.results[fixtures.alice]?.hasBlockingErrors, isFalse);
+      final folderId = c.settings!.folderId;
+      remote.folders[folderId] = PublicationFile(
+        id: folderId,
+        name: 'Profiles',
+        mimeType: 'application/vnd.google-apps.folder',
+        version: '1',
+        etag: 'folder-etag',
+        editable: true,
+        properties: {'antirknRegistry.${vpn.workspace.id}': 'ready:registry-1'},
+      );
+      final registryBytes = Uint8List.fromList(
+        utf8.encode(
+          canonicalJson({
+            'version': 2,
+            'workspaceId': vpn.workspace.id,
+            'users': <String, dynamic>{},
+          }),
+        ),
+      );
+      remote.folders['registry-1'] = PublicationFile(
+        id: 'registry-1',
+        name: 'registry.json',
+        mimeType: 'application/json',
+        version: '1',
+        etag: 'registry-etag',
+        editable: true,
+        properties: {
+          'antirknWorkspace': vpn.workspace.id,
+          'antirknUser': 'registry',
+          'antirknHash': sha256.convert(registryBytes).toString(),
+        },
+      );
+      remote.contents['registry-1'] = registryBytes;
+
+      c.request(force: true, targetUserId: fixtures.alice);
+      await remote.entered.future.timeout(const Duration(seconds: 5));
+      c.request(targetUserId: fixtures.bob);
+      c.request(force: true, targetUserId: thirdUser);
+      expect(c.queues[fixtures.bob], isNull);
+      expect(c.queues[thirdUser], isNull);
+      remote.release.complete();
+
+      for (
+        var i = 0;
+        i < 100 && c.queues[thirdUser]?['status'] != 'published';
+        i++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+      }
+      expect(c.queues[fixtures.alice]?['status'], 'published');
+      expect(c.queues[fixtures.bob]?['status'], 'published');
+      expect(c.queues[thirdUser]?['status'], 'published');
+    },
+  );
+
   testWidgets('waiting publication exposes an immediate retry action', (
     tester,
   ) async {

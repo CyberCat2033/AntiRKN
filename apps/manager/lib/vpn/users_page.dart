@@ -163,7 +163,9 @@ class _UsersPageState extends State<UsersPage> {
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final serverSync = await controller.syncAllServersAndProfiles();
+      final serverSync = await controller.syncAllServersAndProfiles(
+        allowVerifiedSnapshot: !force,
+      );
       if (!serverSync.verified) {
         if (mounted) {
           messenger.showSnackBar(

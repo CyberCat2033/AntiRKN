@@ -1250,31 +1250,31 @@ class AppLocalizationsRu extends AppLocalizations {
   String get vpnAddUser => 'Добавить клиента';
 
   @override
-  String get vpnSyncAndPublish => 'Считать с серверов и выгрузить на Диск';
+  String get vpnSyncAndPublish => 'Выгрузить проверенные профили';
 
   @override
   String vpnSyncAndPublishDone(int published, int total) {
-    return 'Данные с серверов обновлены, выгружено профилей на Диск: $published из $total';
+    return 'Выгружено профилей на Диск: $published из $total';
   }
 
   @override
   String vpnSyncAndPublishUpToDate(int total) {
-    return 'Данные с серверов обновлены. Все профили на Диске уже актуальны ($total).';
+    return 'Все профили на Диске уже актуальны ($total).';
   }
 
   @override
   String vpnSyncAndPublishPartial(int uploaded, int total, int upToDate) {
-    return 'Данные с серверов обновлены: выгружено $uploaded из $total ($upToDate уже актуально).';
+    return 'Выгружено $uploaded из $total ($upToDate уже актуально).';
   }
 
   @override
   String vpnSyncAndPublishWithErrors(int uploaded, int failed, int total) {
-    return 'Данные с серверов обновлены: выгружено $uploaded, ошибок $failed из $total.';
+    return 'Выгружено $uploaded, ошибок $failed из $total.';
   }
 
   @override
   String get vpnSyncAndPublishTooltip =>
-      'Нажмите для сверки серверов и выгрузки изменений. Удерживайте, чтобы проверить все профили на Диске и выгрузить только изменённые.';
+      'Нажмите для выгрузки из последнего проверенного состояния; при локальных изменениях серверы будут сверены. Удерживайте для полной сверки серверов и проверки всех файлов на Диске.';
 
   @override
   String get vpnSyncServerUnverified =>

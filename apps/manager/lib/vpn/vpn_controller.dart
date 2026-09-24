@@ -32,9 +32,14 @@ final class VpnPlan {
 }
 
 final class ServerProfileSyncResult {
-  const ServerProfileSyncResult({required this.revision, this.issue});
+  const ServerProfileSyncResult({
+    required this.revision,
+    this.issue,
+    this.usedSavedVerification = false,
+  });
   final int revision;
   final String? issue;
+  final bool usedSavedVerification;
   bool get verified => issue == null;
 }
 
@@ -1822,11 +1827,122 @@ class VpnController extends ChangeNotifier {
     error = await _refreshTargets(targets, token);
   });
 
-  /// Reads server observations before publication. A failed apply must not be
-  /// hidden by a later successful read of the previous server state.
-  Future<ServerProfileSyncResult> syncAllServersAndProfiles() async {
+  /// A saved verification may be reused only while every desired target and
+  /// compiled profile still matches its last confirmed server readback.
+  bool get hasCurrentVerifiedProfiles {
+    if (!loaded ||
+        busy ||
+        serverSyncIssue != null ||
+        _lastTemplate != template() ||
+        _restoredTargets.isNotEmpty ||
+        pendingRevocations.isNotEmpty ||
+        hasRunning ||
+        hasObservedRunning ||
+        hasUnappliedActiveAccess) {
+      return false;
+    }
+    // A target removed from the desired catalog may still have an applied
+    // resource to retire. Do not treat its absence from serverIds as success.
+    if (workspace.servers.keys.any((target) =>
+        !workspace.serverIds.contains(target) &&
+        (workspace.servers[target]?['appliedPayload'] != null ||
+            workspace.servers[target]?['authorizedPayload'] != null))) {
+      return false;
+    }
+    for (final target in workspace.serverIds) {
+      final record = workspace.servers[target];
+      final connection = remote(target);
+      final panelId = record?['panelId'];
+      final applied = record?['appliedPayload'];
+      if (record == null ||
+          panelId is! String ||
+          applied is! String ||
+          record['verifiedAt'] == null ||
+          record['observed'] is! List ||
+          record['identity'] == null ||
+          record['pending'] != null ||
+          record['paused'] == true ||
+          record['error'] != null ||
+          record['cancelRequested'] == true ||
+          record['observingCancel'] == true ||
+          (connection != null && connection.identity != record['identity']) ||
+          record['authorizedPayload'] != applied) {
+        return false;
+      }
+      try {
+        final desired = workspace.desired(target, panelId);
+        if (canonicalJson(jsonDecode(applied)) != canonicalJson(desired)) {
+          return false;
+        }
+        final expectedRevision = vlessRevision(desired);
+        final observations = (record['observed'] as List).whereType<Map>();
+        for (final resource in desired['resources'] as List) {
+          final spec = resource as Map;
+          if (spec['deleted'] == true) continue;
+          if (!observations.any(
+            (row) =>
+                row['id'] == spec['id'] &&
+                row['workspaceId'] == workspace.resourceWorkspaceId(target) &&
+                row['confirmed'] == true &&
+                row['revision'] == expectedRevision &&
+                row['deleted'] != true &&
+                row['exists'] != false,
+          )) {
+            return false;
+          }
+        }
+      } catch (_) {
+        return false;
+      }
+    }
+    for (final user in workspace.users.where((u) => u.enabled && !u.deleted)) {
+      final result = results[user.id];
+      if (result == null ||
+          result.hasBlockingErrors ||
+          result.yaml == null ||
+          result.sha256Hash == null ||
+          workspace.profiles[user.id]?['hash'] != result.sha256Hash ||
+          coreCheckFor(user.id)?.status == CoreConfigStatus.invalid) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Reads server observations before publication when saved verification is
+  /// unavailable or a fresh server check was explicitly requested.
+  Future<ServerProfileSyncResult> syncAllServersAndProfiles({
+    bool allowVerifiedSnapshot = false,
+  }) async {
+    ServerProfileSyncResult failed(String issue) {
+      error = issue;
+      serverSyncIssue = issue;
+      _notify();
+      return ServerProfileSyncResult(revision: revision, issue: issue);
+    }
     if (!loaded || busy) {
       return ServerProfileSyncResult(revision: revision, issue: 'vpn_busy');
+    }
+    if (allowVerifiedSnapshot && hasCurrentVerifiedProfiles) {
+      try {
+        await checkProfileEffects();
+        if ((await repository.readVpn()).revision != revision) {
+          return failed('sync_conflict');
+        }
+      } on SyncMergeFailure {
+        return failed('sync_conflict');
+      } on VaultFailure {
+        return failed('vpn_storage');
+      } catch (_) {
+        return failed('vpn_failed');
+      }
+      if (!hasCurrentVerifiedProfiles) {
+        return failed('vpn_busy');
+      }
+      return ServerProfileSyncResult(
+        revision: revision,
+        usedSavedVerification: true,
+      );
     }
     String? applyIssue;
     try {

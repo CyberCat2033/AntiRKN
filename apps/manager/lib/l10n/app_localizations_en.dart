@@ -1247,31 +1247,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get vpnAddUser => 'Add client';
 
   @override
-  String get vpnSyncAndPublish => 'Sync servers & publish to Drive';
+  String get vpnSyncAndPublish => 'Publish verified profiles';
 
   @override
   String vpnSyncAndPublishDone(int published, int total) {
-    return 'Servers synced and profiles published to Drive: $published of $total';
+    return 'Profiles published to Drive: $published of $total';
   }
 
   @override
   String vpnSyncAndPublishUpToDate(int total) {
-    return 'Servers synced. All $total profiles on Drive are already up to date.';
+    return 'All $total profiles on Drive are already up to date.';
   }
 
   @override
   String vpnSyncAndPublishPartial(int uploaded, int total, int upToDate) {
-    return 'Servers synced: $uploaded of $total published to Drive ($upToDate already up to date).';
+    return '$uploaded of $total published to Drive ($upToDate already up to date).';
   }
 
   @override
   String vpnSyncAndPublishWithErrors(int uploaded, int failed, int total) {
-    return 'Servers synced: $uploaded published, $failed failed of $total.';
+    return '$uploaded published, $failed failed of $total.';
   }
 
   @override
   String get vpnSyncAndPublishTooltip =>
-      'Click to sync servers and publish changed profiles. Press and hold to check every profile on Drive and upload only changes.';
+      'Click to publish from the last verified server state; local changes trigger a server check. Press and hold to check all servers and Drive files.';
 
   @override
   String get vpnSyncServerUnverified =>

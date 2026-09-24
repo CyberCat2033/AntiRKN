@@ -59,6 +59,8 @@ class PublicationController extends ChangeNotifier {
   Future<PublicationBatchResult>? _running;
   SyncCancellation? _cancel;
   Timer? _timer;
+  bool _pendingAll = false, _pendingForce = false;
+  final Set<String> _pendingUserIds = {};
   String? _profileStamp;
   int _reloadGeneration = 0;
   bool get busy => editing || _running != null;
@@ -269,16 +271,53 @@ class PublicationController extends ChangeNotifier {
 
   void request({bool force = false, String? targetUserId}) {
     if (_disposed || _suspended || !_foreground || editing) return;
+    _pendingForce |= force;
+    if (targetUserId == null) {
+      _pendingAll = true;
+      _pendingUserIds.clear();
+    } else if (!_pendingAll) {
+      _pendingUserIds.add(targetUserId);
+    }
+    _schedulePending();
+  }
+
+  void _schedulePending() {
+    if (_disposed ||
+        _suspended ||
+        !_foreground ||
+        editing ||
+        _running != null ||
+        !_pendingAll && _pendingUserIds.isEmpty) {
+      return;
+    }
     _timer?.cancel();
     _timer = Timer(
-      force ? Duration.zero : const Duration(milliseconds: 300),
-      () => _start(force, targetUserId: targetUserId),
+      _pendingForce ? Duration.zero : const Duration(milliseconds: 300),
+      _drainPending,
     );
+  }
+
+  void _drainPending() {
+    _timer = null;
+    if (_disposed ||
+        _suspended ||
+        !_foreground ||
+        editing ||
+        _running != null) {
+      return;
+    }
+    final force = _pendingForce;
+    final targets = _pendingAll ? null : Set<String>.of(_pendingUserIds);
+    _pendingAll = false;
+    _pendingForce = false;
+    _pendingUserIds.clear();
+    _start(force, targetUserIds: targets);
   }
 
   Future<PublicationBatchResult>? _start(
     bool force, {
     String? targetUserId,
+    Set<String>? targetUserIds,
     bool ignoreForeground = false,
     bool forceUpload = false,
   }) {
@@ -291,12 +330,14 @@ class PublicationController extends ChangeNotifier {
     }
     final future = _run(
       force,
-      targetUserId: targetUserId,
+      targetUserIds:
+          targetUserIds ?? (targetUserId == null ? null : {targetUserId}),
       forceUpload: forceUpload,
     );
     _running = future;
     future.whenComplete(() {
       if (_running == future) _running = null;
+      _schedulePending();
       _notify();
     });
     _notify();
@@ -324,7 +365,7 @@ class PublicationController extends ChangeNotifier {
 
   Future<PublicationBatchResult> _run(
     bool force, {
-    String? targetUserId,
+    Set<String>? targetUserIds,
     bool forceUpload = false,
   }) async {
     if (!authorized ||
@@ -359,7 +400,7 @@ class PublicationController extends ChangeNotifier {
       );
       final activeUsers = vpn.workspace.users
           .where((u) => u.enabled && !u.deleted)
-          .where((u) => targetUserId == null || u.id == targetUserId)
+          .where((u) => targetUserIds == null || targetUserIds.contains(u.id))
           .toList();
 
       var nextIndex = 0;
@@ -546,6 +587,9 @@ class PublicationController extends ChangeNotifier {
   Future<void> suspend() async {
     _suspended = true;
     _timer?.cancel();
+    _pendingAll = false;
+    _pendingForce = false;
+    _pendingUserIds.clear();
     _cancel?.cancel();
     await _running;
   }
@@ -592,6 +636,9 @@ class PublicationController extends ChangeNotifier {
     _foreground = value;
     if (!value) {
       _timer?.cancel();
+      _pendingAll = false;
+      _pendingForce = false;
+      _pendingUserIds.clear();
       if (_running == null) {
         _cancel?.cancel();
       }
@@ -860,6 +907,7 @@ class PublicationController extends ChangeNotifier {
     _disposed = true;
     picker?.cancel();
     _timer?.cancel();
+    _pendingUserIds.clear();
     _cancel?.cancel();
     vpn.removeListener(_vpnChanged);
     sync?.removeListener(_syncChanged);

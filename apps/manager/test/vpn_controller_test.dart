@@ -788,6 +788,48 @@ void main() {
     },
   );
   test(
+    'saved server verification skips SSH until desired access changes',
+    () async {
+      final store = MemoryVpn();
+      final remotes = <String, Remote>{
+        'one': Remote(store),
+        'two': Remote(store),
+      };
+      final c = controller(store, remotes);
+      await setup(c);
+      await c.prepare();
+      await c.apply();
+      expect(c.hasCurrentVerifiedProfiles, isTrue);
+
+      for (final remote in remotes.values) {
+        remote.actions.clear();
+      }
+      final cached = await c.syncAllServersAndProfiles(
+        allowVerifiedSnapshot: true,
+      );
+      expect(cached.verified, isTrue);
+      expect(cached.usedSavedVerification, isTrue);
+      expect(remotes.values.every((remote) => remote.actions.isEmpty), isTrue);
+
+      final fresh = await c.syncAllServersAndProfiles();
+      expect(fresh.usedSavedVerification, isFalse);
+      expect(remotes['one']!.actions, contains('vless_state'));
+
+      await c.saveUser(
+        VpnUser(id: alice, login: 'alice', name: 'Alice', enabled: false),
+      );
+      expect(c.hasCurrentVerifiedProfiles, isFalse);
+      for (final remote in remotes.values) {
+        remote.actions.clear();
+      }
+      final changed = await c.syncAllServersAndProfiles(
+        allowVerifiedSnapshot: true,
+      );
+      expect(changed.usedSavedVerification, isFalse);
+      expect(remotes['one']!.actions, contains('vless_plan'));
+    },
+  );
+  test(
     'syncAllServersAndProfiles isolates single server failure without aborting remaining servers',
     () async {
       final store = MemoryVpn(), remotes = <String, Remote>{};

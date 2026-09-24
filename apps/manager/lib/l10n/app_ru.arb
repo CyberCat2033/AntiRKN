@@ -476,8 +476,8 @@
   "vpnUsers": "Клиенты",
   "vpnUsersHelp": "Создайте клиента один раз. AntiRKN подготовит ему персональные доступы ко всем настроенным управляемым inbounds на всех серверах.",
   "vpnAddUser": "Добавить клиента",
-  "vpnSyncAndPublish": "Считать с серверов и выгрузить на Диск",
-  "vpnSyncAndPublishDone": "Данные с серверов обновлены, выгружено профилей на Диск: {published} из {total}",
+  "vpnSyncAndPublish": "Выгрузить проверенные профили",
+  "vpnSyncAndPublishDone": "Выгружено профилей на Диск: {published} из {total}",
   "@vpnSyncAndPublishDone": {
     "placeholders": {
       "published": {
@@ -488,10 +488,10 @@
       }
     }
   },
-  "vpnSyncAndPublishUpToDate": "Данные с серверов обновлены. Все профили на Диске уже актуальны ({total}).",
-  "vpnSyncAndPublishPartial": "Данные с серверов обновлены: выгружено {uploaded} из {total} ({upToDate} уже актуально).",
-  "vpnSyncAndPublishWithErrors": "Данные с серверов обновлены: выгружено {uploaded}, ошибок {failed} из {total}.",
-  "vpnSyncAndPublishTooltip": "Нажмите для сверки серверов и выгрузки изменений. Удерживайте, чтобы проверить все профили на Диске и выгрузить только изменённые.",
+  "vpnSyncAndPublishUpToDate": "Все профили на Диске уже актуальны ({total}).",
+  "vpnSyncAndPublishPartial": "Выгружено {uploaded} из {total} ({upToDate} уже актуально).",
+  "vpnSyncAndPublishWithErrors": "Выгружено {uploaded}, ошибок {failed} из {total}.",
+  "vpnSyncAndPublishTooltip": "Нажмите для выгрузки из последнего проверенного состояния; при локальных изменениях серверы будут сверены. Удерживайте для полной сверки серверов и проверки всех файлов на Диске.",
   "vpnSyncServerUnverified": "Не удалось проверить сервер. Текущие профили не выгружены; прежние проверенные ссылки доступны.",
   "publicationPreviousVerified": "Текущий профиль не проверен. Прежняя проверенная ссылка доступна.",
   "vpnSyncAndPublishFailed": "Не удалось полностью синхронизировать данные с серверами или выгрузить на Диск.",

@@ -476,8 +476,8 @@
   "vpnUsers": "Clients",
   "vpnUsersHelp": "Create each client once. AntiRKN prepares personal access to every configured managed inbound on every server.",
   "vpnAddUser": "Add client",
-  "vpnSyncAndPublish": "Sync servers & publish to Drive",
-  "vpnSyncAndPublishDone": "Servers synced and profiles published to Drive: {published} of {total}",
+  "vpnSyncAndPublish": "Publish verified profiles",
+  "vpnSyncAndPublishDone": "Profiles published to Drive: {published} of {total}",
   "@vpnSyncAndPublishDone": {
     "placeholders": {
       "published": {
@@ -488,7 +488,7 @@
       }
     }
   },
-  "vpnSyncAndPublishUpToDate": "Servers synced. All {total} profiles on Drive are already up to date.",
+  "vpnSyncAndPublishUpToDate": "All {total} profiles on Drive are already up to date.",
   "@vpnSyncAndPublishUpToDate": {
     "placeholders": {
       "total": {
@@ -496,7 +496,7 @@
       }
     }
   },
-  "vpnSyncAndPublishPartial": "Servers synced: {uploaded} of {total} published to Drive ({upToDate} already up to date).",
+  "vpnSyncAndPublishPartial": "{uploaded} of {total} published to Drive ({upToDate} already up to date).",
   "@vpnSyncAndPublishPartial": {
     "placeholders": {
       "uploaded": {
@@ -510,7 +510,7 @@
       }
     }
   },
-  "vpnSyncAndPublishWithErrors": "Servers synced: {uploaded} published, {failed} failed of {total}.",
+  "vpnSyncAndPublishWithErrors": "{uploaded} published, {failed} failed of {total}.",
   "@vpnSyncAndPublishWithErrors": {
     "placeholders": {
       "uploaded": {
@@ -524,7 +524,7 @@
       }
     }
   },
-  "vpnSyncAndPublishTooltip": "Click to sync servers and publish changed profiles. Press and hold to check every profile on Drive and upload only changes.",
+  "vpnSyncAndPublishTooltip": "Click to publish from the last verified server state; local changes trigger a server check. Press and hold to check all servers and Drive files.",
   "vpnSyncServerUnverified": "Server check failed. Current profiles were not published; the previous verified links remain available.",
   "publicationPreviousVerified": "Current profile is unverified. The previous verified link remains available.",
   "vpnSyncAndPublishFailed": "Failed to fully sync with servers or publish to Drive.",

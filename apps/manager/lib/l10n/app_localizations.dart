@@ -2279,37 +2279,37 @@ abstract class AppLocalizations {
   /// No description provided for @vpnSyncAndPublish.
   ///
   /// In en, this message translates to:
-  /// **'Sync servers & publish to Drive'**
+  /// **'Publish verified profiles'**
   String get vpnSyncAndPublish;
 
   /// No description provided for @vpnSyncAndPublishDone.
   ///
   /// In en, this message translates to:
-  /// **'Servers synced and profiles published to Drive: {published} of {total}'**
+  /// **'Profiles published to Drive: {published} of {total}'**
   String vpnSyncAndPublishDone(int published, int total);
 
   /// No description provided for @vpnSyncAndPublishUpToDate.
   ///
   /// In en, this message translates to:
-  /// **'Servers synced. All {total} profiles on Drive are already up to date.'**
+  /// **'All {total} profiles on Drive are already up to date.'**
   String vpnSyncAndPublishUpToDate(int total);
 
   /// No description provided for @vpnSyncAndPublishPartial.
   ///
   /// In en, this message translates to:
-  /// **'Servers synced: {uploaded} of {total} published to Drive ({upToDate} already up to date).'**
+  /// **'{uploaded} of {total} published to Drive ({upToDate} already up to date).'**
   String vpnSyncAndPublishPartial(int uploaded, int total, int upToDate);
 
   /// No description provided for @vpnSyncAndPublishWithErrors.
   ///
   /// In en, this message translates to:
-  /// **'Servers synced: {uploaded} published, {failed} failed of {total}.'**
+  /// **'{uploaded} published, {failed} failed of {total}.'**
   String vpnSyncAndPublishWithErrors(int uploaded, int failed, int total);
 
   /// No description provided for @vpnSyncAndPublishTooltip.
   ///
   /// In en, this message translates to:
-  /// **'Click to sync servers and publish changed profiles. Press and hold to check every profile on Drive and upload only changes.'**
+  /// **'Click to publish from the last verified server state; local changes trigger a server check. Press and hold to check all servers and Drive files.'**
   String get vpnSyncAndPublishTooltip;
 
   /// No description provided for @vpnSyncServerUnverified.
