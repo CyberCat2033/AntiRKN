@@ -15,6 +15,7 @@ void main() {
       final db = WorkspaceDatabase.open(
         '${directory.path}/test.sqlite',
         key: SecretKeyData(List.filled(32, 17)),
+        offloadVpnWrites: true,
       );
       final controllers = <VpnController>[];
       addTearDown(() async {

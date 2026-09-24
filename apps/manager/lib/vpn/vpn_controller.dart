@@ -365,10 +365,12 @@ class VpnController extends ChangeNotifier {
   }
 
   Future<void> _write(VpnWorkspace next) async {
-    final updated = await repository.writeVpn(
-      next.encode(),
-      expectedRevision: revision,
-    );
+    final updated = repository is VpnWorkspaceWriter
+        ? await (repository as VpnWorkspaceWriter).writeVpnWorkspace(
+            next,
+            expectedRevision: revision,
+          )
+        : await repository.writeVpn(next.encode(), expectedRevision: revision);
     revision = updated;
     workspace = next;
   }

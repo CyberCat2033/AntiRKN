@@ -410,6 +410,15 @@ abstract interface class VpnRepository {
   Future<int> writeVpn(String source, {required int expectedRevision});
 }
 
+/// Lets repositories encode a workspace where the write actually runs.
+/// Callers can retain VpnRepository compatibility with string-backed stores.
+abstract interface class VpnWorkspaceWriter {
+  Future<int> writeVpnWorkspace(
+    VpnWorkspace workspace, {
+    required int expectedRevision,
+  });
+}
+
 abstract interface class ProfileExporter {
   Future<bool> save(String name, String source);
 }

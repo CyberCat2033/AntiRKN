@@ -43,6 +43,7 @@ Future<WorkspaceDatabase> openLocalWorkspace() async {
     store = WorkspaceDatabase.open(
       '${directory.path}/manager.sqlite',
       key: key,
+      offloadVpnWrites: true,
       legacy: EncryptedSecretVault(
         files: LocalVaultFileStore(File('${support.path}/vault/v1.json')),
         keys: const PlatformVaultKeyStore(),
@@ -112,6 +113,29 @@ Future<SecretKeyData> _deviceKey(Directory directory) async {
   return SecretKeyData(bytes, overwriteWhenDestroyed: true);
 }
 
+Future<int> _writeVpnOffIsolate(
+  String path,
+  Uint8List keyBytes,
+  Object input,
+  int expectedRevision,
+) async {
+  final worker = WorkspaceDatabase.open(
+    path,
+    key: SecretKeyData(keyBytes, overwriteWhenDestroyed: true),
+  );
+  try {
+    final source = input is VpnWorkspace ? input.encode() : input as String;
+    return await worker.writeVpn(source, expectedRevision: expectedRevision);
+  } finally {
+    await worker.close();
+  }
+}
+
+Future<int> _runVpnWriteWorker((String, Uint8List, Object, int) input) =>
+    Isolate.run(
+      () => _writeVpnOffIsolate(input.$1, input.$2, input.$3, input.$4),
+    );
+
 /// SQLite owns all current entities/preferences. Credentials and template text
 /// enter SQLite only after AEAD encryption. No login or password in SQL/logs.
 final class WorkspaceDatabase
@@ -121,6 +145,7 @@ final class WorkspaceDatabase
         RunnerJournalStore,
         ConditionalRunnerJournalStore,
         VpnRepository,
+        VpnWorkspaceWriter,
         ChangeJournalStore,
         SyncPacketStore,
         SyncMergeStore,
@@ -130,11 +155,18 @@ final class WorkspaceDatabase
         SettingsStore,
         TemplateDraftStore,
         LanguagePreferenceStore {
-  WorkspaceDatabase._(this._db, this._key, this._legacy, this._path);
+  WorkspaceDatabase._(
+    this._db,
+    this._key,
+    this._legacy,
+    this._path,
+    this._offloadVpnWrites,
+  );
   factory WorkspaceDatabase.open(
     String path, {
     required SecretKeyData key,
     SecretVault? legacy,
+    bool offloadVpnWrites = false,
   }) {
     final db = sqlite3.open(path);
     try {
@@ -164,7 +196,7 @@ final class WorkspaceDatabase
           rethrow;
         }
       }
-      return WorkspaceDatabase._(db, key, legacy, path);
+      return WorkspaceDatabase._(db, key, legacy, path, offloadVpnWrites);
     } catch (_) {
       db.dispose();
       key.destroy();
@@ -172,6 +204,7 @@ final class WorkspaceDatabase
     }
   }
   final String _path;
+  final bool _offloadVpnWrites;
 
   /// Uses the device key and a separate file, so restore keeps this device's
   /// login and portable backup / E2EE never contains Google OAuth credentials.
@@ -658,7 +691,43 @@ final class WorkspaceDatabase
     );
   });
   @override
-  Future<int> writeVpn(
+  Future<int> writeVpn(String source, {required int expectedRevision}) =>
+      _offloadVpnWrites
+      ? _offloadVpnWrite(source, expectedRevision: expectedRevision)
+      : _writeVpnLocal(source, expectedRevision: expectedRevision);
+
+  @override
+  Future<int> writeVpnWorkspace(
+    VpnWorkspace workspace, {
+    required int expectedRevision,
+  }) => _offloadVpnWrites
+      ? _offloadVpnWrite(workspace, expectedRevision: expectedRevision)
+      : _writeVpnLocal(workspace.encode(), expectedRevision: expectedRevision);
+
+  Future<int> _offloadVpnWrite(Object input, {required int expectedRevision}) =>
+      _serial(() async {
+        // The worker owns its own SQLite connection. The main connection
+        // remains serialized with it and observes the committed WAL state.
+        final keyBytes = Uint8List.fromList(await _key.extractBytes());
+        final path = _path;
+        try {
+          final updated = await _runVpnWriteWorker((
+            path,
+            keyBytes,
+            input,
+            expectedRevision,
+          ));
+          _documentCache.remove('vpn-workspace-v1');
+          _cachedWorkspaceRevision = null;
+          _cachedWorkspace = null;
+          if (updated != expectedRevision) _localChanges.add(null);
+          return updated;
+        } finally {
+          keyBytes.fillRange(0, keyBytes.length, 0);
+        }
+      });
+
+  Future<int> _writeVpnLocal(
     String source, {
     required int expectedRevision,
   }) => _serial(() async {
