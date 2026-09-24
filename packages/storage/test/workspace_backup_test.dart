@@ -235,7 +235,7 @@ void main() {
       expect(await db.readDraft(), 'keep');
       expect((await db.readWorkspaceIdentity()).deviceId, identity.deviceId);
       expect(history(await db.readPendingChanges()), before);
-      expect(raw.userVersion, 5);
+      expect(raw.userVersion, 6);
       expect(raw.select('PRAGMA foreign_key_check'), isEmpty);
       raw.execute('DROP TRIGGER fail_restore');
       await db.restoreBackup(await db.prepareRestore(backup, password));

@@ -63,7 +63,9 @@ final class _WorkspaceMerge {
         rethrow;
       }
     }
-    if (db.userVersion != 5) throw const VaultFailure(VaultIssue.corrupt);
+    if (db.userVersion != 5 && db.userVersion != 6) {
+      throw const VaultFailure(VaultIssue.corrupt);
+    }
     _ready = true;
   }
 

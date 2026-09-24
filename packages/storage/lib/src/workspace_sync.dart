@@ -104,7 +104,7 @@ final class _WorkspaceSync {
         rethrow;
       }
     }
-    if (db.userVersion != 4 && db.userVersion != 5) {
+    if (db.userVersion != 4 && db.userVersion != 5 && db.userVersion != 6) {
       throw const VaultFailure(VaultIssue.corrupt);
     }
     final key = await readKey();

@@ -27,6 +27,7 @@ part 'workspace_auto_sync.dart';
 part 'workspace_account_sync.dart';
 part 'workspace_publications.dart';
 part 'vpn_write_worker.dart';
+part 'workspace_vpn_overlay.dart';
 
 Future<WorkspaceDatabase> openLocalWorkspace() async {
   final support = await getApplicationSupportDirectory();
@@ -125,6 +126,7 @@ final class WorkspaceDatabase
         VpnRepository,
         VpnWorkspaceWriter,
         VpnUserWriter,
+        VpnProfileWriter,
         ChangeJournalStore,
         SyncPacketStore,
         SyncMergeStore,
@@ -154,7 +156,7 @@ final class WorkspaceDatabase
       db.execute('PRAGMA journal_mode = WAL');
       db.execute('PRAGMA synchronous = FULL');
       final version = db.userVersion;
-      if (version > 5) throw const VaultFailure(VaultIssue.corrupt);
+      if (version > 6) throw const VaultFailure(VaultIssue.corrupt);
       if (version == 0) {
         db.execute('BEGIN IMMEDIATE');
         try {
@@ -205,6 +207,7 @@ final class WorkspaceDatabase
   Future<void> _pending = Future.value();
   late final _WorkspaceSync _sync = _WorkspaceSync(this);
   late final _WorkspaceMerge _merge = _WorkspaceMerge(this);
+  late final _VpnOverlay _vpnOverlay = _VpnOverlay(this);
   bool _closed = false;
   bool _restored = false;
   bool _initialized = false;
@@ -222,13 +225,14 @@ final class WorkspaceDatabase
       }
       // Receiving an untrusted packet must not create a workspace key or
       // migrate a database. Normal repository initialization prepares the key.
-      if (!migrate && _db.userVersion != 5) {
+      if (!migrate && _db.userVersion != 6) {
         throw const SyncPacketFailure(SyncPacketIssue.storage);
       }
       if (!_initialized) {
         await _journal.initialize();
         await _sync.initialize();
         await _merge.initialize();
+        await _vpnOverlay.initialize();
         _initialized = true;
       }
       return action();
@@ -245,7 +249,7 @@ final class WorkspaceDatabase
           .select('SELECT sequence FROM sync_identity')
           .single['sequence'];
       _db.execute(
-        'UPDATE sync_identity SET write_guard=1, writer_device=?, writer_version=5 WHERE singleton=1',
+        'UPDATE sync_identity SET write_guard=1, writer_device=?, writer_version=6 WHERE singleton=1',
         [_journal.identity.deviceId],
       );
       final result = body();
@@ -527,14 +531,13 @@ final class WorkspaceDatabase
     );
   });
 
-  Future<VpnWorkspace> _getVpnWorkspace(Row row) async {
-    final rev = row['revision'] as int;
+  Future<VpnWorkspace> _getVpnWorkspace() async {
+    final projection = await _vpnOverlay.read();
+    final rev = projection.revision;
     if (rev == _cachedWorkspaceRevision && _cachedWorkspace != null) {
       return _cachedWorkspace!;
     }
-    final workspace = VpnWorkspace.decode(
-      await _decrypt('vpn-workspace-v1', rev, row['payload'] as Uint8List),
-    );
+    final workspace = VpnWorkspace.decode(projection.source!);
     _cachedWorkspaceRevision = rev;
     _cachedWorkspace = workspace;
     return workspace;
@@ -550,7 +553,7 @@ final class WorkspaceDatabase
       'vpn-workspace-v1',
     ]).firstOrNull;
     if (row == null) return null;
-    final workspace = await _getVpnWorkspace(row);
+    final workspace = await _getVpnWorkspace();
     final user = workspace.users
         .where((u) => u.id == userId && u.enabled)
         .firstOrNull;
@@ -630,10 +633,7 @@ final class WorkspaceDatabase
         draft.headId) {
       throw const SyncMergeFailure(SyncMergeIssue.changed);
     }
-    final row = _db.select('SELECT * FROM documents WHERE id=?', [
-      'vpn-workspace-v1',
-    ]).single;
-    final workspace = await _getVpnWorkspace(row);
+    final workspace = await _getVpnWorkspace();
     if (!workspace.users.any(
           (u) => u.id == draft.userId && u.enabled && u.login == draft.name,
         ) ||
@@ -649,24 +649,10 @@ final class WorkspaceDatabase
   Future<String?> readDraft() => _readDocument('template-draft');
   @override
   Future<VpnStoredDocument> readVpn() => _serial(() async {
-    final rows = _db.select('SELECT * FROM documents WHERE id=?', [
-      'vpn-workspace-v1',
-    ]);
-    if (rows.isEmpty) {
-      return VpnStoredDocument(
-        null,
-        0,
-        workspaceId: _journal.identity.workspaceId,
-      );
-    }
-    final row = rows.single;
+    final projection = await _vpnOverlay.read();
     return VpnStoredDocument(
-      await _decrypt(
-        'vpn-workspace-v1',
-        row['revision'] as int,
-        row['payload'] as Uint8List,
-      ),
-      row['revision'] as int,
+      projection.source,
+      projection.revision,
       workspaceId: _journal.identity.workspaceId,
     );
   });
@@ -689,6 +675,20 @@ final class WorkspaceDatabase
       _offloadVpnWrites
       ? _offloadVpnWrite(user, expectedRevision: expectedRevision)
       : _upsertVpnUserLocal(user, expectedRevision: expectedRevision);
+
+  @override
+  Future<int> upsertVpnProfile(
+    String userId,
+    Map<String, dynamic> profile, {
+    required int expectedRevision,
+  }) => _offloadVpnWrites
+      ? _offloadVpnWrite(
+          _VpnProfilePatch(userId, profile),
+          expectedRevision: expectedRevision,
+        )
+      : _serial(
+          () => _vpnOverlay.upsertProfile(userId, profile, expectedRevision),
+        );
 
   Future<int> _offloadVpnWrite(Object input, {required int expectedRevision}) =>
       _serial(() async {
@@ -725,39 +725,7 @@ final class WorkspaceDatabase
   Future<int> _upsertVpnUserLocal(
     VpnUser user, {
     required int expectedRevision,
-  }) => _serial(() async {
-    final previous = _db
-        .select("SELECT * FROM documents WHERE id='vpn-workspace-v1'")
-        .firstOrNull;
-    if ((previous?['revision'] ?? 0) != expectedRevision) {
-      throw const VaultFailure(VaultIssue.busy);
-    }
-    final workspace = previous == null
-        ? VpnWorkspace(id: _journal.identity.workspaceId)
-        : VpnWorkspace.decode(
-            await _decrypt(
-              'vpn-workspace-v1',
-              expectedRevision,
-              previous['payload'] as Uint8List,
-            ),
-          );
-    if (workspace.users.any((u) => u.id == user.id && u.deleted) &&
-        !user.deleted) {
-      throw const FormatException('vpn_user_deleted');
-    }
-    final next = workspace.copy(
-      users: [
-        for (final current in workspace.users)
-          current.id == user.id ? user : current,
-        if (!workspace.users.any((current) => current.id == user.id)) user,
-      ],
-    );
-    return _writeVpnCore(
-      next.encode(),
-      expectedRevision: expectedRevision,
-      only: (ChangeEntityKind.vpnUser, user.id),
-    );
-  });
+  }) => _serial(() => _vpnOverlay.upsertUser(user, expectedRevision));
 
   Future<int> _writeVpnCore(
     String source, {
@@ -771,23 +739,17 @@ final class WorkspaceDatabase
       throw const VaultFailure(VaultIssue.corrupt);
     }
     const id = 'vpn-workspace-v1';
-    final previous = _db.select('SELECT * FROM documents WHERE id=?', [id]);
-    if ((previous.firstOrNull?['revision'] ?? 0) != expectedRevision) {
+    final projection = await _vpnOverlay.read();
+    if (projection.revision != expectedRevision) {
       throw const VaultFailure(VaultIssue.busy);
     }
-    final oldSource = previous.isEmpty
-        ? null
-        : await _decrypt(
-            id,
-            expectedRevision,
-            previous.single['payload'] as Uint8List,
-          );
+    final oldSource = projection.source;
     final suppliedSource = source;
     source = _withAccountNamespaces(source, oldSource);
     if (source != suppliedSource) only = null;
     if (oldSource == source) {
       return _transaction(() {
-        _checkRevision('documents', id, expectedRevision);
+        _vpnOverlay._checkRevision(projection.baseRevision, expectedRevision);
         return expectedRevision;
       });
     }
@@ -806,17 +768,14 @@ final class WorkspaceDatabase
       _documentEntities(id, source, only: only),
     );
     return _transaction(() {
-      final current = _db.select('SELECT revision FROM documents WHERE id=?', [
-        id,
-      ]);
-      if ((current.isEmpty ? 0 : current.single['revision']) !=
-          expectedRevision) {
-        throw const VaultFailure(VaultIssue.busy);
-      }
+      _vpnOverlay._checkRevision(projection.baseRevision, expectedRevision);
       _db.execute(
         'INSERT INTO documents VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload, revision=excluded.revision',
         [id, payload, revision],
       );
+      _db.execute('DELETE FROM vpn_user_overlay');
+      _db.execute('DELETE FROM vpn_profile_overlay');
+      _db.execute('DELETE FROM vpn_overlay_state');
       _journal.commit(changes);
       _documentCache[id] = (revision, source);
       _cachedWorkspaceRevision = null;
@@ -999,7 +958,10 @@ final class WorkspaceDatabase
       return Future.error(const SyncMergeFailure(SyncMergeIssue.limit));
     }
     final owned = packets.map(Uint8List.fromList).toList();
-    return _serial(() => _merge.receive(owned), migrate: false);
+    return _serial(() async {
+      await _vpnOverlay.materialize();
+      return _merge.receive(owned);
+    }, migrate: false);
   }
 
   @override
@@ -1007,6 +969,7 @@ final class WorkspaceDatabase
       _serial(() => _merge.status());
   @override
   Future<SyncMergeStatus> retrySyncMerge() => _serial(() async {
+    await _vpnOverlay.materialize();
     await _merge.drain();
     return _merge.status();
   });
@@ -1014,7 +977,10 @@ final class WorkspaceDatabase
   Future<void> resolveSyncConflict(
     SyncConflict conflict,
     String selectedChangeId,
-  ) => _serial(() => _merge.resolve(conflict, selectedChangeId));
+  ) => _serial(() async {
+    await _vpnOverlay.materialize();
+    await _merge.resolve(conflict, selectedChangeId);
+  });
   @override
   Future<void> checkSyncEffects() => _serial(_checkSyncEffectsNow);
   void _checkSyncEffectsNow() {

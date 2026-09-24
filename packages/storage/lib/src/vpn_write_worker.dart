@@ -1,5 +1,11 @@
 part of 'workspace_database.dart';
 
+final class _VpnProfilePatch {
+  const _VpnProfilePatch(this.userId, this.profile);
+  final String userId;
+  final Map<String, dynamic> profile;
+}
+
 /// Owns one SQLite connection for the VPN write path. The caller still orders
 /// this worker with its other repository operations through _serial.
 final class _VpnWriteWorker {
@@ -104,6 +110,12 @@ Future<void> _vpnWriteWorkerMain((String, Uint8List, SendPort) start) async {
         final revision = input is VpnUser
             ? await store.upsertVpnUser(
                 input,
+                expectedRevision: expectedRevision,
+              )
+            : input is _VpnProfilePatch
+            ? await store.upsertVpnProfile(
+                input.userId,
+                input.profile,
                 expectedRevision: expectedRevision,
               )
             : await store.writeVpn(

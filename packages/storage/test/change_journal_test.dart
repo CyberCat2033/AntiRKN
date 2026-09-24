@@ -97,7 +97,7 @@ void main() {
         );
         await db.close();
         final after = sqlite3.open(path);
-        expect(after.userVersion, 5);
+        expect(after.userVersion, 6);
         expect(after.select('SELECT * FROM servers').single, oldServer);
         expect(
           after.select('SELECT * FROM documents ORDER BY id'),
@@ -206,6 +206,13 @@ void main() {
             );
           }
         }
+        for (final table in [
+          'vpn_overlay_state',
+          'vpn_user_overlay',
+          'vpn_profile_overlay',
+        ]) {
+          raw.execute('DROP TABLE $table');
+        }
         raw.execute('ALTER TABLE sync_identity DROP COLUMN writer_device');
         raw.execute('ALTER TABLE sync_identity DROP COLUMN writer_version');
         raw.execute('DROP TABLE sync_packets');
@@ -234,7 +241,7 @@ void main() {
           (await migrated.readWorkspaceIdentity()).deviceId,
           identity.deviceId,
         );
-        expect(raw.userVersion, 5);
+        expect(raw.userVersion, 6);
         expect(raw.select('SELECT * FROM servers').single, ciphertext);
         expect(ids(await migrated.readPendingChanges()), events);
         expect(
@@ -352,7 +359,9 @@ void main() {
       expect(user.source, isNull);
       expect(resource.header.deleted, isTrue);
       expect(jsonDecode(resource.source!)['spec']['deleted'], isTrue);
-      final savedServers = VpnWorkspace.decode((await db.readVpn()).source!).servers;
+      final savedServers = VpnWorkspace.decode(
+        (await db.readVpn()).source!,
+      ).servers;
       for (final entry in vpn.servers.entries) {
         final stored = Map<String, dynamic>.from(savedServers[entry.key]!);
         expect(stored.remove('resourceWorkspaceId'), vpn.id);
@@ -481,7 +490,7 @@ void main() {
       );
       expect(await db.readDraft(), 'private-template-fixture');
       raw = sqlite3.open(path);
-      expect(raw.userVersion, 5);
+      expect(raw.userVersion, 6);
       raw.dispose();
     },
   );

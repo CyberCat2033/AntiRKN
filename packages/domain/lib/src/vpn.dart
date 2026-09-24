@@ -424,6 +424,14 @@ abstract interface class VpnUserWriter {
   Future<int> upsertVpnUser(VpnUser user, {required int expectedRevision});
 }
 
+abstract interface class VpnProfileWriter {
+  Future<int> upsertVpnProfile(
+    String userId,
+    Map<String, dynamic> profile, {
+    required int expectedRevision,
+  });
+}
+
 abstract interface class ProfileExporter {
   Future<bool> save(String name, String source);
 }

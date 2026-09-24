@@ -43,6 +43,7 @@ String _backupStamp(WorkspaceDatabase store) => jsonEncode([
 Future<_CapturedSnapshot> _currentSnapshot(
   WorkspaceDatabase store,
 ) => store._serial(() async {
+  await store._vpnOverlay.materialize();
   final captured = <String, List<Row>>{};
   late final int sequence;
   store._db.execute('BEGIN');
@@ -270,6 +271,9 @@ Future<void> _restoreBackup(
             store._db.execute('DROP TRIGGER journal_guard_${table}_$action');
           }
         }
+        store._db.execute('DELETE FROM vpn_user_overlay');
+        store._db.execute('DELETE FROM vpn_profile_overlay');
+        store._db.execute('DELETE FROM vpn_overlay_state');
         store._db.execute('DELETE FROM servers');
         store._db.execute('DELETE FROM documents');
         for (final table in [
@@ -333,7 +337,8 @@ Future<void> _restoreBackup(
           "INSERT INTO settings VALUES ('backupRestoredTargets',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
           [jsonEncode(_restoredTargets(snapshot.documents).toList()..sort())],
         );
-        store._db.userVersion = 5;
+        _VpnOverlay.installGuards(store._db);
+        store._db.userVersion = 6;
       });
       store._restored = true;
       store.needsLegacyPassword = false;

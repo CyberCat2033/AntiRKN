@@ -605,7 +605,7 @@ class VpnController extends ChangeNotifier {
       await _write(next);
     }
     plans = [];
-    await _profiles();
+    await _profiles(onlyUserId: user.id);
   });
   Future<Map<String, Object?>?> ttDefaults(String serverId) async {
     Map<String, Object?>? result;
@@ -2017,14 +2017,16 @@ class VpnController extends ChangeNotifier {
     return firstIssue;
   }
 
-  Future<void> _profiles() async {
+  Future<void> _profiles({String? onlyUserId}) async {
     final source = template();
+    if (onlyUserId != null && source != _lastTemplate) onlyUserId = null;
     _lastTemplate = source;
     final encoded = workspace.encode();
     final histories = {...workspace.profiles};
     var changed = false;
     final activeUserIds = <String>[];
     for (final user in workspace.users) {
+      if (onlyUserId != null && user.id != onlyUserId) continue;
       if (user.deleted) {
         results.remove(user.id);
         changed = histories.remove(user.id) != null || changed;
@@ -2042,6 +2044,7 @@ class VpnController extends ChangeNotifier {
       if (_disposed) return;
       await Future<void>.delayed(Duration.zero);
       for (final user in workspace.users) {
+        if (onlyUserId != null && user.id != onlyUserId) continue;
         if (user.deleted) continue;
         final result = batchResults[user.id];
         if (result == null) continue;
@@ -2054,6 +2057,8 @@ class VpnController extends ChangeNotifier {
             'hash': result.sha256Hash,
             'yaml': result.yaml,
             'at': DateTime.now().toUtc().toIso8601String(),
+            'publicationWorkspaceId':
+                histories[user.id]?['publicationWorkspaceId'] ?? workspace.id,
           };
           changed = true;
         }
@@ -2061,7 +2066,19 @@ class VpnController extends ChangeNotifier {
     }
     if (changed) {
       await Future<void>.delayed(Duration.zero);
-      await _write(workspace.copy(profiles: histories));
+      if (onlyUserId != null &&
+          histories[onlyUserId] != null &&
+          repository is VpnProfileWriter) {
+        revision = await (repository as VpnProfileWriter).upsertVpnProfile(
+          onlyUserId,
+          histories[onlyUserId]!,
+          expectedRevision: revision,
+        );
+        workspace = workspace.copy(profiles: histories);
+        notifyListeners();
+      } else {
+        await _write(workspace.copy(profiles: histories));
+      }
     }
   }
 
