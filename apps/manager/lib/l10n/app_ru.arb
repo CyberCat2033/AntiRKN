@@ -1379,6 +1379,7 @@
   "xrayUpgradeProblem": "Проверка не завершена. Посмотрите результаты подключений и повторите после восстановления связи.",
   "xrayUpgradeConflict": "Состояние сервера изменилось. Чужие изменения сохранены; проверьте сервер перед повтором.",
   "xrayUpgradePrerelease": "Предварительный выпуск",
+  "xrayUpgradeNoStable": "Нет проверенного стабильного обновления Xray.",
   "xrayUpgradeBefore": "До",
   "xrayUpgradeAfter": "После",
   "xrayUpgradeRecovery": "После отката",

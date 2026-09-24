@@ -3575,6 +3575,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get xrayUpgradePrerelease => 'Pre-release';
 
   @override
+  String get xrayUpgradeNoStable =>
+      'No verified stable Xray update is available.';
+
+  @override
   String get xrayUpgradeBefore => 'Before';
 
   @override

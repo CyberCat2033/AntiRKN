@@ -6320,6 +6320,12 @@ abstract class AppLocalizations {
   /// **'Pre-release'**
   String get xrayUpgradePrerelease;
 
+  /// No description provided for @xrayUpgradeNoStable.
+  ///
+  /// In en, this message translates to:
+  /// **'No verified stable Xray update is available.'**
+  String get xrayUpgradeNoStable;
+
   /// No description provided for @xrayUpgradeBefore.
   ///
   /// In en, this message translates to:

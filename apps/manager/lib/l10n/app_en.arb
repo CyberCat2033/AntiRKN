@@ -1412,6 +1412,7 @@
   "xrayUpgradeProblem": "The check did not finish. Review the connection results and retry when connectivity is restored.",
   "xrayUpgradeConflict": "The server state changed. External edits were preserved; check the server before retrying.",
   "xrayUpgradePrerelease": "Pre-release",
+  "xrayUpgradeNoStable": "No verified stable Xray update is available.",
   "xrayUpgradeBefore": "Before",
   "xrayUpgradeAfter": "After",
   "xrayUpgradeRecovery": "After rollback",

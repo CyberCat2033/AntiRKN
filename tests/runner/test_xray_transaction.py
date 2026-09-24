@@ -22,6 +22,7 @@ class XrayTransactionTests(unittest.TestCase):
         self.panel='a'*32;self.key='b'*32;self.lease='c'*32;self.running='26.7.28'
         self.configuration={'settings':{'route':'preserve'},'inbounds':[dict(id=1,enable=True,protocol='vless',remark='one',port=443,settings={'clients':[{'id':'existing'}]})]}
         self.events=[];self.patches=[]
+        self.patch(x,'TARGET',{**x.TARGET,'prerelease':False})
         for name,value in [('BINARY',self.binary),('UNITS',self.root/'units')]:self.patch(x,name,value)
         self.patch(x,'safe_file',lambda *a,**k:None)
         self.patch(x,'snapshot',self.snapshot)
@@ -48,6 +49,15 @@ class XrayTransactionTests(unittest.TestCase):
     def request(self):
         return dict(id=self.key,payload=json.dumps(dict(panelId=self.panel,fingerprint=x.vless.digest(self.snapshot()),leases=[self.lease],network='wifi',core='ac017cdd246ce8bd547653d927e7bf77d7ee73d5',baseline=[dict(lease=self.lease,tcp=True,udp=True)])))
     def begin(self):return x.begin(self.store,self.request())
+    def test_prerelease_target_is_not_offered_or_started(self):
+        with patch.object(x,'TARGET',{**x.TARGET,'prerelease':True}):
+            candidate=x.plan(self.store,self.panel)
+            self.assertIsNone(candidate['candidate'])
+            self.assertFalse(candidate['available'])
+            with self.assertRaises(x.UpdateError) as error:self.begin()
+            self.assertEqual(error.exception.code,'xray_check_invalid')
+            self.assertEqual(self.binary.read_bytes(),b'old')
+            self.assertEqual(self.events,[])
     def finish(self,begin,commit=True,**overrides):
         payload=dict(nonce=begin['nonce'],manifest=begin['manifest'],network='wifi',checks=[dict(lease=self.lease,tcp=True,udp=True)])
         payload.update(overrides)

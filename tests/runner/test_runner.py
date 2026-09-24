@@ -197,6 +197,18 @@ class RunnerTests(unittest.TestCase):
         self.assertIn('antirkn-runner.service', hashes)
         self.assertIn('vless.py', hashes)
 
+    def test_v42_predecessor_manifest_matches_released_bundle(self):
+        path = Path(__file__).resolve().parents[2] / 'schemas/runner-predecessor-v42.json'
+        manifest = json.loads(path.read_text())
+        hashes = manifest['hashes']
+        self.assertEqual(
+            manifest['release'],
+            hashlib.sha256(json.dumps(hashes, sort_keys=True).encode()).hexdigest(),
+        )
+        self.assertEqual(manifest['release'], 'dc994f02b954447ceda7c7f3952acae816fc0a7b6eeb36ca93a8310f282658e7')
+        self.assertIn('antirkn-runner.service', hashes)
+        self.assertIn('vless.py', hashes)
+
     def test_protocol_remove_plan_action(self):
         with patch('runner.protocol_removal_plan', return_value={'test': 123}) as mock_plan:
             res = self.store.request(dict(version=1, action='protocol_remove_plan', protocol='vless'))

@@ -15,7 +15,7 @@ def spec(number=1,transport='raw'):
     return dict(id=f'{number:032x}',name='Managed VLESS',enabled=True,deleted=False,listen='127.0.0.1',port=23400+number,endpoint='203.0.113.10',externalPort=23400+number,transport=transport,security='reality',sni='example.com',target='example.com:443',path='/',host='',mode='auto',certificate='',certificateKey='',region='')
 def payload():return dict(version=1,workspaceId='a'*32,panelId='b'*32,resources=[spec(),spec(2,'xhttp')],users=[dict(id='c'*32,enabled=True),dict(id='d'*32,enabled=True)])
 class Api:
-    def __init__(self):self.rows=[];self.effects=0;self.crash=False;self.list_calls=0;self.get_calls=0;self.annotate_list=False
+    def __init__(self):self.rows=[];self.effects=0;self.crash=False;self.list_calls=0;self.get_calls=0;self.annotate_list=False;self.extra_list_field=False
     def call(self,path,data=None):
         if path.endswith('/list'):
             self.list_calls+=1
@@ -24,6 +24,9 @@ class Api:
                 for row in rows:
                     row['originNodeGuid']='panel-guid'
                     row['fallbackParent']={'masterId':42}
+            if self.extra_list_field:
+                for row in rows:
+                    row['listOnlyDiagnostic'] = 'computed-by-panel'
             return rows
         if '/get/' in path:
             self.get_calls+=1
@@ -145,6 +148,63 @@ class VlessTests(unittest.TestCase):
         req=self.submit(changed,2)
         self.assertEqual(self.finish(req)['status'], 'succeeded')
         self.assertTrue(all(r['confirmed'] for r in state(self.store,'b'*32)))
+
+    def test_list_only_metadata_falls_back_to_detail_without_hiding_drift(self):
+        self.api.extra_list_field = True
+        first = self.submit()
+        self.assertEqual(self.finish(first)['status'], 'succeeded')
+        self.assertTrue(all(row['confirmed'] for row in state(self.store, 'b'*32)))
+        changed = payload()
+        changed['users'][0]['enabled'] = False
+        second = self.submit(changed, 2)
+        self.assertEqual(self.finish(second)['status'], 'succeeded')
+        # A real edit to the stored row remains a conflict even though the
+        # list contains fields that are absent from the detail endpoint.
+        self.api.rows[0]['streamSettings']['security'] = 'tls'
+        self.assertFalse(state(self.store, 'b'*32)[0]['confirmed'])
+        with self.assertRaises(VlessError):
+            self.submit(changed, 3)
+
+    def test_resume_saved_final_checkpoint_with_list_metadata(self):
+        first = self.submit()
+        self.store.tick()  # preflight
+        self.store.tick()  # first resource
+        self.store.tick()  # second resource
+        self.assertEqual(self.job(first)['checkpoint'], 3)
+        effects = self.api.effects
+        # Emulate a terminal job saved by an older runner just before its
+        # final readback. Resuming must verify the existing rows, not reapply.
+        self.store.db.execute(
+            "UPDATE jobs SET status='partially_applied' WHERE id=?",
+            (first['id'],),
+        )
+        self.store.db.commit()
+        self.api.extra_list_field = True
+        self.store.request(dict(version=1, action='resume', id=first['id']))
+        self.assertEqual(self.finish(first)['status'], 'succeeded')
+        self.assertEqual(self.api.effects, effects)
+
+    def test_legacy_list_fingerprint_can_be_verified_after_upgrade(self):
+        self.api.annotate_list = True
+        first = self.submit()
+        self.assertEqual(self.finish(first)['status'], 'succeeded')
+        resource = payload()['resources'][0]['id']
+        saved = json.loads(self.store.db.execute(
+            'SELECT data FROM vless_resources WHERE id=?', (resource,),
+        ).fetchone()[0])
+        legacy_row = normal(self.api.rows[0])
+        legacy_row['originNodeGuid'] = 'panel-guid'
+        legacy_row['fallbackParent'] = {'masterId': 42}
+        saved['observedHash'] = digest(legacy_row)
+        self.store.db.execute(
+            'UPDATE vless_resources SET data=? WHERE id=?',
+            (json.dumps(saved), resource),
+        )
+        self.store.db.commit()
+        self.assertTrue(state(self.store, 'b'*32)[0]['confirmed'])
+        changed = payload()
+        changed['users'][0]['enabled'] = False
+        self.assertEqual(self.finish(self.submit(changed, 2))['status'], 'succeeded')
 
     def test_panel_session_reused_but_pinned_version_checked_each_step(self):
         self.patches[0].stop()

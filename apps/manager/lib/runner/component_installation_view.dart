@@ -150,13 +150,6 @@ class ComponentUpdateSettings extends StatelessWidget {
               c.setPreference(suggestions: v);
             },
           ),
-          const Divider(indent: 17, endIndent: 17),
-          ListTile(
-            leading: const Icon(Icons.refresh),
-            title: Text(l.updatesCheck),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: c.busy ? null : c.check,
-          ),
           if (c.busy) const LinearProgressIndicator(),
           if (c.failed) Text(l.updatesFailed),
           if (c.storageFailed) Text(l.settingsSaveError),

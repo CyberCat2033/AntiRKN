@@ -3581,6 +3581,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String get xrayUpgradePrerelease => 'Предварительный выпуск';
 
   @override
+  String get xrayUpgradeNoStable =>
+      'Нет проверенного стабильного обновления Xray.';
+
+  @override
   String get xrayUpgradeBefore => 'До';
 
   @override

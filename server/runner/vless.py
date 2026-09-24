@@ -236,6 +236,34 @@ def locate(rows, workspace, resource):
     return matches[0] if matches else None
 
 
+def matches_observation(api, row, workspace, resource, observed_hash):
+    """Confirm drift against the same endpoint used for saved readback.
+
+    The list API may enrich a row with read-only fields absent from /get/:id.
+    Only fetch the detail when the cheap list comparison differs; a genuine
+    change in the persisted row must still fail the ownership check.
+    """
+    if row is None or observed_hash is None:
+        return False
+    normalized = normal(row)
+    if digest(normalized) == observed_hash:
+        return True
+    # v41 and older saved /list fingerprints before originNodeGuid and
+    # fallbackParent became read-only annotations in the current normalizer.
+    # Accept that exact legacy representation during upgrade; the next
+    # successful write replaces it with the current detail fingerprint.
+    annotated = copy.deepcopy(normalized)
+    for key in ('originNodeGuid', 'fallbackParent'):
+        if key in row:
+            annotated[key] = copy.deepcopy(row[key])
+    if annotated != normalized and digest(annotated) == observed_hash:
+        return True
+    detail = api.call('/panel/api/inbounds/get/%d' % row['id'])
+    if not isinstance(detail, dict) or detail.get('id') != row['id'] or detail.get('remark') != marker(workspace, resource):
+        raise VlessError('vless_api_failed')
+    return digest(normal(detail)) == observed_hash
+
+
 def preflight(store, payload, api, rows=None):
     check_revocations(store, payload)
     if rows is None:
@@ -251,7 +279,7 @@ def preflight(store, payload, api, rows=None):
         current = locate(rows, payload['workspaceId'], r['id'])
         previous = saved.get(r['id'])
         if previous and previous['workspaceId'] != payload['workspaceId']: raise VlessError('vless_conflict')
-        if current and (not previous or digest(normal(current)) != previous['observedHash']):
+        if current and (not previous or not matches_observation(api, current, payload['workspaceId'], r['id'], previous['observedHash'])):
             raise VlessError('vless_conflict')
         if previous and not current and not (previous.get('deleted') or r.get('deleted')): raise VlessError('vless_conflict')
     # Every currently managed resource in this workspace must participate, so a
@@ -318,7 +346,7 @@ def state(store, panel_id, pending_job=None):
             with store.db:
                 store.db.execute('INSERT INTO vless_resources VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data',
                     (rid, canonical(saved)))
-        confirmed = (current is None if saved.get('deleted') else current is not None and digest(normal(current)) == saved['observedHash'])
+        confirmed = (current is None if saved.get('deleted') else matches_observation(api, current, saved['workspaceId'], rid, saved['observedHash']))
         result.append(dict(id=rid, spec=saved['spec'], workspaceId=saved['workspaceId'],
             confirmed=confirmed, deleted=bool(saved.get('deleted')), exists=(current is not None),
             publicKey=saved['publicKey'], shortId=saved['shortId'],
@@ -361,7 +389,7 @@ class VlessApply:
             already = current is None if r['deleted'] else current is not None and subset(desired, normal(current))
             created_id = None
             if not already:
-                if current and (not previous or digest(normal(current)) != previous['observedHash']): raise VlessError('vless_conflict')
+                if current and (not previous or not matches_observation(api, current, p['workspaceId'], r['id'], previous['observedHash'])): raise VlessError('vless_conflict')
                 if not current and previous and not (previous.get('deleted') or r.get('deleted')): raise VlessError('vless_conflict')
                 if r['deleted']:
                     if current: api.call('/panel/api/inbounds/del/%d' % current['id'], {})

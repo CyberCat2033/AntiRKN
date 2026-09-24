@@ -86,11 +86,12 @@ def plan(store,panel_id):
     except PanelError as error:
         if error.code=='panel_update_incompatible':raise UpdateError('xray_check_layout') from None
         raise
+    stable = TARGET.get('prerelease') is False
     supported=(current['panelVersion'] in TARGET['supportedPanels'] and panel.version(current['xrayVersion'])<=panel.version(TARGET['version']))
     rows=current['configuration']['inbounds']
-    return dict(supported=supported,current=current['xrayVersion'],candidate=TARGET['version'],fingerprint=vless.digest(current),
+    return dict(supported=supported,current=current['xrayVersion'],candidate=TARGET['version'] if stable else None,fingerprint=vless.digest(current),
         inbounds=[dict(id=r['id'],enabled=r['enable'],protocol=r['protocol'],name=r.get('remark',''),port=r['port']) for r in rows],
-        available=supported and current['xrayVersion']!=TARGET['version'], prerelease=TARGET['prerelease'],maxInbounds=TARGET['maxInbounds'],latest=latest(store,panel_id))
+        available=stable and supported and current['xrayVersion']!=TARGET['version'],maxInbounds=TARGET['maxInbounds'],latest=latest(store,panel_id))
 
 def public(info):
     return {k:info[k] for k in ('id','phase','current','candidate','deadline','code','manifest','history') if k in info}
@@ -128,6 +129,7 @@ def begin(store,req):
     if old:
         if old['requestHash']!=vless.digest(payload):raise UpdateError('xray_check_changed')
         return {**public(old),'nonce':old['nonce']}
+    if TARGET.get('prerelease') is not False:raise UpdateError('xray_check_invalid')
     if active(store) or store.db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running')").fetchone():raise UpdateError('xray_check_busy')
     if set(payload)!={'panelId','fingerprint','leases','network','baseline','core'} or not isinstance(payload['network'],str) or not 1<=len(payload['network'])<=1024:
         raise UpdateError('xray_check_invalid')

@@ -110,10 +110,12 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
               ),
               const SizedBox(height: 8),
               Text(l.xrayUpgradeIntro),
-              if (c.plan != null)
+              if (c.plan?['candidate'] case final String candidate)
                 Text(
-                  'Xray ${c.plan!['current']} → ${c.plan!['candidate']}${c.plan!['prerelease'] == true ? ' · ${l.xrayUpgradePrerelease}' : ''}',
+                  'Xray ${c.plan!['current']} → $candidate',
                 ),
+              if (c.plan != null && c.plan!['candidate'] == null)
+                Text(l.xrayUpgradeNoStable),
               if (c.busy)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 8),
