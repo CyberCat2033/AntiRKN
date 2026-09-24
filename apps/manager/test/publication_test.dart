@@ -245,6 +245,105 @@ class BlockingRemote extends Remote {
 }
 
 void main() {
+  test('publishes a profile when server verification becomes ready', () async {
+    final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
+    final repo = Repository();
+    final remote = Remote();
+    final c = PublicationController(
+      repository: repo,
+      account: Account()..publicationAuthorized = true,
+      remote: () => remote,
+      vpn: vpn,
+    );
+    addTearDown(() {
+      c.dispose();
+      vpn.dispose();
+    });
+    await c.ready;
+    await vpn.load();
+    vpn.serverSyncIssue = 'vpn_connection';
+    final user = VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice');
+    await vpn.saveUser(user);
+    final profile = vpn.workspace.profiles[user.id]!;
+    repo.drafts[user.id] = PublicationDraft(
+      workspaceId: vpn.workspace.id,
+      deviceId: 'b' * 32,
+      userId: user.id,
+      name: user.name,
+      headId: 'head-${user.id}',
+      hash: profile['hash'] as String,
+      stamp: 'stamp-${user.id}',
+      bytes: Uint8List.fromList(utf8.encode(profile['yaml'] as String)),
+      ancestors: {},
+    );
+    repo.docs['settings'] = canonicalJson(
+      const PublicationSettings(
+        accountKey: 'account',
+        folderId: 'folder',
+        folderName: 'Profiles',
+        access: PublicationAccess.private,
+        enabled: true,
+        folderReady: true,
+      ).toJson(),
+    );
+    final registryBytes = Uint8List.fromList(
+      utf8.encode(
+        canonicalJson({
+          'version': 2,
+          'workspaceId': vpn.workspace.id,
+          'users': <String, dynamic>{},
+        }),
+      ),
+    );
+    remote.folders['folder'] = PublicationFile(
+      id: 'folder',
+      name: 'Profiles',
+      mimeType: 'application/vnd.google-apps.folder',
+      version: '1',
+      etag: 'folder-etag',
+      editable: true,
+      properties: {'antirknRegistry.${vpn.workspace.id}': 'ready:registry-1'},
+    );
+    remote.folders['registry-1'] = PublicationFile(
+      id: 'registry-1',
+      name: 'registry.json',
+      mimeType: 'application/json',
+      version: '1',
+      etag: 'registry-etag',
+      editable: true,
+      properties: {
+        'antirknWorkspace': vpn.workspace.id,
+        'antirknUser': 'registry',
+        'antirknHash': sha256.convert(registryBytes).toString(),
+      },
+    );
+    remote.contents['registry-1'] = registryBytes;
+    await c.reload();
+    await vpn.validateCoreProfile(user.id);
+    expect(c.queues[user.id], isNull);
+
+    vpn.serverSyncIssue = null;
+    await vpn.saveUser(user);
+    for (var i = 0; i < 100 && !c.isUserUpToDate(user.id); i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+    }
+    expect(
+      c.isUserUpToDate(user.id),
+      isTrue,
+      reason: 'automatic publication did not reach the current profile',
+    );
+    expect(
+      remote.folders.values.where(
+        (file) => file.mimeType == 'application/x-yaml',
+      ),
+      hasLength(1),
+    );
+    remote.failWithIssue = PublicationIssue.network;
+    await vpn.saveUser(user);
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    expect(c.queues[user.id]?['status'], 'published');
+  });
+
   test(
     'request during an active publication runs the new target afterward',
     () async {

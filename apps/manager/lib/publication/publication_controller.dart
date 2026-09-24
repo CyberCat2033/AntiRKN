@@ -62,6 +62,9 @@ class PublicationController extends ChangeNotifier {
   bool _pendingAll = false, _pendingForce = false;
   final Set<String> _pendingUserIds = {};
   String? _profileStamp;
+  Map<String, String> _readyProfileHashes = {};
+  bool _readyBaselineSet = false;
+  final Set<String> _newlyReadyUsers = {};
   int _reloadGeneration = 0;
   bool get busy => editing || _running != null;
 
@@ -238,8 +241,16 @@ class PublicationController extends ChangeNotifier {
     }
     _notify();
 
-    // Automatically fulfill any pending bindings
-    if (!_disposed && !_suspended && !editing && authorized) {
+    // A server may confirm a newly created client after its first publication
+    // attempt failed. Retry that profile once when it becomes publishable.
+    if (!_disposed && !_suspended && _foreground && !editing && authorized) {
+      for (final id in _newlyReadyUsers.toList()) {
+        if (settings?.enabled != true) break;
+        if (_readyProfileHashes.containsKey(id) && !isUserUpToDate(id)) {
+          request(force: true, targetUserId: id);
+        }
+        _newlyReadyUsers.remove(id);
+      }
       final hasPending = vpn.workspace.users.any(
         (u) => u.enabled && !u.deleted && bindingPending(u.id),
       );
@@ -250,8 +261,37 @@ class PublicationController extends ChangeNotifier {
   }
 
   void _vpnChanged() {
+    final readyProfiles = <String, String>{..._readyProfileHashes};
+    if (vpn.loaded && !vpn.workspaceBusy) {
+      readyProfiles.clear();
+    }
+    if (vpn.loaded &&
+        !vpn.workspaceBusy &&
+        vpn.hasCurrentVerifiedProfiles) {
+      for (final user in vpn.workspace.users) {
+        final hash = savedProfileHashFor(user.id);
+        final result = vpn.results[user.id];
+        if (user.enabled &&
+            !user.deleted &&
+            hash != null &&
+            result?.sha256Hash == hash &&
+            result?.hasBlockingErrors == false &&
+            vpn.coreCheckFor(user.id)?.status != CoreConfigStatus.invalid) {
+          readyProfiles[user.id] = hash;
+        }
+      }
+    }
+    final newlyReadyUsers = _readyBaselineSet
+        ? {
+            for (final entry in readyProfiles.entries)
+              if (_readyProfileHashes[entry.key] != entry.value) entry.key,
+          }
+        : <String>{};
+    if (vpn.loaded && !vpn.workspaceBusy) _readyBaselineSet = true;
+    if (!vpn.workspaceBusy) _readyProfileHashes = readyProfiles;
     final stamp = jsonEncode([
       vpn.loaded,
+      vpn.workspaceBusy,
       vpn.serverSyncIssue,
       for (final user in vpn.workspace.users)
         [
@@ -264,6 +304,7 @@ class PublicationController extends ChangeNotifier {
     ]);
     if (stamp == _profileStamp) return;
     _profileStamp = stamp;
+    _newlyReadyUsers.addAll(newlyReadyUsers);
     unawaited(reload());
   }
 
@@ -604,6 +645,7 @@ class PublicationController extends ChangeNotifier {
   void resume() {
     _suspended = false;
     _notify();
+    if (_foreground && _newlyReadyUsers.isNotEmpty) unawaited(reload());
   }
 
   /// [force] checks the remote copy even when the local profile is unchanged.
@@ -641,6 +683,7 @@ class PublicationController extends ChangeNotifier {
 
   void foreground(bool value) {
     _foreground = value;
+    if (value && _newlyReadyUsers.isNotEmpty) unawaited(reload());
     if (!value) {
       _timer?.cancel();
       _pendingAll = false;
