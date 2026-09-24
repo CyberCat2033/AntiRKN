@@ -215,7 +215,11 @@ class UserPublicationView extends StatelessWidget {
           result = controller.results[userId];
       if (controller.settings == null) return const SizedBox.shrink();
       final savedHash = controller.savedProfileHashFor(userId);
+      final serverUnverified =
+          controller.vpn.serverSyncIssue != null ||
+          controller.vpn.results[userId]?.hasBlockingErrors == true;
       final published =
+          !serverUnverified &&
           result != null &&
           result['hash'] == savedHash &&
           queue?['status'] != 'error';
@@ -224,7 +228,9 @@ class UserPublicationView extends StatelessWidget {
         children: [
           if (controller.bindingPending(userId)) Text(l.publicationBindPending),
           Text(
-            published
+            serverUnverified && result != null
+                ? l.publicationPreviousVerified
+                : published
                 ? l.publicationPublished
                 : queue?['status'] == 'error'
                 ? publicationMessage(l, queue?['issue'] as String?)

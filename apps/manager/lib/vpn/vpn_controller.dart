@@ -31,6 +31,13 @@ final class VpnPlan {
   final Map<String, dynamic>? preview;
 }
 
+final class ServerProfileSyncResult {
+  const ServerProfileSyncResult({required this.revision, this.issue});
+  final int revision;
+  final String? issue;
+  bool get verified => issue == null;
+}
+
 ProfileResult _compile((String, String, String, Map<String, String>) input) {
   final workspace = VpnWorkspace.decode(input.$1);
   try {
@@ -266,6 +273,9 @@ class VpnController extends ChangeNotifier {
   bool get workspaceBusy => _busy || _upgradeBusy;
   set busy(bool value) => _busy = value;
   String? error;
+
+  /// Blocks publication of retained profiles after a failed server check.
+  String? serverSyncIssue;
   Timer? _identityNoticeTimer;
   bool _identityNoticeExpired = false;
   String? get visibleError =>
@@ -402,6 +412,7 @@ class VpnController extends ChangeNotifier {
   }
 
   Future<void> load() => _run((token) async {
+    serverSyncIssue = null;
     _restoredTargets = await recovery?.readRestoredTargets() ?? {};
     _deviceId = repository is ChangeJournalStore
         ? (await (repository as ChangeJournalStore).readWorkspaceIdentity())
@@ -1800,16 +1811,21 @@ class VpnController extends ChangeNotifier {
     error = await _refreshTargets(targets, token);
   });
 
-  /// Forcibly reads latest observations from all physical servers and managed
-  /// protocol endpoints, reconciles any unapplied plans, and rebuilds all client
-  /// profiles.
-  Future<void> syncAllServersAndProfiles() async {
-    if (!loaded) return;
+  /// Reads server observations before publication. A failed apply must not be
+  /// hidden by a later successful read of the previous server state.
+  Future<ServerProfileSyncResult> syncAllServersAndProfiles() async {
+    if (!loaded || busy) {
+      return ServerProfileSyncResult(revision: revision, issue: 'vpn_busy');
+    }
+    String? applyIssue;
     try {
       if (workspace.serverIds.isNotEmpty) {
         await prepareAndApply();
+        applyIssue = error;
       }
-    } catch (_) {}
+    } catch (_) {
+      applyIssue = 'vpn_failed';
+    }
     await _run((token) async {
       final targets = <String>{
         for (final resource in workspace.inbounds)
@@ -1831,6 +1847,11 @@ class VpnController extends ChangeNotifier {
       }.toList()..sort();
       error = await _refreshTargets(targets, token);
     });
+    final issue = applyIssue ?? error;
+    error = issue;
+    serverSyncIssue = issue;
+    _notify();
+    return ServerProfileSyncResult(revision: revision, issue: issue);
   }
 
   Future<_TargetPollResult> _pollTarget(

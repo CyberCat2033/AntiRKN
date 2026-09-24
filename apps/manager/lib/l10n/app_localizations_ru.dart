@@ -1274,7 +1274,15 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get vpnSyncAndPublishTooltip =>
-      'Нажмите для синхронизации и быстрой выгрузки изменений. Удерживайте для принудительной повторной выгрузки всех профилей на Диск.';
+      'Нажмите для сверки серверов и выгрузки изменений. Удерживайте, чтобы проверить все профили на Диске и выгрузить только изменённые.';
+
+  @override
+  String get vpnSyncServerUnverified =>
+      'Не удалось проверить сервер. Текущие профили не выгружены; прежние проверенные ссылки доступны.';
+
+  @override
+  String get publicationPreviousVerified =>
+      'Текущий профиль не проверен. Прежняя проверенная ссылка доступна.';
 
   @override
   String get vpnSyncAndPublishFailed =>

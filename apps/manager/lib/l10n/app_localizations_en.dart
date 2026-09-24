@@ -1271,7 +1271,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get vpnSyncAndPublishTooltip =>
-      'Click to sync servers and publish changed profiles. Press and hold to force re-upload all profiles.';
+      'Click to sync servers and publish changed profiles. Press and hold to check every profile on Drive and upload only changes.';
+
+  @override
+  String get vpnSyncServerUnverified =>
+      'Server check failed. Current profiles were not published; the previous verified links remain available.';
+
+  @override
+  String get publicationPreviousVerified =>
+      'Current profile is unverified. The previous verified link remains available.';
 
   @override
   String get vpnSyncAndPublishFailed =>

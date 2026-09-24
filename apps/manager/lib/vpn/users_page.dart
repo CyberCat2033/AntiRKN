@@ -163,7 +163,15 @@ class _UsersPageState extends State<UsersPage> {
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     try {
-      await controller.syncAllServersAndProfiles();
+      final serverSync = await controller.syncAllServersAndProfiles();
+      if (!serverSync.verified) {
+        if (mounted) {
+          messenger.showSnackBar(
+            SnackBar(content: Text(l.vpnSyncServerUnverified)),
+          );
+        }
+        return;
+      }
       PublicationBatchResult? batchResult;
       if (publications != null) {
         batchResult = await publications!.forcePublishAll(force: force);

@@ -524,7 +524,9 @@
       }
     }
   },
-  "vpnSyncAndPublishTooltip": "Click to sync servers and publish changed profiles. Press and hold to force re-upload all profiles.",
+  "vpnSyncAndPublishTooltip": "Click to sync servers and publish changed profiles. Press and hold to check every profile on Drive and upload only changes.",
+  "vpnSyncServerUnverified": "Server check failed. Current profiles were not published; the previous verified links remain available.",
+  "publicationPreviousVerified": "Current profile is unverified. The previous verified link remains available.",
   "vpnSyncAndPublishFailed": "Failed to fully sync with servers or publish to Drive.",
   "vpnNoUsers": "No clients yet",
   "vpnLogin": "Client login",

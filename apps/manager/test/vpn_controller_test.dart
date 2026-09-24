@@ -43,6 +43,7 @@ class Remote implements RunnerTransport {
   bool loseReply = false,
       running = false,
       failBeforeSubmit = false,
+      failPlan = false,
       failState = false;
   List<Map<String, dynamic>> state = [];
   List<Map<String, dynamic>>? customState;
@@ -79,6 +80,7 @@ class Remote implements RunnerTransport {
     final r = request.json, a = r['action'];
     actions.add(a as String);
     if (a == 'vless_plan') {
+      if (failPlan) throw const SshFailure(SshIssue.disconnected);
       return RunnerResponse.fromJson(response(plan: {'fingerprint': 'e' * 64}));
     }
     if (a == 'vless_state') {
@@ -775,8 +777,9 @@ void main() {
       remotes['one']!.actions.clear();
       remotes['two']!.actions.clear();
 
-      await c.syncAllServersAndProfiles();
+      final sync = await c.syncAllServersAndProfiles();
 
+      expect(sync.verified, isTrue);
       expect(c.error, isNull);
       expect(remotes['one']!.actions, contains('vless_state'));
       expect(remotes['two']!.actions, contains('vless_state'));
@@ -801,12 +804,33 @@ void main() {
       remotes['two']!.actions.clear();
       remotes['two']!.failState = true;
 
-      await c.syncAllServersAndProfiles();
+      final sync = await c.syncAllServersAndProfiles();
 
+      expect(sync.verified, isFalse);
+      expect(sync.issue, 'vpn_connection');
       expect(c.error, 'vpn_connection');
       expect(remotes['one']!.actions, contains('vless_state'));
       expect(c.results[alice], isNotNull);
     },
   );
-}
+  test('server check keeps prepare failure after successful state read', () async {
+    final store = MemoryVpn(), remotes = <String, Remote>{};
+    remotes.addAll({'one': Remote(store), 'two': Remote(store)});
+    final c = controller(store, remotes);
+    await setup(c);
+    await c.prepare();
+    await c.apply();
+    remotes['one']!.failPlan = true;
 
+    final failed = await c.syncAllServersAndProfiles();
+    expect(failed.verified, isFalse);
+    expect(failed.issue, 'vpn_connection');
+    expect(c.serverSyncIssue, 'vpn_connection');
+    expect(remotes['one']!.actions, contains('vless_state'));
+
+    remotes['one']!.failPlan = false;
+    final recovered = await c.syncAllServersAndProfiles();
+    expect(recovered.verified, isTrue);
+    expect(c.serverSyncIssue, isNull);
+  });
+}

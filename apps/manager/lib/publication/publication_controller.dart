@@ -252,6 +252,7 @@ class PublicationController extends ChangeNotifier {
   void _vpnChanged() {
     final stamp = jsonEncode([
       vpn.loaded,
+      vpn.serverSyncIssue,
       for (final user in vpn.workspace.users)
         [
           user.id,
@@ -279,6 +280,7 @@ class PublicationController extends ChangeNotifier {
     bool force, {
     String? targetUserId,
     bool ignoreForeground = false,
+    bool forceUpload = false,
   }) {
     if (_disposed ||
         _suspended ||
@@ -287,7 +289,11 @@ class PublicationController extends ChangeNotifier {
         _running != null) {
       return _running;
     }
-    final future = _run(force, targetUserId: targetUserId);
+    final future = _run(
+      force,
+      targetUserId: targetUserId,
+      forceUpload: forceUpload,
+    );
     _running = future;
     future.whenComplete(() {
       if (_running == future) _running = null;
@@ -316,7 +322,11 @@ class PublicationController extends ChangeNotifier {
     await future;
   }
 
-  Future<PublicationBatchResult> _run(bool force, {String? targetUserId}) async {
+  Future<PublicationBatchResult> _run(
+    bool force, {
+    String? targetUserId,
+    bool forceUpload = false,
+  }) async {
     if (!authorized ||
         needsAuthorization ||
         settings?.enabled != true ||
@@ -327,6 +337,9 @@ class PublicationController extends ChangeNotifier {
         _notify();
       }
       return const PublicationBatchResult();
+    }
+    if (vpn.serverSyncIssue != null) {
+      return const PublicationBatchResult(failed: 1);
     }
     if (vpn.workspaceBusy || canPublish?.call() == false) {
       return const PublicationBatchResult();
@@ -365,11 +378,14 @@ class PublicationController extends ChangeNotifier {
           final user = activeUsers[nextIndex++];
 
           // Fast-path: skip user if profile is already published and unchanged
-          final isUpToDate = !force && isUserUpToDate(user.id);
-          if (isUpToDate) {
+          final wasUpToDate = isUserUpToDate(user.id);
+          if (!force && !forceUpload && wasUpToDate) {
             upToDateCount++;
             continue;
           }
+          final previousResult = results[user.id] == null
+              ? null
+              : canonicalJson(results[user.id]);
 
           var success = false;
           Map<String, dynamic>? publishQueue;
@@ -379,7 +395,7 @@ class PublicationController extends ChangeNotifier {
               publishQueue = await coordinator.publish(
                 user.id,
                 force: true,
-                forceUpload: force,
+                forceUpload: forceUpload,
                 cancellation: _cancel,
               );
               if (publishQueue?['issue'] == 'unauthorized') {
@@ -470,11 +486,6 @@ class PublicationController extends ChangeNotifier {
               }
             }
           }
-          if (success) {
-            uploadedCount++;
-          } else {
-            failedCount++;
-          }
           if (publishQueue != null) queues[user.id] = publishQueue;
           final resultDoc = await repository.readPublicationDocument(
             'result/${user.id}',
@@ -487,6 +498,17 @@ class PublicationController extends ChangeNotifier {
           );
           if (bindingDoc != null) {
             bindings[user.id] = jsonDecode(bindingDoc) as Map<String, dynamic>;
+          }
+          if (success) {
+            if (!forceUpload &&
+                wasUpToDate &&
+                previousResult == canonicalJson(results[user.id])) {
+              upToDateCount++;
+            } else {
+              uploadedCount++;
+            }
+          } else {
+            failedCount++;
           }
           _notify();
           await Future<void>.delayed(Duration.zero);
@@ -533,7 +555,12 @@ class PublicationController extends ChangeNotifier {
     _notify();
   }
 
-  Future<PublicationBatchResult> forcePublishAll({bool force = true}) async {
+  /// [force] checks the remote copy even when the local profile is unchanged.
+  /// [forceUpload] is reserved for an explicit repair action.
+  Future<PublicationBatchResult> forcePublishAll({
+    bool force = true,
+    bool forceUpload = false,
+  }) async {
     if (_disposed || editing) return const PublicationBatchResult();
     for (var i = 0; i < 20 && _suspended; i++) {
       await Future<void>.delayed(const Duration(milliseconds: 100));
@@ -553,7 +580,11 @@ class PublicationController extends ChangeNotifier {
         await _running;
       } catch (_) {}
     }
-    final future = _start(force, ignoreForeground: true);
+    final future = _start(
+      force || forceUpload,
+      ignoreForeground: true,
+      forceUpload: forceUpload,
+    );
     return (await future) ?? const PublicationBatchResult();
   }
 
@@ -627,13 +658,14 @@ class PublicationController extends ChangeNotifier {
         .where((candidate) => candidate.id == draft.userId)
         .firstOrNull;
     if (_disposed ||
+        vpn.serverSyncIssue != null ||
         user?.enabled != true ||
-        savedProfileHashFor(draft.userId) != draft.hash) {
+        savedProfileHashFor(draft.userId) != draft.hash ||
+        vpn.results[draft.userId]?.hasBlockingErrors == true) {
       return false;
     }
-    // A failed current compilation deliberately retains the last generated
-    // profile. Its draft remains publishable. Core validation only applies
-    // when it checked the exact draft that is about to be published.
+    // A retained profile from a failed current compilation is not evidence
+    // that the current desired accesses were verified on the servers.
     if (vpn.results[draft.userId]?.sha256Hash == draft.hash &&
         vpn.coreCheckFor(draft.userId)?.status == CoreConfigStatus.invalid) {
       return false;

@@ -2309,8 +2309,20 @@ abstract class AppLocalizations {
   /// No description provided for @vpnSyncAndPublishTooltip.
   ///
   /// In en, this message translates to:
-  /// **'Click to sync servers and publish changed profiles. Press and hold to force re-upload all profiles.'**
+  /// **'Click to sync servers and publish changed profiles. Press and hold to check every profile on Drive and upload only changes.'**
   String get vpnSyncAndPublishTooltip;
+
+  /// No description provided for @vpnSyncServerUnverified.
+  ///
+  /// In en, this message translates to:
+  /// **'Server check failed. Current profiles were not published; the previous verified links remain available.'**
+  String get vpnSyncServerUnverified;
+
+  /// No description provided for @publicationPreviousVerified.
+  ///
+  /// In en, this message translates to:
+  /// **'Current profile is unverified. The previous verified link remains available.'**
+  String get publicationPreviousVerified;
 
   /// No description provided for @vpnSyncAndPublishFailed.
   ///

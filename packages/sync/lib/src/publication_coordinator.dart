@@ -246,8 +246,7 @@ final class PublicationCoordinator {
           final canSkipDownload = forceUpload ||
               (previousEtag != null &&
                   previousEtag == f.etag &&
-                  remoteHash != null) ||
-              (head == draft.headId && remoteHash == draft.hash);
+                  remoteHash != null);
           final String hash;
           if (canSkipDownload) {
             hash = remoteHash ?? '';

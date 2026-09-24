@@ -261,7 +261,7 @@ void main() {
   });
 
   testWidgets(
-    'retained saved profile remains publishable while current compilation is blocked',
+    'blocked current compilation keeps previous link but rejects new publication',
     (tester) async {
       var source = fixtures.template;
       final vpn = fixtures.controller(
@@ -342,11 +342,13 @@ void main() {
       );
       await c.reload();
 
-      final preview = await c.inspectFile(
-        fixtures.alice,
-        PublicationTarget('existing'),
+      final blocked = await tester.runAsync(() => c.forcePublishAll());
+      expect(blocked?.failed, 1);
+      expect(remote.ids, 0);
+      await expectLater(
+        c.inspectFile(fixtures.alice, PublicationTarget('existing')),
+        throwsA(isA<PublicationFailure>()),
       );
-      expect(preview.draft!.hash, savedHash);
 
       c.results[fixtures.alice] = {
         'fileId': 'existing',
@@ -364,8 +366,12 @@ void main() {
         ),
       );
       await tester.pump();
-      expect(find.text('Profile published'), findsOneWidget);
-      expect(find.text('Waiting to publish'), findsNothing);
+      expect(
+        find.text('Current profile is unverified. The previous verified link remains available.'),
+        findsOneWidget,
+      );
+      expect(c.verifiedLinkFor(fixtures.alice),
+          'https://drive.google.com/uc?id=existing');
       await tester.pump(const Duration(milliseconds: 1));
     },
   );
@@ -1231,11 +1237,49 @@ void main() {
     expect(fastPathResult.upToDate, 2);
     expect(fastPathResult.failed, 0);
 
-    // Third publish with force: true: should re-upload both despite being up to date
+    final before = {
+      for (final userId in [fixtures.alice, fixtures.bob])
+        userId: remote.folders[c.results[userId]!['fileId']]!.etag,
+    };
+    // A forced check verifies remote state without rewriting unchanged YAML.
     final forcedResult = await c.forcePublishAll(force: true);
-    expect(forcedResult.uploaded, 2);
-    expect(forcedResult.upToDate, 0);
+    expect(forcedResult.uploaded, 0);
+    expect(forcedResult.upToDate, 2);
     expect(forcedResult.failed, 0);
+    for (final userId in [fixtures.alice, fixtures.bob]) {
+      expect(remote.folders[c.results[userId]!['fileId']]!.etag, before[userId]);
+    }
+
+    vpn.serverSyncIssue = 'vpn_connection';
+    final blockedByServer = await c.forcePublishAll(force: true);
+    expect(blockedByServer.failed, 1);
+    expect(blockedByServer.uploaded, 0);
+    vpn.serverSyncIssue = null;
+
+    // A changed ETag requires content readback even if old hash metadata remains.
+    final aliceFileId = c.results[fixtures.alice]!['fileId'] as String;
+    final aliceFile = remote.folders[aliceFileId]!;
+    remote.folders[aliceFileId] = PublicationFile(
+      id: aliceFile.id,
+      name: aliceFile.name,
+      mimeType: aliceFile.mimeType,
+      version: '9',
+      etag: 'etag-external',
+      editable: true,
+      properties: aliceFile.properties,
+      downloadUrl: aliceFile.downloadUrl,
+    );
+    remote.contents[aliceFileId] = Uint8List.fromList(utf8.encode('changed'));
+    final checked = await c.forcePublishAll(force: true);
+    expect(checked.uploaded, 0);
+    expect(checked.upToDate, 1);
+    expect(checked.failed, 1);
+    expect(remote.contents[aliceFileId], utf8.encode('changed'));
+
+    // An explicit repair replaces the bytes only when requested separately.
+    final repaired = await c.forcePublishAll(forceUpload: true);
+    expect(repaired.uploaded, 2);
+    expect(remote.contents[aliceFileId], repo.drafts[fixtures.alice]!.bytes);
   });
 
   test(
