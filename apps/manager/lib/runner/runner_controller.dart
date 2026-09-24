@@ -24,10 +24,8 @@ class RunnerController extends ChangeNotifier {
           !busy &&
           transport() != null &&
           error == null &&
-          (installation == null ||
-              selected?.terminal == false ||
-              pending != null)) {
-        unawaited(refresh());
+          hasUnfinishedJob) {
+        unawaited(pollActiveJob());
       }
     });
   }
@@ -149,6 +147,10 @@ class RunnerController extends ChangeNotifier {
   List<RunnerJob> jobs = [];
   RunnerJob? selected;
   RunnerRequest? pending;
+  bool get hasUnfinishedJob =>
+      pending != null ||
+      selected?.terminal == false ||
+      jobs.any((job) => !job.terminal);
   int cursor = 0;
   bool eventsTruncated = false;
   bool get connected => transport() != null;
@@ -207,7 +209,7 @@ class RunnerController extends ChangeNotifier {
     panelVerifiedAt = null;
     aptPlan = null;
     choosingAptUpdate = false;
-    connectionLost = selected?.terminal == false || pending != null;
+    connectionLost = hasUnfinishedJob;
     _notify();
   }
 
@@ -440,6 +442,16 @@ class RunnerController extends ChangeNotifier {
         jobs.firstOrNull?.id;
     if (id != null) await _readJob(remote, token, id);
     if (prepare) await _discoverPanel(remote, token);
+  });
+
+  /// A live job already has a durable ID. Poll only its incremental status;
+  /// explicit refresh and a new connection still inspect and list the runner.
+  Future<void> pollActiveJob() => _run((remote, token) async {
+    final id =
+        pending?.id ??
+        (selected?.terminal == false ? selected?.id : null) ??
+        jobs.where((job) => !job.terminal).firstOrNull?.id;
+    if (id != null) await _readJob(remote, token, id);
   });
 
   Future<bool> connectPanel(int port, String username, String password) async {

@@ -162,8 +162,12 @@ def panel_for(store, panel_id, _retry=True):
 
 def normal(row):
     """Semantic fingerprint, excluding counters maintained by the panel."""
+    # /inbounds/list annotates these read-only fields, while /get/:id does
+    # not. They cannot participate in the saved readback fingerprint: doing so
+    # makes a successful point readback look like drift on the next list call.
     value = {k: copy.deepcopy(v) for k, v in row.items() if k not in
-             ('up', 'down', 'total', 'allTime', 'lastTrafficResetTime', 'clientStats', 'userId')}
+             ('up', 'down', 'total', 'allTime', 'lastTrafficResetTime', 'clientStats', 'userId',
+              'originNodeGuid', 'fallbackParent')}
     for key in ('settings', 'streamSettings', 'sniffing', 'allocate'):
         if isinstance(value.get(key), str):
             try: value[key] = json.loads(value[key])

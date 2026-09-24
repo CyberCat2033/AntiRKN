@@ -53,6 +53,7 @@ class FakeRunnerTransport implements RunnerTransport {
   bool failStatus = false;
   bool submitWithoutPersistence = false;
   int installs = 0;
+  int inspections = 0;
   int submissions = 0;
   int cancellations = 0;
   Completer<void>? submitGate;
@@ -70,14 +71,17 @@ class FakeRunnerTransport implements RunnerTransport {
   @override
   String get bundledRelease => 'a' * 64;
   @override
-  Future<RunnerInstallation> inspect(CancellationToken cancellation) async =>
-      RunnerInstallation.fromJson({
-        'supported': true,
-        'state': installed ? 'installed' : 'missing',
-        'release': installed ? bundledRelease : null,
-        'fingerprint': 'b' * 64,
-        'active': installed,
-      });
+  Future<RunnerInstallation> inspect(CancellationToken cancellation) async {
+    inspections++;
+    return RunnerInstallation.fromJson({
+      'supported': true,
+      'state': installed ? 'installed' : 'missing',
+      'release': installed ? bundledRelease : null,
+      'fingerprint': 'b' * 64,
+      'active': installed,
+    });
+  }
+
   @override
   Future<RunnerInstallation> install(
     RunnerInstallation plan,

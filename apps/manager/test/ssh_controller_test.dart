@@ -9,8 +9,81 @@ import 'package:flutter/widgets.dart';
 
 import 'ssh_support.dart';
 import 'network_support.dart';
+import 'runner_support.dart';
 
 void main() {
+  test(
+    'unexpected disconnect reconnects an active job without resubmission',
+    () async {
+      final vault = FakeVault(), connector = FakeConnector();
+      final c = controller(
+        vault,
+        connector,
+        reconnectDelay: (_) => Duration.zero,
+      );
+      addTearDown(c.dispose);
+      addTearDown(c.network.dispose);
+      await prepare(c);
+      await c.save();
+      vault.saved = vault.saved!.withHostKey(connector.key);
+      await c.connect();
+      c.runner.selected = runnerJob('a' * 32);
+      final previous = connector.connection;
+      connector.connection = FakeConnection();
+      previous.close();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(connector.calls, 2);
+      expect(c.stage, SshStage.connected);
+      expect(c.runner.selected!.id, 'a' * 32);
+    },
+  );
+
+  test('manual disconnect cancels active-job reconnect', () async {
+    final vault = FakeVault(), connector = FakeConnector();
+    final c = controller(
+      vault,
+      connector,
+      reconnectDelay: (_) => const Duration(milliseconds: 30),
+    );
+    addTearDown(c.dispose);
+    addTearDown(c.network.dispose);
+    await prepare(c);
+    await c.save();
+    vault.saved = vault.saved!.withHostKey(connector.key);
+    await c.connect();
+    c.runner.selected = runnerJob('a' * 32);
+    connector.connection.close();
+    await Future<void>.delayed(Duration.zero);
+    c.disconnect();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(connector.calls, 1);
+    expect(c.stage, SshStage.idle);
+  });
+
+  test('automatic reconnect stops on a changed host key', () async {
+    final vault = FakeVault(), connector = FakeConnector();
+    final c = controller(
+      vault,
+      connector,
+      reconnectDelay: (_) => Duration.zero,
+    );
+    addTearDown(c.dispose);
+    addTearDown(c.network.dispose);
+    await prepare(c);
+    await c.save();
+    vault.saved = vault.saved!.withHostKey(connector.key);
+    await c.connect();
+    c.runner.selected = runnerJob('a' * 32);
+    final previous = connector.connection;
+    connector.connection = FakeConnection();
+    connector.key = const TrustedHostKey('ssh-ed25519', 'SHA256:changed');
+    previous.close();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(c.error, SshIssue.hostKeyChanged);
+    expect(connector.calls, 2);
+    expect(connector.authentications, 1);
+  });
+
   test(
     'unchanged profile stays saved after focus, edits reverted, and connect',
     () async {

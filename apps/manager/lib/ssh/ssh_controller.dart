@@ -1,6 +1,7 @@
 import '../sync/guarded_runner_transport.dart';
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
@@ -39,6 +40,7 @@ class SshController extends ChangeNotifier {
     this.serverId = SshProfile.serverId,
     this.agentAvailable = false,
     this.repository,
+    this.reconnectDelay,
   }) {
     runner = RunnerController(
       serverId: serverId,
@@ -84,6 +86,7 @@ class SshController extends ChangeNotifier {
   final NetworkController network;
   final String serverId;
   final ServerRepository? repository;
+  final Duration Function(int attempt)? reconnectDelay;
   late final RunnerController runner;
   List<SavedServer> jumpCandidates = [];
   String? jumpServerId;
@@ -157,9 +160,7 @@ class SshController extends ChangeNotifier {
       observation?.software?.facts[ServerFact.uid]?.value == '0' ||
       privileges?.status == PrivilegeStatus.root;
   bool get canCheckPrivileges =>
-      stage == SshStage.connected &&
-      !runner.busy &&
-      !vaultBusy;
+      stage == SshStage.connected && !runner.busy && !vaultBusy;
   String? get _effectiveSudoPassword {
     if (sudoPassword.text.isNotEmpty) return sudoPassword.text;
     if (password.text.isNotEmpty && authMethod == SshAuthMethod.password) {
@@ -215,6 +216,9 @@ class SshController extends ChangeNotifier {
   CancellationToken? _cancellation;
   CancellationToken? _keyImport;
   Timer? _clock;
+  Timer? _reconnectTimer;
+  bool _autoReconnect = false;
+  int _reconnectAttempt = 0;
   int _generation = 0;
   bool _disposed = false;
   bool get unlocked => _vault?.isUnlocked ?? false;
@@ -390,6 +394,10 @@ class SshController extends ChangeNotifier {
     } finally {
       vaultBusy = false;
       _notify();
+      if (initialised && runner.hasUnfinishedJob && stage == SshStage.idle) {
+        _autoReconnect = true;
+        _scheduleReconnect();
+      }
     }
   }
 
@@ -754,6 +762,8 @@ class SshController extends ChangeNotifier {
     bool interactive = true,
   }) async {
     if (!editing || _connection != null) return;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
     error = null;
     needsPrivilegeInput = false;
     replacingServer = replaceServer;
@@ -836,7 +846,10 @@ class SshController extends ChangeNotifier {
         useSudo: privileges?.granted == true && !isRoot,
         sudoPassword: _effectiveSudoPassword,
       );
-      if (_disposed || generation != _generation || cancellation.isCancelled) {
+      if (_disposed ||
+          generation != _generation ||
+          cancellation.isCancelled ||
+          _connection != connection) {
         return;
       }
       observation = next;
@@ -845,7 +858,12 @@ class SshController extends ChangeNotifier {
       stage = SshStage.connected;
       settingsExpanded = false;
       await _remember(next);
+      if (_disposed || generation != _generation || _connection != connection) {
+        return;
+      }
       runner.connectionReady();
+      _autoReconnect = false;
+      _reconnectAttempt = 0;
     } on SshFailure catch (e) {
       if (!_disposed && generation == _generation) {
         error = e.issue;
@@ -872,6 +890,7 @@ class SshController extends ChangeNotifier {
         _decision = null;
         replacingServer = false;
         _notify();
+        if (_connection == null) _scheduleReconnect();
       }
     }
   }
@@ -931,6 +950,59 @@ class SshController extends ChangeNotifier {
       error = SshIssue.disconnected;
       _notify();
     }
+    if (runner.hasUnfinishedJob && !runner.pollingPaused) {
+      _autoReconnect = true;
+      if (!busy) _scheduleReconnect();
+    }
+  }
+
+  bool get _retryableConnectionError =>
+      error == null ||
+      error == SshIssue.disconnected ||
+      error == SshIssue.network ||
+      error == SshIssue.timeout;
+
+  void _scheduleReconnect() {
+    if (!_autoReconnect ||
+        _disposed ||
+        _reconnectTimer != null ||
+        runner.pollingPaused ||
+        !runner.hasUnfinishedJob ||
+        !unlocked ||
+        !hasSavedProfile ||
+        profile?.hostKey == null ||
+        !saved ||
+        !_retryableConnectionError ||
+        needsPrivilegeInput ||
+        stage == SshStage.connected) {
+      return;
+    }
+    final attempt = _reconnectAttempt++;
+    final seconds = min(1 << (attempt > 5 ? 5 : attempt), 30);
+    final delay =
+        reconnectDelay?.call(attempt) ??
+        Duration(
+          milliseconds: seconds * 1000 + Random().nextInt(seconds * 200 + 1),
+        );
+    _reconnectTimer = Timer(delay, () {
+      _reconnectTimer = null;
+      if (!_autoReconnect ||
+          _disposed ||
+          !runner.hasUnfinishedJob ||
+          stage != SshStage.idle ||
+          busy ||
+          vaultBusy ||
+          picking) {
+        if (_autoReconnect &&
+            !_disposed &&
+            runner.hasUnfinishedJob &&
+            stage == SshStage.idle) {
+          _scheduleReconnect();
+        }
+        return;
+      }
+      unawaited(_connect(interactive: false));
+    });
   }
 
   void decide(bool accept) {
@@ -1068,6 +1140,10 @@ class SshController extends ChangeNotifier {
   }
 
   void disconnect() {
+    _autoReconnect = false;
+    _reconnectAttempt = 0;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
     runner.disconnected();
     _generation++;
     _cancellation?.cancel();

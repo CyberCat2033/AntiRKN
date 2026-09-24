@@ -194,6 +194,17 @@ void main() {
       expect((saved['selected']['events'] as List).length, 2);
     },
   );
+  test('active polling reads only status after initial inspection', () async {
+    await install();
+    await c.startDiagnostic();
+    final inspections = remote.inspections;
+    final requests = remote.requests.length;
+    await c.pollActiveJob();
+    expect(remote.inspections, inspections);
+    expect(remote.requests.skip(requests).map((r) => r.json['action']), [
+      'status',
+    ]);
+  });
   test(
     'disconnect does not cancel the server job; late response is ignored',
     () async {
@@ -276,9 +287,7 @@ void main() {
     final ok = await c.clearManagedClients();
     expect(ok, isTrue);
     expect(
-      remote.requests.any(
-        (r) => r.json['action'] == 'clear_managed_clients',
-      ),
+      remote.requests.any((r) => r.json['action'] == 'clear_managed_clients'),
       isTrue,
     );
   });

@@ -146,8 +146,10 @@ SshController controller(
   FakeKeyPicker? picker,
   ServerRepository? repository,
   String serverId = SshProfile.serverId,
+  Duration Function(int attempt)? reconnectDelay,
 }) => SshController(
   serverId: serverId,
+  reconnectDelay: reconnectDelay,
   repository: repository,
   openVault: () async =>
       repository == null ? vault : repository.openServer(serverId),

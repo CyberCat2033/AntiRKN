@@ -9,8 +9,9 @@ import 'panel_api.dart';
 
 /// Only the bundled installer and schema-validated RPC reach this adapter.
 final class SshRunnerTransport implements RunnerTransport {
-  const SshRunnerTransport(this.executor);
+  SshRunnerTransport(this.executor);
   final SshCommandExecutor executor;
+  String? _sessionUid;
   @override
   String get bundledRelease => runnerRelease;
   static String quote(String text) => "'${text.replaceAll("'", "'\\''")}'";
@@ -118,11 +119,17 @@ final class SshRunnerTransport implements RunnerTransport {
     String? sudoPassword,
     Duration? timeout,
   }) async {
-    final uid = await executor.execute('id -u', cancellation, limit: 128);
-    if (!uid.succeeded || !RegExp(r'^[0-9]+$').hasMatch(uid.output.trim())) {
-      throw const SshFailure(SshIssue.commandFailed);
+    var uid = _sessionUid;
+    if (uid == null) {
+      final result = await executor.execute('id -u', cancellation, limit: 128);
+      if (!result.succeeded ||
+          !RegExp(r'^[0-9]+$').hasMatch(result.output.trim())) {
+        throw const SshFailure(SshIssue.commandFailed);
+      }
+      uid = result.output.trim();
+      _sessionUid = uid;
     }
-    final root = uid.output.trim() == '0';
+    final root = uid == '0';
     if (!root && !validSudoPassword(sudoPassword)) {
       throw const SshFailure(SshIssue.invalidSudoPassword);
     }
