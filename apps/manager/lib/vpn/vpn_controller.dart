@@ -380,8 +380,18 @@ class VpnController extends ChangeNotifier {
     workspace = next;
   }
 
-  Future<void> _record(String id, Map<String, dynamic> record) =>
-      _write(workspace.copy(servers: {...workspace.servers, id: record}));
+  Future<void> _recordTail = Future<void>.value();
+  Future<void> _record(String id, Map<String, dynamic> record) {
+    // Independent servers can finish network requests together. Build each
+    // write from the latest workspace after the previous write commits.
+    final write = _recordTail.then(
+      (_) =>
+          _write(workspace.copy(servers: {...workspace.servers, id: record})),
+    );
+    _recordTail = write.then<void>((_) {}, onError: (Object _) {});
+    return write;
+  }
+
   Future<void> _run(Future<void> Function(CancellationToken) action) async {
     if (busy || _disposed) return;
     busy = true;
@@ -1248,7 +1258,6 @@ class VpnController extends ChangeNotifier {
 
   Future<void> _reconcile(CancellationToken token) async {
     _restoredTargets = await recovery?.readRestoredTargets() ?? {};
-    var changed = false;
     final reconcileTargets =
         {
           ...workspace.serverIds,
@@ -1262,208 +1271,216 @@ class VpnController extends ChangeNotifier {
           return serverIds == null ||
               serverIds!().map(vpnServerId).contains(server);
         }).toList();
+    final groups = <String, List<String>>{};
     for (final id in reconcileTargets) {
-      // A force-hidden revocation and the current desired payload may coexist
-      // durably, but must never execute concurrently on the physical server.
-      if (hasPendingRevocation(vpnServerId(id))) continue;
-      if (observesOperation(id)) {
-        await _observeOperation(id, token);
-        continue;
+      groups.putIfAbsent(vpnServerId(id), () => []).add(id);
+    }
+    final groupList = groups.values.toList();
+    var next = 0;
+    final changed = await Future.wait(
+      List.generate(groupList.length < 4 ? groupList.length : 4, (_) async {
+        var anyChanged = false;
+        while (next < groupList.length) {
+          final targets = groupList[next++];
+          for (final id in targets) {
+            if (await _reconcileTarget(id, token)) anyChanged = true;
+          }
+        }
+        return anyChanged;
+      }),
+    );
+    if (changed.contains(true)) await _profiles();
+  }
+
+  Future<bool> _reconcileTarget(String id, CancellationToken token) async {
+    var changed = false;
+    // A force-hidden revocation and the current desired payload may coexist
+    // durably, but must never execute concurrently on the physical server.
+    if (hasPendingRevocation(vpnServerId(id))) return false;
+    if (observesOperation(id)) {
+      await _observeOperation(id, token);
+      return false;
+    }
+    if (_restoredTargets.contains(id)) return false;
+    final connection = remote(id);
+    if (connection == null) return false;
+    var record = Map<String, dynamic>.from(workspace.servers[id] ?? {});
+    if (record['identity'] != null &&
+        record['identity'] != connection.identity) {
+      if (record['error'] != 'vpn_identity') {
+        await _record(id, {...record, 'error': 'vpn_identity', 'paused': true});
       }
-      if (_restoredTargets.contains(id)) continue;
-      final connection = remote(id);
-      if (connection == null) continue;
-      var record = Map<String, dynamic>.from(workspace.servers[id] ?? {});
-      if (record['identity'] != null &&
-          record['identity'] != connection.identity) {
-        if (record['error'] != 'vpn_identity') {
+      return false;
+    }
+    try {
+      final authorized = record['authorizedPayload'] as String?;
+      if (record['pending'] == null &&
+          record['paused'] != true &&
+          authorized != null &&
+          record['appliedPayload'] != authorized) {
+        final payload = Map<String, Object?>.from(
+          jsonDecode(authorized) as Map,
+        );
+        // New unapproved edits invalidate the old authorization.
+        if (canonicalJson(payload) !=
+            canonicalJson(workspace.desired(id, connection.panelId))) {
+          return false;
+        }
+        final preview = await _request(
+          connection,
+          _planRequest(id, connection.panelId, payload),
+          token,
+        );
+        final request = _applyRequest(
+          id,
+          operation(id)?.operationId ?? newVpnId(),
+          payload,
+          _preview(preview, id)!['fingerprint'] as String,
+        );
+        record = {
+          ...record,
+          'pending': request.json,
+          if (_deviceId != null)
+            'operation': ServerOperation(
+              operationId: request.id!,
+              executorDeviceId: _deviceId!,
+              expectedRevision: request.json['fingerprint'] as String?,
+            ).toJson(),
+          'identity': connection.identity,
+          'panelId': connection.panelId,
+        };
+        await _record(id, record);
+      }
+      final pending = record['pending'];
+      if (pending != null && record['cancelRequested'] == true) {
+        final cancellation = await _request(
+          connection,
+          RunnerRequest.cancel((pending as Map)['id'] as String),
+          token,
+          allowMissing: true,
+        );
+        if (cancellation.code == 'missing') {
           await _record(id, {
             ...record,
-            'error': 'vpn_identity',
+            'pending': null,
+            'authorizedPayload': null,
             'paused': true,
+            'cancelRequested': false,
+            'observingCancel': false,
+            'error': null,
           });
+          changed = true;
+          return true;
         }
-        continue;
+        record = {...record, 'cancelRequested': false, 'observingCancel': true};
+        await _record(id, record);
       }
-      try {
-        final authorized = record['authorizedPayload'] as String?;
-        if (record['pending'] == null &&
-            record['paused'] != true &&
-            authorized != null &&
-            record['appliedPayload'] != authorized) {
+      if (pending != null &&
+          (record['paused'] != true || record['observingCancel'] == true)) {
+        final request = RunnerRequest.fromJson(
+          Map<String, Object?>.from(pending as Map),
+        );
+        // After an uncertain response, establish the existing job's fate
+        // before any retry. Never issue a new ID to bypass a conflict.
+        var response = await _request(
+          connection,
+          RunnerRequest.status(request.id!, 0),
+          token,
+          allowMissing: true,
+        );
+        if (response.code == 'missing' && record['observingCancel'] != true) {
           final payload = Map<String, Object?>.from(
-            jsonDecode(authorized) as Map,
+            jsonDecode(request.json['payload'] as String) as Map,
           );
-          // New unapproved edits invalidate the old authorization.
           if (canonicalJson(payload) !=
               canonicalJson(workspace.desired(id, connection.panelId))) {
-            continue;
+            throw const FormatException('vpn_conflict');
           }
-          final preview = await _request(
+          response = await _request(connection, request, token);
+        }
+        if (response.jobs.isEmpty) throw const FormatException('vpn_failed');
+        final before = record['job'] == null
+            ? null
+            : RunnerJob.fromJson(
+                Map<String, dynamic>.from(record['job'] as Map),
+              );
+        final job = response.jobs.single.mergeEvents(before);
+        record = {...record, 'job': job.toJson(), 'error': null};
+        if (job.terminal) {
+          record = {...record, 'observingCancel': false};
+          final state = await _request(
             connection,
-            _planRequest(id, connection.panelId, payload),
+            _stateRequest(id, connection.panelId),
             token,
-          );
-          final request = _applyRequest(
-            id,
-            operation(id)?.operationId ?? newVpnId(),
-            payload,
-            _preview(preview, id)!['fingerprint'] as String,
           );
           record = {
             ...record,
-            'pending': request.json,
-            if (_deviceId != null)
-              'operation': ServerOperation(
-                operationId: request.id!,
-                executorDeviceId: _deviceId!,
-                expectedRevision: request.json['fingerprint'] as String?,
-              ).toJson(),
-            'identity': connection.identity,
-            'panelId': connection.panelId,
+            'observed': _observations(state, id),
+            'verifiedAt': DateTime.now().toUtc().toIso8601String(),
           };
-          await _record(id, record);
-        }
-        final pending = record['pending'];
-        if (pending != null && record['cancelRequested'] == true) {
-          final cancellation = await _request(
-            connection,
-            RunnerRequest.cancel((pending as Map)['id'] as String),
-            token,
-            allowMissing: true,
-          );
-          if (cancellation.code == 'missing') {
-            await _record(id, {
-              ...record,
-              'pending': null,
-              'authorizedPayload': null,
-              'paused': true,
-              'cancelRequested': false,
-              'observingCancel': false,
-              'error': null,
-            });
-            changed = true;
-            continue;
-          }
-          record = {
-            ...record,
-            'cancelRequested': false,
-            'observingCancel': true,
-          };
-          await _record(id, record);
-        }
-        if (pending != null &&
-            (record['paused'] != true || record['observingCancel'] == true)) {
-          final request = RunnerRequest.fromJson(
-            Map<String, Object?>.from(pending as Map),
-          );
-          // After an uncertain response, establish the existing job's fate
-          // before any retry. Never issue a new ID to bypass a conflict.
-          var response = await _request(
-            connection,
-            RunnerRequest.status(request.id!, 0),
-            token,
-            allowMissing: true,
-          );
-          if (response.code == 'missing' && record['observingCancel'] != true) {
+          if (job.status == 'succeeded') {
             final payload = Map<String, Object?>.from(
               jsonDecode(request.json['payload'] as String) as Map,
             );
-            if (canonicalJson(payload) !=
-                canonicalJson(workspace.desired(id, connection.panelId))) {
+            final expected = vlessRevision(payload);
+            final activeIds = (payload['resources'] as List)
+                .where((r) => (r as Map)['deleted'] != true)
+                .map((r) => (r as Map)['id'])
+                .toSet();
+            final deletedIds = (payload['resources'] as List)
+                .where((r) => (r as Map)['deleted'] == true)
+                .map((r) => (r as Map)['id'])
+                .toSet();
+            final observations = _observations(state, id);
+            if (observations == null ||
+                !activeIds.every(
+                  (rid) => observations.any(
+                    (r) =>
+                        r['id'] == rid &&
+                        r['workspaceId'] == workspace.resourceWorkspaceId(id) &&
+                        r['confirmed'] == true &&
+                        r['revision'] == expected,
+                  ),
+                ) ||
+                !deletedIds.every((rid) {
+                  final obs = observations
+                      .where((r) => r['id'] == rid)
+                      .firstOrNull;
+                  return obs == null ||
+                      (obs['workspaceId'] ==
+                              workspace.resourceWorkspaceId(id) &&
+                          obs['confirmed'] == true &&
+                          (obs['deleted'] == true || obs['exists'] == false));
+                })) {
               throw const FormatException('vpn_conflict');
             }
-            response = await _request(connection, request, token);
-          }
-          if (response.jobs.isEmpty) throw const FormatException('vpn_failed');
-          final before = record['job'] == null
-              ? null
-              : RunnerJob.fromJson(
-                  Map<String, dynamic>.from(record['job'] as Map),
-                );
-          final job = response.jobs.single.mergeEvents(before);
-          record = {...record, 'job': job.toJson(), 'error': null};
-          if (job.terminal) {
-            record = {...record, 'observingCancel': false};
-            final state = await _request(
-              connection,
-              _stateRequest(id, connection.panelId),
-              token,
-            );
             record = {
               ...record,
-              'observed': _observations(state, id),
-              'verifiedAt': DateTime.now().toUtc().toIso8601String(),
+              'pending': null,
+              'appliedPayload': request.json['payload'],
+              'paused': false,
             };
-            if (job.status == 'succeeded') {
-              final payload = Map<String, Object?>.from(
-                jsonDecode(request.json['payload'] as String) as Map,
-              );
-              final expected = vlessRevision(payload);
-              final activeIds = (payload['resources'] as List)
-                  .where((r) => (r as Map)['deleted'] != true)
-                  .map((r) => (r as Map)['id'])
-                  .toSet();
-              final deletedIds = (payload['resources'] as List)
-                  .where((r) => (r as Map)['deleted'] == true)
-                  .map((r) => (r as Map)['id'])
-                  .toSet();
-              final observations = _observations(state, id);
-              if (observations == null ||
-                  !activeIds.every(
-                    (rid) => observations.any(
-                      (r) =>
-                          r['id'] == rid &&
-                          r['workspaceId'] ==
-                              workspace.resourceWorkspaceId(id) &&
-                          r['confirmed'] == true &&
-                          r['revision'] == expected,
-                    ),
-                  ) ||
-                  !deletedIds.every((rid) {
-                    final obs = observations
-                        .where((r) => r['id'] == rid)
-                        .firstOrNull;
-                    return obs == null ||
-                        (obs['workspaceId'] ==
-                                workspace.resourceWorkspaceId(id) &&
-                            obs['confirmed'] == true &&
-                            (obs['deleted'] == true || obs['exists'] == false));
-                  })) {
-                throw const FormatException('vpn_conflict');
-              }
-              record = {
-                ...record,
-                'pending': null,
-                'appliedPayload': request.json['payload'],
-                'paused': false,
-              };
-            } else {
-              record = {
-                ...record,
-                'paused': true,
-                'error': 'vpn_${job.status}',
-              };
-            }
+          } else {
+            record = {...record, 'paused': true, 'error': 'vpn_${job.status}'};
           }
-          await _record(id, record);
-          changed = true;
         }
-      } on SshFailure {
-        // Keep the same operation ID after an uncertain response. Reconnect
-        // reads/submits idempotently; it never fabricates a successful result.
-        await _record(id, {...record, 'error': 'vpn_connection'});
-      } on FormatException catch (e) {
-        await _record(id, {
-          ...record,
-          'error': e.message == 'vpn_busy' ? null : e.message,
-          'paused': e.message != 'vpn_busy',
-        });
-      } on RunnerFailure {
-        await _record(id, {...record, 'error': 'vpn_runner'});
+        await _record(id, record);
+        changed = true;
       }
+    } on SshFailure {
+      // Keep the same operation ID after an uncertain response. Reconnect
+      // reads/submits idempotently; it never fabricates a successful result.
+      await _record(id, {...record, 'error': 'vpn_connection'});
+    } on FormatException catch (e) {
+      await _record(id, {
+        ...record,
+        'error': e.message == 'vpn_busy' ? null : e.message,
+        'paused': e.message != 'vpn_busy',
+      });
+    } on RunnerFailure {
+      await _record(id, {...record, 'error': 'vpn_runner'});
     }
-    if (changed) await _profiles();
+    return changed;
   }
 
   Future<void> refreshServer(String id) => _run((token) async {
@@ -1843,10 +1860,12 @@ class VpnController extends ChangeNotifier {
     }
     // A target removed from the desired catalog may still have an applied
     // resource to retire. Do not treat its absence from serverIds as success.
-    if (workspace.servers.keys.any((target) =>
-        !workspace.serverIds.contains(target) &&
-        (workspace.servers[target]?['appliedPayload'] != null ||
-            workspace.servers[target]?['authorizedPayload'] != null))) {
+    if (workspace.servers.keys.any(
+      (target) =>
+          !workspace.serverIds.contains(target) &&
+          (workspace.servers[target]?['appliedPayload'] != null ||
+              workspace.servers[target]?['authorizedPayload'] != null),
+    )) {
       return false;
     }
     for (final target in workspace.serverIds) {
@@ -1920,6 +1939,7 @@ class VpnController extends ChangeNotifier {
       _notify();
       return ServerProfileSyncResult(revision: revision, issue: issue);
     }
+
     if (!loaded || busy) {
       return ServerProfileSyncResult(revision: revision, issue: 'vpn_busy');
     }

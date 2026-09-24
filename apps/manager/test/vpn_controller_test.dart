@@ -102,27 +102,29 @@ class Remote implements RunnerTransport {
         jsonDecode(r['payload'] as String) as Map,
       );
       submissions[id] = p;
-      state = customState ?? [
-        for (final s in p['resources'] as List)
-          {
-            'id': s['id'],
-            'workspaceId': p['workspaceId'],
-            'spec': s,
-            'confirmed': true,
-            'revision': vlessRevision(Map<String, Object?>.from(p)),
-            'publicKey': 'A' * 43,
-            'shortId': '0123456789abcdef',
-            'clients': [
-              for (final u in p['users'] as List)
-                {
-                  'id': u['id'],
-                  'enabled': u['enabled'],
-                  'uuid':
-                      '${(u['id'] as String).substring(0, 8)}-0000-4000-8000-${(s['id'] as String).substring(0, 12)}',
-                },
-            ],
-          },
-      ];
+      state =
+          customState ??
+          [
+            for (final s in p['resources'] as List)
+              {
+                'id': s['id'],
+                'workspaceId': p['workspaceId'],
+                'spec': s,
+                'confirmed': true,
+                'revision': vlessRevision(Map<String, Object?>.from(p)),
+                'publicKey': 'A' * 43,
+                'shortId': '0123456789abcdef',
+                'clients': [
+                  for (final u in p['users'] as List)
+                    {
+                      'id': u['id'],
+                      'enabled': u['enabled'],
+                      'uuid':
+                          '${(u['id'] as String).substring(0, 8)}-0000-4000-8000-${(s['id'] as String).substring(0, 12)}',
+                    },
+                ],
+              },
+          ];
       jobs.putIfAbsent(
         id,
         () => {
@@ -157,6 +159,24 @@ class Remote implements RunnerTransport {
       };
     }
     return RunnerResponse.fromJson(response(jobs: [jobs[id]!]));
+  }
+}
+
+class DelayedStatusRemote extends Remote {
+  DelayedStatusRemote(super.store);
+  final started = Completer<void>();
+  final release = Completer<void>();
+  @override
+  Future<RunnerResponse> request(
+    RunnerRequest request,
+    CancellationToken token, {
+    String? sudoPassword,
+  }) async {
+    if (request.json['action'] == 'status') {
+      if (!started.isCompleted) started.complete();
+      await release.future;
+    }
+    return super.request(request, token, sudoPassword: sudoPassword);
   }
 }
 
@@ -213,6 +233,35 @@ Future<void> setup(VpnController c) async {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test(
+    'independent servers reconcile together without losing records',
+    () async {
+      final store = MemoryVpn();
+      final one = DelayedStatusRemote(store), two = DelayedStatusRemote(store);
+      final c = controller(store, {'one': one, 'two': two});
+      addTearDown(c.dispose);
+      await setup(c);
+      await c.prepare();
+      final applying = c.apply();
+      try {
+        await one.started.future.timeout(const Duration(seconds: 3));
+        await two.started.future.timeout(const Duration(seconds: 3));
+        expect(c.workspace.servers['one']?['pending'], isNotNull);
+        expect(c.workspace.servers['two']?['pending'], isNotNull);
+      } finally {
+        one.release.complete();
+        two.release.complete();
+        await applying;
+      }
+      expect(c.error, isNull);
+      expect(c.workspace.servers['one']?['pending'], isNull);
+      expect(c.workspace.servers['two']?['pending'], isNull);
+      expect(
+        VpnWorkspace.decode(store.raw!).servers.keys,
+        containsAll(['one', 'two']),
+      );
+    },
+  );
   test(
     'restored offline intentions wait for a fresh explicit plan and cannot replay on reconnect',
     () async {
@@ -654,14 +703,19 @@ void main() {
       addTearDown(c.dispose);
       await setup(c);
 
-      final inbounds = c.workspace.inbounds.where((r) => r.serverId == 'one').toList();
+      final inbounds = c.workspace.inbounds
+          .where((r) => r.serverId == 'one')
+          .toList();
       expect(inbounds.length, 2);
       final active = inbounds[0];
       final deleted = inbounds[1];
 
       // Mark one inbound deleted
       await c.deleteInbounds([deleted]);
-      expect(c.workspace.inbounds.where((r) => r.serverId == 'one' && r.deleted), hasLength(1));
+      expect(
+        c.workspace.inbounds.where((r) => r.serverId == 'one' && r.deleted),
+        hasLength(1),
+      );
 
       // Custom mock state where deleted inbound has an older revision and active inbound has expected revision
       remote.customState = [
@@ -704,7 +758,9 @@ void main() {
       addTearDown(c.dispose);
       await setup(c);
 
-      final inbounds = c.workspace.inbounds.where((r) => r.serverId == 'one').toList();
+      final inbounds = c.workspace.inbounds
+          .where((r) => r.serverId == 'one')
+          .toList();
       final payload = c.workspace.desired('one', panel);
       final jobId = '1' * 32;
       final req = RunnerRequest.vlessApply(jobId, payload, 'f' * 64);
@@ -765,10 +821,7 @@ void main() {
     'syncAllServersAndProfiles polls servers in parallel and rebuilds profiles',
     () async {
       final store = MemoryVpn(), remotes = <String, Remote>{};
-      remotes.addAll({
-        'one': Remote(store),
-        'two': Remote(store),
-      });
+      remotes.addAll({'one': Remote(store), 'two': Remote(store)});
       final c = controller(store, remotes);
       await setup(c);
       await c.prepare();
@@ -833,10 +886,7 @@ void main() {
     'syncAllServersAndProfiles isolates single server failure without aborting remaining servers',
     () async {
       final store = MemoryVpn(), remotes = <String, Remote>{};
-      remotes.addAll({
-        'one': Remote(store),
-        'two': Remote(store),
-      });
+      remotes.addAll({'one': Remote(store), 'two': Remote(store)});
       final c = controller(store, remotes);
       await setup(c);
       await c.prepare();
@@ -855,24 +905,27 @@ void main() {
       expect(c.results[alice], isNotNull);
     },
   );
-  test('server check keeps prepare failure after successful state read', () async {
-    final store = MemoryVpn(), remotes = <String, Remote>{};
-    remotes.addAll({'one': Remote(store), 'two': Remote(store)});
-    final c = controller(store, remotes);
-    await setup(c);
-    await c.prepare();
-    await c.apply();
-    remotes['one']!.failPlan = true;
+  test(
+    'server check keeps prepare failure after successful state read',
+    () async {
+      final store = MemoryVpn(), remotes = <String, Remote>{};
+      remotes.addAll({'one': Remote(store), 'two': Remote(store)});
+      final c = controller(store, remotes);
+      await setup(c);
+      await c.prepare();
+      await c.apply();
+      remotes['one']!.failPlan = true;
 
-    final failed = await c.syncAllServersAndProfiles();
-    expect(failed.verified, isFalse);
-    expect(failed.issue, 'vpn_connection');
-    expect(c.serverSyncIssue, 'vpn_connection');
-    expect(remotes['one']!.actions, contains('vless_state'));
+      final failed = await c.syncAllServersAndProfiles();
+      expect(failed.verified, isFalse);
+      expect(failed.issue, 'vpn_connection');
+      expect(c.serverSyncIssue, 'vpn_connection');
+      expect(remotes['one']!.actions, contains('vless_state'));
 
-    remotes['one']!.failPlan = false;
-    final recovered = await c.syncAllServersAndProfiles();
-    expect(recovered.verified, isTrue);
-    expect(c.serverSyncIssue, isNull);
-  });
+      remotes['one']!.failPlan = false;
+      final recovered = await c.syncAllServersAndProfiles();
+      expect(recovered.verified, isTrue);
+      expect(c.serverSyncIssue, isNull);
+    },
+  );
 }

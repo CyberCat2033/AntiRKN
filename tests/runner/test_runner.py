@@ -174,6 +174,17 @@ class RunnerTests(unittest.TestCase):
             self.assertIn('antirkn-runner.service', hashes)
             self.assertIn('runner.py', hashes)
 
+    def test_v39_predecessor_manifest_valid(self):
+        path = Path(__file__).resolve().parents[2] / 'schemas/runner-predecessor-v39.json'
+        manifest = json.loads(path.read_text())
+        hashes = manifest['hashes']
+        self.assertEqual(
+            manifest['release'],
+            hashlib.sha256(json.dumps(hashes, sort_keys=True).encode()).hexdigest(),
+        )
+        self.assertIn('antirkn-runner.service', hashes)
+        self.assertIn('runner.py', hashes)
+
     def test_protocol_remove_plan_action(self):
         with patch('runner.protocol_removal_plan', return_value={'test': 123}) as mock_plan:
             res = self.store.request(dict(version=1, action='protocol_remove_plan', protocol='vless'))
@@ -200,6 +211,28 @@ class RunnerTests(unittest.TestCase):
             finally: store.close()
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
             self.assertEqual(sorted(pool.map(request, [1,2])), ['busy', 'ok'])
+
+    def test_job_status_list_and_cancel_do_not_wait_for_probe_lease(self):
+        import connectivity_probe as probes
+        self.store.request(submit())
+        def request(value):
+            store = Store(self.directory)
+            try: return store.request(value)
+            finally: store.close()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+            with probes.operation_lock(self.store):
+                requests = [
+                    dict(version=1, action='status', id=submit()['id'], cursor=0),
+                    dict(version=1, action='list'),
+                    dict(version=1, action='cancel', id=submit()['id']),
+                ]
+                results = [pool.submit(request, value) for value in requests]
+                self.assertEqual([future.result(timeout=2)['code'] for future in results], ['ok'] * 3)
+                blocked = pool.submit(request, submit(2))
+                with self.assertRaises(concurrent.futures.TimeoutError):
+                    blocked.result(timeout=0.1)
+            self.assertEqual(blocked.result(timeout=2)['code'], 'busy')
+
 
     def test_two_devices_retry_same_id_create_one_job_and_one_event(self):
         def request(_):

@@ -275,6 +275,11 @@ class Store:
     def request(self, request):
         import connectivity_probe as probes
         import xray_transaction as upgrade
+        # Job observation and cancellation only touch jobs.sqlite. They must
+        # remain available while a probe or Xray watchdog owns the filesystem
+        # lease during a slow panel call or service restart.
+        if request.get('action') in ('status', 'list', 'cancel'):
+            return self._request(request)
         with probes.operation_lock(self):
             action=request.get('action')
             if action in ('submit','resume','panel_cli','panel_connect','probe_begin') and upgrade.active(self):

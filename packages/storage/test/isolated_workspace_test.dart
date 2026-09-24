@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_storage/antirkn_storage.dart';
+import 'package:antirkn_storage/src/backup_envelope.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart';
@@ -141,6 +142,53 @@ void main() {
     addTearDown(reopened.close);
     expect(await reopened.readDraft(), 'before backup');
   });
+
+  test(
+    'backup exports current state with legacy merge conflict metadata',
+    () async {
+      final temp = await Directory.systemTemp.createTemp(
+        'isolated-backup-conflict-',
+      );
+      addTearDown(() => temp.delete(recursive: true));
+      final path = '${temp.path}/workspace.sqlite';
+      final db = await WorkspaceDatabase.openIsolated(
+        path,
+        key: SecretKeyData(List.filled(32, 76)),
+      );
+      addTearDown(db.close);
+      await db.writeDraft('visible current template');
+      final raw = sqlite3.open(path);
+      try {
+        raw.execute("INSERT INTO sync_conflicts VALUES ('template','base')");
+        raw.execute(
+          "INSERT INTO sync_branches VALUES ('template','base','old-1')",
+        );
+        raw.execute(
+          "INSERT INTO sync_branches VALUES ('template','base','old-2')",
+        );
+      } finally {
+        raw.dispose();
+      }
+      final bytes = await db.createBackup('isolated-backup-password');
+      final content =
+          jsonDecode(
+                await BackupEnvelope.open(bytes, 'isolated-backup-password'),
+              )
+              as Map<String, dynamic>;
+      expect(
+        (content['documents'] as List).cast<Map>().singleWhere(
+          (row) => row['id'] == 'template-draft',
+        )['source'],
+        'visible current template',
+      );
+      final plan = await db.prepareRestore(bytes, 'isolated-backup-password');
+      expect(
+        plan.summary.workspaceId,
+        (await db.readWorkspaceIdentity()).workspaceId,
+      );
+      plan.dispose();
+    },
+  );
 
   test('a SQLite write lock does not block the caller event loop', () async {
     final temp = await Directory.systemTemp.createTemp('isolated-lock-test-');

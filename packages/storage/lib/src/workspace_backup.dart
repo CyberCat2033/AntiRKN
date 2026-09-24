@@ -49,17 +49,9 @@ Future<_CapturedSnapshot> _currentSnapshot(
   store._db.execute('BEGIN');
   try {
     store._journal.checkIdentity();
-    if (store._db.select('SELECT 1 FROM sync_conflicts LIMIT 1').isNotEmpty ||
-        store._db
-            .select('SELECT 1 FROM sync_incoming WHERE state IN (0,2) LIMIT 1')
-            .isNotEmpty ||
-        store._db
-            .select(
-              'SELECT 1 FROM sync_branches GROUP BY entity_kind,entity_id HAVING COUNT(*)>1 LIMIT 1',
-            )
-            .isNotEmpty) {
-      throw const BackupFailure(BackupIssue.changed);
-    }
+    // Backup v4 contains the current materialized workspace. Legacy merge
+    // conflicts and waiting packets are deliberately absent from this format;
+    // they cannot make an export of the visible state stale.
     for (final (name, sql) in [
       ('servers', 'SELECT * FROM servers ORDER BY id'),
       ('documents', 'SELECT * FROM documents ORDER BY id'),
