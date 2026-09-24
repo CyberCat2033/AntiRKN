@@ -234,6 +234,39 @@ Future<void> setup(VpnController c) async {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   test(
+    'adding one client leaves existing compiled profiles untouched',
+    () async {
+      final store = MemoryVpn(), remote = Remote(store);
+      final c = controller(store, {'one': remote});
+      addTearDown(c.dispose);
+      await c.load();
+      await c.saveUser(VpnUser(id: alice, login: 'alice', name: 'Alice'));
+      await c.saveInbound(inbound('one', '1' * 32));
+      await c.prepareAndApply();
+      final existing = c.results[alice];
+      expect(existing?.hasBlockingErrors, isFalse);
+
+      await c.saveUser(VpnUser(id: bob, login: 'bob', name: 'Bob'));
+      await c.prepareAndApply();
+
+      expect(identical(c.results[alice], existing), isTrue);
+      expect(c.results[bob]?.hasBlockingErrors, isFalse);
+      expect(c.results[bob]?.yaml, contains('bbbbbbbb-0000'));
+
+      final previous = c.results[alice];
+      final inboundBefore = c.workspace.inbounds.single;
+      await c.saveInbound(
+        VlessInbound(
+          serverId: inboundBefore.serverId,
+          spec: {...inboundBefore.spec, 'endpoint': '198.51.100.20'},
+        ),
+      );
+      await c.prepareAndApply();
+      expect(identical(c.results[alice], previous), isFalse);
+      expect(c.results[alice]?.yaml, contains('198.51.100.20'));
+    },
+  );
+  test(
     'independent servers reconcile together without losing records',
     () async {
       final store = MemoryVpn();

@@ -69,16 +69,14 @@ extension ClientDeletion on VpnController {
     // many clients and protocols. Persist failures sequentially before another
     // automatic round can run.
     final connectionResults = <String, bool?>{};
-    await Future.wait(
-      targets.keys.map((serverId) async {
-        token.check();
-        try {
-          connectionResults[serverId] = await connect(serverId);
-        } catch (_) {
-          connectionResults[serverId] = false;
-        }
-      }),
-    );
+    await _mapServersBounded(targets.keys.toList(), (serverId) async {
+      token.check();
+      try {
+        connectionResults[serverId] = await connect(serverId);
+      } catch (_) {
+        connectionResults[serverId] = false;
+      }
+    }, cancellation: token);
     token.check();
     for (final entry in targets.entries) {
       await checkProfileEffects();

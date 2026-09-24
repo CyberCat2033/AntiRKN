@@ -57,25 +57,44 @@ class UsersPage extends StatefulWidget {
       ),
     );
     if (result == null) return;
-    final (VpnUser nextUser, PublicationTarget? customTarget) =
-        result is (VpnUser, PublicationTarget?)
-            ? result
-            : (result as VpnUser, null);
+    final (
+      VpnUser nextUser,
+      PublicationTarget? customTarget,
+    ) = result is (VpnUser, PublicationTarget?)
+        ? result
+        : (result as VpnUser, null);
+    final saveTimer = Stopwatch()..start();
     await controller.saveUser(nextUser);
+    debugPrint(
+      'client_save_timing phase=local ms=${saveTimer.elapsedMilliseconds} '
+      'ok=${controller.error == null}',
+    );
     if (user == null && controller.error == null) AppHaptics.added();
     if (customTarget != null &&
         publications != null &&
         controller.error == null) {
       try {
-        final preview =
-            await publications.inspectFile(nextUser.id, customTarget);
+        final preview = await publications.inspectFile(
+          nextUser.id,
+          customTarget,
+        );
         await publications.bindFile(preview);
       } catch (_) {}
     }
     if (controller.error == null && controller.workspace.serverIds.isNotEmpty) {
+      final serverTimer = Stopwatch()..start();
       await controller.prepareAndApply();
+      debugPrint(
+        'client_save_timing phase=servers ms=${serverTimer.elapsedMilliseconds} '
+        'targets=${controller.workspace.serverIds.length} '
+        'ok=${controller.error == null}',
+      );
       if (customTarget != null && publications != null) {
+        final driveTimer = Stopwatch()..start();
         await publications.publishUser(nextUser.id, force: true);
+        debugPrint(
+          'client_save_timing phase=drive ms=${driveTimer.elapsedMilliseconds}',
+        );
       }
     }
   }
@@ -157,14 +176,22 @@ class _UsersPageState extends State<UsersPage> {
   String Function(String) get serverName => widget.serverName;
   bool _syncing = false;
 
-  Future<void> _syncAndPublish(BuildContext context, {bool force = false}) async {
+  Future<void> _syncAndPublish(
+    BuildContext context, {
+    bool force = false,
+  }) async {
     if (_syncing || controller.busy || !controller.loaded) return;
     setState(() => _syncing = true);
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     try {
+      final serverTimer = Stopwatch()..start();
       final serverSync = await controller.syncAllServersAndProfiles(
         allowVerifiedSnapshot: !force,
+      );
+      debugPrint(
+        'publication_timing phase=server_check ms=${serverTimer.elapsedMilliseconds} '
+        'saved=${serverSync.usedSavedVerification} ok=${serverSync.verified}',
       );
       if (!serverSync.verified) {
         if (mounted) {
@@ -176,13 +203,19 @@ class _UsersPageState extends State<UsersPage> {
       }
       PublicationBatchResult? batchResult;
       if (publications != null) {
+        final driveTimer = Stopwatch()..start();
         batchResult = await publications!.forcePublishAll(force: force);
+        debugPrint(
+          'publication_timing phase=drive ms=${driveTimer.elapsedMilliseconds} '
+          'total=${batchResult.total} failed=${batchResult.failed}',
+        );
       }
       if (mounted) {
         final activeUsers = controller.workspace.users
             .where((u) => u.enabled && !u.deleted)
             .toList(growable: false);
-        final isAuthError = publications?.needsAuthorization == true ||
+        final isAuthError =
+            publications?.needsAuthorization == true ||
             publications?.accountError == GoogleAccountIssue.reauthorize ||
             publications?.error == PublicationIssue.unauthorized;
         if (isAuthError) {
@@ -244,10 +277,7 @@ class _UsersPageState extends State<UsersPage> {
           messenger.showSnackBar(
             SnackBar(
               content: Text(
-                l.vpnSyncAndPublishDone(
-                  activeUsers.length,
-                  activeUsers.length,
-                ),
+                l.vpnSyncAndPublishDone(activeUsers.length, activeUsers.length),
               ),
             ),
           );
@@ -255,7 +285,8 @@ class _UsersPageState extends State<UsersPage> {
       }
     } catch (_) {
       if (mounted) {
-        final isAuthError = publications?.needsAuthorization == true ||
+        final isAuthError =
+            publications?.needsAuthorization == true ||
             publications?.accountError == GoogleAccountIssue.reauthorize ||
             publications?.error == PublicationIssue.unauthorized;
         if (isAuthError) {
@@ -403,10 +434,7 @@ class _UsersPageState extends State<UsersPage> {
                 ],
               ),
             ),
-            AppSectionHeading(
-              title: l.vpnUsers,
-              count: activeUsers.length,
-            ),
+            AppSectionHeading(title: l.vpnUsers, count: activeUsers.length),
             if (showAddAction)
               Row(
                 children: [
@@ -463,10 +491,7 @@ class _UsersPageState extends State<UsersPage> {
               ),
             ),
             ClientDeletionPanel(controller: c, serverName: serverName),
-            _AttentionServersSection(
-              controller: c,
-              serverName: serverName,
-            ),
+            _AttentionServersSection(controller: c, serverName: serverName),
           ],
         ),
       );
@@ -508,10 +533,9 @@ class _UserTile extends StatelessWidget {
             top: BorderSide(
               color: isFirst
                   ? Colors.transparent
-                  : Theme.of(context)
-                        .colorScheme
-                        .outlineVariant
-                        .withValues(alpha: .55),
+                  : Theme.of(
+                      context,
+                    ).colorScheme.outlineVariant.withValues(alpha: .55),
             ),
           ),
           color: isSelected
@@ -531,16 +555,16 @@ class _UserTile extends StatelessWidget {
               child: AppIconTile(
                 round: true,
                 key: ValueKey('client-avatar-${user.id}'),
-                text: user.name.trim().characters.firstOrNull?.toUpperCase() ?? '?',
+                text:
+                    user.name.trim().characters.firstOrNull?.toUpperCase() ??
+                    '?',
               ),
             ),
             title: Text(user.name),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  user.enabled ? protocolSummary : l.vpnDisabled,
-                ),
+                Text(user.enabled ? protocolSummary : l.vpnDisabled),
                 if (publications != null)
                   ListenableBuilder(
                     listenable: publications!,
@@ -548,10 +572,7 @@ class _UserTile extends StatelessWidget {
                       final queue = publications!.queues[user.id];
                       if (queue?['status'] == 'error') {
                         return Text(
-                          publicationMessage(
-                            l,
-                            queue?['issue'] as String?,
-                          ),
+                          publicationMessage(l, queue?['issue'] as String?),
                         );
                       }
                       return const SizedBox.shrink();
@@ -559,29 +580,17 @@ class _UserTile extends StatelessWidget {
                   ),
                 if (c.results[user.id]?.hasBlockingErrors == true)
                   Text(
-                    vpnMessage(
-                      l,
-                      c.results[user.id]!.diagnostics.first.code,
-                    ),
+                    vpnMessage(l, c.results[user.id]!.diagnostics.first.code),
                   ),
                 if (!selection.active)
-                  CoreConfigCheckAction(
-                    controller: c,
-                    userId: user.id,
-                  ),
+                  CoreConfigCheckAction(controller: c, userId: user.id),
               ],
             ),
             onTap: c.busy
                 ? null
                 : selection.active
                 ? () => selection.toggle(user.id)
-                : () => UsersPage.edit(
-                    context,
-                    c,
-                    motion,
-                    user,
-                    publications,
-                  ),
+                : () => UsersPage.edit(context, c, motion, user, publications),
             trailing: selection.active
                 ? null
                 : IconButton(
@@ -607,8 +616,7 @@ class _AttentionServersSection extends StatelessWidget {
   final String Function(String) serverName;
 
   static bool needsAttention(VpnController c, String id) {
-    final record = c.workspace.servers[id],
-        job = c.currentJob(id);
+    final record = c.workspace.servers[id], job = c.currentJob(id);
     // A shared job is observed automatically. Only an actual failure needs
     // attention here; a restored pending marker alone is not a warning.
     if (c.observesOperation(id)) {
@@ -749,14 +757,14 @@ class _UserFormState extends State<_UserForm> {
                 children: [
                   OutlinedButton.icon(
                     key: const ValueKey('vpn-user-pick-file'),
-                    onPressed: picking ||
-                            widget.publications?.pickerReady != true
+                    onPressed:
+                        picking || widget.publications?.pickerReady != true
                         ? null
                         : () async {
                             setState(() => picking = true);
                             try {
-                              final target =
-                                  await widget.publications!.pickFile();
+                              final target = await widget.publications!
+                                  .pickFile();
                               if (target != null && mounted) {
                                 customLink.text = target.resourceKey == null
                                     ? target.fileId
@@ -850,8 +858,7 @@ class _UserFormState extends State<_UserForm> {
           onPressed: () {
             try {
               PublicationTarget? target;
-              if (widget.user == null &&
-                  customLink.text.trim().isNotEmpty) {
+              if (widget.user == null && customLink.text.trim().isNotEmpty) {
                 target = PublicationTarget.parse(customLink.text.trim());
               }
               final user = VpnUser(

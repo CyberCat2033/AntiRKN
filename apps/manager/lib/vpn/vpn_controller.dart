@@ -7,6 +7,107 @@ import 'package:flutter/foundation.dart';
 
 part 'client_deletion.dart';
 
+/// Starts at most four independent physical-server operations at a time.
+/// The input order is retained for callers that apply results to the workspace.
+Future<List<T>> _mapServersBounded<T>(
+  List<String> servers,
+  Future<T> Function(String) action, {
+  CancellationToken? cancellation,
+}) async {
+  final results = List<T?>.filled(servers.length, null);
+  var next = 0;
+  Object? failure;
+  StackTrace? failureStack;
+  Future<void> worker() async {
+    while (failure == null && next < servers.length) {
+      try {
+        cancellation?.check();
+        final index = next++;
+        results[index] = await action(servers[index]);
+      } catch (error, stack) {
+        failure ??= error;
+        failureStack ??= stack;
+      }
+    }
+  }
+
+  await Future.wait([
+    for (var i = 0; i < 4 && i < servers.length; i++) worker(),
+  ]);
+  if (failure case final error?) {
+    Error.throwWithStackTrace(error, failureStack!);
+  }
+  return [for (final result in results) result as T];
+}
+
+/// Returns changed client IDs when only per-client server bindings changed.
+/// A null result means shared profile inputs changed and every profile needs
+/// a fresh compile. Runner revisions and job metadata are not YAML inputs.
+Set<String>? _changedProfileClients(
+  VpnWorkspace before,
+  VpnWorkspace after,
+  String beforeTemplate,
+  String afterTemplate,
+  Map<String, String> beforeNames,
+  Map<String, String> afterNames,
+) {
+  if (beforeTemplate != afterTemplate ||
+      canonicalJson(beforeNames) != canonicalJson(afterNames) ||
+      canonicalJson(before.users.map((u) => u.toJson()).toList()) !=
+          canonicalJson(after.users.map((u) => u.toJson()).toList()) ||
+      canonicalJson(before.inbounds.map((r) => r.toJson()).toList()) !=
+          canonicalJson(after.inbounds.map((r) => r.toJson()).toList()) ||
+      canonicalJson(before.awgInterfaces.map((r) => r.toJson()).toList()) !=
+          canonicalJson(after.awgInterfaces.map((r) => r.toJson()).toList()) ||
+      canonicalJson(before.ttEndpoints.map((r) => r.toJson()).toList()) !=
+          canonicalJson(after.ttEndpoints.map((r) => r.toJson()).toList())) {
+    return null;
+  }
+
+  (Map<String, Object?>, Map<String, String>)? projection(VpnWorkspace value) {
+    final shared = <String, Object?>{};
+    final clients = <String, String>{};
+    try {
+      for (final entry in value.servers.entries) {
+        final rows = <Map<String, dynamic>>[];
+        for (final raw in entry.value['observed'] as List? ?? const []) {
+          final row = Map<String, dynamic>.from(raw as Map);
+          final bindings = row.remove('clients') as List? ?? const [];
+          row.remove('revision');
+          rows.add(row);
+          for (final rawClient in bindings) {
+            final client = Map<String, dynamic>.from(rawClient as Map);
+            final userId = client['id'];
+            if (userId is! String) return null;
+            final key = '${entry.key}|${row['id']}|$userId';
+            if (clients.containsKey(key)) return null;
+            clients[key] = canonicalJson(client);
+          }
+        }
+        shared[entry.key] = {
+          'error': entry.value['error'],
+          'resourceWorkspaceId': entry.value['resourceWorkspaceId'],
+          'observed': rows,
+        };
+      }
+    } catch (_) {
+      return null;
+    }
+    return (shared, clients);
+  }
+
+  final oldState = projection(before), newState = projection(after);
+  if (oldState == null ||
+      newState == null ||
+      canonicalJson(oldState.$1) != canonicalJson(newState.$1)) {
+    return null;
+  }
+  return {
+    for (final key in {...oldState.$2.keys, ...newState.$2.keys})
+      if (oldState.$2[key] != newState.$2[key]) key.split('|').last,
+  };
+}
+
 final class VpnRemote {
   const VpnRemote({
     required this.transport,
@@ -1109,48 +1210,46 @@ class VpnController extends ChangeNotifier {
     if (blockingRevocations.isNotEmpty) {
       throw const FormatException('vpn_busy');
     }
-    final plansList = await Future.wait(
-      selected.map((id) async {
-        await ensureConnected(id);
-        token.check();
-        final connection = remote(id);
-        final previous = workspace.servers[id];
-        if (_isTargetBusy(previous)) {
-          throw const FormatException('vpn_busy');
-        }
-        final panelId = (isAwgTarget(id) || isTtTarget(id))
-            ? workspace.resourceWorkspaceId(id)
-            : connection?.panelId ?? previous?['panelId'] as String?;
-        if (panelId == null) throw const FormatException('vpn_panel_required');
-        final payload = workspace.desired(id, panelId);
-        if (connection == null || hasPendingRevocation(vpnServerId(id))) {
-          return VpnPlan(
-            id,
-            payload,
-            connection?.identity ?? previous?['identity'] as String?,
-            null,
-          );
-        }
-        if (previous?['identity'] != null &&
-            previous?['identity'] != connection.identity) {
-          throw const FormatException('vpn_identity');
-        }
-        final response = await _request(
-          connection,
-          _planRequest(id, panelId, payload),
-          token,
-        );
-        if (_preview(response, id) == null) {
-          throw const FormatException('vpn_failed');
-        }
+    await _mapServersBounded(
+      selected.map(vpnServerId).toSet().toList(),
+      (id) => ensureConnected(id),
+      cancellation: token,
+    );
+    final plansList = await _mapServersBounded(selected, (id) async {
+      await ensureConnected(id);
+      token.check();
+      final connection = remote(id);
+      final previous = workspace.servers[id];
+      if (_isTargetBusy(previous)) {
+        throw const FormatException('vpn_busy');
+      }
+      final panelId = (isAwgTarget(id) || isTtTarget(id))
+          ? workspace.resourceWorkspaceId(id)
+          : connection?.panelId ?? previous?['panelId'] as String?;
+      if (panelId == null) throw const FormatException('vpn_panel_required');
+      final payload = workspace.desired(id, panelId);
+      if (connection == null || hasPendingRevocation(vpnServerId(id))) {
         return VpnPlan(
           id,
           payload,
-          connection.identity,
-          _preview(response, id),
+          connection?.identity ?? previous?['identity'] as String?,
+          null,
         );
-      }),
-    );
+      }
+      if (previous?['identity'] != null &&
+          previous?['identity'] != connection.identity) {
+        throw const FormatException('vpn_identity');
+      }
+      final response = await _request(
+        connection,
+        _planRequest(id, panelId, payload),
+        token,
+      );
+      if (_preview(response, id) == null) {
+        throw const FormatException('vpn_failed');
+      }
+      return VpnPlan(id, payload, connection.identity, _preview(response, id));
+    }, cancellation: token);
     plans = plansList;
   });
   void dismissPlans() {
@@ -1257,6 +1356,9 @@ class VpnController extends ChangeNotifier {
   }
 
   Future<void> _reconcile(CancellationToken token) async {
+    final beforeProfiles = workspace;
+    final beforeTemplate = template();
+    final beforeNames = profileServerNames;
     _restoredTargets = await recovery?.readRestoredTargets() ?? {};
     final reconcileTargets =
         {
@@ -1289,7 +1391,21 @@ class VpnController extends ChangeNotifier {
         return anyChanged;
       }),
     );
-    if (changed.contains(true)) await _profiles();
+    if (changed.contains(true)) {
+      final affected = _changedProfileClients(
+        beforeProfiles,
+        workspace,
+        beforeTemplate,
+        template(),
+        beforeNames,
+        profileServerNames,
+      );
+      if (affected == null || affected.length > 1) {
+        await _profiles();
+      } else if (affected.isNotEmpty) {
+        await _profiles(onlyUserId: affected.single);
+      }
+    }
   }
 
   Future<bool> _reconcileTarget(String id, CancellationToken token) async {
@@ -2047,13 +2163,11 @@ class VpnController extends ChangeNotifier {
 
     // 1. Pre-connect all distinct physical servers concurrently
     final physicalServers = targets.map(vpnServerId).toSet().toList()..sort();
-    await Future.wait(
-      physicalServers.map((serverId) async {
-        try {
-          await ensureConnected(serverId);
-        } catch (_) {}
-      }),
-    );
+    await _mapServersBounded(physicalServers, (serverId) async {
+      try {
+        await ensureConnected(serverId);
+      } catch (_) {}
+    }, cancellation: token);
     if (_disposed) return null;
     token.check();
 

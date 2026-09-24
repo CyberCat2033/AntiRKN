@@ -15,9 +15,14 @@ def spec(number=1,transport='raw'):
     return dict(id=f'{number:032x}',name='Managed VLESS',enabled=True,deleted=False,listen='127.0.0.1',port=23400+number,endpoint='203.0.113.10',externalPort=23400+number,transport=transport,security='reality',sni='example.com',target='example.com:443',path='/',host='',mode='auto',certificate='',certificateKey='',region='')
 def payload():return dict(version=1,workspaceId='a'*32,panelId='b'*32,resources=[spec(),spec(2,'xhttp')],users=[dict(id='c'*32,enabled=True),dict(id='d'*32,enabled=True)])
 class Api:
-    def __init__(self):self.rows=[];self.effects=0;self.crash=False
+    def __init__(self):self.rows=[];self.effects=0;self.crash=False;self.list_calls=0;self.get_calls=0
     def call(self,path,data=None):
-        if path.endswith('/list'):return copy.deepcopy(self.rows)
+        if path.endswith('/list'):
+            self.list_calls+=1
+            return copy.deepcopy(self.rows)
+        if '/get/' in path:
+            self.get_calls+=1
+            return copy.deepcopy(next((r for r in self.rows if r['id']==int(path.split('/')[-1])),None))
         if path.endswith('/status'):return dict(xray=dict(state='running'))
         if path.endswith('/restartXrayService'):return None
         if '/del/' in path:self.rows=[r for r in self.rows if r['id']!=int(path.split('/')[-1])]
@@ -109,6 +114,46 @@ class VlessTests(unittest.TestCase):
         p=payload();p['resources'][0]['name']='Переименован';p['users'][0]['enabled']=False
         second=self.submit(p,2);self.assertEqual(self.finish(second)['status'],'succeeded')
         self.assertEqual(ids,[u['uuid'] for r in state(self.store,'b'*32) for u in r['clients']])
+        self.assertGreater(self.api.get_calls, 0)
+
+    def test_prepare_reuses_list_snapshot_and_update_reads_only_target(self):
+        req = self.submit()
+        before = self.api.list_calls
+        self.store.tick()
+        self.assertEqual(self.api.list_calls - before, 1)
+        self.assertEqual(self.finish(req)['status'], 'succeeded')
+        changed = payload()
+        changed['users'][0]['enabled'] = False
+        req = self.submit(changed, 2)
+        self.store.tick()  # Preflight and backup share one snapshot.
+        before_list, before_get = self.api.list_calls, self.api.get_calls
+        self.store.tick()  # Update the first existing inbound.
+        self.assertEqual(self.api.list_calls - before_list, 1)
+        self.assertEqual(self.api.get_calls - before_get, 1)
+        self.assertEqual(self.finish(req)['status'], 'succeeded')
+
+    def test_panel_session_reused_but_pinned_version_checked_each_step(self):
+        self.patches[0].stop()
+        from vless import panel_for
+        access = dict(port=12345, username='user', password='secret',
+            panelVersion='3.8.0', xrayVersion='26.9.9')
+        class Session:
+            logins = 0
+            version = '26.9.9'
+            def login(self, *_):self.logins += 1
+            def call(self, path):
+                self.assert_path = path
+                return dict(panelVersion='3.8.0', xray=dict(version=self.version))
+        session = Session()
+        try:
+            with patch('vless.access_for_panel', return_value=access), patch('vless.PanelApi', return_value=session):
+                self.assertIs(panel_for(self.store, 'b'*32), session)
+                self.assertIs(panel_for(self.store, 'b'*32), session)
+                self.assertEqual(session.logins, 1)
+                session.version = 'other'
+                with self.assertRaises(VlessError):panel_for(self.store, 'b'*32)
+        finally:
+            self.patches[0].start()
     def test_internal_inbound_revokes_our_clients_and_reopens_with_same_credentials(self):
         self.finish(self.submit())
         before=[c['uuid'] for c in state(self.store,'b'*32)[0]['clients']]

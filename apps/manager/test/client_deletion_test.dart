@@ -592,9 +592,9 @@ void main() {
 
       // Simulate unreachable server with 3 failed connection attempts
       final saved = jsonDecode(store.raw!) as Map<String, dynamic>;
-      final deleted = (saved['users'] as List).firstWhere(
-        (u) => u['id'] == f.alice,
-      ) as Map<String, dynamic>;
+      final deleted =
+          (saved['users'] as List).firstWhere((u) => u['id'] == f.alice)
+              as Map<String, dynamic>;
       final target = (deleted['deletion']['targets']['one'] as Map);
       target['connectionAttempts'] = 3;
       target['connectAfter'] = 0;
@@ -618,7 +618,7 @@ void main() {
   );
 
   test(
-    '_connectDeletionServers connects to multiple physical servers concurrently (Audit #25)',
+    '_connectDeletionServers limits simultaneous physical servers to four',
     () async {
       final store = f.MemoryVpn();
       var concurrentConnections = 0;
@@ -642,13 +642,15 @@ void main() {
       addTearDown(c.dispose);
       await c.load();
       await c.saveUser(VpnUser(id: f.alice, login: 'alice', name: 'Alice'));
-      await c.saveInbound(f.inbound('one', '1' * 32));
-      await c.saveInbound(f.inbound('two', '2' * 32));
+      for (var index = 1; index <= 6; index++) {
+        await c.saveInbound(f.inbound('server$index', '$index' * 32));
+      }
 
       await c.deleteUsers([user(c)], awaitReconcile: true);
 
-      expect(connectedServers, containsAll(['one', 'two']));
-      expect(maxConcurrent, greaterThanOrEqualTo(2));
+      expect(connectedServers, hasLength(6));
+      expect(connectedServers.toSet(), hasLength(6));
+      expect(maxConcurrent, 4);
     },
   );
 }

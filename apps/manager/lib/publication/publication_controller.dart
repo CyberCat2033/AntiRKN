@@ -151,11 +151,7 @@ class PublicationController extends ChangeNotifier {
       'accountChanged',
     };
     // Global errors that affect ALL clients and must block every link.
-    const globalInvalidIssues = {
-      'accountChanged',
-      'unauthorized',
-      'forbidden',
-    };
+    const globalInvalidIssues = {'accountChanged', 'unauthorized', 'forbidden'};
     if (user?.enabled != true ||
         settings?.access != PublicationAccess.link ||
         result?['access'] != 'link' ||
@@ -192,6 +188,7 @@ class PublicationController extends ChangeNotifier {
     _notify();
     request(force: true);
   }
+
   void _notify() {
     if (!_disposed) notifyListeners();
   }
@@ -243,8 +240,9 @@ class PublicationController extends ChangeNotifier {
 
     // Automatically fulfill any pending bindings
     if (!_disposed && !_suspended && !editing && authorized) {
-      final hasPending = vpn.workspace.users
-          .any((u) => u.enabled && !u.deleted && bindingPending(u.id));
+      final hasPending = vpn.workspace.users.any(
+        (u) => u.enabled && !u.deleted && bindingPending(u.id),
+      );
       if (hasPending) {
         request(force: false);
       }
@@ -416,12 +414,18 @@ class PublicationController extends ChangeNotifier {
             rethrow;
           }
           if (nextIndex >= activeUsers.length) return;
-          final user = activeUsers[nextIndex++];
+          final userIndex = nextIndex++;
+          final user = activeUsers[userIndex];
+          final userTimer = Stopwatch()..start();
 
           // Fast-path: skip user if profile is already published and unchanged
           final wasUpToDate = isUserUpToDate(user.id);
           if (!force && !forceUpload && wasUpToDate) {
             upToDateCount++;
+            debugPrint(
+              'publication_timing phase=user index=$userIndex path=local '
+              'ms=${userTimer.elapsedMilliseconds}',
+            );
             continue;
           }
           final previousResult = results[user.id] == null
@@ -447,7 +451,8 @@ class PublicationController extends ChangeNotifier {
                 break;
               }
               if (publishQueue?['issue'] != 'changed' || attempt == 2) {
-                success = publishQueue?['issue'] == null &&
+                success =
+                    publishQueue?['issue'] == null &&
                     publishQueue?['status'] == 'published';
                 break;
               }
@@ -460,7 +465,8 @@ class PublicationController extends ChangeNotifier {
                 _cancel?.cancel();
                 break;
               }
-              final isRetryable = e.issue == PublicationIssue.network ||
+              final isRetryable =
+                  e.issue == PublicationIssue.network ||
                   e.issue == PublicationIssue.rateLimited ||
                   e.issue == PublicationIssue.unavailable;
               if (isRetryable && attempt < 2) {
@@ -551,6 +557,10 @@ class PublicationController extends ChangeNotifier {
           } else {
             failedCount++;
           }
+          debugPrint(
+            'publication_timing phase=user index=$userIndex path=drive '
+            'ms=${userTimer.elapsedMilliseconds} ok=$success',
+          );
           _notify();
           await Future<void>.delayed(Duration.zero);
         }
@@ -577,10 +587,7 @@ class PublicationController extends ChangeNotifier {
     return PublicationBatchResult(
       uploaded: uploadedCount,
       upToDate: upToDateCount,
-      failed: max(
-        failedCount,
-        (error != null || accountError != null) ? 1 : 0,
-      ),
+      failed: max(failedCount, (error != null || accountError != null) ? 1 : 0),
     );
   }
 
@@ -783,31 +790,30 @@ class PublicationController extends ChangeNotifier {
     ).inspectBinding(userId, target);
   });
 
-  Future<void> bindFile(
-    PublicationBindingPreview preview,
-  ) => _bindingEdit(() async {
-    if (!authorized) {
-      throw const PublicationFailure(PublicationIssue.unauthorized);
-    }
-    final coordinator = PublicationCoordinator(
-      repository: repository,
-      remote: remote(),
-      eligible: (d) async => _bindingEligible(d),
-    );
-    await coordinator.acceptBinding(preview);
-    final targetId = preview.userId ?? preview.draft?.userId;
-    if (targetId != null && preview.draft != null) {
-      final queue = await coordinator.publish(targetId, force: true);
-      if (queue != null) queues[targetId] = queue;
-      final result = await repository.readPublicationDocument(
-        'result/$targetId',
-      );
-      if (result != null) {
-        results[targetId] = jsonDecode(result) as Map<String, dynamic>;
-      }
-    }
-    await reload();
-  });
+  Future<void> bindFile(PublicationBindingPreview preview) =>
+      _bindingEdit(() async {
+        if (!authorized) {
+          throw const PublicationFailure(PublicationIssue.unauthorized);
+        }
+        final coordinator = PublicationCoordinator(
+          repository: repository,
+          remote: remote(),
+          eligible: (d) async => _bindingEligible(d),
+        );
+        await coordinator.acceptBinding(preview);
+        final targetId = preview.userId ?? preview.draft?.userId;
+        if (targetId != null && preview.draft != null) {
+          final queue = await coordinator.publish(targetId, force: true);
+          if (queue != null) queues[targetId] = queue;
+          final result = await repository.readPublicationDocument(
+            'result/$targetId',
+          );
+          if (result != null) {
+            results[targetId] = jsonDecode(result) as Map<String, dynamic>;
+          }
+        }
+        await reload();
+      });
 
   Future<List<PublicationFile>> folders() => remote().listFolders();
 

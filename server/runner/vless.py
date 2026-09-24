@@ -17,6 +17,7 @@ import socket
 import subprocess
 import time
 import uuid
+from urllib.error import HTTPError
 from urllib.parse import urlsplit
 
 from panel import KEY, PANEL, PanelError, PanelInstaller, access_for, atomic_file, command, safe_file
@@ -125,16 +126,30 @@ def access_for_panel(store, panel_id):
     return access
 
 
-def panel_for(store, panel_id):
+def panel_for(store, panel_id, _retry=True):
     access = access_for_panel(store, panel_id)
-    api = PanelApi(access['port'], access.get('basePath', '/'), tls=access.get('tls', False),
-        certificate=access.get('certificate'), host=access.get('host', '127.0.0.1'))
-    api.login(access['username'], access['password'])
+    sessions = getattr(store, '_panel_sessions', None)
+    if sessions is None:
+        sessions = store._panel_sessions = {}
+    cached = sessions.get(panel_id)
+    api = cached[1] if cached and cached[0] == access else None
+    using_cached = api is not None
+    if api is None:
+        api = PanelApi(access['port'], access.get('basePath', '/'), tls=access.get('tls', False),
+            certificate=access.get('certificate'), host=access.get('host', '127.0.0.1'))
+        api.login(access['username'], access['password'])
+        sessions[panel_id] = (access, api)
     # During an API-triggered core restart the status cache briefly omits the
     # Xray version. A missing value is pending, not evidence of another binary.
     deadline = time.monotonic() + 15
     while time.monotonic() < deadline:
-        status = api.call('/panel/api/server/status')
+        try:
+            status = api.call('/panel/api/server/status')
+        except HTTPError as error:
+            if error.code not in (401, 403) or not using_cached or not _retry:
+                raise
+            sessions.pop(panel_id, None)
+            return panel_for(store, panel_id, _retry=False)
         if isinstance(status, dict) and isinstance(status.get('xray'), dict):
             panel_version, xray_version = status.get('panelVersion'), status['xray'].get('version')
             if panel_version and panel_version != access['panelVersion'] or xray_version and xray_version != access['xrayVersion']:
@@ -217,9 +232,10 @@ def locate(rows, workspace, resource):
     return matches[0] if matches else None
 
 
-def preflight(store, payload, api):
+def preflight(store, payload, api, rows=None):
     check_revocations(store, payload)
-    rows = api.call('/panel/api/inbounds/list')
+    if rows is None:
+        rows = api.call('/panel/api/inbounds/list')
     if not isinstance(rows, list): raise VlessError('vless_api_failed')
     saved = owned_rows(store)
     adopted = {}
@@ -318,12 +334,13 @@ class VlessApply:
         api = panel_for(self.store, p['panelId'])
         job_id = self.req['id']
         if checkpoint == 0:
-            preview = preflight(self.store, p, api)
+            rows = api.call('/panel/api/inbounds/list')
+            preview = preflight(self.store, p, api, rows=rows)
             if preview['fingerprint'] != self.req['fingerprint']: raise VlessError('vless_conflict')
             check_revocations(self.store, p, persist=True)
             backup = self.store.directory / ('vless-backup-' + job_id + '.json')
             if not backup.exists():
-                atomic_file(backup, canonical(dict(rows=api.call('/panel/api/inbounds/list'), resources=owned_rows(self.store))).encode())
+                atomic_file(backup, canonical(dict(rows=rows, resources=owned_rows(self.store))).encode())
             code = 'vless_preparing'
         elif checkpoint <= len(p['resources']):
             r = p['resources'][checkpoint - 1]
@@ -338,6 +355,7 @@ class VlessApply:
             desired = normal(wanted)
             for k in ('id','tag','up','down','total','userId','nodeId'): desired.pop(k,None)
             already = current is None if r['deleted'] else current is not None and subset(desired, normal(current))
+            created_id = None
             if not already:
                 if current and (not previous or digest(normal(current)) != previous['observedHash']): raise VlessError('vless_conflict')
                 if not current and previous and not (previous.get('deleted') or r.get('deleted')): raise VlessError('vless_conflict')
@@ -346,8 +364,16 @@ class VlessApply:
                 elif current:
                     api.call('/panel/api/inbounds/update/%d' % current['id'], wanted)
                 else:
-                    api.call('/panel/api/inbounds/add', wanted)
-            observed = locate(api.call('/panel/api/inbounds/list'), p['workspaceId'], r['id'])
+                    created = api.call('/panel/api/inbounds/add', wanted)
+                    if isinstance(created, dict) and isinstance(created.get('id'), int):
+                        created_id = created['id']
+            readback_id = current['id'] if current and not r['deleted'] else created_id
+            if readback_id is not None:
+                observed = api.call('/panel/api/inbounds/get/%d' % readback_id)
+                if not isinstance(observed, dict) or observed.get('remark') != marker(p['workspaceId'], r['id']):
+                    raise VlessError('vless_api_failed')
+            else:
+                observed = locate(api.call('/panel/api/inbounds/list'), p['workspaceId'], r['id'])
             if r['deleted']:
                 if observed is not None: raise VlessError('vless_api_failed')
             elif observed is None or not subset(desired, normal(observed)):
