@@ -85,6 +85,7 @@ void main() {
     final store = WorkspaceDatabase.open(
       '${directory.path}/$name.sqlite',
       key: SecretKeyData(List.filled(32, key)),
+      offloadVpnWrites: true,
     );
     stores.add(store);
     return store;

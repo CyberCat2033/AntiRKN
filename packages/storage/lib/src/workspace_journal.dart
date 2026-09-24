@@ -21,7 +21,7 @@ _Entities _serverEntities(String id, String? source) => {
 /// Keeps each resource/user separate while retaining unknown fields and list
 /// order. Server state includes observed credentials and operation records;
 /// it remains data, never an instruction to submit an operation.
-_Entities _documentEntities(String id, String? source) {
+_Entities _documentEntities(String id, String? source, {_EntityKey? only}) {
   if (source == null) return {};
   if (id != 'vpn-workspace-v1') {
     final (kind, entityId) = id == 'template-draft'
@@ -31,7 +31,7 @@ _Entities _documentEntities(String id, String? source) {
         : (ChangeEntityKind.document, id);
     return {(kind, entityId): _EntitySnapshot(source)};
   }
-  VpnWorkspace.decode(source);
+  if (only == null) VpnWorkspace.decode(source);
   final value = jsonDecode(source) as Map<String, dynamic>;
   final root = Map<String, Object?>.from(value);
   final entities = <_EntityKey, _EntitySnapshot>{};
@@ -47,10 +47,12 @@ _Entities _documentEntities(String id, String? source) {
       final spec = nested ? record['spec'] as Map : record;
       final entityId = spec['id'] as String;
       order.add(entityId);
-      entities[(kind, entityId)] = _EntitySnapshot(
-        canonicalJson(record),
-        deleted: spec['deleted'] == true,
-      );
+      if (only == null || only == (kind, entityId)) {
+        entities[(kind, entityId)] = _EntitySnapshot(
+          canonicalJson(record),
+          deleted: spec['deleted'] == true,
+        );
+      }
     }
     // These are references, not copies of entity payloads.
     root[field] = order;
@@ -62,7 +64,11 @@ _Entities _documentEntities(String id, String? source) {
     final records = value[field] as Map<String, dynamic>? ?? {};
     root[field] = records.keys.toList()..sort();
     for (final entry in records.entries) {
-      entities[(kind, entry.key)] = _EntitySnapshot(canonicalJson(entry.value));
+      if (only == null || only == (kind, entry.key)) {
+        entities[(kind, entry.key)] = _EntitySnapshot(
+          canonicalJson(entry.value),
+        );
+      }
     }
   }
   entities[(ChangeEntityKind.vpnWorkspace, value['id'] as String)] =

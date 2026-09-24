@@ -26,6 +26,7 @@ part 'workspace_merge.dart';
 part 'workspace_auto_sync.dart';
 part 'workspace_account_sync.dart';
 part 'workspace_publications.dart';
+part 'vpn_write_worker.dart';
 
 Future<WorkspaceDatabase> openLocalWorkspace() async {
   final support = await getApplicationSupportDirectory();
@@ -113,29 +114,6 @@ Future<SecretKeyData> _deviceKey(Directory directory) async {
   return SecretKeyData(bytes, overwriteWhenDestroyed: true);
 }
 
-Future<int> _writeVpnOffIsolate(
-  String path,
-  Uint8List keyBytes,
-  Object input,
-  int expectedRevision,
-) async {
-  final worker = WorkspaceDatabase.open(
-    path,
-    key: SecretKeyData(keyBytes, overwriteWhenDestroyed: true),
-  );
-  try {
-    final source = input is VpnWorkspace ? input.encode() : input as String;
-    return await worker.writeVpn(source, expectedRevision: expectedRevision);
-  } finally {
-    await worker.close();
-  }
-}
-
-Future<int> _runVpnWriteWorker((String, Uint8List, Object, int) input) =>
-    Isolate.run(
-      () => _writeVpnOffIsolate(input.$1, input.$2, input.$3, input.$4),
-    );
-
 /// SQLite owns all current entities/preferences. Credentials and template text
 /// enter SQLite only after AEAD encryption. No login or password in SQL/logs.
 final class WorkspaceDatabase
@@ -146,6 +124,7 @@ final class WorkspaceDatabase
         ConditionalRunnerJournalStore,
         VpnRepository,
         VpnWorkspaceWriter,
+        VpnUserWriter,
         ChangeJournalStore,
         SyncPacketStore,
         SyncMergeStore,
@@ -232,6 +211,7 @@ final class WorkspaceDatabase
   final _documentCache = <String, (int, String)>{};
   int? _cachedWorkspaceRevision;
   VpnWorkspace? _cachedWorkspace;
+  Future<_VpnWriteWorker>? _vpnWriter;
   @override
   bool needsLegacyPassword = false;
 
@@ -704,33 +684,86 @@ final class WorkspaceDatabase
       ? _offloadVpnWrite(workspace, expectedRevision: expectedRevision)
       : _writeVpnLocal(workspace.encode(), expectedRevision: expectedRevision);
 
+  @override
+  Future<int> upsertVpnUser(VpnUser user, {required int expectedRevision}) =>
+      _offloadVpnWrites
+      ? _offloadVpnWrite(user, expectedRevision: expectedRevision)
+      : _upsertVpnUserLocal(user, expectedRevision: expectedRevision);
+
   Future<int> _offloadVpnWrite(Object input, {required int expectedRevision}) =>
       _serial(() async {
-        // The worker owns its own SQLite connection. The main connection
-        // remains serialized with it and observes the committed WAL state.
-        final keyBytes = Uint8List.fromList(await _key.extractBytes());
-        final path = _path;
+        final writer = await _vpnWriteWorker();
         try {
-          final updated = await _runVpnWriteWorker((
-            path,
-            keyBytes,
-            input,
-            expectedRevision,
-          ));
+          final updated = await writer.write(input, expectedRevision);
           _documentCache.remove('vpn-workspace-v1');
           _cachedWorkspaceRevision = null;
           _cachedWorkspace = null;
           if (updated != expectedRevision) _localChanges.add(null);
           return updated;
-        } finally {
-          keyBytes.fillRange(0, keyBytes.length, 0);
+        } catch (_) {
+          if (writer.terminated) {
+            await writer.close();
+            _vpnWriter = null;
+          }
+          rethrow;
         }
       });
 
-  Future<int> _writeVpnLocal(
-    String source, {
+  Future<_VpnWriteWorker> _vpnWriteWorker() async {
+    final pending = _vpnWriter ??= _VpnWriteWorker.start(_path, _key);
+    try {
+      return await pending;
+    } catch (_) {
+      _vpnWriter = null;
+      rethrow;
+    }
+  }
+
+  Future<int> _writeVpnLocal(String source, {required int expectedRevision}) =>
+      _serial(() => _writeVpnCore(source, expectedRevision: expectedRevision));
+
+  Future<int> _upsertVpnUserLocal(
+    VpnUser user, {
     required int expectedRevision,
   }) => _serial(() async {
+    final previous = _db
+        .select("SELECT * FROM documents WHERE id='vpn-workspace-v1'")
+        .firstOrNull;
+    if ((previous?['revision'] ?? 0) != expectedRevision) {
+      throw const VaultFailure(VaultIssue.busy);
+    }
+    final workspace = previous == null
+        ? VpnWorkspace(id: _journal.identity.workspaceId)
+        : VpnWorkspace.decode(
+            await _decrypt(
+              'vpn-workspace-v1',
+              expectedRevision,
+              previous['payload'] as Uint8List,
+            ),
+          );
+    if (workspace.users.any((u) => u.id == user.id && u.deleted) &&
+        !user.deleted) {
+      throw const FormatException('vpn_user_deleted');
+    }
+    final next = workspace.copy(
+      users: [
+        for (final current in workspace.users)
+          current.id == user.id ? user : current,
+        if (!workspace.users.any((current) => current.id == user.id)) user,
+      ],
+    );
+    return _writeVpnCore(
+      next.encode(),
+      expectedRevision: expectedRevision,
+      only: (ChangeEntityKind.vpnUser, user.id),
+    );
+  });
+
+  Future<int> _writeVpnCore(
+    String source, {
+    required int expectedRevision,
+    _EntityKey? only,
+  }) async {
     if (utf8.encode(source).length > 8 * 1024 * 1024) {
       throw const VaultFailure(VaultIssue.writeFailed);
     }
@@ -749,7 +782,9 @@ final class WorkspaceDatabase
             expectedRevision,
             previous.single['payload'] as Uint8List,
           );
+    final suppliedSource = source;
     source = _withAccountNamespaces(source, oldSource);
+    if (source != suppliedSource) only = null;
     if (oldSource == source) {
       return _transaction(() {
         _checkRevision('documents', id, expectedRevision);
@@ -767,8 +802,8 @@ final class WorkspaceDatabase
     final revision = expectedRevision + 1;
     final payload = await _encrypt(id, revision, source);
     final changes = await _journal.prepare(
-      _documentEntities(id, oldSource),
-      _documentEntities(id, source),
+      _documentEntities(id, oldSource, only: only),
+      _documentEntities(id, source, only: only),
     );
     return _transaction(() {
       final current = _db.select('SELECT revision FROM documents WHERE id=?', [
@@ -788,7 +823,8 @@ final class WorkspaceDatabase
       _cachedWorkspace = null;
       return revision;
     });
-  });
+  }
+
   @override
   Future<void> writeDraft(String source) =>
       _writeDocument('template-draft', source);
@@ -1089,6 +1125,9 @@ final class WorkspaceDatabase
     await _pending;
     if (_closed) return;
     _closed = true;
+    if (_vpnWriter case final pending?) {
+      await (await pending).close();
+    }
     _db.dispose();
     _key.destroy();
     await _localChanges.close();

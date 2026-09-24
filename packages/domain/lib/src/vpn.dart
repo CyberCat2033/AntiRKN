@@ -419,6 +419,11 @@ abstract interface class VpnWorkspaceWriter {
   });
 }
 
+/// Applies one user edit with the same workspace revision and journal CAS.
+abstract interface class VpnUserWriter {
+  Future<int> upsertVpnUser(VpnUser user, {required int expectedRevision});
+}
+
 abstract interface class ProfileExporter {
   Future<bool> save(String name, String source);
 }

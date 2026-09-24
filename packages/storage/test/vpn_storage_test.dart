@@ -64,12 +64,18 @@ void main() {
           stored.profiles['b' * 32]?['publicationWorkspaceId'],
           workspace.id,
         );
-        await first.writeVpnWorkspace(
-          workspace.copy(
-            users: [VpnUser(id: 'b' * 32, login: 'renamed', name: 'Updated')],
-          ),
+        final previousSequence =
+            (await first.readChanges()).last.header.sequence;
+        await first.upsertVpnUser(
+          VpnUser(id: 'b' * 32, login: 'renamed', name: 'Updated'),
           expectedRevision: 1,
         );
+        final userChanges = await first.readChanges(
+          afterSequence: previousSequence,
+        );
+        expect(userChanges.map((change) => change.header.entityKind), [
+          ChangeEntityKind.vpnUser,
+        ]);
         await expectLater(
           second.writeVpn(workspace.encode(), expectedRevision: 1),
           throwsA(isA<VaultFailure>()),
@@ -138,5 +144,54 @@ void main() {
     await change;
     expect((await db.readVpn()).revision, 1);
     expect((await db.readChanges(limit: 1000)).length, greaterThan(600));
+  });
+
+  test('user patch preserves order and journals only that user', () async {
+    final temp = await Directory.systemTemp.createTemp('vpn-user-patch-test-');
+    addTearDown(() => temp.delete(recursive: true));
+    final db = WorkspaceDatabase.open(
+      '${temp.path}/workspace.sqlite',
+      key: SecretKeyData(List.generate(32, (i) => i)),
+      offloadVpnWrites: true,
+    );
+    addTearDown(db.close);
+    final identity = await db.readWorkspaceIdentity();
+    final firstId = 'a' * 32;
+    final secondId = 'b' * 32;
+    await db.writeVpnWorkspace(
+      VpnWorkspace(
+        id: identity.workspaceId,
+        users: [
+          VpnUser(id: firstId, login: 'first', name: 'First'),
+          VpnUser(id: secondId, login: 'second', name: 'Second'),
+        ],
+      ),
+      expectedRevision: 0,
+    );
+    final sequence = (await db.readChanges()).last.header.sequence;
+    expect(
+      await db.upsertVpnUser(
+        VpnUser(id: firstId, login: 'first', name: 'Renamed'),
+        expectedRevision: 1,
+      ),
+      2,
+    );
+    final saved = VpnWorkspace.decode((await db.readVpn()).source!);
+    expect(saved.users.map((user) => user.id), [firstId, secondId]);
+    expect(saved.users.first.name, 'Renamed');
+    expect(
+      (await db.readChanges(afterSequence: sequence)).map(
+        (change) => change.header.entityKind,
+      ),
+      [ChangeEntityKind.vpnUser],
+    );
+    await expectLater(
+      db.upsertVpnUser(
+        VpnUser(id: firstId, login: 'second', name: 'Duplicate login'),
+        expectedRevision: 2,
+      ),
+      throwsA(isA<FormatException>()),
+    );
+    expect((await db.readVpn()).revision, 2);
   });
 }

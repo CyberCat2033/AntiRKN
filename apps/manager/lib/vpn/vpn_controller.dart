@@ -592,9 +592,18 @@ class VpnController extends ChangeNotifier {
       throw const FormatException('vpn_user_deleted');
     }
     final next = workspace.copy(
-      users: [...workspace.users.where((u) => u.id != user.id), user],
+      users: [
+        for (final current in workspace.users)
+          current.id == user.id ? user : current,
+        if (!workspace.users.any((current) => current.id == user.id)) user,
+      ],
     );
-    await _write(next);
+    if (repository case final VpnUserWriter writer) {
+      revision = await writer.upsertVpnUser(user, expectedRevision: revision);
+      workspace = next;
+    } else {
+      await _write(next);
+    }
     plans = [];
     await _profiles();
   });
