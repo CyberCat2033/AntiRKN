@@ -42,6 +42,7 @@ class Remote implements RunnerTransport {
   final actions = <String>[];
   bool loseReply = false,
       running = false,
+      resumeStaysPartial = false,
       failBeforeSubmit = false,
       failPlan = false,
       failState = false;
@@ -151,7 +152,7 @@ class Remote implements RunnerTransport {
     if (a == 'cancel') {
       jobs[id] = {...jobs[id]!, 'status': 'cancelled', 'cancelRequested': true};
     }
-    if (a == 'resume') {
+    if (a == 'resume' && !resumeStaysPartial) {
       jobs[id] = {
         ...jobs[id]!,
         'status': 'succeeded',
@@ -229,6 +230,61 @@ Future<void> setup(VpnController c) async {
   ]) {
     await c.saveInbound(inbound(entry.$1, entry.$2 * 32));
   }
+}
+
+Future<String> seedPausedPartial(
+  VpnController c,
+  MemoryVpn store,
+  Remote remote,
+) async {
+  final payload = c.workspace.desired('one', panel);
+  final jobId = '1' * 32;
+  final request = RunnerRequest.vlessApply(jobId, payload, 'f' * 64);
+  remote.jobs[jobId] = {
+    'id': jobId,
+    'kind': 'vless_apply',
+    'count': request.json['count'],
+    'interval': 1,
+    'status': 'partially_applied',
+    'checkpoint': (request.json['count'] as int) - 1,
+    'sequence': 1,
+    'cancelRequested': false,
+    'events': <Object?>[],
+  };
+  remote.customState = [
+    for (final inbound in c.workspace.inbounds.where(
+      (inbound) => inbound.serverId == 'one',
+    ))
+      {
+        'id': inbound.id,
+        'workspaceId': c.workspace.resourceWorkspaceId('one'),
+        'spec': inbound.spec,
+        'confirmed': true,
+        'revision': vlessRevision(payload),
+        'publicKey': 'A' * 43,
+        'shortId': '0123456789abcdef',
+        'clients': <dynamic>[],
+      },
+  ];
+  await store.writeVpn(
+    jsonEncode({
+      ...jsonDecode(store.raw!) as Map,
+      'servers': {
+        'one': {
+          'identity': 'identity-one',
+          'panelId': panel,
+          'paused': true,
+          'error': 'vpn_partially_applied',
+          'authorizedPayload': jsonEncode(payload),
+          'pending': request.json,
+          'job': remote.jobs[jobId],
+        },
+      },
+    }),
+    expectedRevision: store.revision,
+  );
+  await c.load();
+  return jobId;
 }
 
 void main() {
@@ -850,6 +906,60 @@ void main() {
       expect(c.adoptionConfirmed('one', inbounds.first.id), isTrue);
     },
   );
+  test(
+    'paused partial VLESS job resumes automatically with its saved ID',
+    () async {
+      final store = MemoryVpn(), remote = Remote(store);
+      final c = controller(store, {'one': remote});
+      addTearDown(c.dispose);
+      await setup(c);
+      final jobId = await seedPausedPartial(c, store, remote);
+
+      await c.reconcile();
+
+      expect(c.error, isNull);
+      expect(remote.actions, contains('resume'));
+      expect(remote.submissions, isEmpty);
+      expect(c.workspace.servers['one']?['autoResumeAttemptedId'], jobId);
+      expect(c.workspace.servers['one']?['pending'], isNull);
+      expect(c.workspace.servers['one']?['paused'], isFalse);
+    },
+  );
+  test('automatic VLESS resume is attempted only once per saved job', () async {
+    final store = MemoryVpn(),
+        remote = Remote(store)..resumeStaysPartial = true;
+    final c = controller(store, {'one': remote});
+    addTearDown(c.dispose);
+    await setup(c);
+    final jobId = await seedPausedPartial(c, store, remote);
+
+    await c.reconcile();
+    expect(remote.actions.where((action) => action == 'resume'), hasLength(1));
+    expect(c.workspace.servers['one']?['autoResumeAttemptedId'], jobId);
+    expect(c.workspace.servers['one']?['pending'], isNotNull);
+    expect(c.workspace.servers['one']?['paused'], isTrue);
+
+    await c.load();
+    await c.reconcile();
+    expect(remote.actions.where((action) => action == 'resume'), hasLength(1));
+    expect(remote.submissions, isEmpty);
+  });
+  test('changed desired access is never resumed automatically', () async {
+    final store = MemoryVpn(), remote = Remote(store);
+    final c = controller(store, {'one': remote});
+    addTearDown(c.dispose);
+    await setup(c);
+    await seedPausedPartial(c, store, remote);
+    await c.saveUser(
+      VpnUser(id: alice, login: 'alice', name: 'Alice', enabled: false),
+    );
+
+    await c.reconcile();
+
+    expect(remote.actions, isNot(contains('resume')));
+    expect(c.workspace.servers['one']?['pending'], isNotNull);
+    expect(c.workspace.servers['one']?['paused'], isTrue);
+  });
   test(
     'syncAllServersAndProfiles polls servers in parallel and rebuilds profiles',
     () async {

@@ -1316,14 +1316,8 @@ class VpnController extends ChangeNotifier {
         workspace.servers.keys.any(
           (id) => observesOperation(id) && currentJob(id)?.terminal != true,
         ) ||
-        workspace.servers.values.any(
-          (r) =>
-              r['cancelRequested'] == true ||
-              r['observingCancel'] == true ||
-              (r['paused'] != true &&
-                  (r['pending'] != null ||
-                      r['authorizedPayload'] != null &&
-                          r['authorizedPayload'] != r['appliedPayload'])),
+        workspace.servers.entries.any(
+          (entry) => _needsReconcile(entry.key, entry.value),
         );
     final fresh = (serverIds?.call() ?? const <String>[]).where((id) {
       final connection = remote(id);
@@ -1352,6 +1346,49 @@ class VpnController extends ChangeNotifier {
     });
     if ((hasRunning || hasObservedRunning) && !_disposed) {
       Timer(const Duration(seconds: 1), () => unawaited(reconcile()));
+    }
+  }
+
+  bool _needsReconcile(String id, Map<String, dynamic> record) =>
+      _canAutoResume(id, record) ||
+      record['cancelRequested'] == true ||
+      record['observingCancel'] == true ||
+      (record['paused'] != true &&
+          (record['pending'] != null ||
+              record['authorizedPayload'] != null &&
+                  record['authorizedPayload'] != record['appliedPayload']));
+
+  bool _canAutoResume(String id, Map<String, dynamic> record) {
+    final pending = record['pending'];
+    final job = record['job'];
+    final connection = remote(id);
+    if (record['paused'] != true ||
+        record['cancelRequested'] == true ||
+        observesOperation(id) ||
+        _restoredTargets.contains(id) ||
+        hasPendingRevocation(vpnServerId(id)) ||
+        connection == null ||
+        record['identity'] != connection.identity ||
+        pending is! Map ||
+        pending['kind'] != 'vless_apply' ||
+        pending['id'] is! String ||
+        pending['id'] == record['autoResumeAttemptedId'] ||
+        pending['payload'] is! String ||
+        record['authorizedPayload'] is! String ||
+        job is! Map ||
+        job['id'] != pending['id'] ||
+        job['kind'] != 'vless_apply' ||
+        job['status'] != 'partially_applied') {
+      return false;
+    }
+    try {
+      final authorized = jsonDecode(record['authorizedPayload'] as String);
+      return canonicalJson(authorized) ==
+              canonicalJson(jsonDecode(pending['payload'] as String)) &&
+          canonicalJson(authorized) ==
+              canonicalJson(workspace.desired(id, connection.panelId));
+    } catch (_) {
+      return false;
     }
   }
 
@@ -1429,6 +1466,31 @@ class VpnController extends ChangeNotifier {
       return false;
     }
     try {
+      if (_canAutoResume(id, record)) {
+        final requestId = (record['pending'] as Map)['id'] as String;
+        final status = await _request(
+          connection,
+          RunnerRequest.status(requestId, 0),
+          token,
+        );
+        if (status.jobs.length != 1 || status.jobs.single.id != requestId) {
+          throw const FormatException('vpn_conflict');
+        }
+        if (status.jobs.single.status == 'partially_applied') {
+          // Save the attempt before the remote call. A lost reply or a real
+          // conflict must never cause an endless automatic resume loop.
+          record = {...record, 'autoResumeAttemptedId': requestId};
+          await _record(id, record);
+          await _request(connection, RunnerRequest.resume(requestId), token);
+        } else if (!const {
+          'running',
+          'succeeded',
+        }.contains(status.jobs.single.status)) {
+          throw const FormatException('vpn_conflict');
+        }
+        record = {...record, 'paused': false, 'error': null};
+        await _record(id, record);
+      }
       final authorized = record['authorizedPayload'] as String?;
       if (record['pending'] == null &&
           record['paused'] != true &&
