@@ -33,14 +33,11 @@ client_secret_*.json
 google-oauth*.json
 desktop-client.json
 
-# Local agent instructions and working records do not belong in the public repository.
+# Local agent instructions and new documentation stay out of the repository.
 /AGENTS.md
 /AGENT_TASK.md
 /TECHNICAL_PLAN.md
 /AUDIT_PROMPT.md
 /AUDIT_REPORT.md
 /FIX_PROMPT.md
-/docs/progress.md
-/docs/plans/
-/docs/reports/
-/docs/adr/
+/docs/
