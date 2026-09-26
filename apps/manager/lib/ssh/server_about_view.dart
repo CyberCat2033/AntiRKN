@@ -10,6 +10,7 @@ import '../network/ip_diagnostics_controller.dart';
 import '../network/server_ip_diagnostics.dart';
 import '../vpn/vpn_controller.dart';
 import 'ssh_controller.dart';
+import 'client_egress_card.dart';
 
 String serverBytes(int value) {
   const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'];
@@ -26,11 +27,15 @@ class ServerAboutView extends StatelessWidget {
     required this.controller,
     this.diagnostics,
     this.vpn,
+    this.clientEgress,
+    this.motion = MotionPreference.system,
     super.key,
   });
   final SshController controller;
   final IpDiagnosticsController? diagnostics;
   final VpnController? vpn;
+  final Widget? clientEgress;
+  final MotionPreference motion;
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: Listenable.merge([controller, controller.runner, diagnostics]),
@@ -122,6 +127,10 @@ class ServerAboutView extends StatelessWidget {
             if (!canDiagnose)
               Text(l.diagNoIpv4, style: Theme.of(context).textTheme.bodySmall),
           ],
+          const SizedBox(height: 12),
+          clientEgress ??
+              ClientEgressCard(controller: c.runner, vpn: vpn, motion: motion),
+          const SizedBox(height: 12),
           ServerRebootView(controller: c),
           const SizedBox(height: 8),
           ServerClearClientsView(controller: c, vpn: vpn),

@@ -3708,7 +3708,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get egressSocksHelp =>
-      '0 — автоматически, начиная с 1080. Адрес: 127.0.0.1. Порт можно изменить после отключения функции.';
+      '127.0.0.1. Чтобы изменить порт, сначала отключите переадресацию.';
 
   @override
   String get egressRulesHelp =>

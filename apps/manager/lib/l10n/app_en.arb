@@ -1456,7 +1456,7 @@
   "egressPaste": "Paste",
   "egressAdvanced": "Advanced",
   "egressSocksPort": "Local SOCKS port",
-  "egressSocksHelp": "0 selects a free port starting at 1080. Address: 127.0.0.1. Disable the feature before changing its port.",
+  "egressSocksHelp": "127.0.0.1. Disable egress before changing the port.",
   "egressRulesHelp": "TCP/UDP are routed through VLESS. Existing Xray rules keep priority. There is no automatic direct fallback if the exit is unavailable.",
   "egressApply": "Apply",
   "egressPanelRequired": "Shared egress requires 3x-ui on this server.",

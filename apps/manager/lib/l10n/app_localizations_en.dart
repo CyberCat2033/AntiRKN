@@ -3702,7 +3702,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get egressSocksHelp =>
-      '0 selects a free port starting at 1080. Address: 127.0.0.1. Disable the feature before changing its port.';
+      '127.0.0.1. Disable egress before changing the port.';
 
   @override
   String get egressRulesHelp =>

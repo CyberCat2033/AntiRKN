@@ -217,6 +217,7 @@ class _ServerCatalogState extends State<ServerCatalog> {
           controller: session.runner,
           catalog: c,
           vpn: vpn,
+          motion: widget.motion,
         ),
         vpn: vpn,
         coreUpgrade: vpn == null

@@ -8,7 +8,6 @@ import '../runner/component_installation_view.dart';
 import '../runner/component_updates_controller.dart';
 import '../runner/runner_panel.dart';
 import 'server_about_view.dart';
-import 'client_egress_card.dart';
 import 'ssh_controller.dart';
 import 'ssh_harden_wizard.dart';
 import 'ssh_panel.dart';
@@ -398,12 +397,6 @@ class _ServerDetailViewState extends State<ServerDetailView> {
             ),
           ),
         ],
-        const SizedBox(height: 16),
-        widget.clientEgress ??
-            ClientEgressCard(
-              controller: widget.session.runner,
-              vpn: widget.vpn,
-            ),
         const SizedBox(height: 24),
         AppTwoColumn(
           first: Column(
@@ -698,6 +691,8 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                             controller: c,
                             diagnostics: widget.diagnostics,
                             vpn: widget.vpn,
+                            clientEgress: widget.clientEgress,
+                            motion: widget.motion,
                           ),
                         ])
                       : const SizedBox.shrink(),

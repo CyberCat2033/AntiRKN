@@ -193,6 +193,16 @@ void main() {
         await tester.tap(find.text('open'));
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
+        expect(
+          tester
+              .widget<TextField>(
+                find.byKey(const ValueKey('client-egress-port')),
+              )
+              .controller!
+              .text,
+          '1080',
+        );
+        expect(find.byType(ExpansionTile), findsNothing);
         await tester.enterText(
           find.byKey(const ValueKey('client-egress-uri')),
           'https://invalid.example',

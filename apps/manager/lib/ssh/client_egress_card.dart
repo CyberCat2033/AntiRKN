@@ -16,11 +16,13 @@ class ClientEgressCard extends StatefulWidget {
     required this.controller,
     this.catalog,
     this.vpn,
+    this.motion = MotionPreference.system,
     super.key,
   });
   final RunnerController controller;
   final ServerCatalogController? catalog;
   final VpnController? vpn;
+  final MotionPreference motion;
 
   @override
   State<ClientEgressCard> createState() => _ClientEgressCardState();
@@ -58,6 +60,7 @@ class _ClientEgressCardState extends State<ClientEgressCard> {
           controller: c,
           catalog: widget.catalog,
           vpn: widget.vpn,
+          motion: widget.motion,
         ),
       );
     } finally {
@@ -205,20 +208,21 @@ class ClientEgressForm extends StatefulWidget {
     required this.controller,
     this.catalog,
     this.vpn,
+    this.motion = MotionPreference.system,
     super.key,
   });
   final RunnerController controller;
   final ServerCatalogController? catalog;
   final VpnController? vpn;
+  final MotionPreference motion;
   @override
   State<ClientEgressForm> createState() => _ClientEgressFormState();
 }
 
 class _ClientEgressFormState extends State<ClientEgressForm> {
   final uri = TextEditingController(), socks = TextEditingController();
-  final endpoint = TextEditingController(),
-      externalPort = TextEditingController();
-  bool enabled = true, visible = false, busy = false, fromCatalog = false;
+  static const externalChoice = 'vless://';
+  bool visible = false, busy = false, fromCatalog = false;
   String? target, issue;
   int? inbound;
   late final String observedHash;
@@ -229,12 +233,19 @@ class _ClientEgressFormState extends State<ClientEgressForm> {
     super.initState();
     observedHash = widget.controller.egress!['observedHash'] as String;
     uri.text = widget.controller.egress?['uri'] as String? ?? '';
-    socks.text = '${widget.controller.egress?['socksPort'] ?? 0}';
+    final savedPort = widget.controller.egress?['socksPort'] as int?;
+    socks.text = '${savedPort != null && savedPort > 0 ? savedPort : 1080}';
+    fromCatalog =
+        uri.text.isEmpty &&
+        (widget.catalog?.servers.any(
+              (s) => s.id != widget.controller.serverId,
+            ) ??
+            false);
   }
 
   @override
   void dispose() {
-    for (final field in [uri, socks, endpoint, externalPort]) {
+    for (final field in [uri, socks]) {
       field.dispose();
     }
     super.dispose();
@@ -262,31 +273,18 @@ class _ClientEgressFormState extends State<ClientEgressForm> {
             : 'VLESS');
   }
 
-  void selectInbound(int? id) {
-    inbound = id;
-    final row = inbounds.where((r) => r['id'] == id).firstOrNull;
-    if (row == null) return;
-    final destination = clientEgressDestination(
-      row: row,
-      resource: inboundResource(row),
-      sshHost: widget.catalog!.sessionFor(target!)!.host.text.trim(),
-    );
-    endpoint.text = destination.host;
-    externalPort.text = '${destination.port}';
-  }
-
   Future<void> selectServer(String? id) async {
     setState(() {
-      target = id;
+      fromCatalog = id != externalChoice;
+      target = fromCatalog ? id : null;
       inbound = null;
       inbounds = [];
-      endpoint.clear();
-      externalPort.clear();
       busy = true;
       issue = null;
     });
     try {
-      if (id == null ||
+      if (!fromCatalog ||
+          id == null ||
           !await widget.catalog!.connectForAction(id) ||
           !mounted) {
         return;
@@ -301,7 +299,7 @@ class _ClientEgressFormState extends State<ClientEgressForm> {
                 row as Map,
       ];
       if (inbounds.isNotEmpty) {
-        selectInbound(inbounds.first['id'] as int);
+        inbound = inbounds.first['id'] as int;
       } else {
         issue = 'egress_unsupported';
       }
@@ -322,23 +320,25 @@ class _ClientEgressFormState extends State<ClientEgressForm> {
         setState(() => issue = 'egress_port_busy');
         return;
       }
-      if (enabled && fromCatalog) {
+      if (fromCatalog) {
         final remote = target == null
             ? null
             : widget.catalog?.sessionFor(target!)?.runner;
-        final remotePort = int.tryParse(externalPort.text.trim());
-        if (remote == null ||
-            inbound == null ||
-            remotePort == null ||
-            endpoint.text.trim().isEmpty) {
+        final row = inbounds.where((r) => r['id'] == inbound).firstOrNull;
+        if (remote == null || row == null) {
           setState(() => issue = 'egress_invalid');
           return;
         }
+        final destination = clientEgressDestination(
+          row: row,
+          resource: inboundResource(row),
+          sshHost: widget.catalog!.sessionFor(target!)!.host.text.trim(),
+        );
         final issued = await remote.createEgressAccess(
           source: widget.controller.serverId,
           inboundId: inbound!,
-          endpoint: endpoint.text.trim(),
-          externalPort: remotePort,
+          endpoint: destination.host,
+          externalPort: destination.port,
         );
         if (!mounted) return;
         if (issued == null) {
@@ -352,13 +352,13 @@ class _ClientEgressFormState extends State<ClientEgressForm> {
             .toString();
         uri.text = link;
       }
-      if (enabled && !validEgressLink(link)) {
+      if (!validEgressLink(link)) {
         setState(() => issue = 'egress_invalid');
         return;
       }
       final ok = await widget.controller.applyEgress(
-        enabled: enabled,
-        uri: enabled ? link : '',
+        enabled: true,
+        uri: link,
         socksPort: port,
         observedHash: observedHash,
       );
@@ -391,152 +391,91 @@ class _ClientEgressFormState extends State<ClientEgressForm> {
         content: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(l.egressViaServer),
-              value: enabled,
-              onChanged: busy ? null : (v) => setState(() => enabled = v),
-            ),
-            Text(l.egressClientTraffic),
-            if (enabled) ...[
-              const SizedBox(height: 16),
-              if (servers.isNotEmpty)
-                DropdownButtonFormField<bool>(
-                  key: const ValueKey('client-egress-source'),
-                  initialValue: fromCatalog,
-                  isExpanded: true,
-                  decoration: InputDecoration(labelText: l.egressSource),
-                  items: [
-                    DropdownMenuItem(value: false, child: Text(l.egressLink)),
-                    DropdownMenuItem(value: true, child: Text(l.egressCatalog)),
-                  ],
-                  onChanged: busy
-                      ? null
-                      : (v) => setState(() => fromCatalog = v!),
-                ),
-              if (fromCatalog) ...[
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  key: const ValueKey('client-egress-server'),
-                  initialValue: target,
-                  isExpanded: true,
-                  decoration: InputDecoration(labelText: l.egressTarget),
-                  items: [
-                    for (final server in servers)
-                      DropdownMenuItem(
-                        value: server.id,
-                        child: Text(
-                          server.profile.displayName,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                  ],
-                  onChanged: busy ? null : selectServer,
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<int>(
-                  key: ValueKey('egress-inbound-$target-${inbounds.length}'),
-                  initialValue: inbound,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'VLESS inbound'),
-                  items: [
-                    for (final row in inbounds)
-                      DropdownMenuItem(
-                        value: row['id'] as int,
-                        child: Text(
-                          '${inboundLabel(row)} · ${row['port']}',
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                  ],
-                  onChanged: busy
-                      ? null
-                      : (v) => setState(() => selectInbound(v)),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  key: const ValueKey('client-egress-address'),
-                  controller: endpoint,
-                  enabled: !busy,
-                  decoration: InputDecoration(labelText: l.egressAddress),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  key: const ValueKey('client-egress-external-port'),
-                  controller: externalPort,
-                  enabled: !busy,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(labelText: l.egressPort),
-                ),
-                const SizedBox(height: 8),
-                Text(l.egressServiceAccess),
-              ] else ...[
-                const SizedBox(height: 12),
-                TextField(
-                  key: const ValueKey('client-egress-uri'),
-                  controller: uri,
-                  enabled: !busy,
-                  obscureText: !visible,
-                  autocorrect: false,
-                  enableSuggestions: false,
-                  onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(
-                    labelText: l.egressLink,
-                    hintText: 'vless://…',
-                    suffixIcon: IconButton(
-                      tooltip: l.egressReveal,
-                      icon: Icon(
-                        visible ? Icons.visibility_off : Icons.visibility,
-                      ),
-                      onPressed: () => setState(() => visible = !visible),
-                    ),
-                  ),
-                ),
-                Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: TextButton.icon(
-                    onPressed: busy
-                        ? null
-                        : () async {
-                            final data = await Clipboard.getData(
-                              Clipboard.kTextPlain,
-                            );
-                            if (mounted && data?.text != null) {
-                              setState(() => uri.text = data!.text!.trim());
-                            }
-                          },
-                    icon: const Icon(Icons.content_paste),
-                    label: Text(l.egressPaste),
-                  ),
-                ),
-                if (parsed != null && validEgressLink(uri.text.trim()))
-                  Text(
-                    '${parsed.host}:${parsed.port} · ${parsed.queryParameters['type'] ?? 'tcp'} · ${parsed.queryParameters['security'] ?? ''}',
-                  ),
-              ],
-              ExpansionTile(
-                tilePadding: EdgeInsets.zero,
-                title: Text(l.egressAdvanced),
-                children: [
-                  TextField(
-                    key: const ValueKey('client-egress-port'),
-                    controller: socks,
-                    enabled:
-                        !busy && widget.controller.egress?['enabled'] != true,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: l.egressSocksPort,
-                      helperText: l.egressSocksHelp,
-                      helperMaxLines: 5,
-                    ),
-                  ),
+            if (servers.isNotEmpty) ...[
+              AppSelectField<String>(
+                key: const ValueKey('client-egress-server'),
+                value: fromCatalog ? target ?? '' : externalChoice,
+                label: l.egressTarget,
+                motion: widget.motion,
+                options: [
+                  for (final server in servers)
+                    (server.id, widget.catalog!.serverDisplayName(server.id)),
+                  (externalChoice, l.egressLink),
                 ],
+                onChanged: busy ? null : selectServer,
               ),
-              Text(
-                l.egressRulesHelp,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
+              const SizedBox(height: 16),
             ],
+            if (fromCatalog) ...[
+              AppSelectField<int?>(
+                key: const ValueKey('client-egress-inbound'),
+                value: inbound,
+                label: 'VLESS inbound',
+                motion: widget.motion,
+                options: [
+                  for (final row in inbounds)
+                    (row['id'] as int, '${inboundLabel(row)} · ${row['port']}'),
+                ],
+                onChanged: busy || inbounds.isEmpty
+                    ? null
+                    : (v) => setState(() => inbound = v),
+              ),
+            ] else ...[
+              const SizedBox(height: 12),
+              TextField(
+                key: const ValueKey('client-egress-uri'),
+                controller: uri,
+                enabled: !busy,
+                obscureText: !visible,
+                autocorrect: false,
+                enableSuggestions: false,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  labelText: l.egressLink,
+                  hintText: 'vless://…',
+                  suffixIcon: IconButton(
+                    tooltip: l.egressReveal,
+                    icon: Icon(
+                      visible ? Icons.visibility_off : Icons.visibility,
+                    ),
+                    onPressed: () => setState(() => visible = !visible),
+                  ),
+                ),
+              ),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: TextButton.icon(
+                  onPressed: busy
+                      ? null
+                      : () async {
+                          final data = await Clipboard.getData(
+                            Clipboard.kTextPlain,
+                          );
+                          if (mounted && data?.text != null) {
+                            setState(() => uri.text = data!.text!.trim());
+                          }
+                        },
+                  icon: const Icon(Icons.content_paste),
+                  label: Text(l.egressPaste),
+                ),
+              ),
+              if (parsed != null && validEgressLink(uri.text.trim()))
+                Text(
+                  '${parsed.host}:${parsed.port} · ${parsed.queryParameters['type'] ?? 'tcp'} · ${parsed.queryParameters['security'] ?? ''}',
+                ),
+            ],
+            const SizedBox(height: 16),
+            TextField(
+              key: const ValueKey('client-egress-port'),
+              controller: socks,
+              enabled: !busy && widget.controller.egress?['enabled'] != true,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: l.egressSocksPort,
+                helperText: l.egressSocksHelp,
+                helperMaxLines: 3,
+              ),
+            ),
             if (issue != null)
               Padding(
                 padding: const EdgeInsets.only(top: 12),

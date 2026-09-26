@@ -6551,7 +6551,7 @@ abstract class AppLocalizations {
   /// No description provided for @egressSocksHelp.
   ///
   /// In en, this message translates to:
-  /// **'0 selects a free port starting at 1080. Address: 127.0.0.1. Disable the feature before changing its port.'**
+  /// **'127.0.0.1. Disable egress before changing the port.'**
   String get egressSocksHelp;
 
   /// No description provided for @egressRulesHelp.
