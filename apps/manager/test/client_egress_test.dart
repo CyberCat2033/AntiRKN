@@ -95,6 +95,68 @@ void main() {
     expect(c.pending, isNull);
   });
 
+  test(
+    'saved public endpoint and NAT port take precedence over bind and SSH',
+    () {
+      final resource = VlessInbound(
+        serverId: 'exit',
+        spec: {
+          ...VlessInbound.defaults(),
+          'listen': '10.0.0.2',
+          'port': 443,
+          'endpoint': 'vpn.example',
+          'externalPort': 2443,
+          'sni': 'example.com',
+          'target': 'example.com:443',
+        },
+      );
+      expect(
+        clientEgressDestination(
+          row: {'listen': '10.0.0.2', 'port': 443},
+          sshHost: 'ssh.example',
+          resource: resource,
+        ),
+        (host: 'vpn.example', port: 2443),
+      );
+    },
+  );
+
+  test(
+    'concrete IPv6 listener is retained for the inter-server connection',
+    () {
+      expect(
+        clientEgressDestination(
+          row: {'listen': '2001:db8::2', 'port': 8443},
+          sshHost: 'ssh.example',
+        ),
+        (host: '2001:db8::2', port: 8443),
+      );
+    },
+  );
+
+  test(
+    'wildcard and local-only listeners fall back to the saved server host',
+    () {
+      for (final listen in [
+        '',
+        '0.0.0.0',
+        '::',
+        '127.0.0.1',
+        '::1',
+        'fe80::1',
+      ]) {
+        expect(
+          clientEgressDestination(
+            row: {'listen': listen, 'port': 8443},
+            sshHost: 'ssh.example',
+          ),
+          (host: 'ssh.example', port: 8443),
+          reason: listen,
+        );
+      }
+    },
+  );
+
   for (final locale in ['ru', 'en']) {
     testWidgets(
       'egress form fits narrow screen, validates and cancels without effects $locale',

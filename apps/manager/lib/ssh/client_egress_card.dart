@@ -240,9 +240,9 @@ class _ClientEgressFormState extends State<ClientEgressForm> {
     super.dispose();
   }
 
-  String inboundLabel(Map row) {
+  VlessInbound? inboundResource(Map row) {
     final vpn = widget.vpn;
-    final resource = vpn?.workspace.inbounds
+    return vpn?.workspace.inbounds
         .where(
           (r) =>
               r.serverId == target &&
@@ -252,10 +252,27 @@ class _ClientEgressFormState extends State<ClientEgressForm> {
                       'AntiRKN:${vpn.workspace.resourceWorkspaceId(r.serverId)}:${r.id}'),
         )
         .firstOrNull;
+  }
+
+  String inboundLabel(Map row) {
+    final resource = inboundResource(row);
     return resource?.name ??
         ((row['name'] as String?)?.isNotEmpty == true
             ? row['name'] as String
             : 'VLESS');
+  }
+
+  void selectInbound(int? id) {
+    inbound = id;
+    final row = inbounds.where((r) => r['id'] == id).firstOrNull;
+    if (row == null) return;
+    final destination = clientEgressDestination(
+      row: row,
+      resource: inboundResource(row),
+      sshHost: widget.catalog!.sessionFor(target!)!.host.text.trim(),
+    );
+    endpoint.text = destination.host;
+    externalPort.text = '${destination.port}';
   }
 
   Future<void> selectServer(String? id) async {
@@ -263,6 +280,8 @@ class _ClientEgressFormState extends State<ClientEgressForm> {
       target = id;
       inbound = null;
       inbounds = [];
+      endpoint.clear();
+      externalPort.clear();
       busy = true;
       issue = null;
     });
@@ -281,10 +300,8 @@ class _ClientEgressFormState extends State<ClientEgressForm> {
               if (row['protocol'] == 'vless' && row['enabled'] == true)
                 row as Map,
       ];
-      endpoint.text = session.host.text.trim();
       if (inbounds.isNotEmpty) {
-        inbound = inbounds.first['id'] as int;
-        externalPort.text = '${inbounds.first['port']}';
+        selectInbound(inbounds.first['id'] as int);
       } else {
         issue = 'egress_unsupported';
       }
@@ -385,6 +402,7 @@ class _ClientEgressFormState extends State<ClientEgressForm> {
               const SizedBox(height: 16),
               if (servers.isNotEmpty)
                 DropdownButtonFormField<bool>(
+                  key: const ValueKey('client-egress-source'),
                   initialValue: fromCatalog,
                   isExpanded: true,
                   decoration: InputDecoration(labelText: l.egressSource),
@@ -399,6 +417,7 @@ class _ClientEgressFormState extends State<ClientEgressForm> {
               if (fromCatalog) ...[
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
+                  key: const ValueKey('client-egress-server'),
                   initialValue: target,
                   isExpanded: true,
                   decoration: InputDecoration(labelText: l.egressTarget),
@@ -432,20 +451,18 @@ class _ClientEgressFormState extends State<ClientEgressForm> {
                   ],
                   onChanged: busy
                       ? null
-                      : (v) => setState(() {
-                          inbound = v;
-                          externalPort.text =
-                              '${inbounds.firstWhere((r) => r['id'] == v)['port']}';
-                        }),
+                      : (v) => setState(() => selectInbound(v)),
                 ),
                 const SizedBox(height: 12),
                 TextField(
+                  key: const ValueKey('client-egress-address'),
                   controller: endpoint,
                   enabled: !busy,
                   decoration: InputDecoration(labelText: l.egressAddress),
                 ),
                 const SizedBox(height: 12),
                 TextField(
+                  key: const ValueKey('client-egress-external-port'),
                   controller: externalPort,
                   enabled: !busy,
                   keyboardType: TextInputType.number,
@@ -546,6 +563,30 @@ class _ClientEgressFormState extends State<ClientEgressForm> {
       ),
     );
   }
+}
+
+({String host, int port}) clientEgressDestination({
+  required Map row,
+  required String sshHost,
+  VlessInbound? resource,
+}) {
+  // A saved endpoint may describe NAT or a public hostname. Otherwise use
+  // the selected listener; the SSH host can be a different server address.
+  final savedHost = (resource?.spec['endpoint'] as String?)?.trim() ?? '';
+  if (savedHost.isNotEmpty) {
+    return (host: savedHost, port: resource!.spec['externalPort'] as int);
+  }
+  final listen = (row['listen'] as String?)?.trim() ?? '';
+  final ip = IpAddress.tryParse(listen);
+  final concrete =
+      ip != null &&
+      !const {
+        IpCategory.unspecified,
+        IpCategory.loopback,
+        IpCategory.linkLocal,
+        IpCategory.multicast,
+      }.contains(ip.category);
+  return (host: concrete ? listen : sshHost, port: row['port'] as int);
 }
 
 bool validEgressLink(String value) {
