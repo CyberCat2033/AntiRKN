@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../network/ip_diagnostics_controller.dart';
 import 'server_detail_view.dart';
+import 'client_egress_card.dart';
 import 'protocol_removal.dart';
 import 'server_catalog_controller.dart';
 import 'ssh_controller.dart';
@@ -181,15 +182,16 @@ class _ServerCatalogState extends State<ServerCatalog> {
               .where((r) => r.serverId == c.selectedId && !r.deleted)
               .toList() ??
           <AwgInterface>[];
-      final awgExternal = (session.runner.awgDiscovery?['resources'] as List? ?? [])
-          .whereType<Map>()
-          .where(
-            (item) => !hasAdoptedSource(
-              awgManaged.map((r) => r.spec),
-              item['id'] as String,
-            ),
-          )
-          .toList();
+      final awgExternal =
+          (session.runner.awgDiscovery?['resources'] as List? ?? [])
+              .whereType<Map>()
+              .where(
+                (item) => !hasAdoptedSource(
+                  awgManaged.map((r) => r.spec),
+                  item['id'] as String,
+                ),
+              )
+              .toList();
       String serverName(String id) =>
           c.servers
               .where((s) => s.id == vpnServerId(id))
@@ -211,6 +213,11 @@ class _ServerCatalogState extends State<ServerCatalog> {
       return ServerDetailView(
         key: ObjectKey(session),
         session: session,
+        clientEgress: ClientEgressCard(
+          controller: session.runner,
+          catalog: c,
+          vpn: vpn,
+        ),
         vpn: vpn,
         coreUpgrade: vpn == null
             ? null

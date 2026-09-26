@@ -370,6 +370,7 @@ class TtSettingsEditor extends StatelessWidget {
     required this.onChanged,
     this.external = false,
     this.enabled = true,
+    this.inheritedEgress = false,
     this.onIssueCertificate,
     super.key,
   });
@@ -380,7 +381,7 @@ class TtSettingsEditor extends StatelessWidget {
   final MotionPreference motion;
   final VoidCallback onChanged;
   final VoidCallback? onIssueCertificate;
-  final bool external, enabled;
+  final bool external, enabled, inheritedEgress;
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
@@ -402,8 +403,8 @@ class TtSettingsEditor extends StatelessWidget {
     final effectiveId = hasMatching
         ? id
         : (certificates.isNotEmpty && !external
-            ? (certificates.first['id'] as String)
-            : '');
+              ? (certificates.first['id'] as String)
+              : '');
     if (effectiveId != id && effectiveId.isNotEmpty) {
       spec['certificateId'] = effectiveId;
       final c = certificates.where((c) => c['id'] == effectiveId).firstOrNull;
@@ -435,8 +436,7 @@ class TtSettingsEditor extends StatelessWidget {
           options: [
             if (certificates.isEmpty || external)
               ('', external ? l.ttKeepCertificate : l.ttChooseCertificate),
-            for (final c in certificates)
-              (c['id'] as String, '${c['domain']}'),
+            for (final c in certificates) (c['id'] as String, '${c['domain']}'),
           ],
           onChanged: enabled
               ? (v) {
@@ -466,24 +466,24 @@ class TtSettingsEditor extends StatelessWidget {
           ),
         ],
         const SizedBox(height: AppLayout.gap),
-        AppSelectField<String>(
-          key: const ValueKey('tt-outbound'),
-          value: spec['outbound'] == 'socks5' ? 'socks5' : 'direct',
-          label: l.ttOutbound,
-          motion: motion,
-          options: [
-            ('direct', l.ttDirect),
-            ('socks5', 'SOCKS5'),
-          ],
-          onChanged: enabled
-              ? (v) {
-                  spec['outbound'] = v;
-                  onChanged();
-                }
-              : null,
-        ),
+        if (inheritedEgress)
+          Text(l.egressTtInherited)
+        else
+          AppSelectField<String>(
+            key: const ValueKey('tt-outbound'),
+            value: spec['outbound'] == 'socks5' ? 'socks5' : 'direct',
+            label: l.ttOutbound,
+            motion: motion,
+            options: [('direct', l.ttDirect), ('socks5', 'SOCKS5')],
+            onChanged: enabled
+                ? (v) {
+                    spec['outbound'] = v;
+                    onChanged();
+                  }
+                : null,
+          ),
         const SizedBox(height: AppLayout.gap),
-        if (spec['outbound'] == 'socks5') ...[
+        if (!inheritedEgress && spec['outbound'] == 'socks5') ...[
           field('socksAddress', l.ttSocksAddress),
           Text(l.ttSocksHelp),
         ],
@@ -652,6 +652,7 @@ class _ManagedTtState extends State<ManagedTtDialog> {
                 network: widget.network,
                 motion: widget.motion,
                 enabled: !certificateDialogOpen && !widget.runner.busy,
+                inheritedEgress: widget.runner.egress?['enabled'] == true,
                 onIssueCertificate:
                     widget.runner.canStart && widget.runner.installed
                     ? issueCertificate
@@ -688,9 +689,7 @@ class _ManagedTtState extends State<ManagedTtDialog> {
                 icon: const Icon(Icons.refresh),
                 label: Text(l.ttRegeneratePasswords),
               ),
-              Text(
-                rotate ? l.ttPasswordsRegenerated : l.ttPasswordsAutomatic,
-              ),
+              Text(rotate ? l.ttPasswordsRegenerated : l.ttPasswordsAutomatic),
               if (invalid) Text(l.vpnInvalid),
             ],
           ),
@@ -842,6 +841,7 @@ class _ExistingTtState extends State<_ExistingTtDialog>
                 motion: widget.motion,
                 external: true,
                 enabled: !busy && preview == null,
+                inheritedEgress: runner.egress?['enabled'] == true,
                 onChanged: changed,
               ),
               ...status(l),

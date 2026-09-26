@@ -116,6 +116,7 @@ class RunnerController extends ChangeNotifier {
   RunnerInstallation? componentRunnerPlan;
   String? activeComponent;
 
+  Map<String, dynamic>? egress;
   Map<String, dynamic>? panelDiscovery;
   PanelAccess? panelAccess;
   ComponentPresence presence(VpnComponent component) =>
@@ -241,6 +242,7 @@ class RunnerController extends ChangeNotifier {
     installation = null;
     panelAccess = null;
     panelDiscovery = null;
+    egress = null;
     panelVerifiedAt = null;
     activeComponent = null;
     _identity = current;
@@ -254,6 +256,9 @@ class RunnerController extends ChangeNotifier {
         if (json['operation'] case final Map metadata) {
           operation = ServerOperation.fromJson(metadata);
           operation!.validatePending(json['pending'] as Map?);
+        }
+        if (json['egress'] case final Map savedEgress) {
+          egress = Map<String, dynamic>.from(savedEgress);
         }
         if (json['panelDiscovery'] case final Map discovery) {
           panelDiscovery = Map<String, dynamic>.from(discovery);
@@ -309,6 +314,7 @@ class RunnerController extends ChangeNotifier {
       'cursor': observesOperation ? (previous?['cursor'] ?? 0) : cursor,
       if (operation != null) 'operation': operation!.toJson(),
       if (activeComponent != null) 'activeComponent': activeComponent,
+      'egress': egress,
       'panelDiscovery': panelDiscovery,
       'panelAccess': panelAccess?.toJson(),
       'panelVerifiedAt': panelVerifiedAt?.toUtc().toIso8601String(),
@@ -574,6 +580,171 @@ class RunnerController extends ChangeNotifier {
           await applyInbound(payload, plan['fingerprint'] as String);
         }
       });
+
+  Future<void> _readEgress(
+    RunnerTransport remote,
+    CancellationToken token,
+  ) async {
+    final result = await remote.request(
+      RunnerRequest.fromJson({'version': 1, 'action': 'egress_state'}),
+      token,
+      sudoPassword: password(),
+    );
+    token.check();
+    if (result.code == 'ok' && result.egress != null) egress = result.egress;
+  }
+
+  Future<void> refreshEgress() => requestAction(() async {
+    await _run((remote, token) async {
+      await _readEgress(remote, token);
+      await _save();
+    });
+  });
+
+  Future<void> checkEgress() => requestAction(() async {
+    if (panelAccess == null) return;
+    await _run((remote, token) async {
+      final result = await remote.request(
+        RunnerRequest.fromJson({
+          'version': 1,
+          'action': 'egress_check',
+          'id': panelAccess!.id,
+        }),
+        token,
+        sudoPassword: password(),
+      );
+      token.check();
+      responseCode = result.code;
+      if (result.code == 'ok' && result.egress != null) {
+        egress = result.egress;
+        await _save();
+      }
+    });
+  });
+
+  Future<bool> applyEgress({
+    required bool enabled,
+    required String uri,
+    int socksPort = 0,
+    String? observedHash,
+  }) async {
+    final expected = observedHash ?? egress?['observedHash'];
+    var success = false;
+    await requestAction(() async {
+      if (panelAccess == null || panelLoginRequired) return;
+      await _run((remote, token) async {
+        // The editor's observation is retained; a concurrent change is a conflict.
+        if (egress == null) await _readEgress(remote, token);
+        if (egress == null) return;
+        final payload = <String, Object?>{
+          'panelId': panelAccess!.id,
+          'enabled': enabled,
+          'uri': uri,
+          'socksPort': socksPort,
+          'observedHash': expected ?? egress!['observedHash'],
+        };
+        success = await _submitEgress(
+          remote,
+          token,
+          payload,
+          'egress_apply',
+          'egress_plan',
+        );
+      });
+    });
+    return success;
+  }
+
+  Future<bool> _submitEgress(
+    RunnerTransport remote,
+    CancellationToken token,
+    Map<String, Object?> payload,
+    String kind,
+    String action,
+  ) async {
+    final plan = await remote.request(
+      RunnerRequest.fromJson({
+        'version': 1,
+        'action': action,
+        'payload': jsonEncode(payload),
+      }),
+      token,
+      sudoPassword: password(),
+    );
+    token.check();
+    responseCode = plan.code;
+    if (plan.code != 'ok' || plan.egress?['fingerprint'] is! String) {
+      return false;
+    }
+    pending = RunnerRequest.fromJson({
+      'version': 1,
+      'action': 'submit',
+      'id': newVpnId(),
+      'kind': kind,
+      'count': 3,
+      'interval': 1,
+      'payload': jsonEncode(payload),
+      'fingerprint': plan.egress!['fingerprint'],
+    });
+    selected = null;
+    cursor = 0;
+    await _save();
+    token.check();
+    await _submit(remote, token);
+    return responseCode == 'ok';
+  }
+
+  Future<String?> createEgressAccess({
+    required String source,
+    required int inboundId,
+    required String endpoint,
+    required int externalPort,
+  }) async {
+    String? uri;
+    await requestAction(() async {
+      if (panelAccess == null || panelLoginRequired) return;
+      await _run((remote, token) async {
+        final payload = <String, Object?>{
+          'panelId': panelAccess!.id,
+          'source': source,
+          'inboundId': inboundId,
+          'endpoint': endpoint,
+          'externalPort': externalPort,
+        };
+        if (!await _submitEgress(
+          remote,
+          token,
+          payload,
+          'egress_access',
+          'egress_access_plan',
+        )) {
+          return;
+        }
+        final id = selected!.id;
+        final deadline = DateTime.now().add(const Duration(seconds: 90));
+        while (DateTime.now().isBefore(deadline)) {
+          token.check();
+          await _readJob(remote, token, id);
+          if (selected!.terminal) break;
+          await Future<void>.delayed(const Duration(milliseconds: 750));
+        }
+        if (selected?.status != 'succeeded') return;
+        final result = await remote.request(
+          RunnerRequest.fromJson({
+            'version': 1,
+            'action': 'egress_access_read',
+            'id': id,
+          }),
+          token,
+          sudoPassword: password(),
+        );
+        token.check();
+        responseCode = result.code;
+        if (result.code == 'ok') uri = result.egress?['uri'] as String?;
+      });
+    });
+    return uri;
+  }
 
   Map<String, dynamic>? ttDiscovery, ttCertificates;
   Future<Map<String, dynamic>?> ttRequest(
@@ -1466,6 +1637,7 @@ class RunnerController extends ChangeNotifier {
     panelAccess = result.panelAccess;
     panelLoginRequired = false;
     panelVerifiedAt = DateTime.now();
+    await _readEgress(remote, token);
     await _save();
   }
 
@@ -1622,6 +1794,10 @@ class RunnerController extends ChangeNotifier {
             !observesOperation &&
             (aptPlan?['packages'] as List? ?? []).isNotEmpty;
       }
+    }
+    if (job.kind == 'egress_apply' && job.terminal) {
+      await _readEgress(remote, token);
+      await _save();
     }
     if (job.kind == 'protocol_remove' && job.status == 'succeeded') {
       await _discoverPanel(remote, token);

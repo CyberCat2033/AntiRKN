@@ -127,6 +127,8 @@ def desired(p, spec, old, preview=False):
         udp_connections_timeout_secs=300, credentials_file=str(base / 'credentials.toml'),
         listen_protocols=dict(http1={}, http2={}),
         forward_protocol={'direct': {}} if spec['outbound']=='direct' else {'socks5': dict(address=spec['socksAddress'], extended_auth=False)})
+    from client_egress import effective_forward
+    effective_forward(vpn)
     if spec['quic']: vpn['listen_protocols']['quic'] = {}
     cert, keypath, cr = certificates.certificate_paths(spec['certificateId'])
     if spec['enabled']:

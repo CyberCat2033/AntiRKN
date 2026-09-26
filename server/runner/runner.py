@@ -77,6 +77,8 @@ def clear_managed_clients(store):
                 settings = vless.object_field(row.get('settings') or '{}')
                 clients_list = settings.get('clients') or []
                 our_uuids = {c['uuid'] for c in r.get('clients', []) if c.get('uuid')} | {c['id'] for c in r.get('clients', []) if c.get('id')}
+                from egress_access import clients_for
+                our_uuids.update(c['id'] for c in clients_for(row))
                 kept = [c for c in clients_list if (c.get('id') in our_uuids or c.get('uuid') in our_uuids)]
                 num_foreign = len(clients_list) - len(kept)
                 if num_foreign > 0:
@@ -293,6 +295,22 @@ class Store:
     def _request(self, request):
         req = validate_request(request)
         action = req['action']
+        if action in ('egress_state', 'egress_plan', 'egress_check', 'egress_access_plan', 'egress_access_read'):
+            import client_egress as egress
+            if action == 'egress_check' and self.db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running')").fetchone():
+                return self.response('busy')
+            try:
+                import egress_access
+                if action == 'egress_access_plan': result = egress_access.plan(self, req)
+                elif action == 'egress_access_read': result = egress_access.result(self, req['id'])
+                elif action == 'egress_state': result = egress.public()
+                elif action == 'egress_plan': result = egress.plan(self, req)
+                else: result = egress.check(self, req['id'])
+                return {**self.response('ok'), 'egress': result}
+            except egress.EgressError as error:
+                return self.response(error.code)
+            except Exception:
+                return self.response('egress_failed')
         if action.startswith('xray_check_'):
             import xray_transaction as upgrade
             try:
@@ -444,7 +462,7 @@ class Store:
                 code = 'missing'
             elif action == 'resume':
                 original = json.loads(row['request'])
-                if original['kind'] not in ('panel_install', 'panel_update', 'vless_apply', 'awg_apply', 'awg_external_edit', 'tt_apply', 'tt_external_edit', 'tt_certificate', 'component_install', 'protocol_remove', 'inbound_update', 'inbound_remove') or row['status'] not in ('failed', 'partially_applied'):
+                if original['kind'] not in ('panel_install', 'panel_update', 'vless_apply', 'awg_apply', 'awg_external_edit', 'tt_apply', 'tt_external_edit', 'tt_certificate', 'component_install', 'protocol_remove', 'inbound_update', 'inbound_remove', 'egress_access') or row['status'] not in ('failed', 'partially_applied'):
                     code = 'conflict'
                 elif self.db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running')").fetchone():
                     code = 'busy'
@@ -494,6 +512,30 @@ class Store:
             if row['status'] == 'planned':
                 self.db.execute("UPDATE jobs SET status='running' WHERE id=?", (job_id,))
                 self.event(job_id, 'running', row['checkpoint'], req['count'])
+        if req['kind'] in ('egress_apply', 'egress_access'):
+            import client_egress as egress
+            import egress_access
+            task = egress.EgressApply(self, req) if req['kind'] == 'egress_apply' else egress_access.AccessApply(self, req)
+            try:
+                if row['cancel']:
+                    if task.path.exists(): task.rollback()
+                    status, code = 'cancelled', 'cancelled'
+                else:
+                    task.step(row['checkpoint'])
+                    if row['checkpoint'] + 1 < req['count']: return .1
+                    status, code = 'succeeded', 'succeeded'
+            except Exception as error:
+                code = error.code if isinstance(error, egress.EgressError) else 'egress_failed'
+                status = 'failed'
+                if task.path.exists():
+                    try: task.rollback()
+                    except Exception:
+                        status, code = 'needs_attention', 'egress_rollback_failed'
+            with self.db:
+                progress = self.db.execute('SELECT checkpoint FROM jobs WHERE id=?', (job_id,)).fetchone()[0]
+                self.db.execute('UPDATE jobs SET status=? WHERE id=?', (status, job_id))
+                self.event(job_id, code, progress, req['count'])
+            return .1
         if req['kind']=='server_reboot':
             import server_reboot as reboot
             try:

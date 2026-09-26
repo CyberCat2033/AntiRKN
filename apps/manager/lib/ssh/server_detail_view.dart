@@ -8,6 +8,7 @@ import '../runner/component_installation_view.dart';
 import '../runner/component_updates_controller.dart';
 import '../runner/runner_panel.dart';
 import 'server_about_view.dart';
+import 'client_egress_card.dart';
 import 'ssh_controller.dart';
 import 'ssh_harden_wizard.dart';
 import 'ssh_panel.dart';
@@ -47,6 +48,7 @@ class ServerDetailView extends StatefulWidget {
     this.plans,
     this.activity,
     this.coreUpgrade,
+    this.clientEgress,
     this.clientCount = 0,
     super.key,
   });
@@ -55,7 +57,7 @@ class ServerDetailView extends StatefulWidget {
   final VpnController? vpn;
   final VoidCallback? onBack;
   final IpDiagnosticsController? diagnostics;
-  final Widget? protocols, plans, activity, coreUpgrade;
+  final Widget? protocols, plans, activity, coreUpgrade, clientEgress;
   final List<ServerProtocolSection> sections;
   final int clientCount;
   @override
@@ -396,6 +398,12 @@ class _ServerDetailViewState extends State<ServerDetailView> {
             ),
           ),
         ],
+        const SizedBox(height: 16),
+        widget.clientEgress ??
+            ClientEgressCard(
+              controller: widget.session.runner,
+              vpn: widget.vpn,
+            ),
         const SizedBox(height: 24),
         AppTwoColumn(
           first: Column(
@@ -538,8 +546,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
       if (!c.initialised) {
         return const Center(child: CircularProgressIndicator());
       }
-      final requiresConnection =
-          !c.hasSavedProfile || c.challenge != null;
+      final requiresConnection = !c.hasSavedProfile || c.challenge != null;
       final index = requiresConnection ? 1 : selected;
       final section = index >= 5 ? widget.sections[index - 5] : null;
       final selecting = section?.selection?.active == true;

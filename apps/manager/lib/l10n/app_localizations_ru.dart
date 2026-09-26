@@ -3643,4 +3643,142 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get serverClearClientsFailed =>
       'Не удалось удалить сторонних клиентов из managed-инбаундов.';
+
+  @override
+  String get egressTitle => 'Выход в интернет';
+
+  @override
+  String get egressUnknown => 'Выход ещё не проверен';
+
+  @override
+  String get egressDirect => 'Напрямую';
+
+  @override
+  String get egressClientTraffic =>
+      'Только трафик клиентов: VLESS, TrustTunnel и AmneziaWG.';
+
+  @override
+  String get egressChecked => 'TCP и UDP проверены';
+
+  @override
+  String get egressConfigure => 'Настроить';
+
+  @override
+  String get egressCheck => 'Проверить';
+
+  @override
+  String get egressInstallPanel => 'Установить 3x-ui';
+
+  @override
+  String get egressViaServer => 'Через другой сервер';
+
+  @override
+  String get egressSource => 'Источник подключения';
+
+  @override
+  String get egressLink => 'VLESS-ссылка';
+
+  @override
+  String get egressCatalog => 'Выбрать из серверов';
+
+  @override
+  String get egressTarget => 'Выходной сервер';
+
+  @override
+  String get egressAddress => 'Адрес для подключения с этого сервера';
+
+  @override
+  String get egressPort => 'Внешний порт VLESS';
+
+  @override
+  String get egressServiceAccess =>
+      'При применении создаётся отдельный доступ для этого сервера.';
+
+  @override
+  String get egressReveal => 'Показать или скрыть ссылку';
+
+  @override
+  String get egressPaste => 'Вставить';
+
+  @override
+  String get egressAdvanced => 'Дополнительно';
+
+  @override
+  String get egressSocksPort => 'Локальный порт SOCKS';
+
+  @override
+  String get egressSocksHelp =>
+      '0 — автоматически, начиная с 1080. Адрес: 127.0.0.1. Порт можно изменить после отключения функции.';
+
+  @override
+  String get egressRulesHelp =>
+      'TCP/UDP направляются через VLESS. Прежние правила Xray имеют приоритет. При недоступности выхода прямого переключения нет.';
+
+  @override
+  String get egressApply => 'Применить';
+
+  @override
+  String get egressPanelRequired =>
+      'Для общего выхода требуется 3x-ui на этом сервере.';
+
+  @override
+  String get egressInvalid =>
+      'Проверьте VLESS-ссылку и параметры подключения. Неподдерживаемые параметры не применяются.';
+
+  @override
+  String get egressUnsupported =>
+      'Обнаружена неподдерживаемая конфигурация. Настройки не изменены.';
+
+  @override
+  String get egressNamespace =>
+      'AmneziaWG в отдельной Docker-сети пока не поддерживается. Для общего выхода требуется сеть хоста или обычная установка.';
+
+  @override
+  String get egressConflict =>
+      'Настройки изменились. Обновите сведения и повторите действие.';
+
+  @override
+  String get egressPortBusy =>
+      'Локальный порт недоступен. Выберите другой порт или автоматический подбор.';
+
+  @override
+  String get egressLoop =>
+      'Выход указывает на этот же сервер. Выберите другой сервер.';
+
+  @override
+  String get egressConfigFailed =>
+      'Xray или TrustTunnel не принял настройки. Проверьте результат восстановления.';
+
+  @override
+  String get egressNetwork =>
+      'Не удалось настроить маршруты клиентов AmneziaWG. Требуются iproute2, iptables и TPROXY.';
+
+  @override
+  String get egressProbeFailed =>
+      'TCP или UDP через выходной сервер не работает. Проверьте VLESS-доступ и сеть.';
+
+  @override
+  String get egressRollbackFailed =>
+      'Автоматическое восстановление не завершено. Требуется проверка настроек сервера.';
+
+  @override
+  String get egressFailed =>
+      'Не удалось выполнить настройку выхода. Подробности доступны в истории операции.';
+
+  @override
+  String get egressPreparing => 'Проверка выходного подключения';
+
+  @override
+  String get egressApplying => 'Настройка выхода клиентов';
+
+  @override
+  String get egressChecking => 'Проверка применённых настроек';
+
+  @override
+  String get egressDisableFirst =>
+      'Сначала отключите выход через другой сервер, затем удаляйте 3x-ui.';
+
+  @override
+  String get egressTtInherited =>
+      'Выход через другой сервер включён в настройках сервера. TrustTunnel использует его автоматически.';
 }

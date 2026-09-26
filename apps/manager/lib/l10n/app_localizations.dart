@@ -6427,6 +6427,246 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to delete unmanaged clients from managed inbounds.'**
   String get serverClearClientsFailed;
+
+  /// No description provided for @egressTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Internet egress'**
+  String get egressTitle;
+
+  /// No description provided for @egressUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Egress has not been checked'**
+  String get egressUnknown;
+
+  /// No description provided for @egressDirect.
+  ///
+  /// In en, this message translates to:
+  /// **'Direct'**
+  String get egressDirect;
+
+  /// No description provided for @egressClientTraffic.
+  ///
+  /// In en, this message translates to:
+  /// **'Client traffic only: VLESS, TrustTunnel and AmneziaWG.'**
+  String get egressClientTraffic;
+
+  /// No description provided for @egressChecked.
+  ///
+  /// In en, this message translates to:
+  /// **'TCP and UDP checked'**
+  String get egressChecked;
+
+  /// No description provided for @egressConfigure.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure'**
+  String get egressConfigure;
+
+  /// No description provided for @egressCheck.
+  ///
+  /// In en, this message translates to:
+  /// **'Check'**
+  String get egressCheck;
+
+  /// No description provided for @egressInstallPanel.
+  ///
+  /// In en, this message translates to:
+  /// **'Install 3x-ui'**
+  String get egressInstallPanel;
+
+  /// No description provided for @egressViaServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Through another server'**
+  String get egressViaServer;
+
+  /// No description provided for @egressSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection source'**
+  String get egressSource;
+
+  /// No description provided for @egressLink.
+  ///
+  /// In en, this message translates to:
+  /// **'VLESS link'**
+  String get egressLink;
+
+  /// No description provided for @egressCatalog.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose from servers'**
+  String get egressCatalog;
+
+  /// No description provided for @egressTarget.
+  ///
+  /// In en, this message translates to:
+  /// **'Exit server'**
+  String get egressTarget;
+
+  /// No description provided for @egressAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Address reachable from this server'**
+  String get egressAddress;
+
+  /// No description provided for @egressPort.
+  ///
+  /// In en, this message translates to:
+  /// **'External VLESS port'**
+  String get egressPort;
+
+  /// No description provided for @egressServiceAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Applying creates a separate access credential for this server.'**
+  String get egressServiceAccess;
+
+  /// No description provided for @egressReveal.
+  ///
+  /// In en, this message translates to:
+  /// **'Show or hide link'**
+  String get egressReveal;
+
+  /// No description provided for @egressPaste.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste'**
+  String get egressPaste;
+
+  /// No description provided for @egressAdvanced.
+  ///
+  /// In en, this message translates to:
+  /// **'Advanced'**
+  String get egressAdvanced;
+
+  /// No description provided for @egressSocksPort.
+  ///
+  /// In en, this message translates to:
+  /// **'Local SOCKS port'**
+  String get egressSocksPort;
+
+  /// No description provided for @egressSocksHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'0 selects a free port starting at 1080. Address: 127.0.0.1. Disable the feature before changing its port.'**
+  String get egressSocksHelp;
+
+  /// No description provided for @egressRulesHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'TCP/UDP are routed through VLESS. Existing Xray rules keep priority. There is no automatic direct fallback if the exit is unavailable.'**
+  String get egressRulesHelp;
+
+  /// No description provided for @egressApply.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply'**
+  String get egressApply;
+
+  /// No description provided for @egressPanelRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Shared egress requires 3x-ui on this server.'**
+  String get egressPanelRequired;
+
+  /// No description provided for @egressInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Check the VLESS link and connection settings. Unsupported options cannot be applied.'**
+  String get egressInvalid;
+
+  /// No description provided for @egressUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'An unsupported configuration was found. Settings were not changed.'**
+  String get egressUnsupported;
+
+  /// No description provided for @egressNamespace.
+  ///
+  /// In en, this message translates to:
+  /// **'AmneziaWG in a separate Docker network is not supported yet. Shared egress requires host networking or a native installation.'**
+  String get egressNamespace;
+
+  /// No description provided for @egressConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings have changed. Refresh and try again.'**
+  String get egressConflict;
+
+  /// No description provided for @egressPortBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'The local port is unavailable. Choose another port or automatic selection.'**
+  String get egressPortBusy;
+
+  /// No description provided for @egressLoop.
+  ///
+  /// In en, this message translates to:
+  /// **'The exit points to this server. Choose a different server.'**
+  String get egressLoop;
+
+  /// No description provided for @egressConfigFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Xray or TrustTunnel rejected the settings. Check the recovery result.'**
+  String get egressConfigFailed;
+
+  /// No description provided for @egressNetwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not configure AmneziaWG client routes. iproute2, iptables and TPROXY are required.'**
+  String get egressNetwork;
+
+  /// No description provided for @egressProbeFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'TCP or UDP through the exit server failed. Check the VLESS credential and network.'**
+  String get egressProbeFailed;
+
+  /// No description provided for @egressRollbackFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic recovery is incomplete. Review the server settings.'**
+  String get egressRollbackFailed;
+
+  /// No description provided for @egressFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not configure egress. See the operation history for details.'**
+  String get egressFailed;
+
+  /// No description provided for @egressPreparing.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking the exit connection'**
+  String get egressPreparing;
+
+  /// No description provided for @egressApplying.
+  ///
+  /// In en, this message translates to:
+  /// **'Configuring client egress'**
+  String get egressApplying;
+
+  /// No description provided for @egressChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking applied settings'**
+  String get egressChecking;
+
+  /// No description provided for @egressDisableFirst.
+  ///
+  /// In en, this message translates to:
+  /// **'Disable egress through another server before removing 3x-ui.'**
+  String get egressDisableFirst;
+
+  /// No description provided for @egressTtInherited.
+  ///
+  /// In en, this message translates to:
+  /// **'Client egress is enabled in the server settings. TrustTunnel uses it automatically.'**
+  String get egressTtInherited;
 }
 
 class _AppLocalizationsDelegate

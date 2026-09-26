@@ -3637,4 +3637,141 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get serverClearClientsFailed =>
       'Failed to delete unmanaged clients from managed inbounds.';
+
+  @override
+  String get egressTitle => 'Internet egress';
+
+  @override
+  String get egressUnknown => 'Egress has not been checked';
+
+  @override
+  String get egressDirect => 'Direct';
+
+  @override
+  String get egressClientTraffic =>
+      'Client traffic only: VLESS, TrustTunnel and AmneziaWG.';
+
+  @override
+  String get egressChecked => 'TCP and UDP checked';
+
+  @override
+  String get egressConfigure => 'Configure';
+
+  @override
+  String get egressCheck => 'Check';
+
+  @override
+  String get egressInstallPanel => 'Install 3x-ui';
+
+  @override
+  String get egressViaServer => 'Through another server';
+
+  @override
+  String get egressSource => 'Connection source';
+
+  @override
+  String get egressLink => 'VLESS link';
+
+  @override
+  String get egressCatalog => 'Choose from servers';
+
+  @override
+  String get egressTarget => 'Exit server';
+
+  @override
+  String get egressAddress => 'Address reachable from this server';
+
+  @override
+  String get egressPort => 'External VLESS port';
+
+  @override
+  String get egressServiceAccess =>
+      'Applying creates a separate access credential for this server.';
+
+  @override
+  String get egressReveal => 'Show or hide link';
+
+  @override
+  String get egressPaste => 'Paste';
+
+  @override
+  String get egressAdvanced => 'Advanced';
+
+  @override
+  String get egressSocksPort => 'Local SOCKS port';
+
+  @override
+  String get egressSocksHelp =>
+      '0 selects a free port starting at 1080. Address: 127.0.0.1. Disable the feature before changing its port.';
+
+  @override
+  String get egressRulesHelp =>
+      'TCP/UDP are routed through VLESS. Existing Xray rules keep priority. There is no automatic direct fallback if the exit is unavailable.';
+
+  @override
+  String get egressApply => 'Apply';
+
+  @override
+  String get egressPanelRequired =>
+      'Shared egress requires 3x-ui on this server.';
+
+  @override
+  String get egressInvalid =>
+      'Check the VLESS link and connection settings. Unsupported options cannot be applied.';
+
+  @override
+  String get egressUnsupported =>
+      'An unsupported configuration was found. Settings were not changed.';
+
+  @override
+  String get egressNamespace =>
+      'AmneziaWG in a separate Docker network is not supported yet. Shared egress requires host networking or a native installation.';
+
+  @override
+  String get egressConflict => 'Settings have changed. Refresh and try again.';
+
+  @override
+  String get egressPortBusy =>
+      'The local port is unavailable. Choose another port or automatic selection.';
+
+  @override
+  String get egressLoop =>
+      'The exit points to this server. Choose a different server.';
+
+  @override
+  String get egressConfigFailed =>
+      'Xray or TrustTunnel rejected the settings. Check the recovery result.';
+
+  @override
+  String get egressNetwork =>
+      'Could not configure AmneziaWG client routes. iproute2, iptables and TPROXY are required.';
+
+  @override
+  String get egressProbeFailed =>
+      'TCP or UDP through the exit server failed. Check the VLESS credential and network.';
+
+  @override
+  String get egressRollbackFailed =>
+      'Automatic recovery is incomplete. Review the server settings.';
+
+  @override
+  String get egressFailed =>
+      'Could not configure egress. See the operation history for details.';
+
+  @override
+  String get egressPreparing => 'Checking the exit connection';
+
+  @override
+  String get egressApplying => 'Configuring client egress';
+
+  @override
+  String get egressChecking => 'Checking applied settings';
+
+  @override
+  String get egressDisableFirst =>
+      'Disable egress through another server before removing 3x-ui.';
+
+  @override
+  String get egressTtInherited =>
+      'Client egress is enabled in the server settings. TrustTunnel uses it automatically.';
 }

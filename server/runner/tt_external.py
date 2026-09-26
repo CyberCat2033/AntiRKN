@@ -200,6 +200,8 @@ def patched(p,r,vpn,hosts):
     if not same and not available(c['listen'],c['port'],c['quic']): raise TtError('tt_port_busy')
     if same and c['quic'] and 'quic' not in vpn.get('listen_protocols',{}) and not available(c['listen'],c['port'],udp_only=True): raise TtError('tt_port_busy')
     if c['outbound']=='socks5': check_socks(c['socksAddress'])
+    from client_egress import effective_forward
+    effective_forward(v)
     return toml_bytes(v),toml_bytes(h),info
 
 
@@ -251,6 +253,8 @@ class ExternalTtEdit:
                         certificates.activate(source,old)
                         certificates.install_timer()
                     for file,raw in zip((r['settings'],r['hosts']),backup['after']): write_existing(Path(file),raw.encode(),r['ownerUid'])
+                    from client_egress import remember_tt_forward
+                    remember_tt_forward(r['settings'], toml_loads(backup['before'][0]).get('forward_protocol'))
                     c=p['changes']
                     cid=c['certificateId'] or source['id']
                     link=digest([r['id'],c['hostIndex']])[:32]

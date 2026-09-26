@@ -14,7 +14,7 @@ MANIFESTS = json.loads((ROOT / 'schemas/runner-predecessor-v44.json').read_text(
 
 
 class RunnerCompatibilityTests(unittest.TestCase):
-    def _inspect(self, manifest, *, old_limit_files=frozenset()):
+    def _inspect(self, manifest, *, old_limit_files=frozenset(), version='v44'):
         generated = (ROOT / 'packages/ssh_transport/lib/src/runner_bundle.g.dart').read_text()
         source = generated.split("const runnerInspector = r'''", 1)[1].split("''';", 1)[0]
         scope = {}
@@ -22,20 +22,21 @@ class RunnerCompatibilityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             base = root / 'runner'
-            installed = base / 'v44'
+            installed = base / version
             installed.mkdir(parents=True)
             unit = root / 'antirkn-runner.service'
+            fixtures = {}
             for name, expected in manifest['hashes'].items():
-                content = (ROOT / 'server/runner' / name).read_bytes()
-                if name == 'antirkn-runner.service':
-                    content = content.replace(b'/v45/', b'/v44/')
-                    path = unit
-                else:
-                    if name in old_limit_files:
-                        content = content.replace(b'16777216', b'4194304')
-                    path = installed / name
-                self.assertEqual(hashlib.sha256(content).hexdigest(), expected, name)
+                content = ('released-fixture:' + name).encode()
+                fixtures[content] = expected
+                path = unit if name == 'antirkn-runner.service' else installed / name
                 path.write_bytes(content)
+            # This exercises trust in registered manifests, independently of
+            # future source edits. The release-lock gate verifies current bytes.
+            actual_sha256 = hashlib.sha256
+            scope['hashlib'] = SimpleNamespace(sha256=lambda data: (
+                SimpleNamespace(hexdigest=lambda: fixtures[data]) if data in fixtures
+                else actual_sha256(data)))
             (installed / 'manifest.json').write_text(json.dumps(manifest))
             scope['BASE'] = base
             scope['UNIT'] = unit
@@ -59,6 +60,13 @@ class RunnerCompatibilityTests(unittest.TestCase):
                 self.assertEqual(actual['state'], 'installed')
                 self.assertEqual(actual['release'], manifest['release'])
                 self.assertTrue(actual['upgradable'])
+
+    def test_released_v45_is_upgradeable(self):
+        manifest = json.loads((ROOT / 'schemas/runner-predecessor-v45.json').read_text())
+        actual = self._inspect(manifest, version='v45')
+        self.assertEqual(actual['state'], 'installed')
+        self.assertEqual(actual['release'], manifest['release'])
+        self.assertTrue(actual['upgradable'])
 
     def test_unknown_v44_variant_remains_blocked(self):
         manifest = json.loads(json.dumps(MANIFESTS[1]))

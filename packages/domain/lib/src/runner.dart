@@ -324,6 +324,8 @@ final class RunnerJob {
           'component_install',
           'protocol_remove',
           'server_reboot',
+          'egress_apply',
+          'egress_access',
           'inbound_update',
           'inbound_remove',
           'apt_update',
@@ -388,7 +390,10 @@ final class RunnerJob {
 
 final class RunnerResponse {
   RunnerResponse.fromJson(Map<String, dynamic> value)
-    : xrayCheck = value['xrayCheck'] == null
+    : egress = value['egress'] == null
+          ? null
+          : Map<String, dynamic>.from(value['egress'] as Map),
+      xrayCheck = value['xrayCheck'] == null
           ? null
           : Map<String, dynamic>.from(value['xrayCheck'] as Map),
       removalPlan = value['removalPlan'] == null
@@ -487,6 +492,7 @@ final class RunnerResponse {
     }
   }
   final String code;
+  final Map<String, dynamic>? egress;
   final Map<String, dynamic>? xrayCheck;
   final Map<String, dynamic>? removalPlan;
   final Map<String, dynamic>? awgDefaults, awgPlan, awgExternal, tt;

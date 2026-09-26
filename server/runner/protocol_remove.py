@@ -274,6 +274,10 @@ def discover(protocol):
 
 
 def plan(protocol):
+    if protocol == 'vless':
+        from client_egress import load
+        if (load() or {}).get('enabled'):
+            raise RemovalError('egress_disable_first')
     record = discover(protocol)
     return dict(protocol=protocol, fingerprint=record['fingerprint'],
                 services=record['units'], containers=[c['name'] for c in record['containers']],
@@ -287,6 +291,10 @@ class ProtocolRemoval:
         self.record_file = self.directory / 'plan.json'
 
     def step(self, checkpoint):
+        if self.request['protocol'] == 'vless':
+            from client_egress import load
+            if (load() or {}).get('enabled'):
+                raise RemovalError('egress_disable_first')
         if checkpoint == 0:
             prune_quarantines(self.store.directory, keep=2)
             record = discover(self.request['protocol'])

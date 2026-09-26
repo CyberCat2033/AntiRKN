@@ -48,6 +48,8 @@ def configure(action, name):
     with (ROOT / '.network.lock').open('a') as lock:
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
         if action == 'up':
+            from egress_network import register_interface
+            register_interface(name)
             run(['/usr/sbin/sysctl', '-w', 'net.ipv4.ip_forward=1'])
             if data['pool6']:
                 run(['/usr/sbin/sysctl', '-w', 'net.ipv6.conf.all.forwarding=1'])

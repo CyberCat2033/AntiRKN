@@ -201,6 +201,9 @@ def wanted_inbound(payload, r, current=None):
         flow='xtls-rprx-vision' if r['transport'] == 'raw' else '',
         totalGB=0, expiryTime=0, limitIp=0, tgId=0, subId='', reset=0)
         for u in payload['users'] if not r.get('internal', False)]
+    from egress_access import clients_for
+    for service_client in clients_for(current):
+        clients.append({**service_client, 'flow': 'xtls-rprx-vision' if r['transport'] == 'raw' else ''})
     stream = dict(network='tcp' if r['transport'] == 'raw' else 'xhttp', security=r['security'])
     if r['security'] == 'reality':
         stream['realitySettings'] = dict(show=False, target=r['target'], xver=0,

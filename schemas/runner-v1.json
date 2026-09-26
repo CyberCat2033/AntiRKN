@@ -63,7 +63,12 @@
           "xray_check_begin",
           "xray_check_commit",
           "xray_check_abort",
-          "clear_managed_clients"
+          "clear_managed_clients",
+          "egress_state",
+          "egress_plan",
+          "egress_check",
+          "egress_access_plan",
+          "egress_access_read"
         ]
       },
       "id": {
@@ -89,7 +94,9 @@
           "protocol_remove",
           "ssh_harden",
           "inbound_remove",
-          "server_reboot"
+          "server_reboot",
+          "egress_apply",
+          "egress_access"
         ]
       },
       "count": {
@@ -395,6 +402,30 @@
       "clear_managed_clients": [
         "version",
         "action"
+      ],
+      "egress_state": [
+        "version",
+        "action"
+      ],
+      "egress_plan": [
+        "version",
+        "action",
+        "payload"
+      ],
+      "egress_check": [
+        "version",
+        "action",
+        "id"
+      ],
+      "egress_access_plan": [
+        "version",
+        "action",
+        "payload"
+      ],
+      "egress_access_read": [
+        "version",
+        "action",
+        "id"
       ]
     },
     "submissions": {
@@ -560,6 +591,26 @@
         "kind",
         "count",
         "interval"
+      ],
+      "egress_apply": [
+        "version",
+        "action",
+        "id",
+        "kind",
+        "count",
+        "interval",
+        "payload",
+        "fingerprint"
+      ],
+      "egress_access": [
+        "version",
+        "action",
+        "id",
+        "kind",
+        "count",
+        "interval",
+        "payload",
+        "fingerprint"
       ]
     },
     "kindConstants": {
@@ -613,6 +664,14 @@
       },
       "server_reboot": {
         "count": 2,
+        "interval": 1
+      },
+      "egress_apply": {
+        "count": 3,
+        "interval": 1
+      },
+      "egress_access": {
+        "count": 3,
         "interval": 1
       }
     }
@@ -739,7 +798,22 @@
     "vpn_adoption_invalid",
     "vpn_adoption_unsupported",
     "vpn_adoption_conflict",
-    "vpn_adoption_failed"
+    "vpn_adoption_failed",
+    "egress_invalid",
+    "egress_unsupported",
+    "egress_namespace",
+    "egress_conflict",
+    "egress_port_busy",
+    "egress_loop",
+    "egress_config_failed",
+    "egress_network",
+    "egress_probe_failed",
+    "egress_failed",
+    "egress_rollback_failed",
+    "egress_preparing",
+    "egress_applying",
+    "egress_checking",
+    "egress_disable_first"
   ],
   "codes": [
     "ok",
@@ -816,7 +890,19 @@
     "server_reboot_waiting",
     "server_reboot_done",
     "server_reboot_failed",
-    "clear_managed_clients_failed"
+    "clear_managed_clients_failed",
+    "egress_invalid",
+    "egress_unsupported",
+    "egress_namespace",
+    "egress_conflict",
+    "egress_port_busy",
+    "egress_loop",
+    "egress_config_failed",
+    "egress_network",
+    "egress_probe_failed",
+    "egress_failed",
+    "egress_rollback_failed",
+    "egress_disable_first"
   ],
   "maxRequestBytes": 524288,
   "maxEvents": 256,
