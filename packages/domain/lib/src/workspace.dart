@@ -22,7 +22,12 @@ abstract interface class ServerRepository {
   Future<List<SavedServer>> listServers();
 
   /// Removes the reviewed revisions together, including their secret records.
-  Future<void> deleteServers(List<SavedServer> expected);
+  /// Explicit local forgetting may also detach remaining SSH jump references
+  /// in the same transaction, without changing their credentials or host keys.
+  Future<void> deleteServers(
+    List<SavedServer> expected, {
+    bool detachJumpReferences = false,
+  });
   Future<SecretVault> openServer(String id);
   String newServerId();
   bool get needsLegacyPassword;

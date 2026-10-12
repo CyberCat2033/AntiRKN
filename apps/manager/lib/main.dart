@@ -516,6 +516,7 @@ class _ManagerShellState extends State<ManagerShell>
             ? widget.servers as WorkspaceRecoveryStore
             : null,
         template: () => _controller.source,
+        pickTemplate: widget.pickTemplate,
         serverName: (id) => _catalog?.serverDisplayName(id) ?? id,
         serverIds: () =>
             _catalog?.servers.expand(

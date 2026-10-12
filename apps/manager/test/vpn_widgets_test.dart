@@ -5,6 +5,7 @@ import 'package:antirkn_manager/network/network_controller.dart';
 import 'package:antirkn_manager/network/sample_inventory_reader.dart';
 import 'package:antirkn_manager/vpn/inbounds_panel.dart';
 import 'package:antirkn_manager/vpn/users_page.dart';
+import 'package:antirkn_manager/vpn/vpn_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'vpn_controller_test.dart' as fixtures;
@@ -112,14 +113,14 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       final store = fixtures.MemoryVpn();
       final remote = tt.TtRemote(store)..busyOnce = false;
-      final c = fixtures.controller(
-        store,
-        {ttTarget('one'): remote},
-        source: () =>
-            'proxy-groups: [{name: WG, type: select, include-all-proxies: true, filter: WireGuard}]',
-      );
-      addTearDown(c.dispose);
+      late final VpnController c;
       await tester.runAsync(() async {
+        c = fixtures.controller(
+          store,
+          {ttTarget('one'): remote},
+          source: () =>
+              'proxy-groups: [{name: WG, type: select, include-all-proxies: true, filter: WireGuard}]',
+        );
         await c.load();
         await c.saveUser(
           VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice'),
@@ -128,6 +129,7 @@ void main() {
         await c.prepare();
         await c.apply();
       });
+      addTearDown(c.dispose);
       expect(c.error, isNull);
       expect(c.workspace.inbounds, isEmpty);
       expect(c.workspace.awgInterfaces, isEmpty);
@@ -152,16 +154,16 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('vpn-sync-and-publish')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('vpn-sync-and-publish')),
+        findsOneWidget,
+      );
       await tester.runAsync(() async {
         await tester.tap(find.byKey(ValueKey('client-qr-${fixtures.alice}')));
         await Future<void>.delayed(const Duration(milliseconds: 100));
       });
       await tester.pumpAndSettle();
-      expect(
-        find.textContaining('The group is empty'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('The group is empty'), findsOneWidget);
       final save = find.widgetWithText(FilledButton, 'Save YAML');
       expect(save, findsOneWidget);
       await tester.tap(save);

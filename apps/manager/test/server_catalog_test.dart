@@ -63,7 +63,19 @@ class _Repository
   int revision = 1;
   final deletedRevisions = <int>[];
   @override
-  Future<void> deleteServers(List<SavedServer> expected) async {
+  Future<void> deleteServers(
+    List<SavedServer> expected, {
+    bool detachJumpReferences = false,
+  }) async {
+    if (detachJumpReferences) {
+      final ids = expected.map((server) => server.id).toSet();
+      for (final entry in servers.entries.toList()) {
+        if (!ids.contains(entry.key) &&
+            ids.contains(entry.value.jumpServerId)) {
+          servers[entry.key] = entry.value.withJumpServer(null);
+        }
+      }
+    }
     for (final server in expected) {
       deletedRevisions.add(server.revision);
       servers.remove(server.id);
@@ -170,30 +182,36 @@ void main() {
     expect(connector.calls, 0);
   });
 
-  test('local forget keeps a server used as an unselected SSH jump', () async {
-    final repo = _Repository()
+  test(
+    'local forget detaches a lost SSH jump and preserves other servers',
+    () async {
+      final repo = _Repository()
+        ..servers.addAll({'a': profile('a'), 'b': profile('b', jump: 'a')});
+      final c = ServerCatalogController(
+        repository: repo,
+        connector: FakeConnector(),
+        picker: FakeKeyPicker(),
+        reader: TestInventoryReader(() async => testInventory()),
+      );
+      addTearDown(c.dispose);
+      await c.load();
+      var abandoned = false;
+
+      await c.forgetServersLocally({
+        'a',
+      }, abandonVpnState: () async => abandoned = true);
+
+      expect(c.error, isNull);
+      expect(abandoned, isTrue);
+      expect(repo.servers.keys, ['b']);
+      expect(repo.servers['b']!.jumpServerId, isNull);
+      expect(repo.servers['b']!.secrets, profile('b').secrets);
+    },
+  );
+
+  testWidgets('offline deletion explains and detaches a jump', (tester) async {
+    final repository = _Repository()
       ..servers.addAll({'a': profile('a'), 'b': profile('b', jump: 'a')});
-    final c = ServerCatalogController(
-      repository: repo,
-      connector: FakeConnector(),
-      picker: FakeKeyPicker(),
-      reader: TestInventoryReader(() async => testInventory()),
-    );
-    addTearDown(c.dispose);
-    await c.load();
-    var abandoned = false;
-
-    await c.forgetServersLocally({
-      'a',
-    }, abandonVpnState: () async => abandoned = true);
-
-    expect(c.error, VaultIssue.busy);
-    expect(abandoned, isFalse);
-    expect(repo.servers.keys, containsAll(['a', 'b']));
-  });
-
-  testWidgets('blocked deletion offers explicit local forget', (tester) async {
-    final repository = _Repository()..servers['a'] = profile('a');
     final connector = FakeConnector();
     final catalog = ServerCatalogController(
       repository: repository,
@@ -242,19 +260,21 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Forget inaccessible server?'), findsOneWidget);
+    expect(find.textContaining('SSH jump references'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('ssh-forget-local-confirm')));
     await tester.pump();
     await tester.runAsync(() async {
       for (
         var attempt = 0;
-        attempt < 100 && repository.servers.isNotEmpty;
+        attempt < 100 && repository.servers.containsKey('a');
         attempt++
       ) {
         await Future<void>.delayed(const Duration(milliseconds: 20));
       }
     });
     await tester.pump(const Duration(seconds: 1));
-    expect(repository.servers, isEmpty);
+    expect(repository.servers.keys, ['b']);
+    expect(repository.servers['b']!.jumpServerId, isNull);
     expect(vpn.workspace.inbounds.single.deleted, isTrue);
     expect(connector.calls, 0);
   });

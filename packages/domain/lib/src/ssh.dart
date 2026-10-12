@@ -63,6 +63,20 @@ final class SshProfile {
               ? (secrets[ServerSecret.sshPassword]?.isNotEmpty ?? false)
               : (secrets[ServerSecret.privateKey]?.isNotEmpty ?? false)));
 
+  SshProfile withJumpServer(String? value) => SshProfile(
+    id: id,
+    name: name,
+    host: host,
+    port: port,
+    username: username,
+    authMethod: authMethod,
+    secrets: secrets,
+    keyName: keyName,
+    hostKey: hostKey,
+    lastInfo: lastInfo,
+    jumpServerId: value,
+  );
+
   SshProfile withHostKey(TrustedHostKey? value) => SshProfile(
     id: id,
     name: name,

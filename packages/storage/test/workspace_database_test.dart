@@ -110,6 +110,76 @@ void main() {
     },
   );
 
+  for (final isolated in [false, true]) {
+    test(
+      'forget a lost SSH jump detaches references atomically (isolated=$isolated)',
+      () async {
+        final db = isolated
+            ? await WorkspaceDatabase.openIsolated(
+                path,
+                key: SecretKeyData(List.generate(32, (i) => i)),
+              )
+            : open();
+        if (isolated) databases.add(db);
+        final a = db.newServerId(), b = db.newServerId();
+        await (await db.openServer(a)).saveProfile(profile('lost.test'));
+        await (await db.openServer(
+          b,
+        )).saveProfile(profile('remaining.test', jump: a));
+        final stale = await db.openServer(b);
+        var before = await db.listServers();
+        final original = before.singleWhere((s) => s.id == b);
+        await (await db.openServer(a)).saveProfile(profile('lost-new.test'));
+        await expectLater(
+          db.deleteServers(
+            before.where((s) => s.id == a).toList(),
+            detachJumpReferences: true,
+          ),
+          throwsA(isA<VaultFailure>()),
+        );
+        expect(
+          (await db.listServers())
+              .singleWhere((s) => s.id == b)
+              .profile
+              .jumpServerId,
+          a,
+        );
+        before = await db.listServers();
+        final sequence = (await db.readChanges()).last.header.sequence;
+        await db.deleteServers(
+          before.where((s) => s.id == a).toList(),
+          detachJumpReferences: true,
+        );
+        final saved = (await db.listServers()).single;
+        expect(saved.id, b);
+        expect(saved.profile.jumpServerId, isNull);
+        expect(saved.profile.secrets, original.profile.secrets);
+        expect(
+          saved.profile.hostKey?.fingerprint,
+          original.profile.hostKey?.fingerprint,
+        );
+        expect(saved.revision, original.revision + 1);
+        final changes = await db.readChanges(afterSequence: sequence);
+        expect(
+          changes.where((c) => c.header.deleted).single.header.entityId,
+          a,
+        );
+        expect(
+          changes.where((c) => !c.header.deleted).single.header.entityId,
+          b,
+        );
+        expect(
+          changes.map((c) => c.header.transactionId).toSet(),
+          hasLength(1),
+        );
+        await expectLater(
+          stale.saveProfile(profile('stale.test', jump: a)),
+          throwsA(isA<VaultFailure>()),
+        );
+      },
+    );
+  }
+
   test(
     'runner request and cursor survive restart encrypted and isolated by server',
     () async {

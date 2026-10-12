@@ -39,8 +39,10 @@ class Repository extends MemoryRunnerJournal implements ServerRepository {
   @override
   String newServerId() => 'fixture';
   @override
-  Future<void> deleteServers(List<SavedServer> expected) async =>
-      vault.saveProfile(null);
+  Future<void> deleteServers(
+    List<SavedServer> expected, {
+    bool detachJumpReferences = false,
+  }) async => vault.saveProfile(null);
 }
 
 Widget app(Widget child) => MaterialApp(

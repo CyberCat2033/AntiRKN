@@ -182,7 +182,9 @@ ProfileResult _compile((String, String, String, Map<String, String>) input) {
       );
     }
     return const ProfileCompiler().compile(
-      template: input.$2,
+      template: workspace.users
+          .singleWhere((user) => user.id == input.$3)
+          .profileTemplate(input.$2),
       userId: input.$3,
       accesses: accesses,
     );
@@ -205,20 +207,25 @@ Map<String, ProfileResult> _compileBatch(
   (String, String, List<String>, Map<String, String>) input,
 ) {
   final workspace = VpnWorkspace.decode(input.$1);
-  final template = input.$2;
   final userIds = input.$3;
   final serverNames = input.$4;
   final results = <String, ProfileResult>{};
   const compiler = ProfileCompiler();
-  PreparedProfileTemplate? prepared;
-  try {
-    prepared = compiler.prepare(template);
-  } catch (_) {
-    // Preserve the compiler's existing per-user diagnostics for bad templates.
-  }
+  final templates = <String, PreparedProfileTemplate?>{};
+  final users = {for (final user in workspace.users) user.id: user};
 
   for (final userId in userIds) {
     try {
+      final template = users[userId]!.profileTemplate(input.$2);
+      if (!templates.containsKey(template)) {
+        try {
+          templates[template] = compiler.prepare(template);
+        } catch (_) {
+          // Preserve per-user diagnostics for a malformed template.
+          templates[template] = null;
+        }
+      }
+      final prepared = templates[template];
       final pending = <ProfileAccessException>[];
       final accesses = [
         ...vlessUserAccesses(
@@ -293,6 +300,7 @@ class VpnController extends ChangeNotifier {
     required this.repository,
     required this.remote,
     required this.template,
+    this.pickTemplate,
     this.serverIds,
     this.serverName,
     this.connectForDeletion,
@@ -328,6 +336,7 @@ class VpnController extends ChangeNotifier {
 
   final VpnRemote? Function(String) remote;
   final String Function() template;
+  final Future<ImportedTemplate?> Function()? pickTemplate;
   final Iterable<String> Function()? serverIds;
   final String Function(String)? serverName;
 
@@ -982,6 +991,8 @@ class VpnController extends ChangeNotifier {
               id: user.id,
               login: user.login,
               name: user.name,
+              baseTemplate: user.baseTemplate,
+              baseTemplateName: user.baseTemplateName,
               enabled: false,
               deletion: {
                 ...user.deletion!,
@@ -1066,6 +1077,7 @@ class VpnController extends ChangeNotifier {
       await connections.forgetServers(physical);
       await _approveRestored(targets);
       await _profiles();
+      serverSyncIssue = null;
       saved = true;
     });
     return saved && error == null;

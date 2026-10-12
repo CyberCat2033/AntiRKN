@@ -4709,7 +4709,7 @@ abstract class AppLocalizations {
   /// No description provided for @catalogServerForgetBlocked.
   ///
   /// In en, this message translates to:
-  /// **'Could not forget the selection. Another saved server still uses one of these servers as an SSH jump, or the server list changed. Reopen the selection and try again.'**
+  /// **'Could not forget the selection. Local changes are in progress or the server list changed. Try again after they finish.'**
   String get catalogServerForgetBlocked;
 
   /// No description provided for @publicationBindTitle.
@@ -6667,6 +6667,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Client egress is enabled in the server settings. TrustTunnel uses it automatically.'**
   String get egressTtInherited;
+
+  /// No description provided for @vpnIndividualTemplate.
+  ///
+  /// In en, this message translates to:
+  /// **'Individual base config'**
+  String get vpnIndividualTemplate;
+
+  /// No description provided for @vpnIndividualTemplateHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Use a separate YAML file for this client.'**
+  String get vpnIndividualTemplateHelp;
+
+  /// No description provided for @vpnSharedTemplateHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Use the shared base config from settings.'**
+  String get vpnSharedTemplateHelp;
+
+  /// No description provided for @vpnIndividualTemplateRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a YAML file for this client.'**
+  String get vpnIndividualTemplateRequired;
+
+  /// No description provided for @catalogForgetServerJumpWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'SSH jump references to these servers will be removed from other saved connections. Choose a new SSH route for those servers afterwards.'**
+  String get catalogForgetServerJumpWarning;
 }
 
 class _AppLocalizationsDelegate

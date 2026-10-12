@@ -122,6 +122,8 @@ extension ClientDeletion on VpnController {
                 id: user.id,
                 login: user.login,
                 name: user.name,
+                baseTemplate: user.baseTemplate,
+                baseTemplateName: user.baseTemplateName,
                 enabled: false,
                 deletion: deletion,
               )
@@ -152,6 +154,8 @@ extension ClientDeletion on VpnController {
                 id: u.id,
                 login: u.login,
                 name: u.name,
+                baseTemplate: u.baseTemplate,
+                baseTemplateName: u.baseTemplateName,
                 enabled: false,
                 deletion: deletion,
               ),
@@ -221,6 +225,8 @@ extension ClientDeletion on VpnController {
             id: user.id,
             login: user.login,
             name: user.name,
+            baseTemplate: user.baseTemplate,
+            baseTemplateName: user.baseTemplateName,
             enabled: false,
             deletion: {
               'version': 1,

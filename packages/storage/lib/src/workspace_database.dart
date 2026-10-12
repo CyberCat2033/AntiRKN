@@ -435,8 +435,11 @@ final class WorkspaceDatabase
   });
 
   @override
-  Future<void> deleteServers(List<SavedServer> expected) => _dbWorker != null
-      ? _remoteCall('deleteServers', [expected])
+  Future<void> deleteServers(
+    List<SavedServer> expected, {
+    bool detachJumpReferences = false,
+  }) => _dbWorker != null
+      ? _remoteCall('deleteServers', [expected, detachJumpReferences])
       : _serial(() async {
           _checkSyncEffectsNow();
           final ids = expected.map((s) => s.id).toSet();
@@ -448,6 +451,7 @@ final class WorkspaceDatabase
             for (final row in rows) row['id'] as String: row['revision'],
           });
           final sources = <String, String>{};
+          final detached = <String, (int, String, Uint8List)>{};
           for (final row in rows) {
             final id = row['id'] as String;
             final source = await _decrypt(
@@ -459,7 +463,19 @@ final class WorkspaceDatabase
               jsonDecode(source) as Map<String, dynamic>,
             );
             if (!ids.contains(id) && ids.contains(profile.jumpServerId)) {
-              throw const VaultFailure(VaultIssue.busy);
+              if (!detachJumpReferences) {
+                throw const VaultFailure(VaultIssue.busy);
+              }
+              final revision = (row['revision'] as int) + 1;
+              final updated = jsonEncode(
+                encodeProfile(profile.withJumpServer(null)),
+              );
+              detached[id] = (
+                revision,
+                updated,
+                await _encrypt('server:$id', revision, updated),
+              );
+              sources[id] = source;
             }
             if (ids.contains(id)) sources[id] = source;
           }
@@ -470,9 +486,16 @@ final class WorkspaceDatabase
               throw const VaultFailure(VaultIssue.busy);
             }
           }
-          final changes = await _journal.prepare({
-            for (final e in sources.entries) ..._serverEntities(e.key, e.value),
-          }, {});
+          final changes = await _journal.prepare(
+            {
+              for (final e in sources.entries)
+                ..._serverEntities(e.key, e.value),
+            },
+            {
+              for (final e in detached.entries)
+                ..._serverEntities(e.key, e.value.$2),
+            },
+          );
           _transaction(() {
             final currentStamp = canonicalJson({
               for (final row in _db.select('SELECT id, revision FROM servers'))
@@ -487,6 +510,17 @@ final class WorkspaceDatabase
             }
             for (final id in ids) {
               _db.execute('DELETE FROM servers WHERE id=?', [id]);
+            }
+            for (final entry in detached.entries) {
+              _db.execute(
+                'UPDATE servers SET payload=?, revision=?, updated_at=? WHERE id=?',
+                [
+                  entry.value.$3,
+                  entry.value.$1,
+                  DateTime.now().millisecondsSinceEpoch,
+                  entry.key,
+                ],
+              );
             }
             _journal.commit(changes);
           });

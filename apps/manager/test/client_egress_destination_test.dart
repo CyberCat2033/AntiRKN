@@ -29,8 +29,10 @@ class _Repository extends MemoryRunnerJournal implements ServerRepository {
   @override
   String newServerId() => 'exit';
   @override
-  Future<void> deleteServers(List<SavedServer> expected) async =>
-      vault.saveProfile(null);
+  Future<void> deleteServers(
+    List<SavedServer> expected, {
+    bool detachJumpReferences = false,
+  }) async => vault.saveProfile(null);
 }
 
 class _DestinationTransport extends FakeRunnerTransport {

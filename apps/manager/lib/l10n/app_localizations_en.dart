@@ -2660,7 +2660,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get catalogServerForgetBlocked =>
-      'Could not forget the selection. Another saved server still uses one of these servers as an SSH jump, or the server list changed. Reopen the selection and try again.';
+      'Could not forget the selection. Local changes are in progress or the server list changed. Try again after they finish.';
 
   @override
   String get publicationBindTitle => 'Client configuration file';
@@ -3774,4 +3774,23 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get egressTtInherited =>
       'Client egress is enabled in the server settings. TrustTunnel uses it automatically.';
+
+  @override
+  String get vpnIndividualTemplate => 'Individual base config';
+
+  @override
+  String get vpnIndividualTemplateHelp =>
+      'Use a separate YAML file for this client.';
+
+  @override
+  String get vpnSharedTemplateHelp =>
+      'Use the shared base config from settings.';
+
+  @override
+  String get vpnIndividualTemplateRequired =>
+      'Select a YAML file for this client.';
+
+  @override
+  String get catalogForgetServerJumpWarning =>
+      'SSH jump references to these servers will be removed from other saved connections. Choose a new SSH route for those servers afterwards.';
 }

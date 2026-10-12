@@ -25,12 +25,24 @@ final class VpnUser {
     required this.name,
     this.enabled = true,
     this.deletion,
+    this.baseTemplate,
+    this.baseTemplateName,
   }) {
     if (!RegExp(r'^[a-f0-9]{32}$').hasMatch(id) ||
         !RegExp(r'^[A-Za-z0-9_.-]{1,64}$').hasMatch(login) ||
         name.isEmpty ||
         name.length > 80 ||
         name.contains(RegExp(r'[\x00-\x1f\x7f]'))) {
+      throw const FormatException('vpn_user_invalid');
+    }
+    if (baseTemplate != null &&
+            (baseTemplate!.trim().isEmpty ||
+                utf8.encode(baseTemplate!).length > 256 * 1024) ||
+        baseTemplateName != null &&
+            (baseTemplate == null ||
+                baseTemplateName!.isEmpty ||
+                baseTemplateName!.length > 255 ||
+                baseTemplateName!.contains(RegExp(r'[\x00-\x1f\x7f]')))) {
       throw const FormatException('vpn_user_invalid');
     }
     if (deletion != null) {
@@ -85,11 +97,18 @@ final class VpnUser {
     if ((j['deleted'] == true) != (j['deletion'] != null)) {
       throw const FormatException('vpn_user_invalid');
     }
+    final base = j['baseConfig'];
+    if (base != null &&
+        (base is! Map || base['version'] != 1 || base['source'] is! String)) {
+      throw const FormatException('vpn_user_invalid');
+    }
     return VpnUser(
       id: j['id'] as String,
       login: j['login'] as String,
       name: j['name'] as String,
       enabled: j['enabled'] as bool,
+      baseTemplate: base == null ? null : (base as Map)['source'] as String,
+      baseTemplateName: base == null ? null : (base as Map)['name'] as String?,
       deletion: j['deletion'] == null
           ? null
           : Map<String, dynamic>.from(j['deletion'] as Map),
@@ -97,6 +116,9 @@ final class VpnUser {
   }
   final String id, login, name;
   final bool enabled;
+  final String? baseTemplate, baseTemplateName;
+  String profileTemplate(String sharedTemplate) =>
+      baseTemplate ?? sharedTemplate;
   final Map<String, dynamic>? deletion;
   bool get deleted => deletion != null;
   bool get revocationComplete =>
@@ -115,6 +137,12 @@ final class VpnUser {
     'login': login,
     'name': name,
     'enabled': enabled,
+    if (baseTemplate != null)
+      'baseConfig': {
+        'version': 1,
+        'source': baseTemplate,
+        if (baseTemplateName != null) 'name': baseTemplateName,
+      },
     if (deleted) ...{'deleted': true, 'deletion': deletion},
   };
 }

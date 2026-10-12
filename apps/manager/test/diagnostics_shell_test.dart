@@ -50,7 +50,10 @@ class DiagnosticServers implements ServerRepository {
   @override
   String newServerId() => 'unused';
   @override
-  Future<void> deleteServers(List<SavedServer> expected) async {}
+  Future<void> deleteServers(
+    List<SavedServer> expected, {
+    bool detachJumpReferences = false,
+  }) async {}
 }
 
 void main() {

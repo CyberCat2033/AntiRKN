@@ -2665,7 +2665,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get catalogServerForgetBlocked =>
-      'Не удалось забыть выбранные серверы. Другой сохранённый сервер всё ещё использует один из них как SSH-переход либо список серверов изменился. Откройте выбор заново и повторите попытку.';
+      'Не удалось забыть выбранные серверы. Сейчас сохраняются локальные изменения или список серверов изменился. Дождитесь завершения и повторите попытку.';
 
   @override
   String get publicationBindTitle => 'Файл конфигурации клиента';
@@ -3781,4 +3781,23 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get egressTtInherited =>
       'Выход через другой сервер включён в настройках сервера. TrustTunnel использует его автоматически.';
+
+  @override
+  String get vpnIndividualTemplate => 'Индивидуальный базовый конфиг';
+
+  @override
+  String get vpnIndividualTemplateHelp =>
+      'Использовать отдельный YAML-файл для этого клиента.';
+
+  @override
+  String get vpnSharedTemplateHelp =>
+      'Использовать общий базовый конфиг из настроек.';
+
+  @override
+  String get vpnIndividualTemplateRequired =>
+      'Выберите YAML-файл для этого клиента.';
+
+  @override
+  String get catalogForgetServerJumpWarning =>
+      'Ссылки на эти серверы как SSH-переход будут убраны из других сохранённых подключений. После удаления выберите для них новый SSH-маршрут.';
 }

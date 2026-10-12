@@ -14,6 +14,8 @@ import 'vpn_controller.dart';
 import 'vpn_plan_view.dart';
 import 'vpn_strings.dart';
 import 'core_config_check.dart';
+import '../template_controller.dart';
+import '../template_settings.dart';
 
 class UsersPage extends StatefulWidget {
   const UsersPage({
@@ -48,6 +50,7 @@ class UsersPage extends StatefulWidget {
       builder: (_) => _UserForm(
         user: user,
         publications: publications,
+        pickTemplate: controller.pickTemplate,
         existingLogins: () => controller.workspace.users
             .where((u) => !u.deleted)
             .map((u) => u.login),
@@ -81,7 +84,13 @@ class UsersPage extends StatefulWidget {
         await publications.bindFile(preview);
       } catch (_) {}
     }
-    if (controller.error == null && controller.workspace.serverIds.isNotEmpty) {
+    final accessChanged =
+        user == null ||
+        user.login != nextUser.login ||
+        user.enabled != nextUser.enabled;
+    if (controller.error == null &&
+        accessChanged &&
+        controller.workspace.serverIds.isNotEmpty) {
       final serverTimer = Stopwatch()..start();
       await controller.prepareAndApply();
       debugPrint(
@@ -697,10 +706,16 @@ class _AttentionServersSection extends StatelessWidget {
 }
 
 class _UserForm extends StatefulWidget {
-  const _UserForm({required this.existingLogins, this.user, this.publications});
+  const _UserForm({
+    required this.existingLogins,
+    this.user,
+    this.publications,
+    this.pickTemplate,
+  });
   final Iterable<String> Function() existingLogins;
   final VpnUser? user;
   final PublicationController? publications;
+  final Future<ImportedTemplate?> Function()? pickTemplate;
   @override
   State<_UserForm> createState() => _UserFormState();
 }
@@ -709,12 +724,19 @@ class _UserFormState extends State<_UserForm> {
   late final name = TextEditingController(text: widget.user?.name ?? '');
   late final customLink = TextEditingController();
   late bool enabled = widget.user?.enabled ?? true;
+  late bool individualTemplate = widget.user?.baseTemplate != null;
+  late final template = TemplateController(
+    source: widget.user?.baseTemplate ?? '',
+    previewTemplate: previewInBackground,
+    pickTemplate: widget.pickTemplate,
+  )..importedName = widget.user?.baseTemplateName;
   bool picking = false;
   String? error;
   @override
   void dispose() {
     name.dispose();
     customLink.dispose();
+    template.dispose();
     super.dispose();
   }
 
@@ -740,6 +762,25 @@ class _UserFormState extends State<_UserForm> {
                 setState(() => enabled = v);
               },
             ),
+            const Divider(),
+            SwitchListTile(
+              key: const ValueKey('vpn-user-individual-template'),
+              contentPadding: EdgeInsets.zero,
+              title: Text(l.vpnIndividualTemplate),
+              subtitle: Text(
+                individualTemplate
+                    ? l.vpnIndividualTemplateHelp
+                    : l.vpnSharedTemplateHelp,
+              ),
+              value: individualTemplate,
+              onChanged: (value) => setState(() => individualTemplate = value),
+            ),
+            if (individualTemplate)
+              TemplateSettings(
+                controller: template,
+                showTitle: false,
+                emptyMessage: l.vpnIndividualTemplateRequired,
+              ),
             if (widget.user == null &&
                 widget.publications?.settings?.enabled == true &&
                 widget.publications?.settings?.folderReady == true) ...[
@@ -784,12 +825,18 @@ class _UserFormState extends State<_UserForm> {
             ],
             if (widget.user != null && widget.publications != null)
               ListenableBuilder(
-                listenable: Listenable.merge([name, widget.publications!]),
+                listenable: Listenable.merge([
+                  name,
+                  template,
+                  widget.publications!,
+                ]),
                 builder: (context, _) {
                   final c = widget.publications!;
                   final unchanged =
                       name.text.trim() == widget.user!.name &&
-                      enabled == widget.user!.enabled;
+                      enabled == widget.user!.enabled &&
+                      (individualTemplate ? template.source : null) ==
+                          widget.user!.baseTemplate;
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -844,7 +891,12 @@ class _UserFormState extends State<_UserForm> {
                   );
                 },
               ),
-            if (error != null) Text(l.vpnInvalid),
+            if (error != null)
+              Text(
+                error == 'template_required'
+                    ? l.vpnIndividualTemplateRequired
+                    : l.vpnInvalid,
+              ),
           ],
         ),
       ),
@@ -857,6 +909,11 @@ class _UserFormState extends State<_UserForm> {
           key: const ValueKey('vpn-user-save'),
           onPressed: () {
             try {
+              if (template.importing || template.busy) return;
+              if (individualTemplate && template.source.trim().isEmpty) {
+                setState(() => error = 'template_required');
+                return;
+              }
               PublicationTarget? target;
               if (widget.user == null && customLink.text.trim().isNotEmpty) {
                 target = PublicationTarget.parse(customLink.text.trim());
@@ -871,6 +928,10 @@ class _UserFormState extends State<_UserForm> {
                     ),
                 name: name.text.trim(),
                 enabled: enabled,
+                baseTemplate: individualTemplate ? template.source : null,
+                baseTemplateName: individualTemplate
+                    ? template.importedName
+                    : null,
               );
               Navigator.pop(context, (user, target));
             } catch (_) {

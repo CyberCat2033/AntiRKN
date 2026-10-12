@@ -144,7 +144,21 @@ void main() {
     );
     stores.add(first);
     await first.writeDraft('isolated private draft');
+    await first.upsertVpnUser(
+      VpnUser(
+        id: fixtureUserId,
+        login: 'fixture',
+        name: 'Fixture',
+        baseTemplate: 'rules: [MATCH,DIRECT]\n# individual-private-fixture',
+        baseTemplateName: 'individual.yaml',
+      ),
+      expectedRevision: 0,
+    );
     await _upload(await session(first));
+    expect(
+      String.fromCharCodes(remote.snapshot!),
+      isNot(contains('individual-private-fixture')),
+    );
     final second = await WorkspaceDatabase.openIsolated(
       '${directory.path}/isolated-second.sqlite',
       key: SecretKeyData(List.filled(32, 32)),
@@ -158,6 +172,11 @@ void main() {
     );
     stores.add(reopened);
     expect(await reopened.readDraft(), 'isolated private draft');
+    final user = VpnWorkspace.decode(
+      (await reopened.readVpn()).source!,
+    ).users.single;
+    expect(user.baseTemplate, contains('individual-private-fixture'));
+    expect(user.baseTemplateName, 'individual.yaml');
   });
 
   test(

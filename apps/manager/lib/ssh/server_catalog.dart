@@ -78,6 +78,14 @@ class ServerCatalog extends StatefulWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(l.catalogForgetServerWarning),
+                if (controller.servers.any(
+                  (server) =>
+                      !chosen.any((s) => s.id == server.id) &&
+                      chosen.any((s) => s.id == server.profile.jumpServerId),
+                )) ...[
+                  const SizedBox(height: AppLayout.gap),
+                  Text(l.catalogForgetServerJumpWarning),
+                ],
                 const SizedBox(height: AppLayout.gap),
                 for (final server in chosen) Text(server.profile.displayName),
               ],

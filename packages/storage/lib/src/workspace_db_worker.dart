@@ -254,7 +254,10 @@ Future<Object?> _dispatchDatabase(
     args[2] as int,
   ),
   'deleteServers' => await _unit(
-    db.deleteServers(args[0] as List<SavedServer>),
+    db.deleteServers(
+      args[0] as List<SavedServer>,
+      detachJumpReferences: args[1] as bool,
+    ),
   ),
   'readSetting' => await db.readSetting(args[0] as String),
   'writeSetting' => await _unit(

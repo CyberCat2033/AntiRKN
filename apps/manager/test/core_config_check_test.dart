@@ -84,16 +84,17 @@ void main() {
         addTearDown(tester.view.resetPhysicalSize);
         final store = fixtures.MemoryVpn();
         final validator = Validator()..hold = Completer();
-        final c = fixtures.controller(store, {
-          'one': fixtures.Remote(store),
-          'two': fixtures.Remote(store),
-        }, coreValidator: validator);
-        addTearDown(c.dispose);
-        await tester.runAsync(() async {
+        final c = (await tester.runAsync(() async {
+          final c = fixtures.controller(store, {
+            'one': fixtures.Remote(store),
+            'two': fixtures.Remote(store),
+          }, coreValidator: validator);
           await fixtures.setup(c);
           await c.prepare();
           await c.apply();
-        });
+          return c;
+        }))!;
+        addTearDown(c.dispose);
         await tester.pumpWidget(
           MaterialApp(
             locale: Locale(language),

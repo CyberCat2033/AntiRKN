@@ -186,28 +186,31 @@ class ServerCatalogController extends ChangeNotifier {
     notifyListeners();
     try {
       final current = await repository.listServers();
-      if (current.any(
-        (server) =>
-            !ids.contains(server.id) &&
-            ids.contains(server.profile.jumpServerId),
-      )) {
-        throw const VaultFailure(VaultIssue.busy);
-      }
+      final affected = {
+        ...ids,
+        for (final server in current)
+          if (ids.contains(server.profile.jumpServerId)) server.id,
+      };
       if (!await abandonVpnState()) {
         throw const VaultFailure(VaultIssue.writeFailed);
       }
       final selected = current
           .where((server) => ids.contains(server.id))
           .toList();
-      if (selected.isNotEmpty) await repository.deleteServers(selected);
-      for (final id in ids) {
+      if (selected.isNotEmpty) {
+        await repository.deleteServers(selected, detachJumpReferences: true);
+      }
+      for (final id in affected) {
         final session = _sessions.remove(id);
         session?.removeListener(_sessionChanged);
         session?.dispose();
         session?.network.dispose();
       }
-      if (ids.contains(selectedId)) selectedId = null;
+      if (affected.contains(selectedId)) selectedId = null;
       servers = await repository.listServers();
+      for (final session in _sessions.values) {
+        session.updateJumpCandidates(servers);
+      }
     } on VaultFailure catch (e) {
       error = e.issue;
     } catch (_) {

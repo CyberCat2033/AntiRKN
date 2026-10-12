@@ -67,7 +67,14 @@ void main() {
         final previousSequence =
             (await first.readChanges()).last.header.sequence;
         await first.upsertVpnUser(
-          VpnUser(id: 'b' * 32, login: 'renamed', name: 'Updated'),
+          VpnUser(
+            id: 'b' * 32,
+            login: 'renamed',
+            name: 'Updated',
+            baseTemplate:
+                'rules: [MATCH,DIRECT]\n# private-client-base-fixture',
+            baseTemplateName: 'client-base.yaml',
+          ),
           expectedRevision: 1,
         );
         final userChanges = await first.readChanges(
@@ -82,12 +89,18 @@ void main() {
         );
         expect(await second.readSetting('language'), 'ru');
         expect(await second.readDraft(), 'private-template-fixture');
+        final patched = VpnWorkspace.decode(
+          (await second.readVpn()).source!,
+        ).users.single;
+        expect(patched.baseTemplate, contains('private-client-base-fixture'));
+        expect(patched.baseTemplateName, 'client-base.yaml');
         await first.close();
         await second.close();
         final bytes = await File(path).readAsBytes();
         final raw = latin1.decode(bytes);
         for (final secret in [
           'private-client-login',
+          'private-client-base-fixture',
           'Private customer',
           'private-operation-fixture',
           'private-credential-fixture',

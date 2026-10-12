@@ -1022,7 +1022,7 @@
   "catalogForgetServerTitle": "Forget inaccessible server?",
   "catalogForgetServerWarning": "Forget these servers on this device without connecting to them? Their VPN resources and pending operations will be removed from local profiles. Access already issued on a VPS may remain active because revocation cannot be verified. Nothing on the VPS will be changed.",
   "catalogForgetServerAction": "Forget locally",
-  "catalogServerForgetBlocked": "Could not forget the selection. Another saved server still uses one of these servers as an SSH jump, or the server list changed. Reopen the selection and try again.",
+  "catalogServerForgetBlocked": "Could not forget the selection. Local changes are in progress or the server list changed. Try again after they finish.",
   "@catalogSelected": {
     "placeholders": {
       "count": {
@@ -1475,5 +1475,10 @@
   "egressApplying": "Configuring client egress",
   "egressChecking": "Checking applied settings",
   "egressDisableFirst": "Disable egress through another server before removing 3x-ui.",
-  "egressTtInherited": "Client egress is enabled in the server settings. TrustTunnel uses it automatically."
+  "egressTtInherited": "Client egress is enabled in the server settings. TrustTunnel uses it automatically.",
+  "vpnIndividualTemplate": "Individual base config",
+  "vpnIndividualTemplateHelp": "Use a separate YAML file for this client.",
+  "vpnSharedTemplateHelp": "Use the shared base config from settings.",
+  "vpnIndividualTemplateRequired": "Select a YAML file for this client.",
+  "catalogForgetServerJumpWarning": "SSH jump references to these servers will be removed from other saved connections. Choose a new SSH route for those servers afterwards."
 }

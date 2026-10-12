@@ -9,11 +9,13 @@ class TemplateSettings extends StatelessWidget {
   const TemplateSettings({
     required this.controller,
     this.showTitle = true,
+    this.emptyMessage,
     super.key,
   });
 
   final TemplateController controller;
   final bool showTitle;
+  final String? emptyMessage;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -32,7 +34,9 @@ class TemplateSettings extends StatelessWidget {
               controller.importing
                   ? l.templateLoading
                   : controller.importedName ??
-                        (hasSource ? l.templateReady : l.vpnEmptyTemplate),
+                        (hasSource
+                            ? l.templateReady
+                            : emptyMessage ?? l.vpnEmptyTemplate),
             ),
             trailing: const Icon(Icons.chevron_right),
             onTap:
