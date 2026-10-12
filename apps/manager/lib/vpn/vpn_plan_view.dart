@@ -22,7 +22,7 @@ class VpnPlanView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (c.busy) const LinearProgressIndicator(),
+        if (c.foregroundBusy) const LinearProgressIndicator(),
         if (c.visibleError case final error?)
           Semantics(
             liveRegion: true,
@@ -101,11 +101,15 @@ class VpnJobView extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Material(
-              color: Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.4),
+              color: Theme.of(
+                context,
+              ).colorScheme.errorContainer.withValues(alpha: 0.4),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
                 side: BorderSide(
-                  color: Theme.of(context).colorScheme.error.withValues(alpha: 0.3),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.error.withValues(alpha: 0.3),
                 ),
               ),
               child: Padding(
@@ -126,7 +130,9 @@ class VpnJobView extends StatelessWidget {
                           Text(
                             vpnMessage(l, error),
                             style: TextStyle(
-                              color: Theme.of(context).colorScheme.onErrorContainer,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onErrorContainer,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -138,7 +144,9 @@ class VpnJobView extends StatelessWidget {
                                 : () async {
                                     await c.refreshServer(serverId);
                                     if (c.error == null) {
-                                      await c.prepareAndApply(serverIds: {serverId});
+                                      await c.prepareAndApply(
+                                        serverIds: {serverId},
+                                      );
                                     }
                                   },
                             icon: const Icon(Icons.refresh, size: 16),

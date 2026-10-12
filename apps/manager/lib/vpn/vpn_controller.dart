@@ -386,6 +386,8 @@ class VpnController extends ChangeNotifier {
         );
 
   Timer? _timer;
+  Timer? _reconcileRetry;
+  Completer<void>? _backgroundReconcile;
   CancellationToken? _token;
   bool _disposed = false;
   bool _busy = false, loaded = false;
@@ -398,6 +400,15 @@ class VpnController extends ChangeNotifier {
 
   bool get busy => _busy || connections.busy || _upgradeBusy;
   bool get workspaceBusy => _busy || _upgradeBusy;
+  bool get foregroundBusy =>
+      (_busy && _backgroundReconcile == null) ||
+      connections.busy ||
+      _upgradeBusy;
+
+  Future<void> waitForBackgroundReconcile() async {
+    await _backgroundReconcile?.future;
+  }
+
   set busy(bool value) => _busy = value;
   String? error;
 
@@ -514,13 +525,19 @@ class VpnController extends ChangeNotifier {
     return write;
   }
 
-  Future<void> _run(Future<void> Function(CancellationToken) action) async {
+  Future<void> _run(
+    Future<void> Function(CancellationToken) action, {
+    bool background = false,
+  }) async {
+    if (!background) await waitForBackgroundReconcile();
     if (busy || _disposed) return;
+    final backgroundDone = background ? Completer<void>() : null;
+    _backgroundReconcile = backgroundDone;
     busy = true;
     error = null;
     final token = CancellationToken();
     _token = token;
-    _notify();
+    if (!background) _notify();
     try {
       await action(token);
     } on SyncMergeFailure {
@@ -546,7 +563,9 @@ class VpnController extends ChangeNotifier {
       }
       busy = false;
       _token = null;
+      _backgroundReconcile = null;
       _notify();
+      backgroundDone?.complete();
     }
   }
 
@@ -1329,20 +1348,33 @@ class VpnController extends ChangeNotifier {
     await _approveRestored(plans.map((p) => p.serverId));
     plans = [];
     await _reconcile(token);
-    if ((hasRunning || hasObservedRunning) && !_disposed) {
-      Timer(const Duration(seconds: 1), () => unawaited(reconcile()));
-    }
+    _scheduleReconcile();
   });
   bool diagnosticsPaused = false;
+
+  bool get _hasServerReconcileWork => workspace.servers.entries.any(
+    (entry) =>
+        remote(entry.key) != null &&
+        (observesOperation(entry.key) &&
+                currentJob(entry.key)?.terminal != true ||
+            _needsReconcile(entry.key, entry.value)),
+  );
+
+  void _scheduleReconcile() {
+    if (_disposed ||
+        _reconcileRetry?.isActive == true ||
+        !_hasServerReconcileWork) {
+      return;
+    }
+    _reconcileRetry = Timer(const Duration(seconds: 1), () {
+      _reconcileRetry = null;
+      unawaited(reconcile());
+    });
+  }
+
   Future<void> reconcile() async {
     if (!loaded || busy || _disposed || diagnosticsPaused) return;
-    final work =
-        workspace.servers.keys.any(
-          (id) => observesOperation(id) && currentJob(id)?.terminal != true,
-        ) ||
-        workspace.servers.entries.any(
-          (entry) => _needsReconcile(entry.key, entry.value),
-        );
+    final work = _hasServerReconcileWork;
     final fresh = (serverIds?.call() ?? const <String>[]).where((id) {
       final connection = remote(id);
       return connection?.observationKey != null &&
@@ -1367,20 +1399,31 @@ class VpnController extends ChangeNotifier {
         await _reconcile(token);
       }
       if (template() != _lastTemplate) await _profiles();
-    });
-    if ((hasRunning || hasObservedRunning) && !_disposed) {
-      Timer(const Duration(seconds: 1), () => unawaited(reconcile()));
-    }
+    }, background: true);
+    _scheduleReconcile();
   }
 
-  bool _needsReconcile(String id, Map<String, dynamic> record) =>
-      _canAutoResume(id, record) ||
-      record['cancelRequested'] == true ||
-      record['observingCancel'] == true ||
-      (record['paused'] != true &&
-          (record['pending'] != null ||
-              record['authorizedPayload'] != null &&
-                  record['authorizedPayload'] != record['appliedPayload']));
+  bool _needsReconcile(String id, Map<String, dynamic> record) {
+    if (remote(id) == null || _restoredTargets.contains(id)) return false;
+    if (_canAutoResume(id, record) ||
+        record['cancelRequested'] == true ||
+        record['observingCancel'] == true ||
+        (record['paused'] != true && record['pending'] != null)) {
+      return true;
+    }
+    final authorized = record['authorizedPayload'];
+    if (record['paused'] == true ||
+        authorized == null ||
+        authorized == record['appliedPayload']) {
+      return false;
+    }
+    try {
+      return canonicalJson(jsonDecode(authorized as String)) ==
+          canonicalJson(workspace.desired(id, remote(id)!.panelId));
+    } catch (_) {
+      return false;
+    }
+  }
 
   bool _canAutoResume(String id, Map<String, dynamic> record) {
     final pending = record['pending'];
@@ -2135,6 +2178,7 @@ class VpnController extends ChangeNotifier {
   Future<ServerProfileSyncResult> syncAllServersAndProfiles({
     bool allowVerifiedSnapshot = false,
   }) async {
+    await waitForBackgroundReconcile();
     ServerProfileSyncResult failed(String issue) {
       error = issue;
       serverSyncIssue = issue;
@@ -2430,6 +2474,7 @@ class VpnController extends ChangeNotifier {
     _identityNoticeTimer?.cancel();
     _disposed = true;
     _timer?.cancel();
+    _reconcileRetry?.cancel();
     _token?.cancel();
     super.dispose();
   }

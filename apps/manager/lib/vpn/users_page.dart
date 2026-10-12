@@ -117,7 +117,7 @@ class UsersPage extends StatefulWidget {
     final users = controller.workspace.users
         .where((u) => !u.deleted && selection.ids.contains(u.id))
         .toList();
-    if (users.isEmpty || controller.busy) return;
+    if (users.isEmpty || controller.foregroundBusy) return;
     final l = AppLocalizations.of(context);
     final files = <String, Map<String, dynamic>>{
       for (final user in users)
@@ -189,7 +189,7 @@ class _UsersPageState extends State<UsersPage> {
     BuildContext context, {
     bool force = false,
   }) async {
-    if (_syncing || controller.busy || !controller.loaded) return;
+    if (_syncing || controller.foregroundBusy || !controller.loaded) return;
     setState(() => _syncing = true);
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
@@ -382,7 +382,7 @@ class _UsersPageState extends State<UsersPage> {
       return DragSelectList(
         selection: selection,
         ids: [for (final u in activeUsers) u.id],
-        enabled: !c.busy && c.loaded,
+        enabled: !c.foregroundBusy && c.loaded,
         builder: (scroll, item) => ListView(
           controller: scroll,
           key: const PageStorageKey('vpn-users'),
@@ -399,7 +399,7 @@ class _UsersPageState extends State<UsersPage> {
                     runSpacing: 10,
                     children: [
                       FilledButton.icon(
-                        onPressed: c.busy || !c.loaded || _syncing
+                        onPressed: c.foregroundBusy || !c.loaded || _syncing
                             ? null
                             : () => UsersPage.edit(
                                 context,
@@ -415,10 +415,10 @@ class _UsersPageState extends State<UsersPage> {
                         message: l.vpnSyncAndPublishTooltip,
                         child: FilledButton.tonalIcon(
                           key: const ValueKey('vpn-sync-and-publish'),
-                          onPressed: c.busy || !c.loaded || _syncing
+                          onPressed: c.foregroundBusy || !c.loaded || _syncing
                               ? null
                               : () => _syncAndPublish(context, force: false),
-                          onLongPress: c.busy || !c.loaded || _syncing
+                          onLongPress: c.foregroundBusy || !c.loaded || _syncing
                               ? null
                               : () => _syncAndPublish(context, force: true),
                           icon: _syncing
@@ -458,7 +458,7 @@ class _UsersPageState extends State<UsersPage> {
                     selection: selection,
                     available: [for (final u in activeUsers) u.id],
                     prefix: 'vpn-user',
-                    busy: c.busy || !c.loaded,
+                    busy: c.foregroundBusy || !c.loaded,
                     addLabel: l.vpnAddUser,
                     onAdd: () =>
                         UsersPage.edit(context, c, motion, null, publications),
@@ -560,7 +560,9 @@ class _UserTile extends StatelessWidget {
               active: selection.active,
               selected: isSelected,
               checkboxKey: ValueKey('client-select-${user.id}'),
-              onChanged: c.busy ? null : (_) => selection.toggle(user.id),
+              onChanged: c.foregroundBusy
+                  ? null
+                  : (_) => selection.toggle(user.id),
               child: AppIconTile(
                 round: true,
                 key: ValueKey('client-avatar-${user.id}'),
@@ -595,7 +597,7 @@ class _UserTile extends StatelessWidget {
                   CoreConfigCheckAction(controller: c, userId: user.id),
               ],
             ),
-            onTap: c.busy
+            onTap: c.foregroundBusy
                 ? null
                 : selection.active
                 ? () => selection.toggle(user.id)
@@ -605,7 +607,9 @@ class _UserTile extends StatelessWidget {
                 : IconButton(
                     key: ValueKey('client-qr-${user.id}'),
                     tooltip: l.uiShareProfile,
-                    onPressed: c.busy ? null : () => onProfile(context, user),
+                    onPressed: c.foregroundBusy
+                        ? null
+                        : () => onProfile(context, user),
                     icon: const Icon(Icons.qr_code_2),
                   ),
           ),
