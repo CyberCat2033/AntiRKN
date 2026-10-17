@@ -246,6 +246,40 @@ class VlessTests(unittest.TestCase):
                 with self.assertRaises(VlessError):panel_for(self.store, 'b'*32)
         finally:
             self.patches[0].start()
+
+    def test_panel_session_evicted_and_retried_on_404_or_auth_failure(self):
+        self.patches[0].stop()
+        import io
+        from urllib.error import HTTPError
+        from vless import panel_for
+        access = dict(port=12345, username='user', password='secret',
+            panelVersion='3.8.0', xrayVersion='26.9.9')
+        class Session:
+            def __init__(self, fail_first=False):
+                self.logins = 0
+                self.calls = 0
+                self.fail_first = fail_first
+            def login(self, *_):
+                self.logins += 1
+            def call(self, path):
+                self.calls += 1
+                if self.fail_first and self.calls == 1:
+                    raise HTTPError('http://127.0.0.1/status', 404, 'Not Found', hdrs=None, fp=io.BytesIO(b''))
+                return dict(panelVersion='3.8.0', xray=dict(version='26.9.9'))
+        sessions = [Session(fail_first=False), Session(fail_first=False)]
+        try:
+            with patch('vless.access_for_panel', return_value=access), patch('vless.PanelApi', side_effect=sessions):
+                api1 = panel_for(self.store, 'b'*32)
+                self.assertIs(api1, sessions[0])
+                # Simulate cached session returning 404 (3x-ui expired session):
+                sessions[0].fail_first = True
+                sessions[0].calls = 0
+                api2 = panel_for(self.store, 'b'*32)
+                self.assertIs(api2, sessions[1])
+                self.assertEqual(sessions[1].logins, 1)
+        finally:
+            self.patches[0].start()
+
     def test_internal_inbound_revokes_our_clients_and_reopens_with_same_credentials(self):
         self.finish(self.submit())
         before=[c['uuid'] for c in state(self.store,'b'*32)[0]['clients']]

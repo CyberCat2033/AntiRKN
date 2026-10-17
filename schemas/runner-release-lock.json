@@ -1,6 +1,6 @@
 {
   "hashes": {
-    "antirkn-runner.service": "289abb384e7134f71a9259b30e264258a80d1f5aa6fff22c84f7d00bf178b556",
+    "antirkn-runner.service": "0319e22f44c4c8de70ff670cb0864e56a380e4d8ec850872c7f9714e505ea0d5",
     "apt.py": "9e156f4de63c4ee299bf38e3aac9d95bf5ae09b5e0d518788f45fd843e3ad97a",
     "awg.py": "b7dc6ec3717ae4af31831cb15fdaccb8f1dc51e737001c8512117c2c825d7144",
     "awg_contract.py": "d9abd0099d91d4088a11d4bf0018f53dbed3e2797f0416e434b72c89fcc0534c",
@@ -42,11 +42,11 @@
     "tt_tomli_parser.py": "8d9b29aad227de145893851342ec43de4a1b88fd8e6ab70ddec2b79db61651e2",
     "tt_tomli_re.py": "1232a091728a07c08a6ed384c4d5ffd9cc1e1d31690b3f771a6527c0ba7e8907",
     "tt_tomli_types.py": "f864c6d9552a929c7032ace654ee05ef26ca75d21b027b801d77e65907138b74",
-    "vless.py": "e5069186b42e4045e8c55b73587f4e42b3c32156e0bd51729363e2bddbdfd4ef",
+    "vless.py": "6b83384b9b3e63676071a7873773a400cb094e7718839fffd9010790c70d8f26",
     "vless_contract.py": "44d0fb8edecf930489ef005592c225769cada4bd324522bcc1ee4709cc996f78",
     "xray_transaction.py": "273d890712e3f9b770689438a4a7ebc99a41b0e21b37b187e0cfa00175463078",
     "xray_upgrade_release.py": "0b5b7bb0667284e924ef8984fbca158964a271ef8fa20da5070a741ddfb83e59"
   },
-  "release": "14afab6669420c833e900688c205cc6ee7d62f2402146810b508131577aede03",
-  "version": 46
+  "release": "8b759e6f31c6bfdd39b7f747c9dd1caec248a1a6f181fc5dd737ed654cd6a25c",
+  "version": 47
 }

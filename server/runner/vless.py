@@ -146,7 +146,7 @@ def panel_for(store, panel_id, _retry=True):
         try:
             status = api.call('/panel/api/server/status')
         except HTTPError as error:
-            if error.code not in (401, 403) or not using_cached or not _retry:
+            if error.code not in (401, 403, 404) or not using_cached or not _retry:
                 raise
             sessions.pop(panel_id, None)
             return panel_for(store, panel_id, _retry=False)
