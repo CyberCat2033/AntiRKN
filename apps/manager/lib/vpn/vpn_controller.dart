@@ -604,7 +604,7 @@ class VpnController extends ChangeNotifier {
   }
 
   bool get hasObservedRunning => workspace.servers.keys.any(
-    (id) => observesOperation(id) && currentJob(id)?.terminal != true,
+    (id) => observesOperation(id) && currentJob(id)?.terminal == false,
   );
 
   bool get hasRunning =>
@@ -1263,7 +1263,14 @@ class VpnController extends ChangeNotifier {
       token.check();
       final connection = remote(id);
       final previous = workspace.servers[id];
-      if (_isTargetBusy(previous)) {
+      if (observesOperation(id)) {
+        if (!observedJobs.containsKey(id) && connection != null) {
+          await _observeOperation(id, token);
+        }
+        if (currentJob(id)?.terminal == false) {
+          throw const FormatException('vpn_busy');
+        }
+      } else if (_isTargetBusy(previous)) {
         throw const FormatException('vpn_busy');
       }
       final panelId = (isAwgTarget(id) || isTtTarget(id))
@@ -1884,10 +1891,33 @@ class VpnController extends ChangeNotifier {
               response.jobs.single.id != op.operationId)) {
         throw const FormatException('vpn_failed');
       }
-      observedJobs[id] = response.code == 'missing'
+      final job = response.code == 'missing'
           ? null
           : response.jobs.single;
+      observedJobs[id] = job;
       observationErrors.remove(id);
+      if (job != null && job.terminal) {
+        final current = workspace.servers[id];
+        if (current != null &&
+            (current['pending'] != null ||
+                current['job']?['status'] != job.status)) {
+          final state = await _request(
+            connection,
+            _stateRequest(id, connection.panelId),
+            token,
+          );
+          await _record(id, {
+            ...current,
+            'job': job.toJson(),
+            'pending': job.status == 'succeeded' ? null : current['pending'],
+            'observed': _observations(state, id),
+            'verifiedAt': DateTime.now().toUtc().toIso8601String(),
+            if (job.status != 'succeeded') 'paused': true,
+          });
+          await _approveRestored([id]);
+          await _profiles();
+        }
+      }
       // Observation is local UI state; do not create competing sync events
       // for every poll of another device's operation.
     } on SshFailure {
