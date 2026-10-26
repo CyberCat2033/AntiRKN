@@ -51,7 +51,12 @@ class RunnerController extends ChangeNotifier {
     if (!connected && await connectForAction?.call() != true) return false;
     await waitUntilIdle();
     if (!connected || _disposed) return false;
-    if (!installed || !alive || error != null) await refresh(prepare: true);
+    if (!installed ||
+        !alive ||
+        error != null ||
+        installation?.upgradable == true) {
+      await refresh(prepare: true);
+    }
     return connected && installed && alive && error == null;
   }
 
@@ -418,7 +423,9 @@ class RunnerController extends ChangeNotifier {
         (installation!.release == null ||
             installation!.upgradable ||
             installation!.release == remote.bundledRelease) &&
-        (!installed || installation!.active == false)) {
+        (!installed ||
+            installation!.active == false ||
+            installation!.upgradable)) {
       installation = await remote.install(
         installation!,
         token,

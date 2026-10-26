@@ -291,4 +291,24 @@ void main() {
       isTrue,
     );
   });
+
+  test(
+    'upgradable predecessor runner is automatically upgraded during prepare refresh and ensureReady',
+    () async {
+      remote.installed = true;
+      remote.customRelease = 'c' * 64;
+      remote.upgradable = true;
+      await c.refresh();
+      expect(c.installed, isFalse);
+      expect(c.installation?.upgradable, isTrue);
+      expect(remote.installs, 0);
+
+      final ready = await c.ensureReady();
+      expect(ready, isTrue);
+      expect(remote.installs, 1);
+      expect(c.installed, isTrue);
+      expect(c.installation?.release, remote.bundledRelease);
+      expect(c.installation?.upgradable, isFalse);
+    },
+  );
 }

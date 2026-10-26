@@ -67,6 +67,8 @@ class FakeRunnerTransport implements RunnerTransport {
   bool panelPortAvailable = true;
   bool panelSupported = true;
   int panelChecks = 0;
+  String? customRelease;
+  bool upgradable = false;
   final requests = <RunnerRequest>[];
   @override
   String get bundledRelease => 'a' * 64;
@@ -76,9 +78,10 @@ class FakeRunnerTransport implements RunnerTransport {
     return RunnerInstallation.fromJson({
       'supported': true,
       'state': installed ? 'installed' : 'missing',
-      'release': installed ? bundledRelease : null,
+      'release': installed ? (customRelease ?? bundledRelease) : null,
       'fingerprint': 'b' * 64,
       'active': installed,
+      'upgradable': upgradable,
     });
   }
 
@@ -90,6 +93,8 @@ class FakeRunnerTransport implements RunnerTransport {
   }) async {
     installs++;
     installed = true;
+    customRelease = null;
+    upgradable = false;
     return inspect(cancellation);
   }
 

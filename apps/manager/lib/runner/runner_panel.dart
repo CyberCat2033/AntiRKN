@@ -77,9 +77,7 @@ class RunnerPanel extends StatelessWidget {
                 key: const ValueKey('runner-refresh'),
                 onPressed: !c.busy && !c.actionPending
                     ? () async {
-                        if (await c.ensureReady()) {
-                          await c.refresh(prepare: true);
-                        }
+                        await c.refresh(prepare: true);
                       }
                     : null,
                 child: Text(l.runnerRetry),
