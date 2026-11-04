@@ -223,8 +223,12 @@ class UserPublicationView extends StatelessWidget {
           result != null &&
           result['hash'] == savedHash &&
           queue?['status'] != 'error';
-      return Column(
+      final issue = queue?['issue'] as String?;
+      final isConflict = queue?['status'] == 'error' &&
+          (issue == 'conflict' || issue == 'readback');
+      final content = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           if (controller.bindingPending(userId)) Text(l.publicationBindPending),
           Text(
@@ -233,20 +237,45 @@ class UserPublicationView extends StatelessWidget {
                 : published
                 ? l.publicationPublished
                 : queue?['status'] == 'error'
-                ? publicationMessage(l, queue?['issue'] as String?)
+                ? publicationMessage(l, issue)
                 : l.publicationWaiting,
           ),
           if (!published && controller.busy) const LinearProgressIndicator(),
-          if (!published)
-            TextButton(
-              key: ValueKey('publication-retry-$userId'),
-              onPressed: controller.busy
-                  ? null
-                  : () => controller.request(force: true, targetUserId: userId),
-              child: Text(l.runnerRetry),
+          if (!published) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                TextButton(
+                  key: ValueKey('publication-retry-$userId'),
+                  onPressed: controller.busy
+                      ? null
+                      : () => controller.request(force: true, targetUserId: userId),
+                  child: Text(l.runnerRetry),
+                ),
+                if (isConflict)
+                  FilledButton.tonal(
+                    key: ValueKey('publication-force-overwrite-$userId'),
+                    onPressed: controller.busy
+                        ? null
+                        : () => controller.forceOverwrite(userId),
+                    child: Text(l.publicationForceOverwrite),
+                  ),
+              ],
             ),
+          ],
         ],
       );
+      if (queue?['status'] == 'error') {
+        return Card.filled(
+          child: Padding(
+            padding: const EdgeInsets.all(AppLayout.gap),
+            child: content,
+          ),
+        );
+      }
+      return content;
     },
   );
 }

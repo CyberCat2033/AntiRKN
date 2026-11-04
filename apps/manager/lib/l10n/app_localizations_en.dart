@@ -2522,6 +2522,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'The Drive version changed. Sync devices and review the conflict; the file was not overwritten.';
 
   @override
+  String get publicationForceOverwrite => 'Force overwrite';
+
+  @override
   String get publicationAccountChanged =>
       'This publication requires the Google account used to select its folder.';
 

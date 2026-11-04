@@ -1837,6 +1837,213 @@ void main() {
       expect(c.error, isNot(PublicationIssue.unauthorized));
     },
   );
+
+  testWidgets(
+    'UserPublicationView exposes force overwrite on conflict and readback, but not on network error',
+    (tester) async {
+      final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
+      final account = Account()..publicationAuthorized = true;
+      final repo = Repository();
+      final remote = Remote();
+      final c = PublicationController(
+        repository: repo,
+        account: account,
+        remote: () => remote,
+        vpn: vpn,
+      )..foreground(false);
+      await c.ready;
+      c.settings = const PublicationSettings(
+        accountKey: 'account',
+        folderId: 'folder',
+        folderName: 'Folder',
+        access: PublicationAccess.link,
+        folderReady: true,
+      );
+
+      // 1. Conflict error shows both retry and force overwrite
+      c.queues[fixtures.alice] = {
+        'status': 'error',
+        'issue': 'conflict',
+        'userId': fixtures.alice,
+      };
+
+      await tester.pumpWidget(
+        MaterialApp(
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: Scaffold(
+            body: UserPublicationView(controller: c, userId: fixtures.alice),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(
+        find.text(
+          'The Drive version changed. Sync devices and review the conflict; the file was not overwritten.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(ValueKey('publication-retry-${fixtures.alice}')),
+        findsOneWidget,
+      );
+      final forceBtn = find.byKey(
+        ValueKey('publication-force-overwrite-${fixtures.alice}'),
+      );
+      expect(forceBtn, findsOneWidget);
+      expect(find.text('Force overwrite'), findsOneWidget);
+
+      // 2. Readback error also shows force overwrite
+      c.queues[fixtures.alice] = {
+        'status': 'error',
+        'issue': 'readback',
+        'userId': fixtures.alice,
+      };
+      c.notifyListeners();
+      await tester.pump();
+      expect(forceBtn, findsOneWidget);
+
+      // 3. Network error shows only retry, not force overwrite
+      c.queues[fixtures.alice] = {
+        'status': 'error',
+        'issue': 'network',
+        'userId': fixtures.alice,
+      };
+      c.notifyListeners();
+      await tester.pump();
+      expect(
+        find.byKey(ValueKey('publication-retry-${fixtures.alice}')),
+        findsOneWidget,
+      );
+      expect(forceBtn, findsNothing);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await c.suspend();
+      c.dispose();
+      vpn.dispose();
+    },
+  );
+
+  testWidgets(
+    'tapping force overwrite in UserPublicationView executes force upload and publishes client',
+    (tester) async {
+      final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
+      final account = Account()..publicationAuthorized = true;
+      final repo = Repository();
+      final remote = Remote();
+      final c = PublicationController(
+        repository: repo,
+        account: account,
+        remote: () => remote,
+        vpn: vpn,
+      )..foreground(false);
+      await c.ready;
+      c.settings = const PublicationSettings(
+        accountKey: 'account',
+        folderId: 'main-folder',
+        folderName: 'Profiles',
+        access: PublicationAccess.link,
+        enabled: true,
+        folderReady: true,
+      );
+      repo.docs['settings'] = canonicalJson(c.settings!.toJson());
+      await tester.runAsync(() async {
+        await vpn.load();
+        final user = VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice');
+        await vpn.saveUser(user);
+        final profile = vpn.workspace.profiles[user.id]!;
+        repo.drafts[user.id] = PublicationDraft(
+          workspaceId: vpn.workspace.id,
+          deviceId: 'b' * 32,
+          userId: user.id,
+          name: user.name,
+          headId: 'head-${user.id}',
+          hash: profile['hash'] as String,
+          stamp: 'stamp-${user.id}',
+          bytes: Uint8List.fromList(utf8.encode(profile['yaml'] as String)),
+          ancestors: {},
+        );
+        remote.folders['main-folder'] = PublicationFile(
+          id: 'main-folder',
+          name: 'Profiles',
+          mimeType: 'application/vnd.google-apps.folder',
+          version: '1',
+          etag: 'folder-etag',
+          editable: true,
+          properties: {
+            'antirknRegistry.${vpn.workspace.id}': 'ready:registry-1',
+          },
+        );
+        final regBytes = Uint8List.fromList(
+          utf8.encode(
+            canonicalJson({
+              'version': 2,
+              'workspaceId': vpn.workspace.id,
+              'users': <String, dynamic>{},
+            }),
+          ),
+        );
+        final regHash = sha256.convert(regBytes).toString();
+        remote.folders['registry-1'] = PublicationFile(
+          id: 'registry-1',
+          name: 'registry.json',
+          mimeType: 'application/json',
+          version: '1',
+          etag: 'etag-r',
+          editable: true,
+          properties: {
+            'antirknWorkspace': vpn.workspace.id,
+            'antirknUser': 'registry',
+            'antirknHash': regHash,
+          },
+          downloadUrl: 'https://drive.google.com/uc?id=registry-1',
+        );
+        remote.contents['registry-1'] = regBytes;
+        await c.publishUser(fixtures.alice);
+      });
+      expect(c.queues[fixtures.alice]?['status'], 'published');
+
+      // Simulate external conflict
+      c.queues[fixtures.alice] = {
+        'status': 'error',
+        'issue': 'conflict',
+        'userId': fixtures.alice,
+      };
+      c.notifyListeners();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: Scaffold(
+            body: UserPublicationView(controller: c, userId: fixtures.alice),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final forceBtn = find.byKey(
+        ValueKey('publication-force-overwrite-${fixtures.alice}'),
+      );
+      expect(forceBtn, findsOneWidget);
+
+      await tester.runAsync(() async {
+        await tester.tap(forceBtn);
+        for (var i = 0; i < 50 && c.busy; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
+      });
+      await tester.pump();
+
+      expect(c.queues[fixtures.alice]?['status'], 'published');
+      expect(c.queues[fixtures.alice]?['issue'], isNull);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await c.suspend();
+      c.dispose();
+      vpn.dispose();
+    },
+  );
 }
 
 class _TestAutoSyncSession implements AutoSyncSession {

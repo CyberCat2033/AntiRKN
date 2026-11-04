@@ -418,6 +418,34 @@ void main() {
     },
   );
   test(
+    'forceUpload overrides external edit and forcibly overwrites remote file',
+    () async {
+      final repo = Repository(await draft('head-1')), remote = Remote();
+      await publish(repo, remote);
+      final oldProfileId = remote.profileId;
+      final file = remote.blobs[oldProfileId]!;
+      file.content = bytes('external edit on disk');
+      file.version++;
+      final draft2 = await draft('head-2', ancestors: {'head-1'});
+      repo.current = draft2;
+      // Normal publish is aborted due to readback mismatch
+      expect((await publish(repo, remote))['issue'], 'readback');
+      expect(remote.updatedProfiles, 0);
+
+      // Force overwrite overcomes readback and updates the remote file
+      final forced = await coordinator(repo, remote).publish(
+        user,
+        force: true,
+        forceUpload: true,
+      );
+      expect(forced?['status'], 'published');
+      expect(forced?['issue'], isNull);
+      expect(remote.updatedProfiles, 1);
+      expect(remote.blobs[oldProfileId]!.content, draft2.bytes);
+      expect(remote.blobs[oldProfileId]!.properties['antirknHead'], 'head-2');
+    },
+  );
+  test(
     'broken public link stays retryable without re-uploading an already verified YAML',
     () async {
       final repo = Repository(await draft('head-1')),

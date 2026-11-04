@@ -982,6 +982,7 @@
   "publicationCompleteSetup": "Complete folder setup",
   "publicationMissing": "The file or folder is unavailable. Check Drive access and trash; the existing binding is preserved.",
   "publicationConflict": "The Drive version changed. Sync devices and review the conflict; the file was not overwritten.",
+  "publicationForceOverwrite": "Force overwrite",
   "publicationAccountChanged": "This publication requires the Google account used to select its folder.",
   "publicationLinkUnavailable": "The link does not return the expected YAML without Google sign-in. Retry the check later.",
   "publicationNetwork": "Drive is temporarily unavailable. Publication remains queued.",

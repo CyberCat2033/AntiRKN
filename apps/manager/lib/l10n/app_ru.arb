@@ -949,6 +949,7 @@
   "publicationCompleteSetup": "Завершить настройку папки",
   "publicationMissing": "Файл или папка недоступны. Проверьте доступ и корзину Drive; прежняя привязка сохранена.",
   "publicationConflict": "Версия на Drive изменилась. Синхронизируйте устройства и проверьте конфликт; файл не перезаписан.",
+  "publicationForceOverwrite": "Перезаписать принудительно",
   "publicationAccountChanged": "Для этой публикации нужен Google-аккаунт, с которым выбрана папка.",
   "publicationLinkUnavailable": "Ссылка не отдаёт ожидаемый YAML без входа в Google. Повторите проверку позже.",
   "publicationNetwork": "Drive временно недоступен. Публикация сохранена в очереди.",

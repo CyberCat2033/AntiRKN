@@ -59,7 +59,7 @@ class PublicationController extends ChangeNotifier {
   Future<PublicationBatchResult>? _running;
   SyncCancellation? _cancel;
   Timer? _timer;
-  bool _pendingAll = false, _pendingForce = false;
+  bool _pendingAll = false, _pendingForce = false, _pendingForceUpload = false;
   final Set<String> _pendingUserIds = {};
   String? _profileStamp;
   Map<String, String> _readyProfileHashes = {};
@@ -317,9 +317,14 @@ class PublicationController extends ChangeNotifier {
     unawaited(reload());
   }
 
-  void request({bool force = false, String? targetUserId}) {
+  void request({
+    bool force = false,
+    bool forceUpload = false,
+    String? targetUserId,
+  }) {
     if (_disposed || _suspended || !_foreground || editing) return;
-    _pendingForce |= force;
+    _pendingForce |= force || forceUpload;
+    _pendingForceUpload |= forceUpload;
     if (targetUserId == null) {
       _pendingAll = true;
       _pendingUserIds.clear();
@@ -340,7 +345,9 @@ class PublicationController extends ChangeNotifier {
     }
     _timer?.cancel();
     _timer = Timer(
-      _pendingForce ? Duration.zero : const Duration(milliseconds: 300),
+      (_pendingForce || _pendingForceUpload)
+          ? Duration.zero
+          : const Duration(milliseconds: 300),
       _drainPending,
     );
   }
@@ -355,11 +362,13 @@ class PublicationController extends ChangeNotifier {
       return;
     }
     final force = _pendingForce;
+    final forceUpload = _pendingForceUpload;
     final targets = _pendingAll ? null : Set<String>.of(_pendingUserIds);
     _pendingAll = false;
     _pendingForce = false;
+    _pendingForceUpload = false;
     _pendingUserIds.clear();
-    _start(force, targetUserIds: targets);
+    _start(force, targetUserIds: targets, forceUpload: forceUpload);
   }
 
   Future<PublicationBatchResult>? _start(
@@ -392,7 +401,11 @@ class PublicationController extends ChangeNotifier {
     return future;
   }
 
-  Future<void> publishUser(String userId, {bool force = false}) async {
+  Future<void> publishUser(
+    String userId, {
+    bool force = false,
+    bool forceUpload = false,
+  }) async {
     if (_disposed || _suspended || editing) return;
     if (!authorized || needsAuthorization) {
       accountError = GoogleAccountIssue.reauthorize;
@@ -407,9 +420,17 @@ class PublicationController extends ChangeNotifier {
         await _running;
       } catch (_) {}
     }
-    final future = _start(force, targetUserId: userId, ignoreForeground: true);
+    final future = _start(
+      force || forceUpload,
+      targetUserId: userId,
+      ignoreForeground: true,
+      forceUpload: forceUpload,
+    );
     await future;
   }
+
+  Future<void> forceOverwrite(String userId) =>
+      publishUser(userId, force: true, forceUpload: true);
 
   Future<PublicationBatchResult> _run(
     bool force, {

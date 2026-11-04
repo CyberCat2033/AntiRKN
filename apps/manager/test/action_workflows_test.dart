@@ -482,4 +482,63 @@ void main() {
       c.dispose();
     },
   );
+
+  testWidgets(
+    'ProfileShareSheet displays force overwrite button on external conflict',
+    (tester) async {
+      final account = publication.Account(),
+          repo = publication.Repository(),
+          remote = publication.Remote(),
+          c = vpn.controller(vpn.MemoryVpn(), {});
+      final pub = PublicationController(
+        repository: repo,
+        account: account,
+        remote: () => remote,
+        vpn: c,
+        canPublish: () => false,
+      );
+      await pub.ready;
+      await tester.runAsync(() async {
+        await c.load();
+        await c.saveUser(VpnUser(id: vpn.alice, login: 'alice', name: 'Alice'));
+      });
+      await pub.configure(PublicationAccess.link);
+      await pub.completeSetup();
+      repo.docs['result/${vpn.alice}'] = jsonEncode({
+        'fileId': 'fixture',
+        'hash': 'f' * 64,
+        'access': 'link',
+        'url': 'https://drive.google.com/uc?export=download&id=fixture',
+      });
+      await pub.reload();
+      pub.queues[vpn.alice] = {
+        'status': 'error',
+        'issue': 'conflict',
+        'userId': vpn.alice,
+      };
+      pub.notifyListeners();
+
+      await tester.pumpWidget(
+        app(
+          ProfileShareSheet(
+            controller: c,
+            user: c.workspace.users.single,
+            exporter: Export(),
+            publications: pub,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final forceBtn = find.byKey(
+        ValueKey('publication-force-overwrite-${vpn.alice}'),
+      );
+      expect(forceBtn, findsOneWidget);
+      expect(find.byType(QrImageView), findsNothing);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      pub.dispose();
+      c.dispose();
+    },
+  );
 }

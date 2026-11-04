@@ -4466,6 +4466,12 @@ abstract class AppLocalizations {
   /// **'The Drive version changed. Sync devices and review the conflict; the file was not overwritten.'**
   String get publicationConflict;
 
+  /// No description provided for @publicationForceOverwrite.
+  ///
+  /// In en, this message translates to:
+  /// **'Force overwrite'**
+  String get publicationForceOverwrite;
+
   /// No description provided for @publicationAccountChanged.
   ///
   /// In en, this message translates to:

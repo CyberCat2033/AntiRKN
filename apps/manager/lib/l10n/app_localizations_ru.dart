@@ -2528,6 +2528,9 @@ class AppLocalizationsRu extends AppLocalizations {
       'Версия на Drive изменилась. Синхронизируйте устройства и проверьте конфликт; файл не перезаписан.';
 
   @override
+  String get publicationForceOverwrite => 'Перезаписать принудительно';
+
+  @override
   String get publicationAccountChanged =>
       'Для этой публикации нужен Google-аккаунт, с которым выбрана папка.';
 

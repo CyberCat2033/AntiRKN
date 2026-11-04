@@ -160,7 +160,10 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                 ),
                 const SizedBox(height: AppLayout.gap),
               ],
-              if (publication != null && link == null && !(regenerating && result == null))
+              if (publication != null &&
+                  (link == null ||
+                      publication.queues[widget.user.id]?['status'] == 'error') &&
+                  !(regenerating && result == null))
                 UserPublicationView(
                   controller: publication,
                   userId: widget.user.id,
