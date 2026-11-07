@@ -20,6 +20,31 @@ PreparedProxy adoptedProxy(
       'support-x25519mlkem768': true,
     };
   }
+  final xhttp = base['xhttp-opts'];
+  if (xhttp is Map) {
+    final cleaned = Map<String, Object?>.from(xhttp);
+    final reuse = cleaned['reuse-settings'];
+    if (reuse is Map) {
+      final cleanedReuse = Map<String, Object?>.from(reuse);
+      if (cleanedReuse['max-concurrency'] is String &&
+          (cleanedReuse['max-concurrency'] as String).trim().isEmpty) {
+        cleanedReuse['max-concurrency'] = '0';
+      }
+      if (cleanedReuse['max-connections'] is String &&
+          (cleanedReuse['max-connections'] as String).trim().isEmpty) {
+        cleanedReuse['max-connections'] = '3';
+      }
+      cleanedReuse.removeWhere((k, v) => v is String && v.trim().isEmpty);
+      cleaned['reuse-settings'] = cleanedReuse;
+    }
+    cleaned.removeWhere(
+      (k, v) =>
+          !const {'host', 'path', 'mode'}.contains(k) &&
+          v is String &&
+          v.trim().isEmpty,
+    );
+    base['xhttp-opts'] = cleaned;
+  }
   final proxy = PreparedProxy(
     imported: true,
     identity: AccessIdentity(

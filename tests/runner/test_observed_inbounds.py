@@ -99,3 +99,30 @@ class ObservedTests(unittest.TestCase):
         _, row = read(self.store, 'b'*32, 42, rows=[self.api.row])
         self.assertEqual(row['id'], 42)
         self.assertEqual(self.api.list_calls, 0)
+    def test_proxy_fields_sanitizes_empty_xhttp_xmux_options(self):
+        from managed_vless import proxy_fields
+        row = copy.deepcopy(self.api.row)
+        stream = json.loads(row['streamSettings'])
+        stream['security'] = 'none'
+        stream['xhttpSettings'] = {
+            'path': '/assets',
+            'host': '',
+            'extra': {
+                'xmux': {
+                    'maxConcurrency': '',
+                    'maxConnections': 3,
+                    'cMaxReuseTimes': 0,
+                    'hMaxRequestTimes': '600-900',
+                },
+                'xPaddingBytes': '',
+                'scMaxEachPostBytes': '',
+            },
+        }
+        row['streamSettings'] = json.dumps(stream)
+        proxy, _ = proxy_fields(row)
+        self.assertIn('xhttp-opts', proxy)
+        opts = proxy['xhttp-opts']
+        self.assertEqual(opts['reuse-settings']['max-concurrency'], '0')
+        self.assertEqual(opts['reuse-settings']['max-connections'], 3)
+        self.assertEqual(opts['x-padding-bytes'], '100-1000')
+        self.assertNotIn('sc-max-each-post-bytes', opts)

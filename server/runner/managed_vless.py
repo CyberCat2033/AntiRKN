@@ -79,8 +79,22 @@ def proxy_fields(row):
         xhttp = stream.get('xhttpSettings', {})
         props = SCHEMA['properties']['resources']['items']['properties']['xhttp']
         def mapped(values, rule):
-            return {rule['properties'][k]['mihomo']: mapped(v, rule['properties'][k]) if k == 'xmux' else v
-                    for k, v in values.items() if k in rule['properties'] and 'mihomo' in rule['properties'][k]}
+            result = {}
+            for k, v in values.items():
+                if k not in rule['properties'] or 'mihomo' not in rule['properties'][k]:
+                    continue
+                prop = rule['properties'][k]
+                mihomo_key = prop['mihomo']
+                if k == 'xmux':
+                    if isinstance(v, dict):
+                        result[mihomo_key] = mapped(v, prop)
+                else:
+                    if isinstance(v, str) and not v.strip():
+                        if 'default' in prop:
+                            result[mihomo_key] = prop['default']
+                    elif v is not None:
+                        result[mihomo_key] = v
+            return result
         extra = {k: v for k, v in xhttp.items() if k not in ('path', 'host', 'mode', 'extra')}
         extra.update(xhttp.get('extra') or {})
         proxy['xhttp-opts'] = dict(path=xhttp.get('path') or '/', host=xhttp.get('host') or '',

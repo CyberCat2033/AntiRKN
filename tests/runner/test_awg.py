@@ -55,6 +55,7 @@ class AwgTests(unittest.TestCase):
         self.assertTrue(49152 <= result['port'] <= 65535)
         self.assertEqual(result['endpoint'], '')
         self.assertEqual(result['port'], result['externalPort'])
+        self.assertEqual(result['keepalive'], 0)
         result['endpoint'] = '203.0.113.1'
         p = payload(); p['resources'] = [result]
         awg.parse_payload(json.dumps(p))

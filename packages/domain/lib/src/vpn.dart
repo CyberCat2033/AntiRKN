@@ -510,13 +510,27 @@ void validateXhttpOptions(Map spec) {
 
 Map<String, Object?> xhttpMihomoOptions(Map options, [Map? schema]) {
   final properties = (schema ?? xhttpOptionsSchema)['properties'] as Map;
-  return {
-    for (final e in options.entries)
-      if ((properties[e.key] as Map)['mihomo'] case final String name)
-        name: e.key == 'xmux'
-            ? xhttpMihomoOptions(e.value as Map, properties[e.key] as Map)
-            : e.value,
-  };
+  final result = <String, Object?>{};
+  for (final e in options.entries) {
+    final prop = properties[e.key];
+    if (prop is! Map) continue;
+    final name = prop['mihomo'];
+    if (name is! String) continue;
+    if (e.key == 'xmux') {
+      if (e.value is Map) {
+        result[name] = xhttpMihomoOptions(e.value as Map, prop);
+      }
+    } else {
+      var val = e.value;
+      if (val is String && val.trim().isEmpty) {
+        val = prop['default'];
+      }
+      if (val != null && (val is! String || val.isNotEmpty)) {
+        result[name] = val;
+      }
+    }
+  }
+  return result;
 }
 
 List<String> get vlessFingerprints => List<String>.from(
@@ -533,7 +547,10 @@ Map<String, Object?> xhttpFormDefaults([Map initial = const {}]) {
   final existing = Map<String, Object?>.from(initial['xmux'] as Map? ?? {});
   final multiplex = <String, Object?>{
     for (final e in xmux.entries) e.key as String: (e.value as Map)['default'],
-    ...existing,
+    for (final e in existing.entries)
+      if (e.value != null &&
+          (e.value is! String || (e.value as String).trim().isNotEmpty))
+        e.key: e.value,
   };
   if (existing.isNotEmpty && !existing.containsKey('maxConnections')) {
     multiplex['maxConnections'] = '0';
@@ -542,7 +559,11 @@ Map<String, Object?> xhttpFormDefaults([Map initial = const {}]) {
     for (final e in properties.entries)
       if ((e.value as Map).containsKey('default'))
         e.key as String: e.value['default'],
-    ...Map<String, Object?>.from(initial),
+    for (final e in initial.entries)
+      if (e.key != 'xmux' &&
+          e.value != null &&
+          (e.value is! String || (e.value as String).trim().isNotEmpty))
+        e.key as String: e.value,
     'xmux': multiplex,
   };
 }

@@ -797,11 +797,12 @@ class VpnController extends ChangeNotifier {
       await ensureConnected(awgTarget(serverId));
       final r = remote(awgTarget(serverId));
       if (r == null) throw const FormatException('vpn_connection');
-      result = (await _request(
+      final defaults = (await _request(
         r,
         RunnerRequest.awgDefaults(),
         token,
       )).awgDefaults;
+      result = defaults != null ? {...defaults, 'keepalive': 0} : null;
     });
     return result;
   }

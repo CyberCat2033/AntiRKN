@@ -1,8 +1,8 @@
 {
   "hashes": {
-    "antirkn-runner.service": "0319e22f44c4c8de70ff670cb0864e56a380e4d8ec850872c7f9714e505ea0d5",
+    "antirkn-runner.service": "8c7500fca46ceed497066a07f415f78dbd1669b0acd9e14cd3770ca6944d152a",
     "apt.py": "9e156f4de63c4ee299bf38e3aac9d95bf5ae09b5e0d518788f45fd843e3ad97a",
-    "awg.py": "b7dc6ec3717ae4af31831cb15fdaccb8f1dc51e737001c8512117c2c825d7144",
+    "awg.py": "d62905b2282d74ebe875d439d156edc06fe5b1e33a4e460e25c6f470c81cb2b7",
     "awg_contract.py": "d9abd0099d91d4088a11d4bf0018f53dbed3e2797f0416e434b72c89fcc0534c",
     "awg_external.py": "1548302601f8970eb97e0dfa055dbf513146675924da2dcb886d3615c4132b45",
     "awg_network.py": "14a293ed75d913018139d9c836767759d653abfa462b2940f21929580075014d",
@@ -20,7 +20,7 @@
     "managed_awg.py": "61ae67a1884e3d1cf9710ceeb911454c80f0d3bd28550364b71d5e1ddfbb619f",
     "managed_existing.py": "116ab51ec1b892b6185bada6564fb5edfe48463682d8a2be8ab4d1358a8d9600",
     "managed_tt.py": "d98a14463abb53c4bfb2139de9987c761236cdb0f8c139d46933bfbe31713328",
-    "managed_vless.py": "9eb84cde36b39c9a08f81723edaece5296f5aae3f12624bcaa88faec0c5da9bc",
+    "managed_vless.py": "fa011774eb2556566e57a22ce9bcb9de46f70aad39a4d4a8ad94306db04c2a81",
     "observed_inbounds.py": "ab65183dd0b2324be33e761c52c59640b64b3cc84499037ef76a756c49bb2d17",
     "panel.py": "e178af99b9bdf387a23093dcd4687612a5a144c30020e1a1f619d3b3683254df",
     "panel_api.py": "478d5a8b066ab9d8a63a6881b5d89cfe8b495fecd1d06f36d040ab9e3979d591",
@@ -47,6 +47,6 @@
     "xray_transaction.py": "273d890712e3f9b770689438a4a7ebc99a41b0e21b37b187e0cfa00175463078",
     "xray_upgrade_release.py": "0b5b7bb0667284e924ef8984fbca158964a271ef8fa20da5070a741ddfb83e59"
   },
-  "release": "8b759e6f31c6bfdd39b7f747c9dd1caec248a1a6f181fc5dd737ed654cd6a25c",
-  "version": 47
+  "release": "6e64ef1ced0fa77df0d27f01e1d7e4fd49b4fe086d6401797225a05d862460e0",
+  "version": 48
 }

@@ -163,7 +163,7 @@ def defaults(store):
     options['jc'] = 4 + secrets.randbelow(3)
     return dict(id=secrets.token_hex(16), name='AmneziaWG', enabled=True, deleted=False,
                 endpoint='', port=port, externalPort=port, pool=str(pool), pool6='',
-                mtu=1280, keepalive=25, options=options)
+                mtu=1280, keepalive=0, options=options)
 
 
 def derive(label, preview=False):

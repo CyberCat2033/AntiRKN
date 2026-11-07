@@ -121,4 +121,79 @@ void main() {
       }
     },
   );
+  test('adoptedProxy sanitizes empty strings in xhttp-opts reuse-settings', () {
+    final spec = {
+      'id': 'd' * 32,
+      'name': 'Adopted XHTTP',
+      'enabled': true,
+      'deleted': false,
+      'port': 443,
+      'externalPort': 443,
+      'endpoint': '203.0.113.1',
+      'transport': 'xhttp',
+      'security': 'reality',
+      'adoption': {
+        'sourceId': '1',
+        'observedHash': 'e' * 64,
+        'panelId': 'f' * 32,
+        'panelPort': 54321,
+      },
+    };
+    final observation = {
+      'proxy': {
+        'type': 'vless',
+        'udp': true,
+        'tls': true,
+        'servername': 'example.com',
+        'reality-opts': {
+          'public-key': 'A' * 43,
+          'short-id': '0123456789abcdef',
+        },
+        'xhttp-opts': {
+          'host': '',
+          'path': '/api',
+          'mode': 'auto',
+          'reuse-settings': {
+            'max-concurrency': '',
+            'max-connections': '',
+            'c-max-reuse-times': '',
+          },
+          'sc-max-each-post-bytes': '',
+        },
+      },
+    };
+    final w = VpnWorkspace(
+      id: 'b' * 32,
+      users: [VpnUser(id: 'c' * 32, login: 'alice', name: 'alice')],
+      inbounds: [VlessInbound(serverId: 'server', spec: spec)],
+      servers: {
+        'server': {
+          'observed': [
+            {
+              'id': 'd' * 32,
+              'workspaceId': 'b' * 32,
+              'spec': spec,
+              'confirmed': true,
+              'proxy': observation['proxy'],
+              'clients': [
+                {
+                  'id': 'c' * 32,
+                  'enabled': true,
+                  'uuid': 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+                },
+              ],
+            },
+          ],
+        },
+      },
+    );
+    final accesses = vlessUserAccesses(w, 'c' * 32);
+    expect(accesses, hasLength(1));
+    final opts = accesses.single.fields['xhttp-opts'] as Map;
+    final reuse = opts['reuse-settings'] as Map;
+    expect(reuse['max-concurrency'], '0');
+    expect(reuse['max-connections'], '3');
+    expect(reuse.containsKey('c-max-reuse-times'), isFalse);
+    expect(opts.containsKey('sc-max-each-post-bytes'), isFalse);
+  });
 }
