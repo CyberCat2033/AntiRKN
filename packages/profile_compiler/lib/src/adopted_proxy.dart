@@ -49,6 +49,7 @@ PreparedProxy adoptedProxy(
           'ipv6': client['address6'],
         'private-key': client['privateKey'],
         'pre-shared-key': client['presharedKey'],
+        'persistent-keepalive': 0,
       },
     },
   );

@@ -42,7 +42,7 @@ Map<String, Object?> adoptionSpec(String protocol, Map snapshot, String host) {
       'pool': row['pool'] ?? '',
       'pool6': row['pool6'] ?? '',
       'mtu': int.tryParse('${values['MTU']}') ?? 1280,
-      'keepalive': 25,
+      'keepalive': 0,
     });
   } else {
     final hosts = (row['hosts'] as List).whereType<Map>();

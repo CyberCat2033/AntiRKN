@@ -96,7 +96,7 @@ List<PreparedProxy> awgUserAccesses(
         'pre-shared-key': client['presharedKey'],
         'udp': true,
         'mtu': s['mtu'],
-        'persistent-keepalive': s['keepalive'],
+        'persistent-keepalive': 0,
         'allowed-ips': ['0.0.0.0/0', if (s['pool6'] != '') '::/0'],
         'amnezia-wg-option': {
           'version': 3,

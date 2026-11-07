@@ -33,7 +33,7 @@ Map<String, Object?> spec(String protocol) => {
     'pool': '10.9.0.0/24',
     'pool6': '',
     'mtu': 1280,
-    'keepalive': 25,
+    'keepalive': 0,
   },
   if (protocol == 'tt') ...{
     'domain': 'vpn.example.com',

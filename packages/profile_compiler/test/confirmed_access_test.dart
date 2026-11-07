@@ -99,7 +99,9 @@ void main() {
         },
       );
 
-      expect(awgUserAccesses(workspace, userId), hasLength(1));
+      final accesses = awgUserAccesses(workspace, userId);
+      expect(accesses, hasLength(1));
+      expect(accesses.single.fields['persistent-keepalive'], 0);
     },
   );
 
