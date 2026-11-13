@@ -1161,9 +1161,56 @@ class SshController extends ChangeNotifier {
     _notify();
   }
 
+  bool _sameAddresses(List<IpAddress>? a, List<IpAddress> b) {
+    if (a == null) return false;
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  bool _sameSoftware(ServerSoftwareInventory? a, ServerSoftwareInventory? b) {
+    if (identical(a, b)) return true;
+    if (a == null || b == null) return false;
+    if (a.facts.length != b.facts.length) return false;
+    for (final entry in a.facts.entries) {
+      final bVal = b.facts[entry.key];
+      if (bVal == null ||
+          bVal.status != entry.value.status ||
+          bVal.value != entry.value.value) {
+        return false;
+      }
+    }
+    if (a.components.length != b.components.length) return false;
+    for (var i = 0; i < a.components.length; i++) {
+      final ca = a.components[i];
+      final cb = b.components[i];
+      if (ca.component != cb.component || ca.presence != cb.presence) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   Future<void> _remember(ServerObservation next) async {
     final profile = _vault!.profile;
     if (profile == null) return;
+    final current = profile.lastInfo;
+    final nextPublic = List<IpAddress>.unmodifiable(
+      next.network.addresses
+          .where(
+            (address) => address.addressClass == AddressClass.external,
+          )
+          .map((address) => address.address),
+    );
+    if (current != null &&
+        current.os == next.os &&
+        current.architecture == next.architecture &&
+        _sameSoftware(current.software, next.software) &&
+        _sameAddresses(current.publicAddresses, nextPublic)) {
+      return;
+    }
     vaultBusy = true;
     _notify();
     try {
@@ -1174,13 +1221,7 @@ class SshController extends ChangeNotifier {
             architecture: next.architecture,
             observedAt: next.network.observedAt,
             software: next.software,
-            publicAddresses: List.unmodifiable(
-              next.network.addresses
-                  .where(
-                    (address) => address.addressClass == AddressClass.external,
-                  )
-                  .map((address) => address.address),
-            ),
+            publicAddresses: nextPublic,
           ),
         ),
       );

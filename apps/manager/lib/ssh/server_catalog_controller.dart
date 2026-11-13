@@ -99,12 +99,26 @@ class ServerCatalogController extends ChangeNotifier {
 
   Future<void> refresh() async {
     await load();
-    for (final session in _sessions.values.toList()) {
-      if (_disposed) return;
-      if (session.stage != SshStage.connected) continue;
-      await session.refresh();
-      await session.runner.refresh();
-    }
+    if (_disposed) return;
+    final connectedSessions = _sessions.values
+        .where((s) => s.stage == SshStage.connected)
+        .toList();
+    if (connectedSessions.isEmpty) return;
+    var next = 0;
+    final workers = connectedSessions.length < 4 ? connectedSessions.length : 4;
+    await Future.wait(
+      List.generate(workers, (_) async {
+        while (next < connectedSessions.length) {
+          if (_disposed) return;
+          final session = connectedSessions[next++];
+          await session.refresh();
+          if (_disposed) return;
+          if (!session.runner.busy) {
+            await session.runner.refresh();
+          }
+        }
+      }),
+    );
   }
 
   /// Open saved sessions for revocation without moving away from the catalogue.

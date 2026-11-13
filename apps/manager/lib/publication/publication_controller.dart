@@ -61,11 +61,14 @@ class PublicationController extends ChangeNotifier {
   Timer? _timer;
   bool _pendingAll = false, _pendingForce = false, _pendingForceUpload = false;
   final Set<String> _pendingUserIds = {};
+  final Set<String> _inFlightUserIds = {};
+  DateTime? _rateLimitedUntil;
   String? _profileStamp;
   Map<String, String> _readyProfileHashes = {};
   bool _readyBaselineSet = false;
   final Set<String> _newlyReadyUsers = {};
   int _reloadGeneration = 0;
+  bool isUserBusy(String userId) => editing || _inFlightUserIds.contains(userId);
   bool get busy => editing || _running != null;
 
   Map<String, dynamic>? deletionFileFor(String userId) {
@@ -420,13 +423,20 @@ class PublicationController extends ChangeNotifier {
         await _running;
       } catch (_) {}
     }
-    final future = _start(
-      force || forceUpload,
-      targetUserId: userId,
-      ignoreForeground: true,
-      forceUpload: forceUpload,
-    );
-    await future;
+    _inFlightUserIds.add(userId);
+    _notify();
+    try {
+      final future = _start(
+        force || forceUpload,
+        targetUserId: userId,
+        ignoreForeground: true,
+        forceUpload: forceUpload,
+      );
+      await future;
+    } finally {
+      _inFlightUserIds.remove(userId);
+      _notify();
+    }
   }
 
   Future<void> forceOverwrite(String userId) =>
@@ -485,153 +495,169 @@ class PublicationController extends ChangeNotifier {
             rethrow;
           }
           if (nextIndex >= activeUsers.length) return;
+          if (_rateLimitedUntil != null) {
+            final wait = _rateLimitedUntil!.difference(DateTime.now());
+            if (wait > Duration.zero) {
+              await Future<void>.delayed(wait);
+            }
+          }
           final userIndex = nextIndex++;
           final user = activeUsers[userIndex];
           final userTimer = Stopwatch()..start();
 
-          // Fast-path: skip user if profile is already published and unchanged
-          final wasUpToDate = isUserUpToDate(user.id);
-          if (!force && !forceUpload && wasUpToDate) {
-            upToDateCount++;
-            debugPrint(
-              'publication_timing phase=user index=$userIndex path=local '
-              'ms=${userTimer.elapsedMilliseconds}',
-            );
-            continue;
-          }
-          final previousResult = results[user.id] == null
-              ? null
-              : canonicalJson(results[user.id]);
-
-          var success = false;
-          Map<String, dynamic>? publishQueue;
-          for (var attempt = 0; attempt < 3; attempt++) {
-            if (_disposed || _suspended) break;
-            try {
-              publishQueue = await coordinator.publish(
-                user.id,
-                force: true,
-                forceUpload: forceUpload,
-                cancellation: _cancel,
-              );
-              if (publishQueue?['issue'] == 'unauthorized') {
-                error = PublicationIssue.unauthorized;
-                accountError = GoogleAccountIssue.reauthorize;
-                _cancel?.cancel();
-                success = false;
-                break;
-              }
-              if (publishQueue?['issue'] != 'changed' || attempt == 2) {
-                success =
-                    publishQueue?['issue'] == null &&
-                    publishQueue?['status'] == 'published';
-                break;
-              }
-              await Future<void>.delayed(const Duration(milliseconds: 300));
-            } on PublicationFailure catch (e) {
-              if (e.issue == PublicationIssue.unauthorized) {
-                error = PublicationIssue.unauthorized;
-                accountError = GoogleAccountIssue.reauthorize;
-                queues[user.id] = {'issue': e.issue.name, 'userId': user.id};
-                _cancel?.cancel();
-                break;
-              }
-              final isRetryable =
-                  e.issue == PublicationIssue.network ||
-                  e.issue == PublicationIssue.rateLimited ||
-                  e.issue == PublicationIssue.unavailable;
-              if (isRetryable && attempt < 2) {
-                final delayMs = 500 * (1 << attempt) + Random().nextInt(300);
-                await Future<void>.delayed(Duration(milliseconds: delayMs));
-                continue;
-              }
-              // Per-user error: record it in the queue but continue with others.
-              queues[user.id] = {'issue': e.issue.name, 'userId': user.id};
-              break;
-            } on GoogleAccountFailure catch (e) {
-              accountError = e.issue;
-              if (e.issue == GoogleAccountIssue.reauthorize ||
-                  e.issue == GoogleAccountIssue.denied) {
-                error = PublicationIssue.unauthorized;
-                queues[user.id] = {
-                  'issue': PublicationIssue.unauthorized.name,
-                  'userId': user.id,
-                };
-                _cancel?.cancel();
-                break;
-              }
-              if (attempt < 2) {
-                await Future<void>.delayed(
-                  Duration(milliseconds: 500 * (1 << attempt)),
-                );
-                continue;
-              }
-              queues[user.id] = {
-                'issue': PublicationIssue.unauthorized.name,
-                'userId': user.id,
-              };
-              break;
-            } on SyncTransportFailure catch (e) {
-              if (e.issue == SyncTransportIssue.cancelled) return;
-              if (e.issue == SyncTransportIssue.unauthorized) {
-                error = PublicationIssue.unauthorized;
-                accountError = GoogleAccountIssue.reauthorize;
-                queues[user.id] = {
-                  'issue': PublicationIssue.unauthorized.name,
-                  'userId': user.id,
-                };
-                _cancel?.cancel();
-                break;
-              }
-              if (attempt < 2) {
-                final delayMs = 500 * (1 << attempt) + Random().nextInt(300);
-                await Future<void>.delayed(Duration(milliseconds: delayMs));
-                continue;
-              }
-              queues[user.id] = {
-                'issue': PublicationIssue.network.name,
-                'userId': user.id,
-              };
-              break;
-            } on SyncMergeFailure {
-              if (attempt == 2) {
-                queues[user.id] = {
-                  'issue': PublicationIssue.conflict.name,
-                  'userId': user.id,
-                };
-              } else {
-                await Future<void>.delayed(const Duration(milliseconds: 300));
-              }
-            }
-          }
-          if (publishQueue != null) queues[user.id] = publishQueue;
-          final resultDoc = await repository.readPublicationDocument(
-            'result/${user.id}',
-          );
-          if (resultDoc != null) {
-            results[user.id] = jsonDecode(resultDoc) as Map<String, dynamic>;
-          }
-          final bindingDoc = await repository.readPublicationDocument(
-            'binding/${user.id}',
-          );
-          if (bindingDoc != null) {
-            bindings[user.id] = jsonDecode(bindingDoc) as Map<String, dynamic>;
-          }
-          if (success) {
-            if (!forceUpload &&
-                wasUpToDate &&
-                previousResult == canonicalJson(results[user.id])) {
+          _inFlightUserIds.add(user.id);
+          _notify();
+          try {
+            // Fast-path: skip user if profile is already published and unchanged
+            final wasUpToDate = isUserUpToDate(user.id);
+            if (!force && !forceUpload && wasUpToDate) {
               upToDateCount++;
-            } else {
-              uploadedCount++;
+              debugPrint(
+                'publication_timing phase=user index=$userIndex path=local '
+                'ms=${userTimer.elapsedMilliseconds}',
+              );
+              continue;
             }
-          } else {
-            failedCount++;
+            final previousResult = results[user.id] == null
+                ? null
+                : canonicalJson(results[user.id]);
+
+            var success = false;
+            Map<String, dynamic>? publishQueue;
+            for (var attempt = 0; attempt < 3; attempt++) {
+              if (_disposed || _suspended) break;
+              try {
+                publishQueue = await coordinator.publish(
+                  user.id,
+                  force: true,
+                  forceUpload: forceUpload,
+                  cancellation: _cancel,
+                );
+                if (publishQueue?['issue'] == 'unauthorized') {
+                  error = PublicationIssue.unauthorized;
+                  accountError = GoogleAccountIssue.reauthorize;
+                  _cancel?.cancel();
+                  success = false;
+                  break;
+                }
+                if (publishQueue?['issue'] != 'changed' || attempt == 2) {
+                  success =
+                      publishQueue?['issue'] == null &&
+                      publishQueue?['status'] == 'published';
+                  break;
+                }
+                await Future<void>.delayed(const Duration(milliseconds: 300));
+              } on PublicationFailure catch (e) {
+                if (e.issue == PublicationIssue.unauthorized) {
+                  error = PublicationIssue.unauthorized;
+                  accountError = GoogleAccountIssue.reauthorize;
+                  queues[user.id] = {'issue': e.issue.name, 'userId': user.id};
+                  _cancel?.cancel();
+                  break;
+                }
+                if (e.issue == PublicationIssue.rateLimited) {
+                  _rateLimitedUntil = DateTime.now().add(const Duration(seconds: 2));
+                }
+                final isRetryable =
+                    e.issue == PublicationIssue.network ||
+                    e.issue == PublicationIssue.rateLimited ||
+                    e.issue == PublicationIssue.unavailable;
+                if (isRetryable && attempt < 2) {
+                  final delayMs = 500 * (1 << attempt) + Random().nextInt(300);
+                  await Future<void>.delayed(Duration(milliseconds: delayMs));
+                  continue;
+                }
+                // Per-user error: record it in the queue but continue with others.
+                queues[user.id] = {'issue': e.issue.name, 'userId': user.id};
+                break;
+              } on GoogleAccountFailure catch (e) {
+                accountError = e.issue;
+                if (e.issue == GoogleAccountIssue.reauthorize ||
+                    e.issue == GoogleAccountIssue.denied) {
+                  error = PublicationIssue.unauthorized;
+                  queues[user.id] = {
+                    'issue': PublicationIssue.unauthorized.name,
+                    'userId': user.id,
+                  };
+                  _cancel?.cancel();
+                  break;
+                }
+                if (attempt < 2) {
+                  await Future<void>.delayed(
+                    Duration(milliseconds: 500 * (1 << attempt)),
+                  );
+                  continue;
+                }
+                queues[user.id] = {
+                  'issue': PublicationIssue.unauthorized.name,
+                  'userId': user.id,
+                };
+                break;
+              } on SyncTransportFailure catch (e) {
+                if (e.issue == SyncTransportIssue.cancelled) return;
+                if (e.issue == SyncTransportIssue.unauthorized) {
+                  error = PublicationIssue.unauthorized;
+                  accountError = GoogleAccountIssue.reauthorize;
+                  queues[user.id] = {
+                    'issue': PublicationIssue.unauthorized.name,
+                    'userId': user.id,
+                  };
+                  _cancel?.cancel();
+                  break;
+                }
+                if (attempt < 2) {
+                  final delayMs = 500 * (1 << attempt) + Random().nextInt(300);
+                  await Future<void>.delayed(Duration(milliseconds: delayMs));
+                  continue;
+                }
+                queues[user.id] = {
+                  'issue': PublicationIssue.network.name,
+                  'userId': user.id,
+                };
+                break;
+              } on SyncMergeFailure {
+                if (attempt == 2) {
+                  queues[user.id] = {
+                    'issue': PublicationIssue.conflict.name,
+                    'userId': user.id,
+                  };
+                } else {
+                  await Future<void>.delayed(const Duration(milliseconds: 300));
+                }
+              }
+            }
+            if (publishQueue != null) queues[user.id] = publishQueue;
+            final resultDoc = await repository.readPublicationDocument(
+              'result/${user.id}',
+            );
+            if (resultDoc != null) {
+              results[user.id] = jsonDecode(resultDoc) as Map<String, dynamic>;
+            }
+            final bindingDoc = await repository.readPublicationDocument(
+              'binding/${user.id}',
+            );
+            if (bindingDoc != null) {
+              bindings[user.id] = jsonDecode(bindingDoc) as Map<String, dynamic>;
+            }
+            if (success) {
+              if (!forceUpload &&
+                  wasUpToDate &&
+                  previousResult == canonicalJson(results[user.id])) {
+                upToDateCount++;
+              } else {
+                uploadedCount++;
+              }
+            } else {
+              failedCount++;
+            }
+            debugPrint(
+              'publication_timing phase=user index=$userIndex path=drive '
+              'ms=${userTimer.elapsedMilliseconds} ok=$success',
+            );
+          } finally {
+            _inFlightUserIds.remove(user.id);
+            _notify();
           }
-          debugPrint(
-            'publication_timing phase=user index=$userIndex path=drive '
-            'ms=${userTimer.elapsedMilliseconds} ok=$success',
-          );
           _notify();
           await Future<void>.delayed(Duration.zero);
         }

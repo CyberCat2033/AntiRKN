@@ -216,8 +216,8 @@ class UserPublicationView extends StatelessWidget {
       if (controller.settings == null) return const SizedBox.shrink();
       final savedHash = controller.savedProfileHashFor(userId);
       final serverUnverified =
-          controller.vpn.serverSyncIssue != null ||
           controller.vpn.results[userId]?.hasBlockingErrors == true;
+      final isUserBusy = controller.isUserBusy(userId);
       final published =
           !serverUnverified &&
           result != null &&
@@ -240,7 +240,7 @@ class UserPublicationView extends StatelessWidget {
                 ? publicationMessage(l, issue)
                 : l.publicationWaiting,
           ),
-          if (!published && controller.busy) const LinearProgressIndicator(),
+          if (!published && (controller.busy || isUserBusy)) const LinearProgressIndicator(),
           if (!published) ...[
             const SizedBox(height: 8),
             Wrap(
@@ -249,7 +249,7 @@ class UserPublicationView extends StatelessWidget {
               children: [
                 TextButton(
                   key: ValueKey('publication-retry-$userId'),
-                  onPressed: controller.busy
+                  onPressed: isUserBusy
                       ? null
                       : () => controller.request(force: true, targetUserId: userId),
                   child: Text(l.runnerRetry),
@@ -257,7 +257,7 @@ class UserPublicationView extends StatelessWidget {
                 if (isConflict)
                   FilledButton.tonal(
                     key: ValueKey('publication-force-overwrite-$userId'),
-                    onPressed: controller.busy
+                    onPressed: isUserBusy
                         ? null
                         : () => controller.forceOverwrite(userId),
                     child: Text(l.publicationForceOverwrite),

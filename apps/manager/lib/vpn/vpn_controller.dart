@@ -797,7 +797,16 @@ class VpnController extends ChangeNotifier {
     plans = [];
     await _profiles(onlyUserId: user.id);
   });
-  Future<Map<String, Object?>?> ttDefaults(String serverId) async {
+  final _ttDefaultsCache = <String, Map<String, Object?>>{};
+  final _awgDefaultsCache = <String, Map<String, Object?>>{};
+
+  Future<Map<String, Object?>?> ttDefaults(
+    String serverId, {
+    bool force = false,
+  }) async {
+    if (!force && _ttDefaultsCache.containsKey(serverId)) {
+      return Map<String, Object?>.from(_ttDefaultsCache[serverId]!);
+    }
     Map<String, Object?>? result;
     await _run((token) async {
       await ensureConnected(ttTarget(serverId));
@@ -805,6 +814,9 @@ class VpnController extends ChangeNotifier {
       if (r == null) throw const FormatException('vpn_connection');
       result = (await _request(r, RunnerRequest.ttDefaults(), token)).tt;
     });
+    if (result != null) {
+      _ttDefaultsCache[serverId] = Map<String, Object?>.from(result!);
+    }
     return result;
   }
 
@@ -825,7 +837,14 @@ class VpnController extends ChangeNotifier {
     plans = [];
     await _profiles();
   });
-  Future<Map<String, Object?>?> awgDefaults(String serverId) async {
+
+  Future<Map<String, Object?>?> awgDefaults(
+    String serverId, {
+    bool force = false,
+  }) async {
+    if (!force && _awgDefaultsCache.containsKey(serverId)) {
+      return Map<String, Object?>.from(_awgDefaultsCache[serverId]!);
+    }
     Map<String, Object?>? result;
     await _run((token) async {
       await ensureConnected(awgTarget(serverId));
@@ -838,6 +857,9 @@ class VpnController extends ChangeNotifier {
       )).awgDefaults;
       result = defaults != null ? {...defaults, 'keepalive': 0} : null;
     });
+    if (result != null) {
+      _awgDefaultsCache[serverId] = Map<String, Object?>.from(result!);
+    }
     return result;
   }
 
@@ -1434,11 +1456,18 @@ class VpnController extends ChangeNotifier {
     }
     await _run((token) async {
       await _reconcileDeletions(token);
+      var anyServerRefreshed = false;
       for (final id in fresh) {
         final connection = remote(id);
         if (connection == null) continue;
-        if (!observesOperation(id)) await _refreshServer(id, token);
+        if (!observesOperation(id)) {
+          await _refreshServer(id, token, rebuildProfiles: false);
+          anyServerRefreshed = true;
+        }
         _observedConnections[id] = connection.observationKey!;
+      }
+      if (anyServerRefreshed) {
+        await _profiles();
       }
       if (work || _restoredTargets.any((id) => remote(id) != null)) {
         await _reconcile(token);

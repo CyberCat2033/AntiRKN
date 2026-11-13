@@ -22,6 +22,7 @@ class RunnerController extends ChangeNotifier {
     _timer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (!pollingPaused &&
           !busy &&
+          !backgroundBusy &&
           transport() != null &&
           error == null &&
           hasUnfinishedJob) {
@@ -106,6 +107,7 @@ class RunnerController extends ChangeNotifier {
   bool get observesOperation =>
       operation != null && operation!.executorDeviceId != _deviceId;
   bool busy = false;
+  bool backgroundBusy = false;
   bool pollingPaused = false;
   bool alive = false;
   bool connectionLost = false;
@@ -204,6 +206,7 @@ class RunnerController extends ChangeNotifier {
     _token?.cancel();
     _token = null;
     busy = false;
+    backgroundBusy = false;
     installPlan = null;
     panelPlan = null;
     panelUpdatePlan = null;
@@ -357,11 +360,16 @@ class RunnerController extends ChangeNotifier {
   }
 
   Future<void> _run(
-    Future<void> Function(RunnerTransport, CancellationToken) action,
-  ) async {
+    Future<void> Function(RunnerTransport, CancellationToken) action, {
+    bool background = false,
+  }) async {
     final remote = transport();
-    if (busy || remote == null || _disposed) return;
-    busy = true;
+    if (busy || backgroundBusy || remote == null || _disposed) return;
+    if (background) {
+      backgroundBusy = true;
+    } else {
+      busy = true;
+    }
     final idle = Completer<void>();
     _idle = idle;
     error = null;
@@ -395,7 +403,11 @@ class RunnerController extends ChangeNotifier {
       if (!token.isCancelled && !_disposed) error = RunnerIssue.invalidResponse;
     } finally {
       if (_token == token) {
-        busy = false;
+        if (background) {
+          backgroundBusy = false;
+        } else {
+          busy = false;
+        }
         _token = null;
       }
       if (_idle == idle) _idle = null;
@@ -465,7 +477,7 @@ class RunnerController extends ChangeNotifier {
         (selected?.terminal == false ? selected?.id : null) ??
         jobs.where((job) => !job.terminal).firstOrNull?.id;
     if (id != null) await _readJob(remote, token, id);
-  });
+  }, background: true);
 
   Future<bool> connectPanel(int port, String username, String password) async {
     var success = false;
