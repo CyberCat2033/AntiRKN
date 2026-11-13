@@ -32,12 +32,39 @@ __pycache__/
 client_secret_*.json
 google-oauth*.json
 desktop-client.json
+binding-build-defines.json
+*credentials*.json
+service_account*.json
+.env*.local
 
-# Local agent instructions and new documentation stay out of the repository.
+# Build packages and archives
+dist/
+*.tar.gz
+*.tgz
+*.zip
+
+# Local agent instructions, audits and working records stay out of the repository.
 /AGENTS.md
 /AGENT_TASK.md
 /TECHNICAL_PLAN.md
 /AUDIT_PROMPT.md
 /AUDIT_REPORT.md
 /FIX_PROMPT.md
+/ui_audit_and_redesign.html
+*PROMPT*.md
+*AUDIT*.md
 /docs/
+
+# AI assistants, agents and scratchpad artifacts
+.gemini/
+.antigravity/
+.cursor/
+.cursorrules
+.claude/
+.copilot/
+.aider*
+brain/
+scratch/
+*.scratch
+*.scratch.*
+*.prompt
