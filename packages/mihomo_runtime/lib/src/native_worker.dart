@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -67,7 +68,11 @@ final class NativeWorker {
       }();
       return await token.bind(work.timeout(const Duration(seconds: 18)));
     } finally {
-      process?.kill(ProcessSignal.sigkill);
+      if (process != null) {
+        process.kill(ProcessSignal.sigkill);
+        // Safely reap exit code to prevent defunct/zombie process in OS table
+        unawaited(process.exitCode.catchError((_) => -1));
+      }
       if (Platform.isAndroid) {
         try {
           await channel.invokeMethod<void>('cancel', {'id': id});

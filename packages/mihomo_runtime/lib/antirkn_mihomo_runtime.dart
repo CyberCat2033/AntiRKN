@@ -16,7 +16,9 @@ final class MihomoConfigValidator implements CoreConfigValidator {
   MihomoConfigValidator({this.workerPath});
   final String? workerPath;
   final _cache = <String, ({Uint8List bytes, DateTime at})>{};
-  bool _busy = false;
+  static const int _maxConcurrentValidations = 4;
+  int _activeCount = 0;
+  final _waitQueue = <Completer<void>>[];
 
   @override
   Future<CoreConfigCheck> validate(
@@ -31,11 +33,31 @@ final class MihomoConfigValidator implements CoreConfigValidator {
           profileHash: hash,
           checkedAt: DateTime.now().toUtc(),
         );
-    if (_busy) return outcome(CoreConfigStatus.unavailable, 'busy');
+    if (cancellation.isCancelled) {
+      return outcome(CoreConfigStatus.cancelled, 'cancelled');
+    }
     if (utf8.encode(yaml).length > 4 * 1024 * 1024) {
       return outcome(CoreConfigStatus.incomplete, 'input_limit');
     }
-    _busy = true;
+    if (_activeCount >= _maxConcurrentValidations) {
+      if (_waitQueue.length >= 32) {
+        return outcome(CoreConfigStatus.unavailable, 'busy');
+      }
+      final completer = Completer<void>();
+      _waitQueue.add(completer);
+      try {
+        await cancellation.bind(
+          completer.future.timeout(const Duration(seconds: 30)),
+        );
+      } on TimeoutException {
+        _waitQueue.remove(completer);
+        return outcome(CoreConfigStatus.unavailable, 'busy');
+      } catch (_) {
+        _waitQueue.remove(completer);
+        return outcome(CoreConfigStatus.cancelled, 'cancelled');
+      }
+    }
+    _activeCount++;
     final worker = NativeWorker(path: workerPath);
     final http = HttpClient()..connectionTimeout = const Duration(seconds: 5);
     final deadline = Timer(const Duration(seconds: 35), cancellation.cancel);
@@ -107,7 +129,10 @@ final class MihomoConfigValidator implements CoreConfigValidator {
     } finally {
       deadline.cancel();
       http.close(force: true);
-      _busy = false;
+      _activeCount--;
+      if (_waitQueue.isNotEmpty) {
+        _waitQueue.removeAt(0).complete();
+      }
     }
   }
 

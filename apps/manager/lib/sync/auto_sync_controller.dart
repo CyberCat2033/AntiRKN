@@ -51,6 +51,8 @@ class AutoSyncController extends ChangeNotifier {
       _suspended = false,
       _disposed = false,
       _again = false;
+  Duration _failureBackoff = Duration.zero;
+  int _consecutiveFailures = 0;
 
   bool _diagnosticsPaused = false;
   Future<void> pauseDiagnostics(bool value) async {
@@ -118,7 +120,9 @@ class AutoSyncController extends ChangeNotifier {
       _running = null;
       if (_allowed && _again) {
         _again = false;
-        _timer = Timer(debounce, _start);
+        final delay =
+            _failureBackoff > Duration.zero ? _failureBackoff : debounce;
+        _timer = Timer(delay, _start);
       }
     });
   }
@@ -160,17 +164,29 @@ class AutoSyncController extends ChangeNotifier {
           : next.more
           ? AutoSyncPhase.waiting
           : AutoSyncPhase.synced;
+      _consecutiveFailures = 0;
+      _failureBackoff = Duration.zero;
     } on GoogleAccountFailure catch (error) {
       accountError = error.issue;
       phase = AutoSyncPhase.error;
+      _again = false;
     } on SyncTransportFailure catch (error) {
       if (error.issue != SyncTransportIssue.cancelled) {
         transportError = error.issue;
         phase = AutoSyncPhase.error;
+        _consecutiveFailures++;
+        if (error.issue == SyncTransportIssue.rateLimited) {
+          _failureBackoff = error.retryAfter ?? const Duration(seconds: 30);
+        } else {
+          final seconds = (1 << _consecutiveFailures).clamp(2, 30);
+          _failureBackoff = Duration(seconds: seconds);
+        }
       }
     } catch (_) {
       transportError = SyncTransportIssue.storage;
       phase = AutoSyncPhase.error;
+      _consecutiveFailures++;
+      _failureBackoff = const Duration(seconds: 5);
     } finally {
       _cancel = null;
       _notify();

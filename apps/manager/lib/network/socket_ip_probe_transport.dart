@@ -94,9 +94,11 @@ class SocketIpProbeTransport implements IpProbeTransport {
     );
     try {
       cancellation.check();
-      task = await Socket.startConnect(
-        InternetAddress(target.address.canonical),
-        target.port,
+      task = await cancellation.bind<ConnectionTask<Socket>>(
+        Socket.startConnect(
+          InternetAddress(target.address.canonical),
+          target.port,
+        ).timeout(remaining()),
       );
       _pending.add(task);
       unawaited(

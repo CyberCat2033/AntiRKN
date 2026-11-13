@@ -24,10 +24,29 @@ class ProfileLinkQr extends StatefulWidget {
 class _ProfileLinkQrState extends State<ProfileLinkQr> {
   bool copying = false;
   String? error;
+  late String _cachedLink;
+
+  @override
+  void initState() {
+    super.initState();
+    _updateLink();
+  }
+
   @override
   void didUpdateWidget(ProfileLinkQr oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.url != widget.url) error = null;
+    if (oldWidget.url != widget.url ||
+        oldWidget.profileName != widget.profileName) {
+      error = null;
+      _updateLink();
+    }
+  }
+
+  void _updateLink() {
+    _cachedLink = clashProfileLink(
+      widget.url,
+      name: widget.profileName,
+    ).toString();
   }
 
   Future<void> copy() async {
@@ -84,10 +103,7 @@ class _ProfileLinkQrState extends State<ProfileLinkQr> {
                         padding: const EdgeInsets.all(AppLayout.gap),
                         child: ExcludeSemantics(
                           child: QrImageView(
-                            data: clashProfileLink(
-                              widget.url,
-                              name: widget.profileName,
-                            ).toString(),
+                            data: _cachedLink,
                             padding: const EdgeInsets.all(16),
                             backgroundColor: Colors.white,
                             errorCorrectionLevel: QrErrorCorrectLevel.M,

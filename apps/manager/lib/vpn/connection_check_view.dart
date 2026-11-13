@@ -46,7 +46,8 @@ class ConnectionCheckView extends StatelessWidget {
     return ListenableBuilder(
       listenable: Listenable.merge([controller, c]),
       builder: (context, _) {
-        final running = c.current == target, result = c.result(target);
+        final running = c.isTargetRunning(target) || c.current == target,
+            result = c.result(target);
         final available = c.available(target);
         final reasonCode = !running && result == null && !available
             ? c.unavailableReasonCode(target)

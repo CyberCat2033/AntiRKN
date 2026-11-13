@@ -62,6 +62,7 @@ final class ConnectionProbeEngine {
   final IpProbeTransport network;
   final List<IpControl> controls;
   bool _running = false;
+  final _waitQueue = <Completer<void>>[];
   Future<ConnectionCheck> check(
     Map<String, Object?> proxy,
     CancellationToken token, {
@@ -79,7 +80,16 @@ final class ConnectionProbeEngine {
       networkIdentity: identity,
       at: DateTime.now().toUtc(),
     );
-    if (_running) return result(ConnectionCheckStatus.notTested, 'busy');
+    if (_running) {
+      final wait = Completer<void>();
+      _waitQueue.add(wait);
+      try {
+        await token.bind(wait.future);
+      } catch (_) {
+        _waitQueue.remove(wait);
+        rethrow;
+      }
+    }
     _running = true;
     final deadline = Timer(const Duration(seconds: 65), token.cancel);
     try {
@@ -185,6 +195,9 @@ final class ConnectionProbeEngine {
     } finally {
       deadline.cancel();
       _running = false;
+      if (_waitQueue.isNotEmpty) {
+        _waitQueue.removeAt(0).complete();
+      }
     }
   }
 }

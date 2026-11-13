@@ -27,10 +27,18 @@ class ConnectionChecks extends ChangeNotifier {
       <ConnectionTarget, ({Map<String, Object?> spec, String identity})>{};
   final _results = <ConnectionTarget, _Entry>{};
   final _busyBackoff = <ConnectionTarget, DateTime>{};
+  final _activeTargets = <ConnectionTarget>{};
+  final _activeTokens = <ConnectionTarget, CancellationToken>{};
   CancellationToken? _token;
-  ConnectionTarget? current;
+  ConnectionTarget? _explicitCurrent;
+  ConnectionTarget? get current =>
+      _explicitCurrent ?? _activeTargets.firstOrNull;
+  set current(ConnectionTarget? value) => _explicitCurrent = value;
   bool _disposed = false, _scheduled = false, foreground = true;
-  bool get busy => _token != null || current != null;
+  bool get busy =>
+      _activeTargets.isNotEmpty || _token != null || current != null;
+  bool isTargetRunning(ConnectionTarget key) =>
+      _activeTargets.contains(key) || current == key;
   Future<void> _writes = Future.value();
   static const _key = 'mihomo.pendingConnectionChecks';
 
@@ -316,7 +324,21 @@ class ConnectionChecks extends ChangeNotifier {
   bool _queue = false;
   bool get queueRunning => _queue;
   Future<void> checkAll(Iterable<ConnectionTarget> keys) async {
-    if (_queue || busy || owner.busy) return;
+    if (owner.busy) {
+      final idle = Completer<void>();
+      void onBusyChanged() {
+        if (!owner.busy && !idle.isCompleted) idle.complete();
+      }
+      owner.addListener(onBusyChanged);
+      try {
+        await idle.future.timeout(const Duration(seconds: 15));
+      } catch (_) {
+        if (owner.busy) return;
+      } finally {
+        owner.removeListener(onBusyChanged);
+      }
+    }
+    if (_queue || busy || _disposed || !foreground) return;
     _queue = true;
     skipped.clear();
     completed = 0;
@@ -325,16 +347,24 @@ class ConnectionChecks extends ChangeNotifier {
     final deadline = Timer(const Duration(minutes: 10), cancel);
     notifyListeners();
     try {
-      for (final key in queue.take(64)) {
-        if (!_queue || !foreground || _disposed) break;
-        if (!_ready(key)) {
-          skipped.add(key);
-        } else {
-          await check(key);
+      final items = queue.take(64).toList();
+      var cursor = 0;
+      const concurrency = 4;
+      Future<void> worker() async {
+        while (_queue && foreground && !_disposed) {
+          if (cursor >= items.length) break;
+          final key = items[cursor++];
+          if (!_ready(key)) {
+            skipped.add(key);
+          } else {
+            await check(key, fromQueue: true);
+          }
+          completed++;
+          notifyListeners();
         }
-        completed++;
-        notifyListeners();
       }
+      final workerCount = items.length < concurrency ? items.length : concurrency;
+      await Future.wait(List.generate(workerCount, (_) => worker()));
       skipped.addAll(queue.skip(completed));
     } finally {
       deadline.cancel();
@@ -382,7 +412,14 @@ class ConnectionChecks extends ChangeNotifier {
       unawaited(_save());
     }
     _queue = false;
+    for (final token in _activeTokens.values) {
+      token.cancel();
+    }
+    _activeTokens.clear();
+    _activeTargets.clear();
+    current = null;
     _token?.cancel();
+    _token = null;
   }
 
   void _changed() {
@@ -423,18 +460,21 @@ class ConnectionChecks extends ChangeNotifier {
     });
   }
 
-  Future<ConnectionCheck?> check(ConnectionTarget key) async {
+  Future<ConnectionCheck?> check(ConnectionTarget key, {bool fromQueue = false}) async {
     if (_disposed ||
-        busy ||
-        owner.busy ||
-        owner.coreValidationBusy ||
         !foreground ||
-        !_ready(key)) {
+        !_ready(key) ||
+        _activeTargets.contains(key) ||
+        (!fromQueue && (_queue || busy)) ||
+        owner.busy ||
+        owner.coreValidationBusy) {
       return null;
     }
     final token = CancellationToken();
-    _token = token;
-    current = key;
+    _token ??= token;
+    _activeTokens[key] = token;
+    _activeTargets.add(key);
+    current = _activeTargets.firstOrNull;
     final signature = _signature(key);
     notifyListeners();
     ConnectionCheck outcome(ConnectionCheckStatus status, String code) =>
@@ -560,8 +600,12 @@ class ConnectionChecks extends ChangeNotifier {
         }
         await _save();
       }
-      _token = null;
-      current = null;
+      _activeTokens.remove(key);
+      _activeTargets.remove(key);
+      if (_token == token) {
+        _token = _activeTokens.values.firstOrNull;
+      }
+      current = _activeTargets.firstOrNull;
       if (!_disposed) {
         notifyListeners();
         _changed();
