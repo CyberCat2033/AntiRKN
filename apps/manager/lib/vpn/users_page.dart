@@ -1,3 +1,4 @@
+import 'dart:async';
 import '../publication/publication_binding_dialog.dart';
 import '../drag_select_list.dart';
 import '../catalog_selection.dart';
@@ -92,19 +93,23 @@ class UsersPage extends StatefulWidget {
         accessChanged &&
         controller.workspace.serverIds.isNotEmpty) {
       final serverTimer = Stopwatch()..start();
-      await controller.prepareAndApply();
-      debugPrint(
-        'client_save_timing phase=servers ms=${serverTimer.elapsedMilliseconds} '
-        'targets=${controller.workspace.serverIds.length} '
-        'ok=${controller.error == null}',
-      );
-      if (customTarget != null && publications != null) {
-        final driveTimer = Stopwatch()..start();
-        await publications.publishUser(nextUser.id, force: true);
-        debugPrint(
-          'client_save_timing phase=drive ms=${driveTimer.elapsedMilliseconds}',
-        );
-      }
+      unawaited(() async {
+        try {
+          await controller.prepareAndApply(background: true);
+          debugPrint(
+            'client_save_timing phase=servers ms=${serverTimer.elapsedMilliseconds} '
+            'targets=${controller.workspace.serverIds.length} '
+            'ok=${controller.serverSyncIssue == null}',
+          );
+          if (customTarget != null && publications != null) {
+            final driveTimer = Stopwatch()..start();
+            await publications.publishUser(nextUser.id, force: true);
+            debugPrint(
+              'client_save_timing phase=drive ms=${driveTimer.elapsedMilliseconds}',
+            );
+          }
+        } catch (_) {}
+      }());
     }
   }
 
@@ -604,13 +609,31 @@ class _UserTile extends StatelessWidget {
                 : () => UsersPage.edit(context, c, motion, user, publications),
             trailing: selection.active
                 ? null
-                : IconButton(
-                    key: ValueKey('client-qr-${user.id}'),
-                    tooltip: l.uiShareProfile,
-                    onPressed: c.foregroundBusy
-                        ? null
-                        : () => onProfile(context, user),
-                    icon: const Icon(Icons.qr_code_2),
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Switch(
+                        key: ValueKey('client-toggle-${user.id}'),
+                        value: user.enabled,
+                        onChanged: c.foregroundBusy
+                            ? null
+                            : (val) async {
+                                final next = user.copyWith(enabled: val);
+                                await c.saveUser(next);
+                                if (c.workspace.serverIds.isNotEmpty) {
+                                  unawaited(c.prepareAndApply(background: true));
+                                }
+                              },
+                      ),
+                      IconButton(
+                        key: ValueKey('client-qr-${user.id}'),
+                        tooltip: l.uiShareProfile,
+                        onPressed: c.foregroundBusy
+                            ? null
+                            : () => onProfile(context, user),
+                        icon: const Icon(Icons.qr_code_2),
+                      ),
+                    ],
                   ),
           ),
         ),

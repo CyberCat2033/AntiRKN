@@ -120,6 +120,24 @@ final class VpnUser {
   String profileTemplate(String sharedTemplate) =>
       baseTemplate ?? sharedTemplate;
   final Map<String, dynamic>? deletion;
+
+  VpnUser copyWith({
+    String? id,
+    String? login,
+    String? name,
+    bool? enabled,
+    String? baseTemplate,
+    String? baseTemplateName,
+    Map<String, dynamic>? deletion,
+  }) => VpnUser(
+    id: id ?? this.id,
+    login: login ?? this.login,
+    name: name ?? this.name,
+    enabled: enabled ?? this.enabled,
+    baseTemplate: baseTemplate ?? this.baseTemplate,
+    baseTemplateName: baseTemplateName ?? this.baseTemplateName,
+    deletion: deletion ?? this.deletion,
+  );
   bool get deleted => deletion != null;
   bool get revocationComplete =>
       deleted &&

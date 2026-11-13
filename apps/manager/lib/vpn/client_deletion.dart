@@ -14,6 +14,13 @@ extension ClientDeletion on VpnController {
           !vpnRevocationSettled(e.value),
     ),
   );
+  bool hasBlockingRevocation(String serverId) => blockingRevocations.any(
+    (u) => (u.deletion!['targets'] as Map).entries.any(
+      (e) =>
+          vpnServerId(e.key as String) == serverId &&
+          !vpnRevocationSettled(e.value),
+    ),
+  );
   bool ownsDeletion(VpnUser user) => user.deletion?['executor'] == _deviceId;
 
   Iterable<VpnUser> get visibleDeletions =>
@@ -165,17 +172,20 @@ extension ClientDeletion on VpnController {
     _notify();
   }
 
-  Future<void> _deletionTarget(
+  Future<void> _saveDeletionTargets(
     String userId,
-    String target,
-    Map<String, dynamic> record,
+    Map<String, Map<String, dynamic>> targetUpdates,
   ) async {
-    final deletion = workspace.users
-        .singleWhere((u) => u.id == userId)
-        .deletion!;
+    final user = workspace.users.where((u) => u.id == userId).firstOrNull;
+    if (user?.deletion == null) return;
+    final deletion = user!.deletion!;
+    final nextTargets = {
+      ...deletion['targets'] as Map,
+      for (final e in targetUpdates.entries) e.key: e.value,
+    };
     await _saveDeletion(userId, {
       ...deletion,
-      'targets': {...deletion['targets'] as Map, target: record},
+      'targets': nextTargets,
     });
   }
 
@@ -342,210 +352,323 @@ extension ClientDeletion on VpnController {
       }
       final deletionId = original.deletion!['id'] as String;
       final resumeHidden = force || original.deletion?['hidden'] == true;
-      for (final target
-          in (original.deletion!['targets'] as Map).keys.cast<String>()) {
-        if (_restoredTargets.contains(target)) continue;
-        var record = Map<String, dynamic>.from(
-          workspace.users
-                  .singleWhere((u) => u.id == original.id)
-                  .deletion!['targets'][target]
-              as Map,
-        );
-        if (vpnRevocationSettled(record) ||
-            !force &&
-                (record['retryAt'] as int? ?? 0) >
-                    DateTime.now().millisecondsSinceEpoch) {
-          continue;
+      final targetsMap = original.deletion!['targets'] as Map;
+      final targetsList = targetsMap.keys.cast<String>().where((target) {
+        if (_restoredTargets.contains(target)) return false;
+        final rec = targetsMap[target] as Map;
+        if (vpnRevocationSettled(rec)) return false;
+        if (!force &&
+            (rec['retryAt'] as int? ?? 0) >
+                DateTime.now().millisecondsSinceEpoch) {
+          return false;
         }
-        final r = remote(target);
-        if (r == null) continue;
-        try {
-          await _deletionGuard(original.id, deletionId);
-          if (record['identity'] != null && record['identity'] != r.identity) {
-            throw const FormatException('vpn_identity');
-          }
-          // Drain or establish the fate of the old ordinary operation first.
-          final server = workspace.servers[target] ?? <String, dynamic>{};
-          if (server['pending'] case final Map oldRequest) {
-            final old = await _request(
-              r,
-              RunnerRequest.status(oldRequest['id'] as String, 0),
-              token,
-              allowMissing: true,
-            );
-            if (old.code != 'missing' &&
-                (old.jobs.length != 1 ||
-                    old.jobs.single.id != oldRequest['id'] ||
-                    !old.jobs.single.terminal)) {
-              continue;
-            }
-            await _record(target, {
-              ...server,
-              'pending': null,
-              'authorizedPayload': null,
-              'paused': true,
-              'cancelRequested': false,
-              'observingCancel': false,
-            });
-          }
-          if (record['request'] == null) {
-            final state = await _request(
-              r,
-              _stateRequest(target, r.panelId),
-              token,
-            );
-            final payload = _revocationPayload(
-              target,
-              r.panelId,
-              original,
-              _observations(state, target),
-            );
-            final plan = await _request(
-              r,
-              _planRequest(target, r.panelId, payload),
-              token,
-            );
-            final preview = _preview(plan, target);
-            if (preview?['fingerprint'] is! String) {
-              throw const FormatException('vpn_failed');
-            }
-            final request = _applyRequest(
-              target,
-              vlessRevision({
-                'deletion': deletionId,
-                'target': target,
-                'generation': record['generation'] ?? 0,
-              }).substring(0, 32),
-              payload,
-              preview!['fingerprint'] as String,
-            );
-            record = {
-              ...record,
-              'identity': r.identity,
-              'status': 'waiting',
-              'request': request.json,
-              'error': null,
-            };
-            await _deletionTarget(original.id, target, record);
-          }
-          final request = RunnerRequest.fromJson(
-            Map<String, Object?>.from(record['request'] as Map),
-          );
-          final payload = jsonDecode(request.json['payload'] as String) as Map;
-          if (!(payload['revokedUsers'] as List? ?? []).contains(original.id) ||
-              payload['workspaceId'] != workspace.resourceWorkspaceId(target)) {
-            throw const FormatException('vpn_conflict');
-          }
-          var response = await _request(
-            r,
-            RunnerRequest.status(request.id!, 0),
-            token,
-            allowMissing: true,
-          );
-          if (response.code == 'missing') {
-            await _deletionGuard(original.id, deletionId);
-            response = await _request(r, request, token);
-          }
-          if (response.jobs.length != 1 ||
-              response.jobs.single.id != request.id) {
-            throw const FormatException('vpn_failed');
-          }
-          final job = response.jobs.single;
-          record = {
-            ...record,
-            'job': job.toJson(),
-            'error': null,
-            'retryAt': 0,
-          };
-          if (job.status == 'succeeded') {
-            final state = await _request(
-              r,
-              _stateRequest(target, r.panelId),
-              token,
-            );
-            final observed = _observations(state, target);
-            final owned = observed
-                ?.where(
-                  (o) =>
-                      o['workspaceId'] == workspace.resourceWorkspaceId(target),
-                )
-                .toList();
-            final requested = (payload['resources'] as List)
-                .map((r) => r['id'])
-                .toSet();
-            if (owned == null ||
-                !requested.every((id) => owned.any((o) => o['id'] == id)) ||
-                owned.any(
-                  (o) =>
-                      o['confirmed'] != true ||
-                      (o['clients'] as List).any(
-                        (c) => c['id'] == original.id && c['enabled'] == true,
-                      ),
-                )) {
-              throw const FormatException('vpn_conflict');
-            }
-            await _record(target, {
-              ...workspace.servers[target] ?? <String, dynamic>{},
-              'identity': r.identity,
-              'panelId': r.panelId,
-              'observed': observed,
-              'error': null,
-              'verifiedAt': DateTime.now().toUtc().toIso8601String(),
-            });
-            record = {...record, 'status': 'revoked'};
-            refreshProfiles = true;
-          } else if (job.terminal) {
-            if (resumeHidden && job.status == 'failed' && job.checkpoint == 0) {
-              // No resource was applied. A fresh plan can recover a stale
-              // fingerprint; resuming the same immutable preview cannot.
-              record = {
-                ...record,
-                'status': 'waiting',
-                'request': null,
-                'generation': (record['generation'] as int? ?? 0) + 1,
-              };
-            } else if (resumeHidden &&
-                ['failed', 'partially_applied'].contains(job.status)) {
-              await _deletionGuard(original.id, deletionId);
-              await _request(r, RunnerRequest.resume(request.id!), token);
-              record = {...record, 'status': 'running'};
-            } else if (resumeHidden && job.status == 'cancelled') {
-              record = {
-                ...record,
-                'status': 'waiting',
-                'request': null,
-                'generation': (record['generation'] as int? ?? 0) + 1,
-              };
-            } else {
-              record = {
-                ...record,
-                'status': 'error',
-                'error': 'vpn_revocation_failed',
-                'retryAt': DateTime.now().millisecondsSinceEpoch + 30000,
-              };
-            }
-          } else {
-            record = {...record, 'status': 'running'};
-          }
-          await _deletionTarget(original.id, target, record);
-        } on SyncMergeFailure {
-          rethrow;
-        } on VaultFailure {
-          rethrow;
-        } catch (e) {
-          final issue = e is FormatException
-              ? e.message
-              : e is SshFailure
-              ? 'vpn_connection'
-              : 'vpn_runner';
-          await _deletionTarget(original.id, target, {
-            ...record,
-            'status': 'error',
-            'error': issue,
-            'retryAt': DateTime.now().millisecondsSinceEpoch + 30000,
-          });
+        return remote(target) != null;
+      }).toList();
+
+      if (targetsList.isNotEmpty) {
+        // Group targets by physical server host: targets on the same physical
+        // server execute sequentially to preserve runner state consistency;
+        // independent physical servers execute concurrently via worker pool.
+        final physicalGroups = <String, List<String>>{};
+        for (final target in targetsList) {
+          physicalGroups.putIfAbsent(vpnServerId(target), () => []).add(target);
+        }
+        final groupList = physicalGroups.values.toList();
+
+        // Phase 1 (Planning & Intent): Distinct servers contact runner daemons
+        // concurrently to plan the revocation. Accumulate generated requests in-memory
+        // and commit all request.json payloads in one atomic SQLite transaction before
+        // apply requests are dispatched to remote runners.
+        final phase1Updates = <String, Map<String, dynamic>>{};
+        var nextGroupIndex = 0;
+        await Future.wait([
+          for (var i = 0; i < 4 && i < groupList.length; i++)
+            () async {
+              while (nextGroupIndex < groupList.length) {
+                token.check();
+                final targets = groupList[nextGroupIndex++];
+                for (final target in targets) {
+                  token.check();
+                  var record = Map<String, dynamic>.from(
+                    (workspace.users
+                            .singleWhere((u) => u.id == original.id)
+                            .deletion!['targets'] as Map)[target]
+                        as Map,
+                  );
+                  if (record['request'] != null) continue;
+                  final r = remote(target);
+                  if (r == null) continue;
+                  try {
+                    await _deletionGuard(original.id, deletionId);
+                    if (record['identity'] != null &&
+                        record['identity'] != r.identity) {
+                      throw const FormatException('vpn_identity');
+                    }
+                    // Drain or establish the fate of the old ordinary operation first.
+                    final server =
+                        workspace.servers[target] ?? <String, dynamic>{};
+                    if (server['pending'] case final Map oldRequest) {
+                      final old = await _request(
+                        r,
+                        RunnerRequest.status(oldRequest['id'] as String, 0),
+                        token,
+                        allowMissing: true,
+                      );
+                      if (old.code != 'missing' &&
+                          (old.jobs.length != 1 ||
+                              old.jobs.single.id != oldRequest['id'] ||
+                              !old.jobs.single.terminal)) {
+                        continue;
+                      }
+                      await _record(target, {
+                        ...server,
+                        'pending': null,
+                        'authorizedPayload': null,
+                        'paused': true,
+                        'cancelRequested': false,
+                        'observingCancel': false,
+                      });
+                    }
+                    final state = await _request(
+                      r,
+                      _stateRequest(target, r.panelId),
+                      token,
+                    );
+                    final payload = _revocationPayload(
+                      target,
+                      r.panelId,
+                      original,
+                      _observations(state, target),
+                    );
+                    final plan = await _request(
+                      r,
+                      _planRequest(target, r.panelId, payload),
+                      token,
+                    );
+                    final preview = _preview(plan, target);
+                    if (preview?['fingerprint'] is! String) {
+                      throw const FormatException('vpn_failed');
+                    }
+                    final request = _applyRequest(
+                      target,
+                      vlessRevision({
+                        'deletion': deletionId,
+                        'target': target,
+                        'generation': record['generation'] ?? 0,
+                      }).substring(0, 32),
+                      payload,
+                      preview!['fingerprint'] as String,
+                    );
+                    record = {
+                      ...record,
+                      'identity': r.identity,
+                      'status': 'waiting',
+                      'request': request.json,
+                      'error': null,
+                    };
+                    phase1Updates[target] = record;
+                  } on SyncMergeFailure {
+                    rethrow;
+                  } on VaultFailure {
+                    rethrow;
+                  } catch (e) {
+                    final issue = e is FormatException
+                        ? e.message
+                        : e is SshFailure
+                        ? 'vpn_connection'
+                        : 'vpn_runner';
+                    phase1Updates[target] = {
+                      ...record,
+                      'status': 'error',
+                      'error': issue,
+                      'retryAt': DateTime.now().millisecondsSinceEpoch + 30000,
+                    };
+                  }
+                }
+              }
+            }(),
+        ]);
+
+        if (phase1Updates.isNotEmpty) {
+          await _saveDeletionTargets(original.id, phase1Updates);
+        }
+
+        // Phase 2 (Execution & Verification): Dispatch and monitor runner jobs
+        // concurrently across physical servers. Accumulate verified terminal statuses
+        // and commit all updated tombstone targets and observed server states.
+        final phase2Updates = <String, Map<String, dynamic>>{};
+        nextGroupIndex = 0;
+        await Future.wait([
+          for (var i = 0; i < 4 && i < groupList.length; i++)
+            () async {
+              while (nextGroupIndex < groupList.length) {
+                token.check();
+                final targets = groupList[nextGroupIndex++];
+                for (final target in targets) {
+                  token.check();
+                  var record = Map<String, dynamic>.from(
+                    (workspace.users
+                            .singleWhere((u) => u.id == original.id)
+                            .deletion!['targets'] as Map)[target]
+                        as Map,
+                  );
+                  if (vpnRevocationSettled(record) ||
+                      record['request'] == null) {
+                    continue;
+                  }
+                  final r = remote(target);
+                  if (r == null) continue;
+                  try {
+                    await _deletionGuard(original.id, deletionId);
+                    if (record['identity'] != null &&
+                        record['identity'] != r.identity) {
+                      throw const FormatException('vpn_identity');
+                    }
+                    final request = RunnerRequest.fromJson(
+                      Map<String, Object?>.from(record['request'] as Map),
+                    );
+                    final payload =
+                        jsonDecode(request.json['payload'] as String) as Map;
+                    if (!(payload['revokedUsers'] as List? ?? [])
+                            .contains(original.id) ||
+                        payload['workspaceId'] !=
+                            workspace.resourceWorkspaceId(target)) {
+                      throw const FormatException('vpn_conflict');
+                    }
+                    var response = await _request(
+                      r,
+                      RunnerRequest.status(request.id!, 0),
+                      token,
+                      allowMissing: true,
+                    );
+                    if (response.code == 'missing') {
+                      await _deletionGuard(original.id, deletionId);
+                      response = await _request(r, request, token);
+                    }
+                    if (response.jobs.length != 1 ||
+                        response.jobs.single.id != request.id) {
+                      throw const FormatException('vpn_failed');
+                    }
+                    final job = response.jobs.single;
+                    record = {
+                      ...record,
+                      'job': job.toJson(),
+                      'error': null,
+                      'retryAt': 0,
+                    };
+                    if (job.status == 'succeeded') {
+                      final state = await _request(
+                        r,
+                        _stateRequest(target, r.panelId),
+                        token,
+                      );
+                      final observed = _observations(state, target);
+                      final owned = observed
+                          ?.where(
+                            (o) =>
+                                o['workspaceId'] ==
+                                workspace.resourceWorkspaceId(target),
+                          )
+                          .toList();
+                      final requested = (payload['resources'] as List)
+                          .map((r) => r['id'])
+                          .toSet();
+                      if (owned == null ||
+                          !requested.every(
+                            (id) => owned.any((o) => o['id'] == id),
+                          ) ||
+                          owned.any(
+                            (o) =>
+                                o['confirmed'] != true ||
+                                (o['clients'] as List).any(
+                                  (c) =>
+                                      c['id'] == original.id &&
+                                      c['enabled'] == true,
+                                ),
+                          )) {
+                        throw const FormatException('vpn_conflict');
+                      }
+                      await _record(target, {
+                        ...workspace.servers[target] ?? <String, dynamic>{},
+                        'identity': r.identity,
+                        'panelId': r.panelId,
+                        'observed': observed,
+                        'error': null,
+                        'verifiedAt': DateTime.now().toUtc().toIso8601String(),
+                      });
+                      record = {...record, 'status': 'revoked'};
+                      refreshProfiles = true;
+                    } else if (job.terminal) {
+                      if (resumeHidden &&
+                          job.status == 'failed' &&
+                          job.checkpoint == 0) {
+                        // No resource was applied. A fresh plan can recover a stale
+                        // fingerprint; resuming the same immutable preview cannot.
+                        record = {
+                          ...record,
+                          'status': 'waiting',
+                          'request': null,
+                          'generation':
+                              (record['generation'] as int? ?? 0) + 1,
+                        };
+                      } else if (resumeHidden &&
+                          ['failed', 'partially_applied']
+                              .contains(job.status)) {
+                        await _deletionGuard(original.id, deletionId);
+                        await _request(
+                          r,
+                          RunnerRequest.resume(request.id!),
+                          token,
+                        );
+                        record = {...record, 'status': 'running'};
+                      } else if (resumeHidden && job.status == 'cancelled') {
+                        record = {
+                          ...record,
+                          'status': 'waiting',
+                          'request': null,
+                          'generation':
+                              (record['generation'] as int? ?? 0) + 1,
+                        };
+                      } else {
+                        record = {
+                          ...record,
+                          'status': 'error',
+                          'error': 'vpn_revocation_failed',
+                          'retryAt':
+                              DateTime.now().millisecondsSinceEpoch + 30000,
+                        };
+                      }
+                    } else {
+                      record = {...record, 'status': 'running'};
+                    }
+                    phase2Updates[target] = record;
+                  } on SyncMergeFailure {
+                    rethrow;
+                  } on VaultFailure {
+                    rethrow;
+                  } catch (e) {
+                    final issue = e is FormatException
+                        ? e.message
+                        : e is SshFailure
+                        ? 'vpn_connection'
+                        : 'vpn_runner';
+                    phase2Updates[target] = {
+                      ...record,
+                      'status': 'error',
+                      'error': issue,
+                      'retryAt': DateTime.now().millisecondsSinceEpoch + 30000,
+                    };
+                  }
+                }
+              }
+            }(),
+        ]);
+
+        if (phase2Updates.isNotEmpty) {
+          await _saveDeletionTargets(original.id, phase2Updates);
         }
       }
+
       final user = workspace.users.singleWhere((u) => u.id == original.id);
       final file = user.deletion!['file'] as Map?;
       final canCleanupFile =

@@ -358,9 +358,18 @@ class VpnController extends ChangeNotifier {
   /// true: connected, false: connection failed, null: another action is busy.
   final Future<bool?> Function(String serverId)? connectForDeletion;
   final Future<bool> Function(String serverId)? connectForAction;
-  Future<bool> ensureConnected(String target) async =>
-      remote(target) != null ||
-      await connectForAction?.call(vpnServerId(target)) == true;
+  final Map<String, Future<bool>> _inFlightConnections = {};
+  Future<bool> ensureConnected(String target) {
+    if (remote(target) != null) return Future.value(true);
+    final serverId = vpnServerId(target);
+    return _inFlightConnections.putIfAbsent(serverId, () async {
+      try {
+        return await connectForAction?.call(serverId) == true;
+      } finally {
+        _inFlightConnections.remove(serverId);
+      }
+    });
+  }
   final Map<String, String> _observedConnections = {};
   String? _deviceId;
   Future<void> Function(VpnUser, Future<void> Function())? deletePublishedFile;
@@ -541,19 +550,44 @@ class VpnController extends ChangeNotifier {
     try {
       await action(token);
     } on SyncMergeFailure {
-      error = 'sync_conflict';
+      if (background) {
+        serverSyncIssue = 'sync_conflict';
+      } else {
+        error = 'sync_conflict';
+      }
     } on VaultFailure catch (e) {
-      error = e.issue == VaultIssue.busy
+      final issue = e.issue == VaultIssue.busy
           ? 'vpn_storage_conflict'
           : 'vpn_storage';
+      if (background) {
+        serverSyncIssue = issue;
+      } else {
+        error = issue;
+      }
     } on FormatException catch (e) {
-      error = e.message;
+      if (background) {
+        serverSyncIssue = e.message;
+      } else {
+        error = e.message;
+      }
     } on SshFailure {
-      error = 'vpn_connection';
+      if (background) {
+        serverSyncIssue = 'vpn_connection';
+      } else {
+        error = 'vpn_connection';
+      }
     } on RunnerFailure {
-      error = 'vpn_runner';
+      if (background) {
+        serverSyncIssue = 'vpn_runner';
+      } else {
+        error = 'vpn_runner';
+      }
     } catch (_) {
-      error = 'vpn_failed';
+      if (background) {
+        serverSyncIssue = 'vpn_failed';
+      } else {
+        error = 'vpn_failed';
+      }
     } finally {
       if (error == 'vpn_identity' && _identityNoticeTimer == null) {
         _identityNoticeTimer = Timer(const Duration(seconds: 15), () {
@@ -1145,9 +1179,15 @@ class VpnController extends ChangeNotifier {
     }
   }
 
-  Future<void> prepareAndApply({Set<String>? serverIds}) async {
-    await prepare(serverIds: serverIds);
-    if (error == null && plans.isNotEmpty) await apply();
+  Future<void> prepareAndApply({
+    Set<String>? serverIds,
+    bool background = false,
+  }) async {
+    await prepare(serverIds: serverIds, background: background);
+    final issue = background ? serverSyncIssue : error;
+    if (issue == null && plans.isNotEmpty) {
+      await apply(background: background);
+    }
   }
 
   bool adoptionConfirmed(String target, String id) =>
@@ -1229,80 +1269,77 @@ class VpnController extends ChangeNotifier {
     if (prepared && error == null) await apply();
   }
 
-  Future<void> prepare({Set<String>? serverIds}) => _run((token) async {
-    if (blockingRevocations.isNotEmpty) {
-      throw const FormatException('vpn_busy');
-    }
-    plans = [];
-    final availableTargets = serverIds ?? workspace.serverIds;
-    final selected = availableTargets.where((id) {
-      if (serverIds != null && !serverIds.contains(id)) return false;
-      final server = vpnServerId(id);
-      return this.serverIds == null ||
-          this.serverIds!().map(vpnServerId).contains(server);
-    }).toList();
-    // A hidden revocation is retained honestly, but it must not become an
-    // invisible permanent blocker. Once this explicit access change reconnects
-    // the server, finish the old revocation before planning the current state.
-    if (pendingRevocations.isNotEmpty) {
-      for (final id in selected) {
-        await ensureConnected(id);
-        token.check();
-      }
-      await _reconcileDeletions(token);
-    }
-    if (blockingRevocations.isNotEmpty) {
-      throw const FormatException('vpn_busy');
-    }
-    await _mapServersBounded(
-      selected.map(vpnServerId).toSet().toList(),
-      (id) => ensureConnected(id),
-      cancellation: token,
-    );
-    final plansList = await _mapServersBounded(selected, (id) async {
-      await ensureConnected(id);
-      token.check();
-      final connection = remote(id);
-      final previous = workspace.servers[id];
-      if (observesOperation(id)) {
-        if (!observedJobs.containsKey(id) && connection != null) {
-          await _observeOperation(id, token);
+  Future<void> prepare({Set<String>? serverIds, bool background = false}) =>
+      _run((token) async {
+        plans = [];
+        final availableTargets = serverIds ?? workspace.serverIds;
+        final selected = availableTargets.where((id) {
+          if (serverIds != null && !serverIds.contains(id)) return false;
+          final server = vpnServerId(id);
+          return this.serverIds == null ||
+              this.serverIds!().map(vpnServerId).contains(server);
+        }).toList();
+        // A hidden revocation is retained honestly, but it must not become an
+        // invisible permanent blocker. Once this explicit access change reconnects
+        // the server, finish the old revocation before planning the current state.
+        if (pendingRevocations.isNotEmpty) {
+          final selectedServers = selected.map(vpnServerId).toSet().toList();
+          await _mapServersBounded(
+            selectedServers,
+            (id) => ensureConnected(id),
+            cancellation: token,
+          );
+          await _reconcileDeletions(token);
         }
-        if (currentJob(id)?.terminal == false) {
-          throw const FormatException('vpn_busy');
-        }
-      } else if (_isTargetBusy(previous)) {
-        throw const FormatException('vpn_busy');
-      }
-      final panelId = (isAwgTarget(id) || isTtTarget(id))
-          ? workspace.resourceWorkspaceId(id)
-          : connection?.panelId ?? previous?['panelId'] as String?;
-      if (panelId == null) throw const FormatException('vpn_panel_required');
-      final payload = workspace.desired(id, panelId);
-      if (connection == null || hasPendingRevocation(vpnServerId(id))) {
-        return VpnPlan(
-          id,
-          payload,
-          connection?.identity ?? previous?['identity'] as String?,
-          null,
+        await _mapServersBounded(
+          selected.map(vpnServerId).toSet().toList(),
+          (id) => ensureConnected(id),
+          cancellation: token,
         );
-      }
-      if (previous?['identity'] != null &&
-          previous?['identity'] != connection.identity) {
-        throw const FormatException('vpn_identity');
-      }
-      final response = await _request(
-        connection,
-        _planRequest(id, panelId, payload),
-        token,
-      );
-      if (_preview(response, id) == null) {
-        throw const FormatException('vpn_failed');
-      }
-      return VpnPlan(id, payload, connection.identity, _preview(response, id));
-    }, cancellation: token);
-    plans = plansList;
-  });
+        final plansList = await _mapServersBounded(selected, (id) async {
+          token.check();
+          final connection = remote(id);
+          final previous = workspace.servers[id];
+          if (observesOperation(id)) {
+            if (!observedJobs.containsKey(id) && connection != null) {
+              await _observeOperation(id, token);
+            }
+            if (currentJob(id)?.terminal == false) {
+              throw const FormatException('vpn_busy');
+            }
+          } else if (_isTargetBusy(previous)) {
+            throw const FormatException('vpn_busy');
+          }
+          final panelId = (isAwgTarget(id) || isTtTarget(id))
+              ? workspace.resourceWorkspaceId(id)
+              : connection?.panelId ?? previous?['panelId'] as String?;
+          if (panelId == null) throw const FormatException('vpn_panel_required');
+          final payload = workspace.desired(id, panelId);
+          if (connection == null || hasPendingRevocation(vpnServerId(id))) {
+            return VpnPlan(
+              id,
+              payload,
+              connection?.identity ?? previous?['identity'] as String?,
+              null,
+            );
+          }
+          if (previous?['identity'] != null &&
+              previous?['identity'] != connection.identity) {
+            throw const FormatException('vpn_identity');
+          }
+          final response = await _request(
+            connection,
+            _planRequest(id, panelId, payload),
+            token,
+          );
+          if (_preview(response, id) == null) {
+            throw const FormatException('vpn_failed');
+          }
+          return VpnPlan(id, payload, connection.identity, _preview(response, id));
+        }, cancellation: token);
+        plans = plansList;
+      }, background: background);
+
   void dismissPlans() {
     if (!busy) {
       plans = [];
@@ -1310,8 +1347,8 @@ class VpnController extends ChangeNotifier {
     }
   }
 
-  Future<void> apply() => _run((token) async {
-    if (blockingRevocations.isNotEmpty) {
+  Future<void> apply({bool background = false}) => _run((token) async {
+    if (plans.any((p) => p.preview != null && hasBlockingRevocation(vpnServerId(p.serverId)))) {
       throw const FormatException('vpn_busy');
     }
     if (plans.isEmpty) return;
@@ -1357,7 +1394,7 @@ class VpnController extends ChangeNotifier {
     plans = [];
     await _reconcile(token);
     _scheduleReconcile();
-  });
+  }, background: background);
   bool diagnosticsPaused = false;
 
   bool get _hasServerReconcileWork => workspace.servers.entries.any(
