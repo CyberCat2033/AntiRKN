@@ -196,8 +196,15 @@ class RunnerController extends ChangeNotifier {
     _notify();
   }
 
+  bool _pendingConnectionReady = false;
+
   void connectionReady() {
-    if (_disposed || busy || transport() == null) return;
+    if (_disposed || transport() == null) return;
+    if (busy) {
+      _pendingConnectionReady = true;
+      return;
+    }
+    _pendingConnectionReady = false;
     if (error == RunnerIssue.unavailable) error = null;
     unawaited(refresh(prepare: true));
   }
@@ -414,6 +421,10 @@ class RunnerController extends ChangeNotifier {
       if (_idle == idle) _idle = null;
       idle.complete();
       _notify();
+      if (_pendingConnectionReady && !_disposed && transport() != null) {
+        _pendingConnectionReady = false;
+        connectionReady();
+      }
       if (_softwareRefreshPending && !_disposed) {
         _softwareRefreshPending = false;
         refreshSoftware?.call();
@@ -1888,9 +1899,13 @@ class RunnerController extends ChangeNotifier {
       if (!connected && connectForAction != null) {
         if (await connectForAction!() != true) return;
       }
-      await _readJob(remote, token, job.id);
+      try {
+        await _readJob(remote, token, job.id);
+      } catch (_) {}
       if (selected?.id != job.id || selected!.terminal) return;
-      await _checkCurrentOperation();
+      try {
+        await _checkCurrentOperation();
+      } catch (_) {}
       final response = await remote.request(
         RunnerRequest.cancel(job.id),
         token,
@@ -1899,6 +1914,43 @@ class RunnerController extends ChangeNotifier {
       token.check();
       responseCode = response.code;
       await _readJob(remote, token, job.id);
+    });
+  }
+
+  Future<void> resetJobQueue() async {
+    _token?.cancel();
+    _token = null;
+    busy = false;
+    backgroundBusy = false;
+    actionPending = false;
+    pending = null;
+    resumePlan = null;
+    choosingAptUpdate = false;
+    choosingPanel = false;
+    error = null;
+    responseCode = null;
+    connectionLost = false;
+    _notify();
+
+    await _run((remote, token) async {
+      if (!connected && connectForAction != null) {
+        if (await connectForAction!() != true) return;
+      }
+      final targetIds = <String>{
+        if (selected != null && !selected!.terminal) selected!.id,
+        for (final j in jobs)
+          if (!j.terminal) j.id,
+      };
+      for (final id in targetIds) {
+        try {
+          await remote.request(
+            RunnerRequest.cancel(id),
+            token,
+            sudoPassword: password(),
+          );
+        } catch (_) {}
+      }
+      await refresh(prepare: true);
     });
   }
 

@@ -470,10 +470,13 @@ class Store:
             except Exception:
                 return self.response('clear_managed_clients_failed')
         if action == 'list':
+            self.reap_stale_jobs()
             rows = self.db.execute('SELECT * FROM jobs ORDER BY created DESC LIMIT ?', (SCHEMA['pageSize'],)).fetchall()
             return self.response('ok', [self.job(row, row['sequence']) for row in rows])
         self.db.execute('BEGIN IMMEDIATE')
         try:
+            if action != 'cancel':
+                self.reap_stale_jobs()
             row = self.db.execute('SELECT * FROM jobs WHERE id=?', (req['id'],)).fetchone()
             if action == 'submit':
                 if req['kind'] == 'inbound_update' and (row is not None or not self.db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running')").fetchone()):
@@ -504,7 +507,12 @@ class Store:
                     row = self.db.execute('SELECT * FROM jobs WHERE id=?', (req['id'],)).fetchone()
                     code = 'ok'
             elif action == 'cancel' and row['status'] not in SCHEMA['terminal']:
-                if not row['cancel']:
+                health_row = self.db.execute("SELECT heartbeat FROM health WHERE id=1").fetchone()
+                daemon_dead = health_row is not None and (time.time() - health_row[0]) > 30
+                if daemon_dead:
+                    self.db.execute("UPDATE jobs SET status='cancelled', cancel=1 WHERE id=?", (req['id'],))
+                    self.event(req['id'], 'cancelled', row['checkpoint'], json.loads(row['request'])['count'])
+                elif not row['cancel']:
                     self.db.execute('UPDATE jobs SET cancel=1 WHERE id=?', (req['id'],))
                     self.event(req['id'], 'cancel_requested', row['checkpoint'], json.loads(row['request'])['count'])
                 row = self.db.execute('SELECT * FROM jobs WHERE id=?', (req['id'],)).fetchone()
@@ -517,6 +525,24 @@ class Store:
         except BaseException:
             self.db.rollback()
             raise
+
+    def is_daemon_alive(self):
+        row = self.db.execute("SELECT heartbeat FROM health WHERE id=1").fetchone()
+        return row is not None and 0 <= (time.time() - row[0]) < 30
+
+    def reap_stale_jobs(self, timeout=30):
+        row = self.db.execute("SELECT heartbeat FROM health WHERE id=1").fetchone()
+        if row is not None and (time.time() - row[0]) > timeout:
+            with self.db:
+                cutoff = time.time() - timeout
+                rows = self.db.execute(
+                    "SELECT * FROM jobs WHERE status IN ('planned','running') AND (created < ? OR cancel=1)",
+                    (cutoff,)
+                ).fetchall()
+                for r in rows:
+                    status = 'cancelled' if r['cancel'] else 'failed'
+                    self.db.execute("UPDATE jobs SET status=? WHERE id=?", (status, r['id']))
+                    self.event(r['id'], status, r['checkpoint'], json.loads(r['request'])['count'])
 
     def heartbeat(self):
         with self.db:
@@ -777,6 +803,12 @@ def daemon(directory=STATE):
             store.close()
 
 
+def write_rpc_response(payload):
+    encoded = (json.dumps(payload) + '\n').encode('utf-8')
+    sys.stdout.buffer.write(encoded)
+    sys.stdout.buffer.flush()
+
+
 def main():
     os.umask(0o077)
     if os.geteuid() != 0 or len(sys.argv) != 2:
@@ -786,6 +818,8 @@ def main():
         return
     if sys.argv[1] != 'rpc' or not (STATE / 'jobs.sqlite').is_file():
         raise ValueError('missing')
+    import warnings
+    warnings.simplefilter('ignore')
     print(INPUT_PROMPT, file=sys.stderr, flush=True)
     raw = sys.stdin.buffer.read(SCHEMA['maxRequestBytes'] + 1)
     if len(raw) > SCHEMA['maxRequestBytes']:
@@ -795,7 +829,7 @@ def main():
     fcntl.flock(lock, fcntl.LOCK_SH | fcntl.LOCK_NB)
     store = Store(STATE)
     try:
-        print(json.dumps(store.request(req)), flush=True)
+        write_rpc_response(store.request(req))
     finally:
         store.close()
         os.close(lock)
@@ -805,15 +839,15 @@ if __name__ == '__main__':
     try:
         main()
     except BlockingIOError:
-        print(json.dumps(dict(version=SCHEMA['version'], code='busy', alive=False, jobs=[])), flush=True)
+        write_rpc_response(dict(version=SCHEMA['version'], code='busy', alive=False, jobs=[]))
         sys.exit(1)
     except sqlite3.OperationalError as error:
         code = 'busy' if 'lock' in str(error).lower() or 'busy' in str(error).lower() else 'failed'
-        print(json.dumps(dict(version=SCHEMA['version'], code=code, alive=False, jobs=[])), flush=True)
+        write_rpc_response(dict(version=SCHEMA['version'], code=code, alive=False, jobs=[]))
         sys.exit(1)
     except (ValueError, TypeError, KeyError, AttributeError, OSError, sqlite3.Error, VlessError, PanelError, AptError, ComponentUpgradeError, subprocess.SubprocessError) as error:
         code = getattr(error, 'code', str(error))
         if code not in SCHEMA['codes']:
             code = 'failed'
-        print(json.dumps(dict(version=SCHEMA['version'], code=code, alive=False, jobs=[])), flush=True)
+        write_rpc_response(dict(version=SCHEMA['version'], code=code, alive=False, jobs=[]))
         sys.exit(1)

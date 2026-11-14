@@ -96,8 +96,8 @@ def inspect_runner():
             matching = predecessor_for_unit(predecessors, unit_hash)
             if matching is not None:
                 release, state, upgradable = matching['release'], 'installed', True
-            elif any(hashes.values()):
-                raise ValueError()
+            else:
+                release, state, upgradable = predecessors[-1]['release'], 'partial', True
         elif any(hashes.values()): raise ValueError()
     except (ValueError, KeyError, TypeError, OSError):
         unsafe = True

@@ -6,6 +6,7 @@ from pathlib import Path
 import sqlite3
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -375,6 +376,37 @@ class RunnerTests(unittest.TestCase):
         # Verify AntiRKN clients in resources are preserved
         row = self.store.db.execute('SELECT data FROM tt_resources WHERE id=?', ('res1',)).fetchone()[0]
         self.assertEqual(json.loads(row)['clients'], [{'id': 'u1', 'username': 'user1'}])
+
+    def test_unconditional_queue_cancellation_when_daemon_is_dead(self):
+        job_id = 'c' * 32
+        apt_req = dict(version=1, action='submit', id=job_id, kind='apt_update', count=2, interval=1)
+        encoded = json.dumps(apt_req, sort_keys=True, separators=(',', ':'))
+        with self.store.db:
+            # Emulate planned job in queue
+            self.store.db.execute('INSERT INTO jobs VALUES (?,?,?,0,0,0,?)', (job_id, encoded, 'planned', time.time() - 70))
+            self.store.event(job_id, 'planned', 0, 2)
+            # Emulate stopped daemon (heartbeat older than 60 seconds)
+            self.store.db.execute('INSERT OR REPLACE INTO health VALUES (1, ?)', (time.time() - 65,))
+
+        # Verify initial planned status
+        self.assertEqual(self.store.db.execute('SELECT status FROM jobs WHERE id=?', (job_id,)).fetchone()[0], 'planned')
+
+        # Send cancel request
+        res = self.store.request(dict(version=1, action='cancel', id=job_id))
+        self.assertEqual(res['code'], 'ok')
+        job = res['jobs'][0]
+
+        # Verify immediate synchronous transition to cancelled
+        self.assertEqual(job['status'], 'cancelled')
+        self.assertEqual(job['cancelRequested'], True)
+
+        # Verify cancelled event is written to events table
+        events = [json.loads(r[0])['code'] for r in self.store.db.execute('SELECT event FROM events WHERE id=? ORDER BY sequence', (job_id,)).fetchall()]
+        self.assertIn('cancelled', events)
+
+        # Verify queue is clear and no busy locks remain for installer
+        busy_row = self.store.db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running') AND cancel=0").fetchone()
+        self.assertIsNone(busy_row)
 
 
 if __name__ == '__main__':

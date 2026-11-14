@@ -1014,6 +1014,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get runnerCancel => 'Отменить серверное задание';
 
   @override
+  String get runnerResetQueue => 'Сбросить зависшие операции';
+
+  @override
   String get runnerEventsTruncated =>
       'Старые события удалены при ротации на сервере. Текущая контрольная точка доступна.';
 

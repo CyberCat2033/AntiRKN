@@ -311,4 +311,21 @@ void main() {
       expect(c.installation?.upgradable, isFalse);
     },
   );
+
+  test('resetJobQueue cancels active jobs and clears local queue state', () async {
+    await install();
+    // Simulate a hung / active job
+    c.pending = RunnerRequest.diagnostic('d' * 32);
+    c.connectionLost = true;
+    c.busy = true;
+
+    await c.resetJobQueue();
+    expect(c.busy, isFalse);
+    expect(c.pending, isNull);
+    expect(c.connectionLost, isFalse);
+    expect(
+      remote.requests.any((r) => r.json['action'] == 'cancel'),
+      isFalse, // no server active jobs in initial store
+    );
+  });
 }

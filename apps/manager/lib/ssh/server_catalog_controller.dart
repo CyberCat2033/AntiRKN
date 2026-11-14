@@ -114,7 +114,7 @@ class ServerCatalogController extends ChangeNotifier {
           await session.refresh();
           if (_disposed) return;
           if (!session.runner.busy) {
-            await session.runner.refresh();
+            await session.runner.refresh(prepare: true);
           }
         }
       }),

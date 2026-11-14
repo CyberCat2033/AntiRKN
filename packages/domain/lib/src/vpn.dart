@@ -586,7 +586,9 @@ Map<String, Object?> xhttpFormDefaults([Map initial = const {}]) {
     for (final e in initial.entries)
       if (e.key != 'xmux' &&
           e.value != null &&
-          (e.value is! String || (e.value as String).trim().isNotEmpty))
+          (e.value is! String ||
+              (e.value as String).trim().isNotEmpty ||
+              ((properties[e.key] as Map?)?.containsKey('enum') ?? false)))
         e.key as String: e.value,
     'xmux': multiplex,
   };

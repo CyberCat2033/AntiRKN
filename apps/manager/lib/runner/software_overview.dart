@@ -106,10 +106,17 @@ class SoftwareOverview extends StatelessWidget {
           : c.componentPlan?.component == key;
       final applyAction = !detected || canUpdate;
       final installingThis =
-          c.selected?.kind == 'component_install' &&
+          (c.selected?.kind == 'component_install' ||
+              c.selected?.kind == 'component_upgrade') &&
           c.selected?.terminal == false &&
           c.activeComponent == key;
-      final action = installingThis
+      final isPanelJob = isPanel &&
+          c.selected?.terminal == false &&
+          (c.selected?.kind == 'panel_install' ||
+              c.selected?.kind == 'panel_update' ||
+              c.selected?.kind == 'xray_upgrade');
+      final activeOnThisComponent = installingThis || isPanelJob;
+      final action = activeOnThisComponent
           ? SizedBox(
               width: 80,
               child: Column(
@@ -129,7 +136,7 @@ class SoftwareOverview extends StatelessWidget {
                 ],
               ),
             )
-          : hasPlan || c.selected?.terminal == false
+          : hasPlan
           ? null
           : OutlinedButton(
               key: ValueKey(
@@ -139,55 +146,57 @@ class SoftwareOverview extends StatelessWidget {
                           : 'component-$key'
                     : 'software-check-$key',
               ),
-              onPressed: !c.canRequestAction || updates?.busy == true
+              onPressed: updates?.busy == true || c.busy || c.actionPending
                   ? null
                   : applyAction
-                  ? () async {
-                      if (isPanel &&
-                          detected &&
-                          (!await showPanelLogin(context, c) ||
-                              !context.mounted)) {
-                        return;
-                      }
-                      if (updates != null && updates.latest.isNotEmpty) {
-                        final comp = isPanel ? 'panel' : key;
-                        final latestVer = updates.latest[comp] ??
-                            (isPanel ? updates.latest['xray'] : null);
-                        final currentVer = versions[isPanel ? 'panel' : key];
-                        if (latestVer != null &&
-                            (currentVer == null ||
-                                componentIsNewer(latestVer, currentVer) ==
-                                    true ||
-                                componentIsNewer(
-                                      latestVer,
-                                      currentVer,
-                                      allowPreview: true,
-                                    ) ==
-                                    true)) {
-                          final candidate = await updates.source.resolveAsset(
-                            component: comp,
-                            version: latestVer,
-                          );
-                          if (candidate != null && context.mounted) {
-                            await c.checkComponentUpgrade(
-                              comp,
-                              candidate: candidate,
-                            );
-                            if (c.componentUpgradePlan != null) {
-                              await c.applyComponentUpgrade(
-                                c.componentUpgradePlan!,
-                                candidate,
-                              );
+                  ? (!c.canRequestAction
+                        ? null
+                        : () async {
+                            if (isPanel &&
+                                detected &&
+                                (!await showPanelLogin(context, c) ||
+                                    !context.mounted)) {
                               return;
                             }
-                          }
-                        }
-                      }
-                      await c.installOrUpdate(isPanel ? 'panel' : key);
-                    }
+                            if (updates != null && updates.latest.isNotEmpty) {
+                              final comp = isPanel ? 'panel' : key;
+                              final latestVer = updates.latest[comp] ??
+                                  (isPanel ? updates.latest['xray'] : null);
+                              final currentVer = versions[isPanel ? 'panel' : key];
+                              if (latestVer != null &&
+                                  (currentVer == null ||
+                                      componentIsNewer(latestVer, currentVer) ==
+                                          true ||
+                                      componentIsNewer(
+                                            latestVer,
+                                            currentVer,
+                                            allowPreview: true,
+                                          ) ==
+                                          true)) {
+                                final candidate = await updates.source.resolveAsset(
+                                  component: comp,
+                                  version: latestVer,
+                                );
+                                if (candidate != null && context.mounted) {
+                                  await c.checkComponentUpgrade(
+                                    comp,
+                                    candidate: candidate,
+                                  );
+                                  if (c.componentUpgradePlan != null) {
+                                    await c.applyComponentUpgrade(
+                                      c.componentUpgradePlan!,
+                                      candidate,
+                                    );
+                                    return;
+                                  }
+                                }
+                              }
+                            }
+                            await c.installOrUpdate(isPanel ? 'panel' : key);
+                          })
                   : updates == null
                   ? null
-                  : () => c.requestAction(updates.check),
+                  : () => updates.check(),
               child: Text(
                 applyAction
                     ? detected

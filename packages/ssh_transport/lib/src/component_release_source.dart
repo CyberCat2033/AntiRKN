@@ -128,8 +128,17 @@ final class GithubComponentReleaseSource implements ComponentReleaseSource {
       };
       if (repo == null) return null;
 
-      final release =
-          await _read(client, '$repo/releases/tags/v$version') as Map?;
+      Map? release;
+      try {
+        release =
+            await _read(client, '$repo/releases/tags/v$version') as Map?;
+      } catch (_) {}
+      if (release == null) {
+        try {
+          release =
+              await _read(client, '$repo/releases/tags/$version') as Map?;
+        } catch (_) {}
+      }
       if (release == null) return null;
       if (release['draft'] == true ||
           (release['prerelease'] == true && component != 'trusttunnel')) {
@@ -154,9 +163,20 @@ final class GithubComponentReleaseSource implements ComponentReleaseSource {
         }
       }
       if (matchedAsset == null && assets.isNotEmpty) {
-        matchedAsset = assets.first as Map;
+        for (final a in assets) {
+          final name = (a as Map)['name'] as String;
+          if (!name.endsWith('.deb') &&
+              !name.endsWith('.rpm') &&
+              !name.contains('dbgsym')) {
+            matchedAsset = a;
+            break;
+          }
+        }
       }
-      if (matchedAsset == null) return null;
+      if (matchedAsset == null ||
+          (matchedAsset['name'] as String).contains('dbgsym')) {
+        return null;
+      }
 
       return {
         'component': component,

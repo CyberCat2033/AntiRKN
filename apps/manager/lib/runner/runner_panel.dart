@@ -72,15 +72,30 @@ class RunnerPanel extends StatelessWidget {
             if (c.panelDiscovery?['failed'] == true)
               AppNotice(message: l.panelDiscoveryFailed, error: true),
             if (c.installed && !c.alive) Text(l.runnerNotRunning),
-            if (c.error != null || c.installed && !c.alive)
-              TextButton(
-                key: const ValueKey('runner-refresh'),
-                onPressed: !c.busy && !c.actionPending
-                    ? () async {
-                        await c.refresh(prepare: true);
-                      }
-                    : null,
-                child: Text(l.runnerRetry),
+            if (c.error != null || c.installed && !c.alive || c.connectionLost)
+              Wrap(
+                spacing: 8,
+                children: [
+                  TextButton(
+                    key: const ValueKey('runner-refresh'),
+                    onPressed: !c.busy && !c.actionPending
+                        ? () async {
+                            await c.refresh(prepare: true);
+                          }
+                        : null,
+                    child: Text(l.runnerRetry),
+                  ),
+                  if (active || c.hasUnfinishedJob || c.pending != null)
+                    TextButton(
+                      key: const ValueKey('runner-reset-queue-error'),
+                      onPressed: !c.busy && !c.actionPending
+                          ? () async {
+                              await c.resetJobQueue();
+                            }
+                          : null,
+                      child: Text(l.runnerResetQueue),
+                    ),
+                ],
               ),
             if (showJob) ...[
               const SizedBox(height: AppLayout.gap),
@@ -113,15 +128,29 @@ class RunnerPanel extends StatelessWidget {
               if (active && job.kind != 'server_reboot')
                 Align(
                   alignment: AlignmentDirectional.centerStart,
-                  child: TextButton(
-                    key: const ValueKey('runner-cancel'),
-                    onPressed:
-                        !c.busy && !c.actionPending && !job.cancelRequested
-                        ? () async {
-                            await c.cancelJob();
-                          }
-                        : null,
-                    child: Text(l.runnerCancel),
+                  child: Wrap(
+                    spacing: 8,
+                    children: [
+                      TextButton(
+                        key: const ValueKey('runner-cancel'),
+                        onPressed: !c.busy && !c.actionPending
+                            ? () async {
+                                await c.cancelJob();
+                              }
+                            : null,
+                        child: Text(l.runnerCancel),
+                      ),
+                      if (job.cancelRequested || c.connectionLost)
+                        TextButton(
+                          key: const ValueKey('runner-reset-queue'),
+                          onPressed: !c.busy && !c.actionPending
+                              ? () async {
+                                  await c.resetJobQueue();
+                                }
+                              : null,
+                          child: Text(l.runnerResetQueue),
+                        ),
+                    ],
                   ),
                 ),
               if (job.terminal && !failed)

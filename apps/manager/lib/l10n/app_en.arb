@@ -388,6 +388,7 @@
   "runnerNotRunning": "The worker has not confirmed that it is running. Refresh its status or apply the setup plan.",
   "runnerCancelRequested": "Cancellation requested; waiting for a safe stopping point.",
   "runnerCancel": "Cancel server job",
+  "runnerResetQueue": "Reset job queue",
   "runnerEventsTruncated": "Older events have been rotated on the server. The current checkpoint is available.",
   "runnerJournal": "Job events",
   "runnerHistory": "Recent jobs",

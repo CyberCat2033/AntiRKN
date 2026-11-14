@@ -97,7 +97,7 @@ def run(args, *, capture=False, unit=None):
     # owns its database would make cancellation unsafe.
     argv = ['/usr/bin/apt-get', *OPTIONS, *args]
     if unit is not None:
-        argv = ['/usr/bin/systemd-run', '--quiet', '--wait', '--collect', '--unit=' + unit,
+        argv = ['/usr/bin/systemd-run', '--quiet', '--wait', '--collect', '--pipe', '--unit=' + unit,
                 '--property=StandardOutput=null', '--property=StandardError=null',
                 *['--setenv=' + k + '=' + v for k, v in ENV.items()], *argv]
     result = subprocess.run(argv, env=ENV,

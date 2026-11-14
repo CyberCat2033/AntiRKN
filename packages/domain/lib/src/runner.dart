@@ -713,8 +713,66 @@ abstract interface class ConditionalRunnerJournalStore {
   });
 }
 
-Map<String, dynamic> decodeRunnerObject(String source) =>
-    Map<String, dynamic>.from(jsonDecode(source) as Map);
+Map<String, dynamic> decodeRunnerObject(String source) {
+  final trimmed = source.trim();
+  try {
+    final decoded = jsonDecode(trimmed);
+    if (decoded is Map) return Map<String, dynamic>.from(decoded);
+  } catch (_) {}
+
+  // 1. Try extracting from outermost braces
+  final first = trimmed.indexOf('{');
+  final last = trimmed.lastIndexOf('}');
+  if (first != -1 && last > first) {
+    final slice = trimmed.substring(first, last + 1);
+    try {
+      final decoded = jsonDecode(slice);
+      if (decoded is Map) return Map<String, dynamic>.from(decoded);
+    } catch (_) {}
+  }
+
+  // 2. Scan balanced JSON objects if there are braces in leading/trailing noise
+  for (var i = 0; i < trimmed.length; i++) {
+    if (trimmed.codeUnitAt(i) == 0x7B /* { */) {
+      var depth = 0;
+      var inString = false;
+      var escaped = false;
+      for (var j = i; j < trimmed.length; j++) {
+        final c = trimmed.codeUnitAt(j);
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (c == 0x5C /* \ */) {
+          escaped = true;
+          continue;
+        }
+        if (c == 0x22 /* " */) {
+          inString = !inString;
+          continue;
+        }
+        if (!inString) {
+          if (c == 0x7B /* { */) {
+            depth++;
+          } else if (c == 0x7D /* } */) {
+            depth--;
+            if (depth == 0) {
+              final candidate = trimmed.substring(i, j + 1);
+              try {
+                final decoded = jsonDecode(candidate);
+                if (decoded is Map) {
+                  return Map<String, dynamic>.from(decoded);
+                }
+              } catch (_) {}
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
+  throw FormatException('invalid_runner_response: $source');
+}
 
 final class ComponentPlan {
   ComponentPlan.fromJson(Map<String, dynamic> json)

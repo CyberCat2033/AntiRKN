@@ -1,3 +1,4 @@
+import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_ssh_transport/antirkn_ssh_transport.dart';
 import 'package:test/test.dart';
 
@@ -49,7 +50,7 @@ void main() {
       await expectLater(source.check(), throwsFormatException);
     },
   );
-  test('discovers trusttunnel candidate release from releases list', () async {
+  test('discovers trusttunnel candidate release from releases list and resolves clean asset', () async {
     final source = GithubComponentReleaseSource(
       metadata: (path) async {
         if (path == 'TrustTunnel/TrustTunnel/releases') {
@@ -66,6 +67,25 @@ void main() {
             },
           ];
         }
+        if (path.contains('TrustTunnel/releases/tags')) {
+          return {
+            'tag_name': 'v1.3.0-beta.2',
+            'draft': false,
+            'prerelease': true,
+            'assets': [
+              {
+                'name': 'trusttunnel-linux-amd64-dbgsym.tar.gz',
+                'browser_download_url': 'https://example.com/dbgsym.tar.gz',
+                'size': 1234567,
+              },
+              {
+                'name': 'trusttunnel-linux-amd64.tar.gz',
+                'browser_download_url': 'https://example.com/trusttunnel.tar.gz',
+                'size': 765432,
+              },
+            ],
+          };
+        }
         if (path.endsWith('/tags')) {
           return [
             {'name': 'v3.1.20260828'},
@@ -81,5 +101,21 @@ void main() {
     );
     final result = await source.check();
     expect(result['trusttunnel'], '1.3.0-beta.2');
+
+    // Verify componentIsNewer
+    expect(
+      componentIsNewer('v1.3.0-beta.2', '1.1.0', allowPreview: true),
+      isTrue,
+    );
+
+    // Verify resolveAsset filters dbgsym
+    final asset = await source.resolveAsset(
+      component: 'trusttunnel',
+      version: '1.3.0-beta.2',
+      architecture: 'x86_64',
+    );
+    expect(asset, isNotNull);
+    expect(asset!['assetName'], 'trusttunnel-linux-amd64.tar.gz');
+    expect(asset['url'], 'https://example.com/trusttunnel.tar.gz');
   });
 }

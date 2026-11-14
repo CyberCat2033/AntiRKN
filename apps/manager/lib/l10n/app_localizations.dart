@@ -1868,6 +1868,12 @@ abstract class AppLocalizations {
   /// **'Cancel server job'**
   String get runnerCancel;
 
+  /// No description provided for @runnerResetQueue.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset job queue'**
+  String get runnerResetQueue;
+
   /// No description provided for @runnerEventsTruncated.
   ///
   /// In en, this message translates to:

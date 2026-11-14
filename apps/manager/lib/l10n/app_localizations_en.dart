@@ -1011,6 +1011,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get runnerCancel => 'Cancel server job';
 
   @override
+  String get runnerResetQueue => 'Reset job queue';
+
+  @override
   String get runnerEventsTruncated =>
       'Older events have been rotated on the server. The current checkpoint is available.';
 

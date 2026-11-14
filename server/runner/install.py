@@ -46,6 +46,7 @@ def install_runner(request):
         if before['release'] not in (None, release) and not before['upgradable']:
             raise ValueError('incompatible')
         changing = before['release'] != release or before['state'] == 'partial'
+        alive = False
         if changing and Path('/var/lib/antirkn-runner/jobs.sqlite').exists():
             db = sqlite3.connect('file:/var/lib/antirkn-runner/jobs.sqlite?mode=ro', uri=True)
             try:
@@ -55,7 +56,16 @@ def install_runner(request):
                     raise ValueError('busy')
             finally:
                 db.close()
-        if changing:
+            if not alive:
+                rw_db = sqlite3.connect('/var/lib/antirkn-runner/jobs.sqlite')
+                try:
+                    with rw_db:
+                        for row in rw_db.execute("SELECT * FROM jobs WHERE status IN ('planned','running')").fetchall():
+                            status = 'cancelled' if row['cancel'] else 'failed'
+                            rw_db.execute("UPDATE jobs SET status=? WHERE id=?", (status, row['id']))
+                finally:
+                    rw_db.close()
+        if changing and alive:
             state=Path('/var/lib/antirkn-runner')
             for record in (state/'xray-upgrades').glob('*/state.json'):
                 if json.loads(record.read_text()).get('phase') not in ('committed','rolled_back','not_changed'):raise ValueError('busy')
