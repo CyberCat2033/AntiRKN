@@ -81,6 +81,14 @@ final class _WorkspaceMerge {
 
   void advance() => db.execute('UPDATE sync_merge_meta SET epoch=epoch+1');
 
+  void clearCache() {
+    _decryptedEventCache.clear();
+    _allEventsCache = null;
+    _acceptedEventsCache = null;
+    _allEventsStamp = null;
+    _acceptedEventsStamp = null;
+  }
+
   Future<Map<String, LocalChange>> events({bool includeWaiting = false}) async {
     final currentStamp = stamp();
     final cached = includeWaiting ? _allEventsCache : _acceptedEventsCache;
@@ -124,6 +132,9 @@ final class _WorkspaceMerge {
           throw const SyncMergeFailure(SyncMergeIssue.invalid);
         }
         final event = LocalChange(header: h, source: body['source'] as String?);
+        if (_decryptedEventCache.length > 5000) {
+          _decryptedEventCache.remove(_decryptedEventCache.keys.first);
+        }
         _decryptedEventCache[changeId] = event;
         result[changeId] = event;
       }
@@ -219,7 +230,7 @@ final class _WorkspaceMerge {
   }
 
   Future<SyncMergeStatus> receive(List<Uint8List> packets) async {
-    final expected = stamp();
+    var expected = stamp();
     final known = await events(includeWaiting: true);
     final added = <LocalChange>[];
     for (final packet in packets) {
@@ -250,17 +261,29 @@ final class _WorkspaceMerge {
         ),
       ));
     }
-    store._transaction(() {
-      checkStamp(expected);
-      for (final (event, payload) in encrypted) {
-        db.execute('INSERT INTO sync_incoming VALUES (?,?,?,0)', [
-          event.header.changeId,
-          canonicalJson(event.header.toJson()),
-          payload,
-        ]);
+    var retryCount = 0;
+    while (true) {
+      try {
+        store._transaction(() {
+          checkStamp(expected);
+          for (final (event, payload) in encrypted) {
+            db.execute('INSERT INTO sync_incoming VALUES (?,?,?,0)', [
+              event.header.changeId,
+              canonicalJson(event.header.toJson()),
+              payload,
+            ]);
+          }
+          if (encrypted.isNotEmpty) advance();
+        });
+        break;
+      } on SyncMergeFailure catch (e) {
+        if (e.issue == SyncMergeIssue.changed && ++retryCount <= 5) {
+          expected = stamp();
+          continue;
+        }
+        rethrow;
       }
-      if (encrypted.isNotEmpty) advance();
-    });
+    }
     if (encrypted.isNotEmpty) {
       final nextStamp = stamp();
       _allEventsStamp = nextStamp;
@@ -338,17 +361,27 @@ final class _WorkspaceMerge {
           });
           continue;
         }
-        final writes = await prepareWrites(projection);
-        store._transaction(() {
-          checkStamp(expected);
-          for (final e in group) {
-            db.execute('UPDATE sync_incoming SET state=1 WHERE change_id=?', [
-              e.header.changeId,
-            ]);
+        try {
+          final writes = await prepareWrites(projection);
+          store._transaction(() {
+            checkStamp(expected);
+            for (final e in group) {
+              db.execute('UPDATE sync_incoming SET state=1 WHERE change_id=?', [
+                e.header.changeId,
+              ]);
+            }
+            commitProjection(graph, projection, writes);
+            advance();
+          });
+        } on SyncMergeFailure catch (e) {
+          if (e.issue == SyncMergeIssue.changed) {
+            expected = stamp();
+            again = true;
+            await Future<void>.delayed(Duration.zero);
+            break;
           }
-          commitProjection(graph, projection, writes);
-          advance();
-        });
+          rethrow;
+        }
         for (final event in group) {
           accepted[event.header.changeId] = event;
         }
@@ -433,8 +466,7 @@ final class _WorkspaceMerge {
       throw const SyncMergeFailure(SyncMergeIssue.changed);
     }
     final chosen = graph.events[choice]!;
-    if (key.$1 == ChangeEntityKind.vpnUser &&
-        !chosen.header.deleted &&
+    if (!chosen.header.deleted &&
         ids.any((id) => graph.events[id]!.header.deleted)) {
       throw const SyncMergeFailure(SyncMergeIssue.invalid);
     }

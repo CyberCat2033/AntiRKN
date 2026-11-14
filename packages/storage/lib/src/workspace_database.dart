@@ -1179,6 +1179,10 @@ final class WorkspaceDatabase
           await _vpnOverlay.materialize();
           await _merge.resolve(conflict, selectedChangeId);
         });
+  void clearSyncCache() {
+    _merge.clearCache();
+  }
+
   @override
   Future<void> checkSyncEffects() => _dbWorker != null
       ? _remoteCall('checkSyncEffects')
