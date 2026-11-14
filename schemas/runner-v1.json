@@ -68,7 +68,8 @@
           "egress_plan",
           "egress_check",
           "egress_access_plan",
-          "egress_access_read"
+          "egress_access_read",
+          "component_upgrade_check"
         ]
       },
       "id": {
@@ -96,7 +97,8 @@
           "inbound_remove",
           "server_reboot",
           "egress_apply",
-          "egress_access"
+          "egress_access",
+          "component_upgrade_apply"
         ]
       },
       "count": {
@@ -131,7 +133,10 @@
         "type": "string",
         "enum": [
           "trusttunnel",
-          "amneziawg"
+          "amneziawg",
+          "panel",
+          "xray",
+          "mihomo"
         ]
       },
       "target": {
@@ -426,6 +431,12 @@
         "version",
         "action",
         "id"
+      ],
+      "component_upgrade_check": [
+        "version",
+        "action",
+        "component",
+        "payload"
       ]
     },
     "submissions": {
@@ -611,6 +622,16 @@
         "interval",
         "payload",
         "fingerprint"
+      ],
+      "component_upgrade_apply": [
+        "version",
+        "action",
+        "id",
+        "kind",
+        "count",
+        "interval",
+        "payload",
+        "fingerprint"
       ]
     },
     "kindConstants": {
@@ -672,6 +693,10 @@
       },
       "egress_access": {
         "count": 3,
+        "interval": 1
+      },
+      "component_upgrade_apply": {
+        "count": 6,
         "interval": 1
       }
     }
@@ -813,7 +838,21 @@
     "egress_preparing",
     "egress_applying",
     "egress_checking",
-    "egress_disable_first"
+    "egress_disable_first",
+    "upgrade_preparing",
+    "upgrade_downloading",
+    "upgrade_backing_up",
+    "upgrade_syntax_checking",
+    "upgrade_switching",
+    "upgrade_verifying",
+    "upgrade_checked",
+    "upgrade_rolled_back",
+    "upgrade_failed",
+    "upgrade_prepared",
+    "upgrade_downloaded",
+    "upgrade_backed_up",
+    "upgrade_syntax_checked",
+    "upgrade_switched"
   ],
   "codes": [
     "ok",
@@ -902,7 +941,23 @@
     "egress_probe_failed",
     "egress_failed",
     "egress_rollback_failed",
-    "egress_disable_first"
+    "egress_disable_first",
+    "upgrade_failed",
+    "upgrade_conflict",
+    "upgrade_checksum_failed",
+    "upgrade_syntax_failed",
+    "upgrade_healthcheck_failed",
+    "upgrade_rolled_back",
+    "upgrade_disk_full",
+    "upgrade_memory_low",
+    "upgrade_not_installed",
+    "upgrade_binary_not_found",
+    "upgrade_download_missing",
+    "upgrade_architecture_mismatch",
+    "upgrade_invalid_component",
+    "apt_disk_full",
+    "apt_memory_low",
+    "apt_lock_busy"
   ],
   "maxRequestBytes": 524288,
   "maxEvents": 256,

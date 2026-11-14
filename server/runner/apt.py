@@ -3,16 +3,20 @@
 Never run from inventory or release checks. Do not interrupt dpkg mid-command;
 uncertain execution after worker recovery needs a fresh administrator decision.
 """
+import fcntl
 import hashlib
 import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
+import time
 from panel import atomic_file
 
 ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C',
-       'DEBIAN_FRONTEND': 'noninteractive', 'NEEDRESTART_MODE': 'l'}
+       'DEBIAN_FRONTEND': 'noninteractive', 'NEEDRESTART_MODE': 'l',
+       'APT_LISTCHANGES_FRONTEND': 'none', 'UCF_FORCE_CONFFOLD': '1'}
 OPTIONS = ['-o', 'DPkg::Lock::Timeout=60', '-o', 'Dpkg::Options::=--force-confdef',
            '-o', 'Dpkg::Options::=--force-confold', '--no-remove']
 
@@ -26,6 +30,65 @@ def prerequisites():
     distro = dict(line.split('=', 1) for line in Path('/etc/os-release').read_text().splitlines() if '=' in line)
     if distro.get('ID', '').strip('"') != 'ubuntu' or not Path('/usr/bin/apt-get').is_file():
         raise AptError('apt_prerequisites')
+
+
+def check_disk_and_memory():
+    archives = Path('/var/cache/apt/archives')
+    if archives.exists():
+        if shutil.disk_usage(str(archives)).free < 200 * 1024 * 1024:
+            raise AptError('apt_disk_full')
+    boot = Path('/boot')
+    if boot.exists():
+        if shutil.disk_usage(str(boot)).free < 50 * 1024 * 1024:
+            raise AptError('apt_disk_full')
+    root = Path('/')
+    if root.exists():
+        if shutil.disk_usage(str(root)).free < 300 * 1024 * 1024:
+            raise AptError('apt_disk_full')
+
+    meminfo = Path('/proc/meminfo')
+    if meminfo.exists():
+        try:
+            for line in meminfo.read_text().splitlines():
+                if line.startswith('MemAvailable:'):
+                    parts = line.split()
+                    if len(parts) >= 2 and parts[1].isdigit():
+                        if int(parts[1]) < 40 * 1024:
+                            raise AptError('apt_memory_low')
+                    break
+        except OSError:
+            pass
+
+
+def acquire_dpkg_locks(timeout=10):
+    lock_paths = [
+        Path('/var/lib/dpkg/lock-frontend'),
+        Path('/var/lib/dpkg/lock'),
+        Path('/var/lib/apt/lists/lock')
+    ]
+    deadline = time.monotonic() + timeout
+    backoff = 0.5
+    for lock_path in lock_paths:
+        if not lock_path.exists():
+            continue
+        acquired = False
+        while time.monotonic() < deadline:
+            try:
+                fd = os.open(str(lock_path), os.O_RDWR | os.O_CREAT, 0o640)
+                try:
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    fcntl.flock(fd, fcntl.LOCK_UN)
+                    acquired = True
+                    break
+                except (BlockingIOError, OSError):
+                    time.sleep(backoff)
+                    backoff = min(backoff * 1.5, 3.0)
+                finally:
+                    os.close(fd)
+            except OSError:
+                break
+        if not acquired and lock_path.exists():
+            raise AptError('apt_lock_busy')
 
 
 def run(args, *, capture=False, unit=None):
@@ -65,6 +128,7 @@ def parse_packages(output):
 
 def plan():
     prerequisites()
+    check_disk_and_memory()
     packages = parse_packages(run(['--simulate', 'upgrade'], capture=True))
     # Include dpkg and apt inputs, so manual changes or a subsequent index
     # refresh invalidate the confirmation even if the visible list looks alike.
@@ -88,10 +152,12 @@ class AptJob:
 
     def step(self, checkpoint):
         prerequisites()
+        check_disk_and_memory()
         req = self.request
         if checkpoint == 0:
             if self.marker.exists():
                 raise AptError('apt_interrupted')
+            acquire_dpkg_locks()
             if req['kind'] == 'apt_upgrade':
                 current = plan()
                 if current['fingerprint'] != req['fingerprint']:

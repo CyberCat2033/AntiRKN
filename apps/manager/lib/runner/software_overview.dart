@@ -65,9 +65,11 @@ class SoftwareOverview extends StatelessWidget {
       }
       final canUpdate = versions.entries.any(
         (v) =>
-            verifiedComponentVersions[v.key] != null &&
-            componentIsNewer(verifiedComponentVersions[v.key]!, v.value) ==
-                true,
+            (verifiedComponentVersions[v.key] != null &&
+                componentIsNewer(verifiedComponentVersions[v.key]!, v.value) ==
+                    true) ||
+            (updates?.latest[v.key] != null &&
+                componentIsNewer(updates!.latest[v.key]!, v.value) == true),
       );
       final isPanel = component == VpnComponent.panel;
       final detected = presence == ComponentPresence.detected;

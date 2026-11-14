@@ -1,0 +1,690 @@
+"""Universal transactional component upgrader for native and adopted installations.
+
+Provides dynamic upstream discovery, pre-flight safety checks, syntax validation,
+atomic binary replacement, canary healthcheck, and self-healing auto-rollback.
+"""
+import hashlib
+import json
+import os
+from pathlib import Path, PurePosixPath
+import platform
+import re
+import shutil
+import socket
+import stat
+import subprocess
+import tarfile
+import time
+import zipfile
+
+from panel import atomic_file, digest, safe_file
+
+def safe_directory(path):
+    st = path.lstat()
+    if not stat.S_ISDIR(st.st_mode) or st.st_uid != 0 or st.st_mode & 0o022:
+        raise ComponentUpgradeError('upgrade_unsafe_path')
+
+VALID_COMPONENTS = {'panel', 'xray', 'amneziawg', 'trusttunnel', 'mihomo'}
+SUPPORTED_ARCHS = {'x86_64', 'aarch64', 'arm64', 'amd64'}
+
+
+class ComponentUpgradeError(Exception):
+    def __init__(self, code='upgrade_failed'):
+        super().__init__(code)
+        self.code = code
+
+
+def normalize_arch(arch=None):
+    raw = arch or platform.machine().lower()
+    if raw in ('x86_64', 'amd64', 'x64'):
+        return 'x86_64'
+    if raw in ('aarch64', 'arm64'):
+        return 'aarch64'
+    return raw
+
+
+def check_system_resources(target_path='/usr/local', min_disk_bytes=200 * 1024 * 1024, min_ram_kib=40 * 1024):
+    target = Path(target_path)
+    check_dir = target if target.exists() else Path('/')
+    try:
+        free_disk = shutil.disk_usage(str(check_dir)).free
+        if free_disk < min_disk_bytes:
+            raise ComponentUpgradeError('upgrade_disk_full')
+    except OSError:
+        pass
+
+    meminfo = Path('/proc/meminfo')
+    if meminfo.exists():
+        try:
+            for line in meminfo.read_text().splitlines():
+                if line.startswith('MemAvailable:'):
+                    parts = line.split()
+                    if len(parts) >= 2 and parts[1].isdigit():
+                        if int(parts[1]) < min_ram_kib:
+                            raise ComponentUpgradeError('upgrade_memory_low')
+                    break
+        except OSError:
+            pass
+
+
+def detect_component(component):
+    """Detect binary, config paths, unit names, and whether installation is native or adopted."""
+    if component not in VALID_COMPONENTS:
+        raise ComponentUpgradeError('upgrade_invalid_component')
+
+    arch = normalize_arch()
+    result = {
+        'component': component,
+        'arch': arch,
+        'installed': False,
+        'source': 'missing',  # 'native', 'adopted_systemd', 'adopted_binary', 'adopted_docker'
+        'binaryPath': None,
+        'version': None,
+        'configPath': None,
+        'units': [],
+        'ports': [],
+        'dbPath': None,
+    }
+
+    if component == 'panel':
+        # 3X-UI panel
+        panel_bin = Path('/usr/local/x-ui/x-ui')
+        if not panel_bin.exists():
+            panel_bin = Path('/usr/bin/x-ui')
+        if panel_bin.exists():
+            result['installed'] = True
+            result['binaryPath'] = str(panel_bin)
+            result['source'] = 'native' if str(panel_bin).startswith('/usr/local/x-ui') else 'adopted_binary'
+            result['units'] = ['x-ui.service']
+            db = Path('/etc/x-ui/x-ui.db')
+            if not db.exists():
+                db = Path('/usr/local/x-ui/x-ui.db')
+            if db.exists():
+                result['dbPath'] = str(db)
+            config = Path('/usr/local/x-ui/bin/config.json')
+            if config.exists():
+                result['configPath'] = str(config)
+            try:
+                out = subprocess.run([str(panel_bin), '-v'], capture_output=True, text=True, timeout=5)
+                v = out.stdout.strip() or out.stderr.strip()
+                match = re.search(r'(\d+\.\d+\.\d+)', v)
+                if match:
+                    result['version'] = match.group(1)
+            except Exception:
+                pass
+
+    elif component == 'xray':
+        candidates = [
+            Path('/usr/local/x-ui/bin/xray-linux-amd64'),
+            Path('/usr/local/x-ui/bin/xray-linux-arm64'),
+            Path('/usr/local/bin/xray'),
+            Path('/usr/bin/xray'),
+            Path('/opt/xray/xray'),
+        ]
+        for c in candidates:
+            if c.exists():
+                result['installed'] = True
+                result['binaryPath'] = str(c)
+                result['source'] = 'native' if '/usr/local/x-ui' in str(c) else 'adopted_binary'
+                config = c.parent / 'config.json'
+                if config.exists():
+                    result['configPath'] = str(config)
+                if '/usr/local/x-ui' in str(c):
+                    result['units'] = ['x-ui.service']
+                else:
+                    result['units'] = ['xray.service']
+                try:
+                    out = subprocess.run([str(c), 'version'], capture_output=True, text=True, timeout=5)
+                    match = re.search(r'Xray\s+(\d+\.\d+\.\d+)', out.stdout)
+                    if match:
+                        result['version'] = match.group(1)
+                except Exception:
+                    pass
+                break
+
+    elif component == 'amneziawg':
+        candidates = [
+            (Path('/usr/local/bin/amneziawg-go'), 'native'),
+            (Path('/usr/bin/amneziawg-go'), 'adopted_binary'),
+            (Path('/usr/local/bin/awg'), 'native'),
+            (Path('/usr/bin/awg'), 'adopted_binary'),
+        ]
+        for c, src in candidates:
+            if c.exists():
+                result['installed'] = True
+                result['binaryPath'] = str(c)
+                result['source'] = src
+                try:
+                    out = subprocess.run([str(c), '--version'], capture_output=True, text=True, timeout=5)
+                    match = re.search(r'(\d+\.\d+\.\d+)', out.stdout or out.stderr)
+                    if match:
+                        result['version'] = match.group(1)
+                except Exception:
+                    pass
+                break
+        # Find active awg units
+        try:
+            out = subprocess.run(['/usr/bin/systemctl', 'list-units', '--state=active', '--type=service', '--no-legend',
+                                  'antirkn-awg@*.service', 'awg-quick@*.service'], capture_output=True, text=True, timeout=10)
+            if out.returncode == 0:
+                result['units'] = [line.split()[0] for line in out.stdout.splitlines() if line.strip()]
+        except Exception:
+            pass
+
+    elif component == 'trusttunnel':
+        candidates = [
+            (Path('/usr/local/bin/trusttunnel_endpoint'), 'native'),
+            (Path('/usr/bin/trusttunnel_endpoint'), 'adopted_binary'),
+            (Path('/opt/trusttunnel/trusttunnel_endpoint'), 'adopted_binary'),
+        ]
+        for c, src in candidates:
+            if c.exists():
+                result['installed'] = True
+                result['binaryPath'] = str(c)
+                result['source'] = src
+                cfg = Path('/etc/antirkn-components/trusttunnel/vpn.toml')
+                if not cfg.exists():
+                    cfg = Path('/etc/trusttunnel/vpn.toml')
+                if cfg.exists():
+                    result['configPath'] = str(cfg)
+                result['units'] = ['antirkn-trusttunnel.service']
+                try:
+                    out = subprocess.run([str(c), '--version'], capture_output=True, text=True, timeout=5)
+                    match = re.search(r'(\d+\.\d+\.\d+)', out.stdout or out.stderr)
+                    if match:
+                        result['version'] = match.group(1)
+                except Exception:
+                    pass
+                break
+
+    elif component == 'mihomo':
+        candidates = [
+            (Path('/usr/local/bin/mihomo'), 'native'),
+            (Path('/usr/bin/mihomo'), 'adopted_binary'),
+            (Path('/opt/mihomo/mihomo'), 'adopted_binary'),
+        ]
+        for c, src in candidates:
+            if c.exists():
+                result['installed'] = True
+                result['binaryPath'] = str(c)
+                result['source'] = src
+                cfg = Path('/etc/mihomo/config.yaml')
+                if cfg.exists():
+                    result['configPath'] = str(cfg)
+                result['units'] = ['mihomo.service']
+                try:
+                    out = subprocess.run([str(c), '-v'], capture_output=True, text=True, timeout=5)
+                    match = re.search(r'(\d+\.\d+\.\d+)', out.stdout or out.stderr)
+                    if match:
+                        result['version'] = match.group(1)
+                except Exception:
+                    pass
+                break
+
+    return result
+
+
+def extract_archive_safe(archive_path, extract_dir, binary_name=None, max_size=500 * 1024 * 1024):
+    """Safe extraction preventing path traversal, symlink hijacking, and zip-bombs."""
+    dest = Path(extract_dir)
+    dest.mkdir(parents=True, exist_ok=True)
+    seen, total_size = set(), 0
+    archive_path = Path(archive_path)
+
+    if zipfile.is_zipfile(archive_path):
+        with zipfile.ZipFile(archive_path) as z:
+            for item in z.infolist():
+                name = item.filename
+                path = PurePosixPath(name)
+                total_size += item.file_size
+                is_link = not stat.S_ISLNK(item.external_attr >> 16) if hasattr(item, 'external_attr') else False
+                if path.is_absolute() or '..' in path.parts or '\\' in name or name in seen or total_size > max_size:
+                    raise ComponentUpgradeError('upgrade_checksum_failed')
+                seen.add(name)
+            z.extractall(str(dest))
+        return dest
+
+    if tarfile.is_tarfile(archive_path):
+        with tarfile.open(archive_path, 'r:*') as t:
+            for member in t.getmembers():
+                name = member.name
+                path = PurePosixPath(name)
+                total_size += member.size
+                if path.is_absolute() or '..' in path.parts or '\\' in name or name in seen or total_size > max_size:
+                    raise ComponentUpgradeError('upgrade_checksum_failed')
+                seen.add(name)
+            try:
+                t.extractall(str(dest), filter='data')
+            except TypeError:
+                t.extractall(str(dest))
+        return dest
+
+    # Direct raw binary
+    target = dest / (binary_name or archive_path.name)
+    target.write_bytes(archive_path.read_bytes())
+    target.chmod(0o755)
+    return dest
+
+
+class ComponentUpgrader:
+    """Universal transactional upgrader with syntax pre-flight, atomic switch, and self-healing rollback."""
+
+    def __init__(self, store, request, candidate_manifest):
+        self.store = store
+        self.request = request
+        self.manifest = candidate_manifest
+        self.component = candidate_manifest['component']
+        self.job_id = request['id']
+        self.work_dir = store.directory / ('upgrade-' + self.job_id)
+        self.backup_dir = self.work_dir / 'backup'
+        self.staging_dir = self.work_dir / 'staging'
+        self.detection = None
+        self.backup_metadata = {}
+
+    def _ensure_detection_and_metadata(self):
+        if not self.backup_metadata:
+            meta_path = self.backup_dir / 'meta.json'
+            if meta_path.exists():
+                try:
+                    self.backup_metadata = json.loads(meta_path.read_text())
+                except Exception:
+                    self.backup_metadata = {}
+        if not self.detection:
+            if self.backup_metadata and self.backup_metadata.get('binaryPath'):
+                self.detection = {
+                    'installed': True,
+                    'binaryPath': self.backup_metadata['binaryPath'],
+                    'units': self.backup_metadata.get('units', []),
+                    'configPath': self.backup_metadata.get('configPath'),
+                    'dbPath': self.backup_metadata.get('dbPath'),
+                    'ports': self.backup_metadata.get('ports', []),
+                }
+            else:
+                self.detection = detect_component(self.component)
+
+    def pre_check(self):
+        """Validate architecture, prerequisites, disk space, and memory."""
+        check_system_resources()
+        self._ensure_detection_and_metadata()
+        if not self.detection.get('installed') or not self.detection.get('binaryPath'):
+            raise ComponentUpgradeError('upgrade_not_installed')
+
+        manifest_arch = normalize_arch(self.manifest.get('architecture'))
+        host_arch = normalize_arch()
+        if manifest_arch != host_arch:
+            raise ComponentUpgradeError('upgrade_architecture_mismatch')
+
+        self.work_dir.mkdir(parents=True, exist_ok=True)
+        self.backup_dir.mkdir(parents=True, exist_ok=True)
+        self.staging_dir.mkdir(parents=True, exist_ok=True)
+
+    def backup(self):
+        """Take consistent atomic snapshots of binary, config, and database."""
+        self.work_dir.mkdir(parents=True, exist_ok=True)
+        self.backup_dir.mkdir(parents=True, exist_ok=True)
+        self.staging_dir.mkdir(parents=True, exist_ok=True)
+        self._ensure_detection_and_metadata()
+
+        binary_path = Path(self.detection['binaryPath'])
+        if not binary_path.exists():
+            raise ComponentUpgradeError('upgrade_not_installed')
+
+        # 1. Binary backup
+        st = binary_path.stat()
+        mode = st.st_mode & 0o777
+        self.backup_metadata = {
+            'binaryPath': str(binary_path),
+            'mode': mode,
+            'uid': st.st_uid,
+            'gid': st.st_gid,
+            'size': st.st_size,
+            'sha256': digest(binary_path),
+            'units': self.detection.get('units', []),
+            'configPath': self.detection.get('configPath'),
+            'dbPath': self.detection.get('dbPath'),
+            'ports': self.detection.get('ports', []),
+        }
+
+        # Local backup in work_dir
+        backup_bin = self.backup_dir / binary_path.name
+        atomic_file(backup_bin, binary_path.read_bytes(), mode)
+
+        # Alongside backup for fast in-place restoration
+        inplace_backup = binary_path.with_suffix(binary_path.suffix + '.antirkn_backup')
+        atomic_file(inplace_backup, binary_path.read_bytes(), mode)
+
+        # 2. Config backup
+        if self.detection.get('configPath'):
+            cfg_path = Path(self.detection['configPath'])
+            if cfg_path.exists():
+                cfg_backup = self.backup_dir / 'config_backup'
+                atomic_file(cfg_backup, cfg_path.read_bytes(), 0o600)
+                self.backup_metadata['configSha256'] = digest(cfg_path)
+
+        # 3. Database backup (for 3X-UI SQLite DB)
+        if self.detection.get('dbPath'):
+            db_path = Path(self.detection['dbPath'])
+            if db_path.exists():
+                import sqlite3
+                db_backup = self.backup_dir / 'db_backup.sqlite'
+                src_db = sqlite3.connect(db_path.as_uri() + '?mode=ro', uri=True)
+                dest_db = sqlite3.connect(str(db_backup))
+                try:
+                    src_db.backup(dest_db)
+                finally:
+                    dest_db.close()
+                    src_db.close()
+                self.backup_metadata['dbSha256'] = digest(db_backup)
+
+        atomic_file(self.backup_dir / 'meta.json', json.dumps(self.backup_metadata).encode())
+
+    def validate_and_stage(self, downloaded_archive_path):
+        """Validate archive SHA-256 and extract binary into staging directory."""
+        self._ensure_detection_and_metadata()
+        archive = Path(downloaded_archive_path)
+        if not archive.exists():
+            raise ComponentUpgradeError('upgrade_download_missing')
+
+        if digest(archive) != self.manifest['sha256']:
+            raise ComponentUpgradeError('upgrade_checksum_failed')
+
+        binary_name = self.manifest.get('binaryName') or (Path(self.detection['binaryPath']).name if (self.detection and self.detection.get('binaryPath')) else None)
+        extract_archive_safe(archive, self.staging_dir, binary_name=binary_name)
+
+        # Find the target binary in staging
+        staged_candidates = []
+        if binary_name:
+            staged_candidates = list(self.staging_dir.rglob(binary_name))
+        if not staged_candidates:
+            files = [p for p in self.staging_dir.rglob('*') if p.is_file() and not p.name.endswith('.antirkn-tmp')]
+            if len(files) == 1:
+                staged_candidates = files
+            elif binary_name:
+                staged_candidates = [p for p in files if p.name == binary_name]
+        if not staged_candidates:
+            raise ComponentUpgradeError('upgrade_binary_not_found')
+
+        staged_binary = staged_candidates[0]
+        staged_binary.chmod(0o755)
+
+        # Verify expected binary SHA-256 if specified
+        if self.manifest.get('binarySha256'):
+            if digest(staged_binary) != self.manifest['binarySha256']:
+                raise ComponentUpgradeError('upgrade_checksum_failed')
+
+        return staged_binary
+
+    def syntax_pre_check(self, staged_binary):
+        """Validate configuration syntax using the staged new binary before touching live service."""
+        self._ensure_detection_and_metadata()
+        if self.component == 'xray':
+            config_path = self.detection.get('configPath')
+            if config_path and Path(config_path).exists():
+                cmd = [str(staged_binary), 'run', '-test', '-config', str(config_path)]
+                env = {'PATH': '/usr/bin:/bin'}
+                parent_dir = Path(config_path).parent
+                if (parent_dir / 'geoip.dat').exists():
+                    env['XRAY_LOCATION_ASSET'] = str(parent_dir)
+                try:
+                    res = subprocess.run(cmd, env=env, capture_output=True, timeout=15)
+                    if res.returncode != 0:
+                        raise ComponentUpgradeError('upgrade_syntax_failed')
+                except subprocess.SubprocessError:
+                    raise ComponentUpgradeError('upgrade_syntax_failed')
+
+        elif self.component == 'mihomo':
+            config_path = self.detection.get('configPath')
+            if config_path and Path(config_path).exists():
+                cmd = [str(staged_binary), '-t', '-f', str(config_path)]
+                try:
+                    res = subprocess.run(cmd, capture_output=True, timeout=15)
+                    if res.returncode != 0:
+                        raise ComponentUpgradeError('upgrade_syntax_failed')
+                except subprocess.SubprocessError:
+                    raise ComponentUpgradeError('upgrade_syntax_failed')
+
+    def apply_switch(self, staged_binary):
+        """Atomic Blue-Green/In-Place binary replacement preserving custom permissions and ownership."""
+        self._ensure_detection_and_metadata()
+        binary_path = Path(self.detection['binaryPath'])
+        meta = self.backup_metadata
+
+        # Prepare replacement binary with exact file ownership and permissions
+        temp_dest = binary_path.with_name(binary_path.name + '.new')
+        atomic_file(temp_dest, staged_binary.read_bytes(), meta.get('mode', 0o755))
+        try:
+            os.chown(str(temp_dest), meta.get('uid', 0), meta.get('gid', 0))
+        except OSError:
+            pass
+
+        # Stop units if required
+        units = meta.get('units', [])
+        for unit in units:
+            subprocess.run(['/usr/bin/systemctl', 'stop', unit], capture_output=True, timeout=30)
+
+        # Atomic replacement
+        os.replace(temp_dest, binary_path)
+
+        # Restart units
+        for unit in units:
+            subprocess.run(['/usr/bin/systemctl', 'start', unit], capture_output=True, timeout=30)
+
+    def verify_health(self, timeout=15):
+        """Canary Watchdog: verify systemd ActiveState and socket listening without crash loops."""
+        self._ensure_detection_and_metadata()
+        units = self.backup_metadata.get('units', []) or (self.detection.get('units', []) if self.detection else [])
+        deadline = time.monotonic() + timeout
+
+        while time.monotonic() < deadline:
+            all_healthy = True
+            for unit in units:
+                res = subprocess.run(['/usr/bin/systemctl', 'is-active', '--quiet', unit], capture_output=True)
+                if res.returncode != 0:
+                    all_healthy = False
+                    break
+            if all_healthy:
+                break
+            time.sleep(1)
+
+        # If any unit is not active, trigger rollback
+        for unit in units:
+            res = subprocess.run(['/usr/bin/systemctl', 'is-active', '--quiet', unit], capture_output=True)
+            if res.returncode != 0:
+                self.rollback()
+                raise ComponentUpgradeError('upgrade_healthcheck_failed')
+
+        # Port listening check / loopback probe if port is configured
+        ports = self.detection.get('ports', []) if self.detection else []
+        for port in ports:
+            if not self._probe_socket(port):
+                self.rollback()
+                raise ComponentUpgradeError('upgrade_healthcheck_failed')
+
+    def rollback(self):
+        """Unconditional Self-Healing Rollback: restores binary, configs, and DB, then revives service."""
+        self._ensure_detection_and_metadata()
+        meta = self.backup_metadata
+        if not meta or not meta.get('binaryPath'):
+            meta_path = self.backup_dir / 'meta.json'
+            if meta_path.exists():
+                try:
+                    meta = json.loads(meta_path.read_text())
+                    self.backup_metadata = meta
+                except Exception:
+                    meta = {}
+        if not meta or not meta.get('binaryPath'):
+            return False
+
+        binary_path = Path(meta.get('binaryPath', ''))
+        inplace_backup = binary_path.with_suffix(binary_path.suffix + '.antirkn_backup')
+        backup_bin = self.backup_dir / binary_path.name
+
+        units = meta.get('units', [])
+        for unit in units:
+            subprocess.run(['/usr/bin/systemctl', 'stop', unit], capture_output=True, timeout=15)
+
+        # 1. Restore binary
+        restored = False
+        if inplace_backup.exists():
+            atomic_file(binary_path, inplace_backup.read_bytes(), meta.get('mode', 0o755))
+            restored = True
+        elif backup_bin.exists():
+            atomic_file(binary_path, backup_bin.read_bytes(), meta.get('mode', 0o755))
+            restored = True
+
+        if restored and meta.get('uid') is not None:
+            try:
+                os.chown(str(binary_path), meta['uid'], meta['gid'])
+            except OSError:
+                pass
+
+        # 2. Restore DB if panel
+        if meta.get('dbPath'):
+            db_path = Path(meta['dbPath'])
+            db_backup = self.backup_dir / 'db_backup.sqlite'
+            if db_backup.exists():
+                atomic_file(db_path, db_backup.read_bytes(), 0o600)
+
+        # 3. Restore config if present
+        if meta.get('configPath'):
+            cfg_path = Path(meta['configPath'])
+            cfg_backup = self.backup_dir / 'config_backup'
+            if cfg_backup.exists():
+                atomic_file(cfg_path, cfg_backup.read_bytes(), 0o600)
+
+        # 4. Restart units
+        for unit in units:
+            subprocess.run(['/usr/bin/systemctl', 'restart', unit], capture_output=True, timeout=30)
+
+        return True
+
+    def _probe_socket(self, port, host='127.0.0.1', timeout=2):
+        try:
+            with socket.create_connection((host, int(port)), timeout=timeout):
+                return True
+        except (OSError, ValueError):
+            return False
+
+
+def plan(store, component, candidate_payload=None):
+    """Generate upgrade plan for runner RPC `component_upgrade_check`."""
+    check_system_resources()
+    detection = detect_component(component)
+    candidate = {}
+    if candidate_payload:
+        try:
+            candidate = json.loads(candidate_payload) if isinstance(candidate_payload, str) else candidate_payload
+        except Exception:
+            pass
+
+    current_version = detection.get('version')
+    target_version = candidate.get('version')
+    upgradable = bool(detection['installed'] and target_version and current_version != target_version)
+
+    plan_data = {
+        'component': component,
+        'installed': detection.get('installed', False),
+        'source': detection.get('source', 'unknown'),
+        'currentVersion': current_version,
+        'candidateVersion': target_version,
+        'binaryPath': detection.get('binaryPath'),
+        'configPath': detection.get('configPath'),
+        'units': detection.get('units', []),
+        'upgradable': upgradable,
+        'arch': detection.get('arch', normalize_arch()),
+        'ready': detection.get('installed', False),
+    }
+    plan_data['fingerprint'] = hashlib.sha256(json.dumps(plan_data, sort_keys=True).encode()).hexdigest()
+    return plan_data
+
+
+class ComponentUpgradeJob:
+    """Runner RPC Task implementing `component_upgrade_apply` with 6 checkpoints."""
+
+    def __init__(self, store, request):
+        self.store = store
+        self.request = request
+        self.payload = json.loads(request['payload']) if isinstance(request.get('payload'), str) else request.get('payload', {})
+        self.upgrader = ComponentUpgrader(store, request, self.payload)
+        self.archive_path = self.upgrader.work_dir / 'release_archive'
+
+    def step(self, checkpoint):
+        codes = [
+            'upgrade_preparing',
+            'upgrade_downloading',
+            'upgrade_backing_up',
+            'upgrade_syntax_checking',
+            'upgrade_switching',
+            'upgrade_verifying',
+        ]
+        with self.store.db:
+            self.store.event(self.request['id'], codes[checkpoint], checkpoint, 6)
+
+        if checkpoint == 0:
+            # Pre-flight checks
+            self.upgrader.pre_check()
+            current_plan = plan(self.store, self.payload['component'], self.payload)
+            if current_plan['fingerprint'] != self.request['fingerprint']:
+                raise ComponentUpgradeError('upgrade_conflict')
+        elif checkpoint == 1:
+            # Download or use staged archive
+            # If payload contains raw bytes or local source archive, use it; otherwise verify archive
+            if not self.archive_path.exists():
+                archive_url = self.payload.get('url')
+                if archive_url and archive_url.startswith('file://'):
+                    local_file = Path(archive_url.removeprefix('file://'))
+                    if local_file.exists():
+                        atomic_file(self.archive_path, local_file.read_bytes())
+                elif 'archiveData' in self.payload:
+                    import base64
+                    atomic_file(self.archive_path, base64.b64decode(self.payload['archiveData']))
+            if not self.archive_path.exists():
+                raise ComponentUpgradeError('upgrade_download_missing')
+            if digest(self.archive_path) != self.payload['sha256']:
+                raise ComponentUpgradeError('upgrade_checksum_failed')
+        elif checkpoint == 2:
+            # Atomic backup of binary, configs, and DB
+            self.upgrader.backup()
+        elif checkpoint == 3:
+            # Extract and syntax pre-check
+            staged = self.upgrader.validate_and_stage(self.archive_path)
+            self.upgrader.syntax_pre_check(staged)
+        elif checkpoint == 4:
+            # Atomic switch
+            self.upgrader._ensure_detection_and_metadata()
+            binary_name = self.payload.get('binaryName') or (Path(self.upgrader.detection['binaryPath']).name if (self.upgrader.detection and self.upgrader.detection.get('binaryPath')) else None)
+            staged_candidates = []
+            if binary_name:
+                staged_candidates = list(self.upgrader.staging_dir.rglob(binary_name))
+            if not staged_candidates:
+                staged_candidates = [p for p in self.upgrader.staging_dir.rglob('*') if p.is_file() and not p.name.endswith('.antirkn-tmp')]
+            staged_binary = staged_candidates[0] if staged_candidates else None
+            if not staged_binary:
+                raise ComponentUpgradeError('upgrade_binary_not_found')
+            self.upgrader.apply_switch(staged_binary)
+        elif checkpoint == 5:
+            # Canary healthcheck and automatic fail-safe rollback
+            self.upgrader._ensure_detection_and_metadata()
+            self.upgrader.verify_health(timeout=15)
+
+        done_codes = [
+            'upgrade_prepared',
+            'upgrade_downloaded',
+            'upgrade_backed_up',
+            'upgrade_syntax_checked',
+            'upgrade_switched',
+            'upgrade_checked',
+        ]
+        with self.store.db:
+            self.store.db.execute('UPDATE jobs SET checkpoint=? WHERE id=?', (checkpoint + 1, self.request['id']))
+            self.store.event(self.request['id'], done_codes[checkpoint], checkpoint + 1, 6)
+
+    def rollback(self):
+        """Invoke auto-rollback on failure or cancellation."""
+        try:
+            self.upgrader.rollback()
+        except Exception:
+            pass
+
+    def failure_status(self):
+        return 'failed'

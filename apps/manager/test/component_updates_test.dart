@@ -22,6 +22,13 @@ class Source implements ComponentReleaseSource {
           'amneziawgTools': '3.1.20260812',
         };
   }
+
+  @override
+  Future<Map<String, Object?>?> resolveAsset({
+    required String component,
+    required String version,
+    String? architecture,
+  }) async => null;
 }
 
 class Settings implements SettingsStore {

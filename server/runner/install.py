@@ -59,11 +59,11 @@ def install_runner(request):
                 if json.loads(record.read_text()).get('phase') not in ('committed','rolled_back','not_changed'):raise ValueError('busy')
             for record in (state/'connectivity-probes').glob('*.json'):
                 if json.loads(record.read_text()).get('status')!='closed':raise ValueError('busy')
-        if not (BASE / 'v49').exists():
+        if not (BASE / 'v50').exists():
             temp = Path(tempfile.mkdtemp(prefix='.antirkn-', dir='/usr/local/lib'))
             try:
                 temp.chmod(0o755)
-                version = temp / 'v49'
+                version = temp / 'v50'
                 version.mkdir(mode=0o755)
                 version.chmod(0o755)
                 for name in PROGRAMS:
@@ -74,14 +74,14 @@ def install_runner(request):
                 (version / 'manifest.json').write_text(json.dumps(dict(release=release, hashes=hashes), sort_keys=True))
                 (version / 'manifest.json').chmod(0o644)
                 if BASE.exists():
-                    os.rename(str(version), str(BASE / 'v49'))
+                    os.rename(str(version), str(BASE / 'v50'))
                 else:
                     os.rename(str(temp), str(BASE))
             finally:
                 if temp.exists():
                     shutil.rmtree(str(temp))
         # Validate syntax and bytecode generation for all Python programs in the bundle
-        target_dir = BASE / 'v49'
+        target_dir = BASE / 'v50'
         for name in PROGRAMS:
             if name.endswith('.py'):
                 py_file = target_dir / name

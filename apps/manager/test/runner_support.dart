@@ -69,6 +69,7 @@ class FakeRunnerTransport implements RunnerTransport {
   int panelChecks = 0;
   String? customRelease;
   bool upgradable = false;
+  Map<String, dynamic>? componentUpgradePlanData;
   final requests = <RunnerRequest>[];
   @override
   String get bundledRelease => 'a' * 64;
@@ -137,6 +138,23 @@ class FakeRunnerTransport implements RunnerTransport {
           'fingerprint': 'f' * 64,
           'rebootRequired': false,
         };
+      case 'component_upgrade_check':
+        extra['componentUpgrade'] =
+            componentUpgradePlanData ??
+            {
+              'component': request.json['component'],
+              'installed': true,
+              'source': 'native',
+              'currentVersion': '26.7.28',
+              'candidateVersion': '26.9.9',
+              'binaryPath': '/usr/local/bin/xray',
+              'configPath': '/usr/local/etc/xray/config.json',
+              'units': ['xray.service'],
+              'upgradable': true,
+              'arch': 'x86_64',
+              'fingerprint': 'c' * 64,
+              'ready': true,
+            };
       case 'panel_discover':
         extra['panelAccess'] = recoveredAccess;
         extra['panelDiscovery'] =

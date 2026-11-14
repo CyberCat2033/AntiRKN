@@ -17,4 +17,9 @@ bool? componentIsNewer(String candidate, String installed) {
 
 abstract interface class ComponentReleaseSource {
   Future<Map<String, String>> check();
+  Future<Map<String, Object?>?> resolveAsset({
+    required String component,
+    required String version,
+    String? architecture,
+  });
 }

@@ -120,6 +120,7 @@ class RunnerController extends ChangeNotifier {
   PanelUpdatePlan? panelUpdatePlan;
   bool panelLoginRequired = false;
   ComponentPlan? componentPlan;
+  Map<String, dynamic>? componentUpgradePlan;
   RunnerInstallation? componentRunnerPlan;
   String? activeComponent;
 
@@ -1579,12 +1580,51 @@ class RunnerController extends ChangeNotifier {
     await _verifyPanel(remote, token, id);
   });
 
+  Future<void> checkComponentUpgrade(
+    String component, {
+    Map<String, Object?>? candidate,
+  }) => _run((remote, token) async {
+    final response = await remote.request(
+      RunnerRequest.componentUpgradeCheck(component, candidate: candidate),
+      token,
+      sudoPassword: password(),
+    );
+    token.check();
+    if (response.code == 'ok' && response.componentUpgrade != null) {
+      componentUpgradePlan = response.componentUpgrade;
+      _notify();
+    }
+  });
+
+  Future<void> applyComponentUpgrade(
+    Map<String, dynamic> plan,
+    Map<String, Object?> candidate,
+  ) => _run((remote, token) async {
+    final random = Random.secure();
+    final id = List.generate(
+      16,
+      (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ).join();
+    pending = RunnerRequest.componentUpgradeApply(
+      id,
+      candidate: candidate,
+      fingerprint: plan['fingerprint'] as String,
+    );
+    selected = null;
+    cursor = 0;
+    await _save();
+    token.check();
+    componentUpgradePlan = null;
+    await _submit(remote, token);
+  });
+
   void prepareResume() {
     if (busy ||
         !const {
           'panel_install',
           'panel_update',
           'component_install',
+          'component_upgrade_apply',
           'protocol_remove',
           'inbound_update',
           'inbound_remove',
@@ -1778,6 +1818,7 @@ class RunnerController extends ChangeNotifier {
           'panel_install',
           'panel_update',
           'component_install',
+          'component_upgrade_apply',
           'protocol_remove',
           'apt_upgrade',
           'inbound_update',

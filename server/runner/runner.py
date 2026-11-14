@@ -29,6 +29,7 @@ from tt_certificates import CertificateJob, inventory as tt_certificates, plan a
 from tt_common import TtError
 from awg import AwgApply, AwgError, plan as awg_plan, state as awg_state, defaults as awg_defaults
 from vless import VlessApply, VlessError, parse_payload, plan as vless_plan, state as vless_state, panel_for
+from component_upgrade import ComponentUpgradeJob, ComponentUpgradeError, plan as component_upgrade_plan
 
 STATE = Path('/var/lib/antirkn-runner')
 INPUT_PROMPT = '__ANTIRKN_RUNNER_INPUT__'
@@ -240,10 +241,13 @@ def cleanup_job_transients(directory, job_id):
                     f'tt-backup-{job_id}.json', f'inbound-backup-{job_id}.json',
                     f'apt-{job_id}.started', f'reboot-{job_id}.json',
                     f'reboot-{job_id}.lock', f'awg-intent-{job_id}-*.json',
-                    f'tt-intent-{job_id}-*.json'):
+                    f'tt-intent-{job_id}-*.json', f'upgrade-{job_id}*'):
         for p in directory.glob(pattern):
             try:
-                p.unlink(missing_ok=True)
+                if p.is_dir():
+                    shutil.rmtree(str(p), ignore_errors=True)
+                else:
+                    p.unlink(missing_ok=True)
             except Exception:
                 pass
 
@@ -331,6 +335,14 @@ class Store:
                 return self.response(error.code)
             except Exception:
                 return self.response('egress_failed')
+        if action == 'component_upgrade_check':
+            try:
+                res = component_upgrade_plan(self, req.get('component'), req.get('payload'))
+                return {**self.response('ok'), 'componentUpgrade': res}
+            except ComponentUpgradeError as error:
+                return self.response(error.code)
+            except Exception:
+                return self.response('upgrade_failed')
         if action.startswith('xray_check_'):
             import xray_transaction as upgrade
             try:
@@ -636,6 +648,33 @@ class Store:
         if req['kind'] == 'ssh_harden':
             SshHardenJob(self, req).tick()
             return 0.5
+        if req['kind'] == 'component_upgrade_apply':
+            task = ComponentUpgradeJob(self, req)
+            try:
+                if row['cancel']:
+                    task.rollback()
+                    status, code = 'cancelled', 'cancelled'
+                else:
+                    task.step(row['checkpoint'])
+                    if row['checkpoint'] + 1 < req['count']:
+                        return 0.1
+                    status, code = 'succeeded', 'succeeded'
+            except (ComponentUpgradeError, OSError, ValueError, subprocess.SubprocessError) as error:
+                code = error.code if isinstance(error, ComponentUpgradeError) else 'upgrade_failed'
+                status = 'failed'
+                try:
+                    task.rollback()
+                    if code == 'upgrade_healthcheck_failed':
+                        code = 'upgrade_rolled_back'
+                except Exception:
+                    status, code = 'needs_attention', 'upgrade_rollback_failed'
+            with self.db:
+                progress = self.db.execute('SELECT checkpoint FROM jobs WHERE id=?', (job_id,)).fetchone()[0]
+                self.db.execute('UPDATE jobs SET status=? WHERE id=?', (status, job_id))
+                self.event(job_id, code, progress, req['count'])
+            if status == 'succeeded' or (status == 'cancelled' and row['checkpoint'] == 0):
+                cleanup_job_transients(self.directory, job_id)
+            return 0.1
         if req['kind'] == 'component_install':
             installer = ComponentInstaller(self, req)
             try:

@@ -7,6 +7,11 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 final class GithubComponentReleaseSource implements ComponentReleaseSource {
   const GithubComponentReleaseSource({this.metadata});
   final Future<dynamic> Function(String path)? metadata;
+
+  static final Map<String, ({String? etag, dynamic body})> _cache = {};
+
+  static void clearCache() => _cache.clear();
+
   Future<dynamic> _read(HttpClient client, String path) async {
     if (metadata != null) return metadata!(path);
     final request = await client.getUrl(
@@ -15,7 +20,13 @@ final class GithubComponentReleaseSource implements ComponentReleaseSource {
     request.followRedirects = false;
     request.headers.set('Accept', 'application/vnd.github+json');
     request.headers.set('User-Agent', 'AntiRKN');
+    if (_cache.containsKey(path) && _cache[path]!.etag != null) {
+      request.headers.set('If-None-Match', _cache[path]!.etag!);
+    }
     final response = await request.close();
+    if (response.statusCode == 304 && _cache.containsKey(path)) {
+      return _cache[path]!.body;
+    }
     if (response.statusCode != 200) {
       throw const FormatException('release_source');
     }
@@ -26,22 +37,29 @@ final class GithubComponentReleaseSource implements ComponentReleaseSource {
         throw const FormatException('release_size');
       }
     }
-    return jsonDecode(utf8.decode(bytes));
+    final decoded = jsonDecode(utf8.decode(bytes));
+    final etag = response.headers.value('etag');
+    _cache[path] = (etag: etag, body: decoded);
+    return decoded;
   }
 
   @override
-  Future<Map<String, String>> check() async {
+  Future<Map<String, String>> check([bool includeMihomo = false]) async {
     final client = HttpClient()
       ..connectionTimeout = const Duration(seconds: 15);
     try {
       return await (() async {
         final result = <String, String>{};
-        for (final entry in {
+        final repos = <String, String>{
           'panel': 'MHSanaei/3x-ui',
           'xray': 'XTLS/Xray-core',
           'trusttunnel': 'TrustTunnel/TrustTunnel',
           'amneziawgTools': 'amnezia-vpn/amneziawg-tools',
-        }.entries) {
+        };
+        if (includeMihomo) {
+          repos['mihomo'] = 'MetaCubeX/mihomo';
+        }
+        for (final entry in repos.entries) {
           final data =
               await _read(client, '${entry.value}/releases/latest') as Map;
           final tag = data['tag_name'] as String;
@@ -66,6 +84,69 @@ final class GithubComponentReleaseSource implements ComponentReleaseSource {
         result['amneziawg'] = newest.replaceFirst(RegExp(r'^v'), '');
         return result;
       })().timeout(const Duration(seconds: 60));
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  @override
+  Future<Map<String, Object?>?> resolveAsset({
+    required String component,
+    required String version,
+    String? architecture,
+  }) async {
+    final arch = (architecture ?? 'x86_64').toLowerCase();
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 15);
+    try {
+      final repo = switch (component) {
+        'panel' => 'MHSanaei/3x-ui',
+        'xray' => 'XTLS/Xray-core',
+        'trusttunnel' => 'TrustTunnel/TrustTunnel',
+        'amneziawgTools' => 'amnezia-vpn/amneziawg-tools',
+        'mihomo' => 'MetaCubeX/mihomo',
+        _ => null,
+      };
+      if (repo == null) return null;
+
+      final release =
+          await _read(client, '$repo/releases/tags/v$version') as Map?;
+      if (release == null) return null;
+      if (release['draft'] == true || release['prerelease'] == true) {
+        return null;
+      }
+
+      final assets = (release['assets'] as List?) ?? [];
+      final archToken = (arch == 'aarch64' || arch == 'arm64')
+          ? RegExp(r'arm64|aarch64', caseSensitive: false)
+          : RegExp(r'amd64|x86_64|64', caseSensitive: false);
+
+      Map? matchedAsset;
+      for (final a in assets) {
+        final name = (a as Map)['name'] as String;
+        if (name.contains('linux') && archToken.hasMatch(name)) {
+          if (!name.endsWith('.deb') && !name.endsWith('.rpm')) {
+            matchedAsset = a;
+            break;
+          }
+        }
+      }
+      if (matchedAsset == null && assets.isNotEmpty) {
+        matchedAsset = assets.first as Map;
+      }
+      if (matchedAsset == null) return null;
+
+      return {
+        'component': component,
+        'version': version,
+        'architecture': arch,
+        'assetName': matchedAsset['name'],
+        'url': matchedAsset['browser_download_url'],
+        'bytes': matchedAsset['size'],
+        'sha256': matchedAsset['digest'] ?? '',
+      };
+    } catch (_) {
+      return null;
     } finally {
       client.close(force: true);
     }

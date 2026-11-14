@@ -6,7 +6,7 @@ StartLimitBurst=5
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 -I /usr/local/lib/antirkn-runner/v49/runner.py daemon
+ExecStart=/usr/bin/python3 -I /usr/local/lib/antirkn-runner/v50/runner.py daemon
 Restart=on-failure
 RestartSec=2
 TimeoutStopSec=180

@@ -51,6 +51,29 @@ final class RunnerRequest {
         'action': 'component_plan',
         'component': component,
       });
+  factory RunnerRequest.componentUpgradeCheck(
+    String component, {
+    Map<String, Object?>? candidate,
+  }) => RunnerRequest.fromJson({
+    'version': 1,
+    'action': 'component_upgrade_check',
+    'component': component,
+    'payload': candidate == null ? '' : jsonEncode(candidate),
+  });
+  factory RunnerRequest.componentUpgradeApply(
+    String id, {
+    required Map<String, Object?> candidate,
+    required String fingerprint,
+  }) => RunnerRequest.fromJson({
+    'version': 1,
+    'action': 'submit',
+    'id': id,
+    'kind': 'component_upgrade_apply',
+    'count': 6,
+    'interval': 1,
+    'payload': jsonEncode(candidate),
+    'fingerprint': fingerprint,
+  });
   factory RunnerRequest.componentInstall(String id, ComponentPlan plan) =>
       RunnerRequest.fromJson({
         'version': 1,
@@ -322,6 +345,7 @@ final class RunnerJob {
           'tt_external_edit',
           'tt_certificate',
           'component_install',
+          'component_upgrade_apply',
           'protocol_remove',
           'server_reboot',
           'egress_apply',
@@ -333,6 +357,7 @@ final class RunnerJob {
           'ssh_harden',
         }.contains(kind) ||
         (kind == 'panel_install' && (count != 6 || interval != 1)) ||
+        (kind == 'component_upgrade_apply' && (count != 6 || interval != 1)) ||
         !(runnerSchema['states'] as List).contains(status) ||
         checkpoint < 0 ||
         checkpoint > count ||
@@ -437,6 +462,9 @@ final class RunnerResponse {
           : ComponentPlan.fromJson(
               Map<String, dynamic>.from(value['componentPlan'] as Map),
             ),
+      componentUpgrade = value['componentUpgrade'] == null
+          ? null
+          : Map<String, dynamic>.from(value['componentUpgrade'] as Map),
       connectionProbe = value['connectionProbe'] == null
           ? null
           : Map<String, dynamic>.from(value['connectionProbe'] as Map),
@@ -502,6 +530,7 @@ final class RunnerResponse {
   final Map<String, dynamic>? aptPlan;
   final PanelPlan? panelPlan;
   final ComponentPlan? componentPlan;
+  final Map<String, dynamic>? componentUpgrade;
   final PanelAccess? panelAccess;
   final Map<String, dynamic>? panelDiscovery;
   final Map<String, dynamic>? realityScan;
