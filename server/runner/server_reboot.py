@@ -27,6 +27,9 @@ def poll(store,req):
     value=load(path)
     if value['boot']!=BOOT.read_text().strip():return True
     if value.get('failed') or time.time()-value['created']>180:raise RebootError()
+    with store.db:
+        if store.db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running') AND id != ?",(req['id'],)).fetchone():
+            return False
     if not value['issued']:
         unit='antirkn-reboot-'+req['id']
         try:command(['/usr/bin/systemctl','is-active','--quiet',unit+'.timer'])

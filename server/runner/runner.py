@@ -233,6 +233,21 @@ def clear_managed_clients(store):
     return dict(cleared=cleared)
 
 
+def cleanup_job_transients(directory, job_id):
+    if not job_id or not isinstance(job_id, str):
+        return
+    for pattern in (f'vless-backup-{job_id}.json', f'awg-backup-{job_id}.json',
+                    f'tt-backup-{job_id}.json', f'inbound-backup-{job_id}.json',
+                    f'apt-{job_id}.started', f'reboot-{job_id}.json',
+                    f'reboot-{job_id}.lock', f'awg-intent-{job_id}-*.json',
+                    f'tt-intent-{job_id}-*.json'):
+        for p in directory.glob(pattern):
+            try:
+                p.unlink(missing_ok=True)
+            except Exception:
+                pass
+
+
 class Store:
     def __init__(self, directory):
         self.directory = Path(directory)
@@ -240,6 +255,8 @@ class Store:
         self.db.row_factory = sqlite3.Row
         self.db.execute('PRAGMA journal_mode=WAL')
         self.db.execute('PRAGMA synchronous=FULL')
+        self.db.execute('PRAGMA journal_size_limit=1048576')
+        self.db.execute('PRAGMA wal_autocheckpoint=100')
         version = self.db.execute('PRAGMA user_version').fetchone()[0]
         if version not in (0, SCHEMA['version']):
             self.db.close()
@@ -282,15 +299,18 @@ class Store:
         # lease during a slow panel call or service restart.
         if request.get('action') in ('status', 'list', 'cancel'):
             return self._request(request)
-        with probes.operation_lock(self):
-            action=request.get('action')
-            if action in ('submit','resume','panel_cli','panel_connect','probe_begin') and upgrade.active(self):
-                return self.response('xray_check_busy')
-            if action=='probe_end' and upgrade.holds_lease(self,request.get('id')):
-                return self.response('xray_check_busy')
-            if request.get('action') == 'submit' and probes.active(self):
-                return self.response('probe_busy')
-            return self._request(request)
+        try:
+            with probes.operation_lock(self):
+                action=request.get('action')
+                if action in ('submit','resume','panel_cli','panel_connect','probe_begin') and upgrade.active(self):
+                    return self.response('xray_check_busy')
+                if action=='probe_end' and upgrade.holds_lease(self,request.get('id')):
+                    return self.response('xray_check_busy')
+                if request.get('action') == 'submit' and probes.active(self):
+                    return self.response('probe_busy')
+                return self._request(request)
+        except probes.ProbeError as error:
+            return self.response(error.code)
 
     def _request(self, request):
         req = validate_request(request)
@@ -568,14 +588,16 @@ class Store:
                 self.event(job_id, code, progress, req['count'])
             return 0.1
         if req['kind'] in ('vless_apply', 'awg_apply', 'awg_external_edit', 'inbound_update', 'inbound_remove', 'tt_apply', 'tt_external_edit', 'tt_certificate'):
+            task = (InboundRemove(self, req) if req['kind'] == 'inbound_remove' else TtApply(self, req) if req['kind'] == 'tt_apply' else ExternalTtEdit(self, req) if req['kind'] == 'tt_external_edit' else CertificateJob(self, req) if req['kind'] == 'tt_certificate' else ObservedInboundEdit(self, req) if req['kind'] == 'inbound_update' else ExternalAwgEdit(self, req) if req['kind'] == 'awg_external_edit' else AwgApply(self, req) if req['kind'] == 'awg_apply' else VlessApply(self, req))
             try:
                 if row['cancel']:
-                    # After preflight, an API effect may already have happened
-                    # without its checkpoint (lost reply or database failure).
                     status = 'partially_applied' if row['checkpoint'] > 0 else 'cancelled'
                     code = 'vless_partial' if status == 'partially_applied' else 'cancelled'
+                    if status == 'cancelled' and hasattr(task, 'rollback'):
+                        try: task.rollback()
+                        except Exception: pass
                 else:
-                    (InboundRemove(self, req) if req['kind'] == 'inbound_remove' else TtApply(self, req) if req['kind'] == 'tt_apply' else ExternalTtEdit(self, req) if req['kind'] == 'tt_external_edit' else CertificateJob(self, req) if req['kind'] == 'tt_certificate' else ObservedInboundEdit(self, req) if req['kind'] == 'inbound_update' else ExternalAwgEdit(self, req) if req['kind'] == 'awg_external_edit' else AwgApply(self, req) if req['kind'] == 'awg_apply' else VlessApply(self, req)).step(row['checkpoint'])
+                    task.step(row['checkpoint'])
                     if row['checkpoint'] + 1 < req['count']:
                         return 0.1
                     status, code = 'succeeded', 'succeeded'
@@ -590,6 +612,8 @@ class Store:
                 progress = self.db.execute('SELECT checkpoint FROM jobs WHERE id=?', (job_id,)).fetchone()[0]
                 self.db.execute('UPDATE jobs SET status=? WHERE id=?', (status, job_id))
                 self.event(job_id, code, progress, req['count'])
+            if status == 'succeeded' or (status == 'cancelled' and row['checkpoint'] == 0):
+                cleanup_job_transients(self.directory, job_id)
             return 0.1
         if req['kind'] == 'protocol_remove':
             try:
@@ -741,6 +765,13 @@ def main():
 if __name__ == '__main__':
     try:
         main()
+    except BlockingIOError:
+        print(json.dumps(dict(version=SCHEMA['version'], code='busy', alive=False, jobs=[])), flush=True)
+        sys.exit(1)
+    except sqlite3.OperationalError as error:
+        code = 'busy' if 'lock' in str(error).lower() or 'busy' in str(error).lower() else 'failed'
+        print(json.dumps(dict(version=SCHEMA['version'], code=code, alive=False, jobs=[])), flush=True)
+        sys.exit(1)
     except (ValueError, TypeError, KeyError, AttributeError, OSError, sqlite3.Error, VlessError, PanelError, AptError, subprocess.SubprocessError) as error:
         code = error.code if isinstance(error, VlessError) else str(error) if str(error) in SCHEMA['codes'] else 'failed'
         print(json.dumps(dict(version=SCHEMA['version'], code=code, alive=False, jobs=[])), flush=True)

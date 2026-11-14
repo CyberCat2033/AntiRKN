@@ -534,3 +534,52 @@ class AwgApply:
         with db:
             db.execute('UPDATE jobs SET checkpoint=? WHERE id=?', (checkpoint + 1, req['id']))
             self.store.event(req['id'], code, checkpoint + 1, req['count'])
+
+    def rollback(self):
+        req_id = self.req['id']
+        backup_file = self.store.directory / ('awg-backup-' + req_id + '.json')
+        if not backup_file.exists():
+            return
+        try:
+            if backup_file.stat().st_size > 16777216:
+                return
+            data = json.loads(backup_file.read_text())
+            with self.store.db:
+                self.store.db.execute("DELETE FROM awg_resources WHERE data LIKE ?", (f'%"workspaceId":"{self.payload["workspaceId"]}"%',))
+                for r_id, r_data in data.get('resources', {}).items():
+                    self.store.db.execute("INSERT OR REPLACE INTO awg_resources VALUES (?,?)", (r_id, canonical(r_data)))
+            files_backup = data.get('files', {})
+            native = [r for r in self.payload['resources'] if 'adoption' not in r]
+            for r in native:
+                res_id = r['id']
+                name = name_for(res_id)
+                unit = 'antirkn-awg@' + name + '.service'
+                conf_path, net_path = paths(res_id)
+                if res_id not in files_backup or files_backup[res_id] == [None, None]:
+                    try: command(['/usr/bin/systemctl', 'stop', unit])
+                    except Exception: pass
+                    try: command(['/usr/bin/systemctl', 'disable', unit])
+                    except Exception: pass
+                    if net_path.exists():
+                        try: network_configure('down', name)
+                        except Exception: pass
+                    if Path('/sys/class/net', name).exists():
+                        try: command(['/usr/sbin/ip', 'link', 'delete', name])
+                        except Exception: pass
+                    conf_path.unlink(missing_ok=True)
+                    net_path.unlink(missing_ok=True)
+                else:
+                    conf_b64, net_b64 = files_backup[res_id]
+                    if net_b64 is not None:
+                        atomic_file(net_path, base64.b64decode(net_b64))
+                    else:
+                        net_path.unlink(missing_ok=True)
+                    if conf_b64 is not None:
+                        atomic_file(conf_path, base64.b64decode(conf_b64))
+                        try: command(['/usr/bin/systemctl', 'restart', unit])
+                        except Exception: pass
+                    else:
+                        conf_path.unlink(missing_ok=True)
+                (self.store.directory / ('awg-intent-' + req_id + '-' + res_id + '.json')).unlink(missing_ok=True)
+        finally:
+            backup_file.unlink(missing_ok=True)

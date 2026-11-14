@@ -12,10 +12,14 @@ final class ServerInventoryReader {
     this.execute, {
     DateTime Function()? clock,
     this.elapsed,
+    this.cachedFacts,
+    this.cachedBinaries,
   }) : clock = clock ?? DateTime.now;
   final Future<String> Function(String command) execute;
   final DateTime Function() clock;
   final Duration Function()? elapsed;
+  final Map<ServerFact, InventoryValue<String>>? cachedFacts;
+  final Map<VpnComponent, List<ComponentInstallation>>? cachedBinaries;
 
   Future<ServerSoftwareInventory> read(CancellationToken cancellation) async {
     final started = clock();
@@ -65,30 +69,41 @@ final class ServerInventoryReader {
       }
     }
 
-    final facts = Map.fromEntries(
+    final staticFacts =
+        cachedFacts ?? const <ServerFact, InventoryValue<String>>{};
+    final factsToProbe = InventoryProbes.facts.entries.where(
+      (entry) =>
+          !staticFacts.containsKey(entry.key) ||
+          entry.key == ServerFact.availableMemoryKiB ||
+          entry.key == ServerFact.freeDiskKiB ||
+          entry.key == ServerFact.networkTraffic,
+    );
+    final probedFacts = Map.fromEntries(
       await parallelReads(
-        InventoryProbes.facts.entries,
+        factsToProbe,
         (entry) async => MapEntry(
           entry.key,
           await probe(entry.value, (raw) => parseFact(entry.key, raw)),
         ),
       ),
     );
-    final coreProbes = await parallelReads(
-      [
-        () => probe(InventoryProbes.services, (s) => parseUnits(s, live: true)),
-        () => probe(InventoryProbes.serviceFiles, (s) => parseUnits(s, live: false)),
-        () => probe(InventoryProbes.containers, parseContainers),
-        () => probe(InventoryProbes.module, (s) {
-          if (s.trim() == '@missing' || s.trim() == '@present') return s.trim();
-          return parseVersion(s);
-        }),
-      ],
-      (runProbe) => runProbe(),
-    );
+    final facts = {...staticFacts, ...probedFacts};
+    final coreProbes = await parallelReads([
+      () => probe(InventoryProbes.services, (s) => parseUnits(s, live: true)),
+      () => probe(
+        InventoryProbes.serviceFiles,
+        (s) => parseUnits(s, live: false),
+      ),
+      () => probe(InventoryProbes.containers, parseContainers),
+      () => probe(InventoryProbes.module, (s) {
+        if (s.trim() == '@missing' || s.trim() == '@present') return s.trim();
+        return parseVersion(s);
+      }),
+    ], (runProbe) => runProbe());
     final units = coreProbes[0] as InventoryValue<Map<String, ServiceState>>;
     final files = coreProbes[1] as InventoryValue<Map<String, ServiceState>>;
-    final containers = coreProbes[2] as InventoryValue<List<ContainerObservation>>;
+    final containers =
+        coreProbes[2] as InventoryValue<List<ContainerObservation>>;
     final module = coreProbes[3] as InventoryValue<String?>;
     final found = {
       for (final c in VpnComponent.values) c: <ComponentInstallation>[],
@@ -163,39 +178,45 @@ final class ServerInventoryReader {
       }
     }
 
-    final binaryResults = await parallelReads(
-      InventoryProbes.binaries.entries,
-      (entry) async {
-        final presence = await probe(
-          InventoryProbes.binaryPresence(entry.key),
-          (s) {
-            if (!const {'@present', '@missing'}.contains(s.trim())) {
-              throw const FormatException('binary_presence');
-            }
-            return s.trim() == '@present';
-          },
-        );
-        final version = presence.value == true
-            ? await probe(InventoryProbes.version(entry.key), parseVersion)
-            : null;
-        return (entry, presence, version);
-      },
-    );
-    for (final (entry, presence, version) in binaryResults) {
-      if (presence.status != InventoryStatus.ok) {
-        recordIssue(entry.value, presence.status);
+    if (cachedBinaries != null) {
+      for (final entry in cachedBinaries!.entries) {
+        found[entry.key]!.addAll(entry.value);
       }
-      if (version != null) {
-        if (version.status != InventoryStatus.ok) {
-          recordIssue(entry.value, version.status, affectsPresence: false);
+    } else {
+      final binaryResults = await parallelReads(
+        InventoryProbes.binaries.entries,
+        (entry) async {
+          final presence = await probe(
+            InventoryProbes.binaryPresence(entry.key),
+            (s) {
+              if (!const {'@present', '@missing'}.contains(s.trim())) {
+                throw const FormatException('binary_presence');
+              }
+              return s.trim() == '@present';
+            },
+          );
+          final version = presence.value == true
+              ? await probe(InventoryProbes.version(entry.key), parseVersion)
+              : null;
+          return (entry, presence, version);
+        },
+      );
+      for (final (entry, presence, version) in binaryResults) {
+        if (presence.status != InventoryStatus.ok) {
+          recordIssue(entry.value, presence.status);
         }
-        found[entry.value]!.add(
-          ComponentInstallation(
-            source: InstallationSource.binary,
-            identity: entry.key,
-            version: version,
-          ),
-        );
+        if (version != null) {
+          if (version.status != InventoryStatus.ok) {
+            recordIssue(entry.value, version.status, affectsPresence: false);
+          }
+          found[entry.value]!.add(
+            ComponentInstallation(
+              source: InstallationSource.binary,
+              identity: entry.key,
+              version: version,
+            ),
+          );
+        }
       }
     }
     if (incomplete(module.status)) {

@@ -307,3 +307,43 @@ class TtApply:
             with db:
                 db.execute('UPDATE jobs SET checkpoint=? WHERE id=?',(checkpoint+1,req['id']))
                 self.store.event(req['id'],code,checkpoint+1,req['count'])
+
+    def rollback(self):
+        req_id = self.req['id']
+        backup_file = self.store.directory / ('tt-backup-' + req_id + '.json')
+        if not backup_file.exists():
+            return
+        try:
+            if backup_file.stat().st_size > 16777216:
+                return
+            data = json.loads(backup_file.read_text())
+            with self.store.db:
+                self.store.db.execute("DELETE FROM tt_resources WHERE data LIKE ?", (f'%"workspaceId":"{self.p["workspaceId"]}"%',))
+                for r_id, r_data in data.get('records', {}).items():
+                    self.store.db.execute("INSERT OR REPLACE INTO tt_resources VALUES (?,?)", (r_id, canonical(r_data)))
+            files_backup = data.get('files', {})
+            native = [r for r in self.p['resources'] if 'adoption' not in r]
+            for r in native:
+                res_id = r['id']
+                unit = unit_for(res_id)
+                flist = paths(res_id)
+                if res_id not in files_backup or all(v is None for v in files_backup[res_id]):
+                    try: run(['/usr/bin/systemctl', 'stop', unit], timeout=30)
+                    except Exception: pass
+                    try: run(['/usr/bin/systemctl', 'disable', unit], check=False)
+                    except Exception: pass
+                    for f in flist: f.unlink(missing_ok=True)
+                    certificates.unbind(res_id)
+                else:
+                    for f, b64 in zip(flist, files_backup[res_id]):
+                        if b64 is not None:
+                            atomic_file(f, base64.b64decode(b64), 0o644 if f.suffix == '.service' else 0o600)
+                        else:
+                            f.unlink(missing_ok=True)
+                    try:
+                        run(['/usr/bin/systemctl', 'daemon-reload'])
+                        run(['/usr/bin/systemctl', 'restart', unit], timeout=30)
+                    except Exception: pass
+                (self.store.directory / ('tt-intent-' + req_id + '-' + res_id + '.json')).unlink(missing_ok=True)
+        finally:
+            backup_file.unlink(missing_ok=True)

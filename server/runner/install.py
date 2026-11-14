@@ -1,7 +1,15 @@
 # Appended after inspect.py, invoked as trusted code with JSON on stdin.
 import base64
 import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import py_compile
 import shutil
+import sqlite3
+import subprocess
+import sys
 import tempfile
 import time
 from contextlib import contextmanager
@@ -51,11 +59,11 @@ def install_runner(request):
                 if json.loads(record.read_text()).get('phase') not in ('committed','rolled_back','not_changed'):raise ValueError('busy')
             for record in (state/'connectivity-probes').glob('*.json'):
                 if json.loads(record.read_text()).get('status')!='closed':raise ValueError('busy')
-        if not (BASE / 'v48').exists():
+        if not (BASE / 'v49').exists():
             temp = Path(tempfile.mkdtemp(prefix='.antirkn-', dir='/usr/local/lib'))
             try:
                 temp.chmod(0o755)
-                version = temp / 'v48'
+                version = temp / 'v49'
                 version.mkdir(mode=0o755)
                 version.chmod(0o755)
                 for name in PROGRAMS:
@@ -66,43 +74,69 @@ def install_runner(request):
                 (version / 'manifest.json').write_text(json.dumps(dict(release=release, hashes=hashes), sort_keys=True))
                 (version / 'manifest.json').chmod(0o644)
                 if BASE.exists():
-                    os.rename(str(version), str(BASE / 'v48'))
+                    os.rename(str(version), str(BASE / 'v49'))
                 else:
                     os.rename(str(temp), str(BASE))
             finally:
                 if temp.exists():
                     shutil.rmtree(str(temp))
-        if changing:
-            # A known predecessor can be replaced only through this explicit plan.
-            # Its source directory and job DB are retained. RPC registration takes
-            # the same directory lock, so no job can race the stop/update.
-            subprocess.run(['/usr/bin/systemctl', 'stop', 'antirkn-runner.service'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=180)
-            temp_unit = UNIT.with_name('.antirkn-runner.service.tmp')
-            fd = os.open(str(temp_unit), os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o644)
-            with os.fdopen(fd, 'wb') as stream:
-                stream.write(files['antirkn-runner.service']); stream.flush(); os.fsync(stream.fileno())
-            temp_unit.chmod(0o644)
-            os.replace(str(temp_unit), str(UNIT))
-        starting_at = time.time() if changing or not before['active'] else 0
-        for argv in (['/usr/bin/systemctl', 'daemon-reload'], ['/usr/bin/systemctl', 'enable', '--now', 'antirkn-runner.service']):
-            subprocess.run(argv, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
-        # Confirm an actual worker heartbeat, not just systemctl's active state.
-        deadline = time.monotonic() + 10
-        while time.monotonic() < deadline:
-            try:
-                db = sqlite3.connect('file:/var/lib/antirkn-runner/jobs.sqlite?mode=ro', uri=True)
+        # Validate syntax and bytecode generation for all Python programs in the bundle
+        target_dir = BASE / 'v49'
+        for name in PROGRAMS:
+            if name.endswith('.py'):
+                py_file = target_dir / name
+                if py_file.exists():
+                    try:
+                        py_compile.compile(str(py_file), doraise=True)
+                    except Exception:
+                        raise ValueError('bundle_syntax_error')
+        previous_unit = UNIT.read_bytes() if UNIT.exists() else None
+        try:
+            if changing:
+                # A known predecessor can be replaced only through this explicit plan.
+                # Its source directory and job DB are retained. RPC registration takes
+                # the same directory lock, so no job can race the stop/update.
+                subprocess.run(['/usr/bin/systemctl', 'stop', 'antirkn-runner.service'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=180)
+                temp_unit = UNIT.with_name('.antirkn-runner.service.tmp')
+                fd = os.open(str(temp_unit), os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o644)
+                with os.fdopen(fd, 'wb') as stream:
+                    stream.write(files['antirkn-runner.service']); stream.flush(); os.fsync(stream.fileno())
+                temp_unit.chmod(0o644)
+                os.replace(str(temp_unit), str(UNIT))
+            starting_at = time.time() if changing or not before['active'] else 0
+            for argv in (['/usr/bin/systemctl', 'daemon-reload'], ['/usr/bin/systemctl', 'enable', '--now', 'antirkn-runner.service']):
+                subprocess.run(argv, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
+            # Confirm an actual worker heartbeat, not just systemctl's active state.
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline:
                 try:
-                    row = db.execute('SELECT heartbeat FROM health WHERE id=1').fetchone()
-                finally:
-                    db.close()
-                if row and row[0] >= starting_at and 0 <= time.time() - row[0] < 5:
-                    after = inspect_runner()
-                    if after['release'] == release and after['active']:
-                        return after
-            except sqlite3.Error:
-                pass
-            time.sleep(0.1)
-        raise ValueError('worker_unavailable')
+                    db = sqlite3.connect('file:/var/lib/antirkn-runner/jobs.sqlite?mode=ro', uri=True)
+                    try:
+                        row = db.execute('SELECT heartbeat FROM health WHERE id=1').fetchone()
+                    finally:
+                        db.close()
+                    if row and row[0] >= starting_at and 0 <= time.time() - row[0] < 5:
+                        after = inspect_runner()
+                        if after['release'] == release and after['active']:
+                            return after
+                except sqlite3.Error:
+                    pass
+                time.sleep(0.1)
+            raise ValueError('worker_unavailable')
+        except Exception:
+            if changing and previous_unit is not None:
+                try:
+                    temp_rb = UNIT.with_name('.antirkn-runner.service.rollback')
+                    fd = os.open(str(temp_rb), os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o644)
+                    with os.fdopen(fd, 'wb') as stream:
+                        stream.write(previous_unit); stream.flush(); os.fsync(stream.fileno())
+                    temp_rb.chmod(0o644)
+                    os.replace(str(temp_rb), str(UNIT))
+                    subprocess.run(['/usr/bin/systemctl', 'daemon-reload'], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
+                    subprocess.run(['/usr/bin/systemctl', 'restart', 'antirkn-runner.service'], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
+                except Exception:
+                    pass
+            raise
 
 
 def installer_main():
@@ -113,8 +147,10 @@ def installer_main():
         raise ValueError('bundle')
     print(json.dumps(install_runner(json.loads(raw))), flush=True)
 
-try:
-    installer_main()
-except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError):
-    print('{"error":"install_failed"}', flush=True)
-    sys.exit(1)
+
+if __name__ == '__main__':
+    try:
+        installer_main()
+    except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError):
+        print('{"error":"install_failed"}', flush=True)
+        sys.exit(1)

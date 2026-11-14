@@ -447,3 +447,37 @@ class VlessApply:
         with db:
             db.execute('UPDATE jobs SET checkpoint=? WHERE id=?',(checkpoint+1,job_id))
             self.store.event(job_id,code,checkpoint+1,self.req['count'])
+
+    def rollback(self):
+        job_id = self.req['id']
+        backup_file = self.store.directory / ('vless-backup-' + job_id + '.json')
+        if not backup_file.exists():
+            return
+        try:
+            if backup_file.stat().st_size > 16777216:
+                return
+            data = json.loads(backup_file.read_text())
+            with self.store.db:
+                self.store.db.execute("DELETE FROM vless_resources WHERE data LIKE ?", (f'%"workspaceId":"{self.payload["workspaceId"]}"%',))
+                for r_id, r_data in data.get('resources', {}).items():
+                    self.store.db.execute("INSERT OR REPLACE INTO vless_resources VALUES (?,?)", (r_id, canonical(r_data)))
+            try:
+                api = panel_for(self.store, self.payload['panelId'])
+                current_inbounds = api.call('/panel/api/inbounds/list')
+                backup_rows = data.get('rows', [])
+                backup_by_id = {row['id']: row for row in backup_rows}
+                for cur in current_inbounds:
+                    if cur['id'] not in backup_by_id and marker(self.payload['workspaceId'], '') in cur.get('remark', ''):
+                        try: api.call('/panel/api/inbounds/del/%d' % cur['id'], {})
+                        except Exception: pass
+                for old_row in backup_rows:
+                    cur = next((c for c in current_inbounds if c['id'] == old_row['id']), None)
+                    if cur and normal(cur) != normal(old_row):
+                        try: api.call('/panel/api/inbounds/update/%d' % old_row['id'], old_row)
+                        except Exception: pass
+                try: api.call('/panel/api/server/restartXrayService', {})
+                except Exception: pass
+            except Exception:
+                pass
+        finally:
+            backup_file.unlink(missing_ok=True)

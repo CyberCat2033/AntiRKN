@@ -48,12 +48,27 @@ def directory(store):
 
 
 @contextmanager
-def operation_lock(store):
+def operation_lock(store, timeout=10):
     fd = os.open(directory(store) / 'lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    deadline = time.monotonic() + timeout
+    acquired = False
     try:
-        fcntl.flock(fd, fcntl.LOCK_EX)
+        while time.monotonic() < deadline:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                acquired = True
+                break
+            except (BlockingIOError, OSError):
+                time.sleep(0.05)
+        if not acquired:
+            raise ProbeError('probe_busy')
         yield
     finally:
+        if acquired:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+            except OSError:
+                pass
         os.close(fd)
 
 

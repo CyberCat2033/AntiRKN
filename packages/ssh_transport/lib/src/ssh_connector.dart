@@ -92,6 +92,14 @@ final class DirectSshConnector implements SshConnector {
         forwarded: forwarded,
       );
       target.hops.addAll(hops);
+      for (final hop in hops) {
+        unawaited(
+          hop.done.then(
+            (_) => target.close(),
+            onError: (Object _) => target.close(),
+          ),
+        );
+      }
       return target;
     } catch (error) {
       forwarded?.destroy();
@@ -118,7 +126,9 @@ final class DirectSshConnector implements SshConnector {
     final identities = <SSHIdentity>[];
     final passwordString = profile.secrets[ServerSecret.sshPassword];
     final password = <String?>[
-      passwordString != null && passwordString.isNotEmpty ? passwordString : null,
+      passwordString != null && passwordString.isNotEmpty
+          ? passwordString
+          : null,
     ];
     final trustedKey = profile.hostKey;
     Future<bool> Function(TrustedHostKey)? verifier = verifyHostKey;
@@ -189,6 +199,9 @@ final class DirectSshConnector implements SshConnector {
         socket = await cancellation.bind(
           connectingTask.socket.timeout(connectTimeout),
         );
+        try {
+          socket?.setOption(SocketOption.tcpNoDelay, true);
+        } catch (_) {}
       }
       cancellation.check();
       final transportSocket = forwarded ?? _NativeSocket(socket!);
@@ -219,11 +232,19 @@ final class DirectSshConnector implements SshConnector {
           }
         },
         // Handshake includes a user fingerprint prompt; allow time to inspect it.
-        handshakeTimeout: const Duration(minutes: 2),
+        handshakeTimeout: connectTimeout < const Duration(minutes: 2)
+            ? connectTimeout
+            : const Duration(minutes: 2),
         authTimeout: connectTimeout,
         keepAliveInterval: const Duration(seconds: 15),
       );
-      await cancellation.bind(client.authenticated);
+      await cancellation.bind(
+        client.authenticated.timeout(
+          connectTimeout < const Duration(minutes: 2)
+              ? connectTimeout
+              : const Duration(minutes: 2),
+        ),
+      );
       cancellation.check();
       // Authenticated sessions do not need to retain parsed private keys.
       identities.clear();
@@ -350,6 +371,10 @@ final class _Connection implements SshConnection {
   late final RunnerTransport runner = SshRunnerTransport(_executor);
   bool _closed = false;
   bool _observing = false;
+  String? _cachedOs;
+  String? _cachedArchitecture;
+  Map<ServerFact, InventoryValue<String>> _cachedStaticFacts = const {};
+  Map<VpnComponent, List<ComponentInstallation>> _cachedBinaries = const {};
   @override
   Future<void> get done => client.done;
 
@@ -371,19 +396,28 @@ final class _Connection implements SshConnection {
       if (useSudo && !validSudoPassword(sudoPassword)) {
         throw const SshFailure(SshIssue.invalidSudoPassword);
       }
-      final osRelease = await _read(
-        'cat /etc/os-release',
-        cancellation,
-        limit: 16384,
-      );
-      final os = ubuntuNameFromOsRelease(osRelease);
-      final architecture = (await _read(
-        'uname -m',
-        cancellation,
-        limit: 1024,
-      )).trim();
-      if (architecture != 'x86_64') {
-        throw const SshFailure(SshIssue.unsupportedOs);
+      final String os;
+      final String architecture;
+      if (_cachedOs != null && _cachedArchitecture != null) {
+        os = _cachedOs!;
+        architecture = _cachedArchitecture!;
+      } else {
+        final osRelease = await _read(
+          'cat /etc/os-release',
+          cancellation,
+          limit: 16384,
+        );
+        os = ubuntuNameFromOsRelease(osRelease);
+        architecture = (await _read(
+          'uname -m',
+          cancellation,
+          limit: 1024,
+        )).trim();
+        if (architecture != 'x86_64') {
+          throw const SshFailure(SshIssue.unsupportedOs);
+        }
+        _cachedOs = os;
+        _cachedArchitecture = architecture;
       }
       final observedAt = DateTime.now().toUtc();
       final outputs = Map.fromEntries(
@@ -408,15 +442,33 @@ final class _Connection implements SshConnection {
         source: NetworkSource.iproute2,
         sshPeer: peer,
       );
-      final software = await ServerInventoryReader((command) async {
-        final raw = await _read(command, cancellation, limit: 65536);
-        if (useSudo &&
-            raw.trim() == '@denied' &&
-            InventoryProbes.canElevate(command)) {
-          return privileges.read(command);
-        }
-        return raw;
-      }).read(cancellation);
+      final software = await ServerInventoryReader(
+        (command) async {
+          final raw = await _read(command, cancellation, limit: 65536);
+          if (useSudo &&
+              raw.trim() == '@denied' &&
+              InventoryProbes.canElevate(command)) {
+            return privileges.read(command);
+          }
+          return raw;
+        },
+        cachedFacts: _cachedStaticFacts.isNotEmpty ? _cachedStaticFacts : null,
+        cachedBinaries: _cachedBinaries.isNotEmpty ? _cachedBinaries : null,
+      ).read(cancellation);
+      _cachedStaticFacts = {
+        for (final entry in software.facts.entries)
+          if (entry.key != ServerFact.availableMemoryKiB &&
+              entry.key != ServerFact.freeDiskKiB &&
+              entry.key != ServerFact.networkTraffic &&
+              entry.value.status == InventoryStatus.ok)
+            entry.key: entry.value,
+      };
+      _cachedBinaries = {
+        for (final comp in software.components)
+          comp.component: comp.installations
+              .where((inst) => inst.source == InstallationSource.binary)
+              .toList(),
+      };
       return ServerObservation(
         os: os,
         architecture: architecture,
