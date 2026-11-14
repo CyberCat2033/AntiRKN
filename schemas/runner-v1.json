@@ -957,7 +957,11 @@
     "upgrade_invalid_component",
     "apt_disk_full",
     "apt_memory_low",
-    "apt_lock_busy"
+    "apt_lock_busy",
+    "apt_failed",
+    "apt_conflict",
+    "apt_prerequisites",
+    "apt_interrupted"
   ],
   "maxRequestBytes": 524288,
   "maxEvents": 256,

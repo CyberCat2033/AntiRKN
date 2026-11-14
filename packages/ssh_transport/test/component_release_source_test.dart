@@ -49,4 +49,37 @@ void main() {
       await expectLater(source.check(), throwsFormatException);
     },
   );
+  test('discovers trusttunnel candidate release from releases list', () async {
+    final source = GithubComponentReleaseSource(
+      metadata: (path) async {
+        if (path == 'TrustTunnel/TrustTunnel/releases') {
+          return [
+            {
+              'tag_name': 'v1.3.0-beta.2',
+              'draft': false,
+              'prerelease': true,
+            },
+            {
+              'tag_name': 'v1.1.0',
+              'draft': false,
+              'prerelease': false,
+            },
+          ];
+        }
+        if (path.endsWith('/tags')) {
+          return [
+            {'name': 'v3.1.20260828'},
+            {'name': 'v3.1.20260812'},
+          ];
+        }
+        return {
+          'tag_name': path.contains('Xray-core') ? 'v26.7.28' : 'v3.7.0',
+          'draft': false,
+          'prerelease': false,
+        };
+      },
+    );
+    final result = await source.check();
+    expect(result['trusttunnel'], '1.3.0-beta.2');
+  });
 }

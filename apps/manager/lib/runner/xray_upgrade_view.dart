@@ -6,6 +6,7 @@ import '../vpn/vpn_controller.dart';
 import '../vpn/connection_check_view.dart';
 import 'panel_login_view.dart';
 import 'runner_controller.dart';
+import 'component_updates_controller.dart';
 import 'xray_upgrade_controller.dart';
 
 class XrayUpgradeView extends StatefulWidget {
@@ -72,6 +73,15 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
     listenable: Listenable.merge([c, widget.runner, widget.vpn]),
     builder: (context, _) {
       final l = AppLocalizations.of(context);
+      final updates = ComponentUpdatesScope.of(context);
+      final currentXray =
+          c.plan?['current'] as String? ?? widget.runner.panelAccess?.xrayVersion;
+      final dynamicXray = updates?.latest['xray'];
+      final hasDynamicCandidate = dynamicXray != null &&
+          currentXray != null &&
+          componentIsNewer(dynamicXray, currentXray) == true;
+      final effectiveCandidate =
+          c.plan?['candidate'] as String? ?? (hasDynamicCandidate ? dynamicXray : null);
       final message = switch (c.phase) {
         'baseline' => l.xrayUpgradeBaseline,
         'preparing' || 'replacing' => l.xrayUpgradePreparing,
@@ -110,11 +120,11 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
               ),
               const SizedBox(height: 8),
               Text(l.xrayUpgradeIntro),
-              if (c.plan?['candidate'] case final String candidate)
+              if (effectiveCandidate != null && currentXray != null)
                 Text(
-                  'Xray ${c.plan!['current']} → $candidate',
+                  'Xray $currentXray → $effectiveCandidate',
                 ),
-              if (c.plan != null && c.plan!['candidate'] == null)
+              if (c.plan != null && effectiveCandidate == null)
                 Text(l.xrayUpgradeNoStable),
               if (c.busy)
                 const Padding(
@@ -153,14 +163,33 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
                     : c.busy ||
                           widget.vpn.busy ||
                           !widget.runner.canRequestAction ||
-                          !c.available
+                          (!c.available && !hasDynamicCandidate)
                     ? null
                     : () async {
                         if (!await showPanelLogin(context, widget.runner) ||
                             !context.mounted) {
                           return;
                         }
-                        await c.run();
+                        if (c.available) {
+                          await c.run();
+                        } else if (hasDynamicCandidate && updates != null) {
+                          final candidate = await updates.source.resolveAsset(
+                            component: 'xray',
+                            version: dynamicXray,
+                          );
+                          if (candidate != null && context.mounted) {
+                            await widget.runner.checkComponentUpgrade(
+                              'xray',
+                              candidate: candidate,
+                            );
+                            if (widget.runner.componentUpgradePlan != null) {
+                              await widget.runner.applyComponentUpgrade(
+                                widget.runner.componentUpgradePlan!,
+                                candidate,
+                              );
+                            }
+                          }
+                        }
                       },
                 icon: Icon(
                   c.running

@@ -65,6 +65,18 @@ void main() {
       expect(componentIsNewer('1.1.0', '2.0.0'), isFalse);
       expect(componentIsNewer('1.1.0-rc1', '1.0.0'), isNull);
       expect(componentIsNewer('1.1.0', 'unknown'), isNull);
+      expect(
+        componentIsNewer('1.3.0-beta.2', '1.1.0', allowPreview: true),
+        isTrue,
+      );
+      expect(
+        componentIsNewer('1.3.0', '1.3.0-beta.2', allowPreview: true),
+        isTrue,
+      );
+      expect(
+        componentIsNewer('1.3.0-beta.2', '1.3.0-beta.1', allowPreview: true),
+        isTrue,
+      );
     },
   );
   test(

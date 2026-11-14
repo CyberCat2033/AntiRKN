@@ -1100,8 +1100,15 @@ class RunnerController extends ChangeNotifier {
         sudoPassword: password(),
       );
       token.check();
+      responseCode = response.code;
       if (response.code != 'ok' || response.aptPlan == null) {
-        throw const RunnerFailure(RunnerIssue.invalidResponse);
+        if (response.code == 'apt_conflict' || response.code == 'conflict') {
+          throw const RunnerFailure(RunnerIssue.conflict);
+        }
+        if (response.code == 'apt_prerequisites') {
+          throw const RunnerFailure(RunnerIssue.prerequisites);
+        }
+        return;
       }
       aptPlan = response.aptPlan;
     });
@@ -1845,14 +1852,14 @@ class RunnerController extends ChangeNotifier {
           sudoPassword: password(),
         );
         token.check();
-        if (plan.code != 'ok' || plan.aptPlan == null) {
-          throw const RunnerFailure(RunnerIssue.invalidResponse);
+        responseCode = plan.code;
+        if (plan.code == 'ok' && plan.aptPlan != null) {
+          aptPlan = plan.aptPlan;
+          dismissedJobId = job.id;
+          _applySystemUpgrade =
+              !observesOperation &&
+              (aptPlan?['packages'] as List? ?? []).isNotEmpty;
         }
-        aptPlan = plan.aptPlan;
-        dismissedJobId = job.id;
-        _applySystemUpgrade =
-            !observesOperation &&
-            (aptPlan?['packages'] as List? ?? []).isNotEmpty;
       }
     }
     if (job.kind == 'egress_apply' && job.terminal) {

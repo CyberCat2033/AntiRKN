@@ -24,6 +24,7 @@ OPTIONS = ['-o', 'DPkg::Lock::Timeout=60', '-o', 'Dpkg::Options::=--force-confde
 class AptError(Exception):
     def __init__(self, code='apt_failed'):
         self.code = code
+        super().__init__(code)
 
 
 def prerequisites():

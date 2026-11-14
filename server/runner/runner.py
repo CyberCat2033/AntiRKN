@@ -811,7 +811,9 @@ if __name__ == '__main__':
         code = 'busy' if 'lock' in str(error).lower() or 'busy' in str(error).lower() else 'failed'
         print(json.dumps(dict(version=SCHEMA['version'], code=code, alive=False, jobs=[])), flush=True)
         sys.exit(1)
-    except (ValueError, TypeError, KeyError, AttributeError, OSError, sqlite3.Error, VlessError, PanelError, AptError, subprocess.SubprocessError) as error:
-        code = error.code if isinstance(error, VlessError) else str(error) if str(error) in SCHEMA['codes'] else 'failed'
+    except (ValueError, TypeError, KeyError, AttributeError, OSError, sqlite3.Error, VlessError, PanelError, AptError, ComponentUpgradeError, subprocess.SubprocessError) as error:
+        code = getattr(error, 'code', str(error))
+        if code not in SCHEMA['codes']:
+            code = 'failed'
         print(json.dumps(dict(version=SCHEMA['version'], code=code, alive=False, jobs=[])), flush=True)
         sys.exit(1)

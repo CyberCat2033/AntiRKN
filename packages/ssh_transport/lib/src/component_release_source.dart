@@ -60,12 +60,31 @@ final class GithubComponentReleaseSource implements ComponentReleaseSource {
           repos['mihomo'] = 'MetaCubeX/mihomo';
         }
         for (final entry in repos.entries) {
-          final data =
+          Map? data;
+          if (entry.key == 'trusttunnel') {
+            try {
+              final list =
+                  await _read(client, '${entry.value}/releases') as List?;
+              if (list != null && list.isNotEmpty) {
+                for (final item in list) {
+                  final m = item as Map;
+                  final t = m['tag_name'] as String?;
+                  if (m['draft'] == false &&
+                      t != null &&
+                      componentVersion(t, allowPreview: true) != null) {
+                    data = m;
+                    break;
+                  }
+                }
+              }
+            } catch (_) {}
+          }
+          data ??=
               await _read(client, '${entry.value}/releases/latest') as Map;
           final tag = data['tag_name'] as String;
           if (data['draft'] != false ||
-              data['prerelease'] != false ||
-              componentVersion(tag) == null) {
+              (entry.key != 'trusttunnel' && data['prerelease'] != false) ||
+              componentVersion(tag, allowPreview: entry.key == 'trusttunnel') == null) {
             throw const FormatException('release_version');
           }
           result[entry.key] = tag.replaceFirst(RegExp(r'^v'), '');
@@ -112,7 +131,8 @@ final class GithubComponentReleaseSource implements ComponentReleaseSource {
       final release =
           await _read(client, '$repo/releases/tags/v$version') as Map?;
       if (release == null) return null;
-      if (release['draft'] == true || release['prerelease'] == true) {
+      if (release['draft'] == true ||
+          (release['prerelease'] == true && component != 'trusttunnel')) {
         return null;
       }
 
@@ -125,7 +145,9 @@ final class GithubComponentReleaseSource implements ComponentReleaseSource {
       for (final a in assets) {
         final name = (a as Map)['name'] as String;
         if (name.contains('linux') && archToken.hasMatch(name)) {
-          if (!name.endsWith('.deb') && !name.endsWith('.rpm')) {
+          if (!name.endsWith('.deb') &&
+              !name.endsWith('.rpm') &&
+              !name.contains('dbgsym')) {
             matchedAsset = a;
             break;
           }

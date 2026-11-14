@@ -58,7 +58,10 @@ class SoftwareOverview extends StatelessWidget {
       if (updates != null && (updates.suggestions || updates.manualResults)) {
         for (final v in versions.entries) {
           final latest = updates.latest[v.key];
-          if (latest != null && componentIsNewer(latest, v.value) == true) {
+          if (latest != null &&
+              (componentIsNewer(latest, v.value) == true ||
+                  componentIsNewer(latest, v.value, allowPreview: true) ==
+                      true)) {
             changes.add('${componentName(v.key)} $latest');
           }
         }
@@ -68,8 +71,15 @@ class SoftwareOverview extends StatelessWidget {
             (verifiedComponentVersions[v.key] != null &&
                 componentIsNewer(verifiedComponentVersions[v.key]!, v.value) ==
                     true) ||
-            (updates?.latest[v.key] != null &&
-                componentIsNewer(updates!.latest[v.key]!, v.value) == true),
+            (updates != null &&
+                updates.latest[v.key] != null &&
+                (componentIsNewer(updates.latest[v.key]!, v.value) == true ||
+                    componentIsNewer(
+                          updates.latest[v.key]!,
+                          v.value,
+                          allowPreview: true,
+                        ) ==
+                        true)),
       );
       final isPanel = component == VpnComponent.panel;
       final detected = presence == ComponentPresence.detected;
@@ -138,6 +148,40 @@ class SoftwareOverview extends StatelessWidget {
                           (!await showPanelLogin(context, c) ||
                               !context.mounted)) {
                         return;
+                      }
+                      if (updates != null && updates.latest.isNotEmpty) {
+                        final comp = isPanel ? 'panel' : key;
+                        final latestVer = updates.latest[comp] ??
+                            (isPanel ? updates.latest['xray'] : null);
+                        final currentVer = versions[isPanel ? 'panel' : key];
+                        if (latestVer != null &&
+                            (currentVer == null ||
+                                componentIsNewer(latestVer, currentVer) ==
+                                    true ||
+                                componentIsNewer(
+                                      latestVer,
+                                      currentVer,
+                                      allowPreview: true,
+                                    ) ==
+                                    true)) {
+                          final candidate = await updates.source.resolveAsset(
+                            component: comp,
+                            version: latestVer,
+                          );
+                          if (candidate != null && context.mounted) {
+                            await c.checkComponentUpgrade(
+                              comp,
+                              candidate: candidate,
+                            );
+                            if (c.componentUpgradePlan != null) {
+                              await c.applyComponentUpgrade(
+                                c.componentUpgradePlan!,
+                                candidate,
+                              );
+                              return;
+                            }
+                          }
+                        }
                       }
                       await c.installOrUpdate(isPanel ? 'panel' : key);
                     }
