@@ -417,7 +417,7 @@ class _AppAnimatedCollectionState extends State<AppAnimatedCollection>
                 ignoring: !widget.items.containsKey(id),
                 child: ExcludeSemantics(
                   excluding: !widget.items.containsKey(id),
-                  child: rows[id]!,
+                  child: RepaintBoundary(child: rows[id]!),
                 ),
               ),
             ),

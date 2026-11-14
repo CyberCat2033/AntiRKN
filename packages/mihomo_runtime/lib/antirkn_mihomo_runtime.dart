@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:antirkn_domain/antirkn_domain.dart';
@@ -25,7 +26,9 @@ final class MihomoConfigValidator implements CoreConfigValidator {
     String yaml,
     CancellationToken cancellation,
   ) async {
-    final hash = sha256.convert(utf8.encode(yaml)).toString();
+    final hash = yaml.length > 65536
+        ? await Isolate.run(() => sha256.convert(utf8.encode(yaml)).toString())
+        : sha256.convert(utf8.encode(yaml)).toString();
     CoreConfigCheck outcome(CoreConfigStatus status, String code) =>
         CoreConfigCheck(
           status: status,
@@ -142,31 +145,13 @@ final class MihomoConfigValidator implements CoreConfigValidator {
     CancellationToken token,
   ) async {
     final result = <String, String>{};
-    final root = loadYaml(source);
-    if (root is! Map || root['rule-providers'] is! Map) return result;
+    final candidates = await Isolate.run(() => _parseHttpRuleProviders(source));
+    token.check();
     var bytes = 0;
-    final providers = (root['rule-providers'] as Map).entries.take(16);
-    for (final entry in providers) {
+    for (final entry in candidates.entries) {
       token.check();
-      final value = entry.value;
-      // Local files, authenticated sources and proxy-routed resources require
-      // their original environment; never invent an empty replacement.
-      if (entry.key is! String ||
-          value is! Map ||
-          value['type'] != 'http' ||
-          value['header'] != null ||
-          value['proxy'] != null) {
-        continue;
-      }
-      final url = value['url'];
-      if (url is! String) continue;
-      var uri = Uri.tryParse(url);
-      if (uri == null ||
-          uri.scheme != 'https' ||
-          uri.host.isEmpty ||
-          uri.userInfo.isNotEmpty) {
-        continue;
-      }
+      final url = entry.value;
+      var uri = Uri.parse(url);
       try {
         final old = _cache[url];
         Uint8List data;
@@ -176,7 +161,7 @@ final class MihomoConfigValidator implements CoreConfigValidator {
         } else {
           HttpClientResponse? response;
           for (var redirect = 0; redirect < 4; redirect++) {
-            final request = await token.bind(client.getUrl(uri!));
+            final request = await token.bind(client.getUrl(uri));
             request.followRedirects = false;
             request.headers.set(
               HttpHeaders.userAgentHeader,
@@ -214,7 +199,7 @@ final class MihomoConfigValidator implements CoreConfigValidator {
         }
         if (bytes + data.length > 8 * 1024 * 1024) break;
         bytes += data.length;
-        result[entry.key as String] = base64Encode(data);
+        result[entry.key] = base64Encode(data);
       } catch (_) {
         token.check(); /* The worker reports missing content. */
       }
@@ -282,4 +267,32 @@ final class MihomoOutboundProbe implements CoreProbeTransport {
       );
     }
   }
+}
+
+Map<String, String> _parseHttpRuleProviders(String source) {
+  final result = <String, String>{};
+  final root = loadYaml(source);
+  if (root is! Map || root['rule-providers'] is! Map) return result;
+  final providers = (root['rule-providers'] as Map).entries.take(16);
+  for (final entry in providers) {
+    final value = entry.value;
+    if (entry.key is! String ||
+        value is! Map ||
+        value['type'] != 'http' ||
+        value['header'] != null ||
+        value['proxy'] != null) {
+      continue;
+    }
+    final url = value['url'];
+    if (url is! String) continue;
+    final uri = Uri.tryParse(url);
+    if (uri == null ||
+        uri.scheme != 'https' ||
+        uri.host.isEmpty ||
+        uri.userInfo.isNotEmpty) {
+      continue;
+    }
+    result[entry.key as String] = url;
+  }
+  return result;
 }

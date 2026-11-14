@@ -43,9 +43,10 @@ class ConnectionCheckView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context), c = controller.connections;
-    return ListenableBuilder(
-      listenable: Listenable.merge([controller, c]),
-      builder: (context, _) {
+    return RepaintBoundary(
+      child: ListenableBuilder(
+        listenable: Listenable.merge([controller, c]),
+        builder: (context, _) {
         final running = c.isTargetRunning(target) || c.current == target,
             result = c.result(target);
         final available = c.available(target);
@@ -120,8 +121,9 @@ class ConnectionCheckView extends StatelessWidget {
           ),
         );
       },
-    );
-  }
+    ),
+  );
+}
 }
 
 class ConnectionCheckAll extends StatefulWidget {

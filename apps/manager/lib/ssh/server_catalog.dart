@@ -482,9 +482,11 @@ class _ServerCatalogState extends State<ServerCatalog> {
                             },
                           );
                         },
-                        closedBuilder: (context, openContainer) => Padding(
-                          padding: EdgeInsets.zero,
-                          child: DecoratedBox(
+                        closedBuilder: (context, openContainer) =>
+                            RepaintBoundary(
+                              child: Padding(
+                                padding: EdgeInsets.zero,
+                                child: DecoratedBox(
                             decoration: BoxDecoration(
                               border: Border(
                                 top: BorderSide(
@@ -594,6 +596,7 @@ class _ServerCatalogState extends State<ServerCatalog> {
                           ),
                         ),
                       ),
+                    ),
                     ),
                 },
               ),

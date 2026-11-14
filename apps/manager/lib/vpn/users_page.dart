@@ -539,9 +539,10 @@ class _UserTile extends StatelessWidget {
     final l = AppLocalizations.of(context);
     final c = controller;
     final isSelected = selection.active && selection.ids.contains(user.id);
-    return Padding(
-      padding: EdgeInsets.zero,
-      child: Container(
+    return RepaintBoundary(
+      child: Padding(
+        padding: EdgeInsets.zero,
+        child: Container(
         decoration: BoxDecoration(
           border: Border(
             top: BorderSide(
@@ -638,8 +639,9 @@ class _UserTile extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 class _AttentionServersSection extends StatelessWidget {

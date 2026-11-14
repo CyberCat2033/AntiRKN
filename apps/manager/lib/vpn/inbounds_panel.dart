@@ -339,8 +339,11 @@ class InboundsPanelState extends State<InboundsPanel> {
         selection: selection,
         ids: availableIds,
         enabled: !deleting && !c.busy && !(runner?.busy ?? false),
-        builder: (scroll, item) => Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        builder: (scroll, item) => ListView(
+          controller: scroll,
+          shrinkWrap: true,
+          physics: const ClampingScrollPhysics(),
+          key: const PageStorageKey('vless-inbounds'),
           children: [
             if (selection.active && !widget.selectionInHeader)
               Row(

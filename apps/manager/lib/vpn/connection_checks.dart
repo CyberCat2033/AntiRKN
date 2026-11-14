@@ -351,15 +351,23 @@ class ConnectionChecks extends ChangeNotifier {
       var cursor = 0;
       const concurrency = 4;
       Future<void> worker() async {
+        var skippedBatch = false;
         while (_queue && foreground && !_disposed) {
           if (cursor >= items.length) break;
           final key = items[cursor++];
           if (!_ready(key)) {
             skipped.add(key);
+            skippedBatch = true;
           } else {
+            if (skippedBatch) {
+              notifyListeners();
+              skippedBatch = false;
+            }
             await check(key, fromQueue: true);
           }
           completed++;
+        }
+        if (skippedBatch && !_disposed) {
           notifyListeners();
         }
       }

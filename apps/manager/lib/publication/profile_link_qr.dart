@@ -102,18 +102,20 @@ class _ProfileLinkQrState extends State<ProfileLinkQr> {
                       child: Padding(
                         padding: const EdgeInsets.all(AppLayout.gap),
                         child: ExcludeSemantics(
-                          child: QrImageView(
-                            data: _cachedLink,
-                            padding: const EdgeInsets.all(16),
-                            backgroundColor: Colors.white,
-                            errorCorrectionLevel: QrErrorCorrectLevel.M,
-                            eyeStyle: const QrEyeStyle(
-                              eyeShape: QrEyeShape.square,
-                              color: Colors.black,
-                            ),
-                            dataModuleStyle: const QrDataModuleStyle(
-                              dataModuleShape: QrDataModuleShape.square,
-                              color: Colors.black,
+                          child: RepaintBoundary(
+                            child: QrImageView(
+                              data: _cachedLink,
+                              padding: const EdgeInsets.all(16),
+                              backgroundColor: Colors.white,
+                              errorCorrectionLevel: QrErrorCorrectLevel.M,
+                              eyeStyle: const QrEyeStyle(
+                                eyeShape: QrEyeShape.square,
+                                color: Colors.black,
+                              ),
+                              dataModuleStyle: const QrDataModuleStyle(
+                                dataModuleShape: QrDataModuleShape.square,
+                                color: Colors.black,
+                              ),
                             ),
                           ),
                         ),

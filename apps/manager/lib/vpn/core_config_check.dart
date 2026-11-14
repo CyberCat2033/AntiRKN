@@ -36,48 +36,51 @@ class CoreConfigCheckAction extends StatelessWidget {
   final VpnController controller;
   final String userId;
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: controller,
-    builder: (context, _) {
-      final l = AppLocalizations.of(context),
-          check = controller.coreCheckFor(userId);
-      final checking = controller.coreCheckingUser == userId;
-      final usable =
-          controller.results[userId]?.yaml != null &&
-          controller.results[userId]?.hasBlockingErrors == false &&
-          controller.workspace.users.any(
-            (u) => u.id == userId && u.enabled && !u.deleted,
-          );
-      return Padding(
-        padding: const EdgeInsets.only(top: 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Semantics(
-              liveRegion: true,
-              child: Text(
-                checking ? l.coreChecking : coreCheckLabel(l, check),
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: check?.status == CoreConfigStatus.invalid
-                      ? Theme.of(context).colorScheme.error
-                      : null,
+  Widget build(BuildContext context) => RepaintBoundary(
+    child: ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        final l = AppLocalizations.of(context),
+            check = controller.coreCheckFor(userId);
+        final checking = controller.coreCheckingUser == userId;
+        final user = controller.workspace.userById(userId);
+        final usable =
+            controller.results[userId]?.yaml != null &&
+            controller.results[userId]?.hasBlockingErrors == false &&
+            user != null &&
+            user.enabled &&
+            !user.deleted;
+        return Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Semantics(
+                liveRegion: true,
+                child: Text(
+                  checking ? l.coreChecking : coreCheckLabel(l, check),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: check?.status == CoreConfigStatus.invalid
+                        ? Theme.of(context).colorScheme.error
+                        : null,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 6),
-            OutlinedButton.icon(
-              key: ValueKey('core-check-$userId'),
-              onPressed:
-                  !usable || controller.busy || controller.coreValidationBusy
-                  ? null
-                  : () => _showCheck(context, controller, userId),
-              icon: const Icon(Icons.fact_check_outlined, size: 19),
-              label: Text(l.coreCheckConfig),
-            ),
-          ],
-        ),
-      );
-    },
+              const SizedBox(height: 6),
+              OutlinedButton.icon(
+                key: ValueKey('core-check-$userId'),
+                onPressed:
+                    !usable || controller.busy || controller.coreValidationBusy
+                    ? null
+                    : () => _showCheck(context, controller, userId),
+                icon: const Icon(Icons.fact_check_outlined, size: 19),
+                label: Text(l.coreCheckConfig),
+              ),
+            ],
+          ),
+        );
+      },
+    ),
   );
 }
 

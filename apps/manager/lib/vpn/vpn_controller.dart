@@ -440,10 +440,11 @@ class VpnController extends ChangeNotifier {
     final check = _coreChecks[userId];
     if (check == null ||
         check.profileHash != results[userId]?.sha256Hash ||
-        _lastTemplate != template() ||
-        !workspace.users.any(
-          (u) => u.id == userId && !u.deleted && u.enabled,
-        )) {
+        _lastTemplate != template()) {
+      return null;
+    }
+    final user = workspace.userById(userId);
+    if (user == null || user.deleted || !user.enabled) {
       return null;
     }
     if (check.status != CoreConfigStatus.invalid &&

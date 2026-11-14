@@ -33,6 +33,7 @@ dependencies:
   antirkn_profile_compiler:
     path: ../../packages/profile_compiler
 dev_dependencies:
+  yaml: ^3.1.2
   cryptography: 2.9.0
   sqlite3: 2.9.4
   flutter_test:

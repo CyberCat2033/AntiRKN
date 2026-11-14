@@ -91,12 +91,13 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
           result?.hasBlockingErrors == false;
       final publication = widget.publications;
       final link = publication?.verifiedLinkFor(widget.user.id);
-      return ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: 600,
-          maxHeight: MediaQuery.sizeOf(context).height * .9,
-        ),
-        child: SingleChildScrollView(
+      return RepaintBoundary(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 600,
+            maxHeight: MediaQuery.sizeOf(context).height * .9,
+          ),
+          child: SingleChildScrollView(
           padding: AppLayout.screenPadding(context),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -318,7 +319,8 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
             ],
           ),
         ),
-      );
-    },
-  );
+      ),
+    );
+  },
+);
 }
