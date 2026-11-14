@@ -1,6 +1,6 @@
 {
   "hashes": {
-    "antirkn-runner.service": "77eb8538e41dcc3bb1175a3cd55aabaa2f0f9f6e2f23d0484ef52806ad7d0f40",
+    "antirkn-runner.service": "99213802510f3314132c227836219cf7ae09f6301e2d99e364df2cd85c53543f",
     "apt.py": "5f85eb3c034fbf6cba3478715d6c826e0dc9fe05b447fb785d249e6d4c2fcca4",
     "awg.py": "c4cbce6f961a523df758cfadefdea5a878fa27ca3bfb9212ee74eb0511f1ec82",
     "awg_contract.py": "d9abd0099d91d4088a11d4bf0018f53dbed3e2797f0416e434b72c89fcc0534c",
@@ -48,8 +48,8 @@
     "xray_transaction.py": "273d890712e3f9b770689438a4a7ebc99a41b0e21b37b187e0cfa00175463078",
     "xray_upgrade_release.py": "0b5b7bb0667284e924ef8984fbca158964a271ef8fa20da5070a741ddfb83e59"
   },
-  "release": "46ae2fea3ed9c0bd0ebdc1f359020391c42e40188e63d206af2ab3d50647f323",
-  "version": 50,
-  "bundleSha256": "fcabbb0b6af1b0f698ebab4eec9477c5c78d82b26d6c5511384560505c617c1f",
-  "runnerVersion": 50
+  "release": "55bdbd5fa70616009e78803a5f13a4337da16be60fc978da5a5bbbd39a41e786",
+  "version": 51,
+  "bundleSha256": null,
+  "runnerVersion": 51
 }

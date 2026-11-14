@@ -1885,6 +1885,9 @@ class RunnerController extends ChangeNotifier {
     final job = selected;
     if (job == null || job.terminal) return Future.value();
     return _run((remote, token) async {
+      if (!connected && connectForAction != null) {
+        if (await connectForAction!() != true) return;
+      }
       await _readJob(remote, token, job.id);
       if (selected?.id != job.id || selected!.terminal) return;
       await _checkCurrentOperation();

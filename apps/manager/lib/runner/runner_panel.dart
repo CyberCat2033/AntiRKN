@@ -118,7 +118,7 @@ class RunnerPanel extends StatelessWidget {
                     onPressed:
                         !c.busy && !c.actionPending && !job.cancelRequested
                         ? () async {
-                            if (await c.ensureReady()) await c.cancelJob();
+                            await c.cancelJob();
                           }
                         : null,
                     child: Text(l.runnerCancel),

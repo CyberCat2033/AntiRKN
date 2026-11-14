@@ -49,7 +49,9 @@ def install_runner(request):
         if changing and Path('/var/lib/antirkn-runner/jobs.sqlite').exists():
             db = sqlite3.connect('file:/var/lib/antirkn-runner/jobs.sqlite?mode=ro', uri=True)
             try:
-                if db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running')").fetchone():
+                health_row = db.execute("SELECT heartbeat FROM health WHERE id=1").fetchone()
+                alive = health_row is not None and 0 <= (time.time() - health_row[0]) < 30
+                if alive and db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running') AND cancel=0").fetchone():
                     raise ValueError('busy')
             finally:
                 db.close()
@@ -59,11 +61,11 @@ def install_runner(request):
                 if json.loads(record.read_text()).get('phase') not in ('committed','rolled_back','not_changed'):raise ValueError('busy')
             for record in (state/'connectivity-probes').glob('*.json'):
                 if json.loads(record.read_text()).get('status')!='closed':raise ValueError('busy')
-        if not (BASE / 'v50').exists():
+        if not (BASE / 'v51').exists():
             temp = Path(tempfile.mkdtemp(prefix='.antirkn-', dir='/usr/local/lib'))
             try:
                 temp.chmod(0o755)
-                version = temp / 'v50'
+                version = temp / 'v51'
                 version.mkdir(mode=0o755)
                 version.chmod(0o755)
                 for name in PROGRAMS:
@@ -74,14 +76,14 @@ def install_runner(request):
                 (version / 'manifest.json').write_text(json.dumps(dict(release=release, hashes=hashes), sort_keys=True))
                 (version / 'manifest.json').chmod(0o644)
                 if BASE.exists():
-                    os.rename(str(version), str(BASE / 'v50'))
+                    os.rename(str(version), str(BASE / 'v51'))
                 else:
                     os.rename(str(temp), str(BASE))
             finally:
                 if temp.exists():
                     shutil.rmtree(str(temp))
         # Validate syntax and bytecode generation for all Python programs in the bundle
-        target_dir = BASE / 'v50'
+        target_dir = BASE / 'v51'
         for name in PROGRAMS:
             if name.endswith('.py'):
                 py_file = target_dir / name
