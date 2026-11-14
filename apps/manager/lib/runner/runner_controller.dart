@@ -1899,6 +1899,14 @@ class RunnerController extends ChangeNotifier {
       if (!connected && connectForAction != null) {
         if (await connectForAction!() != true) return;
       }
+      final response = await remote.request(
+        RunnerRequest.cancel(job.id),
+        token,
+        sudoPassword: password(),
+      );
+      token.check();
+      responseCode = response.code;
+      await _readJob(remote, token, job.id);
       if (installation?.upgradable == true || !installed) {
         try {
           installation = await remote.install(
@@ -1908,21 +1916,6 @@ class RunnerController extends ChangeNotifier {
           );
         } catch (_) {}
       }
-      try {
-        await _readJob(remote, token, job.id);
-      } catch (_) {}
-      if (selected?.id != job.id || selected!.terminal) return;
-      try {
-        await _checkCurrentOperation();
-      } catch (_) {}
-      final response = await remote.request(
-        RunnerRequest.cancel(job.id),
-        token,
-        sudoPassword: password(),
-      );
-      token.check();
-      responseCode = response.code;
-      await _readJob(remote, token, job.id);
     });
   }
 
@@ -1945,15 +1938,6 @@ class RunnerController extends ChangeNotifier {
       if (!connected && connectForAction != null) {
         if (await connectForAction!() != true) return;
       }
-      if (installation?.upgradable == true || !installed) {
-        try {
-          installation = await remote.install(
-            installation ?? await remote.inspect(token),
-            token,
-            sudoPassword: password(),
-          );
-        } catch (_) {}
-      }
       final targetIds = <String>{
         if (selected != null && !selected!.terminal) selected!.id,
         for (final j in jobs)
@@ -1968,7 +1952,31 @@ class RunnerController extends ChangeNotifier {
           );
         } catch (_) {}
       }
-      await refresh(prepare: true);
+      if (installation?.upgradable == true || !installed) {
+        try {
+          installation = await remote.install(
+            installation ?? await remote.inspect(token),
+            token,
+            sudoPassword: password(),
+          );
+        } catch (_) {}
+      }
+      try {
+        final list = await remote.request(
+          RunnerRequest.list(),
+          token,
+          sudoPassword: password(),
+        );
+        token.check();
+        responseCode = list.code;
+        alive = list.alive;
+        jobs = list.jobs;
+        final id =
+            pending?.id ??
+            jobs.where((j) => !j.terminal).firstOrNull?.id ??
+            selected?.id;
+        if (id != null) await _readJob(remote, token, id);
+      } catch (_) {}
     });
   }
 

@@ -69,6 +69,20 @@ final class SshRunnerTransport implements RunnerTransport {
     }
   }
 
+  static String get _rpcDispatchCommand => python(
+    "import os, glob, sys\n"
+    "t = '/usr/local/lib/antirkn-runner/v53/runner.py'\n"
+    "if os.path.exists(t):\n"
+    "    os.execv('/usr/bin/python3', ['/usr/bin/python3', '-I', t, 'rpc'])\n"
+    "def _v(x):\n"
+    "    try: return int(x.split('/v')[1].split('/')[0])\n"
+    "    except Exception: return 0\n"
+    "candidates = sorted(glob.glob('/usr/local/lib/antirkn-runner/v*/runner.py'), key=_v)\n"
+    "if candidates:\n"
+    "    os.execv('/usr/bin/python3', ['/usr/bin/python3', '-I', candidates[-1], 'rpc'])\n"
+    "sys.exit(1)",
+  );
+
   @override
   Future<RunnerResponse> request(
     RunnerRequest request,
@@ -82,7 +96,7 @@ final class SshRunnerTransport implements RunnerTransport {
           ? python(runnerComponentInspector)
           : action == 'panel_plan'
           ? python(runnerPanelInspector)
-          : runnerRpcCommand,
+          : _rpcDispatchCommand,
       jsonEncode(
         action == 'panel_verify'
             ? {...request.json, 'action': 'panel_access'}

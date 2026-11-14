@@ -52,7 +52,7 @@ def install_runner(request):
             try:
                 health_row = db.execute("SELECT heartbeat FROM health WHERE id=1").fetchone()
                 alive = health_row is not None and 0 <= (time.time() - health_row[0]) < 30
-                if alive and db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running') AND cancel=0").fetchone():
+                if alive and db.execute("SELECT 1 FROM jobs WHERE status='running' AND cancel=0").fetchone():
                     raise ValueError('busy')
             finally:
                 db.close()
@@ -68,16 +68,25 @@ def install_runner(request):
             finally:
                 rw_db.close()
         if changing and alive:
-            state=Path('/var/lib/antirkn-runner')
-            for record in (state/'xray-upgrades').glob('*/state.json'):
-                if json.loads(record.read_text()).get('phase') not in ('committed','rolled_back','not_changed'):raise ValueError('busy')
-            for record in (state/'connectivity-probes').glob('*.json'):
-                if json.loads(record.read_text()).get('status')!='closed':raise ValueError('busy')
-        if not (BASE / 'v52').exists():
+            state = Path('/var/lib/antirkn-runner')
+            now = time.time()
+            for record in (state / 'xray-upgrades').glob('*/state.json'):
+                try:
+                    if (now - record.stat().st_mtime) <= 600 and json.loads(record.read_text()).get('phase') not in ('committed', 'rolled_back', 'not_changed'):
+                        raise ValueError('busy')
+                except (OSError, ValueError):
+                    pass
+            for record in (state / 'connectivity-probes').glob('*.json'):
+                try:
+                    if (now - record.stat().st_mtime) <= 120 and json.loads(record.read_text()).get('status') != 'closed':
+                        raise ValueError('busy')
+                except (OSError, ValueError):
+                    pass
+        if not (BASE / 'v53').exists():
             temp = Path(tempfile.mkdtemp(prefix='.antirkn-', dir='/usr/local/lib'))
             try:
                 temp.chmod(0o755)
-                version = temp / 'v52'
+                version = temp / 'v53'
                 version.mkdir(mode=0o755)
                 version.chmod(0o755)
                 for name in PROGRAMS:
@@ -88,14 +97,14 @@ def install_runner(request):
                 (version / 'manifest.json').write_text(json.dumps(dict(release=release, hashes=hashes), sort_keys=True))
                 (version / 'manifest.json').chmod(0o644)
                 if BASE.exists():
-                    os.rename(str(version), str(BASE / 'v52'))
+                    os.rename(str(version), str(BASE / 'v53'))
                 else:
                     os.rename(str(temp), str(BASE))
             finally:
                 if temp.exists():
                     shutil.rmtree(str(temp))
         # Validate syntax and bytecode generation for all Python programs in the bundle
-        target_dir = BASE / 'v52'
+        target_dir = BASE / 'v53'
         for name in PROGRAMS:
             if name.endswith('.py'):
                 py_file = target_dir / name
