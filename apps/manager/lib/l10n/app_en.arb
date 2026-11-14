@@ -483,6 +483,12 @@
   "vpnUsers": "Clients",
   "vpnUsersHelp": "Create each client once. AntiRKN prepares personal access to every configured managed inbound on every server.",
   "vpnAddUser": "Add client",
+  "vpnSortBy": "Sort by",
+  "vpnSortByName": "Name",
+  "vpnSortByDate": "Date created",
+  "vpnSortAscending": "Ascending",
+  "vpnSortDescending": "Descending",
+  "vpnDisabledClients": "Disabled clients",
   "vpnSyncAndPublish": "Publish verified profiles",
   "vpnSyncAndPublishDone": "Profiles published to Drive: {published} of {total}",
   "@vpnSyncAndPublishDone": {

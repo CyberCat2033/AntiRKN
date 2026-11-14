@@ -18,6 +18,8 @@ import 'core_config_check.dart';
 import '../template_controller.dart';
 import '../template_settings.dart';
 
+enum UserSortField { name, creationDate }
+
 class UsersPage extends StatefulWidget {
   const UsersPage({
     required this.controller,
@@ -189,6 +191,8 @@ class _UsersPageState extends State<UsersPage> {
   bool get showAddAction => widget.showAddAction;
   String Function(String) get serverName => widget.serverName;
   bool _syncing = false;
+  UserSortField _sortField = UserSortField.creationDate;
+  bool _sortAscending = true;
 
   Future<void> _syncAndPublish(
     BuildContext context, {
@@ -379,14 +383,36 @@ class _UsersPageState extends State<UsersPage> {
     listenable: Listenable.merge([controller, selection]),
     builder: (context, _) {
       final c = controller, l = AppLocalizations.of(context);
-      final activeUsers = c.workspace.users
+      final allUsers = c.workspace.users
           .where((u) => !u.deleted)
           .toList(growable: false);
-      final firstUserId = activeUsers.firstOrNull?.id;
+
+      final creationOrder = {
+        for (var i = 0; i < c.workspace.users.length; i++)
+          c.workspace.users[i].id: i,
+      };
+
+      int compareUsers(VpnUser a, VpnUser b) {
+        if (_sortField == UserSortField.name) {
+          final res = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+          if (res != 0) return _sortAscending ? res : -res;
+          return creationOrder[a.id]!.compareTo(creationOrder[b.id]!);
+        } else {
+          final res = creationOrder[a.id]!.compareTo(creationOrder[b.id]!);
+          return _sortAscending ? res : -res;
+        }
+      }
+
+      final enabledUsers = allUsers.where((u) => u.enabled).toList()
+        ..sort(compareUsers);
+      final disabledUsers = allUsers.where((u) => !u.enabled).toList()
+        ..sort(compareUsers);
+
+      final sortedAllUsers = [...enabledUsers, ...disabledUsers];
       final protocolSummary = _protocolSummary();
       return DragSelectList(
         selection: selection,
-        ids: [for (final u in activeUsers) u.id],
+        ids: [for (final u in sortedAllUsers) u.id],
         enabled: !c.foregroundBusy && c.loaded,
         builder: (scroll, item) => ListView(
           controller: scroll,
@@ -448,7 +474,7 @@ class _UsersPageState extends State<UsersPage> {
                 ],
               ),
             ),
-            AppSectionHeading(title: l.vpnUsers, count: activeUsers.length),
+            AppSectionHeading(title: l.vpnUsers, count: allUsers.length),
             if (showAddAction)
               Row(
                 children: [
@@ -461,7 +487,7 @@ class _UsersPageState extends State<UsersPage> {
                   ),
                   CatalogActions(
                     selection: selection,
-                    available: [for (final u in activeUsers) u.id],
+                    available: [for (final u in sortedAllUsers) u.id],
                     prefix: 'vpn-user',
                     busy: c.foregroundBusy || !c.loaded,
                     addLabel: l.vpnAddUser,
@@ -476,34 +502,177 @@ class _UsersPageState extends State<UsersPage> {
                   ),
                 ],
               ),
+            if (allUsers.length > 1 && !selection.active)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 4, 4, 12),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.sort,
+                          size: 18,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          l.vpnSortBy,
+                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                    FilterChip(
+                      key: const ValueKey('vpn-sort-name'),
+                      showCheckmark: false,
+                      avatar: _sortField == UserSortField.name
+                          ? Icon(
+                              _sortAscending
+                                  ? Icons.arrow_upward
+                                  : Icons.arrow_downward,
+                              size: 16,
+                            )
+                          : null,
+                      selected: _sortField == UserSortField.name,
+                      label: Text(l.vpnSortByName),
+                      tooltip: _sortField == UserSortField.name
+                          ? (_sortAscending
+                              ? l.vpnSortAscending
+                              : l.vpnSortDescending)
+                          : null,
+                      onSelected: (_) {
+                        setState(() {
+                          if (_sortField == UserSortField.name) {
+                            _sortAscending = !_sortAscending;
+                          } else {
+                            _sortField = UserSortField.name;
+                            _sortAscending = true;
+                          }
+                        });
+                      },
+                    ),
+                    FilterChip(
+                      key: const ValueKey('vpn-sort-date'),
+                      showCheckmark: false,
+                      avatar: _sortField == UserSortField.creationDate
+                          ? Icon(
+                              _sortAscending
+                                  ? Icons.arrow_upward
+                                  : Icons.arrow_downward,
+                              size: 16,
+                            )
+                          : null,
+                      selected: _sortField == UserSortField.creationDate,
+                      label: Text(l.vpnSortByDate),
+                      tooltip: _sortField == UserSortField.creationDate
+                          ? (_sortAscending
+                              ? l.vpnSortAscending
+                              : l.vpnSortDescending)
+                          : null,
+                      onSelected: (_) {
+                        setState(() {
+                          if (_sortField == UserSortField.creationDate) {
+                            _sortAscending = !_sortAscending;
+                          } else {
+                            _sortField = UserSortField.creationDate;
+                            _sortAscending = true;
+                          }
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
             VpnPlanView(controller: c, serverName: serverName),
-            if (activeUsers.isEmpty)
+            if (allUsers.isEmpty)
               AppEmptyState(
                 title: l.vpnNoUsers,
                 icon: Icons.people_outline,
                 message: l.uiClientsEmptyHelp,
               ),
-            Card.filled(
-              child: AppAnimatedCollection(
-                motion: motion,
-                items: {
-                  for (final user in activeUsers)
-                    user.id: item(
-                      user.id,
-                      _UserTile(
-                        user: user,
-                        isFirst: user.id == firstUserId,
-                        controller: c,
-                        selection: selection,
-                        publications: publications,
-                        protocolSummary: protocolSummary,
-                        motion: motion,
-                        onProfile: _profile,
+            if (allUsers.isNotEmpty)
+              Card.filled(
+                child: AppAnimatedCollection(
+                  motion: motion,
+                  items: {
+                    for (var i = 0; i < enabledUsers.length; i++)
+                      enabledUsers[i].id: item(
+                        enabledUsers[i].id,
+                        _UserTile(
+                          user: enabledUsers[i],
+                          isFirst: i == 0,
+                          controller: c,
+                          selection: selection,
+                          publications: publications,
+                          protocolSummary: protocolSummary,
+                          motion: motion,
+                          onProfile: _profile,
+                        ),
                       ),
-                    ),
-                },
+                    if (disabledUsers.isNotEmpty) ...{
+                      if (enabledUsers.isNotEmpty)
+                        '__disabled_header__': Container(
+                          key: const ValueKey('vpn-disabled-section-header'),
+                          padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              top: BorderSide(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .outlineVariant
+                                    .withValues(alpha: .55),
+                              ),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.pause_circle_outline,
+                                size: 18,
+                                color: Theme.of(context).colorScheme.outline,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                l.vpnDisabledClients,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleSmall
+                                    ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                              ),
+                              const SizedBox(width: 8),
+                              AppBadge(label: '${disabledUsers.length}'),
+                            ],
+                          ),
+                        ),
+                      for (var i = 0; i < disabledUsers.length; i++)
+                        disabledUsers[i].id: item(
+                          disabledUsers[i].id,
+                          _UserTile(
+                            user: disabledUsers[i],
+                            isFirst: i == 0 && enabledUsers.isEmpty,
+                            controller: c,
+                            selection: selection,
+                            publications: publications,
+                            protocolSummary: protocolSummary,
+                            motion: motion,
+                            onProfile: _profile,
+                          ),
+                        ),
+                    },
+                  },
+                ),
               ),
-            ),
             ClientDeletionPanel(controller: c, serverName: serverName),
             _AttentionServersSection(controller: c, serverName: serverName),
           ],
@@ -555,12 +724,19 @@ class _UserTile extends StatelessWidget {
           ),
           color: isSelected
               ? Theme.of(context).colorScheme.secondaryContainer
-              : null,
+              : (!user.enabled
+                  ? Theme.of(context)
+                      .colorScheme
+                      .surfaceContainerHighest
+                      .withValues(alpha: .25)
+                  : null),
         ),
-        child: Material(
-          type: MaterialType.transparency,
-          clipBehavior: Clip.hardEdge,
-          child: ListTile(
+        child: Opacity(
+          opacity: user.enabled ? 1.0 : 0.72,
+          child: Material(
+            type: MaterialType.transparency,
+            clipBehavior: Clip.hardEdge,
+            child: ListTile(
             key: ValueKey('client-${user.id}'),
             leading: CatalogSelectionLeading(
               active: selection.active,
@@ -638,6 +814,7 @@ class _UserTile extends StatelessWidget {
                   ),
           ),
         ),
+      ),
       ),
     ),
   );

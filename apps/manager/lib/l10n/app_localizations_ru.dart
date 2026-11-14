@@ -1255,6 +1255,24 @@ class AppLocalizationsRu extends AppLocalizations {
   String get vpnAddUser => 'Добавить клиента';
 
   @override
+  String get vpnSortBy => 'Сортировка';
+
+  @override
+  String get vpnSortByName => 'По имени';
+
+  @override
+  String get vpnSortByDate => 'По дате создания';
+
+  @override
+  String get vpnSortAscending => 'По возрастанию';
+
+  @override
+  String get vpnSortDescending => 'По убыванию';
+
+  @override
+  String get vpnDisabledClients => 'Отключенные клиенты';
+
+  @override
   String get vpnSyncAndPublish => 'Выгрузить проверенные профили';
 
   @override

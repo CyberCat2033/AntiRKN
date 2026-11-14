@@ -483,6 +483,12 @@
   "vpnUsers": "Клиенты",
   "vpnUsersHelp": "Создайте клиента один раз. AntiRKN подготовит ему персональные доступы ко всем настроенным управляемым inbounds на всех серверах.",
   "vpnAddUser": "Добавить клиента",
+  "vpnSortBy": "Сортировка",
+  "vpnSortByName": "По имени",
+  "vpnSortByDate": "По дате создания",
+  "vpnSortAscending": "По возрастанию",
+  "vpnSortDescending": "По убыванию",
+  "vpnDisabledClients": "Отключенные клиенты",
   "vpnSyncAndPublish": "Выгрузить проверенные профили",
   "vpnSyncAndPublishDone": "Выгружено профилей на Диск: {published} из {total}",
   "@vpnSyncAndPublishDone": {

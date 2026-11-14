@@ -1252,6 +1252,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get vpnAddUser => 'Add client';
 
   @override
+  String get vpnSortBy => 'Sort by';
+
+  @override
+  String get vpnSortByName => 'Name';
+
+  @override
+  String get vpnSortByDate => 'Date created';
+
+  @override
+  String get vpnSortAscending => 'Ascending';
+
+  @override
+  String get vpnSortDescending => 'Descending';
+
+  @override
+  String get vpnDisabledClients => 'Disabled clients';
+
+  @override
   String get vpnSyncAndPublish => 'Publish verified profiles';
 
   @override

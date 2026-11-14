@@ -2282,6 +2282,42 @@ abstract class AppLocalizations {
   /// **'Add client'**
   String get vpnAddUser;
 
+  /// No description provided for @vpnSortBy.
+  ///
+  /// In en, this message translates to:
+  /// **'Sort by'**
+  String get vpnSortBy;
+
+  /// No description provided for @vpnSortByName.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get vpnSortByName;
+
+  /// No description provided for @vpnSortByDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Date created'**
+  String get vpnSortByDate;
+
+  /// No description provided for @vpnSortAscending.
+  ///
+  /// In en, this message translates to:
+  /// **'Ascending'**
+  String get vpnSortAscending;
+
+  /// No description provided for @vpnSortDescending.
+  ///
+  /// In en, this message translates to:
+  /// **'Descending'**
+  String get vpnSortDescending;
+
+  /// No description provided for @vpnDisabledClients.
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled clients'**
+  String get vpnDisabledClients;
+
   /// No description provided for @vpnSyncAndPublish.
   ///
   /// In en, this message translates to:
