@@ -56,26 +56,28 @@ def install_runner(request):
                     raise ValueError('busy')
             finally:
                 db.close()
-            if not alive:
-                rw_db = sqlite3.connect('/var/lib/antirkn-runner/jobs.sqlite')
-                try:
-                    with rw_db:
-                        for row in rw_db.execute("SELECT * FROM jobs WHERE status IN ('planned','running')").fetchall():
+            rw_db = sqlite3.connect('/var/lib/antirkn-runner/jobs.sqlite')
+            try:
+                with rw_db:
+                    for row in rw_db.execute("SELECT * FROM jobs WHERE status IN ('planned','running')").fetchall():
+                        if not alive:
                             status = 'cancelled' if row['cancel'] else 'failed'
                             rw_db.execute("UPDATE jobs SET status=? WHERE id=?", (status, row['id']))
-                finally:
-                    rw_db.close()
+                        elif row['cancel'] and row['status'] == 'planned':
+                            rw_db.execute("UPDATE jobs SET status='cancelled' WHERE id=?", (row['id'],))
+            finally:
+                rw_db.close()
         if changing and alive:
             state=Path('/var/lib/antirkn-runner')
             for record in (state/'xray-upgrades').glob('*/state.json'):
                 if json.loads(record.read_text()).get('phase') not in ('committed','rolled_back','not_changed'):raise ValueError('busy')
             for record in (state/'connectivity-probes').glob('*.json'):
                 if json.loads(record.read_text()).get('status')!='closed':raise ValueError('busy')
-        if not (BASE / 'v51').exists():
+        if not (BASE / 'v52').exists():
             temp = Path(tempfile.mkdtemp(prefix='.antirkn-', dir='/usr/local/lib'))
             try:
                 temp.chmod(0o755)
-                version = temp / 'v51'
+                version = temp / 'v52'
                 version.mkdir(mode=0o755)
                 version.chmod(0o755)
                 for name in PROGRAMS:
@@ -86,14 +88,14 @@ def install_runner(request):
                 (version / 'manifest.json').write_text(json.dumps(dict(release=release, hashes=hashes), sort_keys=True))
                 (version / 'manifest.json').chmod(0o644)
                 if BASE.exists():
-                    os.rename(str(version), str(BASE / 'v51'))
+                    os.rename(str(version), str(BASE / 'v52'))
                 else:
                     os.rename(str(temp), str(BASE))
             finally:
                 if temp.exists():
                     shutil.rmtree(str(temp))
         # Validate syntax and bytecode generation for all Python programs in the bundle
-        target_dir = BASE / 'v51'
+        target_dir = BASE / 'v52'
         for name in PROGRAMS:
             if name.endswith('.py'):
                 py_file = target_dir / name

@@ -1899,6 +1899,15 @@ class RunnerController extends ChangeNotifier {
       if (!connected && connectForAction != null) {
         if (await connectForAction!() != true) return;
       }
+      if (installation?.upgradable == true || !installed) {
+        try {
+          installation = await remote.install(
+            installation ?? await remote.inspect(token),
+            token,
+            sudoPassword: password(),
+          );
+        } catch (_) {}
+      }
       try {
         await _readJob(remote, token, job.id);
       } catch (_) {}
@@ -1935,6 +1944,15 @@ class RunnerController extends ChangeNotifier {
     await _run((remote, token) async {
       if (!connected && connectForAction != null) {
         if (await connectForAction!() != true) return;
+      }
+      if (installation?.upgradable == true || !installed) {
+        try {
+          installation = await remote.install(
+            installation ?? await remote.inspect(token),
+            token,
+            sudoPassword: password(),
+          );
+        } catch (_) {}
       }
       final targetIds = <String>{
         if (selected != null && !selected!.terminal) selected!.id,

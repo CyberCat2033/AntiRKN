@@ -140,7 +140,7 @@ class RunnerPanel extends StatelessWidget {
                             : null,
                         child: Text(l.runnerCancel),
                       ),
-                      if (job.cancelRequested || c.connectionLost)
+                      if (job.cancelRequested || c.connectionLost || job.status == 'planned' || c.error != null)
                         TextButton(
                           key: const ValueKey('runner-reset-queue'),
                           onPressed: !c.busy && !c.actionPending
