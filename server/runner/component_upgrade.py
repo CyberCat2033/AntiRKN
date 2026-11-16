@@ -383,7 +383,8 @@ def probe_staged_binary(
             detail=f"{p.name} exec error: {exc}",
         ) from exc
 
-    if res.returncode != 0 or not res.stdout.strip():
+    out = (res.stdout or "").strip() or (res.stderr or "").strip()
+    if res.returncode != 0 or not out:
         stderr_snippet = (res.stderr or "").strip()[:512]
         stdout_snippet = (res.stdout or "").strip()[:512]
         raise ComponentUpgradeError(
@@ -394,7 +395,7 @@ def probe_staged_binary(
             ),
         )
 
-    return res.stdout.strip()
+    return out
 
 
 def download_verified_artifact(
@@ -532,6 +533,14 @@ def check_system_resources(target_path='/usr/local', min_disk_bytes=200 * 1024 *
             pass
 
 
+def is_unit_active(unit_name: str) -> bool:
+    try:
+        res = subprocess.run(['/usr/bin/systemctl', 'is-active', '--quiet', unit_name], capture_output=True, timeout=5)
+        return res.returncode == 0
+    except Exception:
+        return False
+
+
 def detect_component(component):
     """Detect binary, config paths, unit names, and whether installation is native or adopted."""
     if component not in VALID_COMPONENTS:
@@ -560,7 +569,7 @@ def detect_component(component):
             result['installed'] = True
             result['binaryPath'] = str(panel_bin)
             result['source'] = 'native' if str(panel_bin).startswith('/usr/local/x-ui') else 'adopted_binary'
-            result['units'] = ['x-ui.service']
+            result['units'] = ['x-ui.service'] if is_unit_active('x-ui.service') else []
             db = Path('/etc/x-ui/x-ui.db')
             if not db.exists():
                 db = Path('/usr/local/x-ui/x-ui.db')
@@ -593,9 +602,9 @@ def detect_component(component):
                 if config.exists():
                     result['configPath'] = str(config)
                 if '/usr/local/x-ui' in str(c):
-                    result['units'] = ['x-ui.service']
+                    result['units'] = ['x-ui.service'] if is_unit_active('x-ui.service') else []
                 else:
-                    result['units'] = ['xray.service']
+                    result['units'] = ['xray.service'] if is_unit_active('xray.service') else []
                 try:
                     out = subprocess.run([str(c), 'version'], capture_output=True, text=True, timeout=5)
                     result['version'] = extract_semver(out.stdout)
@@ -948,12 +957,15 @@ class ComponentUpgrader:
                 cmd = [str(staged_binary), 'run', '-test', '-config', str(config_path)]
                 env = dict(SAFE_PROBE_ENV)
                 parent_dir = Path(config_path).parent
+                staged_asset = next((p.parent for p in self.staging_dir.rglob('geoip.dat') if p.is_file()), None)
                 if (parent_dir / 'geoip.dat').exists():
                     env['XRAY_LOCATION_ASSET'] = str(parent_dir)
+                elif staged_asset:
+                    env['XRAY_LOCATION_ASSET'] = str(staged_asset)
                 elif (self.staging_dir / 'geoip.dat').exists():
                     env['XRAY_LOCATION_ASSET'] = str(self.staging_dir)
                 try:
-                    res = subprocess.run(cmd, env=env, capture_output=True, timeout=15)
+                    res = subprocess.run(cmd, env=env, cwd=str(parent_dir), capture_output=True, timeout=15)
                     if res.returncode != 0:
                         stderr_snippet = (res.stderr or "").strip()[:512]
                         raise ComponentUpgradeError(
@@ -1397,6 +1409,13 @@ class ComponentUpgradeJob:
             version_file = DATABASE / '.antirkn-versions'
             if version_file.exists():
                 ver = json.loads(version_file.read_text())
+            elif DATABASE.exists():
+                owner_file = DATABASE / '.antirkn-owner'
+                owner_id = owner_file.read_text().strip() if owner_file.exists() else ''
+                ver = {'id': owner_id}
+            else:
+                ver = None
+            if ver is not None:
                 if self.upgrader.component == 'panel':
                     ver['panelVersion'] = new_version
                 elif self.upgrader.component == 'xray':

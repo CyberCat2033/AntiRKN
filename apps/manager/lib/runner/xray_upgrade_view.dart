@@ -79,19 +79,34 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
       final dynamicXray = updates?.latest['xray'];
       final hasDynamicCandidate = dynamicXray != null &&
           currentXray != null &&
-          componentIsNewer(dynamicXray, currentXray) == true;
-      final effectiveCandidate = (c.plan?['candidate'] != null &&
-              currentXray != null &&
+          (componentIsNewer(dynamicXray, currentXray) == true ||
               componentIsNewer(
+                    dynamicXray,
+                    currentXray,
+                    allowPreview: true,
+                  ) ==
+                  true);
+      final hasPlanCandidate = c.plan?['candidate'] != null &&
+          currentXray != null &&
+          (componentIsNewer(
                     c.plan!['candidate'] as String,
                     currentXray,
                   ) ==
-                  true)
+                  true ||
+              componentIsNewer(
+                    c.plan!['candidate'] as String,
+                    currentXray,
+                    allowPreview: true,
+                  ) ==
+                  true);
+      final effectiveCandidate = hasPlanCandidate
           ? c.plan!['candidate'] as String
           : (hasDynamicCandidate ? dynamicXray : null);
-      final isCandidateNewer = effectiveCandidate != null &&
-          currentXray != null &&
-          componentIsNewer(effectiveCandidate, currentXray) == true;
+      final isCandidateNewer = hasPlanCandidate || hasDynamicCandidate;
+      final canRun = (c.available &&
+              c.plan?['available'] == true &&
+              hasPlanCandidate) ||
+          ((hasDynamicCandidate || hasPlanCandidate) && updates != null);
       final message = switch (c.phase) {
         'baseline' => l.xrayUpgradeBaseline,
         'preparing' || 'replacing' => l.xrayUpgradePreparing,
@@ -173,7 +188,7 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
                     : c.busy ||
                           widget.vpn.busy ||
                           !widget.runner.canRequestAction ||
-                          (!c.available && !hasDynamicCandidate)
+                          !canRun
                     ? null
                     : () async {
                         if (!await showPanelLogin(context, widget.runner) ||
@@ -182,18 +197,12 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
                         }
                         if (c.available &&
                             c.plan?['available'] == true &&
-                            c.plan?['candidate'] != null &&
-                            currentXray != null &&
-                            componentIsNewer(
-                                  c.plan!['candidate'] as String,
-                                  currentXray,
-                                ) ==
-                                true) {
+                            hasPlanCandidate) {
                           await c.run();
-                        } else if (hasDynamicCandidate && updates != null) {
+                        } else if (effectiveCandidate != null && updates != null) {
                           final candidate = await updates.source.resolveAsset(
                             component: 'xray',
-                            version: dynamicXray,
+                            version: effectiveCandidate,
                           );
                           if (candidate != null && context.mounted) {
                             await widget.runner.checkComponentUpgrade(

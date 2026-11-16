@@ -9,7 +9,7 @@ from urllib.parse import unquote
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'server/runner'))
 from runner import Store
-from vless import VlessApply, VlessError, parse_payload, plan, state, normal, digest, client_id
+from vless import VlessApply, VlessError, parse_payload, plan, state, normal, digest, client_id, canonical
 
 
 def spec(number=1,transport='raw'):
@@ -417,6 +417,65 @@ class VlessTests(unittest.TestCase):
         preview = plan(self.store, dict(id=p_new['panelId'], payload=json.dumps(p_new)))
         self.assertIn('fingerprint', preview)
         second = self.submit(p_new, 2)
+        self.assertEqual(self.finish(second)['status'], 'succeeded')
+
+    def test_state_confirms_inbound_after_panel_reinstall_with_new_panel_id(self):
+        req = self.submit()
+        self.assertEqual(self.finish(req)['status'], 'succeeded')
+        self.assertEqual(len(self.api.rows), 2)
+        # Panel is reinstalled with a new panel ID
+        new_panel_id = 'c' * 32
+        st = state(self.store, new_panel_id)
+        self.assertEqual(len(st), 2)
+        self.assertTrue(all(s['confirmed'] for s in st))
+        self.assertTrue(all(s['exists'] for s in st))
+        self.assertFalse(any(s['deleted'] for s in st))
+        # Verify that stored panelId was updated in vless_resources
+        for row in self.store.db.execute('SELECT data FROM vless_resources'):
+            data = json.loads(row[0])
+            self.assertEqual(data['panelId'], new_panel_id)
+
+    def test_state_recovers_and_confirms_inbound_after_transient_deletion(self):
+        req = self.submit()
+        self.assertEqual(self.finish(req)['status'], 'succeeded')
+        saved_rows = copy.deepcopy(self.api.rows)
+        # 3x-ui service is restarting or temporarily empty
+        self.api.rows = []
+        st_empty = state(self.store, 'b' * 32)
+        self.assertTrue(all(s['deleted'] for s in st_empty))
+        self.assertFalse(any(s['exists'] for s in st_empty))
+        # 3x-ui restarts and inbounds are back
+        self.api.rows = saved_rows
+        st_recovered = state(self.store, 'b' * 32)
+        self.assertEqual(len(st_recovered), 2)
+        self.assertTrue(all(s['confirmed'] for s in st_recovered))
+        self.assertTrue(all(s['exists'] for s in st_recovered))
+        self.assertFalse(any(s['deleted'] for s in st_recovered))
+        # Verify that observedHash was restored
+        for row in self.store.db.execute('SELECT data FROM vless_resources'):
+            data = json.loads(row[0])
+            self.assertIsNotNone(data['observedHash'])
+            self.assertFalse(data['deleted'])
+
+    def test_state_and_preflight_confirm_recreated_inbound_cleanly(self):
+        p = payload()
+        req = self.submit(p)
+        self.assertEqual(self.finish(req)['status'], 'succeeded')
+        # Recreate inbound in 3x-ui (e.g. traffic reset or reinstalled panel recreating inbounds)
+        # Clear observedHash in stored resources to simulate hash mismatch
+        for rid in (r['id'] for r in p['resources']):
+            row = self.store.db.execute('SELECT data FROM vless_resources WHERE id=?', (rid,)).fetchone()
+            data = json.loads(row[0])
+            data['observedHash'] = '0' * 64
+            self.store.db.execute('UPDATE vless_resources SET data=? WHERE id=?', (canonical(data), rid))
+        # state() should validate against expected spec and confirm
+        st = state(self.store, p['panelId'])
+        self.assertEqual(len(st), 2)
+        self.assertTrue(all(s['confirmed'] for s in st))
+        # preflight() / plan() should accept cleanly without vless_conflict
+        preview = plan(self.store, dict(id=p['panelId'], payload=json.dumps(p)))
+        self.assertIn('fingerprint', preview)
+        second = self.submit(p, 2)
         self.assertEqual(self.finish(second)['status'], 'succeeded')
 
 class RealityMaterialTests(unittest.TestCase):

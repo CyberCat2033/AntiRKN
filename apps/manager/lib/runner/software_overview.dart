@@ -107,14 +107,19 @@ class SoftwareOverview extends StatelessWidget {
       final applyAction = !detected || canUpdate;
       final installingThis =
           (c.selected?.kind == 'component_install' ||
-              c.selected?.kind == 'component_upgrade') &&
+              c.selected?.kind == 'component_upgrade' ||
+              c.selected?.kind == 'component_upgrade_apply') &&
           c.selected?.terminal == false &&
           c.activeComponent == key;
       final isPanelJob = isPanel &&
           c.selected?.terminal == false &&
           (c.selected?.kind == 'panel_install' ||
               c.selected?.kind == 'panel_update' ||
-              c.selected?.kind == 'xray_upgrade');
+              c.selected?.kind == 'xray_upgrade' ||
+              ((c.selected?.kind == 'component_upgrade' ||
+                      c.selected?.kind == 'component_upgrade_apply') &&
+                  (c.activeComponent == 'panel' ||
+                      c.activeComponent == 'xray')));
       final activeOnThisComponent = installingThis || isPanelJob;
       final action = activeOnThisComponent
           ? SizedBox(
@@ -295,7 +300,9 @@ class SoftwareOverview extends StatelessWidget {
       }
       if (c.componentPlan?.component == key ||
           (c.activeComponent == key &&
-              c.selected?.kind == 'component_install' &&
+              (c.selected?.kind == 'component_install' ||
+                  c.selected?.kind == 'component_upgrade' ||
+                  c.selected?.kind == 'component_upgrade_apply') &&
               (c.selected?.terminal == false ||
                   const {
                     'failed',

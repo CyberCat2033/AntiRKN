@@ -1,14 +1,16 @@
 /// Stable numeric upstream versions; preview labels are handled when allowed.
 List<int>? componentVersion(String value, {bool allowPreview = false}) {
+  final clean = value.trim();
   if (!allowPreview) {
-    final match = RegExp(r'^v?(\d+)\.(\d+)\.(\d+)$').firstMatch(value);
-    return match == null
-        ? null
-        : [for (var i = 1; i <= 3; i++) int.parse(match[i]!)];
+    final match = RegExp(
+      r'(?:^|[^\w])v?(\d+)\.(\d+)\.(\d+)(?:[-.]?([a-zA-Z]+[0-9]*))?(?=[^\w]|$)',
+    ).firstMatch(clean);
+    if (match == null || match[4] != null) return null;
+    return [for (var i = 1; i <= 3; i++) int.parse(match[i]!)];
   }
   final match = RegExp(
-    r'^v?(\d+)\.(\d+)\.(\d+)(?:[-.]?([a-zA-Z]+)?(?:[-.]?(\d+))?)?$',
-  ).firstMatch(value);
+    r'(?:^|[^\w])v?(\d+)\.(\d+)\.(\d+)(?:[-.]?([a-zA-Z]+)?(?:[-.]?(\d+))?)?(?=[^\w]|$)',
+  ).firstMatch(clean);
   if (match == null) return null;
   final major = int.parse(match[1]!);
   final minor = int.parse(match[2]!);

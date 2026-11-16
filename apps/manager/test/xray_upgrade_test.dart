@@ -304,6 +304,15 @@ void main() {
     await upgrade.run();
     expect(upgrade.code, 'xray_check_layout');
   });
+  test('terminal operation clears error and phase on inspect when update is available', () async {
+    await setup();
+    remote.phase = 'rolled_back';
+    remote.available = true;
+    remote.candidateVersion = '26.11.9';
+    await upgrade.inspect();
+    expect(upgrade.phase, 'idle');
+    expect(upgrade.code, isEmpty);
+  });
   for (final locale in ['ru', 'en']) {
     testWidgets('upgrade controls fit narrow screen with large text $locale', (
       tester,

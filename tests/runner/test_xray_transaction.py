@@ -214,6 +214,9 @@ class XrayTransactionTests(unittest.TestCase):
         self.assertEqual(x.parse_semver('3.9'), (3, 9, 0))
         self.assertEqual(x.parse_semver('3.11.0-rc1'), (3, 11, 0))
         self.assertEqual(x.parse_semver('v3.11.1+build2026'), (3, 11, 1))
+        self.assertEqual(x.parse_semver('Xray 26.7.28 (Xray, Penetrates Everything.)'), (26, 7, 28))
+        self.assertEqual(x.parse_semver('Xray 26.11.9'), (26, 11, 9))
+        self.assertEqual(x.parse_semver(' 26.7.28 \n'), (26, 7, 28))
         for bad in ('', 'v', 'abc', '3.x.0', 123, None):
             with self.assertRaises(ValueError):
                 x.parse_semver(bad)

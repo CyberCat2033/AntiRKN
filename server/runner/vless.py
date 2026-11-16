@@ -315,8 +315,21 @@ def preflight(store, payload, api, rows=None):
         current = locate(rows, payload['workspaceId'], r['id'])
         previous = saved.get(r['id'])
         if previous and previous['workspaceId'] != payload['workspaceId']: raise VlessError('vless_conflict')
-        if current and (not previous or not matches_observation(api, current, payload['workspaceId'], r['id'], previous['observedHash'])):
-            raise VlessError('vless_conflict')
+        if current:
+            matched = False
+            if previous and previous.get('observedHash'):
+                matched = matches_observation(api, current, payload['workspaceId'], r['id'], previous['observedHash'])
+            if not matched:
+                wanted = wanted_inbound(payload, r, current)
+                desired = normal(wanted)
+                actual = normal(current)
+                for k in ('id', 'tag', 'up', 'down', 'total', 'userId', 'nodeId'):
+                    desired.pop(k, None)
+                    actual.pop(k, None)
+                if desired == actual and not r.get('deleted'):
+                    matched = True
+            if not matched:
+                raise VlessError('vless_conflict')
         if previous and not current and not (previous.get('deleted') or r.get('deleted')): raise VlessError('vless_conflict')
     # Every currently managed resource in this workspace must participate, so a
     # stale device cannot silently drop clients/resources through a partial list.
@@ -370,19 +383,61 @@ def state(store, panel_id, pending_job=None):
     rows = api.call('/panel/api/inbounds/list')
     result = []
     for rid, saved in owned_rows(store).items():
-        if saved['panelId'] != panel_id: continue
         if saved.get('adopted'):
             import managed_existing
             result.append(managed_existing.state(store, saved, 'vless', pending_job, inbounds=rows))
             continue
+        panel_updated = False
+        if saved.get('panelId') != panel_id:
+            saved['panelId'] = panel_id
+            panel_updated = True
         current = locate(rows, saved['workspaceId'], rid)
-        if current is None and not saved.get('deleted'):
-            saved['deleted'] = True
-            saved['observedHash'] = None
-            with store.db:
-                store.db.execute('INSERT INTO vless_resources VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data',
-                    (rid, canonical(saved)))
-        confirmed = (current is None if saved.get('deleted') else matches_observation(api, current, saved['workspaceId'], rid, saved['observedHash']))
+        if current is None:
+            if not saved.get('deleted'):
+                saved['deleted'] = True
+                saved['observedHash'] = None
+                with store.db:
+                    store.db.execute('INSERT INTO vless_resources VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data',
+                        (rid, canonical(saved)))
+            confirmed = True
+        else:
+            deleted_changed = False
+            if saved.get('deleted'):
+                saved['deleted'] = False
+                deleted_changed = True
+            confirmed = matches_observation(api, current, saved['workspaceId'], rid, saved.get('observedHash'))
+            if not confirmed:
+                try:
+                    payload = dict(
+                        workspaceId=saved['workspaceId'],
+                        resources=[saved['spec']],
+                        users=[{'id': c['id'], 'enabled': c.get('enable', c.get('enabled', True))} for c in saved.get('clients', [])]
+                    )
+                    wanted = wanted_inbound(payload, saved['spec'], current)
+                    desired = normal(wanted)
+                    actual = normal(current)
+                    for k in ('id', 'tag', 'up', 'down', 'total', 'userId', 'nodeId'):
+                        desired.pop(k, None)
+                        actual.pop(k, None)
+                    if desired == actual:
+                        try:
+                            detail = api.call('/panel/api/inbounds/get/%d' % current['id'])
+                            detail_row = detail if isinstance(detail, dict) and detail.get('id') == current['id'] and detail.get('remark') == marker(saved['workspaceId'], rid) else current
+                        except Exception:
+                            detail_row = current
+                        saved['observedHash'] = digest(normal(detail_row))
+                        saved['deleted'] = False
+                        saved['panelId'] = panel_id
+                        with store.db:
+                            store.db.execute('INSERT INTO vless_resources VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data',
+                                (rid, canonical(saved)))
+                        confirmed = True
+                except Exception:
+                    pass
+            elif panel_updated or deleted_changed:
+                with store.db:
+                    store.db.execute('INSERT INTO vless_resources VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data',
+                        (rid, canonical(saved)))
         result.append(dict(id=rid, spec=saved['spec'], workspaceId=saved['workspaceId'],
             confirmed=confirmed, deleted=bool(saved.get('deleted')), exists=(current is not None),
             publicKey=saved['publicKey'], shortId=saved['shortId'],

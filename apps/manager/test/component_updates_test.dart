@@ -77,6 +77,15 @@ void main() {
         componentIsNewer('1.3.0-beta.2', '1.3.0-beta.1', allowPreview: true),
         isTrue,
       );
+      expect(
+        componentIsNewer(
+          '26.11.9',
+          'Xray 26.7.28 (Xray, Penetrates Everything.)',
+        ),
+        isTrue,
+      );
+      expect(componentIsNewer('v26.11.9', '26.11.9'), isFalse);
+      expect(componentIsNewer('26.11.9', ' 26.7.28\n'), isTrue);
     },
   );
   test(

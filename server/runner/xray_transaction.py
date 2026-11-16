@@ -97,20 +97,14 @@ def snapshot(store,panel_id):
 def parse_semver(v):
     if not isinstance(v, str):
         raise ValueError(f'Invalid version: {v}')
-    s = v.strip()
-    if s.startswith(('v', 'V')):
-        s = s[1:]
-    s = s.split('-')[0].split('+')[0]
-    parts = s.split('.')
-    try:
-        nums = [int(p) for p in parts]
-    except ValueError:
+    import re
+    match = re.search(r'(\d+)\.(\d+)(?:\.(\d+))?', v)
+    if not match:
         raise ValueError(f'Invalid version: {v}')
-    if not nums:
-        raise ValueError(f'Invalid version: {v}')
-    while len(nums) < 3:
-        nums.append(0)
-    return tuple(nums)
+    major = int(match.group(1))
+    minor = int(match.group(2))
+    patch = int(match.group(3)) if match.group(3) is not None else 0
+    return (major, minor, patch)
 
 def plan(store,panel_id):
     try:current=snapshot(store,panel_id)
@@ -227,7 +221,11 @@ def download(path):
         data=archive.read(item)
         if hashlib.sha256(data).hexdigest()!=TARGET['binarySha256']:raise UpdateError('xray_check_digest')
         atomic_file(path/'candidate',data,0o700)
-    if not command([str(path/'candidate'),'version']).decode().startswith('Xray '+TARGET['version']+' '):raise UpdateError()
+    if not command([str(path/'candidate'),'version']).decode().startswith('Xray '+TARGET['version']+' '):
+        out = command([str(path/'candidate'),'version']).decode().strip()
+        target_v = TARGET['version'].lstrip('v')
+        if not (out.startswith(f'Xray {target_v} ') or out.startswith(f'Xray v{target_v} ') or f' {target_v} ' in out):
+            raise UpdateError()
     return path/'candidate'
 
 def config_test(binary):
@@ -248,7 +246,7 @@ def restart(store,info,version):
         try:
             if api is None:api=panel.client(access)
             actual=panel.versions(api)
-            if actual['xrayVersion']==version and actual['panelVersion']==info['before']['panelVersion']:
+            if actual['xrayVersion'].lstrip('v')==version.lstrip('v') and actual['panelVersion'].lstrip('v')==info['before']['panelVersion'].lstrip('v'):
                 cache_versions(store,info,actual)
                 return
         except (PanelError,OSError,ValueError,KeyError):pass
@@ -319,7 +317,7 @@ def unchanged(store,info,new):
     after=snapshot(store,info['payload']['panelId']);before=info['before']
     expected=info['candidate'] if new else info['current']
     expected_hash=info['newHash'] if new else info['oldHash']
-    if after['xrayVersion']!=expected or hashlib.sha256(BINARY.read_bytes()).hexdigest()!=expected_hash:return False
+    if after['xrayVersion'].lstrip('v')!=expected.lstrip('v') or hashlib.sha256(BINARY.read_bytes()).hexdigest()!=expected_hash:return False
     meta=BINARY.stat()
     if (stat.S_IMODE(meta.st_mode),meta.st_uid,meta.st_gid)!=(info['oldMode'],info['oldUid'],info['oldGid']):return False
     after['files'][str(BINARY)]=before['files'][str(BINARY)];after['xrayVersion']=before['xrayVersion']

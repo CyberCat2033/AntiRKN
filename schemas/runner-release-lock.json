@@ -1,16 +1,16 @@
 {
-  "version": 60,
-  "release": "36f053c0357a6f4975533609016ac69119c4bf2c87235a635746f6299343ddae",
+  "version": 61,
+  "release": "e2024a59a4f8604e481dbb5b4ceffe13a365fb5ddc0fc6168f57c30d9c4195ab",
   "hashes": {
     "contract.py": "6d745dbe5521f2e7fbc622782a833ae17a2c39829e4e53525b142ce74a4f394f",
-    "component_upgrade.py": "ccecbddcc282161fb1f803bd0ca0ba67080c69978095cbac281fc7c308f2f82b",
+    "component_upgrade.py": "8417f4bb632f7f07ab89b97e08155df30f76fd4dba9637f6287a80a34b619dc5",
     "client_egress.py": "8a93abf58f18df5bac7cf0e4a3e312b106e1ccbb234b2cc1739303d6206d9a1d",
     "egress_config.py": "9616f7a7bf9cd1632e6120cb47336189cdf05cff70981729ee3ea9d5756a378d",
     "egress_network.py": "6493229c9f02ed60eb1e3aa55dfcf9331e6ee562abaf14c1ed2a38e327ca9c57",
     "egress_probe.py": "70eb4667fd0e8eb40565feb6765b238299de0fff1465aff368f64705ac316257",
     "egress_access.py": "896657c7e439bcc1b37a44d079ad20bbb017d8464aca36d32fa7131a80c50d84",
     "server_reboot.py": "caa095bab4bcf7bfa4811c96a6bf92c201f97b2f09ee051a04288c4602f49a6b",
-    "xray_transaction.py": "38f2a9abf9cfb5ab8b5394c8801a7a94ad50403b42212814f78ce56d5c3a5349",
+    "xray_transaction.py": "6b300ad08f09db22f90077579ef2920a83b0890d190c1cb35b387bb00e8225d9",
     "xray_upgrade_release.py": "2f1475ec2d7687f2681c0c09bd004dfbbfbdf4c523016220eed3a443d8f782b9",
     "connectivity_probe.py": "2b973f5e9c1cc78976f5c243a4db39cfb09c5141625cbab798fdc59ad970edcf",
     "managed_existing.py": "116ab51ec1b892b6185bada6564fb5edfe48463682d8a2be8ab4d1358a8d9600",
@@ -43,11 +43,11 @@
     "components.py": "821d314a41646f5e9732367e77c0b8fc386210798ed371a43f7882a4dbacedb3",
     "component_releases.py": "d1486eda1a67d3afce697dd96439349d1e6bd9c8d58b875a7f65ef7564891adb",
     "runner.py": "c87e3285d6770d3d8937779747bfafa1f1525f70136b87717dd576d8ef5a4f6d",
-    "antirkn-runner.service": "c4552d7748b35d4a2a64361c95bc33977c476eb3a05b833d1dcd365385671048",
+    "antirkn-runner.service": "bc958339e481f77636abd8731788e71c1c0ed011ef7fc92a768416390fb8abf2",
     "panel.py": "e178af99b9bdf387a23093dcd4687612a5a144c30020e1a1f619d3b3683254df",
     "panel_api.py": "478d5a8b066ab9d8a63a6881b5d89cfe8b495fecd1d06f36d040ab9e3979d591",
     "panel_release.py": "b67b0de1668cd0429965ed4b468b1e6688fd1bd2e0a1d151b48f6a2179cc446b",
-    "vless.py": "56409e32ef28343bc1447d0a136d42a0ec9bc9498b96ac1204991eeac9c4ea7a",
+    "vless.py": "ca5b047c4f517a79f8303a2b44e589665d92e2cd609c142e9502fc06a17a4035",
     "vless_contract.py": "44d0fb8edecf930489ef005592c225769cada4bd324522bcc1ee4709cc996f78"
   }
 }

@@ -299,6 +299,15 @@ class RunnerController extends ChangeNotifier {
           pending = RunnerRequest.fromJson(Map<String, Object?>.from(request));
           if (pending?.json['component'] case final String comp) {
             activeComponent ??= comp;
+          } else if (pending?.json['kind'] == 'component_upgrade_apply') {
+            try {
+              final payload = jsonDecode(
+                pending!.json['payload'] as String? ?? '{}',
+              );
+              if (payload['component'] case final String comp) {
+                activeComponent ??= comp;
+              }
+            } catch (_) {}
           }
         }
         cursor = json['cursor'] as int;
@@ -1645,6 +1654,7 @@ class RunnerController extends ChangeNotifier {
     );
     token.check();
     if (response.code == 'ok' && response.componentUpgrade != null) {
+      activeComponent = component;
       componentUpgradePlan = response.componentUpgrade;
       _notify();
     }
@@ -1664,6 +1674,8 @@ class RunnerController extends ChangeNotifier {
       );
       token.check();
     }
+    activeComponent =
+        (plan['component'] as String?) ?? (candidate['component'] as String?);
     final random = Random.secure();
     final id = List.generate(
       16,

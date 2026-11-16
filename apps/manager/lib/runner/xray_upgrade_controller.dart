@@ -99,13 +99,11 @@ class XrayUpgradeController extends ChangeNotifier {
       plan = await rpc('xray_check_plan', runner.panelAccess!.id, token);
       // A successful plan retrieval resets any stale error from a previous
       // terminal operation so the UI can show the new candidate cleanly.
-      if (operation == null) {
+      if (operation == null ||
+          (XrayUpgradeController.terminal.contains(phase) &&
+              (plan?['available'] == true || plan?['candidate'] != null))) {
         phase = 'idle';
         code = '';
-      } else if (XrayUpgradeController.terminal.contains(phase)) {
-        // Terminal operations keep their code for display but do not block
-        // a fresh upgrade attempt — the UI checks phase, not code, to gate
-        // the button.
       }
       if (plan!['supported'] != true) {
         throw const FormatException('xray_check_layout');

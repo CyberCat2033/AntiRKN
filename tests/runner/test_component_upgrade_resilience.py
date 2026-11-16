@@ -834,6 +834,34 @@ class ComponentUpgradeResilienceTests(unittest.TestCase):
         }
         self.assertEqual(canonical_plan_fingerprint(plan1), canonical_plan_fingerprint(plan2))
 
+    def test_probe_staged_binary_stderr_output(self):
+        """probe_staged_binary succeeds if binary outputs version on stderr."""
+        from component_upgrade import probe_staged_binary
+        fake_bin = Path(self.temp_dir.name) / 'fake_probe_bin'
+        fake_bin.write_bytes(b'fake')
+        with patch('subprocess.run', return_value=MagicMock(returncode=0, stdout='', stderr='x-ui v3.8.0\n')):
+            out = probe_staged_binary(fake_bin, ['-v'])
+            self.assertEqual(out, 'x-ui v3.8.0')
+
+    def test_sync_panel_access_versions_creates_missing_version_file(self):
+        """_sync_panel_access_versions initializes .antirkn-versions from .antirkn-owner."""
+        job = ComponentUpgradeJob(self.store, {'id': 'f' * 32, 'payload': json.dumps({'component': 'xray', 'version': '26.11.9'})})
+        job.upgrader.component = 'xray'
+        job.manifest = {'version': '26.11.9'}
+        fake_db_dir = Path(self.temp_dir.name) / 'etc_x_ui'
+        fake_db_dir.mkdir(parents=True, exist_ok=True)
+        owner_file = fake_db_dir / '.antirkn-owner'
+        owner_file.write_text('test_owner_123')
+
+        with patch('panel.DATABASE', fake_db_dir), \
+             patch('panel_discovery.EXTERNAL_ACCESS', fake_db_dir / '.external-access'):
+            job._sync_panel_access_versions()
+            version_file = fake_db_dir / '.antirkn-versions'
+            self.assertTrue(version_file.exists())
+            data = json.loads(version_file.read_text())
+            self.assertEqual(data.get('id'), 'test_owner_123')
+            self.assertEqual(data.get('xrayVersion'), '26.11.9')
+
 
 if __name__ == '__main__':
     unittest.main()
