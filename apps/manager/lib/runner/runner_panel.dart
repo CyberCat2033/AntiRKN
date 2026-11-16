@@ -113,13 +113,18 @@ class RunnerPanel extends StatelessWidget {
                                   ? runnerEventLabel(l, event.code)
                                   : runnerStateLabel(l, job.status)))
                       : (failed && event != null
-                            ? runnerEventLabel(l, event.code)
+                            ? (runnerEventLabel(l, event.code) != runnerStateLabel(l, job.status)
+                                ? runnerEventLabel(l, event.code)
+                                : runnerStateLabel(l, job.status))
                             : runnerStateLabel(l, job.status)),
                 ),
               ),
               if (active)
                 LinearProgressIndicator(value: job.checkpoint / job.count),
-              if (failed && event != null)
+              if (failed &&
+                  event != null &&
+                  event.code != 'failed' &&
+                  runnerEventLabel(l, event.code) != runnerStateLabel(l, job.status))
                 Text(runnerEventLabel(l, event.code)),
               if (job.events.any((e) => e.code == 'apt_reboot_required'))
                 Text(l.aptReboot),
@@ -148,16 +153,16 @@ class RunnerPanel extends StatelessWidget {
                         TextButton(
                           key: const ValueKey('runner-reset-queue'),
                           onPressed: !c.busy && !c.actionPending
-                              ? () async {
-                                  await c.resetJobQueue();
-                                }
-                              : null,
+                            ? () async {
+                                await c.resetJobQueue();
+                              }
+                            : null,
                           child: Text(l.runnerResetQueue),
                         ),
                     ],
                   ),
                 ),
-              if (job.terminal && !failed)
+              if (job.terminal)
                 Align(
                   alignment: AlignmentDirectional.centerStart,
                   child: TextButton(
