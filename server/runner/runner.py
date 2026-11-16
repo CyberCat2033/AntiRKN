@@ -284,6 +284,8 @@ class Store:
         self.db.close()
 
     def event(self, job_id, code, progress, total):
+        if code not in SCHEMA['events']:
+            code = 'failed'
         sequence = self.db.execute('SELECT sequence FROM jobs WHERE id=?', (job_id,)).fetchone()[0] + 1
         event = dict(sequence=sequence, timestamp=time.time(), code=code, progress=progress, total=total)
         self.db.execute('UPDATE jobs SET sequence=? WHERE id=?', (sequence, job_id))

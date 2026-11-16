@@ -340,7 +340,7 @@ final class GithubComponentReleaseSource implements ComponentReleaseSource {
 
     if (isDedicated) {
       for (final line in lines) {
-        if (line.toUpperCase().contains('SHA256')) {
+        if (line.toUpperCase().contains('256')) {
           final match = hexRegex.firstMatch(line);
           if (match != null) {
             return match.group(0)!.toLowerCase();

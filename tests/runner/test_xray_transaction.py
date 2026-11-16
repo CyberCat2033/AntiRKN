@@ -237,8 +237,9 @@ class XrayTransactionTests(unittest.TestCase):
         for xray, expected_supp, expected_avail in [
             ('26.7.28', True, True),
             ('v26.7.28', True, True),
-            ('26.9.9', True, False),
-            ('v26.9.9', True, False),
+            ('26.10.21', True, True),
+            ('26.11.9', True, False),
+            ('v26.11.9', True, False),
             ('27.0.0', False, False),
         ]:
             with patch.object(x, 'snapshot', return_value=dict(

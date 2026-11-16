@@ -852,7 +852,19 @@
     "upgrade_downloaded",
     "upgrade_backed_up",
     "upgrade_syntax_checked",
-    "upgrade_switched"
+    "upgrade_switched",
+    "upgrade_conflict",
+    "upgrade_checksum_failed",
+    "upgrade_syntax_failed",
+    "upgrade_healthcheck_failed",
+    "upgrade_disk_full",
+    "upgrade_memory_low",
+    "upgrade_not_installed",
+    "upgrade_binary_not_found",
+    "upgrade_download_missing",
+    "upgrade_architecture_mismatch",
+    "upgrade_invalid_component",
+    "upgrade_rollback_failed"
   ],
   "codes": [
     "ok",

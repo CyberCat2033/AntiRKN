@@ -343,5 +343,6 @@ String runnerEventLabel(AppLocalizations l, String code) => switch (code) {
   'sample' => l.runnerSample,
   'recovered' => l.runnerRecovered,
   'cancel_requested' => l.runnerCancelRequested,
+  final String v when v.startsWith('upgrade_') => l.runnerFailed,
   _ => runnerStateLabel(l, code),
 };

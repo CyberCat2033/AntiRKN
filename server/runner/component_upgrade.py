@@ -427,7 +427,12 @@ class ComponentUpgrader:
 
         # Find the target binary in staging for non-panel components
         staged_candidates = []
-        if binary_name:
+        if self.component == 'xray':
+            xray_names = {'xray', 'xray-linux-amd64', 'xray-linux-arm64'}
+            if binary_name:
+                xray_names.add(binary_name)
+            staged_candidates = [p for p in self.staging_dir.rglob('*') if p.is_file() and p.name in xray_names and not p.name.endswith('.antirkn-tmp')]
+        elif binary_name:
             staged_candidates = [p for p in self.staging_dir.rglob(binary_name) if p.is_file() and not p.name.endswith('.antirkn-tmp')]
         if not staged_candidates:
             files = [p for p in self.staging_dir.rglob('*') if p.is_file() and not p.name.endswith('.antirkn-tmp')]
@@ -459,8 +464,17 @@ class ComponentUpgrader:
                 parent_dir = Path(config_path).parent
                 if (parent_dir / 'geoip.dat').exists():
                     env['XRAY_LOCATION_ASSET'] = str(parent_dir)
+                elif (self.staging_dir / 'geoip.dat').exists():
+                    env['XRAY_LOCATION_ASSET'] = str(self.staging_dir)
                 try:
                     res = subprocess.run(cmd, env=env, capture_output=True, timeout=15)
+                    if res.returncode != 0:
+                        raise ComponentUpgradeError('upgrade_syntax_failed')
+                except subprocess.SubprocessError:
+                    raise ComponentUpgradeError('upgrade_syntax_failed')
+            else:
+                try:
+                    res = subprocess.run([str(staged_binary), 'version'], capture_output=True, timeout=5)
                     if res.returncode != 0:
                         raise ComponentUpgradeError('upgrade_syntax_failed')
                 except subprocess.SubprocessError:
@@ -559,6 +573,20 @@ class ComponentUpgrader:
             except OSError:
                 pass
             os.replace(temp_dest, binary_path)
+
+            if self.component == 'xray':
+                for data_name in ('geoip.dat', 'geosite.dat'):
+                    for data_file in self.staging_dir.rglob(data_name):
+                        if data_file.is_file() and not data_file.name.endswith('.antirkn-tmp'):
+                            try:
+                                target_data = binary_path.parent / data_name
+                                atomic_file(target_data, data_file.read_bytes(), 0o644)
+                                try:
+                                    os.chown(str(target_data), meta.get('uid', 0), meta.get('gid', 0))
+                                except OSError:
+                                    pass
+                            except OSError:
+                                pass
 
         # Restart units
         for unit in units:
@@ -783,10 +811,19 @@ class ComponentUpgradeJob:
             self.upgrader._ensure_detection_and_metadata()
             binary_name = self.payload.get('binaryName') or (Path(self.upgrader.detection['binaryPath']).name if (self.upgrader.detection and self.upgrader.detection.get('binaryPath')) else None)
             staged_candidates = []
-            if binary_name:
+            if self.upgrader.component == 'xray':
+                xray_names = {'xray', 'xray-linux-amd64', 'xray-linux-arm64'}
+                if binary_name:
+                    xray_names.add(binary_name)
+                staged_candidates = [p for p in self.upgrader.staging_dir.rglob('*') if p.is_file() and p.name in xray_names and not p.name.endswith('.antirkn-tmp')]
+            elif binary_name:
                 staged_candidates = [p for p in self.upgrader.staging_dir.rglob(binary_name) if p.is_file() and not p.name.endswith('.antirkn-tmp')]
             if not staged_candidates:
-                staged_candidates = [p for p in self.upgrader.staging_dir.rglob('*') if p.is_file() and not p.name.endswith('.antirkn-tmp')]
+                files = [p for p in self.upgrader.staging_dir.rglob('*') if p.is_file() and not p.name.endswith('.antirkn-tmp')]
+                if len(files) == 1:
+                    staged_candidates = files
+                elif binary_name:
+                    staged_candidates = [p for p in files if p.name == binary_name]
             staged_binary = staged_candidates[0] if staged_candidates else None
             if not staged_binary:
                 raise ComponentUpgradeError('upgrade_binary_not_found')

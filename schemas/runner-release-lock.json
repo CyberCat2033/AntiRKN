@@ -1,7 +1,7 @@
 {
   "bundleSha256": null,
   "hashes": {
-    "antirkn-runner.service": "ddda3cddc75c78393f74a7533b54fe68cf54cec7403cf6772e0c6b710779eb05",
+    "antirkn-runner.service": "bbb952dfb130c8594561f83a921d7a0aa84d8d588da5e89a992b6ba109f60c71",
     "apt.py": "61d4104cc63c45d3d0916fd0ad86494649e2ddb2703b8a37d276d0f0bb68bde3",
     "awg.py": "c4cbce6f961a523df758cfadefdea5a878fa27ca3bfb9212ee74eb0511f1ec82",
     "awg_contract.py": "d9abd0099d91d4088a11d4bf0018f53dbed3e2797f0416e434b72c89fcc0534c",
@@ -10,10 +10,10 @@
     "client_egress.py": "8a93abf58f18df5bac7cf0e4a3e312b106e1ccbb234b2cc1739303d6206d9a1d",
     "client_revocations.py": "a5d127e51e2437dffcacf23794fff9412cbdee498c567360df5723af7a19da5d",
     "component_releases.py": "d1486eda1a67d3afce697dd96439349d1e6bd9c8d58b875a7f65ef7564891adb",
-    "component_upgrade.py": "023f17cdd36afc227e61a310cade12d0edcb07e1cdadb2c2956ba21a20f3dc73",
+    "component_upgrade.py": "7a9754c08a2c863be5e9821cdea876c89a907212c3089927c5ec8c1a7eaab3b0",
     "components.py": "821d314a41646f5e9732367e77c0b8fc386210798ed371a43f7882a4dbacedb3",
     "connectivity_probe.py": "2b973f5e9c1cc78976f5c243a4db39cfb09c5141625cbab798fdc59ad970edcf",
-    "contract.py": "04d92c8368eb4d6eba8b7debadca74c6eca6cc5f746df1fcc68ad67a7c2f3257",
+    "contract.py": "8afb38fc17834538d0e57d0e0f0ec99f4811e5ba89c3cd5c7fa7d67d71b5951c",
     "egress_access.py": "896657c7e439bcc1b37a44d079ad20bbb017d8464aca36d32fa7131a80c50d84",
     "egress_config.py": "9616f7a7bf9cd1632e6120cb47336189cdf05cff70981729ee3ea9d5756a378d",
     "egress_network.py": "6493229c9f02ed60eb1e3aa55dfcf9331e6ee562abaf14c1ed2a38e327ca9c57",
@@ -32,7 +32,7 @@
     "panel_update.py": "a4d2a9ef9ec159d2bfe9ee6c0664f02077812695800c889747a903dcb694ffb7",
     "panel_update_release.py": "a66db08163ffab25ad8f5ea9f421ec46c39607c20974471276c9785f4c28154a",
     "protocol_remove.py": "c734bb56c89410405b03d1e9a032608f4ce5df5e06106483e9ffa9ec6b5a3b23",
-    "runner.py": "71cb78a4e932fa6a29bcfc127cf9eca5b232d855c5ad9c47cf3be07bec5f65fd",
+    "runner.py": "c8e9f380f0c0f6a4ba7507e4d955258b731600d5c54a49690f1bea650770838e",
     "server_reboot.py": "caa095bab4bcf7bfa4811c96a6bf92c201f97b2f09ee051a04288c4602f49a6b",
     "ssh_harden.py": "97858f7c1ca03a2b5341425f496cce7cef478204797a50d64379a2076d6fcc5d",
     "tt.py": "628e13778b0c8fb7fdf9cad8f03c8d4ebc1f7538adbd12c14ff4f5195169170d",
@@ -47,9 +47,9 @@
     "vless.py": "c2476e1479fef91639f63cef5d7cbc281b332e7b5e134f8cbc9cd68040d5fabe",
     "vless_contract.py": "44d0fb8edecf930489ef005592c225769cada4bd324522bcc1ee4709cc996f78",
     "xray_transaction.py": "38f2a9abf9cfb5ab8b5394c8801a7a94ad50403b42212814f78ce56d5c3a5349",
-    "xray_upgrade_release.py": "148940ff8239bcc5f952f1638a8c8595e784b98192f53545af1506d68c664689"
+    "xray_upgrade_release.py": "2f1475ec2d7687f2681c0c09bd004dfbbfbdf4c523016220eed3a443d8f782b9"
   },
-  "release": "fd9573a3ccddec229d49be8c39746ea6cfc803287a76f77a48f933e0e90a69fa",
-  "runnerVersion": 56,
-  "version": 56
+  "release": "ab901dbdcd96894eb5d9cc64d0ad651693226c54560bc0fc4a8f58eb292d09ff",
+  "runnerVersion": 57,
+  "version": 57
 }

@@ -577,6 +577,76 @@ class ComponentUpgradeResilienceTests(unittest.TestCase):
         con.close()
         self.assertEqual(row[0], 'alice')
 
+    def test_xray_zip_with_generic_name_upgrades_amd64_target_binary(self):
+        """Official XTLS/Xray-core releases name binary 'xray' inside zip, while 3x-ui names it 'xray-linux-amd64'."""
+        import zipfile
+        fake_fs = Path(self.temp_dir.name) / 'fake_xui_fs'
+        bin_dir = fake_fs / 'usr/local/x-ui/bin'
+        bin_dir.mkdir(parents=True, exist_ok=True)
+        active_xray = bin_dir / 'xray-linux-amd64'
+        active_xray.write_bytes(b'old_xray_core_26.10.21')
+        active_geoip = bin_dir / 'geoip.dat'
+        active_geoip.write_bytes(b'old_geoip')
+
+        # Create upstream Xray zip archive containing 'xray', 'geoip.dat', 'geosite.dat', 'LICENSE'
+        zip_path = fake_fs / 'Xray-linux-64.zip'
+        with zipfile.ZipFile(str(zip_path), 'w') as zf:
+            zf.writestr('xray', b'new_xray_core_26.11.9')
+            zf.writestr('geoip.dat', b'new_geoip_data')
+            zf.writestr('geosite.dat', b'new_geosite_data')
+            zf.writestr('LICENSE', b'Mozilla Public License')
+            zf.writestr('README.md', b'# Xray')
+
+        request = {
+            'id': 'd' * 32,
+            'kind': 'component_upgrade_apply',
+            'count': 6,
+            'interval': 1,
+            'fingerprint': 'e' * 64,
+            'payload': json.dumps({'component': 'xray', 'version': '26.11.9'}),
+        }
+        upgrader = ComponentUpgrader(self.store, request, {'component': 'xray', 'version': '26.11.9'})
+        upgrader.detection = {
+            'component': 'xray',
+            'installed': True,
+            'binaryPath': str(active_xray),
+            'source': 'native',
+            'units': ['x-ui.service'],
+            'configPath': None,
+            'ports': [],
+            'arch': 'x86_64',
+        }
+
+        upgrader.backup()
+        staged_binary = upgrader.validate_and_stage(zip_path)
+        self.assertIsNotNone(staged_binary)
+        self.assertEqual(staged_binary.name, 'xray')
+
+        with patch('subprocess.run') as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            upgrader.syntax_pre_check(staged_binary)
+            upgrader.apply_switch(staged_binary)
+
+        # Verify active binary replaced
+        self.assertEqual(active_xray.read_bytes(), b'new_xray_core_26.11.9')
+        # Verify geoip.dat and geosite.dat updated
+        self.assertEqual(active_geoip.read_bytes(), b'new_geoip_data')
+        self.assertEqual((bin_dir / 'geosite.dat').read_bytes(), b'new_geosite_data')
+
+    def test_store_event_code_safe_fallback(self):
+        """Store.event must never write an invalid event code that violates RunnerEvent schema."""
+        job_id = 'c' * 32
+        req = {'version': 1, 'action': 'submit', 'id': job_id, 'kind': 'component_upgrade_apply', 'count': 6, 'interval': 1, 'payload': '{}', 'fingerprint': 'a' * 64}
+        with self.store.db:
+            self.store.db.execute("INSERT INTO jobs VALUES (?,?,?,0,0,0,?)", (job_id, json.dumps(req), 'running', time.time()))
+
+        # Emitting unknown code should fallback to 'failed' rather than crashing or storing illegal event
+        self.store.event(job_id, 'non_existent_crazy_event_code', 1, 6)
+        row = self.store.db.execute("SELECT event FROM events WHERE id=?", (job_id,)).fetchone()
+        self.assertIsNotNone(row)
+        event = json.loads(row[0])
+        self.assertEqual(event['code'], 'failed')
+
 
 if __name__ == '__main__':
     unittest.main()

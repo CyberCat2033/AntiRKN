@@ -1,11 +1,11 @@
 {
-  "version": "26.9.9",
-  "url": "https://github.com/XTLS/Xray-core/releases/download/v26.9.9/Xray-linux-64.zip",
-  "sha256": "1eb9175d0f0a8f8149c9230a7fc5ae66ce332ed20a53155ce61fe62e3f58b7df",
-  "bytes": 21356337,
-  "binarySha256": "c4ae6798c38e0e5343b192406746333cd0ba7ff3eb984f8c4b9939dcb68c3f8a",
+  "version": "26.11.9",
+  "url": "https://github.com/XTLS/Xray-core/releases/download/v26.11.9/Xray-linux-64.zip",
+  "sha256": "b651f7e1d9966ee2c1b1ee1bf8b52c72771824d3065dce96bbc8bcc19ed95f82",
+  "bytes": 16754078,
+  "binarySha256": "e87bce586acdb9136aa5b1f1d9c8db9f1ea1d145b6d86368c7f6f662f9f6a66d",
   "prerelease": false,
-  "source": "https://github.com/XTLS/Xray-core/releases/tag/v26.9.9",
+  "source": "https://github.com/XTLS/Xray-core/releases/tag/v26.11.9",
   "supportedPanels": [
     "3.7.0",
     "3.8.0",
