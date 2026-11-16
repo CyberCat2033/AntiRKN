@@ -62,6 +62,7 @@ class FakeRunnerTransport implements RunnerTransport {
   Map<String, dynamic>? recoveredAccess;
   String panelState = 'missing';
   String panelUpdateState = 'update';
+  String? panelUpdateCode;
   String panelVerifyCode = 'ok';
   String panelFingerprint = 'c' * 64;
   bool panelPortAvailable = true;
@@ -111,25 +112,29 @@ class FakeRunnerTransport implements RunnerTransport {
     final extra = <String, Object?>{};
     switch (request.json['action']) {
       case 'panel_update_plan':
-        extra['panelUpdatePlan'] = {
-          'panelId': request.id,
-          'state': panelUpdateState,
-          'supported': panelSupported,
-          'fingerprint': panelFingerprint,
-          'installedPanelVersion': '3.7.0',
-          'installedXrayVersion': '26.7.28',
-          'panelVersion': '3.8.0',
-          'xrayVersion': '26.7.28',
-          'url':
-              'https://github.com/MHSanaei/3x-ui/releases/download/v3.8.0/x-ui-linux-amd64.tar.gz',
-          'sha256': 'd' * 64,
-          'bytes': 82291492,
-          'paths': ['/usr/local/x-ui/x-ui'],
-          'backupRoot': '/var/lib/antirkn-runner',
-          'coreUrl':
-              'https://github.com/MHSanaei/3x-ui/releases/download/v3.7.0/x-ui-linux-amd64.tar.gz',
-          'coreSha256': 'e' * 64,
-        };
+        if (panelUpdateCode != null) {
+          code = panelUpdateCode!;
+        } else {
+          extra['panelUpdatePlan'] = {
+            'panelId': request.id,
+            'state': panelUpdateState,
+            'supported': panelSupported,
+            'fingerprint': panelFingerprint,
+            'installedPanelVersion': '3.7.0',
+            'installedXrayVersion': '26.7.28',
+            'panelVersion': '3.8.0',
+            'xrayVersion': '26.7.28',
+            'url':
+                'https://github.com/MHSanaei/3x-ui/releases/download/v3.8.0/x-ui-linux-amd64.tar.gz',
+            'sha256': 'd' * 64,
+            'bytes': 82291492,
+            'paths': ['/usr/local/x-ui/x-ui'],
+            'backupRoot': '/var/lib/antirkn-runner',
+            'coreUrl':
+                'https://github.com/MHSanaei/3x-ui/releases/download/v3.7.0/x-ui-linux-amd64.tar.gz',
+            'coreSha256': 'e' * 64,
+          };
+        }
       case 'apt_plan':
         extra['aptPlan'] = {
           'packages': [

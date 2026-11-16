@@ -237,6 +237,7 @@ def clear_managed_clients(store):
 def cleanup_job_transients(directory, job_id):
     if not job_id or not isinstance(job_id, str):
         return
+    directory = Path(directory)
     for pattern in (f'vless-backup-{job_id}.json', f'awg-backup-{job_id}.json',
                     f'tt-backup-{job_id}.json', f'inbound-backup-{job_id}.json',
                     f'apt-{job_id}.started', f'reboot-{job_id}.json',
@@ -250,6 +251,10 @@ def cleanup_job_transients(directory, job_id):
                     p.unlink(missing_ok=True)
             except Exception:
                 pass
+    try:
+        (directory / f'apt-{job_id}.started').unlink(missing_ok=True)
+    except Exception:
+        pass
 
 
 class Store:
@@ -385,7 +390,12 @@ class Store:
             except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
                 return self.response('ssh_harden_failed')
         if action == 'panel_update_plan':
-            return {**self.response('ok'), 'panelUpdatePlan': panel_update_plan(self, req['id'])}
+            try:
+                return {**self.response('ok'), 'panelUpdatePlan': panel_update_plan(self, req['id'])}
+            except PanelError as error:
+                return self.response(error.code)
+            except Exception:
+                return self.response('failed')
         if action == 'panel_connect':
             return {**self.response('ok'), 'panelAccess': connect_existing(req['payload']), 'panelVerified': True}
         if action == 'inbound_read':
@@ -610,7 +620,7 @@ class Store:
             task = AptJob(self, req)
             try:
                 if row['cancel']:
-                    status = 'cancelled' if row['checkpoint'] == 0 and not task.marker.exists() else 'partially_applied'
+                    status = task.abort() if hasattr(task, 'abort') and row['checkpoint'] == 0 else ('cancelled' if row['checkpoint'] == 0 and not task.marker.exists() else 'partially_applied')
                     code = 'cancelled' if status == 'cancelled' else 'apt_interrupted'
                 else:
                     task.step(row['checkpoint'])
@@ -624,6 +634,8 @@ class Store:
                 progress = self.db.execute('SELECT checkpoint FROM jobs WHERE id=?', (job_id,)).fetchone()[0]
                 self.db.execute('UPDATE jobs SET status=? WHERE id=?', (status, job_id))
                 self.event(job_id, code, progress, req['count'])
+            if status == 'succeeded' or (status == 'cancelled' and row['checkpoint'] == 0):
+                cleanup_job_transients(self.directory, job_id)
             return 0.1
         if req['kind'] in ('vless_apply', 'awg_apply', 'awg_external_edit', 'inbound_update', 'inbound_remove', 'tt_apply', 'tt_external_edit', 'tt_certificate'):
             task = (InboundRemove(self, req) if req['kind'] == 'inbound_remove' else TtApply(self, req) if req['kind'] == 'tt_apply' else ExternalTtEdit(self, req) if req['kind'] == 'tt_external_edit' else CertificateJob(self, req) if req['kind'] == 'tt_certificate' else ObservedInboundEdit(self, req) if req['kind'] == 'inbound_update' else ExternalAwgEdit(self, req) if req['kind'] == 'awg_external_edit' else AwgApply(self, req) if req['kind'] == 'awg_apply' else VlessApply(self, req))

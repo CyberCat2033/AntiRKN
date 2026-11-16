@@ -82,4 +82,45 @@ class PanelUpdateTests(unittest.TestCase):
             with self.assertRaises(PanelError):self.update.verify()
         write.assert_not_called()
 
+    def test_semver_parsing_and_prefixes(self):
+        from panel_update import semver, version
+        for v, expected in [
+            ('3.8.0', (3, 8, 0)),
+            ('v3.8.0', (3, 8, 0)),
+            ('V3.8.0', (3, 8, 0)),
+            ('3.11.0', (3, 11, 0)),
+            ('v3.11.0', (3, 11, 0)),
+            ('3.11.1', (3, 11, 1)),
+            ('3.11.99', (3, 11, 99)),
+            ('v26.7.28', (26, 7, 28)),
+            ('3.8', (3, 8, 0)),
+        ]:
+            self.assertEqual(semver(v), expected)
+            self.assertEqual(version(v), expected)
+        for bad in ('', 'v', 'xyz', '3.x.0', 123, None):
+            with self.assertRaises(PanelError):
+                semver(bad)
+
+    def test_plan_supported_panel_range_and_current_version_clean(self):
+        # Range >= 3.7.0 and <= 3.11.99
+        for panel, core, expected in [
+            ('3.7.0', '26.7.28', 'update'),
+            ('3.8.0', '26.7.28', 'current'),
+            ('v3.8.0', 'v26.7.28', 'current'),
+            ('3.9.0', '26.7.28', 'update'),
+            ('3.11.0', '26.7.28', 'update'),
+            ('v3.11.0', '26.7.28', 'update'),
+            ('3.11.1', '26.7.28', 'update'),
+            ('3.11.99', '26.7.28', 'update'),
+            ('3.6.9', '26.7.28', 'incompatible'),
+            ('3.12.0', '26.7.28', 'incompatible'),
+        ]:
+            with patch('panel_update.prerequisites', return_value=[]), patch('panel_update.snapshot', return_value=dict(panelVersion=panel, xrayVersion=core)):
+                p = plan(self.store, 'a'*32)
+                self.assertEqual(p['state'], expected, f'panel {panel} core {core} expected {expected}')
+                if expected == 'current':
+                    self.assertEqual(p['panelId'], 'a'*32)
+                    self.assertEqual(p['state'], 'current')
+                    self.assertTrue(p['supported'])
+
 if __name__=='__main__':unittest.main()

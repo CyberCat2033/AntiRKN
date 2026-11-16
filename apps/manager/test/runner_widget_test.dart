@@ -1,4 +1,5 @@
 import 'package:antirkn_design_system/antirkn_design_system.dart';
+import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_manager/l10n/app_localizations.dart';
 import 'package:antirkn_manager/runner/runner_controller.dart';
 import 'package:antirkn_manager/runner/runner_panel.dart';
@@ -74,4 +75,82 @@ void main() {
       );
     }
   }
+
+  testWidgets(
+    'Reset job queue action is available during active jobs and failures',
+    (tester) async {
+      final store = MemoryRunnerJournal();
+      final remote = FakeRunnerTransport(store)..installed = true;
+      final c = RunnerController(
+        serverId: 'fixture',
+        transport: () => remote,
+        identity: () => 'fixture|key',
+        password: () => null,
+        accessFailure: (_) {},
+        store: store,
+      );
+      await c.refresh();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: RunnerPanel(controller: c, motion: MotionPreference.system),
+            ),
+          ),
+        ),
+      );
+
+      // 1. Running job: Reset job queue should be available
+      c.selected = runnerJob(
+        '1' * 32,
+        kind: 'component_install',
+        count: 6,
+        status: 'running',
+      );
+      c.notifyListeners();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('runner-reset-queue')), findsOneWidget);
+
+      // 2. Planned job: Reset job queue should be available
+      c.selected = runnerJob(
+        '2' * 32,
+        kind: 'panel_update',
+        count: 6,
+        status: 'planned',
+      );
+      c.notifyListeners();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('runner-reset-queue')), findsOneWidget);
+
+      // 3. cancelRequested: Reset job queue should be available
+      final cancelJob = RunnerJob.fromJson({
+        'id': '3' * 32,
+        'kind': 'diagnostic',
+        'status': 'running',
+        'checkpoint': 1,
+        'count': 10,
+        'interval': 2,
+        'sequence': 1,
+        'cancelRequested': true,
+        'events': [
+          {
+            'sequence': 1,
+            'timestamp': 1789340000,
+            'code': 'cancel_requested',
+            'progress': 1,
+            'total': 10,
+          },
+        ],
+      });
+      c.selected = cancelJob;
+      c.notifyListeners();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('runner-reset-queue')), findsOneWidget);
+
+      c.dispose();
+    },
+  );
 }

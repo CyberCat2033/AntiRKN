@@ -38,11 +38,27 @@ def versions(api):
     return dict(panelVersion=status['panelVersion'], xrayVersion=status['xray']['version'])
 
 
-def version(value):
-    import re
-    if not isinstance(value, str) or not re.fullmatch(r'\d+\.\d+\.\d+', value):
+def semver(value):
+    if not isinstance(value, str):
         raise PanelError('panel_update_incompatible')
-    return tuple(map(int, value.split('.')))
+    s = value.strip()
+    if s.startswith(('v', 'V')):
+        s = s[1:]
+    s = s.split('-')[0].split('+')[0]
+    parts = s.split('.')
+    try:
+        nums = [int(p) for p in parts]
+    except ValueError:
+        raise PanelError('panel_update_incompatible')
+    if not nums:
+        raise PanelError('panel_update_incompatible')
+    while len(nums) < 3:
+        nums.append(0)
+    return tuple(nums)
+
+
+def version(value):
+    return semver(value)
 
 
 def layout():
@@ -123,8 +139,12 @@ def plan(store, panel_id):
     try:
         current = snapshot(store, panel_id)
         old, core = current['panelVersion'], current['xrayVersion']
-        if old in UPDATE_RELEASE['supportedPanels'] and version(core) <= version(UPDATE_RELEASE['xrayVersion']):
-            state = 'update' if (old != UPDATE_RELEASE['panelVersion'] or core != UPDATE_RELEASE['xrayVersion']) else 'current'
+        old_ver, core_ver = semver(old), semver(core)
+        target_panel_ver = semver(UPDATE_RELEASE['panelVersion'])
+        target_xray_ver = semver(UPDATE_RELEASE['xrayVersion'])
+        panel_supported = (3, 7, 0) <= old_ver <= (3, 11, 99) or old in UPDATE_RELEASE.get('supportedPanels', [])
+        if panel_supported and core_ver <= target_xray_ver:
+            state = 'update' if (old_ver != target_panel_ver or core_ver != target_xray_ver) else 'current'
     except PanelError as error:
         if error.code != 'panel_update_incompatible': raise
     return dict(state=state, supported=not missing, prerequisites=missing,

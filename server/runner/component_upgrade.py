@@ -385,16 +385,50 @@ class ComponentUpgrader:
         if not archive.exists():
             raise ComponentUpgradeError('upgrade_download_missing')
 
-        if digest(archive) != self.manifest['sha256']:
-            raise ComponentUpgradeError('upgrade_checksum_failed')
+        expected_sha = (self.manifest.get('sha256') or '').strip()
+        actual_sha = digest(archive).lower()
+        if expected_sha:
+            if len(expected_sha) == 64 and all(c in '0123456789abcdefABCDEF' for c in expected_sha):
+                if actual_sha != expected_sha.lower():
+                    raise ComponentUpgradeError('upgrade_checksum_failed')
+            else:
+                raise ComponentUpgradeError('upgrade_checksum_failed')
+        else:
+            self.manifest['sha256'] = actual_sha
 
         binary_name = self.manifest.get('binaryName') or (Path(self.detection['binaryPath']).name if (self.detection and self.detection.get('binaryPath')) else None)
         extract_archive_safe(archive, self.staging_dir, binary_name=binary_name)
 
-        # Find the target binary in staging
+        if self.component == 'panel':
+            # Support composite 3x-ui distributions (x-ui-linux-amd64.tar.gz containing x-ui, x-ui.sh, bin/xray-linux-amd64)
+            staged_candidates = [p for p in self.staging_dir.rglob('x-ui') if p.is_file() and not p.name.endswith('.antirkn-tmp')]
+            if not staged_candidates:
+                files = [p for p in self.staging_dir.rglob('*') if p.is_file() and not p.name.endswith('.antirkn-tmp') and not p.name.endswith('.sh')]
+                staged_candidates = files
+            if not staged_candidates:
+                raise ComponentUpgradeError('upgrade_binary_not_found')
+            staged_binary = staged_candidates[0]
+            staged_binary.chmod(0o755)
+
+            # Stage composite files
+            for sh_file in self.staging_dir.rglob('x-ui.sh'):
+                if sh_file.is_file() and not sh_file.name.endswith('.antirkn-tmp'):
+                    sh_file.chmod(0o755)
+
+            for xray_file in self.staging_dir.rglob('*'):
+                if xray_file.is_file() and ('xray-linux' in xray_file.name or xray_file.name == 'xray') and not xray_file.name.endswith('.antirkn-tmp'):
+                    xray_file.chmod(0o755)
+
+            if self.manifest.get('binarySha256'):
+                if digest(staged_binary) != self.manifest['binarySha256']:
+                    raise ComponentUpgradeError('upgrade_checksum_failed')
+
+            return staged_binary
+
+        # Find the target binary in staging for non-panel components
         staged_candidates = []
         if binary_name:
-            staged_candidates = list(self.staging_dir.rglob(binary_name))
+            staged_candidates = [p for p in self.staging_dir.rglob(binary_name) if p.is_file() and not p.name.endswith('.antirkn-tmp')]
         if not staged_candidates:
             files = [p for p in self.staging_dir.rglob('*') if p.is_file() and not p.name.endswith('.antirkn-tmp')]
             if len(files) == 1:
@@ -449,21 +483,82 @@ class ComponentUpgrader:
         binary_path = Path(self.detection['binaryPath'])
         meta = self.backup_metadata
 
-        # Prepare replacement binary with exact file ownership and permissions
-        temp_dest = binary_path.with_name(binary_path.name + '.new')
-        atomic_file(temp_dest, staged_binary.read_bytes(), meta.get('mode', 0o755))
-        try:
-            os.chown(str(temp_dest), meta.get('uid', 0), meta.get('gid', 0))
-        except OSError:
-            pass
-
         # Stop units if required
         units = meta.get('units', [])
         for unit in units:
             subprocess.run(['/usr/bin/systemctl', 'stop', unit], capture_output=True, timeout=30)
 
-        # Atomic replacement
-        os.replace(temp_dest, binary_path)
+        if self.component == 'panel':
+            # Staged composite files in staging directory
+            staged_sh = None
+            sh_candidates = [p for p in self.staging_dir.rglob('x-ui.sh') if p.is_file() and not p.name.endswith('.antirkn-tmp')]
+            if sh_candidates:
+                staged_sh = sh_candidates[0]
+
+            staged_xray = None
+            xray_candidates = [p for p in self.staging_dir.rglob('*') if p.is_file() and ('xray-linux' in p.name or p.name == 'xray') and not p.name.endswith('.antirkn-tmp')]
+            if xray_candidates:
+                staged_xray = xray_candidates[0]
+
+            # Primary panel binary update
+            mode = meta.get('mode', 0o755) if self.detection.get('source') == 'adopted_binary' else 0o755
+            temp_dest = binary_path.with_name(binary_path.name + '.new')
+            atomic_file(temp_dest, staged_binary.read_bytes(), mode)
+            try:
+                os.chown(str(temp_dest), meta.get('uid', 0), meta.get('gid', 0))
+            except OSError:
+                pass
+            os.replace(temp_dest, binary_path)
+
+            # Atomically update /usr/local/x-ui/x-ui, /usr/local/x-ui/x-ui.sh, /usr/local/x-ui/bin/xray-linux-amd64 (if present) with mode 0o755
+            panel_base = Path('/usr/local/x-ui')
+            target_dirs = []
+            try:
+                panel_base.mkdir(parents=True, exist_ok=True)
+                target_dirs.append(panel_base)
+            except OSError:
+                pass
+
+            if binary_path.parent not in target_dirs and binary_path.parent.exists():
+                target_dirs.append(binary_path.parent)
+
+            for p_dir in target_dirs:
+                xui_target = p_dir / 'x-ui'
+                if xui_target != binary_path:
+                    try:
+                        atomic_file(xui_target, staged_binary.read_bytes(), 0o755)
+                    except OSError:
+                        pass
+
+                if staged_sh:
+                    try:
+                        atomic_file(p_dir / 'x-ui.sh', staged_sh.read_bytes(), 0o755)
+                    except OSError:
+                        pass
+
+                if staged_xray:
+                    try:
+                        bin_dir = p_dir / 'bin'
+                        bin_dir.mkdir(parents=True, exist_ok=True)
+                        xray_target_name = 'xray-linux-amd64' if ('xray-linux-amd64' in staged_xray.name or staged_xray.name == 'xray') else staged_xray.name
+                        atomic_file(bin_dir / xray_target_name, staged_xray.read_bytes(), 0o755)
+                    except OSError:
+                        pass
+
+            # NEVER overwrite or delete /etc/x-ui/x-ui.db
+            etc_db = Path('/etc/x-ui/x-ui.db')
+            if etc_db.exists() and not etc_db.is_file():
+                raise ComponentUpgradeError('upgrade_failed')
+
+        else:
+            # Prepare replacement binary with exact file ownership and permissions
+            temp_dest = binary_path.with_name(binary_path.name + '.new')
+            atomic_file(temp_dest, staged_binary.read_bytes(), meta.get('mode', 0o755))
+            try:
+                os.chown(str(temp_dest), meta.get('uid', 0), meta.get('gid', 0))
+            except OSError:
+                pass
+            os.replace(temp_dest, binary_path)
 
         # Restart units
         for unit in units:
@@ -628,7 +723,7 @@ class ComponentUpgradeJob:
                 raise ComponentUpgradeError('upgrade_conflict')
         elif checkpoint == 1:
             # Download or use staged archive
-            # If payload contains raw bytes or local source archive, use it; otherwise verify archive
+            self.archive_path.parent.mkdir(parents=True, exist_ok=True)
             if not self.archive_path.exists():
                 archive_url = self.payload.get('url')
                 if archive_url and archive_url.startswith('file://'):
@@ -640,8 +735,18 @@ class ComponentUpgradeJob:
                     atomic_file(self.archive_path, base64.b64decode(self.payload['archiveData']))
             if not self.archive_path.exists():
                 raise ComponentUpgradeError('upgrade_download_missing')
-            if digest(self.archive_path) != self.payload['sha256']:
-                raise ComponentUpgradeError('upgrade_checksum_failed')
+
+            expected_sha = (self.payload.get('sha256') or '').strip()
+            actual_sha = digest(self.archive_path).lower()
+            if expected_sha:
+                if len(expected_sha) == 64 and all(c in '0123456789abcdefABCDEF' for c in expected_sha):
+                    if actual_sha != expected_sha.lower():
+                        raise ComponentUpgradeError('upgrade_checksum_failed')
+                else:
+                    raise ComponentUpgradeError('upgrade_checksum_failed')
+            else:
+                self.payload['sha256'] = actual_sha
+                self.upgrader.manifest['sha256'] = actual_sha
         elif checkpoint == 2:
             # Atomic backup of binary, configs, and DB
             self.upgrader.backup()
@@ -655,7 +760,7 @@ class ComponentUpgradeJob:
             binary_name = self.payload.get('binaryName') or (Path(self.upgrader.detection['binaryPath']).name if (self.upgrader.detection and self.upgrader.detection.get('binaryPath')) else None)
             staged_candidates = []
             if binary_name:
-                staged_candidates = list(self.upgrader.staging_dir.rglob(binary_name))
+                staged_candidates = [p for p in self.upgrader.staging_dir.rglob(binary_name) if p.is_file() and not p.name.endswith('.antirkn-tmp')]
             if not staged_candidates:
                 staged_candidates = [p for p in self.upgrader.staging_dir.rglob('*') if p.is_file() and not p.name.endswith('.antirkn-tmp')]
             staged_binary = staged_candidates[0] if staged_candidates else None

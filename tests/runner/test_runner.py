@@ -408,6 +408,30 @@ class RunnerTests(unittest.TestCase):
         busy_row = self.store.db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running') AND cancel=0").fetchone()
         self.assertIsNone(busy_row)
 
+    def test_panel_update_plan_handles_panel_error_and_exceptions(self):
+        from panel import PanelError
+        req = {'version': 1, 'action': 'panel_update_plan', 'id': 'e' * 32}
+
+        # 1. PanelError returns error.code
+        with patch('runner.panel_update_plan', side_effect=PanelError('panel_conflict')):
+            res = self.store.request(req)
+            self.assertEqual(res['code'], 'panel_conflict')
+
+        # 2. General Exception returns 'failed'
+        with patch('runner.panel_update_plan', side_effect=RuntimeError('unexpected crash')):
+            res = self.store.request(req)
+            self.assertEqual(res['code'], 'failed')
+
+    def test_cleanup_job_transients_removes_apt_started_marker(self):
+        from runner import cleanup_job_transients
+        job_id = '8' * 32
+        marker = self.directory / f'apt-{job_id}.started'
+        marker.write_text('started')
+        self.assertTrue(marker.exists())
+
+        cleanup_job_transients(self.directory, job_id)
+        self.assertFalse(marker.exists())
+
 
 if __name__ == '__main__':
     unittest.main()

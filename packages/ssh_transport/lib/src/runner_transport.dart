@@ -71,7 +71,7 @@ final class SshRunnerTransport implements RunnerTransport {
 
   static String get _rpcDispatchCommand => python(
     "import os, glob, sys\n"
-    "t = '/usr/local/lib/antirkn-runner/v54/runner.py'\n"
+    "t = '/usr/local/lib/antirkn-runner/v55/runner.py'\n"
     "if os.path.exists(t):\n"
     "    os.execv('/usr/bin/python3', ['/usr/bin/python3', '-I', t, 'rpc'])\n"
     "def _v(x):\n"
@@ -147,6 +147,9 @@ final class SshRunnerTransport implements RunnerTransport {
           "except Exception:\n"
           "    pass\n"
           "for p in glob.glob('/var/lib/antirkn-runner/connectivity-probes/*.json'):\n"
+          "    try: os.unlink(p)\n"
+          "    except Exception: pass\n"
+          "for p in glob.glob('/var/lib/antirkn-runner/apt-*.started'):\n"
           "    try: os.unlink(p)\n"
           "    except Exception: pass\n"
           "for p in glob.glob('/var/lib/antirkn-runner/xray-upgrades/*/state.json'):\n"

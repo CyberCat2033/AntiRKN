@@ -38,7 +38,13 @@ class RunnerController extends ChangeNotifier {
       !busy &&
       !actionPending &&
       pending == null &&
-      (!connected || !jobs.any((job) => !job.terminal));
+      (!connected ||
+          !jobs.any(
+            (job) =>
+                !job.terminal &&
+                job.kind != 'apt_update' &&
+                job.kind != 'apt_upgrade',
+          ));
 
   Future<void> waitUntilIdle() async {
     while (_idle != null) {
@@ -1282,6 +1288,20 @@ class RunnerController extends ChangeNotifier {
       responseCode = response.code;
       if (response.code != 'ok' || response.panelUpdatePlan == null) {
         if (response.code == 'panel_auth_failed') panelLoginRequired = true;
+        if (response.code == 'panel_update_incompatible' ||
+            response.code == 'incompatible') {
+          throw const RunnerFailure(RunnerIssue.incompatible);
+        }
+        if (response.code == 'conflict' || response.code == 'panel_conflict') {
+          throw const RunnerFailure(RunnerIssue.conflict);
+        }
+        if (response.code == 'prerequisites' ||
+            response.code == 'panel_prerequisites') {
+          throw const RunnerFailure(RunnerIssue.prerequisites);
+        }
+        if (response.code == 'busy') {
+          throw const RunnerFailure(RunnerIssue.unavailable);
+        }
         throw const RunnerFailure(RunnerIssue.invalidResponse);
       }
       panelUpdatePlan = response.panelUpdatePlan;

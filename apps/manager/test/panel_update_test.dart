@@ -41,6 +41,22 @@ void main() {
     await c.applyPanelUpdate();
     expect(remote.submissions, 0);
   });
+  test('preparePanelUpdate maps known response codes without raw invalidResponse', () async {
+    remote.panelUpdateCode = 'incompatible';
+    await c.preparePanelUpdate();
+    expect(c.error, RunnerIssue.incompatible);
+    expect(c.responseCode, 'incompatible');
+
+    remote.panelUpdateCode = 'conflict';
+    await c.preparePanelUpdate();
+    expect(c.error, RunnerIssue.conflict);
+    expect(c.responseCode, 'conflict');
+
+    remote.panelUpdateCode = 'busy';
+    await c.preparePanelUpdate();
+    expect(c.error, RunnerIssue.unavailable);
+    expect(c.responseCode, 'busy');
+  });
   for (final state in ['current', 'incompatible', 'stale']) {
     test('$state blocks an update', () async {
       if (state != 'stale') remote.panelUpdateState = state;

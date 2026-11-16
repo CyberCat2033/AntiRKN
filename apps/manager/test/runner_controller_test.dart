@@ -328,4 +328,22 @@ void main() {
       isFalse, // no server active jobs in initial store
     );
   });
+
+  test('non-terminal apt_update and apt_upgrade do not block canRequestAction', () async {
+    await install();
+    expect(c.canRequestAction, isTrue);
+
+    c.jobs = [runnerJob('1' * 32, kind: 'diagnostic', status: 'running')];
+    expect(c.canRequestAction, isFalse);
+
+    c.jobs = [
+      runnerJob('2' * 32, kind: 'apt_update', count: 2, interval: 1, status: 'running'),
+    ];
+    expect(c.canRequestAction, isTrue);
+
+    c.jobs = [
+      runnerJob('3' * 32, kind: 'apt_upgrade', count: 2, interval: 1, status: 'planned'),
+    ];
+    expect(c.canRequestAction, isTrue);
+  });
 }

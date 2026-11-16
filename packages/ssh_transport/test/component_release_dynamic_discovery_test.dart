@@ -112,4 +112,80 @@ void main() {
     expect(assetArm64, isNotNull);
     expect(assetArm64!['assetName'], 'Xray-linux-arm64-v8a.zip');
   });
+
+  test('resolves asset sha256 digest from companion checksum files', () async {
+    const expectedSha = 'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789';
+
+    // 1. Dedicated .sha256 file
+    final source1 = GithubComponentReleaseSource(
+      metadata: (path) async {
+        if (path.contains('3x-ui/releases/tags/v2.5.0')) {
+          return {
+            'tag_name': 'v2.5.0',
+            'draft': false,
+            'prerelease': false,
+            'assets': [
+              {
+                'name': 'x-ui-linux-amd64.tar.gz',
+                'browser_download_url': 'https://example.com/x-ui-linux-amd64.tar.gz',
+                'size': 12345,
+              },
+              {
+                'name': 'x-ui-linux-amd64.tar.gz.sha256',
+                'browser_download_url': 'https://example.com/x-ui-linux-amd64.tar.gz.sha256',
+                'size': 64,
+                'content': '$expectedSha  x-ui-linux-amd64.tar.gz\n',
+              },
+            ],
+          };
+        }
+        return null;
+      },
+    );
+    final asset1 = await source1.resolveAsset(
+      component: 'panel',
+      version: '2.5.0',
+      architecture: 'x86_64',
+    );
+    expect(asset1, isNotNull);
+    expect(asset1!['assetName'], 'x-ui-linux-amd64.tar.gz');
+    expect(asset1['sha256'], expectedSha);
+
+    // 2. Multi-asset SHA256SUMS file
+    final source2 = GithubComponentReleaseSource(
+      metadata: (path) async {
+        if (path.contains('3x-ui/releases/tags/v2.5.0')) {
+          return {
+            'tag_name': 'v2.5.0',
+            'draft': false,
+            'prerelease': false,
+            'assets': [
+              {
+                'name': 'x-ui-linux-amd64.tar.gz',
+                'browser_download_url': 'https://example.com/x-ui-linux-amd64.tar.gz',
+                'size': 12345,
+              },
+              {
+                'name': 'SHA256SUMS',
+                'browser_download_url': 'https://example.com/SHA256SUMS',
+                'size': 200,
+              },
+            ],
+          };
+        }
+        if (path == 'https://example.com/SHA256SUMS' || path == 'SHA256SUMS') {
+          return '1111111111111111111111111111111111111111111111111111111111111111  other-file.tar.gz\n$expectedSha *x-ui-linux-amd64.tar.gz\n';
+        }
+        return null;
+      },
+    );
+    final asset2 = await source2.resolveAsset(
+      component: 'panel',
+      version: '2.5.0',
+      architecture: 'x86_64',
+    );
+    expect(asset2, isNotNull);
+    expect(asset2!['assetName'], 'x-ui-linux-amd64.tar.gz');
+    expect(asset2['sha256'], expectedSha);
+  });
 }

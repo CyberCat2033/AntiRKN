@@ -20,9 +20,11 @@ class AptTests(unittest.TestCase):
         return r
     def result(self, r):
         return self.store.request(dict(version=1, action='status', id=r['id'], cursor=0))['jobs'][0]
-    def test_parse_rejects_removals_new_dependencies_and_unsafe_names(self):
+    def test_parse_rejects_removals_and_unsafe_names_and_supports_new_packages(self):
         self.assertEqual(parse_packages(OUTPUT), [dict(name='fixture', installed='1.0', version='2.0')])
-        for output in ['Remv fixture [1.0]', 'Inst new-package (1.0 local [amd64])', 'Inst bad;id [1] (2 local)']:
+        self.assertEqual(parse_packages('Inst new-package (1.0 local [amd64])\n'),
+                         [dict(name='new-package', installed='new', version='1.0')])
+        for output in ['Remv fixture [1.0]', 'Inst bad;id [1] (2 local)', 'Inst bad;id (2 local)']:
             with self.assertRaises(AptError): parse_packages(output)
     def test_preview_never_refreshes_indexes_and_changed_plan_blocks_upgrade(self):
         with patch('apt.run', return_value=OUTPUT) as run:
@@ -53,7 +55,72 @@ class AptTests(unittest.TestCase):
         r = self.request(); self.store.request(r)
         (Path(self.temp.name) / ('apt-' + r['id'] + '.started')).write_text('started')
         self.store.recover()
-        with patch('apt.run') as run:
+        with patch('apt.is_unit_active', return_value=True), patch('apt.run') as run:
             self.store.tick(); run.assert_not_called()
         self.assertEqual(self.result(r)['status'], 'partially_applied')
         self.assertEqual(self.result(r)['events'][-1]['code'], 'apt_interrupted')
+    def test_stale_marker_cleaned_up_if_unit_inactive(self):
+        r = self.request(); self.store.request(r)
+        marker = Path(self.temp.name) / ('apt-' + r['id'] + '.started')
+        marker.write_text('started')
+        with patch('apt.is_unit_active', return_value=False), patch('apt.run') as run:
+            self.store.tick()
+            run.assert_called()
+        self.assertTrue(marker.exists())
+    def test_checkpoint_1_removes_marker(self):
+        r = self.request(); self.store.request(r)
+        marker = Path(self.temp.name) / ('apt-' + r['id'] + '.started')
+        with patch('apt.run'):
+            self.store.tick()
+            self.assertTrue(marker.exists())
+            self.store.tick()
+            self.assertFalse(marker.exists())
+        self.assertEqual(self.result(r)['status'], 'succeeded')
+    def test_abort_cleans_marker_when_unit_inactive(self):
+        r = self.request()
+        marker = Path(self.temp.name) / ('apt-' + r['id'] + '.started')
+        marker.write_text('started')
+        from apt import AptJob
+        job = AptJob(self.store, r)
+        with patch('apt.is_unit_active', return_value=False):
+            self.assertEqual(job.abort(), 'cancelled')
+            self.assertFalse(marker.exists())
+    def test_abort_retains_marker_when_unit_active(self):
+        r = self.request()
+        marker = Path(self.temp.name) / ('apt-' + r['id'] + '.started')
+        marker.write_text('started')
+        from apt import AptJob
+        job = AptJob(self.store, r)
+        with patch('apt.is_unit_active', return_value=True):
+            self.assertEqual(job.abort(), 'partially_applied')
+            self.assertTrue(marker.exists())
+    def test_upgrade_simulation_allows_co_dependencies_and_ordering(self):
+        r = self.request('apt_upgrade'); self.store.request(r)
+        sim_output = 'Inst new-dep (1.0 local [amd64])\nInst fixture [1.0] (2.0 local [amd64])\nConf fixture (2.0 local [amd64])\n'
+        with patch('apt.plan', return_value=dict(fingerprint='a'*64, packages=parse_packages(OUTPUT))), patch('apt.run', return_value=sim_output):
+            self.store.tick()
+        self.assertEqual(self.result(r)['events'][-1]['code'], 'apt_checked')
+    def test_acquire_dpkg_locks_checks_unattended_upgrades_and_backoff(self):
+        from apt import acquire_dpkg_locks
+        with patch('pathlib.Path.exists', return_value=True), \
+             patch('os.open', return_value=999), \
+             patch('fcntl.flock', side_effect=BlockingIOError), \
+             patch('os.close'), \
+             patch('apt.is_unit_active', return_value=False) as mock_active:
+            with self.assertRaises(AptError) as ctx:
+                acquire_dpkg_locks(timeout=0.1)
+            self.assertEqual(ctx.exception.code, 'apt_lock_busy')
+            mock_active.assert_called_with('unattended-upgrades.service')
+    def test_run_guarantees_noninteractive_and_force_confold(self):
+        from apt import run as apt_run
+        with patch('subprocess.run') as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = b''
+            apt_run(['install', 'pkg'], unit='test-unit')
+            call_args = mock_run.call_args
+            argv = call_args.args[0]
+            env = call_args.kwargs['env']
+            self.assertEqual(env.get('DEBIAN_FRONTEND'), 'noninteractive')
+            self.assertIn('--setenv=DEBIAN_FRONTEND=noninteractive', argv)
+            self.assertIn('-o', argv)
+            self.assertIn('Dpkg::Options::=--force-confold', argv)

@@ -61,18 +61,26 @@ def check_disk_and_memory():
             pass
 
 
-def acquire_dpkg_locks(timeout=10):
+def is_unit_active(unit):
+    try:
+        return subprocess.run(['/usr/bin/systemctl', 'is-active', '--quiet', unit],
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def acquire_dpkg_locks(timeout=60):
     lock_paths = [
         Path('/var/lib/dpkg/lock-frontend'),
         Path('/var/lib/dpkg/lock'),
         Path('/var/lib/apt/lists/lock')
     ]
     deadline = time.monotonic() + timeout
-    backoff = 0.5
     for lock_path in lock_paths:
         if not lock_path.exists():
             continue
         acquired = False
+        backoff = 0.5
         while time.monotonic() < deadline:
             try:
                 fd = os.open(str(lock_path), os.O_RDWR | os.O_CREAT, 0o640)
@@ -82,6 +90,7 @@ def acquire_dpkg_locks(timeout=10):
                     acquired = True
                     break
                 except (BlockingIOError, OSError):
+                    is_unit_active('unattended-upgrades.service')
                     time.sleep(backoff)
                     backoff = min(backoff * 1.5, 3.0)
                 finally:
@@ -95,12 +104,16 @@ def acquire_dpkg_locks(timeout=10):
 def run(args, *, capture=False, unit=None):
     # Only simulations/read-only checks have a timeout. Killing apt while dpkg
     # owns its database would make cancellation unsafe.
-    argv = ['/usr/bin/apt-get', *OPTIONS, *args]
+    env = {**ENV, 'DEBIAN_FRONTEND': 'noninteractive'}
+    opts = list(OPTIONS)
+    if not any('Dpkg::Options::=--force-confold' in opt for opt in opts):
+        opts.extend(['-o', 'Dpkg::Options::=--force-confold'])
+    argv = ['/usr/bin/apt-get', *opts, *args]
     if unit is not None:
         argv = ['/usr/bin/systemd-run', '--quiet', '--wait', '--collect', '--pipe', '--unit=' + unit,
                 '--property=StandardOutput=null', '--property=StandardError=null',
-                *['--setenv=' + k + '=' + v for k, v in ENV.items()], *argv]
-    result = subprocess.run(argv, env=ENV,
+                *['--setenv=' + k + '=' + v for k, v in env.items()], *argv]
+    result = subprocess.run(argv, env=env,
         stdin=subprocess.DEVNULL, stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
         stderr=subprocess.DEVNULL, timeout=60 if capture else None)
     if result.returncode != 0:
@@ -115,10 +128,12 @@ def parse_packages(output):
             raise AptError('apt_conflict')
         if not line.startswith('Inst '):
             continue
-        match = re.match(r'^Inst ([a-z0-9][a-z0-9+.:_-]*) \[([^\]\s]+)\] \(([^\s()]+)', line)
+        match = re.match(r'^Inst ([a-z0-9][a-z0-9+.:_-]*)(?: \[([^\]\s]+)\])? \(([^\s()]+)', line)
         if not match:
-            raise AptError('apt_conflict')  # New packages are outside plain upgrade.
-        name, old, version = match.groups()
+            raise AptError('apt_conflict')
+        name = match.group(1)
+        old = match.group(2) if match.group(2) is not None else 'new'
+        version = match.group(3)
         if not re.fullmatch(r'[A-Za-z0-9.+:~_-]+', version):
             raise AptError('apt_conflict')
         packages.append(dict(name=name, installed=old, version=version))
@@ -151,13 +166,23 @@ class AptJob:
         self.store, self.request = store, request
         self.marker = store.directory / ('apt-' + request['id'] + '.started')
 
+    def abort(self):
+        unit = 'antirkn-apt-' + self.request['id'] + '-apply'
+        if not is_unit_active(unit):
+            self.marker.unlink(missing_ok=True)
+            return 'cancelled'
+        return 'partially_applied'
+
     def step(self, checkpoint):
         prerequisites()
         check_disk_and_memory()
         req = self.request
+        unit = 'antirkn-apt-' + req['id'] + '-apply'
         if checkpoint == 0:
             if self.marker.exists():
-                raise AptError('apt_interrupted')
+                if is_unit_active(unit):
+                    raise AptError('apt_interrupted')
+                self.marker.unlink(missing_ok=True)
             acquire_dpkg_locks()
             if req['kind'] == 'apt_upgrade':
                 current = plan()
@@ -168,17 +193,20 @@ class AptJob:
                     raise AptError('apt_conflict')
                 args = ['--assume-yes', '--only-upgrade', '--no-install-recommends',
                         'install', *[p['name'] + '=' + p['version'] for p in packages]]
-                # The exact request must resolve to precisely the shown changes.
-                if parse_packages(run(['--simulate', *args], capture=True)) != packages:
+                # The requested packages must all be satisfied in simulation.
+                simulated = parse_packages(run(['--simulate', *args], capture=True))
+                simulated_map = {p['name']: p['version'] for p in simulated}
+                if not all(simulated_map.get(p['name']) == p['version'] for p in packages):
                     raise AptError('apt_conflict')
             else:
                 args = ['-o', 'APT::Update::Error-Mode=any', 'update']
             with self.store.db:
                 self.store.event(req['id'], 'apt_upgrading' if req['kind'] == 'apt_upgrade' else 'apt_updating', 0, 2)
             atomic_file(self.marker, b'started')
-            run(args, unit='antirkn-apt-' + req['id'] + '-apply')
+            run(args, unit=unit)
         else:
             run(['check'], unit='antirkn-apt-' + req['id'] + '-check')
+            self.marker.unlink(missing_ok=True)
         with self.store.db:
             self.store.db.execute('UPDATE jobs SET checkpoint=? WHERE id=?', (checkpoint + 1, req['id']))
             self.store.event(req['id'], 'apt_reboot_required' if checkpoint == 1 and Path('/var/run/reboot-required').exists() else 'apt_checked', checkpoint + 1, 2)

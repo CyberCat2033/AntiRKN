@@ -201,3 +201,51 @@ class XrayTransactionTests(unittest.TestCase):
         self.assertEqual(updated['phase'], 'rolled_back')
         self.assertEqual(self.binary.read_bytes(), b'old')
         self.assertIn('retired', self.events)
+
+    def test_parse_semver_robustness(self):
+        self.assertEqual(x.parse_semver('3.8.0'), (3, 8, 0))
+        self.assertEqual(x.parse_semver('v3.8.0'), (3, 8, 0))
+        self.assertEqual(x.parse_semver('V3.8.0'), (3, 8, 0))
+        self.assertEqual(x.parse_semver('3.11.0'), (3, 11, 0))
+        self.assertEqual(x.parse_semver('v3.11.0'), (3, 11, 0))
+        self.assertEqual(x.parse_semver('26.9.9'), (26, 9, 9))
+        self.assertEqual(x.parse_semver('v26.9.9'), (26, 9, 9))
+        self.assertEqual(x.parse_semver('3.11.1'), (3, 11, 1))
+        self.assertEqual(x.parse_semver('3.9'), (3, 9, 0))
+        self.assertEqual(x.parse_semver('3.11.0-rc1'), (3, 11, 0))
+        self.assertEqual(x.parse_semver('v3.11.1+build2026'), (3, 11, 1))
+        for bad in ('', 'v', 'abc', '3.x.0', 123, None):
+            with self.assertRaises(ValueError):
+                x.parse_semver(bad)
+
+    def test_plan_semver_range_and_candidate_matching(self):
+        # Test supported panel range (3.7.0 up to 3.11.x)
+        for panel, supported in [
+            ('3.7.0', True), ('3.8.0', True), ('3.9.0', True), ('3.9.2', True),
+            ('3.10.0', True), ('3.11.0', True), ('3.11.1', True), ('v3.11.0', True),
+            ('3.11.99', True), ('3.6.0', False), ('3.12.0', False), ('2.8.0', False)
+        ]:
+            with patch.object(x, 'snapshot', return_value=dict(
+                panelId=self.panel, panelVersion=panel, xrayVersion='26.7.28',
+                configuration=copy.deepcopy(self.configuration),
+                files={str(self.binary): 'hash'}, release='fixture'
+            )):
+                p = x.plan(self.store, self.panel)
+                self.assertEqual(p['supported'], supported, f'panel {panel} supported should be {supported}')
+
+        # Test candidate vs current xray matching
+        for xray, expected_supp, expected_avail in [
+            ('26.7.28', True, True),
+            ('v26.7.28', True, True),
+            ('26.9.9', True, False),
+            ('v26.9.9', True, False),
+            ('27.0.0', False, False),
+        ]:
+            with patch.object(x, 'snapshot', return_value=dict(
+                panelId=self.panel, panelVersion='3.8.0', xrayVersion=xray,
+                configuration=copy.deepcopy(self.configuration),
+                files={str(self.binary): 'hash'}, release='fixture'
+            )):
+                p = x.plan(self.store, self.panel)
+                self.assertEqual(p['supported'], expected_supp, f'xray {xray} supported should be {expected_supp}')
+                self.assertEqual(p['available'], expected_avail, f'xray {xray} available should be {expected_avail}')

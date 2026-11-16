@@ -95,6 +95,9 @@ class XrayUpgradeController extends ChangeNotifier {
       }
       plan = await rpc('xray_check_plan', runner.panelAccess!.id, token);
       if (operation == null) phase = 'idle';
+      if (plan!['supported'] != true) {
+        throw const FormatException('xray_check_layout');
+      }
     } catch (error) {
       code = error is FormatException ? error.message : 'server_unavailable';
     } finally {
@@ -188,8 +191,16 @@ class XrayUpgradeController extends ChangeNotifier {
             throw const FormatException('xray_check_busy');
           }
         }
-        if (plan!['available'] != true) {
+        if (plan!['supported'] != true) {
           throw const FormatException('xray_check_layout');
+        }
+        if (plan!['candidate'] != null &&
+            plan!['current'] == plan!['candidate']) {
+          phase = 'not_changed';
+          return;
+        }
+        if (plan!['available'] != true) {
+          return;
         }
         final inventory = (plan!['inbounds'] as List).cast<Map>();
         final enabled = inventory.where((r) => r['enabled'] == true).toList();

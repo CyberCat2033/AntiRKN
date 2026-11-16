@@ -140,7 +140,11 @@ class RunnerPanel extends StatelessWidget {
                             : null,
                         child: Text(l.runnerCancel),
                       ),
-                      if (job.cancelRequested || c.connectionLost || job.status == 'planned' || c.error != null)
+                      if (job.status == 'planned' ||
+                          job.status == 'running' ||
+                          job.cancelRequested ||
+                          c.connectionLost ||
+                          c.error != null)
                         TextButton(
                           key: const ValueKey('runner-reset-queue'),
                           onPressed: !c.busy && !c.actionPending
@@ -231,6 +235,9 @@ String runnerCodeLabel(AppLocalizations l, String code) => switch (code) {
   'panel_connect_unsupported' => l.panelConnectUnsupported,
   'panel_login_limited' => l.panelLoginLimited,
   'panel_api_failed' => l.componentsApiFailed,
+  'panel_update_incompatible' || 'incompatible' => l.runnerIncompatible,
+  'panel_conflict' || 'conflict' => l.runnerConflict,
+  'panel_prerequisites' || 'prerequisites' => l.runnerPrerequisites,
   'vless_conflict' || 'awg_conflict' => l.vpnConflict,
   'vless_port_busy' || 'awg_port_busy' => l.vpnPortBusy,
   'vless_invalid' || 'awg_invalid' => l.vpnInvalid,
@@ -244,9 +251,7 @@ String runnerCodeLabel(AppLocalizations l, String code) => switch (code) {
   final String v when v.startsWith('upgrade_') => l.runnerFailed,
   'failed' => l.runnerFailed,
   'busy' => l.runnerBusy,
-  'conflict' => l.runnerConflict,
   'missing' => l.runnerMissing,
-  'incompatible' => l.runnerIncompatible,
   'capacity' => l.runnerCapacity,
   _ => l.runnerInvalidResponse,
 };

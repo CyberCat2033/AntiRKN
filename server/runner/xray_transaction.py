@@ -94,17 +94,48 @@ def snapshot(store,panel_id):
         row['settings']['clients']=[c for c in row['settings'].get('clients',[]) if c.get('id') not in temporary.get(row['id'],set())]
     return current
 
+def parse_semver(v):
+    if not isinstance(v, str):
+        raise ValueError(f'Invalid version: {v}')
+    s = v.strip()
+    if s.startswith(('v', 'V')):
+        s = s[1:]
+    s = s.split('-')[0].split('+')[0]
+    parts = s.split('.')
+    try:
+        nums = [int(p) for p in parts]
+    except ValueError:
+        raise ValueError(f'Invalid version: {v}')
+    if not nums:
+        raise ValueError(f'Invalid version: {v}')
+    while len(nums) < 3:
+        nums.append(0)
+    return tuple(nums)
+
 def plan(store,panel_id):
     try:current=snapshot(store,panel_id)
     except PanelError as error:
         if error.code=='panel_update_incompatible':raise UpdateError('xray_check_layout') from None
         raise
     stable = TARGET.get('prerelease') is False
-    supported=(current['panelVersion'] in TARGET['supportedPanels'] and panel.version(current['xrayVersion'])<=panel.version(TARGET['version']))
+    try:
+        panel_ver = parse_semver(current['panelVersion'])
+        min_panel = min(parse_semver(p) for p in TARGET.get('supportedPanels', ['3.7.0']))
+        panel_supported = (min_panel <= panel_ver <= (3, 11, 99)) or (current['panelVersion'] in TARGET.get('supportedPanels', []))
+        core_ver = parse_semver(current['xrayVersion'])
+        target_ver = parse_semver(TARGET['version'])
+        core_supported = core_ver <= target_ver
+        supported = panel_supported and core_supported
+    except (ValueError, TypeError, KeyError):
+        supported = False
     rows=current['configuration']['inbounds']
+    try:
+        candidate_available = stable and supported and (parse_semver(current['xrayVersion']) != parse_semver(TARGET['version']))
+    except (ValueError, TypeError, KeyError):
+        candidate_available = False
     return dict(supported=supported,current=current['xrayVersion'],candidate=TARGET['version'] if stable else None,fingerprint=vless.digest(current),
         inbounds=[dict(id=r['id'],enabled=r['enable'],protocol=r['protocol'],name=r.get('remark',''),port=r['port']) for r in rows],
-        available=stable and supported and current['xrayVersion']!=TARGET['version'],maxInbounds=TARGET['maxInbounds'],latest=latest(store,panel_id))
+        available=candidate_available,maxInbounds=TARGET['maxInbounds'],latest=latest(store,panel_id))
 
 def public(info):
     return {k:info[k] for k in ('id','phase','current','candidate','deadline','code','manifest','history') if k in info}

@@ -178,6 +178,130 @@ final class GithubComponentReleaseSource implements ComponentReleaseSource {
         return null;
       }
 
+      final targetName = matchedAsset['name'] as String;
+      Map? checksumAsset;
+      bool isDedicated = false;
+
+      final dedicatedCandidates = [
+        '$targetName.sha256',
+        '$targetName.sha256sum',
+        '$targetName.dgst',
+        '$targetName.digest',
+        '$targetName.sha256.txt',
+      ];
+      for (final a in assets) {
+        if (a is! Map) continue;
+        final name = (a['name'] as String?)?.toLowerCase();
+        if (name == null) continue;
+        for (final candidate in dedicatedCandidates) {
+          if (name == candidate.toLowerCase()) {
+            checksumAsset = a;
+            isDedicated = true;
+            break;
+          }
+        }
+        if (checksumAsset != null) break;
+      }
+
+      if (checksumAsset == null) {
+        final multiCandidates = [
+          'sha256sums',
+          'sha256sums.txt',
+          'checksums.txt',
+          'checksums_sha256.txt',
+          'checksums',
+        ];
+        for (final a in assets) {
+          if (a is! Map) continue;
+          final name = (a['name'] as String?)?.toLowerCase();
+          if (name == null) continue;
+          if (multiCandidates.contains(name)) {
+            checksumAsset = a;
+            isDedicated = false;
+            break;
+          }
+        }
+      }
+
+      String? parsedSha256;
+      if (checksumAsset != null) {
+        String? checksumContent;
+        if (checksumAsset['content'] is String &&
+            (checksumAsset['content'] as String).isNotEmpty) {
+          checksumContent = checksumAsset['content'] as String;
+        } else if (checksumAsset['text'] is String &&
+            (checksumAsset['text'] as String).isNotEmpty) {
+          checksumContent = checksumAsset['text'] as String;
+        }
+
+        if (checksumContent == null && metadata != null) {
+          final candidatePaths = [
+            checksumAsset['browser_download_url'] as String?,
+            checksumAsset['name'] as String?,
+            '$repo/releases/download/v$version/${checksumAsset['name']}',
+            '$repo/releases/download/$version/${checksumAsset['name']}',
+            '$repo/${checksumAsset['name']}',
+          ].whereType<String>();
+
+          for (final p in candidatePaths) {
+            try {
+              final res = await metadata!(p);
+              if (res is String && res.isNotEmpty) {
+                checksumContent = res;
+                break;
+              } else if (res is List<int> && res.isNotEmpty) {
+                checksumContent = utf8.decode(res);
+                break;
+              } else if (res is Map) {
+                final val = res['content'] ??
+                    res['digest'] ??
+                    res['sha256'] ??
+                    res['text'];
+                if (val is String && val.isNotEmpty) {
+                  checksumContent = val;
+                  break;
+                }
+              }
+            } catch (_) {}
+          }
+        }
+
+        if (checksumContent == null && metadata == null) {
+          final downloadUrl = checksumAsset['browser_download_url'] as String? ??
+              checksumAsset['url'] as String?;
+          if (downloadUrl != null) {
+            try {
+              final req = await client.getUrl(Uri.parse(downloadUrl));
+              req.followRedirects = true;
+              req.maxRedirects = 5;
+              req.headers.set('User-Agent', 'AntiRKN');
+              final resp = await req.close();
+              if (resp.statusCode == 200) {
+                final bytes = <int>[];
+                await for (final chunk in resp) {
+                  bytes.addAll(chunk);
+                  if (bytes.length > 512 * 1024) break;
+                }
+                checksumContent = utf8.decode(bytes);
+              }
+            } catch (_) {}
+          }
+        }
+
+        if (checksumContent != null && checksumContent.isNotEmpty) {
+          parsedSha256 = _parseSha256(
+            checksumContent,
+            targetName,
+            isDedicated: isDedicated,
+          );
+        }
+      }
+
+      final resolvedSha256 = parsedSha256 ??
+          (matchedAsset['digest'] as String?) ??
+          (matchedAsset['sha256'] as String?) ??
+          '';
+
       return {
         'component': component,
         'version': version,
@@ -185,12 +309,52 @@ final class GithubComponentReleaseSource implements ComponentReleaseSource {
         'assetName': matchedAsset['name'],
         'url': matchedAsset['browser_download_url'],
         'bytes': matchedAsset['size'],
-        'sha256': matchedAsset['digest'] ?? '',
+        'sha256': resolvedSha256,
       };
     } catch (_) {
       return null;
     } finally {
       client.close(force: true);
     }
+  }
+
+  static String? _parseSha256(
+    String content,
+    String assetName, {
+    required bool isDedicated,
+  }) {
+    final hexRegex = RegExp(r'\b[0-9a-fA-F]{64}\b');
+    final lines = const LineSplitter()
+        .convert(content)
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty);
+
+    for (final line in lines) {
+      if (line.contains(assetName)) {
+        final match = hexRegex.firstMatch(line);
+        if (match != null) {
+          return match.group(0)!.toLowerCase();
+        }
+      }
+    }
+
+    if (isDedicated) {
+      for (final line in lines) {
+        if (line.toUpperCase().contains('SHA256')) {
+          final match = hexRegex.firstMatch(line);
+          if (match != null) {
+            return match.group(0)!.toLowerCase();
+          }
+        }
+      }
+      for (final line in lines) {
+        final match = hexRegex.firstMatch(line);
+        if (match != null) {
+          return match.group(0)!.toLowerCase();
+        }
+      }
+    }
+
+    return null;
   }
 }

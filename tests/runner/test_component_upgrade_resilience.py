@@ -410,6 +410,173 @@ class ComponentUpgradeResilienceTests(unittest.TestCase):
             # Confirm original binary is restored after rollback
             self.assertEqual(fake_bin.read_bytes(), b'xray_v26.7')
 
+    def test_component_upgrade_missing_or_empty_sha256_computed_and_assigned(self):
+        """When manifest sha256 is missing or empty, digest(archive) is computed and assigned."""
+        import io
+        test_dir = Path(self.temp_dir.name) / 'sha_test'
+        test_dir.mkdir()
+        bin_file = test_dir / 'binary'
+        bin_file.write_bytes(b'installed_bin')
+
+        # Create valid tarball archive
+        archive_path = test_dir / 'archive.tar.gz'
+        with tarfile.open(archive_path, 'w:gz') as t:
+            data = b'new_bin_bytes'
+            info = tarfile.TarInfo('binary')
+            info.size = len(data)
+            t.addfile(info, io.BytesIO(data))
+
+        expected_hash = hashlib.sha256(archive_path.read_bytes()).hexdigest()
+
+        # 1. validate_and_stage with empty sha256
+        manifest = {
+            'component': 'xray',
+            'version': '26.9.9',
+            'architecture': 'x86_64',
+            'sha256': '',
+            'binaryName': 'binary',
+        }
+        req = {'id': '5' * 32, 'payload': manifest}
+        upgrader = ComponentUpgrader(self.store, req, manifest)
+        upgrader.detection = {
+            'installed': True,
+            'binaryPath': str(bin_file),
+            'arch': 'x86_64',
+        }
+
+        upgrader.validate_and_stage(archive_path)
+        self.assertEqual(manifest['sha256'], expected_hash)
+
+        # 2. ComponentUpgradeJob.step(1) with missing sha256
+        payload = {
+            'component': 'xray',
+            'version': '26.9.9',
+            'architecture': 'x86_64',
+            'binaryName': 'binary',
+            'url': f'file://{archive_path}',
+        }
+        job_req = {
+            'version': 1,
+            'action': 'submit',
+            'id': '6' * 32,
+            'kind': 'component_upgrade_apply',
+            'count': 6,
+            'interval': 1,
+            'payload': json.dumps(payload),
+            'fingerprint': 'f' * 64,
+        }
+        self.store.request(job_req)
+        job = ComponentUpgradeJob(self.store, job_req)
+        job.step(1)
+        self.assertEqual(job.payload['sha256'], expected_hash)
+        self.assertEqual(job.upgrader.manifest['sha256'], expected_hash)
+
+    def test_composite_3xui_distribution_atomic_switch_and_db_preservation(self):
+        """Composite 3x-ui distributions update x-ui, x-ui.sh, xray and NEVER touch x-ui.db."""
+        import io
+        import sqlite3
+        test_panel_dir = Path(self.temp_dir.name) / 'usr_local_x_ui'
+        test_panel_dir.mkdir(parents=True)
+        active_xui = test_panel_dir / 'x-ui'
+        active_xui.write_bytes(b'old_xui_v2.4')
+        active_xui.chmod(0o755)
+
+        active_sh = test_panel_dir / 'x-ui.sh'
+        active_sh.write_bytes(b'#!/bin/bash\necho old')
+        active_sh.chmod(0o755)
+
+        bin_subdir = test_panel_dir / 'bin'
+        bin_subdir.mkdir(parents=True)
+        active_xray = bin_subdir / 'xray-linux-amd64'
+        active_xray.write_bytes(b'old_xray_core')
+        active_xray.chmod(0o755)
+
+        # Protected database (valid SQLite database)
+        test_etc_dir = Path(self.temp_dir.name) / 'etc_x_ui'
+        test_etc_dir.mkdir(parents=True)
+        protected_db = test_etc_dir / 'x-ui.db'
+        con = sqlite3.connect(str(protected_db))
+        con.execute('CREATE TABLE users (id INT, name TEXT)')
+        con.execute('INSERT INTO users VALUES (1, "alice")')
+        con.commit()
+        con.close()
+        db_before_bytes = protected_db.read_bytes()
+
+        # Create composite tarball
+        archive_path = Path(self.temp_dir.name) / 'x-ui-linux-amd64.tar.gz'
+        with tarfile.open(archive_path, 'w:gz') as t:
+            # 1. x-ui binary
+            info1 = tarfile.TarInfo('x-ui/x-ui')
+            info1.size = len(b'new_composite_xui_v2.5')
+            t.addfile(info1, io.BytesIO(b'new_composite_xui_v2.5'))
+
+            # 2. x-ui.sh
+            info2 = tarfile.TarInfo('x-ui/x-ui.sh')
+            info2.size = len(b'#!/bin/bash\necho new_sh')
+            t.addfile(info2, io.BytesIO(b'#!/bin/bash\necho new_sh'))
+
+            # 3. bin/xray-linux-amd64
+            info3 = tarfile.TarInfo('x-ui/bin/xray-linux-amd64')
+            info3.size = len(b'new_xray_core_v26.9')
+            t.addfile(info3, io.BytesIO(b'new_xray_core_v26.9'))
+
+            # Even if archive contains a dummy x-ui.db, it must be ignored
+            info4 = tarfile.TarInfo('x-ui/x-ui.db')
+            info4.size = len(b'MALICIOUS_OVERWRITE_DB')
+            t.addfile(info4, io.BytesIO(b'MALICIOUS_OVERWRITE_DB'))
+
+        archive_sha = hashlib.sha256(archive_path.read_bytes()).hexdigest()
+
+        manifest = {
+            'component': 'panel',
+            'version': '2.5.0',
+            'architecture': 'x86_64',
+            'sha256': archive_sha,
+            'binaryName': 'x-ui',
+        }
+        req = {'id': '7' * 32, 'payload': manifest}
+        upgrader = ComponentUpgrader(self.store, req, manifest)
+        upgrader.detection = {
+            'installed': True,
+            'binaryPath': str(active_xui),
+            'source': 'native',
+            'units': ['x-ui.service'],
+            'dbPath': str(protected_db),
+            'ports': [],
+            'arch': 'x86_64',
+        }
+
+        # Backup
+        upgrader.backup()
+        self.assertEqual(protected_db.read_bytes(), db_before_bytes)
+
+        # Validate and stage composite files
+        staged_binary = upgrader.validate_and_stage(archive_path)
+        self.assertIsNotNone(staged_binary)
+        self.assertEqual(staged_binary.stat().st_mode & 0o777, 0o755)
+
+        # Apply switch
+        with patch('subprocess.run'):
+            upgrader.apply_switch(staged_binary)
+
+        # Verify all composite components are upgraded with 0o755
+        self.assertEqual(active_xui.read_bytes(), b'new_composite_xui_v2.5')
+        self.assertEqual(active_xui.stat().st_mode & 0o777, 0o755)
+
+        self.assertEqual(active_sh.read_bytes(), b'#!/bin/bash\necho new_sh')
+        self.assertEqual(active_sh.stat().st_mode & 0o777, 0o755)
+
+        self.assertEqual(active_xray.read_bytes(), b'new_xray_core_v26.9')
+        self.assertEqual(active_xray.stat().st_mode & 0o777, 0o755)
+
+        # CRITICAL: Verify database is untouched and NOT overwritten or deleted
+        self.assertTrue(protected_db.exists())
+        self.assertEqual(protected_db.read_bytes(), db_before_bytes)
+        con = sqlite3.connect(str(protected_db))
+        row = con.execute('SELECT name FROM users WHERE id=1').fetchone()
+        con.close()
+        self.assertEqual(row[0], 'alice')
+
 
 if __name__ == '__main__':
     unittest.main()

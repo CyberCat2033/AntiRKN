@@ -16,6 +16,10 @@ class UpgradeRemote extends f.Remote {
   String phase = 'idle';
   int? missing;
   bool loseCommit = false;
+  bool supported = true;
+  bool available = true;
+  String currentVersion = '26.7.28';
+  String candidateVersion = '26.9.9';
   String? operationId;
   final calls = <String>[];
   @override
@@ -34,10 +38,11 @@ class UpgradeRemote extends f.Remote {
     Map<String, Object?> value = {};
     if (a == 'xray_check_plan') {
       value = {
-        'available': true,
+        'supported': supported,
+        'available': available,
         'maxInbounds': 8,
-        'current': '26.7.28',
-        'candidate': '26.9.9',
+        'current': currentVersion,
+        'candidate': candidateVersion,
         'fingerprint': 'e' * 64,
         'inbounds': [
           for (var i = 0; i < state.length; i++)
@@ -278,6 +283,27 @@ void main() {
       expect(remote.calls, isNot(contains('xray_check_abort')));
     },
   );
+  test('already on candidate version does not throw layout error', () async {
+    await setup();
+    remote.currentVersion = '26.9.9';
+    remote.candidateVersion = '26.9.9';
+    remote.available = false;
+    remote.supported = true;
+    await upgrade.inspect();
+    expect(upgrade.code, isNot('xray_check_layout'));
+    await upgrade.run();
+    expect(upgrade.code, isNot('xray_check_layout'));
+    expect(upgrade.phase, 'not_changed');
+  });
+  test('unsupported layout throws layout error in inspect and run', () async {
+    await setup();
+    remote.supported = false;
+    remote.available = false;
+    await upgrade.inspect();
+    expect(upgrade.code, 'xray_check_layout');
+    await upgrade.run();
+    expect(upgrade.code, 'xray_check_layout');
+  });
   for (final locale in ['ru', 'en']) {
     testWidgets('upgrade controls fit narrow screen with large text $locale', (
       tester,
