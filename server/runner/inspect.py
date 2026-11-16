@@ -64,7 +64,7 @@ def inspect_runner():
     release, state, upgradable = None, 'missing', False
     try:
         predecessors = []
-        for version, expected in [('v1', PREDECESSOR), ('v2', PREDECESSOR_V2), ('v3', PREDECESSOR_V3), ('v4', PREDECESSOR_V4), ('v5', PREDECESSOR_V5), ('v6', PREDECESSOR_V6), ('v7', PREDECESSOR_V7), ('v8', PREDECESSOR_V8), ('v9', PREDECESSOR_V9), ('v10', PREDECESSOR_V10), ('v11', PREDECESSOR_V11), ('v12', PREDECESSOR_V12), ('v13', PREDECESSOR_V13), ('v14', PREDECESSOR_V14), ('v15', PREDECESSOR_V15), ('v16', PREDECESSOR_V16), ('v17', PREDECESSOR_V17), ('v18', PREDECESSOR_V18), ('v19', PREDECESSOR_V19), ('v20', PREDECESSOR_V20), ('v21', PREDECESSOR_V21), ('v22', PREDECESSOR_V22), ('v23', PREDECESSOR_V23), ('v24', PREDECESSOR_V24), ('v25', PREDECESSOR_V25), ('v26', PREDECESSOR_V26), ('v27', PREDECESSOR_V27), ('v28', PREDECESSOR_V28), ('v29', PREDECESSOR_V29), ('v30', PREDECESSOR_V30), ('v31', PREDECESSOR_V31), ('v32', PREDECESSOR_V32), ('v33', PREDECESSOR_V33), ('v34', PREDECESSOR_V34), ('v35', PREDECESSOR_V35), ('v36', PREDECESSOR_V36), ('v37', PREDECESSOR_V37), ('v38', PREDECESSOR_V38), ('v39', PREDECESSOR_V39), ('v40', PREDECESSOR_V40), ('v41', PREDECESSOR_V41), ('v42', PREDECESSOR_V42), ('v43', PREDECESSOR_V43), ('v44', PREDECESSOR_V44), ('v45', PREDECESSOR_V45), ('v46', PREDECESSOR_V46), ('v47', PREDECESSOR_V47), ('v48', PREDECESSOR_V48), ('v49', PREDECESSOR_V49), ('v50', PREDECESSOR_V50), ('v51', PREDECESSOR_V51), ('v52', PREDECESSOR_V52), ('v53', PREDECESSOR_V53), ('v54', PREDECESSOR_V54)]:
+        for version, expected in [('v1', PREDECESSOR), ('v2', PREDECESSOR_V2), ('v3', PREDECESSOR_V3), ('v4', PREDECESSOR_V4), ('v5', PREDECESSOR_V5), ('v6', PREDECESSOR_V6), ('v7', PREDECESSOR_V7), ('v8', PREDECESSOR_V8), ('v9', PREDECESSOR_V9), ('v10', PREDECESSOR_V10), ('v11', PREDECESSOR_V11), ('v12', PREDECESSOR_V12), ('v13', PREDECESSOR_V13), ('v14', PREDECESSOR_V14), ('v15', PREDECESSOR_V15), ('v16', PREDECESSOR_V16), ('v17', PREDECESSOR_V17), ('v18', PREDECESSOR_V18), ('v19', PREDECESSOR_V19), ('v20', PREDECESSOR_V20), ('v21', PREDECESSOR_V21), ('v22', PREDECESSOR_V22), ('v23', PREDECESSOR_V23), ('v24', PREDECESSOR_V24), ('v25', PREDECESSOR_V25), ('v26', PREDECESSOR_V26), ('v27', PREDECESSOR_V27), ('v28', PREDECESSOR_V28), ('v29', PREDECESSOR_V29), ('v30', PREDECESSOR_V30), ('v31', PREDECESSOR_V31), ('v32', PREDECESSOR_V32), ('v33', PREDECESSOR_V33), ('v34', PREDECESSOR_V34), ('v35', PREDECESSOR_V35), ('v36', PREDECESSOR_V36), ('v37', PREDECESSOR_V37), ('v38', PREDECESSOR_V38), ('v39', PREDECESSOR_V39), ('v40', PREDECESSOR_V40), ('v41', PREDECESSOR_V41), ('v42', PREDECESSOR_V42), ('v43', PREDECESSOR_V43), ('v44', PREDECESSOR_V44), ('v45', PREDECESSOR_V45), ('v46', PREDECESSOR_V46), ('v47', PREDECESSOR_V47), ('v48', PREDECESSOR_V48), ('v49', PREDECESSOR_V49), ('v50', PREDECESSOR_V50), ('v51', PREDECESSOR_V51), ('v52', PREDECESSOR_V52), ('v53', PREDECESSOR_V53), ('v54', PREDECESSOR_V54), ('v55', PREDECESSOR_V55)]:
             if hashes[str(BASE / version)]:
                 manifest = json.loads((BASE / version / 'manifest.json').read_text())
                 if isinstance(expected, list):
@@ -77,11 +77,11 @@ def inspect_runner():
                     if hashes[str(BASE / version / name)] != expected['hashes'][name]: raise ValueError()
                 predecessors.append(manifest)
             unit_hash = hashes[str(UNIT)]
-        if hashes[str(BASE / 'v55')]:
-            manifest = json.loads((BASE / 'v55/manifest.json').read_text())
+        if hashes[str(BASE / 'v56')]:
+            manifest = json.loads((BASE / 'v56/manifest.json').read_text())
             if set(manifest) != {'release','hashes'} or set(manifest['hashes']) != set(PROGRAMS) | {'antirkn-runner.service'}: raise ValueError()
             for name in PROGRAMS:
-                if hashes[str(BASE / 'v55' / name)] != manifest['hashes'][name]: raise ValueError()
+                if hashes[str(BASE / 'v56' / name)] != manifest['hashes'][name]: raise ValueError()
             expected = hashlib.sha256(json.dumps(manifest['hashes'], sort_keys=True).encode()).hexdigest()
             if manifest['release'] != expected: raise ValueError()
             release = expected
