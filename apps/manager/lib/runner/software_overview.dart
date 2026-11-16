@@ -159,10 +159,31 @@ class SoftwareOverview extends StatelessWidget {
                               return;
                             }
                             if (updates != null && updates.latest.isNotEmpty) {
-                              final comp = isPanel ? 'panel' : key;
-                              final latestVer = updates.latest[comp] ??
-                                  (isPanel ? updates.latest['xray'] : null);
-                              final currentVer = versions[isPanel ? 'panel' : key];
+                              String comp = isPanel ? 'panel' : key;
+                              String? latestVer = updates.latest[comp];
+                              String? currentVer = versions[comp];
+                              if (isPanel &&
+                                  (latestVer == null ||
+                                      currentVer == null ||
+                                      componentIsNewer(
+                                            latestVer,
+                                            currentVer,
+                                            allowPreview: true,
+                                          ) !=
+                                          true)) {
+                                if (updates.latest['xray'] != null &&
+                                    versions['xray'] != null &&
+                                    componentIsNewer(
+                                          updates.latest['xray']!,
+                                          versions['xray']!,
+                                          allowPreview: true,
+                                        ) ==
+                                        true) {
+                                  comp = 'xray';
+                                  latestVer = updates.latest['xray'];
+                                  currentVer = versions['xray'];
+                                }
+                              }
                               if (latestVer != null &&
                                   (currentVer == null ||
                                       componentIsNewer(latestVer, currentVer) ==

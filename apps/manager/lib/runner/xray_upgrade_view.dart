@@ -80,8 +80,18 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
       final hasDynamicCandidate = dynamicXray != null &&
           currentXray != null &&
           componentIsNewer(dynamicXray, currentXray) == true;
-      final effectiveCandidate =
-          c.plan?['candidate'] as String? ?? (hasDynamicCandidate ? dynamicXray : null);
+      final effectiveCandidate = (c.plan?['candidate'] != null &&
+              currentXray != null &&
+              componentIsNewer(
+                    c.plan!['candidate'] as String,
+                    currentXray,
+                  ) ==
+                  true)
+          ? c.plan!['candidate'] as String
+          : (hasDynamicCandidate ? dynamicXray : null);
+      final isCandidateNewer = effectiveCandidate != null &&
+          currentXray != null &&
+          componentIsNewer(effectiveCandidate, currentXray) == true;
       final message = switch (c.phase) {
         'baseline' => l.xrayUpgradeBaseline,
         'preparing' || 'replacing' => l.xrayUpgradePreparing,
@@ -95,7 +105,7 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
       };
       final problem = switch (c.code) {
         'xray_check_coverage' => l.xrayUpgradeCoverage,
-        'xray_check_layout' => l.xrayUpgradeLayout,
+        'xray_check_layout' => isCandidateNewer ? '' : l.xrayUpgradeLayout,
         'xray_check_changed' => l.xrayUpgradeConflict,
         'xray_check_rollback' => l.xrayUpgradeAttention,
         '' ||
@@ -170,7 +180,15 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
                             !context.mounted) {
                           return;
                         }
-                        if (c.available) {
+                        if (c.available &&
+                            c.plan?['available'] == true &&
+                            c.plan?['candidate'] != null &&
+                            currentXray != null &&
+                            componentIsNewer(
+                                  c.plan!['candidate'] as String,
+                                  currentXray,
+                                ) ==
+                                true) {
                           await c.run();
                         } else if (hasDynamicCandidate && updates != null) {
                           final candidate = await updates.source.resolveAsset(
