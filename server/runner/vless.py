@@ -152,9 +152,42 @@ def panel_for(store, panel_id, _retry=True):
             return panel_for(store, panel_id, _retry=False)
         if isinstance(status, dict) and isinstance(status.get('xray'), dict):
             panel_version, xray_version = status.get('panelVersion'), status['xray'].get('version')
-            if panel_version and panel_version != access['panelVersion'] or xray_version and xray_version != access['xrayVersion']:
+            if (panel_version and panel_version != access.get('panelVersion')) or (xray_version and xray_version != access.get('xrayVersion')):
+                from panel_discovery import external_access, EXTERNAL_ACCESS
+                from panel import atomic_file, DATABASE
+                ext = external_access()
+                if ext and ext.get('id') == panel_id:
+                    if panel_version: ext['panelVersion'] = access['panelVersion'] = panel_version
+                    if xray_version: ext['xrayVersion'] = access['xrayVersion'] = xray_version
+                    atomic_file(EXTERNAL_ACCESS, json.dumps(ext).encode())
+                    sessions[panel_id] = (access, api)
+                    return api
+                version_file = DATABASE / '.antirkn-versions'
+                owner_file = DATABASE / '.antirkn-owner'
+                is_owner = False
+                if owner_file.exists():
+                    try:
+                        from panel import safe_file
+                        safe_file(owner_file, 64)
+                        is_owner = (owner_file.read_text().strip() == panel_id)
+                    except Exception:
+                        pass
+                if is_owner or access.get('id') == panel_id:
+                    ver = {}
+                    if version_file.exists():
+                        try:
+                            ver = json.loads(version_file.read_text())
+                        except Exception:
+                            pass
+                    if not ver or ver.get('id') == panel_id:
+                        ver['id'] = panel_id
+                        if panel_version: ver['panelVersion'] = access['panelVersion'] = panel_version
+                        if xray_version: ver['xrayVersion'] = access['xrayVersion'] = xray_version
+                        atomic_file(version_file, json.dumps(ver).encode())
+                        sessions[panel_id] = (access, api)
+                        return api
                 raise VlessError('vless_conflict')
-            if panel_version == access['panelVersion'] and xray_version == access['xrayVersion']:
+            if panel_version == access.get('panelVersion') and xray_version == access.get('xrayVersion'):
                 return api
         time.sleep(.25)
     raise VlessError('vless_api_failed')

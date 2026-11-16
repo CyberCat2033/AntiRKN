@@ -247,6 +247,32 @@ class VlessTests(unittest.TestCase):
         finally:
             self.patches[0].start()
 
+    def test_panel_session_auto_syncs_external_panel_on_version_upgrade(self):
+        self.patches[0].stop()
+        from vless import panel_for
+        panel_id = 'c' * 32
+        access = dict(id=panel_id, port=12345, username='user', password='secret',
+            panelVersion='3.8.0', xrayVersion='26.7.28')
+        class Session:
+            logins = 0
+            def login(self, *_): self.logins += 1
+            def call(self, path):
+                return dict(panelVersion='3.11.0', xray=dict(version='26.10.21'))
+        session = Session()
+        ext_saved = dict(access)
+        try:
+            with patch('vless.access_for_panel', return_value=access), \
+                 patch('vless.PanelApi', return_value=session), \
+                 patch('panel_discovery.external_access', return_value=ext_saved), \
+                 patch('panel.atomic_file') as mock_atomic:
+                result = panel_for(self.store, panel_id)
+                self.assertIs(result, session)
+                self.assertEqual(access['panelVersion'], '3.11.0')
+                self.assertEqual(access['xrayVersion'], '26.10.21')
+                self.assertTrue(mock_atomic.called)
+        finally:
+            self.patches[0].start()
+
     def test_panel_session_evicted_and_retried_on_404_or_auth_failure(self):
         self.patches[0].stop()
         import io

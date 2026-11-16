@@ -461,6 +461,7 @@ class Store:
             external = external_access()
             if external and external['id'] == req['id']:
                 panel_for(self, req['id'])
+                external = external_access() or external
                 return {**self.response('ok'), 'panelAccess': external, 'panelVerified': True}
             row = self.db.execute("SELECT * FROM jobs WHERE id=? AND status='succeeded'", (req['id'],)).fetchone()
             if row is None:

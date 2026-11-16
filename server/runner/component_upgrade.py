@@ -832,6 +832,7 @@ class ComponentUpgradeJob:
             # Canary healthcheck and automatic fail-safe rollback
             self.upgrader._ensure_detection_and_metadata()
             self.upgrader.verify_health(timeout=15)
+            self._sync_panel_access_versions()
 
         done_codes = [
             'upgrade_prepared',
@@ -844,6 +845,33 @@ class ComponentUpgradeJob:
         with self.store.db:
             self.store.db.execute('UPDATE jobs SET checkpoint=? WHERE id=?', (checkpoint + 1, self.request['id']))
             self.store.event(self.request['id'], done_codes[checkpoint], checkpoint + 1, 6)
+
+    def _sync_panel_access_versions(self):
+        if self.upgrader.component not in ('xray', 'panel'):
+            return
+        try:
+            from panel_discovery import EXTERNAL_ACCESS
+            from panel import atomic_file, DATABASE
+            new_version = self.manifest.get('version')
+            if not new_version:
+                return
+            if EXTERNAL_ACCESS.exists():
+                ext = json.loads(EXTERNAL_ACCESS.read_text())
+                if self.upgrader.component == 'panel':
+                    ext['panelVersion'] = new_version
+                elif self.upgrader.component == 'xray':
+                    ext['xrayVersion'] = new_version
+                atomic_file(EXTERNAL_ACCESS, json.dumps(ext).encode())
+            version_file = DATABASE / '.antirkn-versions'
+            if version_file.exists():
+                ver = json.loads(version_file.read_text())
+                if self.upgrader.component == 'panel':
+                    ver['panelVersion'] = new_version
+                elif self.upgrader.component == 'xray':
+                    ver['xrayVersion'] = new_version
+                atomic_file(version_file, json.dumps(ver).encode())
+        except Exception:
+            pass
 
     def rollback(self):
         """Invoke auto-rollback on failure or cancellation."""

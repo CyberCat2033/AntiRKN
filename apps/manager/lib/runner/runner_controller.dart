@@ -1755,7 +1755,9 @@ class RunnerController extends ChangeNotifier {
       return;
     }
     if (!result.panelVerified || result.panelAccess?.id != id) {
-      panelLoginRequired = true;
+      if (panelAccess == null) {
+        panelLoginRequired = true;
+      }
       panelVerifiedAt = null;
       return;
     }

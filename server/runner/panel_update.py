@@ -123,9 +123,16 @@ def snapshot(store, panel_id):
     current = versions(api)
     files = layout()
     # Confirm that the running API matches the executables being replaced.
-    if command([str(PANEL / 'x-ui'), '-v']).decode().strip() != current['panelVersion']:
+    xui_ver = command([str(PANEL / 'x-ui'), '-v']).decode().strip()
+    pv = current['panelVersion'].strip()
+    if xui_ver != pv and xui_ver.lstrip('v') != pv.lstrip('v'):
         raise PanelError('panel_conflict')
-    if not command([str(PANEL / 'bin/xray-linux-amd64'), 'version']).decode().startswith('Xray ' + current['xrayVersion'] + ' '):
+    xray_bin = PANEL / 'bin/xray-linux-amd64'
+    if not xray_bin.exists() and (PANEL / 'bin/xray-linux-arm64').exists():
+        xray_bin = PANEL / 'bin/xray-linux-arm64'
+    xray_out = command([str(xray_bin), 'version']).decode()
+    xv = current['xrayVersion'].strip().lstrip('v')
+    if not (xray_out.startswith('Xray ' + current['xrayVersion'] + ' ') or ('Xray ' + xv) in xray_out):
         raise PanelError('panel_conflict')
     return dict(panelId=panel_id, **current, files=files, configuration=configuration(api),
                 release=object_digest(UPDATE_RELEASE))

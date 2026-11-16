@@ -17,8 +17,23 @@ Future<bool> showPanelLogin(
           as int? ??
       controller.panelAccess?.port;
   if (port == null) return false;
-  if (controller.panelAccess?.port == port && !controller.panelLoginRequired) {
-    return true;
+  if (controller.panelAccess?.port == port) {
+    if (!controller.panelLoginRequired) {
+      return true;
+    }
+    final saved = controller.panelAccess;
+    if (saved != null &&
+        saved.username.isNotEmpty &&
+        saved.password.isNotEmpty) {
+      final reconnected = await controller.connectPanel(
+        port,
+        saved.username,
+        saved.password,
+      );
+      if (reconnected && !controller.panelLoginRequired) {
+        return true;
+      }
+    }
   }
   final selectedPort = port;
   return await showDialog<bool>(
@@ -57,8 +72,17 @@ class PanelLoginView extends StatefulWidget {
 }
 
 class _PanelLoginViewState extends State<PanelLoginView> {
-  final username = TextEditingController(), password = TextEditingController();
+  late final TextEditingController username;
+  late final TextEditingController password;
   bool revealed = false, invalid = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final saved = widget.controller.panelAccess;
+    username = TextEditingController(text: saved?.username ?? '');
+    password = TextEditingController();
+  }
   @override
   void dispose() {
     username.dispose();
