@@ -132,8 +132,9 @@ class XrayUpgradeController extends ChangeNotifier {
         .firstOrNull;
     if (managed != null) {
       final key = (target: runner.serverId, resource: managed.id);
-      if (!vpn.connections.available(key)) {
-        throw const FormatException('xray_check_changed');
+      final readiness = vpn.connections.evaluateReadiness(key);
+      if (readiness.state != InboundReadinessState.ready) {
+        throw FormatException(readiness.diagnosticReason ?? 'xray_check_changed');
       }
       return key;
     }

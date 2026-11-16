@@ -511,6 +511,149 @@ class VlessTests(unittest.TestCase):
         with_foreign_key['streamSettings']['maliciousKey'] = 'value'
         self.assertFalse(subset(desired, with_foreign_key))
 
+    def test_vless_3xui_311_normalization(self):
+        """Realistic JSON dump from 3x-ui 3.11+ (dest instead of target, masked privateKey, empty externalProxy) passes verify_inbound_spec."""
+        from vless import verify_inbound_spec
+        desired = {
+            'enable': True,
+            'port': 443,
+            'protocol': 'vless',
+            'listen': '::',
+            'settings': {
+                'clients': [{'id': '11111111-2222-3333-4444-555555555555', 'flow': 'xtls-rprx-vision', 'enable': True}],
+                'decryption': 'none',
+                'fallbacks': [],
+            },
+            'streamSettings': {
+                'network': 'xhttp',
+                'security': 'reality',
+                'realitySettings': {
+                    'show': False,
+                    'target': 'example.com:443',
+                    'xver': 0,
+                    'minClientVer': '0.0.0',
+                    'serverNames': ['example.com'],
+                    'privateKey': 'REALITY_PRIV_KEY',
+                    'shortIds': ['0123456789abcdef'],
+                    'settings': {
+                        'publicKey': 'REALITY_PUB_KEY',
+                        'fingerprint': 'chrome',
+                        'serverName': 'example.com',
+                        'spiderX': '/',
+                    },
+                },
+                'xhttpSettings': {
+                    'path': '/stream',
+                    'host': 'example.com',
+                    'mode': 'auto',
+                },
+            },
+            'sniffing': {
+                'enabled': True,
+                'destOverride': ['http', 'tls', 'quic', 'fakedns'],
+                'metadataOnly': False,
+                'routeOnly': False,
+            },
+        }
+
+        actual_3xui = {
+            'id': 10,
+            'up': 123456,
+            'down': 654321,
+            'total': 777777,
+            'remark': 'AntiRKN:workspace1:inbound1',
+            'enable': True,
+            'port': 443,
+            'protocol': 'vless',
+            'listen': '::',
+            'settings': json.dumps({
+                'clients': [{
+                    'id': '11111111-2222-3333-4444-555555555555',
+                    'flow': 'xtls-rprx-vision',
+                    'email': 'ar_inbound1_user1',
+                    'limitIp': 0,
+                    'totalGB': 0,
+                    'expiryTime': 0,
+                    'enable': True,
+                    'tgId': 0,
+                    'subId': '',
+                    'reset': 0,
+                    'delayedTime': 0,
+                    'createdAt': 1731790000000,
+                    'updatedAt': 1731790000000,
+                }],
+                'decryption': 'none',
+                'fallbacks': [],
+            }),
+            'streamSettings': json.dumps({
+                'network': 'xhttp',
+                'security': 'reality',
+                'externalProxy': [],
+                'dialerProxy': '',
+                'sockopt': None,
+                'tcpSettings': {},
+                'wsSettings': {},
+                'grpcSettings': {},
+                'realitySettings': {
+                    'show': False,
+                    'dest': 'example.com:443',
+                    'xver': 0,
+                    'serverNames': ['example.com'],
+                    'privateKey': '***',
+                    'shortIds': ['0123456789abcdef'],
+                    'settings': {
+                        'publicKey': 'REALITY_PUB_KEY',
+                        'fingerprint': 'chrome',
+                        'serverName': 'example.com',
+                        'spiderX': '/',
+                    },
+                },
+                'xhttpSettings': {
+                    'path': '/stream',
+                    'host': 'example.com',
+                    'mode': 'auto',
+                },
+            }),
+            'sniffing': json.dumps({
+                'enabled': True,
+                'destOverride': ['http', 'tls', 'quic', 'fakedns'],
+                'metadataOnly': False,
+                'routeOnly': False,
+            }),
+        }
+
+        ok, reasons = verify_inbound_spec(desired, actual_3xui)
+        self.assertTrue(ok, f"Expected verification to succeed, got reasons: {reasons}")
+        self.assertEqual(reasons, [])
+
+    def test_vless_rogue_client_rejected(self):
+        """When 3x-ui inbound has an unauthorized client, verify_inbound_spec rejects it with rogue_clients_detected."""
+        from vless import verify_inbound_spec
+        desired = {
+            'enable': True,
+            'port': 443,
+            'protocol': 'vless',
+            'settings': {
+                'clients': [{'id': '11111111-2222-3333-4444-555555555555', 'enable': True}],
+            },
+            'streamSettings': {'network': 'tcp', 'security': 'none'},
+        }
+        actual_with_rogue = {
+            'enable': True,
+            'port': 443,
+            'protocol': 'vless',
+            'settings': {
+                'clients': [
+                    {'id': '11111111-2222-3333-4444-555555555555', 'enable': True},
+                    {'id': '99999999-9999-9999-9999-999999999999', 'enable': True},
+                ],
+            },
+            'streamSettings': {'network': 'tcp', 'security': 'none'},
+        }
+        ok, reasons = verify_inbound_spec(desired, actual_with_rogue)
+        self.assertFalse(ok)
+        self.assertIn('rogue_clients_detected', reasons)
+
 class RealityMaterialTests(unittest.TestCase):
     def test_regenerate_changes_only_reality_material_and_is_stable_on_retry(self):
         from vless import material

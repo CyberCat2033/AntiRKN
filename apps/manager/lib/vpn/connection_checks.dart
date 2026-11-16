@@ -7,6 +7,19 @@ import 'vpn_controller.dart';
 
 typedef ConnectionTarget = ({String target, String resource});
 
+enum InboundReadinessState {
+  ready,
+  pendingOperation,
+  unconfirmedReadback,
+  connectivityFailed,
+}
+
+class InboundReadinessResult {
+  final InboundReadinessState state;
+  final String? diagnosticReason;
+  const InboundReadinessResult(this.state, [this.diagnosticReason]);
+}
+
 class _Entry {
   _Entry(this.signature, this.check);
   final String signature;
@@ -123,26 +136,78 @@ class ConnectionChecks extends ChangeNotifier {
     return key;
   }
 
-  bool _ready(ConnectionTarget key) {
+  InboundReadinessResult evaluateReadiness(ConnectionTarget key) {
     if (_external[key] case final row?) {
-      return row.spec['enabled'] == true &&
-          row.spec['deleted'] != true &&
-          owner.remote(key.target)?.identity == row.identity;
+      if (row.spec['deleted'] == true) {
+        return const InboundReadinessResult(
+          InboundReadinessState.unconfirmedReadback,
+          'vpn_user_deleted',
+        );
+      }
+      if (row.spec['enabled'] != true) {
+        return const InboundReadinessResult(
+          InboundReadinessState.unconfirmedReadback,
+          'vpn_disabled',
+        );
+      }
+      if (owner.remote(key.target)?.identity != row.identity) {
+        return const InboundReadinessResult(
+          InboundReadinessState.connectivityFailed,
+          'target_unavailable',
+        );
+      }
+      return const InboundReadinessResult(InboundReadinessState.ready);
     }
 
-    final wanted = spec(key),
-        record = owner.workspace.servers[key.target],
-        observed = _observed(key);
-    return wanted != null &&
-        wanted['enabled'] == true &&
-        wanted['deleted'] != true &&
-        record?['pending'] == null &&
-        record?['error'] == null &&
-        observed?['confirmed'] == true &&
-        observed?['workspaceId'] ==
-            owner.workspace.resourceWorkspaceId(key.target) &&
-        canonicalJson(observed?['spec']) == canonicalJson(wanted);
+    final wanted = spec(key);
+    if (wanted == null || wanted['deleted'] == true) {
+      return const InboundReadinessResult(
+        InboundReadinessState.unconfirmedReadback,
+        'missing_spec',
+      );
+    }
+    if (wanted['enabled'] != true) {
+      return const InboundReadinessResult(
+        InboundReadinessState.unconfirmedReadback,
+        'vpn_disabled',
+      );
+    }
+
+    owner.cleanStalePending(key.target);
+    final record = owner.workspace.servers[key.target];
+    if (record?['error'] != null) {
+      return InboundReadinessResult(
+        InboundReadinessState.connectivityFailed,
+        record!['error'].toString(),
+      );
+    }
+    if (record?['pending'] != null) {
+      return const InboundReadinessResult(
+        InboundReadinessState.pendingOperation,
+        'vpn_pending',
+      );
+    }
+
+    final observed = _observed(key);
+    if (observed == null || observed['confirmed'] != true) {
+      return const InboundReadinessResult(
+        InboundReadinessState.unconfirmedReadback,
+        'vpn_pending_readback',
+      );
+    }
+    if (observed['workspaceId'] !=
+            owner.workspace.resourceWorkspaceId(key.target) ||
+        canonicalJson(observed['spec']) != canonicalJson(wanted)) {
+      return const InboundReadinessResult(
+        InboundReadinessState.unconfirmedReadback,
+        'vpn_conflict',
+      );
+    }
+    return const InboundReadinessResult(InboundReadinessState.ready);
   }
+
+  bool _ready(ConnectionTarget key) =>
+      evaluateReadiness(key).state == InboundReadinessState.ready;
 
   VpnWorkspace _isolated(ConnectionTarget key) {
     if (_external[key] case final row?) {
@@ -284,42 +349,12 @@ class ConnectionChecks extends ChangeNotifier {
 
   final skipped = <ConnectionTarget>{};
   int completed = 0, total = 0;
-  bool available(ConnectionTarget key) => _ready(key);
+  bool available(ConnectionTarget key) =>
+      evaluateReadiness(key).state == InboundReadinessState.ready;
 
   String? unavailableReasonCode(ConnectionTarget key) {
-    if (_ready(key)) return null;
-
-    if (_external[key] case final row?) {
-      if (row.spec['deleted'] == true) return 'vpn_user_deleted';
-      if (row.spec['enabled'] != true) return 'vpn_disabled';
-      if (owner.remote(key.target)?.identity != row.identity) {
-        return 'target_unavailable';
-      }
-      return 'vpn_pending_readback';
-    }
-
-    final wanted = spec(key);
-    if (wanted == null || wanted['deleted'] == true) return null;
-    if (wanted['enabled'] != true) return 'vpn_disabled';
-
-    final record = owner.workspace.servers[key.target];
-    if (record?['error'] != null) {
-      return record!['error'].toString();
-    }
-    if (record?['pending'] != null) {
-      return 'vpn_pending';
-    }
-
-    final observed = _observed(key);
-    if (observed == null || observed['confirmed'] != true) {
-      return 'vpn_pending_readback';
-    }
-    if (observed['workspaceId'] !=
-            owner.workspace.resourceWorkspaceId(key.target) ||
-        canonicalJson(observed['spec']) != canonicalJson(wanted)) {
-      return 'vpn_conflict';
-    }
-    return null;
+    final res = evaluateReadiness(key);
+    return res.state == InboundReadinessState.ready ? null : res.diagnosticReason;
   }
   bool _queue = false;
   bool get queueRunning => _queue;

@@ -1213,11 +1213,90 @@ class VpnController extends ChangeNotifier {
     }
   }
 
-  bool adoptionConfirmed(String target, String id) =>
-      workspace.servers[target]?['pending'] == null &&
-      (workspace.servers[target]?['observed'] as List? ?? []).any(
-        (row) => row['id'] == id && row['confirmed'] == true,
+  void cleanStalePending(String target) {
+    final record = workspace.servers[target];
+    if (record == null || record['pending'] == null) return;
+    final jobMap = record['job'] as Map?;
+    final jobStatus = jobMap?['status'] as String?;
+    final isTerminal = jobStatus == 'failed' ||
+        jobStatus == 'cancelled' ||
+        jobStatus == 'partially_applied' ||
+        jobStatus == 'succeeded';
+    bool expired = false;
+    if (record['pending'] case final Map pMap) {
+      if (pMap['startedAt'] case final String started) {
+        final start = DateTime.tryParse(started);
+        if (start != null &&
+            DateTime.now().difference(start) > const Duration(minutes: 5)) {
+          expired = true;
+        }
+      }
+    }
+    if (isTerminal || expired) {
+      final updated = {
+        ...record,
+        'pending': null,
+      };
+      workspace = workspace.copy(
+        servers: {
+          ...workspace.servers,
+          target: updated,
+        },
       );
+      unawaited(_record(target, updated));
+      notifyListeners();
+    }
+  }
+
+  final _boundRunners = <String, (Listenable, VoidCallback)>{};
+
+  void bindRunner(
+    String serverId,
+    Listenable runnerEvents,
+    bool Function() isIdleOrReset,
+  ) {
+    if (_boundRunners[serverId] case final existing?) {
+      if (identical(existing.$1, runnerEvents)) return;
+      existing.$1.removeListener(existing.$2);
+      _boundRunners.remove(serverId);
+    }
+    void listener() {
+      if (isIdleOrReset()) {
+        onRunnerQueueReset(serverId);
+      }
+    }
+    _boundRunners[serverId] = (runnerEvents, listener);
+    runnerEvents.addListener(listener);
+  }
+
+  void onRunnerQueueReset(String serverId) {
+    final targets = [serverId, awgTarget(serverId), ttTarget(serverId)];
+    final updatedServers = Map<String, Map<String, dynamic>>.from(workspace.servers);
+    bool changed = false;
+    for (final target in targets) {
+      final rec = updatedServers[target];
+      if (rec != null && rec['pending'] != null) {
+        updatedServers[target] = {
+          ...rec,
+          'pending': null,
+        };
+        changed = true;
+        unawaited(_record(target, {...rec, 'pending': null}));
+      }
+    }
+    if (changed) {
+      workspace = workspace.copy(servers: updatedServers);
+      notifyListeners();
+    }
+  }
+
+  bool adoptionConfirmed(String target, String id) {
+    cleanStalePending(target);
+    return workspace.servers[target]?['pending'] == null &&
+        (workspace.servers[target]?['observed'] as List? ?? []).any(
+          (row) => row['id'] == id && row['confirmed'] == true,
+        );
+  }
 
   Future<void> adoptResource({
     required String target,
@@ -2567,6 +2646,10 @@ class VpnController extends ChangeNotifier {
 
   @override
   void dispose() {
+    for (final entry in _boundRunners.values) {
+      entry.$1.removeListener(entry.$2);
+    }
+    _boundRunners.clear();
     connections.dispose();
     _coreCancellation?.cancel();
     _identityNoticeTimer?.cancel();

@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:antirkn_domain/antirkn_domain.dart';
+import 'package:antirkn_manager/vpn/connection_checks.dart';
 import 'package:antirkn_profile_compiler/antirkn_profile_compiler.dart';
 import 'package:antirkn_manager/vpn/vpn_controller.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const panel = '11111111111111111111111111111111';
@@ -1113,6 +1115,62 @@ void main() {
       final recovered = await c.syncAllServersAndProfiles();
       expect(recovered.verified, isTrue);
       expect(c.serverSyncIssue, isNull);
+    },
+  );
+  test(
+    'test_flutter_pending_auto_cleanup: runner reset clears vpn pending state and restores readback',
+    () async {
+      final store = MemoryVpn(), remotes = <String, Remote>{};
+      remotes.addAll({'one': Remote(store), 'two': Remote(store)});
+      final c = controller(store, remotes);
+      addTearDown(c.dispose);
+      await setup(c);
+
+      const inboundOne = '11111111111111111111111111111111';
+      final inbSpec = c.workspace.inbounds.firstWhere((i) => i.id == inboundOne).spec;
+
+      c.workspace = c.workspace.copy(
+        servers: {
+          ...c.workspace.servers,
+          'one': {
+            'identity': 'identity-one',
+            'panelId': panel,
+            'pending': {
+              'jobId': 'job-1234',
+              'startedAt': DateTime.now().toUtc().toIso8601String(),
+            },
+            'observed': [
+              {
+                'id': inboundOne,
+                'confirmed': true,
+                'workspaceId': c.workspace.resourceWorkspaceId('one'),
+                'spec': inbSpec,
+              },
+            ],
+          },
+        },
+      );
+
+      expect(c.adoptionConfirmed('one', inboundOne), isFalse);
+      final key = (target: 'one', resource: inboundOne);
+      expect(
+        c.connections.evaluateReadiness(key).state,
+        InboundReadinessState.pendingOperation,
+      );
+
+      final runnerEvents = ChangeNotifier();
+      var isIdle = false;
+      c.bindRunner('one', runnerEvents, () => isIdle);
+
+      isIdle = true;
+      runnerEvents.notifyListeners();
+
+      expect(c.workspace.servers['one']?['pending'], isNull);
+      expect(c.adoptionConfirmed('one', inboundOne), isTrue);
+      expect(
+        c.connections.evaluateReadiness(key).state,
+        InboundReadinessState.ready,
+      );
     },
   );
 }

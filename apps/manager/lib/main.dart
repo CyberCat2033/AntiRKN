@@ -524,7 +524,15 @@ class _ManagerShellState extends State<ManagerShell>
             ) ??
             const <String>[],
         remote: (id) {
-          final runner = _catalog?.sessionFor(vpnServerId(id))?.runner;
+          final server = vpnServerId(id);
+          final runner = _catalog?.sessionFor(server)?.runner;
+          if (runner != null && _vpn != null) {
+            _vpn!.bindRunner(
+              server,
+              runner,
+              () => !runner.hasUnfinishedJob && runner.selected == null && runner.pending == null,
+            );
+          }
           final transport = runner?.transport();
           final access = runner?.panelAccess;
           final identity = runner?.identity();

@@ -204,7 +204,7 @@ def normal(row):
     for key in ('settings', 'streamSettings', 'sniffing', 'allocate'):
         if isinstance(value.get(key), str):
             try: value[key] = json.loads(value[key])
-            except ValueError: pass
+            except (ValueError, TypeError): pass
     settings = value.get('settings')
     if isinstance(settings, dict):
         for client in settings.get('clients', []):
@@ -222,6 +222,50 @@ def normal(row):
     return value
 
 
+def normalize_3xui_inbound(raw_inbound):
+    """Приводит ответ 3x-ui 3.11+ к каноническому виду, очищая пустые дефолты."""
+    if not isinstance(raw_inbound, dict):
+        return {}
+    value = {k: copy.deepcopy(v) for k, v in raw_inbound.items() if k not in
+             ('up', 'down', 'total', 'allTime', 'lastTrafficResetTime', 'clientStats', 'userId',
+              'originNodeGuid', 'fallbackParent')}
+    for key in ('settings', 'streamSettings', 'sniffing', 'allocate'):
+        if isinstance(value.get(key), str):
+            try: value[key] = json.loads(value[key])
+            except (ValueError, TypeError): pass
+
+    # Clean streamSettings
+    stream = value.get('streamSettings')
+    if isinstance(stream, dict):
+        for empty_field in ('externalProxy', 'dialerProxy', 'sockopt'):
+            if empty_field in stream and (stream[empty_field] is None or stream[empty_field] == [] or stream[empty_field] == "" or stream[empty_field] == {}):
+                stream.pop(empty_field, None)
+        for opt_sec in ('xhttpSettings', 'wsSettings', 'grpcSettings', 'httpSettings', 'quicSettings', 'kcpSettings', 'tcpSettings'):
+            if opt_sec in stream and (stream[opt_sec] is None or stream[opt_sec] == {}):
+                stream.pop(opt_sec, None)
+
+    # Clean settings clients
+    settings = value.get('settings')
+    if isinstance(settings, dict):
+        clients = settings.get('clients')
+        if isinstance(clients, list):
+            cleaned_clients = []
+            for client in clients:
+                if not isinstance(client, dict):
+                    continue
+                c = copy.deepcopy(client)
+                if not c.get('flow'):
+                    c.pop('flow', None)
+                for key in ('created_at', 'updated_at', 'createdAt', 'updatedAt',
+                            'subId', 'tgId', 'reset', 'delayedTime', 'totalGB', 'expiryTime', 'limitIp'):
+                    if key in c and (c[key] == 0 or c[key] == '' or c[key] is None or key in ('created_at', 'updated_at', 'createdAt', 'updatedAt')):
+                        c.pop(key, None)
+                cleaned_clients.append(c)
+            settings['clients'] = sorted(cleaned_clients, key=lambda c: c.get('id', ''))
+
+    return value
+
+
 KNOWN_STREAM_KEYS = {
     'network', 'security', 'external', 'realitySettings', 'tlsSettings',
     'tcpSettings', 'kcpSettings', 'wsSettings', 'httpSettings',
@@ -229,15 +273,116 @@ KNOWN_STREAM_KEYS = {
 }
 
 
+def verify_inbound_spec(desired, actual_raw):
+    """
+    Pure-функция сверки спецификации.
+    Возвращает (True, []) при полном семантическом совпадении
+    или (False, ['reason_code_1', ...]) при расхождении.
+    ЗАПРЕЩЕНО обращаться к БД внутри этой функции.
+    """
+    if not isinstance(desired, dict) or not isinstance(actual_raw, dict):
+        return False, ["invalid_input"]
+
+    norm_desired = normalize_3xui_inbound(desired)
+    actual = normalize_3xui_inbound(actual_raw)
+    reasons = []
+
+    # 1. Base inbound fields
+    for field in ('enable', 'port', 'protocol'):
+        if norm_desired.get(field) is not None and actual.get(field) != norm_desired.get(field):
+            reasons.append(f"mismatch_{field}")
+
+    d_listen = norm_desired.get('listen') or ''
+    a_listen = actual.get('listen') or ''
+    if d_listen and d_listen not in ('0.0.0.0', '::') and a_listen and a_listen not in ('0.0.0.0', '::'):
+        if d_listen != a_listen:
+            reasons.append("mismatch_listen")
+
+    # 2. Clients validation
+    d_clients = norm_desired.get('settings', {}).get('clients', []) if isinstance(norm_desired.get('settings'), dict) else []
+    a_clients = actual.get('settings', {}).get('clients', []) if isinstance(actual.get('settings'), dict) else []
+    d_uuids = {c['id'] for c in d_clients if isinstance(c, dict) and 'id' in c}
+    a_uuids = {c['id'] for c in a_clients if isinstance(c, dict) and 'id' in c}
+
+    if a_uuids - d_uuids:
+        reasons.append("rogue_clients_detected")
+    if d_uuids - a_uuids:
+        reasons.append("missing_clients_detected")
+
+    a_client_map = {c['id']: c for c in a_clients if isinstance(c, dict) and 'id' in c}
+    for d_c in d_clients:
+        if not isinstance(d_c, dict) or 'id' not in d_c:
+            continue
+        c_id = d_c['id']
+        if c_id in a_client_map:
+            a_c = a_client_map[c_id]
+            if d_c.get('enable') is not None and a_c.get('enable') is not None:
+                if bool(d_c.get('enable')) != bool(a_c.get('enable')):
+                    reasons.append(f"client_enable_mismatch:{c_id}")
+            if (d_c.get('flow') or '') != (a_c.get('flow') or ''):
+                reasons.append(f"client_flow_mismatch:{c_id}")
+
+    # 3. StreamSettings validation
+    d_stream = norm_desired.get('streamSettings', {}) if isinstance(norm_desired.get('streamSettings'), dict) else {}
+    a_stream = actual.get('streamSettings', {}) if isinstance(actual.get('streamSettings'), dict) else {}
+
+    for k in a_stream:
+        if k not in KNOWN_STREAM_KEYS:
+            reasons.append(f"unknown_stream_key:{k}")
+
+    if d_stream.get('network') and a_stream.get('network') != d_stream.get('network'):
+        reasons.append("mismatch_network")
+    if d_stream.get('security') and a_stream.get('security') != d_stream.get('security'):
+        reasons.append("mismatch_security")
+
+    if d_stream.get('network') == 'xhttp':
+        d_xhttp = d_stream.get('xhttpSettings', {})
+        a_xhttp = a_stream.get('xhttpSettings', {})
+        for field in ('path', 'host', 'mode'):
+            if field in d_xhttp and d_xhttp[field] != a_xhttp.get(field):
+                reasons.append(f"mismatch_xhttp_{field}")
+
+    if d_stream.get('security') == 'reality':
+        d_rs = d_stream.get('realitySettings', {})
+        a_rs = a_stream.get('realitySettings', {})
+        if set(d_rs.get('serverNames') or []) != set(a_rs.get('serverNames') or []):
+            reasons.append("mismatch_reality_serverNames")
+        if set(d_rs.get('shortIds') or []) != set(a_rs.get('shortIds') or []):
+            reasons.append("mismatch_reality_shortIds")
+        d_target = d_rs.get('target') or d_rs.get('dest')
+        a_target = a_rs.get('target') or a_rs.get('dest')
+        if d_target and a_target and d_target != a_target:
+            reasons.append("mismatch_reality_target")
+        d_pub = (d_rs.get('settings') or {}).get('publicKey') or d_rs.get('publicKey')
+        a_pub = (a_rs.get('settings') or {}).get('publicKey') or a_rs.get('publicKey')
+        if d_pub and a_pub and d_pub != a_pub:
+            reasons.append("mismatch_reality_publicKey")
+        d_priv = d_rs.get('privateKey')
+        a_priv = a_rs.get('privateKey')
+        if d_priv and a_priv and a_priv not in ('', '***', 'masked', None):
+            if d_priv != a_priv:
+                reasons.append("mismatch_reality_privateKey")
+
+    if d_stream.get('security') == 'tls':
+        d_tls = d_stream.get('tlsSettings', {})
+        a_tls = a_stream.get('tlsSettings', {})
+        if d_tls.get('serverName') and a_tls.get('serverName') != d_tls.get('serverName'):
+            reasons.append("mismatch_tls_serverName")
+        if set(d_tls.get('alpn') or []) != set(a_tls.get('alpn') or []):
+            reasons.append("mismatch_tls_alpn")
+
+    return (len(reasons) == 0, reasons)
+
+
 def subset(desired, actual, _key=""):
     """
-    Семантическое сравнение desired против actual с учетом особенностей 3x-ui:
-    - dict: все ключи из desired должны присутствовать в actual и удовлетворять subset;
-            дополнительные ключи в actual игнорируются (кроме streamSettings с чужими ключами).
-    - key == 'clients': строгое совпадение количества и сопоставление по 'id'/'email'.
-    - key in ('alpn', 'destOverride'): сравнение как множеств (порядок не важен).
-    - list (прочие): поэлементное сравнение при равной длине.
+    Семантическое сравнение desired против actual с учетом особенностей 3x-ui.
+    Делегирует проверку verify_inbound_spec при сравнении корневых инбаундов.
     """
+    if _key == "" and isinstance(desired, dict) and isinstance(actual, dict):
+        if 'settings' in desired or 'streamSettings' in desired:
+            ok, _ = verify_inbound_spec(desired, actual)
+            return ok
     if _key in ('alpn', 'destOverride'):
         if isinstance(desired, list) and isinstance(actual, list):
             return set(desired) == set(actual)
@@ -457,57 +602,49 @@ def state(store, panel_id, pending_job=None):
             continue
         current = locate(rows, saved['workspaceId'], rid)
         if current is None:
+            is_deleted = True
+            confirmed = True
+            exists = False
             if not saved.get('deleted'):
                 saved['deleted'] = True
                 saved['observedHash'] = None
                 with store.db:
                     store.db.execute('INSERT INTO vless_resources VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data',
                         (rid, canonical(saved)))
-            confirmed = True
         else:
+            is_deleted = False
+            exists = True
             deleted_changed = False
             if saved.get('deleted'):
                 saved['deleted'] = False
+                if not saved.get('observedHash'):
+                    saved['observedHash'] = digest(normal(current))
                 deleted_changed = True
             panel_updated = False
             if saved.get('panelId') != panel_id:
                 saved['panelId'] = panel_id
                 panel_updated = True
+            if deleted_changed or panel_updated:
+                with store.db:
+                    store.db.execute('INSERT INTO vless_resources VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data',
+                        (rid, canonical(saved)))
             confirmed = matches_observation(api, current, saved['workspaceId'], rid, saved.get('observedHash'))
             if not confirmed:
                 try:
                     payload = dict(
                         workspaceId=saved['workspaceId'],
+                        panelId=panel_id,
                         resources=[saved['spec']],
                         users=[{'id': c['id'], 'enabled': c.get('enable', c.get('enabled', True))} for c in saved.get('clients', [])]
                     )
                     wanted = wanted_inbound(payload, saved['spec'], current)
-                    desired = normal(wanted)
-                    actual = normal(current)
-                    for k in ('id', 'tag', 'up', 'down', 'total', 'userId', 'nodeId'):
-                        desired.pop(k, None)
-                        actual.pop(k, None)
-                    if subset(desired, actual):
-                        try:
-                            detail = api.call('/panel/api/inbounds/get/%d' % current['id'])
-                            detail_row = detail if isinstance(detail, dict) and detail.get('id') == current['id'] and detail.get('remark') == marker(saved['workspaceId'], rid) else current
-                        except Exception:
-                            detail_row = current
-                        saved['observedHash'] = digest(normal(detail_row))
-                        saved['deleted'] = False
-                        saved['panelId'] = panel_id
-                        with store.db:
-                            store.db.execute('INSERT INTO vless_resources VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data',
-                                (rid, canonical(saved)))
+                    ok, _ = verify_inbound_spec(wanted, current)
+                    if ok:
                         confirmed = True
                 except Exception:
                     pass
-            elif panel_updated or deleted_changed:
-                with store.db:
-                    store.db.execute('INSERT INTO vless_resources VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data',
-                        (rid, canonical(saved)))
         result.append(dict(id=rid, spec=saved['spec'], workspaceId=saved['workspaceId'],
-            confirmed=confirmed, deleted=bool(saved.get('deleted')), exists=(current is not None),
+            confirmed=confirmed, deleted=is_deleted, exists=exists,
             publicKey=saved['publicKey'], shortId=saved['shortId'],
             clients=saved['clients'], revision=saved['revision']))
     return result

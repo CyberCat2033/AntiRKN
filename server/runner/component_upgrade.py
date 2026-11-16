@@ -350,6 +350,30 @@ def normalize_sha256(raw: str | None) -> str:
     return cleaned
 
 
+def verify_sha256(file_path: Path, expected_digest: str | None) -> None:
+    """
+    Проверяет SHA-256 файла. Поддерживает форматы 'hex' и 'sha256:hex'.
+    Бросает ComponentUpgradeError(CHECKSUM_FAILED) при отсутствии хэша или несовпадении.
+    """
+    if not expected_digest or not str(expected_digest).strip():
+        raise ComponentUpgradeError(
+            UpgradeEventCode.CHECKSUM_FAILED,
+            detail="missing_expected_digest",
+        )
+    expected = normalize_sha256(str(expected_digest))
+    if not expected:
+        raise ComponentUpgradeError(
+            UpgradeEventCode.CHECKSUM_FAILED,
+            detail="invalid_expected_digest",
+        )
+    actual = digest(Path(file_path)).lower()
+    if actual != expected:
+        raise ComponentUpgradeError(
+            UpgradeEventCode.CHECKSUM_FAILED,
+            detail=f"SHA-256 mismatch: expected {expected}, got {actual}",
+        )
+
+
 def normalize_arch(arch=None):
     raw = arch or platform.machine().lower()
     if raw in ('x86_64', 'amd64', 'x64'):
@@ -728,10 +752,20 @@ def extract_archive_safe(archive_path, extract_dir, binary_name=None, max_size=5
                 name = item.filename
                 path = PurePosixPath(name)
                 total_size += item.file_size
-                is_link = not stat.S_ISLNK(item.external_attr >> 16) if hasattr(item, 'external_attr') else False
-                if path.is_absolute() or '..' in path.parts or '\\' in name or name in seen or total_size > max_size:
-                    raise ComponentUpgradeError('upgrade_checksum_failed')
-                seen.add(name)
+                if path.is_absolute() or '..' in path.parts or '\\' in name:
+                    raise ComponentUpgradeError(UpgradeEventCode.SYNTAX_FAILED, detail='archive_unsafe_path')
+                if total_size > max_size:
+                    raise ComponentUpgradeError(UpgradeEventCode.SYNTAX_FAILED, detail='archive_size_exceeded')
+                norm_name = str(path).strip('/')
+                if norm_name in ('', '.'):
+                    continue
+                is_dir = item.is_dir() if hasattr(item, 'is_dir') else name.endswith('/')
+                if is_dir:
+                    seen.add(norm_name)
+                    continue
+                if norm_name in seen:
+                    raise ComponentUpgradeError(UpgradeEventCode.SYNTAX_FAILED, detail=f'archive_duplicate_entry: {norm_name}')
+                seen.add(norm_name)
             z.extractall(str(dest))
         return dest
 
@@ -741,9 +775,19 @@ def extract_archive_safe(archive_path, extract_dir, binary_name=None, max_size=5
                 name = member.name
                 path = PurePosixPath(name)
                 total_size += member.size
-                if path.is_absolute() or '..' in path.parts or '\\' in name or name in seen or total_size > max_size:
-                    raise ComponentUpgradeError('upgrade_checksum_failed')
-                seen.add(name)
+                if path.is_absolute() or '..' in path.parts or '\\' in name:
+                    raise ComponentUpgradeError(UpgradeEventCode.SYNTAX_FAILED, detail='archive_unsafe_path')
+                if total_size > max_size:
+                    raise ComponentUpgradeError(UpgradeEventCode.SYNTAX_FAILED, detail='archive_size_exceeded')
+                norm_name = str(path).strip('/')
+                if norm_name in ('', '.'):
+                    continue
+                if member.isdir():
+                    seen.add(norm_name)
+                    continue
+                if norm_name in seen:
+                    raise ComponentUpgradeError(UpgradeEventCode.SYNTAX_FAILED, detail=f'archive_duplicate_entry: {norm_name}')
+                seen.add(norm_name)
             try:
                 t.extractall(str(dest), filter='data')
             except TypeError:
@@ -882,12 +926,12 @@ class ComponentUpgrader:
         self._ensure_detection_and_metadata()
         archive = Path(downloaded_archive_path)
         if not archive.exists():
-            raise ComponentUpgradeError('upgrade_download_missing')
+            raise ComponentUpgradeError(UpgradeEventCode.DOWNLOAD_MISSING)
 
-        expected_sha = normalize_sha256(self.manifest.get('sha256'))
+        expected_sha = self.manifest.get('sha256')
+        if expected_sha and str(expected_sha).strip():
+            verify_sha256(archive, expected_sha)
         actual_sha = digest(archive).lower()
-        if expected_sha and actual_sha != expected_sha:
-            raise ComponentUpgradeError('upgrade_checksum_failed')
         self.manifest['sha256'] = actual_sha
 
         binary_name = self.manifest.get('binaryName') or (Path(self.detection['binaryPath']).name if (self.detection and self.detection.get('binaryPath')) else None)
@@ -1332,13 +1376,10 @@ class ComponentUpgradeJob:
             if not self.archive_path.exists():
                 raise ComponentUpgradeError(UpgradeEventCode.DOWNLOAD_MISSING, detail='Archive file missing after download')
 
-            expected_sha = normalize_sha256(self.payload.get('sha256'))
+            expected_sha = self.payload.get('sha256')
+            if expected_sha and str(expected_sha).strip():
+                verify_sha256(self.archive_path, expected_sha)
             actual_sha = digest(self.archive_path).lower()
-            if expected_sha and actual_sha != expected_sha:
-                raise ComponentUpgradeError(
-                    UpgradeEventCode.CHECKSUM_FAILED,
-                    detail=f"SHA-256 mismatch: expected {expected_sha}, got {actual_sha}",
-                )
             self.payload['sha256'] = actual_sha
             self.upgrader.manifest['sha256'] = actual_sha
         elif checkpoint == 2:

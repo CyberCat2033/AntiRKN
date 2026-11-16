@@ -148,6 +148,41 @@ class ComponentUpgradeResilienceTests(unittest.TestCase):
         # Verify active binary is intact and not modified
         self.assertEqual(fake_bin.read_bytes(), b'old_working_binary')
 
+    def test_trusttunnel_archive_extraction(self):
+        """Archive with root ./ entry and sha256:... prefix passes verify_sha256 and extract_archive_safe."""
+        from component_upgrade import verify_sha256, extract_archive_safe
+        import io
+        archive_dir = Path(self.temp_dir.name) / 'tt_test'
+        archive_dir.mkdir()
+        tar_path = archive_dir / 'trusttunnel-v1.3.0-beta.2-linux-x86_64.tar.gz'
+
+        with tarfile.open(tar_path, 'w:gz') as t:
+            root_ti = tarfile.TarInfo('./')
+            root_ti.type = tarfile.DIRTYPE
+            t.addfile(root_ti)
+
+            sub_ti = tarfile.TarInfo('trusttunnel-v1.3.0-beta.2-linux-x86_64/')
+            sub_ti.type = tarfile.DIRTYPE
+            t.addfile(sub_ti)
+
+            payload = b"trusttunnel_endpoint_binary_content"
+            bin_ti = tarfile.TarInfo('trusttunnel-v1.3.0-beta.2-linux-x86_64/trusttunnel_endpoint')
+            bin_ti.size = len(payload)
+            bin_ti.mode = 0o755
+            t.addfile(bin_ti, io.BytesIO(payload))
+
+        expected_hash = hashlib.sha256(tar_path.read_bytes()).hexdigest()
+        raw_digest = f"sha256:{expected_hash}"
+
+        verify_sha256(tar_path, raw_digest)
+
+        extract_dest = archive_dir / 'extracted'
+        extract_archive_safe(tar_path, extract_dest)
+
+        extracted_bin = extract_dest / 'trusttunnel-v1.3.0-beta.2-linux-x86_64' / 'trusttunnel_endpoint'
+        self.assertTrue(extracted_bin.exists())
+        self.assertEqual(extracted_bin.read_bytes(), payload)
+
     # ------------------------------------------------------------------------
     # 3. Syntax Pre-Flight Check Failure (Zero Downtime)
     # ------------------------------------------------------------------------
@@ -885,6 +920,16 @@ class ComponentUpgradeResilienceTests(unittest.TestCase):
         with self.assertRaises(ComponentUpgradeError) as ctx:
             normalize_sha256('z' * 64)
         self.assertEqual(ctx.exception.code, 'upgrade_checksum_failed')
+
+    def test_verify_sha256_rejects_empty_digest(self):
+        """verify_sha256 rejects None, empty strings, and invalid hashes."""
+        from component_upgrade import verify_sha256
+        dummy_file = Path(self.temp_dir.name) / 'dummy.bin'
+        dummy_file.write_bytes(b'test_payload')
+        for bad_digest in (None, '', '   ', 'not_a_hex', 'a' * 63):
+            with self.assertRaises(ComponentUpgradeError) as ctx:
+                verify_sha256(dummy_file, bad_digest)
+            self.assertEqual(ctx.exception.code, 'upgrade_checksum_failed')
 
 
 if __name__ == '__main__':

@@ -123,6 +123,9 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
         'xray_check_layout' => isCandidateNewer ? '' : l.xrayUpgradeLayout,
         'xray_check_changed' => l.xrayUpgradeConflict,
         'xray_check_rollback' => l.xrayUpgradeAttention,
+        'vpn_pending_readback' => '${l.vpnPendingReadback} ${l.xrayUpgradeProblem}',
+        'vpn_pending' => '${l.vpnPending} ${l.xrayUpgradeProblem}',
+        'vpn_conflict' => '${l.vpnConflict} ${l.xrayUpgradeProblem}',
         '' ||
         'committed' ||
         'preparing' ||
