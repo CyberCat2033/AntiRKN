@@ -71,7 +71,7 @@ final class SshRunnerTransport implements RunnerTransport {
 
   static String get _rpcDispatchCommand => python(
     "import os, glob, sys\n"
-    "t = '/usr/local/lib/antirkn-runner/v58/runner.py'\n"
+    "t = '/usr/local/lib/antirkn-runner/v59/runner.py'\n"
     "if os.path.exists(t):\n"
     "    os.execv('/usr/bin/python3', ['/usr/bin/python3', '-I', t, 'rpc'])\n"
     "def _v(x):\n"

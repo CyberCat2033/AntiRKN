@@ -647,6 +647,110 @@ class ComponentUpgradeResilienceTests(unittest.TestCase):
         event = json.loads(row[0])
         self.assertEqual(event['code'], 'failed')
 
+    def test_semver_preserves_prerelease(self):
+        """Parsing component version output with prerelease tags preserves full semver."""
+        from component_upgrade import extract_semver
+        self.assertEqual(extract_semver("trusttunnel_endpoint 1.3.0-beta.2\n"), "1.3.0-beta.2")
+        self.assertEqual(extract_semver("1.1.0"), "1.1.0")
+        self.assertEqual(extract_semver("v3.11.0"), "3.11.0")
+        self.assertEqual(extract_semver("Xray 26.11.9 (Xray, Penetrates Everything.)"), "26.11.9")
+        self.assertEqual(extract_semver("amneziawg-go v3.1.20260828"), "3.1.20260828")
+
+    def test_precheck_aborts_on_wrong_arch_elf(self):
+        """Providing an ARM64 ELF binary on x86_64 aborts in syntax_pre_check before switch."""
+        from component_upgrade import ComponentUpgrader, ComponentUpgradeError
+        target_dir = Path(self.temp_dir.name) / 'arch_test'
+        target_dir.mkdir()
+        active_bin = target_dir / 'trusttunnel_endpoint'
+        active_bin.write_bytes(b'old_tt_binary')
+
+        # Craft mock ARM64 ELF header (e_machine = 0xb7 at offset 18-19)
+        arm64_elf = bytearray(b'\x7fELF\x02\x01\x01\x00' + b'\x00' * 10)
+        arm64_elf += (0xb7).to_bytes(2, byteorder='little')
+        arm64_elf += b'\x00' * 50
+
+        staged_bin = target_dir / 'staged_arm64'
+        staged_bin.write_bytes(bytes(arm64_elf))
+
+        manifest = {
+            'component': 'trusttunnel',
+            'version': '1.3.0-beta.2',
+            'architecture': 'x86_64',
+            'sha256': '',
+        }
+        upgrader = ComponentUpgrader(self.store, {'id': 'a' * 32}, manifest)
+        upgrader.detection = {
+            'component': 'trusttunnel',
+            'installed': True,
+            'binaryPath': str(active_bin),
+            'source': 'native',
+            'units': [],
+            'configPath': None,
+            'ports': [],
+            'arch': 'x86_64',
+        }
+        upgrader.backup()
+
+        with patch('component_upgrade.normalize_arch', return_value='x86_64'):
+            with self.assertRaises(ComponentUpgradeError) as ctx:
+                upgrader.syntax_pre_check(staged_bin)
+            self.assertEqual(ctx.exception.code, 'upgrade_architecture_mismatch')
+
+        # Active binary was NOT touched
+        self.assertEqual(active_bin.read_bytes(), b'old_tt_binary')
+
+    def test_canary_rollback_on_port_bind_failure(self):
+        """If updated binary starts but expected socket is not bound, canary triggers rollback."""
+        from component_upgrade import ComponentUpgrader, ComponentUpgradeError
+        target_dir = Path(self.temp_dir.name) / 'canary_test'
+        target_dir.mkdir()
+        active_bin = target_dir / 'trusttunnel_endpoint'
+        active_bin.write_bytes(b'healthy_old_binary')
+
+        new_bin = target_dir / 'new_binary'
+        new_bin.write_bytes(b'broken_new_binary')
+
+        manifest = {
+            'component': 'trusttunnel',
+            'version': '1.3.0-beta.2',
+            'architecture': 'x86_64',
+            'sha256': '',
+        }
+        upgrader = ComponentUpgrader(self.store, {'id': 'b' * 32}, manifest)
+        upgrader.detection = {
+            'component': 'trusttunnel',
+            'installed': True,
+            'binaryPath': str(active_bin),
+            'source': 'native',
+            'units': ['antirkn-tt@test.service'],
+            'configPath': None,
+            'ports': [8443],
+            'healthTargets': [
+                {
+                    'unit_name': 'antirkn-tt@test.service',
+                    'initial_state': 'active',
+                    'initial_restarts': 0,
+                    'config_path': None,
+                    'expected_bindings': [{'host': '0.0.0.0', 'port': 8443, 'protocol': 'tcp'}],
+                }
+            ],
+            'arch': 'x86_64',
+        }
+        upgrader.backup()
+        with patch('subprocess.run', return_value=MagicMock(returncode=0, stdout='ActiveState=active\nNRestarts=0\n')):
+            upgrader.apply_switch(new_bin)
+        self.assertEqual(active_bin.read_bytes(), b'broken_new_binary')
+
+        # Mock: service is active, but socket probe fails (port 8443 not listening)
+        with patch('subprocess.run', return_value=MagicMock(returncode=0, stdout='ActiveState=active\nNRestarts=0\n')), \
+             patch('component_upgrade.verify_socket_bindings', return_value=(False, 'Missing port 8443')):
+            with self.assertRaises(ComponentUpgradeError) as ctx:
+                upgrader.verify_health(timeout=0.1)
+            self.assertEqual(ctx.exception.code, 'upgrade_healthcheck_failed')
+
+        # Rollback restored the original binary!
+        self.assertEqual(active_bin.read_bytes(), b'healthy_old_binary')
+
 
 if __name__ == '__main__':
     unittest.main()

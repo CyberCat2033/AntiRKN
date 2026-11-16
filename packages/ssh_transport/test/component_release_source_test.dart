@@ -118,4 +118,32 @@ void main() {
     expect(asset!['assetName'], 'trusttunnel-linux-amd64.tar.gz');
     expect(asset['url'], 'https://example.com/trusttunnel.tar.gz');
   });
+
+  test('ReleaseAssetSelector strictly discriminates x86_64 from aarch64 even with 64 in version', () {
+    final assets = [
+      {'name': 'trusttunnel-v1.3.0-beta.2-linux-aarch64-dbgsym.tar.gz', 'url': 'https://aarch64-dbg'},
+      {'name': 'trusttunnel-v1.3.0-beta.2-linux-aarch64.tar.gz', 'url': 'https://aarch64'},
+      {'name': 'trusttunnel-v1.3.0-beta.2-linux-x86_64-dbgsym.tar.gz', 'url': 'https://x86_64-dbg'},
+      {'name': 'trusttunnel-v1.3.0-beta.2-linux-x86_64.tar.gz', 'url': 'https://x86_64'},
+      {'name': 'trusttunnel-v1.3.0-beta.2-macos-universal.tar.gz', 'url': 'https://macos'},
+    ];
+
+    final x86Candidate = ReleaseAssetSelector.selectAsset(
+      assets: assets,
+      targetOs: 'linux',
+      targetArch: 'x86_64',
+    );
+    expect(x86Candidate, isNotNull);
+    expect(x86Candidate!['name'], 'trusttunnel-v1.3.0-beta.2-linux-x86_64.tar.gz');
+    expect(x86Candidate['url'], 'https://x86_64');
+
+    final armCandidate = ReleaseAssetSelector.selectAsset(
+      assets: assets,
+      targetOs: 'linux',
+      targetArch: 'aarch64',
+    );
+    expect(armCandidate, isNotNull);
+    expect(armCandidate!['name'], 'trusttunnel-v1.3.0-beta.2-linux-aarch64.tar.gz');
+    expect(armCandidate['url'], 'https://aarch64');
+  });
 }

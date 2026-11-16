@@ -3,6 +3,76 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:antirkn_domain/antirkn_domain.dart';
 
+class ReleaseAssetSelector {
+  /// Strict asset selection matching target OS and target architecture.
+  /// Eliminates accidental matching of AArch64 assets on x86_64 and filters debug symbols/signatures.
+  static Map? selectAsset({
+    required List assets,
+    required String targetOs,
+    required String targetArch,
+    String? component,
+  }) {
+    final arch = targetArch.toLowerCase();
+    final isArm = arch == 'aarch64' || arch == 'arm64';
+    final osPattern = RegExp(targetOs, caseSensitive: false);
+
+    // Strict architecture tokens bounded by separators
+    final x86Pattern = RegExp(
+      r'(?:^|[-_.])(?:amd64|x86_64|x64|64)(?:[-_.]|$)',
+      caseSensitive: false,
+    );
+    final armPattern = RegExp(
+      r'(?:^|[-_.])(?:arm64|aarch64)(?:[-_.]|$)',
+      caseSensitive: false,
+    );
+
+    for (final a in assets) {
+      if (a is! Map) continue;
+      final name = (a['name'] as String?) ?? '';
+      final lowerName = name.toLowerCase();
+
+      // Check OS
+      if (!osPattern.hasMatch(lowerName)) continue;
+
+      // Exclude packaging formats, signatures, debug symbols, checksums, and SBOMs
+      if (lowerName.endsWith('.deb') ||
+          lowerName.endsWith('.rpm') ||
+          lowerName.endsWith('.sig') ||
+          lowerName.endsWith('.sha256') ||
+          lowerName.endsWith('.sha256sum') ||
+          lowerName.endsWith('.txt') ||
+          lowerName.endsWith('.sbom') ||
+          lowerName.contains('dbgsym')) {
+        continue;
+      }
+
+      // Valid archive or binary extensions
+      final hasValidExt = lowerName.endsWith('.tar.gz') ||
+          lowerName.endsWith('.tgz') ||
+          lowerName.endsWith('.zip') ||
+          lowerName.endsWith('.tar.xz') ||
+          !lowerName.contains('.');
+      if (!hasValidExt) continue;
+
+      if (isArm) {
+        if (armPattern.hasMatch(lowerName)) {
+          return a;
+        }
+      } else {
+        // x86_64 / amd64: MUST NOT match any arm or aarch64
+        if (lowerName.contains('arm') || lowerName.contains('aarch')) {
+          continue;
+        }
+        if (x86Pattern.hasMatch(lowerName)) {
+          return a;
+        }
+      }
+    }
+
+    return null;
+  }
+}
+
 /// Device-side metadata only. No SSH, APT, executable download or execution.
 final class GithubComponentReleaseSource implements ComponentReleaseSource {
   const GithubComponentReleaseSource({this.metadata});
@@ -146,35 +216,13 @@ final class GithubComponentReleaseSource implements ComponentReleaseSource {
       }
 
       final assets = (release['assets'] as List?) ?? [];
-      final archToken = (arch == 'aarch64' || arch == 'arm64')
-          ? RegExp(r'arm64|aarch64', caseSensitive: false)
-          : RegExp(r'amd64|x86_64|64', caseSensitive: false);
-
-      Map? matchedAsset;
-      for (final a in assets) {
-        final name = (a as Map)['name'] as String;
-        if (name.contains('linux') && archToken.hasMatch(name)) {
-          if (!name.endsWith('.deb') &&
-              !name.endsWith('.rpm') &&
-              !name.contains('dbgsym')) {
-            matchedAsset = a;
-            break;
-          }
-        }
-      }
-      if (matchedAsset == null && assets.isNotEmpty) {
-        for (final a in assets) {
-          final name = (a as Map)['name'] as String;
-          if (!name.endsWith('.deb') &&
-              !name.endsWith('.rpm') &&
-              !name.contains('dbgsym')) {
-            matchedAsset = a;
-            break;
-          }
-        }
-      }
-      if (matchedAsset == null ||
-          (matchedAsset['name'] as String).contains('dbgsym')) {
+      final matchedAsset = ReleaseAssetSelector.selectAsset(
+        assets: assets,
+        targetOs: 'linux',
+        targetArch: arch,
+        component: component,
+      );
+      if (matchedAsset == null) {
         return null;
       }
 
