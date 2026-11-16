@@ -151,7 +151,7 @@ class SoftwareOverview extends StatelessWidget {
                   : applyAction
                   ? (!c.canRequestAction
                         ? null
-                        : () async {
+                        : () => c.requestAction(() async {
                             if (isPanel &&
                                 detected &&
                                 (!await showPanelLogin(context, c) ||
@@ -192,8 +192,19 @@ class SoftwareOverview extends StatelessWidget {
                                 }
                               }
                             }
-                            await c.installOrUpdate(isPanel ? 'panel' : key);
-                          })
+                            if (isPanel) {
+                              if (c.panelDetected) {
+                                await c.preparePanelUpdate();
+                                await c.applyPanelUpdate();
+                              } else {
+                                await c.openPanelPlan();
+                                await c.applyPanel();
+                              }
+                            } else {
+                              await c.prepareComponent(key);
+                              await c.applyComponent();
+                            }
+                          }))
                   : updates == null
                   ? null
                   : () => updates.check(),

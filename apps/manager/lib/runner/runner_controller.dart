@@ -1627,6 +1627,14 @@ class RunnerController extends ChangeNotifier {
     String component, {
     Map<String, Object?>? candidate,
   }) => _run((remote, token) async {
+    if (installation?.upgradable == true || !installed) {
+      installation = await remote.install(
+        installation ?? await remote.inspect(token),
+        token,
+        sudoPassword: password(),
+      );
+      token.check();
+    }
     final response = await remote.request(
       RunnerRequest.componentUpgradeCheck(component, candidate: candidate),
       token,
@@ -1643,6 +1651,14 @@ class RunnerController extends ChangeNotifier {
     Map<String, dynamic> plan,
     Map<String, Object?> candidate,
   ) => _run((remote, token) async {
+    if (installation?.upgradable == true || !installed) {
+      installation = await remote.install(
+        installation ?? await remote.inspect(token),
+        token,
+        sudoPassword: password(),
+      );
+      token.check();
+    }
     final random = Random.secure();
     final id = List.generate(
       16,
