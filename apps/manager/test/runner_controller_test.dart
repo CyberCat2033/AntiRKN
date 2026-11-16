@@ -346,4 +346,33 @@ void main() {
     ];
     expect(c.canRequestAction, isTrue);
   });
+
+  test('submit succeeds without invalidResponse when response contains multiple jobs in queue', () async {
+    await install();
+    final candidate = {
+      'component': 'panel',
+      'version': '3.11.0',
+      'architecture': 'x86_64',
+      'assetName': 'x-ui-linux-amd64.tar.gz',
+      'url': 'https://example.com/x-ui.tar.gz',
+      'bytes': 80000000,
+      'sha256': '',
+    };
+    final plan = {
+      'component': 'panel',
+      'currentVersion': '3.8.0',
+      'targetVersion': '3.11.0',
+      'fingerprint': 'a' * 64,
+    };
+    final oldJob = runnerJob('b' * 32, kind: 'apt_update', count: 2, interval: 1, status: 'planned');
+    remote.customSubmitJobs = [
+      runnerJob('1' * 32, kind: 'component_upgrade_apply', count: 6, interval: 1, status: 'planned'),
+      oldJob,
+    ];
+
+    await c.applyComponentUpgrade(plan, candidate);
+    expect(c.error, isNull);
+    expect(c.pending, isNull);
+    expect(c.selected?.kind, equals('component_upgrade_apply'));
+  });
 }

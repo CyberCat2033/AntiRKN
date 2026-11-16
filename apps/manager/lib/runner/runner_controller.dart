@@ -1812,11 +1812,16 @@ class RunnerController extends ChangeNotifier {
     token.check();
     responseCode = response.code;
     alive = response.alive;
-    if (response.code == 'ok' && response.jobs.single.id == request.id) {
-      selected = response.jobs.single;
-      cursor = selected!.sequence;
+    if (response.code == 'ok') {
+      final matching =
+          response.jobs.where((j) => j.id == request.id).firstOrNull ??
+          response.jobs.firstOrNull;
+      if (matching != null) {
+        selected = matching;
+        cursor = selected!.sequence;
+        jobs = [selected!, ...jobs.where((j) => j.id != selected!.id)];
+      }
       pending = null;
-      jobs = [selected!, ...jobs.where((j) => j.id != selected!.id)];
     } else if (const {
       'xray_check_busy',
       'probe_busy',

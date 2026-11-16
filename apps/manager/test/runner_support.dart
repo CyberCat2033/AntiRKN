@@ -58,6 +58,7 @@ class FakeRunnerTransport implements RunnerTransport {
   int cancellations = 0;
   Completer<void>? submitGate;
   RunnerJob? job;
+  List<RunnerJob>? customSubmitJobs;
   Map<String, dynamic>? discovery;
   Map<String, dynamic>? recoveredAccess;
   String panelState = 'missing';
@@ -216,7 +217,7 @@ class FakeRunnerTransport implements RunnerTransport {
           interval: request.json['interval'] as int,
         );
         if (loseSubmitResponse) throw const SshFailure(SshIssue.disconnected);
-        jobs = [job!];
+        jobs = customSubmitJobs ?? [job!];
       case 'list':
         jobs = [?job];
       case 'status':
