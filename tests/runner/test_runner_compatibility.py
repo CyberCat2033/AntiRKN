@@ -116,6 +116,13 @@ class RunnerCompatibilityTests(unittest.TestCase):
                 self.assertEqual(actual['release'], manifest['release'])
                 self.assertTrue(actual['upgradable'])
 
+    def test_released_v52_is_upgradeable(self):
+        manifest = json.loads((ROOT / 'schemas/runner-predecessor-v52.json').read_text())
+        actual = self._inspect(manifest, version='v52')
+        self.assertEqual(actual['state'], 'installed')
+        self.assertEqual(actual['release'], manifest['release'])
+        self.assertTrue(actual['upgradable'])
+
     def test_unknown_v44_variant_remains_blocked(self):
         manifest = json.loads(json.dumps(MANIFESTS[1]))
         manifest['hashes']['vless.py'] = MANIFESTS[0]['hashes']['vless.py']

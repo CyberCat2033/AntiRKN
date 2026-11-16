@@ -1,5 +1,4 @@
 {
-  "bundleSha256": null,
   "hashes": {
     "antirkn-runner.service": "c09499951aebe484d04e943778bcad497d8f05cd1ff47bafd0b1dee374017fb4",
     "apt.py": "1291cf3ed437f7eb3f528c55df733be9f4707a6dbe2283da0277c2e72807cfee",
@@ -49,7 +48,5 @@
     "xray_transaction.py": "273d890712e3f9b770689438a4a7ebc99a41b0e21b37b187e0cfa00175463078",
     "xray_upgrade_release.py": "0b5b7bb0667284e924ef8984fbca158964a271ef8fa20da5070a741ddfb83e59"
   },
-  "release": "2cce43653c66e0d6b86c23ba114b3079b01ba37b8a2ea93b8dc3387ed4359e94",
-  "runnerVersion": 52,
-  "version": 52
+  "release": "2cce43653c66e0d6b86c23ba114b3079b01ba37b8a2ea93b8dc3387ed4359e94"
 }

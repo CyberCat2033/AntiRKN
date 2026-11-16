@@ -68,9 +68,11 @@ def inspect_runner():
             if hashes[str(BASE / version)]:
                 manifest = json.loads((BASE / version / 'manifest.json').read_text())
                 if isinstance(expected, list):
-                    if manifest not in expected: raise ValueError()
-                    expected = manifest
-                if manifest != expected: raise ValueError()
+                    matching = [e for e in expected if manifest.get('release') == e.get('release') and manifest.get('hashes') == e.get('hashes')]
+                    if not matching: raise ValueError()
+                    expected = matching[0]
+                elif manifest.get('release') != expected.get('release') or manifest.get('hashes') != expected.get('hashes'):
+                    raise ValueError()
                 for name in names_by_version[version]:
                     if hashes[str(BASE / version / name)] != expected['hashes'][name]: raise ValueError()
                 predecessors.append(manifest)
