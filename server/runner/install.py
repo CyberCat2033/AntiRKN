@@ -72,21 +72,25 @@ def install_runner(request):
             now = time.time()
             for record in (state / 'xray-upgrades').glob('*/state.json'):
                 try:
-                    if (now - record.stat().st_mtime) <= 600 and json.loads(record.read_text()).get('phase') not in ('committed', 'rolled_back', 'not_changed'):
-                        raise ValueError('busy')
+                    data = json.loads(record.read_text())
+                    if (now - record.stat().st_mtime) <= 600 and data.get('phase') not in ('committed', 'rolled_back', 'not_changed'):
+                        if data.get('deadline', 0) > now:
+                            raise ValueError('busy')
                 except (OSError, ValueError):
                     pass
             for record in (state / 'connectivity-probes').glob('*.json'):
                 try:
-                    if (now - record.stat().st_mtime) <= 120 and json.loads(record.read_text()).get('status') != 'closed':
-                        raise ValueError('busy')
+                    data = json.loads(record.read_text())
+                    if (now - record.stat().st_mtime) <= 120 and data.get('status') != 'closed':
+                        if data.get('expires', 0) > now:
+                            raise ValueError('busy')
                 except (OSError, ValueError):
                     pass
-        if not (BASE / 'v53').exists():
+        if not (BASE / 'v54').exists():
             temp = Path(tempfile.mkdtemp(prefix='.antirkn-', dir='/usr/local/lib'))
             try:
                 temp.chmod(0o755)
-                version = temp / 'v53'
+                version = temp / 'v54'
                 version.mkdir(mode=0o755)
                 version.chmod(0o755)
                 for name in PROGRAMS:
@@ -97,14 +101,14 @@ def install_runner(request):
                 (version / 'manifest.json').write_text(json.dumps(dict(release=release, hashes=hashes), sort_keys=True))
                 (version / 'manifest.json').chmod(0o644)
                 if BASE.exists():
-                    os.rename(str(version), str(BASE / 'v53'))
+                    os.rename(str(version), str(BASE / 'v54'))
                 else:
                     os.rename(str(temp), str(BASE))
             finally:
                 if temp.exists():
                     shutil.rmtree(str(temp))
         # Validate syntax and bytecode generation for all Python programs in the bundle
-        target_dir = BASE / 'v53'
+        target_dir = BASE / 'v54'
         for name in PROGRAMS:
             if name.endswith('.py'):
                 py_file = target_dir / name

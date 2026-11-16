@@ -239,4 +239,16 @@ class FakeRunnerTransport implements RunnerTransport {
       ...extra,
     });
   }
+
+  int emergencyResets = 0;
+  @override
+  Future<void> emergencyReset(
+    CancellationToken cancellation, {
+    String? sudoPassword,
+  }) async {
+    emergencyResets++;
+    if (job != null) {
+      job = runnerJob(job!.id, status: 'cancelled');
+    }
+  }
 }

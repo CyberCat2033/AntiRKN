@@ -169,6 +169,12 @@ class BenchmarkRunnerTransport implements RunnerTransport {
       'jobs': <Object?>[],
     });
   }
+
+  @override
+  Future<void> emergencyReset(
+    CancellationToken cancellation, {
+    String? sudoPassword,
+  }) async {}
 }
 
 class BenchmarkPublicationRemote extends pub.Remote {

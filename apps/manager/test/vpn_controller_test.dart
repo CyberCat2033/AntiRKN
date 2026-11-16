@@ -161,6 +161,12 @@ class Remote implements RunnerTransport {
     }
     return RunnerResponse.fromJson(response(jobs: [jobs[id]!]));
   }
+
+  @override
+  Future<void> emergencyReset(
+    CancellationToken cancellation, {
+    String? sudoPassword,
+  }) async {}
 }
 
 class DelayedStatusRemote extends Remote {

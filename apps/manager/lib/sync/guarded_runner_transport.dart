@@ -43,4 +43,13 @@ final class GuardedRunnerTransport implements RunnerTransport {
     }
     return delegate.request(request, cancellation, sudoPassword: sudoPassword);
   }
+
+  @override
+  Future<void> emergencyReset(
+    CancellationToken cancellation, {
+    String? sudoPassword,
+  }) async {
+    cancellation.check();
+    return delegate.emergencyReset(cancellation, sudoPassword: sudoPassword);
+  }
 }

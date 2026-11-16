@@ -54,6 +54,11 @@ class DatabaseRemote implements RunnerTransport {
     delegate.store.raw = (await db.readVpn()).source;
     return delegate.request(request, token);
   }
+  @override
+  Future<void> emergencyReset(
+    CancellationToken token, {
+    String? sudoPassword,
+  }) => delegate.emergencyReset(token, sudoPassword: sudoPassword);
 }
 
 void main() {

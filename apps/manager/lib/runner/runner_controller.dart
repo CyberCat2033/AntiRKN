@@ -408,7 +408,11 @@ class RunnerController extends ChangeNotifier {
     } on VaultFailure {
       if (!token.isCancelled && !_disposed) error = RunnerIssue.storage;
     } catch (_) {
-      if (!token.isCancelled && !_disposed) error = RunnerIssue.invalidResponse;
+      if (!token.isCancelled && !_disposed) {
+        error = (connectionLost || !connected)
+            ? RunnerIssue.unavailable
+            : RunnerIssue.invalidResponse;
+      }
     } finally {
       if (_token == token) {
         if (background) {
@@ -979,7 +983,8 @@ class RunnerController extends ChangeNotifier {
     );
     token.check();
     if (result.code != 'ok' || result.panelDiscovery == null) {
-      throw const RunnerFailure(RunnerIssue.invalidResponse);
+      panelDiscovery = {'failed': true};
+      return;
     }
     panelDiscovery = result.panelDiscovery;
     panelAccess = result.panelAccess;
@@ -1709,7 +1714,9 @@ class RunnerController extends ChangeNotifier {
       return;
     }
     if (!result.panelVerified || result.panelAccess?.id != id) {
-      throw const RunnerFailure(RunnerIssue.invalidResponse);
+      panelLoginRequired = true;
+      panelVerifiedAt = null;
+      return;
     }
     panelAccess = result.panelAccess;
     panelLoginRequired = false;
@@ -1823,10 +1830,19 @@ class RunnerController extends ChangeNotifier {
     token.check();
     responseCode = response.code;
     alive = response.alive;
-    if (response.code != 'ok') return;
-    final job = response.jobs.single;
-    if (job.id != id || job.sequence < requestedCursor) {
-      throw const RunnerFailure(RunnerIssue.invalidResponse);
+    if (response.code != 'ok') {
+      if (response.code == 'missing') {
+        if (selected?.id == id) selected = null;
+        jobs = jobs.where((j) => j.id != id).toList();
+      }
+      return;
+    }
+    final job = response.jobs.firstOrNull;
+    if (job == null || job.id != id) {
+      return;
+    }
+    if (job.sequence < requestedCursor) {
+      cursor = 0;
     }
     eventsTruncated =
         job.events.isNotEmpty &&
@@ -1906,6 +1922,12 @@ class RunnerController extends ChangeNotifier {
       );
       token.check();
       responseCode = response.code;
+      final currentJob = response.jobs.firstOrNull;
+      if (currentJob?.status == 'planned') {
+        try {
+          await remote.emergencyReset(token, sudoPassword: password());
+        } catch (_) {}
+      }
       await _readJob(remote, token, job.id);
       if (installation?.upgradable == true || !installed) {
         try {
@@ -1932,6 +1954,8 @@ class RunnerController extends ChangeNotifier {
     error = null;
     responseCode = null;
     connectionLost = false;
+    selected = null;
+    cursor = 0;
     _notify();
 
     await _run((remote, token) async {
@@ -1952,6 +1976,9 @@ class RunnerController extends ChangeNotifier {
           );
         } catch (_) {}
       }
+      try {
+        await remote.emergencyReset(token, sudoPassword: password());
+      } catch (_) {}
       if (installation?.upgradable == true || !installed) {
         try {
           installation = await remote.install(
@@ -1971,11 +1998,8 @@ class RunnerController extends ChangeNotifier {
         responseCode = list.code;
         alive = list.alive;
         jobs = list.jobs;
-        final id =
-            pending?.id ??
-            jobs.where((j) => !j.terminal).firstOrNull?.id ??
-            selected?.id;
-        if (id != null) await _readJob(remote, token, id);
+        selected = null;
+        cursor = 0;
       } catch (_) {}
     });
   }

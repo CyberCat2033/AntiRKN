@@ -71,7 +71,7 @@ final class SshRunnerTransport implements RunnerTransport {
 
   static String get _rpcDispatchCommand => python(
     "import os, glob, sys\n"
-    "t = '/usr/local/lib/antirkn-runner/v53/runner.py'\n"
+    "t = '/usr/local/lib/antirkn-runner/v54/runner.py'\n"
     "if os.path.exists(t):\n"
     "    os.execv('/usr/bin/python3', ['/usr/bin/python3', '-I', t, 'rpc'])\n"
     "def _v(x):\n"
@@ -111,12 +111,16 @@ final class SshRunnerTransport implements RunnerTransport {
       if (action == 'panel_verify' && response.code == 'ok') {
         final access = response.panelAccess;
         if (access == null || access.id != request.id) {
-          throw const FormatException('panel_access');
+          return RunnerResponse.fromJson({...json, 'panelVerified': false});
         }
         if (access.managed) {
-          await SshPanelApi(executor.client, access, cancellation).verify();
+          try {
+            await SshPanelApi(executor.client, access, cancellation).verify();
+          } catch (_) {
+            return RunnerResponse.fromJson({...json, 'panelVerified': false});
+          }
         } else if (!response.panelVerified) {
-          throw const FormatException('panel_verify');
+          return RunnerResponse.fromJson({...json, 'panelVerified': false});
         }
         return RunnerResponse.fromJson({...json, 'panelVerified': true});
       }
@@ -124,6 +128,44 @@ final class SshRunnerTransport implements RunnerTransport {
     } catch (_) {
       throw const RunnerFailure(RunnerIssue.invalidResponse);
     }
+  }
+
+  @override
+  Future<void> emergencyReset(
+    CancellationToken cancellation, {
+    String? sudoPassword,
+  }) async {
+    try {
+      await _privileged(
+        python(
+          "import sqlite3, subprocess, sys, json, os, glob\n"
+          "try:\n"
+          "    db = sqlite3.connect('/var/lib/antirkn-runner/jobs.sqlite')\n"
+          "    db.execute(\"UPDATE jobs SET status='cancelled', cancel=1 WHERE status IN ('planned','running')\")\n"
+          "    db.commit()\n"
+          "    db.close()\n"
+          "except Exception:\n"
+          "    pass\n"
+          "for p in glob.glob('/var/lib/antirkn-runner/connectivity-probes/*.json'):\n"
+          "    try: os.unlink(p)\n"
+          "    except Exception: pass\n"
+          "for p in glob.glob('/var/lib/antirkn-runner/xray-upgrades/*/state.json'):\n"
+          "    try:\n"
+          "        data = json.loads(open(p).read())\n"
+          "        if data.get('phase') not in ('committed', 'rolled_back', 'not_changed'):\n"
+          "            data['phase'] = 'rolled_back'\n"
+          "            data['code'] = 'cancelled'\n"
+          "            open(p, 'w').write(json.dumps(data))\n"
+          "    except Exception: pass\n"
+          "subprocess.run(['systemctl', 'restart', 'antirkn-runner.service'], check=False)\n"
+          "print('__ANTIRKN_RUNNER_INPUT__', file=sys.stderr, flush=True)\n"
+          "print(json.dumps({'version': 1, 'code': 'ok', 'alive': True, 'jobs': []}))",
+        ),
+        '{}',
+        cancellation,
+        sudoPassword: sudoPassword,
+      );
+    } catch (_) {}
   }
 
   Future<RemoteCommandResult> _privileged(

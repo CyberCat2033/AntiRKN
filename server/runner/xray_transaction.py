@@ -56,7 +56,20 @@ def save(store,info):
     atomic_file(path/'state.json',vless.canonical(info).encode())
 
 def active(store):
-    return any((info:=load(store,path.name)) and info['phase'] not in FINAL for path in directory(store).iterdir() if path.is_dir())
+    for path in directory(store).iterdir():
+        if path.is_dir():
+            info = load(store, path.name)
+            if info and info['phase'] not in FINAL:
+                if expired(info):
+                    try:
+                        rollback(store, info)
+                    except Exception:
+                        info.update(phase='recovery_required', code='xray_check_timeout')
+                        save(store, info)
+                        continue
+                else:
+                    return True
+    return False
 
 def leases(store,keys):
     if not isinstance(keys,list) or not 1<=len(keys)<=TARGET['maxInbounds'] or len(set(keys))!=len(keys):raise UpdateError('xray_check_coverage')

@@ -88,6 +88,17 @@ final class _WorkerConnection implements SshConnection, RunnerTransport {
         as RunnerResponse;
   }
 
+  @override
+  Future<void> emergencyReset(
+    CancellationToken cancellation, {
+    String? sudoPassword,
+  }) async {
+    cancellation.check();
+    await cancellation.bind(
+      _request('runnerEmergencyReset', sudoPassword),
+    );
+  }
+
   _WorkerConnection(this.verifier, this.jumpVerifier) {
     events.listen(_receive);
     // Startup can fail before connect begins waiting for ready.
@@ -316,6 +327,12 @@ void _runWorker((SendPort, Duration, Duration) input) {
                 sudoPassword: secret,
               ),
             ));
+          case 'runnerEmergencyReset':
+            await connection!.runner!.emergencyReset(
+              cancellation,
+              sudoPassword: payload as String?,
+            );
+            events.send(('result', id, null));
           case 'privileges':
             final result = await connection!.checkPrivileges(
               cancellation,

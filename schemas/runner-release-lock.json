@@ -1,7 +1,7 @@
 {
   "bundleSha256": null,
   "hashes": {
-    "antirkn-runner.service": "fc8e5a17c8e2a2b78f002afbdedcd58280bf4bc8f4e1f63f89b994725029aee5",
+    "antirkn-runner.service": "ddd1e9a29890e1c70d624952af45dbe63e4eb75f191019d94bb3a4c40089b5cd",
     "apt.py": "1291cf3ed437f7eb3f528c55df733be9f4707a6dbe2283da0277c2e72807cfee",
     "awg.py": "c4cbce6f961a523df758cfadefdea5a878fa27ca3bfb9212ee74eb0511f1ec82",
     "awg_contract.py": "d9abd0099d91d4088a11d4bf0018f53dbed3e2797f0416e434b72c89fcc0534c",
@@ -12,7 +12,7 @@
     "component_releases.py": "d1486eda1a67d3afce697dd96439349d1e6bd9c8d58b875a7f65ef7564891adb",
     "component_upgrade.py": "36203473c1ec31fb3921a0dd2b47c892f6675deece25e7163242390d6c4c625f",
     "components.py": "821d314a41646f5e9732367e77c0b8fc386210798ed371a43f7882a4dbacedb3",
-    "connectivity_probe.py": "77d68f139f18b105db1e859eb9b75a99df094dafb8ffc827d1ec23b32883feaf",
+    "connectivity_probe.py": "2b973f5e9c1cc78976f5c243a4db39cfb09c5141625cbab798fdc59ad970edcf",
     "contract.py": "04d92c8368eb4d6eba8b7debadca74c6eca6cc5f746df1fcc68ad67a7c2f3257",
     "egress_access.py": "896657c7e439bcc1b37a44d079ad20bbb017d8464aca36d32fa7131a80c50d84",
     "egress_config.py": "9616f7a7bf9cd1632e6120cb47336189cdf05cff70981729ee3ea9d5756a378d",
@@ -46,10 +46,10 @@
     "tt_tomli_types.py": "f864c6d9552a929c7032ace654ee05ef26ca75d21b027b801d77e65907138b74",
     "vless.py": "c2476e1479fef91639f63cef5d7cbc281b332e7b5e134f8cbc9cd68040d5fabe",
     "vless_contract.py": "44d0fb8edecf930489ef005592c225769cada4bd324522bcc1ee4709cc996f78",
-    "xray_transaction.py": "273d890712e3f9b770689438a4a7ebc99a41b0e21b37b187e0cfa00175463078",
+    "xray_transaction.py": "a999245a5e10e9336fd39dbb71fb2bb2d08fb21e2c817476a52989f644f577bc",
     "xray_upgrade_release.py": "0b5b7bb0667284e924ef8984fbca158964a271ef8fa20da5070a741ddfb83e59"
   },
-  "release": "053b68bb46874e627080743743674e5a9269ed33ab172e2b87848a2352e73119",
-  "runnerVersion": 53,
-  "version": 53
+  "release": "0aece07ae3199464c3ca0aad6f942fb9967900509ed0dc797bf84a71e4813d95",
+  "runnerVersion": 54,
+  "version": 54
 }

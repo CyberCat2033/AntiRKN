@@ -88,8 +88,16 @@ def save(store, info):
 
 
 def active(store):
-    return any(load(store, p.stem).get('status') != 'closed'
-               for p in directory(store).glob('*.json'))
+    for p in directory(store).glob('*.json'):
+        try:
+            info = load(store, p.stem)
+            if info.get('status') != 'closed':
+                if info.get('expires', 0) < time.time():
+                    continue
+                return True
+        except Exception:
+            continue
+    return False
 
 
 def arm(info):

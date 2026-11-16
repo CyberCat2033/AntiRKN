@@ -696,6 +696,10 @@ abstract interface class RunnerTransport {
     CancellationToken cancellation, {
     String? sudoPassword,
   });
+  Future<void> emergencyReset(
+    CancellationToken cancellation, {
+    String? sudoPassword,
+  });
 }
 
 abstract interface class RunnerJournalStore {
