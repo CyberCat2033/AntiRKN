@@ -730,6 +730,30 @@ class ComponentUpgradeJob:
                     local_file = Path(archive_url.removeprefix('file://'))
                     if local_file.exists():
                         atomic_file(self.archive_path, local_file.read_bytes())
+                elif archive_url and (archive_url.startswith('https://') or archive_url.startswith('http://')):
+                    import urllib.request
+                    tmp_archive = self.archive_path.with_suffix('.tmp')
+                    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+                    req = urllib.request.Request(
+                        archive_url,
+                        headers={'User-Agent': 'AntiRKN-Runner/1.0'}
+                    )
+                    try:
+                        with opener.open(req, timeout=120) as resp:
+                            with open(tmp_archive, 'wb') as f:
+                                while True:
+                                    chunk = resp.read(65536)
+                                    if not chunk:
+                                        break
+                                    f.write(chunk)
+                        tmp_archive.replace(self.archive_path)
+                    except Exception as err:
+                        if tmp_archive.exists():
+                            try:
+                                tmp_archive.unlink()
+                            except OSError:
+                                pass
+                        raise ComponentUpgradeError('upgrade_download_missing') from err
                 elif 'archiveData' in self.payload:
                     import base64
                     atomic_file(self.archive_path, base64.b64decode(self.payload['archiveData']))

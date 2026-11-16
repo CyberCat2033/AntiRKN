@@ -1,7 +1,7 @@
 {
   "bundleSha256": null,
   "hashes": {
-    "antirkn-runner.service": "f198a94c17fbf9b8ecc186e80393e651a58dce8ddd53a8cf8cf817fea62bc6d9",
+    "antirkn-runner.service": "ddda3cddc75c78393f74a7533b54fe68cf54cec7403cf6772e0c6b710779eb05",
     "apt.py": "61d4104cc63c45d3d0916fd0ad86494649e2ddb2703b8a37d276d0f0bb68bde3",
     "awg.py": "c4cbce6f961a523df758cfadefdea5a878fa27ca3bfb9212ee74eb0511f1ec82",
     "awg_contract.py": "d9abd0099d91d4088a11d4bf0018f53dbed3e2797f0416e434b72c89fcc0534c",
@@ -10,7 +10,7 @@
     "client_egress.py": "8a93abf58f18df5bac7cf0e4a3e312b106e1ccbb234b2cc1739303d6206d9a1d",
     "client_revocations.py": "a5d127e51e2437dffcacf23794fff9412cbdee498c567360df5723af7a19da5d",
     "component_releases.py": "d1486eda1a67d3afce697dd96439349d1e6bd9c8d58b875a7f65ef7564891adb",
-    "component_upgrade.py": "f3e1a1f5786d4d9eb58493127db0f517666df1bae1a0b984f6224fbd569d5995",
+    "component_upgrade.py": "023f17cdd36afc227e61a310cade12d0edcb07e1cdadb2c2956ba21a20f3dc73",
     "components.py": "821d314a41646f5e9732367e77c0b8fc386210798ed371a43f7882a4dbacedb3",
     "connectivity_probe.py": "2b973f5e9c1cc78976f5c243a4db39cfb09c5141625cbab798fdc59ad970edcf",
     "contract.py": "04d92c8368eb4d6eba8b7debadca74c6eca6cc5f746df1fcc68ad67a7c2f3257",
@@ -49,7 +49,7 @@
     "xray_transaction.py": "38f2a9abf9cfb5ab8b5394c8801a7a94ad50403b42212814f78ce56d5c3a5349",
     "xray_upgrade_release.py": "148940ff8239bcc5f952f1638a8c8595e784b98192f53545af1506d68c664689"
   },
-  "release": "2453f84b186e7492d86d262a89330ee48c22f25264b07bafa564ad99dd1d6daf",
-  "runnerVersion": 55,
-  "version": 55
+  "release": "fd9573a3ccddec229d49be8c39746ea6cfc803287a76f77a48f933e0e90a69fa",
+  "runnerVersion": 56,
+  "version": 56
 }

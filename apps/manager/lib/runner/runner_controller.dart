@@ -61,7 +61,8 @@ class RunnerController extends ChangeNotifier {
     if (!installed ||
         !alive ||
         error != null ||
-        installation?.upgradable == true) {
+        installation?.upgradable == true ||
+        (bundledRelease != null && installation?.release != bundledRelease)) {
       await refresh(prepare: true);
     }
     return connected && installed && alive && error == null;
@@ -1627,7 +1628,9 @@ class RunnerController extends ChangeNotifier {
     String component, {
     Map<String, Object?>? candidate,
   }) => _run((remote, token) async {
-    if (installation?.upgradable == true || !installed) {
+    if (installation?.upgradable == true ||
+        !installed ||
+        (bundledRelease != null && installation?.release != bundledRelease)) {
       installation = await remote.install(
         installation ?? await remote.inspect(token),
         token,
@@ -1651,7 +1654,9 @@ class RunnerController extends ChangeNotifier {
     Map<String, dynamic> plan,
     Map<String, Object?> candidate,
   ) => _run((remote, token) async {
-    if (installation?.upgradable == true || !installed) {
+    if (installation?.upgradable == true ||
+        !installed ||
+        (bundledRelease != null && installation?.release != bundledRelease)) {
       installation = await remote.install(
         installation ?? await remote.inspect(token),
         token,
@@ -2020,15 +2025,21 @@ class RunnerController extends ChangeNotifier {
       try {
         await remote.emergencyReset(token, sudoPassword: password());
       } catch (_) {}
-      if (installation?.upgradable == true || !installed) {
-        try {
+      try {
+        final insp = await remote.inspect(token);
+        token.check();
+        installation = insp;
+        if (insp.release != remote.bundledRelease ||
+            insp.upgradable ||
+            !insp.active ||
+            !installed) {
           installation = await remote.install(
-            installation ?? await remote.inspect(token),
+            insp,
             token,
             sudoPassword: password(),
           );
-        } catch (_) {}
-      }
+        }
+      } catch (_) {}
       try {
         final list = await remote.request(
           RunnerRequest.list(),

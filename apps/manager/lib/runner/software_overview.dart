@@ -189,6 +189,9 @@ class SoftwareOverview extends StatelessWidget {
                                     );
                                     return;
                                   }
+                                  if (c.error != null) {
+                                    return;
+                                  }
                                 }
                               }
                             }
