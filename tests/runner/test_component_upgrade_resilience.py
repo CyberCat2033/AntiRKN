@@ -751,6 +751,89 @@ class ComponentUpgradeResilienceTests(unittest.TestCase):
         # Rollback restored the original binary!
         self.assertEqual(active_bin.read_bytes(), b'healthy_old_binary')
 
+    def test_trusttunnel_syntax_check_help_fallback(self):
+        """trusttunnel_endpoint succeeds on --version and setup_wizard succeeds on --help."""
+        from component_upgrade import ComponentUpgrader
+        staging_dir = Path(self.temp_dir.name) / 'stage_tt'
+        staging_dir.mkdir()
+        tt_bin = staging_dir / 'trusttunnel_endpoint'
+        tt_bin.write_bytes(b'\x7fELF\x02\x01\x01\x00' + b'\x00' * 10 + (0x3e).to_bytes(2, 'little') + b'\x00' * 50)
+        sw_bin = staging_dir / 'setup_wizard'
+        sw_bin.write_bytes(b'\x7fELF\x02\x01\x01\x00' + b'\x00' * 10 + (0x3e).to_bytes(2, 'little') + b'\x00' * 50)
+
+        upgrader = ComponentUpgrader(self.store, {'id': 'c' * 32}, {'component': 'trusttunnel', 'version': '1.3.0-beta.2', 'sha256': ''})
+        upgrader.staging_dir = staging_dir
+        upgrader.detection = {'component': 'trusttunnel', 'installed': True, 'binaryPath': '/usr/local/bin/trusttunnel_endpoint', 'arch': 'x86_64'}
+
+        def mock_run(cmd, *args, **kwargs):
+            if 'trusttunnel_endpoint' in str(cmd[0]):
+                return MagicMock(returncode=0, stdout='1.3.0-beta.2\n', stderr='')
+            elif 'setup_wizard' in str(cmd[0]) and '--help' in cmd:
+                return MagicMock(returncode=0, stdout='Usage: setup_wizard [OPTIONS]\n', stderr='')
+            elif 'setup_wizard' in str(cmd[0]) and '--version' in cmd:
+                return MagicMock(returncode=2, stdout='', stderr='unexpected argument')
+            return MagicMock(returncode=0, stdout='ok', stderr='')
+
+        with patch('subprocess.run', side_effect=mock_run):
+            upgrader.syntax_pre_check(tt_bin)
+
+    def test_trusttunnel_syntax_check_missing_wizard(self):
+        """Archive missing setup_wizard raises upgrade_syntax_failed."""
+        from component_upgrade import ComponentUpgrader, ComponentUpgradeError
+        staging_dir = Path(self.temp_dir.name) / 'stage_no_wizard'
+        staging_dir.mkdir()
+        tt_bin = staging_dir / 'trusttunnel_endpoint'
+        tt_bin.write_bytes(b'\x7fELF\x02\x01\x01\x00' + b'\x00' * 10 + (0x3e).to_bytes(2, 'little') + b'\x00' * 50)
+
+        upgrader = ComponentUpgrader(self.store, {'id': 'd' * 32}, {'component': 'trusttunnel', 'version': '1.3.0-beta.2', 'sha256': ''})
+        upgrader.staging_dir = staging_dir
+        upgrader.detection = {'component': 'trusttunnel', 'installed': True, 'binaryPath': '/usr/local/bin/trusttunnel_endpoint', 'arch': 'x86_64'}
+
+        with patch('subprocess.run', return_value=MagicMock(returncode=0, stdout='1.3.0-beta.2\n')):
+            with self.assertRaises(ComponentUpgradeError) as ctx:
+                upgrader.syntax_pre_check(tt_bin)
+            self.assertEqual(ctx.exception.code, 'upgrade_syntax_failed')
+            self.assertIn('setup_wizard binary missing', ctx.exception.detail)
+
+    def test_trusttunnel_syntax_check_rejects_symlink(self):
+        """A symlinked setup_wizard is rejected as upgrade_syntax_failed without chmod or exec."""
+        from component_upgrade import ComponentUpgrader, ComponentUpgradeError
+        staging_dir = Path(self.temp_dir.name) / 'stage_symlink'
+        staging_dir.mkdir()
+        tt_bin = staging_dir / 'trusttunnel_endpoint'
+        tt_bin.write_bytes(b'\x7fELF\x02\x01\x01\x00' + b'\x00' * 10 + (0x3e).to_bytes(2, 'little') + b'\x00' * 50)
+
+        fake_target = staging_dir / 'real_file'
+        fake_target.write_bytes(b'echo')
+        symlink_wizard = staging_dir / 'setup_wizard'
+        symlink_wizard.symlink_to(fake_target)
+
+        upgrader = ComponentUpgrader(self.store, {'id': 'e' * 32}, {'component': 'trusttunnel', 'version': '1.3.0-beta.2', 'sha256': ''})
+        upgrader.staging_dir = staging_dir
+        upgrader.detection = {'component': 'trusttunnel', 'installed': True, 'binaryPath': '/usr/local/bin/trusttunnel_endpoint', 'arch': 'x86_64'}
+
+        with patch('subprocess.run', return_value=MagicMock(returncode=0, stdout='1.3.0-beta.2\n')):
+            with self.assertRaises(ComponentUpgradeError) as ctx:
+                upgrader.syntax_pre_check(tt_bin)
+            self.assertEqual(ctx.exception.code, 'upgrade_syntax_failed')
+
+    def test_plan_fingerprint_unit_order_invariant(self):
+        """canonical_plan_fingerprint produces identical hash regardless of unit order."""
+        from component_upgrade import canonical_plan_fingerprint
+        plan1 = {
+            'component': 'trusttunnel',
+            'installed': True,
+            'units': ['antirkn-tt@b.service', 'antirkn-tt@a.service'],
+            'currentVersion': '1.1.0',
+        }
+        plan2 = {
+            'component': 'trusttunnel',
+            'installed': True,
+            'units': ['antirkn-tt@a.service', 'antirkn-tt@b.service'],
+            'currentVersion': '1.1.0',
+        }
+        self.assertEqual(canonical_plan_fingerprint(plan1), canonical_plan_fingerprint(plan2))
+
 
 if __name__ == '__main__':
     unittest.main()

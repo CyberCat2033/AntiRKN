@@ -2012,6 +2012,108 @@ abstract class AppLocalizations {
   /// **'Resumed from a saved checkpoint'**
   String get runnerRecovered;
 
+  /// No description provided for @runnerUpgradePreparing.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing upgrade...'**
+  String get runnerUpgradePreparing;
+
+  /// No description provided for @runnerUpgradeDownloading.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading package...'**
+  String get runnerUpgradeDownloading;
+
+  /// No description provided for @runnerUpgradeBackingUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Creating backup...'**
+  String get runnerUpgradeBackingUp;
+
+  /// No description provided for @runnerUpgradeSyntaxChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Validating binary...'**
+  String get runnerUpgradeSyntaxChecking;
+
+  /// No description provided for @runnerUpgradeSwitching.
+  ///
+  /// In en, this message translates to:
+  /// **'Switching version...'**
+  String get runnerUpgradeSwitching;
+
+  /// No description provided for @runnerUpgradeVerifying.
+  ///
+  /// In en, this message translates to:
+  /// **'Verifying service health...'**
+  String get runnerUpgradeVerifying;
+
+  /// No description provided for @runnerUpgradeRollingBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Rolling back...'**
+  String get runnerUpgradeRollingBack;
+
+  /// No description provided for @runnerUpgradeCompleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Upgrade completed'**
+  String get runnerUpgradeCompleted;
+
+  /// No description provided for @runnerUpgradeRolledBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Rolled back to previous version'**
+  String get runnerUpgradeRolledBack;
+
+  /// No description provided for @runnerUpgradeSyntaxFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Binary validation failed'**
+  String get runnerUpgradeSyntaxFailed;
+
+  /// No description provided for @runnerUpgradeHealthcheckFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Health check failed (rolled back)'**
+  String get runnerUpgradeHealthcheckFailed;
+
+  /// No description provided for @runnerUpgradeDownloadMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Package asset not found (404)'**
+  String get runnerUpgradeDownloadMissing;
+
+  /// No description provided for @runnerUpgradeDownloadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Download failed'**
+  String get runnerUpgradeDownloadFailed;
+
+  /// No description provided for @runnerUpgradeChecksumFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Checksum mismatch'**
+  String get runnerUpgradeChecksumFailed;
+
+  /// No description provided for @runnerUpgradeConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'Server state conflict'**
+  String get runnerUpgradeConflict;
+
+  /// No description provided for @runnerUpgradeFailedGeneric.
+  ///
+  /// In en, this message translates to:
+  /// **'Upgrade failed'**
+  String get runnerUpgradeFailedGeneric;
+
+  /// No description provided for @runnerUpgradeInProgressGeneric.
+  ///
+  /// In en, this message translates to:
+  /// **'Upgrading...'**
+  String get runnerUpgradeInProgressGeneric;
+
   /// No description provided for @componentsInstall.
   ///
   /// In en, this message translates to:

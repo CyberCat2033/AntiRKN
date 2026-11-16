@@ -864,7 +864,10 @@
     "upgrade_download_missing",
     "upgrade_architecture_mismatch",
     "upgrade_invalid_component",
-    "upgrade_rollback_failed"
+    "upgrade_rollback_failed",
+    "upgrade_rolling_back",
+    "upgrade_completed",
+    "upgrade_download_failed"
   ],
   "codes": [
     "ok",
@@ -967,6 +970,7 @@
     "upgrade_download_missing",
     "upgrade_architecture_mismatch",
     "upgrade_invalid_component",
+    "upgrade_download_failed",
     "apt_disk_full",
     "apt_memory_low",
     "apt_lock_busy",

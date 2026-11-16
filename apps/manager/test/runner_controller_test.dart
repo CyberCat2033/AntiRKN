@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:antirkn_domain/antirkn_domain.dart';
+import 'package:antirkn_manager/l10n/app_localizations_en.dart';
 import 'package:antirkn_manager/runner/runner_controller.dart';
+import 'package:antirkn_manager/runner/runner_panel.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'runner_support.dart';
 
@@ -374,5 +376,34 @@ void main() {
     expect(c.error, isNull);
     expect(c.pending, isNull);
     expect(c.selected?.kind, equals('component_upgrade_apply'));
+  });
+
+  test('test_ui_upgrade_labels_parity resolves all upgrade event codes', () {
+    final l = AppLocalizationsEn();
+    final codes = [
+      'upgrade_preparing',
+      'upgrade_downloading',
+      'upgrade_backing_up',
+      'upgrade_syntax_checking',
+      'upgrade_switching',
+      'upgrade_verifying',
+      'upgrade_rolling_back',
+      'upgrade_completed',
+      'upgrade_rolled_back',
+      'upgrade_syntax_failed',
+      'upgrade_healthcheck_failed',
+      'upgrade_download_missing',
+      'upgrade_download_failed',
+      'upgrade_checksum_failed',
+      'upgrade_conflict',
+    ];
+    for (final code in codes) {
+      final label = tryResolveUpgradeLabel(l, code);
+      expect(label, isNotNull, reason: 'Code $code must be resolved');
+      expect(label!.isNotEmpty, isTrue);
+      if (!code.endsWith('_failed') && code != 'upgrade_conflict') {
+        expect(label, isNot(contains('Failed')));
+      }
+    }
   });
 }

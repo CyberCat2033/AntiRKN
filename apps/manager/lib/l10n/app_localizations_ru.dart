@@ -1098,6 +1098,58 @@ class AppLocalizationsRu extends AppLocalizations {
   String get runnerRecovered => 'Продолжено с сохранённой контрольной точки';
 
   @override
+  String get runnerUpgradePreparing => 'Подготовка обновления...';
+
+  @override
+  String get runnerUpgradeDownloading => 'Скачивание пакета...';
+
+  @override
+  String get runnerUpgradeBackingUp => 'Создание резервной копии...';
+
+  @override
+  String get runnerUpgradeSyntaxChecking => 'Проверка бинарного файла...';
+
+  @override
+  String get runnerUpgradeSwitching => 'Переключение версии...';
+
+  @override
+  String get runnerUpgradeVerifying => 'Проверка работоспособности...';
+
+  @override
+  String get runnerUpgradeRollingBack => 'Выполняется откат...';
+
+  @override
+  String get runnerUpgradeCompleted => 'Обновление завершено';
+
+  @override
+  String get runnerUpgradeRolledBack => 'Откачено на предыдущую версию';
+
+  @override
+  String get runnerUpgradeSyntaxFailed => 'Ошибка валидации бинарного файла';
+
+  @override
+  String get runnerUpgradeHealthcheckFailed =>
+      'Сбой проверки работы (выполнен откат)';
+
+  @override
+  String get runnerUpgradeDownloadMissing => 'Пакет не найден в релизе (404)';
+
+  @override
+  String get runnerUpgradeDownloadFailed => 'Сбой скачивания пакета';
+
+  @override
+  String get runnerUpgradeChecksumFailed => 'Несовпадение контрольной суммы';
+
+  @override
+  String get runnerUpgradeConflict => 'Конфликт состояния сервера';
+
+  @override
+  String get runnerUpgradeFailedGeneric => 'Ошибка обновления';
+
+  @override
+  String get runnerUpgradeInProgressGeneric => 'Выполняется обновление...';
+
+  @override
   String get componentsInstall => 'Установить компоненты';
 
   @override

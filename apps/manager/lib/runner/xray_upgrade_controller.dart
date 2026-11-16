@@ -92,9 +92,21 @@ class XrayUpgradeController extends ChangeNotifier {
         operation = latest.xrayCheck;
         phase = operation!['phase'] as String;
         code = operation!['code'] as String;
+      } else {
+        // No previous operation on server — clear stale client state.
+        operation = null;
       }
       plan = await rpc('xray_check_plan', runner.panelAccess!.id, token);
-      if (operation == null) phase = 'idle';
+      // A successful plan retrieval resets any stale error from a previous
+      // terminal operation so the UI can show the new candidate cleanly.
+      if (operation == null) {
+        phase = 'idle';
+        code = '';
+      } else if (XrayUpgradeController.terminal.contains(phase)) {
+        // Terminal operations keep their code for display but do not block
+        // a fresh upgrade attempt — the UI checks phase, not code, to gate
+        // the button.
+      }
       if (plan!['supported'] != true) {
         throw const FormatException('xray_check_layout');
       }

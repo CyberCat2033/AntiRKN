@@ -279,10 +279,52 @@ VALID_COMPONENTS = {'panel', 'xray', 'amneziawg', 'trusttunnel', 'mihomo'}
 SUPPORTED_ARCHS = {'x86_64', 'aarch64', 'arm64', 'amd64'}
 
 
+class UpgradeEventCode(str):
+    PREPARING = "upgrade_preparing"
+    DOWNLOADING = "upgrade_downloading"
+    BACKING_UP = "upgrade_backing_up"
+    SYNTAX_CHECKING = "upgrade_syntax_checking"
+    SWITCHING = "upgrade_switching"
+    VERIFYING = "upgrade_verifying"
+    ROLLING_BACK = "upgrade_rolling_back"
+    ROLLED_BACK = "upgrade_rolled_back"
+    COMPLETED = "upgrade_completed"
+    # Terminal failures
+    SYNTAX_FAILED = "upgrade_syntax_failed"
+    HEALTHCHECK_FAILED = "upgrade_healthcheck_failed"
+    DOWNLOAD_MISSING = "upgrade_download_missing"
+    DOWNLOAD_FAILED = "upgrade_download_failed"
+    CHECKSUM_FAILED = "upgrade_checksum_failed"
+    CONFLICT = "upgrade_conflict"
+
+
+SAFE_PROBE_ENV: dict[str, str] = {
+    "LC_ALL": "C",
+    "LANG": "C",
+    "PATH": "/usr/bin:/bin",
+}
+
+
+def canonical_plan_fingerprint(plan_data: dict) -> str:
+    """Computes deterministic SHA-256 fingerprint for upgrade plan."""
+    normalized = dict(plan_data)
+    raw_units = normalized.get("units", [])
+    normalized["units"] = sorted(
+        raw_units,
+        key=lambda u: u.get("name", "") if isinstance(u, dict) else str(u),
+    )
+    payload = json.dumps(normalized, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
 class ComponentUpgradeError(Exception):
-    def __init__(self, code='upgrade_failed'):
-        super().__init__(code)
-        self.code = code
+    def __init__(self, code='upgrade_failed', detail=''):
+        super().__init__(str(code))
+        self.code = str(code)
+        self.detail = str(detail)
+
+    def __str__(self):
+        return f"{self.code}: {self.detail}" if self.detail else self.code
 
 
 def normalize_arch(arch=None):
@@ -292,6 +334,178 @@ def normalize_arch(arch=None):
     if raw in ('aarch64', 'arm64'):
         return 'aarch64'
     return raw
+
+
+def probe_staged_binary(
+    binary_path: Path,
+    probe_args: list[str],
+    *,
+    timeout_sec: float = 5.0,
+) -> str:
+    """
+    Validates staged binary: symlink rejection, +x mode, ELF architecture check,
+    and isolated probe run. Returns stdout on success.
+    """
+    p = Path(binary_path)
+    if p.is_symlink() or not p.is_file():
+        raise ComponentUpgradeError(
+            UpgradeEventCode.SYNTAX_FAILED,
+            detail=f"Invalid or symlink binary target: {p.name}",
+        )
+
+    try:
+        p.chmod(0o755)
+    except OSError as exc:
+        raise ComponentUpgradeError(
+            UpgradeEventCode.SYNTAX_FAILED,
+            detail=f"chmod failed for {p.name}: {exc}",
+        ) from exc
+
+    check_elf_architecture(p)
+
+    try:
+        res = subprocess.run(
+            [str(p), *probe_args],
+            capture_output=True,
+            text=True,
+            timeout=timeout_sec,
+            env=SAFE_PROBE_ENV,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise ComponentUpgradeError(
+            UpgradeEventCode.SYNTAX_FAILED,
+            detail=f"{p.name} {' '.join(probe_args)} timed out after {timeout_sec}s",
+        ) from exc
+    except OSError as exc:
+        raise ComponentUpgradeError(
+            UpgradeEventCode.SYNTAX_FAILED,
+            detail=f"{p.name} exec error: {exc}",
+        ) from exc
+
+    if res.returncode != 0 or not res.stdout.strip():
+        stderr_snippet = (res.stderr or "").strip()[:512]
+        stdout_snippet = (res.stdout or "").strip()[:512]
+        raise ComponentUpgradeError(
+            UpgradeEventCode.SYNTAX_FAILED,
+            detail=(
+                f"{p.name} {' '.join(probe_args)} exited with {res.returncode}; "
+                f"stderr={stderr_snippet!r}; stdout={stdout_snippet!r}"
+            ),
+        )
+
+    return res.stdout.strip()
+
+
+def download_verified_artifact(
+    url: str,
+    dest_path: Path,
+    expected_sha256: str = "",
+    *,
+    socket_timeout_sec: float = 20.0,
+    total_deadline_sec: float = 180.0,
+    max_attempts: int = 3,
+) -> str:
+    """
+    Streaming download with wall-clock deadline, retries, and SHA-256 verification
+    before atomic replace. Returns actual SHA-256.
+    """
+    import urllib.error
+    import urllib.request
+
+    dest_path = Path(dest_path)
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    part_path = dest_path.with_name(dest_path.name + ".part." + secrets.token_hex(4))
+    deadline = time.monotonic() + total_deadline_sec
+    last_exc = None
+
+    for attempt in range(1, max_attempts + 1):
+        if part_path.exists():
+            try:
+                part_path.unlink()
+            except OSError:
+                pass
+        hasher = hashlib.sha256()
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={"User-Agent": "AntiRKN-Runner/1.0"}
+            )
+            with urllib.request.urlopen(req, timeout=socket_timeout_sec) as resp, part_path.open("wb") as out:
+                while True:
+                    if time.monotonic() > deadline:
+                        raise TimeoutError(f"Total download deadline ({total_deadline_sec}s) exceeded")
+                    chunk = resp.read(65536)
+                    if not chunk:
+                        break
+                    hasher.update(chunk)
+                    out.write(chunk)
+            last_exc = None
+            break
+        except urllib.error.HTTPError as exc:
+            if part_path.exists():
+                try:
+                    part_path.unlink()
+                except OSError:
+                    pass
+            if exc.code == 404:
+                raise ComponentUpgradeError(
+                    UpgradeEventCode.DOWNLOAD_MISSING,
+                    detail=f"HTTP 404 for {url}",
+                ) from exc
+            last_exc = exc
+            if attempt == max_attempts:
+                raise ComponentUpgradeError(
+                    UpgradeEventCode.DOWNLOAD_FAILED,
+                    detail=f"HTTP {exc.code} after {attempt} attempts: {exc}",
+                ) from exc
+        except Exception as exc:
+            if part_path.exists():
+                try:
+                    part_path.unlink()
+                except OSError:
+                    pass
+            last_exc = exc
+            if attempt == max_attempts or time.monotonic() > deadline:
+                raise ComponentUpgradeError(
+                    UpgradeEventCode.DOWNLOAD_FAILED,
+                    detail=f"Download failed after {attempt} attempts: {exc}",
+                ) from exc
+        time.sleep(2 ** attempt - 1)
+
+    if last_exc is not None:
+        raise ComponentUpgradeError(
+            UpgradeEventCode.DOWNLOAD_FAILED,
+            detail=f"Download failed: {last_exc}",
+        )
+
+    actual_sha256 = hasher.hexdigest().lower()
+    expected = (expected_sha256 or "").strip().lower()
+    if expected:
+        if len(expected) == 64 and all(c in '0123456789abcdef' for c in expected):
+            if actual_sha256 != expected:
+                if part_path.exists():
+                    try:
+                        part_path.unlink()
+                    except OSError:
+                        pass
+                raise ComponentUpgradeError(
+                    UpgradeEventCode.CHECKSUM_FAILED,
+                    detail=f"SHA-256 mismatch: expected {expected}, got {actual_sha256}",
+                )
+        else:
+            if part_path.exists():
+                try:
+                    part_path.unlink()
+                except OSError:
+                    pass
+            raise ComponentUpgradeError(
+                UpgradeEventCode.CHECKSUM_FAILED,
+                detail=f"Invalid expected SHA-256: {expected!r}",
+            )
+
+    os.replace(part_path, dest_path)
+    return actual_sha256
 
 
 def check_system_resources(target_path='/usr/local', min_disk_bytes=200 * 1024 * 1024, min_ram_kib=40 * 1024):
@@ -696,11 +910,11 @@ class ComponentUpgrader:
             xray_names = {'xray', 'xray-linux-amd64', 'xray-linux-arm64'}
             if binary_name:
                 xray_names.add(binary_name)
-            staged_candidates = [p for p in self.staging_dir.rglob('*') if p.is_file() and p.name in xray_names and not p.name.endswith('.antirkn-tmp')]
+            staged_candidates = [p for p in self.staging_dir.rglob('*') if p.is_file() and not p.is_symlink() and p.name in xray_names and not p.name.endswith('.antirkn-tmp')]
         elif binary_name:
-            staged_candidates = [p for p in self.staging_dir.rglob(binary_name) if p.is_file() and not p.name.endswith('.antirkn-tmp')]
+            staged_candidates = [p for p in self.staging_dir.rglob(binary_name) if p.is_file() and not p.is_symlink() and not p.name.endswith('.antirkn-tmp')]
         if not staged_candidates:
-            files = [p for p in self.staging_dir.rglob('*') if p.is_file() and not p.name.endswith('.antirkn-tmp')]
+            files = [p for p in self.staging_dir.rglob('*') if p.is_file() and not p.is_symlink() and not p.name.endswith('.antirkn-tmp')]
             if len(files) == 1:
                 staged_candidates = files
             elif binary_name:
@@ -721,13 +935,18 @@ class ComponentUpgrader:
     def syntax_pre_check(self, staged_binary):
         """Validate configuration syntax and binary ELF architecture before touching live service."""
         self._ensure_detection_and_metadata()
+        if staged_binary.is_symlink() or not staged_binary.is_file():
+            raise ComponentUpgradeError(
+                UpgradeEventCode.SYNTAX_FAILED,
+                detail=f"Invalid or symlink binary target: {staged_binary.name}",
+            )
         check_elf_architecture(staged_binary)
 
         if self.component == 'xray':
             config_path = self.detection.get('configPath')
             if config_path and Path(config_path).exists():
                 cmd = [str(staged_binary), 'run', '-test', '-config', str(config_path)]
-                env = {'PATH': '/usr/bin:/bin'}
+                env = dict(SAFE_PROBE_ENV)
                 parent_dir = Path(config_path).parent
                 if (parent_dir / 'geoip.dat').exists():
                     env['XRAY_LOCATION_ASSET'] = str(parent_dir)
@@ -736,48 +955,37 @@ class ComponentUpgrader:
                 try:
                     res = subprocess.run(cmd, env=env, capture_output=True, timeout=15)
                     if res.returncode != 0:
-                        raise ComponentUpgradeError('upgrade_syntax_failed')
-                except subprocess.SubprocessError:
-                    raise ComponentUpgradeError('upgrade_syntax_failed')
+                        stderr_snippet = (res.stderr or "").strip()[:512]
+                        raise ComponentUpgradeError(
+                            UpgradeEventCode.SYNTAX_FAILED,
+                            detail=f"xray run -test failed: {res.returncode}; {stderr_snippet}",
+                        )
+                except subprocess.SubprocessError as e:
+                    raise ComponentUpgradeError(UpgradeEventCode.SYNTAX_FAILED, detail=str(e))
             else:
-                try:
-                    res = subprocess.run([str(staged_binary), 'version'], capture_output=True, timeout=5)
-                    if res.returncode != 0:
-                        raise ComponentUpgradeError('upgrade_syntax_failed')
-                except subprocess.SubprocessError:
-                    raise ComponentUpgradeError('upgrade_syntax_failed')
+                probe_staged_binary(staged_binary, ['version'])
 
         elif self.component == 'trusttunnel':
-            try:
-                res = subprocess.run([str(staged_binary), '--version'], capture_output=True, timeout=5)
-                if res.returncode != 0:
-                    raise ComponentUpgradeError('upgrade_syntax_failed')
-            except Exception as e:
-                if isinstance(e, ComponentUpgradeError):
-                    raise
-                raise ComponentUpgradeError('upgrade_syntax_failed') from e
+            probe_staged_binary(staged_binary, ['--version'])
 
-            for w in self.staging_dir.rglob('setup_wizard'):
-                if w.is_file() and not w.name.endswith('.antirkn-tmp'):
-                    check_elf_architecture(w)
-                    try:
-                        res = subprocess.run([str(w), '--version'], capture_output=True, timeout=5)
-                        if res.returncode != 0:
-                            raise ComponentUpgradeError('upgrade_syntax_failed')
-                    except Exception as e:
-                        if isinstance(e, ComponentUpgradeError):
-                            raise
-                        raise ComponentUpgradeError('upgrade_syntax_failed') from e
+            wizards = [
+                p for p in self.staging_dir.rglob('setup_wizard')
+                if p.is_file() and not p.is_symlink() and not p.name.endswith('.antirkn-tmp')
+            ]
+            if not wizards:
+                raise ComponentUpgradeError(
+                    UpgradeEventCode.SYNTAX_FAILED,
+                    detail='setup_wizard binary missing from archive',
+                )
+
+            for w in wizards:
+                probe_staged_binary(w, ['--help'])
 
         elif self.component == 'amneziawg':
-            try:
-                res = subprocess.run([str(staged_binary), '--version'], capture_output=True, timeout=5)
-                if res.returncode != 0:
-                    raise ComponentUpgradeError('upgrade_syntax_failed')
-            except Exception as e:
-                if isinstance(e, ComponentUpgradeError):
-                    raise
-                raise ComponentUpgradeError('upgrade_syntax_failed') from e
+            probe_staged_binary(staged_binary, ['--version'])
+
+        elif self.component in ('panel', 'mihomo'):
+            probe_staged_binary(staged_binary, ['-v'])
 
         elif self.component == 'mihomo':
             config_path = self.detection.get('configPath')
@@ -1050,7 +1258,7 @@ def plan(store, component, candidate_payload=None):
         'arch': detection.get('arch', normalize_arch()),
         'ready': detection.get('installed', False),
     }
-    plan_data['fingerprint'] = hashlib.sha256(json.dumps(plan_data, sort_keys=True).encode()).hexdigest()
+    plan_data['fingerprint'] = canonical_plan_fingerprint(plan_data)
     return plan_data
 
 
@@ -1066,12 +1274,12 @@ class ComponentUpgradeJob:
 
     def step(self, checkpoint):
         codes = [
-            'upgrade_preparing',
-            'upgrade_downloading',
-            'upgrade_backing_up',
-            'upgrade_syntax_checking',
-            'upgrade_switching',
-            'upgrade_verifying',
+            UpgradeEventCode.PREPARING,
+            UpgradeEventCode.DOWNLOADING,
+            UpgradeEventCode.BACKING_UP,
+            UpgradeEventCode.SYNTAX_CHECKING,
+            UpgradeEventCode.SWITCHING,
+            UpgradeEventCode.VERIFYING,
         ]
         with self.store.db:
             self.store.event(self.request['id'], codes[checkpoint], checkpoint, 6)
@@ -1081,7 +1289,7 @@ class ComponentUpgradeJob:
             self.upgrader.pre_check()
             current_plan = plan(self.store, self.payload['component'], self.payload)
             if current_plan['fingerprint'] != self.request['fingerprint']:
-                raise ComponentUpgradeError('upgrade_conflict')
+                raise ComponentUpgradeError(UpgradeEventCode.CONFLICT, detail='Fingerprint mismatch')
         elif checkpoint == 1:
             # Download or use staged archive
             self.archive_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1092,43 +1300,34 @@ class ComponentUpgradeJob:
                     if local_file.exists():
                         atomic_file(self.archive_path, local_file.read_bytes())
                 elif archive_url and (archive_url.startswith('https://') or archive_url.startswith('http://')):
-                    import urllib.request
-                    tmp_archive = self.archive_path.with_suffix('.tmp')
-                    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-                    req = urllib.request.Request(
+                    expected_sha = (self.payload.get('sha256') or '').strip()
+                    actual_sha = download_verified_artifact(
                         archive_url,
-                        headers={'User-Agent': 'AntiRKN-Runner/1.0'}
+                        self.archive_path,
+                        expected_sha,
                     )
-                    try:
-                        with opener.open(req, timeout=120) as resp:
-                            with open(tmp_archive, 'wb') as f:
-                                while True:
-                                    chunk = resp.read(65536)
-                                    if not chunk:
-                                        break
-                                    f.write(chunk)
-                        tmp_archive.replace(self.archive_path)
-                    except Exception as err:
-                        if tmp_archive.exists():
-                            try:
-                                tmp_archive.unlink()
-                            except OSError:
-                                pass
-                        raise ComponentUpgradeError('upgrade_download_missing') from err
+                    self.payload['sha256'] = actual_sha
+                    self.upgrader.manifest['sha256'] = actual_sha
                 elif 'archiveData' in self.payload:
                     import base64
                     atomic_file(self.archive_path, base64.b64decode(self.payload['archiveData']))
             if not self.archive_path.exists():
-                raise ComponentUpgradeError('upgrade_download_missing')
+                raise ComponentUpgradeError(UpgradeEventCode.DOWNLOAD_MISSING, detail='Archive file missing after download')
 
             expected_sha = (self.payload.get('sha256') or '').strip()
             actual_sha = digest(self.archive_path).lower()
             if expected_sha:
                 if len(expected_sha) == 64 and all(c in '0123456789abcdefABCDEF' for c in expected_sha):
                     if actual_sha != expected_sha.lower():
-                        raise ComponentUpgradeError('upgrade_checksum_failed')
+                        raise ComponentUpgradeError(
+                            UpgradeEventCode.CHECKSUM_FAILED,
+                            detail=f"SHA-256 mismatch: expected {expected_sha}, got {actual_sha}",
+                        )
                 else:
-                    raise ComponentUpgradeError('upgrade_checksum_failed')
+                    raise ComponentUpgradeError(
+                        UpgradeEventCode.CHECKSUM_FAILED,
+                        detail=f"Invalid expected SHA-256: {expected_sha!r}",
+                    )
             else:
                 self.payload['sha256'] = actual_sha
                 self.upgrader.manifest['sha256'] = actual_sha

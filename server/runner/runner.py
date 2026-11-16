@@ -702,6 +702,8 @@ class Store:
                     status, code = 'succeeded', 'succeeded'
             except (ComponentUpgradeError, OSError, ValueError, subprocess.SubprocessError) as error:
                 code = error.code if isinstance(error, ComponentUpgradeError) else 'upgrade_failed'
+                detail = getattr(error, 'detail', '') or str(error)
+                sys.stderr.write(f"[runner] component_upgrade failed ({code}): {detail}\n")
                 status = 'failed'
                 try:
                     task.rollback()

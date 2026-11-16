@@ -1095,6 +1095,58 @@ class AppLocalizationsEn extends AppLocalizations {
   String get runnerRecovered => 'Resumed from a saved checkpoint';
 
   @override
+  String get runnerUpgradePreparing => 'Preparing upgrade...';
+
+  @override
+  String get runnerUpgradeDownloading => 'Downloading package...';
+
+  @override
+  String get runnerUpgradeBackingUp => 'Creating backup...';
+
+  @override
+  String get runnerUpgradeSyntaxChecking => 'Validating binary...';
+
+  @override
+  String get runnerUpgradeSwitching => 'Switching version...';
+
+  @override
+  String get runnerUpgradeVerifying => 'Verifying service health...';
+
+  @override
+  String get runnerUpgradeRollingBack => 'Rolling back...';
+
+  @override
+  String get runnerUpgradeCompleted => 'Upgrade completed';
+
+  @override
+  String get runnerUpgradeRolledBack => 'Rolled back to previous version';
+
+  @override
+  String get runnerUpgradeSyntaxFailed => 'Binary validation failed';
+
+  @override
+  String get runnerUpgradeHealthcheckFailed =>
+      'Health check failed (rolled back)';
+
+  @override
+  String get runnerUpgradeDownloadMissing => 'Package asset not found (404)';
+
+  @override
+  String get runnerUpgradeDownloadFailed => 'Download failed';
+
+  @override
+  String get runnerUpgradeChecksumFailed => 'Checksum mismatch';
+
+  @override
+  String get runnerUpgradeConflict => 'Server state conflict';
+
+  @override
+  String get runnerUpgradeFailedGeneric => 'Upgrade failed';
+
+  @override
+  String get runnerUpgradeInProgressGeneric => 'Upgrading...';
+
+  @override
   String get componentsInstall => 'Install components';
 
   @override
