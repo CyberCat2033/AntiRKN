@@ -327,6 +327,29 @@ class ComponentUpgradeError(Exception):
         return f"{self.code}: {self.detail}" if self.detail else self.code
 
 
+HEX_64_CHARS = frozenset("0123456789abcdef")
+
+
+def normalize_sha256(raw: str | None) -> str:
+    """
+    Приводит дайджест к каноническому 64-символьному hex в нижнем регистре.
+    Поддерживает формат GitHub API ('sha256:<hex>').
+    Возвращает '' для пустого ввода.
+    Выбрасывает ComponentUpgradeError(CHECKSUM_FAILED) для невалидных строк.
+    """
+    if not raw or not raw.strip():
+        return ""
+    cleaned = raw.strip().lower()
+    if cleaned.startswith("sha256:"):
+        cleaned = cleaned[7:].strip()
+    if len(cleaned) != 64 or any(c not in HEX_64_CHARS for c in cleaned):
+        raise ComponentUpgradeError(
+            UpgradeEventCode.CHECKSUM_FAILED,
+            detail=f"Invalid expected SHA-256 format: {raw!r}",
+        )
+    return cleaned
+
+
 def normalize_arch(arch=None):
     raw = arch or platform.machine().lower()
     if raw in ('x86_64', 'amd64', 'x64'):
@@ -481,29 +504,17 @@ def download_verified_artifact(
         )
 
     actual_sha256 = hasher.hexdigest().lower()
-    expected = (expected_sha256 or "").strip().lower()
-    if expected:
-        if len(expected) == 64 and all(c in '0123456789abcdef' for c in expected):
-            if actual_sha256 != expected:
-                if part_path.exists():
-                    try:
-                        part_path.unlink()
-                    except OSError:
-                        pass
-                raise ComponentUpgradeError(
-                    UpgradeEventCode.CHECKSUM_FAILED,
-                    detail=f"SHA-256 mismatch: expected {expected}, got {actual_sha256}",
-                )
-        else:
-            if part_path.exists():
-                try:
-                    part_path.unlink()
-                except OSError:
-                    pass
-            raise ComponentUpgradeError(
-                UpgradeEventCode.CHECKSUM_FAILED,
-                detail=f"Invalid expected SHA-256: {expected!r}",
-            )
+    expected = normalize_sha256(expected_sha256)
+    if expected and actual_sha256 != expected:
+        if part_path.exists():
+            try:
+                part_path.unlink()
+            except OSError:
+                pass
+        raise ComponentUpgradeError(
+            UpgradeEventCode.CHECKSUM_FAILED,
+            detail=f"SHA-256 mismatch: expected {expected}, got {actual_sha256}",
+        )
 
     os.replace(part_path, dest_path)
     return actual_sha256
@@ -873,16 +884,11 @@ class ComponentUpgrader:
         if not archive.exists():
             raise ComponentUpgradeError('upgrade_download_missing')
 
-        expected_sha = (self.manifest.get('sha256') or '').strip()
+        expected_sha = normalize_sha256(self.manifest.get('sha256'))
         actual_sha = digest(archive).lower()
-        if expected_sha:
-            if len(expected_sha) == 64 and all(c in '0123456789abcdefABCDEF' for c in expected_sha):
-                if actual_sha != expected_sha.lower():
-                    raise ComponentUpgradeError('upgrade_checksum_failed')
-            else:
-                raise ComponentUpgradeError('upgrade_checksum_failed')
-        else:
-            self.manifest['sha256'] = actual_sha
+        if expected_sha and actual_sha != expected_sha:
+            raise ComponentUpgradeError('upgrade_checksum_failed')
+        self.manifest['sha256'] = actual_sha
 
         binary_name = self.manifest.get('binaryName') or (Path(self.detection['binaryPath']).name if (self.detection and self.detection.get('binaryPath')) else None)
         extract_archive_safe(archive, self.staging_dir, binary_name=binary_name)
@@ -1312,7 +1318,7 @@ class ComponentUpgradeJob:
                     if local_file.exists():
                         atomic_file(self.archive_path, local_file.read_bytes())
                 elif archive_url and (archive_url.startswith('https://') or archive_url.startswith('http://')):
-                    expected_sha = (self.payload.get('sha256') or '').strip()
+                    expected_sha = normalize_sha256(self.payload.get('sha256'))
                     actual_sha = download_verified_artifact(
                         archive_url,
                         self.archive_path,
@@ -1326,23 +1332,15 @@ class ComponentUpgradeJob:
             if not self.archive_path.exists():
                 raise ComponentUpgradeError(UpgradeEventCode.DOWNLOAD_MISSING, detail='Archive file missing after download')
 
-            expected_sha = (self.payload.get('sha256') or '').strip()
+            expected_sha = normalize_sha256(self.payload.get('sha256'))
             actual_sha = digest(self.archive_path).lower()
-            if expected_sha:
-                if len(expected_sha) == 64 and all(c in '0123456789abcdefABCDEF' for c in expected_sha):
-                    if actual_sha != expected_sha.lower():
-                        raise ComponentUpgradeError(
-                            UpgradeEventCode.CHECKSUM_FAILED,
-                            detail=f"SHA-256 mismatch: expected {expected_sha}, got {actual_sha}",
-                        )
-                else:
-                    raise ComponentUpgradeError(
-                        UpgradeEventCode.CHECKSUM_FAILED,
-                        detail=f"Invalid expected SHA-256: {expected_sha!r}",
-                    )
-            else:
-                self.payload['sha256'] = actual_sha
-                self.upgrader.manifest['sha256'] = actual_sha
+            if expected_sha and actual_sha != expected_sha:
+                raise ComponentUpgradeError(
+                    UpgradeEventCode.CHECKSUM_FAILED,
+                    detail=f"SHA-256 mismatch: expected {expected_sha}, got {actual_sha}",
+                )
+            self.payload['sha256'] = actual_sha
+            self.upgrader.manifest['sha256'] = actual_sha
         elif checkpoint == 2:
             # Atomic backup of binary, configs, and DB
             self.upgrader.backup()

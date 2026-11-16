@@ -862,6 +862,30 @@ class ComponentUpgradeResilienceTests(unittest.TestCase):
             self.assertEqual(data.get('id'), 'test_owner_123')
             self.assertEqual(data.get('xrayVersion'), '26.11.9')
 
+    def test_normalize_sha256_canonical_and_error_cases(self):
+        """normalize_sha256 strips sha256: prefix, validates 64-hex and rejects garbage."""
+        from component_upgrade import normalize_sha256
+        sample_hex = '496a27ff72014b883438efab55ffd237183b5ff95d9c341cc0de9d18342a9b11'
+        self.assertEqual(normalize_sha256(''), '')
+        self.assertEqual(normalize_sha256(None), '')
+        self.assertEqual(normalize_sha256('   '), '')
+        self.assertEqual(normalize_sha256(sample_hex), sample_hex)
+        self.assertEqual(normalize_sha256(f'sha256:{sample_hex}'), sample_hex)
+        self.assertEqual(normalize_sha256(f'SHA256:{sample_hex.upper()}'), sample_hex)
+        self.assertEqual(normalize_sha256(f'  sha256:{sample_hex}  '), sample_hex)
+
+        with self.assertRaises(ComponentUpgradeError) as ctx:
+            normalize_sha256('short')
+        self.assertEqual(ctx.exception.code, 'upgrade_checksum_failed')
+
+        with self.assertRaises(ComponentUpgradeError) as ctx:
+            normalize_sha256(sample_hex + 'extra')
+        self.assertEqual(ctx.exception.code, 'upgrade_checksum_failed')
+
+        with self.assertRaises(ComponentUpgradeError) as ctx:
+            normalize_sha256('z' * 64)
+        self.assertEqual(ctx.exception.code, 'upgrade_checksum_failed')
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -345,10 +345,11 @@ final class GithubComponentReleaseSource implements ComponentReleaseSource {
         }
       }
 
-      final resolvedSha256 = parsedSha256 ??
+      final rawCandidate = parsedSha256 ??
           (matchedAsset['digest'] as String?) ??
           (matchedAsset['sha256'] as String?) ??
           '';
+      final resolvedSha256 = normalizeSha256(rawCandidate);
 
       return {
         'component': component,
@@ -366,6 +367,19 @@ final class GithubComponentReleaseSource implements ComponentReleaseSource {
     }
   }
 
+  static final RegExp _sha256Regex = RegExp(r'^[0-9a-f]{64}$');
+
+  /// Normalizes digest string (strips 'sha256:' prefix, trims, lowercases).
+  /// Returns empty string if raw is empty or not a valid 64-hex SHA-256.
+  static String normalizeSha256(String? raw) {
+    if (raw == null) return '';
+    var cleaned = raw.trim().toLowerCase();
+    if (cleaned.startsWith('sha256:')) {
+      cleaned = cleaned.substring(7).trim();
+    }
+    return _sha256Regex.hasMatch(cleaned) ? cleaned : '';
+  }
+
   static String? _parseSha256(
     String content,
     String assetName, {
@@ -381,7 +395,8 @@ final class GithubComponentReleaseSource implements ComponentReleaseSource {
       if (line.contains(assetName)) {
         final match = hexRegex.firstMatch(line);
         if (match != null) {
-          return match.group(0)!.toLowerCase();
+          final normalized = normalizeSha256(match.group(0));
+          return normalized.isNotEmpty ? normalized : null;
         }
       }
     }
@@ -391,14 +406,16 @@ final class GithubComponentReleaseSource implements ComponentReleaseSource {
         if (line.toUpperCase().contains('256')) {
           final match = hexRegex.firstMatch(line);
           if (match != null) {
-            return match.group(0)!.toLowerCase();
+            final normalized = normalizeSha256(match.group(0));
+            return normalized.isNotEmpty ? normalized : null;
           }
         }
       }
       for (final line in lines) {
         final match = hexRegex.firstMatch(line);
         if (match != null) {
-          return match.group(0)!.toLowerCase();
+          final normalized = normalizeSha256(match.group(0));
+          return normalized.isNotEmpty ? normalized : null;
         }
       }
     }

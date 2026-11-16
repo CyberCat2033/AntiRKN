@@ -478,6 +478,39 @@ class VlessTests(unittest.TestCase):
         second = self.submit(p, 2)
         self.assertEqual(self.finish(second)['status'], 'succeeded')
 
+    def test_vless_subset_resilience_and_clients_isolation(self):
+        """subset() tolerates default 3x-ui fields and empty transport configs, but rejects extra clients."""
+        from vless import subset, normal
+        req = self.submit()
+        self.assertEqual(self.finish(req)['status'], 'succeeded')
+
+        desired = normal(self.api.rows[0])
+        for k in ('id', 'tag', 'up', 'down', 'total', 'userId', 'nodeId'):
+            desired.pop(k, None)
+        dirty_actual = copy.deepcopy(desired)
+        # 3x-ui adds default fields: allocate, empty xhttpSettings, reordered destOverride
+        dirty_actual['allocate'] = {'strategy': 'always', 'refresh': 5, 'concurrency': 3}
+        dirty_actual['streamSettings']['xhttpSettings'] = None
+        dirty_actual['sniffing']['destOverride'] = ['tls', 'http', 'fakedns', 'quic']
+
+        # subset should accept despite order of destOverride and extra 3x-ui defaults
+        self.assertTrue(subset(desired, dirty_actual))
+
+        # But if an unmanaged extra client is injected into actual:
+        with_extra_client = copy.deepcopy(dirty_actual)
+        with_extra_client['settings']['clients'].append({'id': 'intruder-uuid', 'email': 'intruder@evil.com', 'enable': True})
+        self.assertFalse(subset(desired, with_extra_client))
+
+        # And if a client has different id:
+        with_wrong_client = copy.deepcopy(dirty_actual)
+        with_wrong_client['settings']['clients'][0]['id'] = 'different-uuid'
+        self.assertFalse(subset(desired, with_wrong_client))
+
+        # And foreign streamSettings key is rejected
+        with_foreign_key = copy.deepcopy(dirty_actual)
+        with_foreign_key['streamSettings']['maliciousKey'] = 'value'
+        self.assertFalse(subset(desired, with_foreign_key))
+
 class RealityMaterialTests(unittest.TestCase):
     def test_regenerate_changes_only_reality_material_and_is_stable_on_retry(self):
         from vless import material

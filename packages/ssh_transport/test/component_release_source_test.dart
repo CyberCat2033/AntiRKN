@@ -146,4 +146,18 @@ void main() {
     expect(armCandidate!['name'], 'trusttunnel-v1.3.0-beta.2-linux-aarch64.tar.gz');
     expect(armCandidate['url'], 'https://aarch64');
   });
+
+  test('normalizeSha256 strips sha256: prefix, lowercases and validates 64-hex', () {
+    const hex = '496a27ff72014b883438efab55ffd237183b5ff95d9c341cc0de9d18342a9b11';
+    expect(GithubComponentReleaseSource.normalizeSha256(null), '');
+    expect(GithubComponentReleaseSource.normalizeSha256(''), '');
+    expect(GithubComponentReleaseSource.normalizeSha256('   '), '');
+    expect(GithubComponentReleaseSource.normalizeSha256(hex), hex);
+    expect(GithubComponentReleaseSource.normalizeSha256('sha256:$hex'), hex);
+    expect(GithubComponentReleaseSource.normalizeSha256('SHA256:${hex.toUpperCase()}'), hex);
+    expect(GithubComponentReleaseSource.normalizeSha256('  sha256:$hex  '), hex);
+    expect(GithubComponentReleaseSource.normalizeSha256('invalid-length'), '');
+    expect(GithubComponentReleaseSource.normalizeSha256('${hex}extra'), '');
+    expect(GithubComponentReleaseSource.normalizeSha256('z' * 64), '');
+  });
 }

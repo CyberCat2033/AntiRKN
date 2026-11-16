@@ -212,19 +212,75 @@ def normal(row):
             for key in ('created_at', 'updated_at', 'createdAt', 'updatedAt'):
                 client.pop(key, None)
         settings['clients'] = sorted(settings.get('clients', []), key=lambda c: c.get('id', ''))
+
+    # Clean optional empty/null transport sections and canonicalize sets
+    stream = value.get('streamSettings')
+    if isinstance(stream, dict):
+        for opt_sec in ('xhttpSettings', 'wsSettings', 'grpcSettings', 'httpSettings', 'quicSettings', 'kcpSettings', 'tcpSettings'):
+            if opt_sec in stream and (stream[opt_sec] is None or stream[opt_sec] == {}):
+                stream.pop(opt_sec, None)
     return value
 
 
-def subset(wanted, actual):
-    if isinstance(wanted, dict):
-        return isinstance(actual, dict) and all(k in actual and subset(v, actual[k]) for k, v in wanted.items())
-    if isinstance(wanted, list):
-        if not isinstance(actual, list) or len(wanted) != len(actual): return False
-        if wanted and isinstance(wanted[0], dict) and 'id' in wanted[0]:
-            actual = sorted(actual, key=lambda c: c.get('id', ''))
-            wanted = sorted(wanted, key=lambda c: c['id'])
-        return all(subset(a, b) for a, b in zip(wanted, actual))
-    return wanted == actual
+KNOWN_STREAM_KEYS = {
+    'network', 'security', 'external', 'realitySettings', 'tlsSettings',
+    'tcpSettings', 'kcpSettings', 'wsSettings', 'httpSettings',
+    'grpcSettings', 'xhttpSettings', 'sockopt',
+}
+
+
+def subset(desired, actual, _key=""):
+    """
+    Семантическое сравнение desired против actual с учетом особенностей 3x-ui:
+    - dict: все ключи из desired должны присутствовать в actual и удовлетворять subset;
+            дополнительные ключи в actual игнорируются (кроме streamSettings с чужими ключами).
+    - key == 'clients': строгое совпадение количества и сопоставление по 'id'/'email'.
+    - key in ('alpn', 'destOverride'): сравнение как множеств (порядок не важен).
+    - list (прочие): поэлементное сравнение при равной длине.
+    """
+    if _key in ('alpn', 'destOverride'):
+        if isinstance(desired, list) and isinstance(actual, list):
+            return set(desired) == set(actual)
+    if _key == 'streamSettings' and isinstance(actual, dict):
+        if any(k not in KNOWN_STREAM_KEYS for k in actual):
+            return False
+    if _key == 'clients':
+        if not isinstance(desired, list) or not isinstance(actual, list):
+            return False
+        if len(desired) != len(actual):
+            return False
+        def client_key(c):
+            if isinstance(c, dict):
+                return c.get('id') or c.get('email') or ''
+            return str(c)
+        desired_sorted = sorted(desired, key=client_key)
+        actual_sorted = sorted(actual, key=client_key)
+        for d_client, a_client in zip(desired_sorted, actual_sorted):
+            if client_key(d_client) != client_key(a_client):
+                return False
+            if not subset(d_client, a_client, 'client'):
+                return False
+        return True
+    if isinstance(desired, dict):
+        if not isinstance(actual, dict):
+            return False
+        for k, v in desired.items():
+            if k not in actual:
+                if v is None or v == {}:
+                    continue
+                return False
+            if not subset(v, actual[k], k):
+                return False
+        return True
+    if isinstance(desired, list):
+        if not isinstance(actual, list) or len(desired) != len(actual):
+            return False
+        if desired and isinstance(desired[0], dict) and 'id' in desired[0]:
+            actual_sorted = sorted(actual, key=lambda c: c.get('id', ''))
+            desired_sorted = sorted(desired, key=lambda c: c.get('id', ''))
+            return all(subset(a, b, '') for a, b in zip(desired_sorted, actual_sorted))
+        return all(subset(a, b, '') for a, b in zip(desired, actual))
+    return desired == actual
 
 
 def wanted_inbound(payload, r, current=None):
@@ -326,7 +382,19 @@ def preflight(store, payload, api, rows=None):
                 for k in ('id', 'tag', 'up', 'down', 'total', 'userId', 'nodeId'):
                     desired.pop(k, None)
                     actual.pop(k, None)
-                if desired == actual and not r.get('deleted'):
+                if subset(desired, actual) and not r.get('deleted'):
+                    has_active_job = bool(store.db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running')").fetchone())
+                    if not has_active_job and previous and not previous.get('deleted'):
+                        try:
+                            detail = api.call('/panel/api/inbounds/get/%d' % current['id'])
+                            detail_row = detail if isinstance(detail, dict) and detail.get('id') == current['id'] and detail.get('remark') == marker(payload['workspaceId'], r['id']) else current
+                            previous['observedHash'] = digest(normal(detail_row))
+                            previous['panelId'] = payload['panelId']
+                            with store.db:
+                                store.db.execute('INSERT INTO vless_resources VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data',
+                                    (r['id'], canonical(previous)))
+                        except Exception:
+                            pass
                     matched = True
             if not matched:
                 raise VlessError('vless_conflict')
@@ -387,10 +455,6 @@ def state(store, panel_id, pending_job=None):
             import managed_existing
             result.append(managed_existing.state(store, saved, 'vless', pending_job, inbounds=rows))
             continue
-        panel_updated = False
-        if saved.get('panelId') != panel_id:
-            saved['panelId'] = panel_id
-            panel_updated = True
         current = locate(rows, saved['workspaceId'], rid)
         if current is None:
             if not saved.get('deleted'):
@@ -405,6 +469,10 @@ def state(store, panel_id, pending_job=None):
             if saved.get('deleted'):
                 saved['deleted'] = False
                 deleted_changed = True
+            panel_updated = False
+            if saved.get('panelId') != panel_id:
+                saved['panelId'] = panel_id
+                panel_updated = True
             confirmed = matches_observation(api, current, saved['workspaceId'], rid, saved.get('observedHash'))
             if not confirmed:
                 try:
@@ -419,7 +487,7 @@ def state(store, panel_id, pending_job=None):
                     for k in ('id', 'tag', 'up', 'down', 'total', 'userId', 'nodeId'):
                         desired.pop(k, None)
                         actual.pop(k, None)
-                    if desired == actual:
+                    if subset(desired, actual):
                         try:
                             detail = api.call('/panel/api/inbounds/get/%d' % current['id'])
                             detail_row = detail if isinstance(detail, dict) and detail.get('id') == current['id'] and detail.get('remark') == marker(saved['workspaceId'], rid) else current
