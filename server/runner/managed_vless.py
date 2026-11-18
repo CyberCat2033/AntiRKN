@@ -19,16 +19,16 @@ def snapshot(store, p, r, inbounds=None, expected_hash=None, prefer_detail=False
                 if str(row['id']) == r['adoption']['sourceId']), None)
     if row is None and not r['deleted']:
         raise VlessError('vpn_adoption_conflict')
-    if row is not None and (prefer_detail or expected_hash is not None and digest(normal(row)) != expected_hash):
+    if row is not None and (prefer_detail or expected_hash is not None and vless.observed_fingerprint(normal(row), expected_hash) != expected_hash):
         api = vless.panel_for(store, p['panelId'])
         detail = api.call('/panel/api/inbounds/get/%d' % row['id'])
         if not isinstance(detail, dict) or detail.get('id') != row['id'] or detail.get('remark') != row.get('remark'):
             raise VlessError('vless_api_failed')
         # The list API can add computed fields absent from point readback. A
         # saved point fingerprint must be compared to the same API shape.
-        if prefer_detail or digest(normal(detail)) == expected_hash:
+        if prefer_detail or vless.observed_fingerprint(normal(detail), expected_hash) == expected_hash:
             row = detail
-    return dict(row=row, fingerprint=digest(normal(row)) if row else digest(None))
+    return dict(row=row, fingerprint=vless.observed_fingerprint(normal(row), expected_hash) if row else digest(None))
 
 
 def proxy_fields(row):

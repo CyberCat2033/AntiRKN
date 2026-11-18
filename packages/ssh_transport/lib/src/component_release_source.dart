@@ -47,7 +47,8 @@ class ReleaseAssetSelector {
       }
 
       // Valid archive or binary extensions
-      final hasValidExt = lowerName.endsWith('.tar.gz') ||
+      final hasValidExt =
+          lowerName.endsWith('.tar.gz') ||
           lowerName.endsWith('.tgz') ||
           lowerName.endsWith('.zip') ||
           lowerName.endsWith('.tar.xz') ||
@@ -75,14 +76,29 @@ class ReleaseAssetSelector {
 
 /// Device-side metadata only. No SSH, APT, executable download or execution.
 final class GithubComponentReleaseSource implements ComponentReleaseSource {
-  const GithubComponentReleaseSource({this.metadata});
+  const GithubComponentReleaseSource({
+    this.metadata,
+    this.download,
+    this.sha256Hex,
+  });
   final Future<dynamic> Function(String path)? metadata;
+
+  /// SHA-256 of downloaded bytes, provided by the app (this package has no
+  /// hashing dependency). Without it AmneziaWG source releases are not offered.
+  final String Function(List<int> bytes)? sha256Hex;
+
+  /// Fetches a source archive (tests replace it).
+  final Future<List<int>?> Function(String url)? download;
 
   static final Map<String, ({String? etag, dynamic body})> _cache = {};
 
   static void clearCache() => _cache.clear();
 
-  Future<dynamic> _read(HttpClient client, String path) async {
+  Future<dynamic> _read(
+    HttpClient client,
+    String path, {
+    int limit = 512 * 1024,
+  }) async {
     if (metadata != null) return metadata!(path);
     final request = await client.getUrl(
       Uri.https('api.github.com', '/repos/$path'),
@@ -103,7 +119,7 @@ final class GithubComponentReleaseSource implements ComponentReleaseSource {
     final bytes = <int>[];
     await for (final part in response) {
       bytes.addAll(part);
-      if (bytes.length > 512 * 1024) {
+      if (bytes.length > limit) {
         throw const FormatException('release_size');
       }
     }
@@ -139,9 +155,12 @@ final class GithubComponentReleaseSource implements ComponentReleaseSource {
                 for (final item in list) {
                   final m = item as Map;
                   final t = m['tag_name'] as String?;
+                  // Only stable releases are offered as "the latest";
+                  // previews (rc/beta) stay available through explicit choice.
                   if (m['draft'] == false &&
+                      m['prerelease'] == false &&
                       t != null &&
-                      componentVersion(t, allowPreview: true) != null) {
+                      componentVersion(t) != null) {
                     data = m;
                     break;
                   }
@@ -149,12 +168,11 @@ final class GithubComponentReleaseSource implements ComponentReleaseSource {
               }
             } catch (_) {}
           }
-          data ??=
-              await _read(client, '${entry.value}/releases/latest') as Map;
+          data ??= await _read(client, '${entry.value}/releases/latest') as Map;
           final tag = data['tag_name'] as String;
           if (data['draft'] != false ||
-              (entry.key != 'trusttunnel' && data['prerelease'] != false) ||
-              componentVersion(tag, allowPreview: entry.key == 'trusttunnel') == null) {
+              data['prerelease'] != false ||
+              componentVersion(tag) == null) {
             throw const FormatException('release_version');
           }
           result[entry.key] = tag.replaceFirst(RegExp(r'^v'), '');
@@ -173,6 +191,178 @@ final class GithubComponentReleaseSource implements ComponentReleaseSource {
         result['amneziawg'] = newest.replaceFirst(RegExp(r'^v'), '');
         return result;
       })().timeout(const Duration(seconds: 60));
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  static const _releaseRepos = {
+    'panel': 'MHSanaei/3x-ui',
+    'xray': 'XTLS/Xray-core',
+    'trusttunnel': 'TrustTunnel/TrustTunnel',
+  };
+
+  @override
+  Future<List<ComponentRelease>> releases(String component) async {
+    if (component == 'amneziawg') return _awgReleases();
+    final repo = _releaseRepos[component];
+    if (repo == null) return const [];
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 15);
+    try {
+      // Release notes are long; the list of the last 30 can exceed the
+      // single-release limit.
+      final list =
+          await _read(
+                client,
+                '$repo/releases',
+                limit: 8 * 1024 * 1024,
+              ).timeout(const Duration(seconds: 60))
+              as List;
+      final out = <ComponentRelease>[];
+      for (final item in list) {
+        if (item is! Map || item['draft'] != false) continue;
+        final tag = item['tag_name'];
+        if (tag is! String) continue;
+        final preview = item['prerelease'] == true;
+        if (componentVersion(tag, allowPreview: preview) == null) continue;
+        out.add(
+          ComponentRelease(
+            tag.replaceFirst(RegExp(r'^v'), ''),
+            preview: preview,
+            published: DateTime.tryParse('${item['published_at']}'),
+          ),
+        );
+      }
+      return out;
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  /// AmneziaWG Go has tags, no releases or binaries: it is built from source.
+  Future<List<ComponentRelease>> _awgReleases() async {
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 15);
+    try {
+      final tags =
+          await _read(
+                client,
+                'amnezia-vpn/amneziawg-go/tags',
+              ).timeout(const Duration(seconds: 60))
+              as List;
+      final out = <ComponentRelease>[
+        for (final item in tags)
+          if (item is Map &&
+              item['name'] is String &&
+              componentVersion(item['name'] as String) != null)
+            ComponentRelease(
+              (item['name'] as String).replaceFirst(RegExp(r'^v'), ''),
+            ),
+      ];
+      out.sort(
+        (a, b) => componentIsNewer(a.version, b.version) == true ? -1 : 1,
+      );
+      return out;
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  @override
+  Future<Map<String, Object?>?> resolveInstallerRelease({
+    required String component,
+    required String version,
+  }) async {
+    if (componentVersion(version) == null) return null;
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 15);
+    try {
+      if (component == 'trusttunnel') {
+        final release =
+            await _read(
+                  client,
+                  'TrustTunnel/TrustTunnel/releases/tags/v$version',
+                )
+                as Map;
+        final name = 'trusttunnel-v$version-linux-x86_64.tar.gz';
+        final asset = ((release['assets'] as List?) ?? const [])
+            .whereType<Map>()
+            .where((a) => a['name'] == name)
+            .firstOrNull;
+        final sha = normalizeSha256(asset?['digest'] as String?);
+        if (release['draft'] != false ||
+            asset == null ||
+            sha.isEmpty ||
+            asset['size'] is! int) {
+          return null;
+        }
+        return {
+          'version': version,
+          'archive': {
+            'url':
+                'https://github.com/TrustTunnel/TrustTunnel/releases/download/v$version/$name',
+            'bytes': asset['size'],
+            'sha256': sha,
+          },
+        };
+      }
+      if (component == 'amneziawg' && sha256Hex != null) {
+        final tags =
+            await _read(client, 'amnezia-vpn/amneziawg-go/tags') as List;
+        final commit = tags
+            .whereType<Map>()
+            .where((t) => t['name'] == 'v$version' || t['name'] == version)
+            .map((t) => (t['commit'] as Map?)?['sha'])
+            .whereType<String>()
+            .firstOrNull;
+        if (commit == null || !RegExp(r'^[a-f0-9]{40}$').hasMatch(commit)) {
+          return null;
+        }
+        // GitHub publishes no checksum for source archives: take the
+        // archive once over HTTPS and pin its size and SHA-256, so the server
+        // builds exactly these bytes.
+        final url =
+            'https://codeload.github.com/amnezia-vpn/amneziawg-go/tar.gz/$commit';
+        final bytes = await (download ?? _download)(url);
+        if (bytes == null || bytes.isEmpty) return null;
+        return {
+          'version': version,
+          'commit': commit,
+          'archive': {
+            'url': url,
+            'bytes': bytes.length,
+            'sha256': sha256Hex!(bytes),
+          },
+        };
+      }
+      return null;
+    } catch (_) {
+      return null;
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  static Future<List<int>?> _download(String url) async {
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 15);
+    try {
+      final request = await client.getUrl(Uri.parse(url));
+      request.followRedirects = true;
+      request.headers.set('User-Agent', 'AntiRKN');
+      final response = await request.close().timeout(
+        const Duration(seconds: 60),
+      );
+      if (response.statusCode != 200) return null;
+      final bytes = <int>[];
+      await for (final part in response.timeout(const Duration(seconds: 60))) {
+        bytes.addAll(part);
+        if (bytes.length > 20 * 1024 * 1024) return null;
+      }
+      return bytes;
+    } catch (_) {
+      return null;
     } finally {
       client.close(force: true);
     }
@@ -200,20 +390,17 @@ final class GithubComponentReleaseSource implements ComponentReleaseSource {
 
       Map? release;
       try {
-        release =
-            await _read(client, '$repo/releases/tags/v$version') as Map?;
+        release = await _read(client, '$repo/releases/tags/v$version') as Map?;
       } catch (_) {}
       if (release == null) {
         try {
-          release =
-              await _read(client, '$repo/releases/tags/$version') as Map?;
+          release = await _read(client, '$repo/releases/tags/$version') as Map?;
         } catch (_) {}
       }
       if (release == null) return null;
-      if (release['draft'] == true ||
-          (release['prerelease'] == true && component != 'trusttunnel')) {
-        return null;
-      }
+      // Previews are never offered as "the latest" (see check), but an
+      // explicitly chosen one is installed like any other release.
+      if (release['draft'] == true) return null;
 
       final assets = (release['assets'] as List?) ?? [];
       final matchedAsset = ReleaseAssetSelector.selectAsset(
@@ -301,7 +488,8 @@ final class GithubComponentReleaseSource implements ComponentReleaseSource {
                 checksumContent = utf8.decode(res);
                 break;
               } else if (res is Map) {
-                final val = res['content'] ??
+                final val =
+                    res['content'] ??
                     res['digest'] ??
                     res['sha256'] ??
                     res['text'];
@@ -315,7 +503,8 @@ final class GithubComponentReleaseSource implements ComponentReleaseSource {
         }
 
         if (checksumContent == null && metadata == null) {
-          final downloadUrl = checksumAsset['browser_download_url'] as String? ??
+          final downloadUrl =
+              checksumAsset['browser_download_url'] as String? ??
               checksumAsset['url'] as String?;
           if (downloadUrl != null) {
             try {
@@ -345,7 +534,8 @@ final class GithubComponentReleaseSource implements ComponentReleaseSource {
         }
       }
 
-      final rawCandidate = parsedSha256 ??
+      final rawCandidate =
+          parsedSha256 ??
           (matchedAsset['digest'] as String?) ??
           (matchedAsset['sha256'] as String?) ??
           '';

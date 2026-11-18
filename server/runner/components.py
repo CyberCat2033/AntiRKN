@@ -38,8 +38,70 @@ def encode(value):
     return json.dumps(value, sort_keys=True, separators=(',', ':')).encode()
 
 
-def release_hash(component):
-    return hashlib.sha256(encode(RELEASES[component])).hexdigest()
+def release_hash(component, release=None):
+    return hashlib.sha256(encode(release or RELEASES[component])).hexdigest()
+
+
+def usable(component, record):
+    """Configuration code may use this AntiRKN install: the pinned version or
+    a newer one of the same generation (installed by the checked update).
+    Requiring exactly the pinned version made every update break AWG/TT edits.
+    """
+    if not record:
+        return False
+    pinned = RELEASES[component]
+    try:
+        for key in (('version', 'toolsVersion') if component == 'amneziawg' else ('version',)):
+            have = tuple(int(x) for x in record[key].split('.'))
+            want = tuple(int(x) for x in pinned[key].split('.'))
+            if have[0] != want[0] or have < want:
+                return False
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return False
+    return True
+
+
+def release_for(component, payload=None):
+    """The pinned release, or a newer upstream one the app chose (stable only).
+
+    Only the version and its archive change; the source of the archive is
+    fixed per component and its size and SHA-256 are checked on download.
+    """
+    base = RELEASES[component]
+    if not payload:
+        return base
+    try:
+        choice = json.loads(payload) if isinstance(payload, str) else payload
+    except ValueError:
+        raise ComponentError('component_incompatible')
+    if not isinstance(choice, dict):
+        raise ComponentError('component_incompatible')
+    version, archive = choice.get('version'), choice.get('archive')
+    if (not isinstance(version, str) or not re.fullmatch(r'[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,10}', version)
+            or not isinstance(archive, dict) or set(archive) != {'url', 'bytes', 'sha256'}
+            or type(archive['bytes']) is not int or not 0 < archive['bytes'] <= 100 * 1024 * 1024
+            or not isinstance(archive['sha256'], str) or not re.fullmatch('[a-f0-9]{64}', archive['sha256'])):
+        raise ComponentError('component_incompatible')
+    release = json.loads(json.dumps(base))
+    release['version'] = version
+    if component == 'amneziawg':
+        commit = choice.get('commit')
+        if not isinstance(commit, str) or not re.fullmatch('[a-f0-9]{40}', commit) or archive['url'] != (
+                'https://codeload.github.com/amnezia-vpn/amneziawg-go/tar.gz/' + commit):
+            raise ComponentError('component_incompatible')
+        release['commit'] = commit
+        release['archives']['source'] = dict(archive)
+    elif component == 'trusttunnel':
+        if archive['url'] != ('https://github.com/TrustTunnel/TrustTunnel/releases/download/v%s/'
+                              'trusttunnel-v%s-linux-x86_64.tar.gz' % (version, version)):
+            raise ComponentError('component_incompatible')
+        # Per-file hashes are unknown for a release AntiRKN did not pin; the
+        # archive hash covers them and the programs are taken by name.
+        release['archives']['endpoint'] = dict(archive)
+    else:
+        raise ComponentError('component_incompatible')
+    release['chosen'] = True
+    return release
 
 
 def sync_directory(path):
@@ -166,10 +228,10 @@ def external_paths(component):
         '/etc/systemd/system/awg-quick@.service', '/lib/systemd/system/awg-quick@.service')]
 
 
-def component_plan(component):
+def component_plan(component, payload=None):
     if component not in RELEASES:
         raise ComponentError('component_incompatible')
-    release = RELEASES[component]
+    release = release_for(component, payload)
     record, conflict = None, False
     try:
         record = installed(component)
@@ -211,7 +273,7 @@ def component_plan(component):
     required = (2000 if component == 'amneziawg' else 150) * 1024 * 1024
     if min(shutil.disk_usage('/usr/local').free, shutil.disk_usage('/var/lib').free) < required:
         missing.append('disk_space')
-    state = 'conflict' if conflict else 'missing' if record is None else 'current' if record['release'] == release_hash(component) else 'update'
+    state = 'conflict' if conflict else 'missing' if record is None else 'current' if record['release'] == release_hash(component, release) else 'update'
     # Never downgrade or cross an unknown generation with a generic updater.
     if state == 'update' and (record['version'].split('.')[0] != release['version'].split('.')[0]
             or tuple(map(int, record['version'].split('.'))) > tuple(map(int, release['version'].split('.')))):
@@ -223,7 +285,8 @@ def component_plan(component):
         state = 'incompatible'
     data = dict(component=component, state=state, supported=not missing,
         prerequisites=missing, version=release['version'], toolsVersion=release.get('toolsVersion'),
-        installedVersion=record['version'] if record else None, release=release_hash(component),
+        installedVersion=record['version'] if record else None, release=release_hash(component, release),
+        chosen=bool(release.get('chosen')),
         archives=release['archives'], previous=record, paths=observed, containers=containers,
         activeUnits=active_units(component), unit=snapshot(unit), config=config_snapshot(component))
     data['fingerprint'] = hashlib.sha256(encode(data)).hexdigest()
@@ -267,7 +330,8 @@ class ComponentInstaller:
     def __init__(self, store, request):
         self.store, self.request = store, request
         self.component = request['component']
-        self.release = RELEASES[self.component]
+        self.payload = request.get('payload') or None
+        self.release = release_for(self.component, self.payload)
         self.directory = store.directory / ('component-' + request['id'])
         self.root = BASE / self.component
 
@@ -331,6 +395,12 @@ class ComponentInstaller:
                     if len(matches) != 1 or digest(matches[0]) != expected:
                         raise ComponentError('component_checksum_failed')
                     shutil.copyfile(matches[0], output / filename)
+                if self.release.get('chosen') and self.component == 'trusttunnel' and name == 'endpoint':
+                    for filename in names(self.component):
+                        matches = [m for m in (self.directory / name).rglob(filename) if m.is_file() and not m.is_symlink()]
+                        if len(matches) != 1:
+                            raise ComponentError('component_checksum_failed')
+                        shutil.copyfile(matches[0], output / filename)
             if self.component == 'amneziawg':
                 source = self.directory / 'source' / ('amneziawg-go-' + self.release['commit'])
                 (source / 'version.go').write_text('package main\nconst Version = "v' + self.release['version'] + '"\n')
@@ -418,7 +488,7 @@ class ComponentInstaller:
 
     def step(self, number):
         if number == 0:
-            plan = component_plan(self.component)
+            plan = component_plan(self.component, self.payload)
             if plan['fingerprint'] != self.request['fingerprint'] or plan['state'] not in ('missing', 'update'):
                 raise ComponentError()
             if not plan['supported']:
@@ -445,7 +515,7 @@ class ComponentInstaller:
         elif number == 3:
             # Revalidate before the first public effect. An interrupted staging
             # directory is private; the published pointer is still unchanged.
-            if component_plan(self.component)['fingerprint'] != plan['fingerprint']:
+            if component_plan(self.component, self.payload)['fingerprint'] != plan['fingerprint']:
                 raise ComponentError()
             backup = self.directory / 'config-backup'
             backup.mkdir(mode=0o700, exist_ok=True)
@@ -457,7 +527,7 @@ class ComponentInstaller:
             for directory in (BASE, self.root, self.root / 'versions'):
                 directory.mkdir(mode=0o755, exist_ok=True)
                 safe_directory(directory)
-            target = self.root / 'versions' / release_hash(self.component)
+            target = self.root / 'versions' / release_hash(self.component, self.release)
             staging = self.root / 'versions' / ('.' + self.request['id'])
             staging.mkdir(mode=0o755, exist_ok=True)
             hashes = {}
@@ -466,8 +536,10 @@ class ComponentInstaller:
                 atomic_file(staging / file.name, file.read_bytes(), 0o755 if file.name in names(self.component) else 0o644)
                 hashes[file.name] = digest(file)
             record = dict(component=self.component, version=self.release['version'],
-                toolsVersion=self.release.get('toolsVersion'), release=release_hash(self.component), files=hashes)
+                toolsVersion=self.release.get('toolsVersion'), release=release_hash(self.component, self.release), files=hashes)
             atomic_file(staging / 'manifest.json', encode(record), 0o644)
+            if not (self.directory / 'probe-before.json').exists():
+                atomic_file(self.directory / 'probe-before.json', encode(self.probe()))
             atomic_file(self.directory / 'target.json', encode(record))
             if not target.exists():
                 os.rename(staging, target)
@@ -504,7 +576,7 @@ class ComponentInstaller:
             temp = self.root / '.current-next'
             if temp.is_symlink():
                 temp.unlink()
-            os.symlink('versions/' + release_hash(self.component), temp)
+            os.symlink('versions/' + release_hash(self.component, self.release), temp)
             os.replace(temp, pointer)
             sync_directory(self.root)
             for name in names(self.component):
@@ -528,13 +600,65 @@ class ComponentInstaller:
             record = installed(self.component)
             if record != json.loads((self.directory / 'target.json').read_text()):
                 raise ComponentError()
-            self.verify(self.root / 'current')
-            for unit in plan['activeUnits']:
-                subprocess.run(['/usr/bin/systemctl', 'restart', unit], check=True, timeout=90,
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                subprocess.run(['/usr/bin/systemctl', 'is-active', '--quiet', unit], check=True, timeout=20)
+            try:
+                self.verify(self.root / 'current')
+                for unit in plan['activeUnits']:
+                    subprocess.run(['/usr/bin/systemctl', 'restart', unit], check=True, timeout=90,
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    subprocess.run(['/usr/bin/systemctl', 'is-active', '--quiet', unit], check=True, timeout=20)
+                self.connections_kept()
+            except (ComponentError, OSError, subprocess.SubprocessError) as error:
+                cause = error.code if isinstance(error, ComponentError) and error.code == 'upgrade_connectivity_failed' else 'component_check_failed'
+                with self.store.db:
+                    self.store.event(self.request['id'], cause, 5, STEPS)
+                if plan['previous'] and self.restore_previous(plan):
+                    raise ComponentError('upgrade_rolled_back')
+                raise
             self.checkpoint(6, 'component_checked')
             return True
+
+    def probe(self):
+        """Real connectivity of what this component serves ({} when unknown)."""
+        try:
+            from component_upgrade import probe_component
+            return probe_component(self.component)
+        except Exception:
+            return {}
+
+    def connections_kept(self):
+        """Endpoints/interfaces that worked before the switch work after it."""
+        try:
+            before = json.loads((self.directory / 'probe-before.json').read_text())
+        except (OSError, ValueError):
+            return
+        if not any(before.values()):
+            return
+        deadline = time.monotonic() + 30
+        while True:
+            after = self.probe()
+            if not [k for k, ok in before.items() if ok and not after.get(k)]:
+                return
+            if time.monotonic() > deadline:
+                raise ComponentError('upgrade_connectivity_failed')
+            time.sleep(3)
+
+    def restore_previous(self, plan):
+        """Point back to the previous immutable version and restart its units."""
+        previous = self.root / 'versions' / plan['previous']['release']
+        if not (previous / 'manifest.json').is_file():
+            return False
+        temp = self.root / '.current-next'
+        if temp.is_symlink():
+            temp.unlink()
+        os.symlink('versions/' + plan['previous']['release'], temp)
+        os.replace(temp, self.root / 'current')
+        sync_directory(self.root)
+        for unit in plan['activeUnits']:
+            subprocess.run(['/usr/bin/systemctl', 'restart', unit], timeout=90,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # Nothing of this operation remains public: the job ends as failed.
+        (self.directory / 'target.json').unlink(missing_ok=True)
+        return True
 
     def abort(self):
         job_id = self.request['id']

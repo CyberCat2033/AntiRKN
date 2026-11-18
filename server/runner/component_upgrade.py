@@ -28,6 +28,8 @@ except ImportError:
     except ImportError:
         tomllib = None
 
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from panel import atomic_file, digest, safe_file
 
 @dataclass(frozen=True)
@@ -801,6 +803,23 @@ def extract_archive_safe(archive_path, extract_dir, binary_name=None, max_size=5
     return dest
 
 
+def probe_component(component):
+    """{target: ok} real connectivity of what this component serves."""
+    import upgrade_probe
+    if component in ('panel', 'xray'):
+        return upgrade_probe.probe_vless()
+    if component == 'trusttunnel':
+        return upgrade_probe.probe_tls_listeners(discover_trusttunnel_targets())
+    if component == 'amneziawg':
+        return upgrade_probe.probe_awg()
+    return {}
+
+
+def compare_probes(before, after):
+    import upgrade_probe
+    return upgrade_probe.compare(before, after)
+
+
 class ComponentUpgrader:
     """Universal transactional upgrader with syntax pre-flight, atomic switch, and self-healing rollback."""
 
@@ -843,6 +862,12 @@ class ComponentUpgrader:
         self._ensure_detection_and_metadata()
         if not self.detection.get('installed') or not self.detection.get('binaryPath'):
             raise ComponentUpgradeError('upgrade_not_installed')
+        # TrustTunnel/AmneziaWG installed by AntiRKN live in immutable version
+        # folders behind links; writing a file over the link would make them
+        # look foreign. Their updates go through the component installer.
+        binary = Path(self.detection['binaryPath'])
+        if binary.is_symlink() and str(binary.resolve()).startswith('/usr/local/lib/antirkn-components/'):
+            raise ComponentUpgradeError('upgrade_conflict', detail='managed by the component installer')
 
         manifest_arch = normalize_arch(self.manifest.get('architecture'))
         host_arch = normalize_arch()
@@ -880,6 +905,11 @@ class ComponentUpgrader:
             'ports': self.detection.get('ports', []),
             'healthTargets': self.detection.get('healthTargets', []),
         }
+
+        # The version this backup brings back (kept as a snapshot after confirmation).
+        self.backup_metadata['version'] = self.detection.get('version')
+        if self.component == 'panel':
+            self.backup_metadata['xrayVersion'] = detect_component('xray').get('version')
 
         # Local backup in work_dir
         backup_bin = self.backup_dir / binary_path.name
@@ -919,7 +949,73 @@ class ComponentUpgrader:
                     src_db.close()
                 self.backup_metadata['dbSha256'] = digest(db_backup)
 
+        # 4. Companion files the switch replaces too. A 3x-ui archive carries
+        # its own Xray; rolling back only x-ui would leave the new core behind.
+        extras = []
+        for extra in self._companion_files(binary_path):
+            if extra.is_file() and not extra.is_symlink():
+                saved = self.backup_dir / 'extra' / extra.name
+                saved.parent.mkdir(parents=True, exist_ok=True)
+                atomic_file(saved, extra.read_bytes(), extra.stat().st_mode & 0o777)
+                extras.append(dict(path=str(extra), mode=extra.stat().st_mode & 0o777))
+        self.backup_metadata['extraFiles'] = extras
+
+        # 5. Real connectivity before the switch, compared after it.
+        try:
+            self.backup_metadata['probeBefore'] = probe_component(self.component)
+        except Exception:
+            self.backup_metadata['probeBefore'] = {}
+
         atomic_file(self.backup_dir / 'meta.json', json.dumps(self.backup_metadata).encode())
+
+    def _companion_files(self, binary_path):
+        if self.component == 'panel':
+            base = Path('/usr/local/x-ui')
+            return [base / 'bin/xray-linux-amd64', base / 'bin/xray-linux-arm64', base / 'x-ui.sh']
+        if self.component == 'xray':
+            return [binary_path.parent / 'geoip.dat', binary_path.parent / 'geosite.dat']
+        return []
+
+    def _previous_core(self):
+        """The Xray that ran before the switch (from this upgrade's backup)."""
+        meta = self.backup_metadata or {}
+        if self.component == 'xray' and meta.get('binaryPath'):
+            core = self.backup_dir / Path(meta['binaryPath']).name
+        elif self.component == 'panel':
+            core = self.backup_dir / 'extra' / 'xray-linux-amd64'
+        else:
+            return None
+        return core if core.is_file() and os.access(core, os.X_OK) else None
+
+    def _probe_after(self):
+        """New core as the client, plus the previous core: double hop entry
+        servers and older clients keep running it, and a new server can stop
+        accepting them (measured: Xray 25.1 clients vs a 26.11 server)."""
+        results = dict(probe_component(self.component))
+        core = self._previous_core()
+        if core is not None:
+            import upgrade_probe
+            results.update({'previous:' + k: ok for k, ok in upgrade_probe.probe_vless(binary=core).items()})
+        return results
+
+    def verify_connectivity(self):
+        """Roll back when an inbound/endpoint that worked before the switch fails after it."""
+        self._ensure_detection_and_metadata()
+        before = dict(self.backup_metadata.get('probeBefore') or {})
+        if not any(before.values()):
+            return []
+        if self._previous_core() is not None:
+            # Before the switch the previous core was the installed one.
+            before.update({'previous:' + k: ok for k, ok in list(before.items())})
+        deadline = time.monotonic() + 30
+        failed = []
+        while time.monotonic() < deadline:
+            failed = compare_probes(before, self._probe_after())
+            if not failed:
+                return []
+            time.sleep(3)
+        self.rollback()
+        raise ComponentUpgradeError('upgrade_connectivity_failed', detail=','.join(failed))
 
     def validate_and_stage(self, downloaded_archive_path):
         """Validate archive SHA-256 and extract binary into staging directory."""
@@ -1219,8 +1315,13 @@ class ComponentUpgrader:
             self.rollback()
             raise ComponentUpgradeError('upgrade_healthcheck_failed')
 
-    def rollback(self):
-        """Unconditional Self-Healing Rollback: restores binary, configs, and DB, then revives service."""
+    def rollback(self, restore_data=True):
+        """Unconditional Self-Healing Rollback: restores binary, configs, and DB, then revives service.
+
+        restore_data=False keeps the live database and config: a late rollback
+        (the confirmation window expired) must not erase inbounds that were
+        changed after the switch.
+        """
         self._ensure_detection_and_metadata()
         meta = self.backup_metadata
         if not meta or not meta.get('binaryPath'):
@@ -1264,15 +1365,20 @@ class ComponentUpgrader:
             if extra_bak.exists():
                 atomic_file(extra_path, extra_bak.read_bytes(), 0o755)
 
+        for extra in meta.get('extraFiles', []):
+            saved = self.backup_dir / 'extra' / Path(extra['path']).name
+            if saved.exists():
+                atomic_file(Path(extra['path']), saved.read_bytes(), extra.get('mode', 0o755))
+
         # 2. Restore DB if panel
-        if meta.get('dbPath'):
+        if restore_data and meta.get('dbPath'):
             db_path = Path(meta['dbPath'])
             db_backup = self.backup_dir / 'db_backup.sqlite'
             if db_backup.exists():
                 atomic_file(db_path, db_backup.read_bytes(), 0o600)
 
         # 3. Restore config if present
-        if meta.get('configPath'):
+        if restore_data and meta.get('configPath'):
             cfg_path = Path(meta['configPath'])
             cfg_backup = self.backup_dir / 'config_backup'
             if cfg_backup.exists():
@@ -1319,9 +1425,46 @@ def plan(store, component, candidate_payload=None):
         'upgradable': upgradable,
         'arch': detection.get('arch', normalize_arch()),
         'ready': detection.get('installed', False),
+        'snapshot': snapshot_info(store.directory, component) if store is not None else None,
     }
     plan_data['fingerprint'] = canonical_plan_fingerprint(plan_data)
     return plan_data
+
+
+def installed_panel_versions():
+    """Versions read from the installed 3x-ui and Xray binaries (None when unknown)."""
+    panel_version = detect_component('panel').get('version')
+    xray_version = detect_component('xray').get('version')
+    return {k: v for k, v in (('panelVersion', panel_version), ('xrayVersion', xray_version)) if v}
+
+
+def sync_installed_versions():
+    """Make AntiRKN's version observations match the installed binaries.
+
+    Only version fields change; credentials, ids and panel settings are kept.
+    Returns the recorded versions, or {} when nothing could be detected.
+    """
+    from panel_discovery import EXTERNAL_ACCESS, external_access
+    from panel import DATABASE
+    actual = installed_panel_versions()
+    if not actual:
+        return {}
+    external = external_access()
+    if external:
+        external.update(actual)
+        atomic_file(EXTERNAL_ACCESS, json.dumps(external, sort_keys=True).encode())
+    marker = DATABASE / '.antirkn-owner'
+    if marker.exists():
+        safe_file(marker, 64)
+        owner = marker.read_text().strip()
+        version_file = DATABASE / '.antirkn-versions'
+        recorded = {}
+        if version_file.exists():
+            safe_file(version_file, 1024)
+            recorded = json.loads(version_file.read_text())
+        if recorded.get('id', owner) == owner:
+            atomic_file(version_file, json.dumps({**recorded, 'id': owner, **actual}, sort_keys=True).encode())
+    return actual
 
 
 class ComponentUpgradeJob:
@@ -1347,6 +1490,12 @@ class ComponentUpgradeJob:
             self.store.event(self.request['id'], codes[checkpoint], checkpoint, 6)
 
         if checkpoint == 0:
+            # Starting another upgrade proves this device controls the server:
+            # it closes any confirmation window that is still open.
+            for other in Path(self.store.directory).glob('upgrade-*/deadman.json'):
+                other_id = other.parent.name[len('upgrade-'):]
+                if other_id != self.request['id'] and window_open(self.store.directory, other_id):
+                    confirm_upgrade(self.store, other_id)
             # Pre-flight checks
             self.upgrader.pre_check()
             current_plan = plan(self.store, self.payload['component'], self.payload)
@@ -1357,7 +1506,9 @@ class ComponentUpgradeJob:
             self.archive_path.parent.mkdir(parents=True, exist_ok=True)
             if not self.archive_path.exists():
                 archive_url = self.payload.get('url')
-                if archive_url and archive_url.startswith('file://'):
+                if self.payload.get('source') == 'snapshot':
+                    snapshot_archive(self.store.directory, self.upgrader.component, self.payload.get('version'), self.archive_path)
+                elif archive_url and archive_url.startswith('file://'):
                     local_file = Path(archive_url.removeprefix('file://'))
                     if local_file.exists():
                         atomic_file(self.archive_path, local_file.read_bytes())
@@ -1412,10 +1563,13 @@ class ComponentUpgradeJob:
                 raise ComponentUpgradeError('upgrade_binary_not_found')
             self.upgrader.apply_switch(staged_binary)
         elif checkpoint == 5:
-            # Canary healthcheck and automatic fail-safe rollback
+            # Canary healthcheck, real connections, then a confirmation window:
+            # the server rolls back on its own unless the app confirms in time.
             self.upgrader._ensure_detection_and_metadata()
             self.upgrader.verify_health(timeout=15)
+            self.upgrader.verify_connectivity()
             self._sync_panel_access_versions()
+            arm_deadman(self.store, self.request)
 
         done_codes = [
             'upgrade_prepared',
@@ -1428,40 +1582,20 @@ class ComponentUpgradeJob:
         with self.store.db:
             self.store.db.execute('UPDATE jobs SET checkpoint=? WHERE id=?', (checkpoint + 1, self.request['id']))
             self.store.event(self.request['id'], done_codes[checkpoint], checkpoint + 1, 6)
+            if checkpoint == 5:
+                self.store.event(self.request['id'], 'upgrade_awaiting_confirmation', 6, 6)
 
     def _sync_panel_access_versions(self):
+        """Record the versions that are actually installed after a panel/Xray switch.
+
+        A 3x-ui archive replaces its bundled Xray too, so both versions are read
+        from the binaries rather than taken from the candidate manifest. The app
+        verifies the panel against these records; stale records made every later
+        VLESS change look like an offline server.
+        """
         if self.upgrader.component not in ('xray', 'panel'):
             return
-        try:
-            from panel_discovery import EXTERNAL_ACCESS
-            from panel import atomic_file, DATABASE
-            new_version = self.manifest.get('version')
-            if not new_version:
-                return
-            if EXTERNAL_ACCESS.exists():
-                ext = json.loads(EXTERNAL_ACCESS.read_text())
-                if self.upgrader.component == 'panel':
-                    ext['panelVersion'] = new_version
-                elif self.upgrader.component == 'xray':
-                    ext['xrayVersion'] = new_version
-                atomic_file(EXTERNAL_ACCESS, json.dumps(ext).encode())
-            version_file = DATABASE / '.antirkn-versions'
-            if version_file.exists():
-                ver = json.loads(version_file.read_text())
-            elif DATABASE.exists():
-                owner_file = DATABASE / '.antirkn-owner'
-                owner_id = owner_file.read_text().strip() if owner_file.exists() else ''
-                ver = {'id': owner_id}
-            else:
-                ver = None
-            if ver is not None:
-                if self.upgrader.component == 'panel':
-                    ver['panelVersion'] = new_version
-                elif self.upgrader.component == 'xray':
-                    ver['xrayVersion'] = new_version
-                atomic_file(version_file, json.dumps(ver).encode())
-        except Exception:
-            pass
+        sync_installed_versions()
 
     def rollback(self):
         """Invoke auto-rollback on failure or cancellation."""
@@ -1472,3 +1606,336 @@ class ComponentUpgradeJob:
 
     def failure_status(self):
         return 'failed'
+
+
+# --- Confirmation window ("commit confirmed") -------------------------------
+DEADMAN_SECONDS = 300
+
+
+def _deadman_unit(job_id):
+    if not re.fullmatch('[a-f0-9]{32}', job_id or ''):
+        raise ComponentUpgradeError('upgrade_conflict')
+    return 'antirkn-upgrade-deadman-' + job_id
+
+
+def _deadman_path(directory, job_id):
+    return Path(directory) / ('upgrade-' + job_id) / 'deadman.json'
+
+
+def _start_deadman_timer(job_id, seconds):
+    subprocess.run(['/usr/bin/systemctl', 'stop', _deadman_unit(job_id) + '.timer'], capture_output=True, timeout=30)
+    subprocess.run(['/usr/bin/systemctl', 'reset-failed', _deadman_unit(job_id) + '.service'], capture_output=True, timeout=30)
+    subprocess.run(['/usr/bin/systemd-run', '--unit=' + _deadman_unit(job_id), '--on-active=%d' % max(1, int(seconds)),
+                    '--timer-property=AccuracySec=1s', '--collect', '/usr/bin/python3', '-I', str(Path(__file__).resolve()),
+                    'deadman', job_id], capture_output=True, timeout=30, check=True)
+
+
+def arm_deadman(store, request):
+    """Persist the window first, then start an independent systemd timer."""
+    path = _deadman_path(store.directory, request['id'])
+    path.parent.mkdir(parents=True, exist_ok=True)
+    deadline = time.time() + DEADMAN_SECONDS
+    atomic_file(path, json.dumps(dict(id=request['id'], deadline=deadline, confirmed=False, rolledBack=False)).encode())
+    _start_deadman_timer(request['id'], DEADMAN_SECONDS)
+
+
+def window_open(directory, job_id):
+    """True while an applied upgrade still waits for the app's confirmation."""
+    path = _deadman_path(directory, job_id)
+    try:
+        info = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return False
+    return not info.get('confirmed') and not info.get('rolledBack')
+
+
+def retire_work_dir(directory, job_id):
+    """Drop everything of a finished upgrade but the window record.
+
+    The backup must outlive the job while the confirmation window is open;
+    deleting it with the job's transients made the expiry a silent no-op.
+    """
+    work = Path(directory) / ('upgrade-' + job_id)
+    if not work.is_dir():
+        return
+    for child in work.iterdir():
+        if child.name == 'deadman.json':
+            continue
+        if child.is_dir() and not child.is_symlink():
+            shutil.rmtree(str(child), ignore_errors=True)
+        else:
+            child.unlink(missing_ok=True)
+
+
+# --- Snapshot of the previous version ---------------------------------------
+# After a confirmed upgrade the programs that ran before it stay on disk, so the
+# app can go back to exactly that version (never to one that was not installed).
+# Data (3x-ui database, configs) is not part of it: it stays live.
+SNAPSHOT_COMPONENTS = ('panel', 'xray', 'trusttunnel')
+
+
+def _snapshot_dir(directory, component):
+    return Path(directory) / 'snapshots' / component
+
+
+def _drop_inplace_backup(directory, job_id):
+    meta_path = Path(directory) / ('upgrade-' + job_id) / 'backup' / 'meta.json'
+    try:
+        meta = json.loads(meta_path.read_text())
+    except (OSError, ValueError):
+        return
+    # atomic_binary_replace leaves a copy next to every file it replaced;
+    # once the window is closed nothing reads them.
+    paths = [Path(extra['path']) for extra in meta.get('extraFiles', []) if extra.get('path')]
+    if meta.get('binaryPath'):
+        binary = Path(meta['binaryPath'])
+        paths += [binary, binary.parent / 'setup_wizard']
+    for path in paths:
+        path.with_name(path.name + '.antirkn_backup').unlink(missing_ok=True)
+
+
+def keep_snapshot(directory, job_id, component):
+    if component not in SNAPSHOT_COMPONENTS:
+        return False
+    backup = Path(directory) / ('upgrade-' + job_id) / 'backup'
+    try:
+        meta = json.loads((backup / 'meta.json').read_text())
+    except (OSError, ValueError):
+        return False
+    if not meta.get('version') or not meta.get('binaryPath') or not (backup / Path(meta['binaryPath']).name).is_file():
+        return False
+    root = Path(directory) / 'snapshots'
+    root.mkdir(mode=0o700, exist_ok=True)
+    staging, old = root / ('.new-' + component), root / ('.old-' + component)
+    for leftover in (staging, old):
+        shutil.rmtree(str(leftover), ignore_errors=True)
+    os.replace(str(backup), str(staging))
+    for name in ('db_backup.sqlite', 'config_backup'):
+        (staging / name).unlink(missing_ok=True)
+    target = _snapshot_dir(directory, component)
+    if target.exists():
+        os.replace(str(target), str(old))
+    os.replace(str(staging), str(target))
+    shutil.rmtree(str(old), ignore_errors=True)
+    return True
+
+
+def snapshot_info(directory, component):
+    """{version[, xrayVersion]} of the restorable previous version, or None."""
+    try:
+        meta = json.loads((_snapshot_dir(directory, component) / 'meta.json').read_text())
+    except (OSError, ValueError):
+        return None
+    if not meta.get('version'):
+        return None
+    info = dict(version=meta['version'])
+    if meta.get('xrayVersion'):
+        info['xrayVersion'] = meta['xrayVersion']
+    return info
+
+
+def snapshot_archive(directory, component, version, target):
+    """Pack the snapshot like a release archive, so it goes through the normal pipeline."""
+    snap = _snapshot_dir(directory, component)
+    try:
+        meta = json.loads((snap / 'meta.json').read_text())
+    except (OSError, ValueError):
+        raise ComponentUpgradeError('upgrade_conflict', detail='no snapshot')
+    if not version or meta.get('version') != version:
+        raise ComponentUpgradeError('upgrade_conflict', detail='snapshot version')
+    binary = snap / Path(meta['binaryPath']).name
+    if not binary.is_file():
+        raise ComponentUpgradeError('upgrade_conflict', detail='snapshot binary')
+    Path(target).parent.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(str(target), 'w:gz') as tar:
+        tar.add(str(binary), arcname=binary.name)
+        if (snap / 'setup_wizard').is_file():
+            tar.add(str(snap / 'setup_wizard'), arcname='setup_wizard')
+        for extra in meta.get('extraFiles', []):
+            saved = snap / 'extra' / Path(extra['path']).name
+            if saved.is_file():
+                tar.add(str(saved), arcname=('bin/' + saved.name) if saved.name.startswith('xray-linux') else saved.name)
+
+
+def confirm_upgrade(store, job_id):
+    """The app confirms that it still controls the server after the upgrade."""
+    path = _deadman_path(store.directory, job_id)
+    if not path.exists():
+        raise ComponentUpgradeError('upgrade_conflict')
+    safe_file(path, 4096)
+    info = json.loads(path.read_text())
+    if info.get('rolledBack'):
+        raise ComponentUpgradeError('upgrade_rolled_back')
+    if not info.get('confirmed'):
+        info['confirmed'] = True
+        atomic_file(path, json.dumps(info).encode())
+        subprocess.run(['/usr/bin/systemctl', 'stop', _deadman_unit(job_id) + '.timer'], capture_output=True, timeout=30)
+        with store.db:
+            store.event(job_id, 'upgrade_confirmed', 6, 6)
+        _drop_inplace_backup(store.directory, job_id)
+        row = store.db.execute('SELECT request FROM jobs WHERE id=?', (job_id,)).fetchone()
+        try:
+            request = json.loads(row[0]) if row else {}
+            payload = json.loads(request.get('payload') or '{}') if isinstance(request.get('payload'), str) else request.get('payload', {})
+            keep_snapshot(store.directory, job_id, payload.get('component'))
+        except (OSError, ValueError) as error:
+            sys.stderr.write(f'[runner] snapshot not kept: {type(error).__name__}\n')
+        retire_work_dir(store.directory, job_id)
+    return info
+
+
+def _units_settled(units, settle=8):
+    time.sleep(settle)
+    return all(subprocess.run(['/usr/bin/systemctl', 'is-active', '--quiet', unit], capture_output=True, timeout=10).returncode == 0
+               for unit in units)
+
+
+def _late_rollback(upgrader):
+    """Old binaries over the live data first; the pre-switch data only if that does not come up."""
+    upgrader.rollback(restore_data=False)
+    meta = upgrader.backup_metadata or {}
+    units = meta.get('units', [])
+    before = meta.get('probeBefore') or {}
+    healthy = _units_settled(units) if units else True
+    if healthy and before:
+        try:
+            healthy = not compare_probes(before, probe_component(upgrader.component))
+        except Exception:
+            healthy = False
+    if not healthy and (meta.get('dbPath') or meta.get('configPath')):
+        upgrader.rollback(restore_data=True)
+
+
+def _wait_for_idle(store, job_id, limit=120):
+    """Do not restart services under a job the daemon is running right now."""
+    deadline = time.monotonic() + limit
+    while time.monotonic() < deadline:
+        busy = store.db.execute("SELECT 1 FROM jobs WHERE status='running' AND id<>? LIMIT 1", (job_id,)).fetchone()
+        if not busy:
+            return
+        time.sleep(5)
+
+
+def fire_deadman(store, job_id, wait=True):
+    """Roll back an unconfirmed upgrade (timer expiry or recovery after a reboot)."""
+    path = _deadman_path(store.directory, job_id)
+    if not path.exists():
+        return False
+    safe_file(path, 4096)
+    info = json.loads(path.read_text())
+    if info.get('confirmed') or info.get('rolledBack'):
+        return False
+    row = store.db.execute('SELECT request FROM jobs WHERE id=?', (job_id,)).fetchone()
+    if row is None:
+        return False
+    if wait:
+        _wait_for_idle(store, job_id)
+        info = json.loads(path.read_text())
+        if info.get('confirmed') or info.get('rolledBack'):
+            return False
+    request = json.loads(row[0])
+    payload = json.loads(request['payload']) if isinstance(request.get('payload'), str) else request.get('payload', {})
+    upgrader = ComponentUpgrader(store, request, payload)
+    _late_rollback(upgrader)
+    if upgrader.component in ('panel', 'xray'):
+        try:
+            sync_installed_versions()
+        except Exception as error:
+            sys.stderr.write(f'[runner] version sync after rollback failed: {type(error).__name__}\n')
+    info['rolledBack'] = True
+    atomic_file(path, json.dumps(info).encode())
+    with store.db:
+        store.db.execute("UPDATE jobs SET status='failed' WHERE id=?", (job_id,))
+        store.event(job_id, 'upgrade_rolled_back', 6, 6)
+    _drop_inplace_backup(store.directory, job_id)
+    retire_work_dir(store.directory, job_id)
+    return True
+
+
+def _backup_version(binary, component):
+    flag = '-v' if component == 'panel' else 'version' if component == 'xray' else '--version'
+    try:
+        out = subprocess.run([str(binary), flag], capture_output=True, text=True, timeout=10)
+        return extract_semver(out.stdout or out.stderr)
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def _adopt_legacy_backup(directory, job_id, component):
+    """A backup left by an older runner (no version recorded) becomes the
+    restorable previous version: on a server broken by such an update it is
+    the only way back."""
+    backup = Path(directory) / ('upgrade-' + job_id) / 'backup'
+    try:
+        meta = json.loads((backup / 'meta.json').read_text())
+    except (OSError, ValueError):
+        return False
+    if not meta.get('binaryPath'):
+        return False
+    if not meta.get('version'):
+        meta['version'] = _backup_version(backup / Path(meta['binaryPath']).name, component)
+        if component == 'panel' and (backup / 'extra' / 'xray-linux-amd64').is_file():
+            meta['xrayVersion'] = _backup_version(backup / 'extra' / 'xray-linux-amd64', 'xray')
+        if not meta['version']:
+            return False
+        atomic_file(backup / 'meta.json', json.dumps(meta).encode())
+    return keep_snapshot(directory, job_id, component)
+
+
+def sweep_finished_upgrades(store):
+    """Leftovers of finished upgrades (also from older runners, which never
+    removed them): archive, staging, backup and the copies next to binaries.
+    The newest successful backup of a component without a snapshot is kept
+    as its previous version. Jobs that need attention keep everything."""
+    works = []
+    for work in Path(store.directory).glob('upgrade-*'):
+        job_id = work.name[len('upgrade-'):]
+        if not work.is_dir() or not re.fullmatch('[a-f0-9]{32}', job_id) or window_open(store.directory, job_id):
+            continue
+        row = store.db.execute('SELECT status, created, request FROM jobs WHERE id=?', (job_id,)).fetchone()
+        if row is None or row[0] not in ('succeeded', 'failed', 'cancelled'):
+            continue
+        works.append((row[1], job_id, row[0], row[2], work))
+    for _created, job_id, status, raw, work in sorted(works, reverse=True):
+        if not any(child.name != 'deadman.json' for child in work.iterdir()):
+            continue
+        _drop_inplace_backup(store.directory, job_id)
+        if status == 'succeeded':
+            try:
+                request = json.loads(raw)
+                payload = json.loads(request.get('payload') or '{}') if isinstance(request.get('payload'), str) else request.get('payload') or {}
+                component = payload.get('component')
+                if component in SNAPSHOT_COMPONENTS and snapshot_info(store.directory, component) is None:
+                    _adopt_legacy_backup(store.directory, job_id, component)
+            except (OSError, ValueError, ComponentUpgradeError) as error:
+                sys.stderr.write(f'[runner] legacy backup not kept: {type(error).__name__}\n')
+        retire_work_dir(store.directory, job_id)
+
+
+def recover_deadmen(store):
+    """After a runner restart or reboot: expire due windows, re-arm the others."""
+    for path in Path(store.directory).glob('upgrade-*/deadman.json'):
+        try:
+            info = json.loads(path.read_text())
+            if info.get('confirmed') or info.get('rolledBack'):
+                continue
+            remaining = info.get('deadline', 0) - time.time()
+            if remaining <= 0:
+                fire_deadman(store, info['id'], wait=False)
+            else:
+                _start_deadman_timer(info['id'], remaining)
+        except Exception as error:
+            sys.stderr.write(f'[runner] deadman recovery failed: {type(error).__name__}\n')
+    try:
+        sweep_finished_upgrades(store)
+    except Exception as error:
+        sys.stderr.write(f'[runner] upgrade sweep failed: {type(error).__name__}\n')
+
+
+if __name__ == '__main__' and len(sys.argv) == 3 and sys.argv[1] == 'deadman':
+    from runner import Store, STATE
+    _store = Store(STATE)
+    try:
+        fire_deadman(_store, sys.argv[2])
+    finally:
+        _store.close()

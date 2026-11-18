@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import 'component_installation_view.dart';
 import 'component_updates_controller.dart';
+import 'component_versions_view.dart';
 import 'panel_installation_view.dart';
 import 'panel_update_view.dart';
 import 'panel_login_view.dart';
@@ -51,8 +52,10 @@ class SoftwareOverview extends StatelessWidget {
         }
       }
       if (component == VpnComponent.panel && c.panelAccess != null) {
-        versions['panel'] = c.panelAccess!.panelVersion;
-        versions['xray'] = c.panelAccess!.xrayVersion;
+        // Versions read from the installed binaries win over the panel
+        // access record, which can lag behind an upgrade.
+        versions.putIfAbsent('panel', () => c.panelAccess!.panelVersion);
+        versions.putIfAbsent('xray', () => c.panelAccess!.xrayVersion);
       }
       final changes = <String>[];
       if (updates != null && (updates.suggestions || updates.manualResults)) {
@@ -111,7 +114,8 @@ class SoftwareOverview extends StatelessWidget {
               c.selected?.kind == 'component_upgrade_apply') &&
           c.selected?.terminal == false &&
           c.activeComponent == key;
-      final isPanelJob = isPanel &&
+      final isPanelJob =
+          isPanel &&
           c.selected?.terminal == false &&
           (c.selected?.kind == 'panel_install' ||
               c.selected?.kind == 'panel_update' ||
@@ -164,61 +168,59 @@ class SoftwareOverview extends StatelessWidget {
                               return;
                             }
                             if (updates != null && updates.latest.isNotEmpty) {
-                              String comp = isPanel ? 'panel' : key;
-                              String? latestVer = updates.latest[comp];
-                              String? currentVer = versions[comp];
-                              if (isPanel &&
-                                  (latestVer == null ||
-                                      currentVer == null ||
-                                      componentIsNewer(
-                                            latestVer,
-                                            currentVer,
-                                            allowPreview: true,
-                                          ) !=
-                                          true)) {
-                                if (updates.latest['xray'] != null &&
-                                    versions['xray'] != null &&
-                                    componentIsNewer(
-                                          updates.latest['xray']!,
-                                          versions['xray']!,
-                                          allowPreview: true,
-                                        ) ==
-                                        true) {
-                                  comp = 'xray';
-                                  latestVer = updates.latest['xray'];
-                                  currentVer = versions['xray'];
+                              // 3x-ui first; its own Xray when the panel is
+                              // current. Asset for the server's architecture.
+                              String? target;
+                              for (final comp
+                                  in isPanel
+                                      ? const ['panel', 'xray']
+                                      : [key]) {
+                                final latest = updates.latest[comp];
+                                final current = versions[comp];
+                                if (latest != null &&
+                                    (current == null ||
+                                        componentIsNewer(
+                                              latest,
+                                              current,
+                                              allowPreview: true,
+                                            ) ==
+                                            true)) {
+                                  target = comp;
+                                  break;
                                 }
                               }
-                              if (latestVer != null &&
-                                  (currentVer == null ||
-                                      componentIsNewer(latestVer, currentVer) ==
-                                          true ||
-                                      componentIsNewer(
-                                            latestVer,
-                                            currentVer,
-                                            allowPreview: true,
-                                          ) ==
-                                          true)) {
-                                final candidate = await updates.source.resolveAsset(
-                                  component: comp,
-                                  version: latestVer,
-                                );
-                                if (candidate != null && context.mounted) {
-                                  await c.checkComponentUpgrade(
-                                    comp,
-                                    candidate: candidate,
-                                  );
-                                  if (c.componentUpgradePlan != null) {
-                                    await c.applyComponentUpgrade(
-                                      c.componentUpgradePlan!,
-                                      candidate,
+                              if (target != null &&
+                                  installerComponents.contains(target)) {
+                                final choice = await updates.source
+                                    .resolveInstallerRelease(
+                                      component: target,
+                                      version: updates.latest[target]!,
                                     );
-                                    return;
-                                  }
-                                  if (c.error != null) {
-                                    return;
-                                  }
+                                if (choice != null) {
+                                  await c.prepareComponent(
+                                    target,
+                                    choice: choice,
+                                  );
+                                  await c.applyComponent();
+                                  return;
                                 }
+                              } else if (target != null &&
+                                  choosableComponents.contains(target)) {
+                                final plans = await c.componentVersionPlans([
+                                  target,
+                                ]);
+                                final candidate = await updates.source
+                                    .resolveAsset(
+                                      component: target,
+                                      version: updates.latest[target]!,
+                                      architecture:
+                                          plans[target]?['arch'] as String?,
+                                    );
+                                if (candidate != null) {
+                                  await c.installComponentVersion(candidate);
+                                  return;
+                                }
+                                if (c.error != null) return;
                               }
                             }
                             if (isPanel) {
@@ -247,10 +249,36 @@ class SoftwareOverview extends StatelessWidget {
                     : l.uiCheck,
               ),
             );
+      final choosable = [
+        for (final k in versions.keys)
+          if (choosableComponents.contains(k)) k,
+      ];
       final summary = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(status),
+          if (detected && updates != null && choosable.isNotEmpty)
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton.icon(
+                key: ValueKey('component-versions-$key'),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: c.busy || !c.canRequestAction
+                    ? null
+                    : () => showComponentVersions(
+                        context,
+                        controller: c,
+                        updates: updates,
+                        title: name,
+                        installed: {for (final k in choosable) k: versions[k]!},
+                      ),
+                icon: const Icon(Icons.history, size: 18),
+                label: Text(l.versionsChoose),
+              ),
+            ),
           if (changes.isNotEmpty)
             Text('${l.softwareUpdateAvailable}: ${changes.join(', ')}'),
           if (changes.isNotEmpty && !canUpdate)

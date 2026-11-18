@@ -1264,6 +1264,11 @@ class VpnController extends ChangeNotifier {
       if (isIdleOrReset()) {
         onRunnerQueueReset(serverId);
       }
+      // Changes approved while the runner was busy or the panel was not yet
+      // verified are kept as an authorized payload. Nothing else retries
+      // them once the connection becomes usable, so do it here. A finished
+      // job may stay selected in the runner; that must not block VPN work.
+      if (!_busy && _hasServerReconcileWork) unawaited(reconcile());
     }
     _boundRunners[serverId] = (runnerEvents, listener);
     runnerEvents.addListener(listener);

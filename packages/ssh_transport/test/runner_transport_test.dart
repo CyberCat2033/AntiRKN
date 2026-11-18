@@ -5,6 +5,20 @@ import 'package:antirkn_ssh_transport/src/runner_bundle.g.dart';
 import 'package:test/test.dart';
 
 void main() {
+  test('upgrade requests the app sends pass the runner contract', () {
+    // The confirmation was declared with its fields but missing from the
+    // action enum: the server rejected every confirmation as invalid and
+    // rolled each successful upgrade back after the window.
+    expect(
+      RunnerRequest.componentUpgradeConfirm('a' * 32).json['action'],
+      'component_upgrade_confirm',
+    );
+    expect(
+      RunnerRequest.componentUpgradeCheck('xray').json['action'],
+      'component_upgrade_check',
+    );
+  });
+
   test('runner install payload formats valid JSON containing bundle and fingerprint', () {
     const fingerprint = 'test-runner-fingerprint-12345';
     final payload = '{"fingerprint":${jsonEncode(fingerprint)},"bundle":$runnerBundle}';

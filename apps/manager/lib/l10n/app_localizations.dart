@@ -2045,7 +2045,7 @@ abstract class AppLocalizations {
   /// No description provided for @runnerUpgradeVerifying.
   ///
   /// In en, this message translates to:
-  /// **'Verifying service health...'**
+  /// **'Checking the service and real connections (up to 1 min)…'**
   String get runnerUpgradeVerifying;
 
   /// No description provided for @runnerUpgradeRollingBack.
@@ -2077,6 +2077,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Health check failed (rolled back)'**
   String get runnerUpgradeHealthcheckFailed;
+
+  /// No description provided for @runnerUpgradeAwaitingConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Connections verified · confirming (automatic rollback in 5 minutes without confirmation)'**
+  String get runnerUpgradeAwaitingConfirmation;
+
+  /// No description provided for @runnerUpgradeConfirmed.
+  ///
+  /// In en, this message translates to:
+  /// **'Update confirmed'**
+  String get runnerUpgradeConfirmed;
+
+  /// No description provided for @runnerUpgradeConnectivityFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Connections stopped working after the update — rolled back'**
+  String get runnerUpgradeConnectivityFailed;
 
   /// No description provided for @runnerUpgradeDownloadMissing.
   ///
@@ -3079,6 +3097,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Existing · outside client management'**
   String get vpnObserved;
+
+  /// No description provided for @vpnPendingDeletion.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleting · waiting for the server to confirm'**
+  String get vpnPendingDeletion;
 
   /// No description provided for @vpnObservedHelp.
   ///
@@ -6847,6 +6871,144 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'SSH jump references to these servers will be removed from other saved connections. Choose a new SSH route for those servers afterwards.'**
   String get catalogForgetServerJumpWarning;
+
+  /// No description provided for @versionsChoose.
+  ///
+  /// In en, this message translates to:
+  /// **'Versions'**
+  String get versionsChoose;
+
+  /// No description provided for @versionsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Versions · {name}'**
+  String versionsTitle(Object name);
+
+  /// No description provided for @versionsLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Getting the release list and the server state…'**
+  String get versionsLoading;
+
+  /// No description provided for @versionsFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not get the release list or the server state. Check the connection and try again.'**
+  String get versionsFailed;
+
+  /// No description provided for @versionsHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'A new version is installed with a check of real connections. If they stop working, or this device loses the server, the server returns the previous version by itself within 5 minutes. Older versions are not offered: you can only go back to the one that ran before the last update.'**
+  String get versionsHelp;
+
+  /// No description provided for @versionsInstalled.
+  ///
+  /// In en, this message translates to:
+  /// **'installed {version}'**
+  String versionsInstalled(Object version);
+
+  /// No description provided for @versionsNothing.
+  ///
+  /// In en, this message translates to:
+  /// **'No newer versions and nothing to go back to.'**
+  String get versionsNothing;
+
+  /// No description provided for @versionsVerified.
+  ///
+  /// In en, this message translates to:
+  /// **'checked by AntiRKN'**
+  String get versionsVerified;
+
+  /// No description provided for @versionsUnverified.
+  ///
+  /// In en, this message translates to:
+  /// **'not checked by AntiRKN'**
+  String get versionsUnverified;
+
+  /// No description provided for @versionsPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'pre-release'**
+  String get versionsPreview;
+
+  /// No description provided for @versionsPrevious.
+  ///
+  /// In en, this message translates to:
+  /// **'previous version'**
+  String get versionsPrevious;
+
+  /// No description provided for @versionsInstall.
+  ///
+  /// In en, this message translates to:
+  /// **'Install'**
+  String get versionsInstall;
+
+  /// No description provided for @versionsRestore.
+  ///
+  /// In en, this message translates to:
+  /// **'Go back'**
+  String get versionsRestore;
+
+  /// No description provided for @versionsInstallTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Install {name} {version}?'**
+  String versionsInstallTitle(Object name, Object version);
+
+  /// No description provided for @versionsRestoreTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Go back to {name} {version}?'**
+  String versionsRestoreTitle(Object name, Object version);
+
+  /// No description provided for @versionsChange.
+  ///
+  /// In en, this message translates to:
+  /// **'Now: {from} → {to}.'**
+  String versionsChange(Object from, Object to);
+
+  /// No description provided for @versionsPanelCarriesXray.
+  ///
+  /// In en, this message translates to:
+  /// **'The 3x-ui release carries its own Xray: the core changes together with the panel.'**
+  String get versionsPanelCarriesXray;
+
+  /// No description provided for @versionsPanelRestoresXray.
+  ///
+  /// In en, this message translates to:
+  /// **'Xray {version} comes back together with the panel.'**
+  String versionsPanelRestoresXray(Object version);
+
+  /// No description provided for @versionsSafety.
+  ///
+  /// In en, this message translates to:
+  /// **'Inbounds, clients and settings stay as they are. After the switch the server checks real connections; if this device does not confirm within 5 minutes, the server returns the current version.'**
+  String get versionsSafety;
+
+  /// No description provided for @versionsAssetMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'This release has no file for this server\'s architecture or no checksum. Choose another version.'**
+  String get versionsAssetMissing;
+
+  /// No description provided for @versionsAwgBuild.
+  ///
+  /// In en, this message translates to:
+  /// **'AmneziaWG is built from source on the server: this takes several minutes.'**
+  String get versionsAwgBuild;
+
+  /// No description provided for @versionsSafetyInstaller.
+  ///
+  /// In en, this message translates to:
+  /// **'Keys and settings stay as they are. The new version goes into its own folder; if the service does not start or connections stop working after the switch, the server returns to the current version by itself.'**
+  String get versionsSafetyInstaller;
+
+  /// No description provided for @versionsHelpInstaller.
+  ///
+  /// In en, this message translates to:
+  /// **'Newer stable releases are installed into their own folder next to the current one. If the service does not start or connections stop working after the switch, the server returns to the current version by itself. Older versions are not offered.'**
+  String get versionsHelpInstaller;
 }
 
 class _AppLocalizationsDelegate

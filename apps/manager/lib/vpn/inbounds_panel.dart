@@ -105,6 +105,36 @@ class InboundsPanelState extends State<InboundsPanel> {
     }
   }
 
+  /// True when a panel row belongs to one of this device's resources,
+  /// including a resource whose deletion is still waiting for the server.
+  /// Such a row must never be presented as a foreign inbound.
+  bool ownsRow(Map panel, Map row) => controller.workspace.inbounds.any(
+    (r) =>
+        r.serverId == serverId &&
+        ((r.spec['adoption'] as Map?)?['sourceId'] == '${row['id']}' &&
+                (r.spec['adoption'] as Map?)?['panelPort'] == panel['port'] ||
+            row['name'] ==
+                'AntiRKN:${controller.workspace.resourceWorkspaceId(r.serverId)}:${r.id}'),
+  );
+
+  /// Locally deleted resources that the server still reports.
+  List<VlessInbound> get pendingDeletions => [
+    for (final r in controller.workspace.inbounds)
+      if (r.serverId == serverId &&
+          r.deleted &&
+          (runner?.panels ?? <Map<String, dynamic>>[]).any(
+            (panel) => (panel['inbounds'] as List).any(
+              (row) =>
+                  (row as Map)['name'] ==
+                      'AntiRKN:${controller.workspace.resourceWorkspaceId(r.serverId)}:${r.id}' ||
+                  (r.spec['adoption'] as Map?)?['sourceId'] == '${row['id']}' &&
+                      (r.spec['adoption'] as Map?)?['panelPort'] ==
+                          panel['port'],
+            ),
+          ))
+        r,
+  ];
+
   List<String> get availableIds {
     final inbounds = controller.workspace.inbounds.where(
       (r) => r.serverId == serverId && !r.deleted,
@@ -112,15 +142,7 @@ class InboundsPanelState extends State<InboundsPanel> {
     return [
       for (final panel in runner?.panels ?? <Map<String, dynamic>>[])
         for (final row in panel['inbounds'] as List)
-          if (!inbounds.any(
-            (r) =>
-                (r.spec['adoption'] as Map?)?['sourceId'] == '${row['id']}' &&
-                    (r.spec['adoption'] as Map?)?['panelPort'] ==
-                        panel['port'] ||
-                row['name'] ==
-                    'AntiRKN:${controller.workspace.resourceWorkspaceId(r.serverId)}:${r.id}',
-          ))
-            externalId(panel, row as Map),
+          if (!ownsRow(panel, row as Map)) externalId(panel, row),
       ...inbounds.map((r) => r.id),
     ];
   }
@@ -325,16 +347,9 @@ class InboundsPanelState extends State<InboundsPanel> {
           externalInbounds = [
             for (final panel in runner?.panels ?? <Map<String, dynamic>>[])
               for (final row in panel['inbounds'] as List)
-                if (!inbounds.any(
-                  (r) =>
-                      (r.spec['adoption'] as Map?)?['sourceId'] == '${row['id']}' &&
-                          (r.spec['adoption'] as Map?)?['panelPort'] ==
-                              panel['port'] ||
-                      row['name'] ==
-                          'AntiRKN:${c.workspace.resourceWorkspaceId(r.serverId)}:${r.id}',
-                ))
-                  (panel: panel, row: row as Map),
-          ];
+                if (!ownsRow(panel, row as Map)) (panel: panel, row: row),
+          ],
+          pendingDeleted = pendingDeletions;
       return DragSelectList(
         selection: selection,
         ids: availableIds,
@@ -448,7 +463,7 @@ class InboundsPanelState extends State<InboundsPanel> {
             ),
             AppSectionHeading(
               title: l.vpnInbounds,
-              count: inbounds.length + externalInbounds.length,
+              count: inbounds.length + externalInbounds.length + pendingDeleted.length,
               action: selection.active
                   ? null
                   : IconButton(
@@ -614,6 +629,21 @@ class InboundsPanelState extends State<InboundsPanel> {
                           ),
                         ),
                       ),
+                    ),
+                  ),
+                for (final r in pendingDeleted)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: AppLayout.smallGap),
+                    child: ResourceTile(
+                      key: ValueKey('inbound-deleting-${r.id}'),
+                      storageId: 'deleting-${r.id}',
+                      title: r.spec['name'] as String,
+                      subtitle:
+                          '${r.spec['transport'].toString().toUpperCase()} · ${r.spec['security'].toString().toUpperCase()}',
+                      badge: l.vpnDisabled,
+                      note: l.vpnPendingDeletion,
+                      detailsLabel: l.componentsDetails,
+                      details: const [],
                     ),
                   ),
                 for (final r in inbounds)

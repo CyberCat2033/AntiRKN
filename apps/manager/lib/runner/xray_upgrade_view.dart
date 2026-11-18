@@ -42,6 +42,11 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
           widget.runner.connected &&
           widget.runner.panelAccess != null &&
           ((c.plan == null && c.code.isEmpty) ||
+              // Another path (component upgrade, version choice) changed
+              // the core: the shown "current → candidate" is stale.
+              (c.plan?['current'] != null &&
+                  widget.runner.panelAccess?.xrayVersion != null &&
+                  c.plan!['current'] != widget.runner.panelAccess!.xrayVersion) ||
               c.operation != null &&
                   !XrayUpgradeController.terminal.contains(
                     c.operation!['phase'],

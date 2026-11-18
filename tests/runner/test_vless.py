@@ -671,3 +671,33 @@ class RealityMaterialTests(unittest.TestCase):
                 self.assertEqual(before,client_id('a'*32,'b'*32,'d'*32))
 
 if __name__=='__main__':unittest.main()
+
+
+class PanelUpgradeObservationTests(unittest.TestCase):
+    """3x-ui upgrades add columns with defaults (3.11: excludeFromSub=false)."""
+
+    def setUp(self):
+        from vless import observed_fingerprint
+        self.fp = observed_fingerprint
+        self.before = {'id': 1, 'remark': 'AntiRKN:a:b', 'enable': True, 'port': 443, 'protocol': 'vless',
+                       'settings': {'clients': [{'id': 'u', 'email': 'e', 'enable': True}]},
+                       'streamSettings': {'network': 'tcp'}, 'disableFlow': False, 'shareAddr': ''}
+        self.observed = digest(self.before)
+
+    def test_added_default_column_keeps_the_observation(self):
+        after = {**self.before, 'excludeFromSub': False}
+        self.assertEqual(self.fp(after, self.observed), self.observed)
+
+    def test_added_non_default_column_is_a_change(self):
+        after = {**self.before, 'excludeFromSub': True}
+        self.assertNotEqual(self.fp(after, self.observed), self.observed)
+
+    def test_real_edit_is_still_detected(self):
+        after = {**self.before, 'port': 8443, 'excludeFromSub': False}
+        self.assertNotEqual(self.fp(after, self.observed), self.observed)
+        after = {**self.before, 'disableFlow': True}
+        self.assertNotEqual(self.fp(after, self.observed), self.observed)
+
+    def test_structural_default_is_never_dropped(self):
+        after = {**self.before, 'enable': False}
+        self.assertNotEqual(self.fp(after, self.observed), self.observed)

@@ -2,6 +2,7 @@
 """Private SSH RPC and durable diagnostic worker. No user-supplied commands."""
 import fcntl
 import json
+import shutil
 import os
 from pathlib import Path
 import signal
@@ -257,6 +258,33 @@ def cleanup_job_transients(directory, job_id):
         pass
 
 
+def slim_finished_job(directory, job_id):
+    """A finished install keeps its small records (ownership, plan) and drops
+    archives, extracted trees, the Go toolchain and build cache (hundreds of
+    MB per AmneziaWG build, kept forever before)."""
+    if not job_id or not isinstance(job_id, str):
+        return
+    for prefix in ('component-', 'panel-'):
+        work = Path(directory) / (prefix + job_id)
+        if not work.is_dir() or work.is_symlink():
+            continue
+        for child in work.iterdir():
+            if child.is_file() and child.suffix == '.json':
+                continue
+            if child.is_dir() and not child.is_symlink():
+                shutil.rmtree(str(child), ignore_errors=True)
+            else:
+                child.unlink(missing_ok=True)
+
+
+def slim_finished_jobs(store):
+    for work in list(Path(store.directory).glob('component-*')) + list(Path(store.directory).glob('panel-*')):
+        job_id = work.name.split('-', 1)[1]
+        row = store.db.execute('SELECT status FROM jobs WHERE id=?', (job_id,)).fetchone()
+        if row is not None and row[0] == 'succeeded':
+            slim_finished_job(store.directory, job_id)
+
+
 class Store:
     def __init__(self, directory):
         self.directory = Path(directory)
@@ -342,6 +370,15 @@ class Store:
                 return self.response(error.code)
             except Exception:
                 return self.response('egress_failed')
+        if action == 'component_upgrade_confirm':
+            from component_upgrade import confirm_upgrade
+            try:
+                confirm_upgrade(self, req['id'])
+                return self.response('ok')
+            except ComponentUpgradeError as error:
+                return self.response(error.code if error.code in SCHEMA['codes'] else 'upgrade_failed')
+            except Exception:
+                return self.response('upgrade_failed')
         if action == 'component_upgrade_check':
             try:
                 res = component_upgrade_plan(self, req.get('component'), req.get('payload'))
@@ -473,7 +510,16 @@ class Store:
                 PanelInstaller(self, original).assert_owned()
             except (PanelError, OSError):
                 return self.response('conflict')
-            return {**self.response('ok'), 'panelAccess': access_for(req['id'], original['port'])}
+            access = access_for(req['id'], original['port'])
+            # Upgrades replace the panel and/or its bundled Xray. Without this
+            # the recorded versions stay at the install pins, the app's panel
+            # verification fails forever and every VLESS change is deferred.
+            from component_upgrade import installed_panel_versions, sync_installed_versions
+            actual = installed_panel_versions()
+            if actual and any(access.get(k) != v for k, v in actual.items()):
+                sync_installed_versions()
+                access = access_for(req['id'], original['port'])
+            return {**self.response('ok'), 'panelAccess': access}
         if action in ('panel_plan', 'panel_verify', 'component_plan'):
             raise ValueError('invalid')  # Device-side operations, never arbitrary worker commands.
         if action == 'clear_managed_clients':
@@ -715,7 +761,21 @@ class Store:
                 progress = self.db.execute('SELECT checkpoint FROM jobs WHERE id=?', (job_id,)).fetchone()[0]
                 self.db.execute('UPDATE jobs SET status=? WHERE id=?', (status, job_id))
                 self.event(job_id, code, progress, req['count'])
-            if status == 'succeeded' or (status == 'cancelled' and row['checkpoint'] == 0):
+            if status == 'succeeded':
+                # The backup stays until the app confirms or the window expires.
+                from component_upgrade import window_open
+                if not window_open(self.directory, job_id):
+                    cleanup_job_transients(self.directory, job_id)
+                else:
+                    for leftover in ('staging', 'release_archive'):
+                        target = self.directory / ('upgrade-' + job_id) / leftover
+                        if target.is_dir():
+                            shutil.rmtree(str(target), ignore_errors=True)
+                        elif target.exists():
+                            target.unlink()
+            elif status in ('cancelled', 'failed'):
+                # Rolled back (or never switched): archive, staging and backup
+                # are of no further use. needs_attention keeps them.
                 cleanup_job_transients(self.directory, job_id)
             return 0.1
         if req['kind'] == 'component_install':
@@ -739,6 +799,8 @@ class Store:
                 progress = self.db.execute('SELECT checkpoint FROM jobs WHERE id=?', (job_id,)).fetchone()[0]
                 self.db.execute('UPDATE jobs SET status=? WHERE id=?', (status, job_id))
                 self.event(job_id, code, progress, req['count'])
+            if status == 'succeeded':
+                slim_finished_job(self.directory, job_id)
             return 0.1
         if req['kind'] in ('panel_install', 'panel_update'):
             installer = (PanelUpdate if req['kind'] == 'panel_update' else PanelInstaller)(self, req)
@@ -762,6 +824,8 @@ class Store:
                 progress = self.db.execute('SELECT checkpoint FROM jobs WHERE id=?', (job_id,)).fetchone()[0]
                 self.db.execute('UPDATE jobs SET status=? WHERE id=?', (status, job_id))
                 self.event(job_id, code, progress, req['count'])
+            if status == 'succeeded':
+                slim_finished_job(self.directory, job_id)
             return 0.1
         # Real, bounded probes. No configs, environment, logins or keys are read.
         try:
@@ -809,6 +873,15 @@ def daemon(directory=STATE):
         signal.signal(signal.SIGINT, stop)
         try:
             store.recover()
+            try:
+                from component_upgrade import recover_deadmen
+                recover_deadmen(store)
+            except Exception as error:
+                sys.stderr.write(f'[runner] deadman recovery skipped: {type(error).__name__}\n')
+            try:
+                slim_finished_jobs(store)
+            except Exception as error:
+                sys.stderr.write(f'[runner] job directory sweep skipped: {type(error).__name__}\n')
             while not stopping:
                 delay = store.tick()
                 deadline = time.monotonic() + delay

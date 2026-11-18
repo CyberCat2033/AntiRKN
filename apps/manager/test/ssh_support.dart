@@ -62,6 +62,7 @@ class FakeConnection implements SshConnection {
   RunnerTransport? runner;
   int reads = 0;
   bool lastUseSudo = false;
+  bool lastFresh = false;
   String? lastSudoPassword;
   Future<PrivilegeCheck> Function(String?, CancellationToken)? privilegeChecker;
   @override
@@ -85,8 +86,10 @@ class FakeConnection implements SshConnection {
     CancellationToken cancellation, {
     bool useSudo = false,
     String? sudoPassword,
+    bool fresh = false,
   }) async {
     lastUseSudo = useSudo;
+    lastFresh = fresh;
     lastSudoPassword = sudoPassword;
     reads++;
     cancellation.check();

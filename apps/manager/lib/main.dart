@@ -1,3 +1,4 @@
+import 'package:crypto/crypto.dart';
 import 'package:antirkn_mihomo_runtime/antirkn_mihomo_runtime.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -273,7 +274,9 @@ class _AntiRknAppState extends State<AntiRknApp> {
   void initState() {
     super.initState();
     _updates = ComponentUpdatesController(
-      source: const GithubComponentReleaseSource(),
+      source: GithubComponentReleaseSource(
+        sha256Hex: (bytes) => sha256.convert(bytes).toString(),
+      ),
       settings: widget.settings,
     );
     _updates.load();
@@ -530,7 +533,10 @@ class _ManagerShellState extends State<ManagerShell>
             _vpn!.bindRunner(
               server,
               runner,
-              () => !runner.hasUnfinishedJob && runner.selected == null && runner.pending == null,
+              () =>
+                  !runner.hasUnfinishedJob &&
+                  runner.selected == null &&
+                  runner.pending == null,
             );
           }
           final transport = runner?.transport();

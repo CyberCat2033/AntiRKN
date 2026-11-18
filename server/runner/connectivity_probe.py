@@ -33,6 +33,21 @@ class ProbeError(Exception):
         self.code = code
 
 
+
+def client_api(api, path, body, legacy_path, legacy_body):
+    """Client routes by what the panel serves, not by a list of versions.
+
+    3x-ui 3.7+ has /panel/api/clients/*, and 3.11 removed the per-inbound
+    routes; a fixed version list sent every newer panel to the removed ones.
+    """
+    import urllib.error
+    try:
+        return api.call(path, body)
+    except urllib.error.HTTPError as error:
+        if error.code != 404:
+            raise
+    return api.call(legacy_path, legacy_body)
+
 def identifier(value):
     if not isinstance(value, str) or not re.fullmatch('[a-f0-9]{32}', value):
         raise ProbeError('probe_invalid')
@@ -266,10 +281,8 @@ def apply(store, info):
         if vless.digest(normalized) != info['beforeHash']:
             raise ProbeError('probe_changed')
         if not present:
-            if api.call('/panel/api/server/status').get('panelVersion') in ('3.7.0', '3.8.0'):
-                api.call('/panel/api/clients/add', dict(inboundIds=[row['id']], client=info['client']))
-            else:
-                api.call('/panel/api/inbounds/addClient', dict(id=row['id'], settings=vless.canonical({'clients': [info['client']]})))
+            client_api(api, '/panel/api/clients/add', dict(inboundIds=[row['id']], client=info['client']),
+                       '/panel/api/inbounds/addClient', dict(id=row['id'], settings=vless.canonical({'clients': [info['client']]})))
         _, row = vless_row(store, info)
         if not any(c['id'] == info['client']['id'] for c in vless.normal(row)['settings']['clients']):
             raise ProbeError()
@@ -339,10 +352,8 @@ def cleanup(store, info):
         if row is None:
             return
         if any(c['id'] == client['uuid'] for c in vless.normal(row)['settings']['clients']):
-            if api.call('/panel/api/server/status').get('panelVersion') in ('3.7.0', '3.8.0'):
-                api.call('/panel/api/clients/del/' + info['email'], {})
-            else:
-                api.call('/panel/api/inbounds/%d/delClient/%s' % (row['id'], client['uuid']), {})
+            client_api(api, '/panel/api/clients/del/' + info['email'], {},
+                       '/panel/api/inbounds/%d/delClient/%s' % (row['id'], client['uuid']), {})
         row = next((r for r in api.call('/panel/api/inbounds/list') if r['id'] == info['rowId']), None)
         if row and any(c['id'] == client['uuid'] for c in vless.normal(row)['settings']['clients']):
             raise ProbeError('probe_cleanup')

@@ -473,6 +473,31 @@ def locate(rows, workspace, resource):
     return matches[0] if matches else None
 
 
+# Top-level panel columns AntiRKN never relies on for equality when they are
+# absent from an older observation. 3x-ui adds such columns on upgrade with a
+# default value (3.11: excludeFromSub=false); that is not a foreign edit.
+_STRUCTURAL_KEYS = {'id', 'remark', 'enable', 'listen', 'port', 'protocol', 'settings', 'streamSettings', 'sniffing', 'tag'}
+
+
+def _is_default(value):
+    return value is None or value is False or value == 0 or value == '' or value == [] or value == {}
+
+
+def observed_fingerprint(normalized, expected_hash=None):
+    """digest(normalized), or expected_hash when the row differs from that observation
+    only by panel-added top-level columns that still hold their default value."""
+    actual = digest(normalized)
+    if expected_hash is None or actual == expected_hash or not isinstance(normalized, dict):
+        return actual
+    import itertools
+    optional = sorted(k for k, v in normalized.items() if k not in _STRUCTURAL_KEYS and _is_default(v))
+    for size in range(1, min(len(optional), 6) + 1):
+        for dropped in itertools.combinations(optional, size):
+            if digest({k: v for k, v in normalized.items() if k not in dropped}) == expected_hash:
+                return expected_hash
+    return actual
+
+
 def matches_observation(api, row, workspace, resource, observed_hash):
     """Confirm drift against the same endpoint used for saved readback.
 
@@ -483,7 +508,7 @@ def matches_observation(api, row, workspace, resource, observed_hash):
     if row is None or observed_hash is None:
         return False
     normalized = normal(row)
-    if digest(normalized) == observed_hash:
+    if observed_fingerprint(normalized, observed_hash) == observed_hash:
         return True
     # v41 and older saved /list fingerprints before originNodeGuid and
     # fallbackParent became read-only annotations in the current normalizer.
@@ -498,7 +523,7 @@ def matches_observation(api, row, workspace, resource, observed_hash):
     detail = api.call('/panel/api/inbounds/get/%d' % row['id'])
     if not isinstance(detail, dict) or detail.get('id') != row['id'] or detail.get('remark') != marker(workspace, resource):
         raise VlessError('vless_api_failed')
-    return digest(normal(detail)) == observed_hash
+    return observed_fingerprint(normal(detail), observed_hash) == observed_hash
 
 
 def preflight(store, payload, api, rows=None):

@@ -127,6 +127,9 @@ class RunnerController extends ChangeNotifier {
   PanelUpdatePlan? panelUpdatePlan;
   bool panelLoginRequired = false;
   ComponentPlan? componentPlan;
+
+  /// JSON of the upstream release chosen for [componentPlan] ('' = pinned).
+  String componentChoice = '';
   Map<String, dynamic>? componentUpgradePlan;
   RunnerInstallation? componentRunnerPlan;
   String? activeComponent;
@@ -1353,40 +1356,43 @@ class RunnerController extends ChangeNotifier {
     });
   }
 
-  Future<void> prepareComponent(String component) =>
-      _run((remote, token) async {
-        activeComponent = component;
-        panelPlan = null;
-        panelUpdatePlan = null;
-        aptPlan = null;
-        choosingAptUpdate = false;
-        componentPlan = null;
-        componentRunnerPlan = null;
-        final runnerPlan = await remote.inspect(token);
-        token.check();
-        if (!runnerPlan.supported) {
-          throw const RunnerFailure(RunnerIssue.prerequisites);
-        }
-        if (runnerPlan.state == 'conflict') {
-          throw const RunnerFailure(RunnerIssue.conflict);
-        }
-        if (runnerPlan.release != null &&
-            runnerPlan.release != remote.bundledRelease &&
-            !runnerPlan.upgradable) {
-          throw const RunnerFailure(RunnerIssue.incompatible);
-        }
-        final response = await remote.request(
-          RunnerRequest.componentPlan(component),
-          token,
-          sudoPassword: password(),
-        );
-        token.check();
-        if (response.code != 'ok' || response.componentPlan == null) {
-          throw const RunnerFailure(RunnerIssue.invalidResponse);
-        }
-        componentPlan = response.componentPlan;
-        componentRunnerPlan = runnerPlan;
-      });
+  Future<void> prepareComponent(
+    String component, {
+    Map<String, Object?>? choice,
+  }) => _run((remote, token) async {
+    activeComponent = component;
+    componentChoice = choice == null ? '' : jsonEncode(choice);
+    panelPlan = null;
+    panelUpdatePlan = null;
+    aptPlan = null;
+    choosingAptUpdate = false;
+    componentPlan = null;
+    componentRunnerPlan = null;
+    final runnerPlan = await remote.inspect(token);
+    token.check();
+    if (!runnerPlan.supported) {
+      throw const RunnerFailure(RunnerIssue.prerequisites);
+    }
+    if (runnerPlan.state == 'conflict') {
+      throw const RunnerFailure(RunnerIssue.conflict);
+    }
+    if (runnerPlan.release != null &&
+        runnerPlan.release != remote.bundledRelease &&
+        !runnerPlan.upgradable) {
+      throw const RunnerFailure(RunnerIssue.incompatible);
+    }
+    final response = await remote.request(
+      RunnerRequest.componentPlan(component, choice: componentChoice),
+      token,
+      sudoPassword: password(),
+    );
+    token.check();
+    if (response.code != 'ok' || response.componentPlan == null) {
+      throw const RunnerFailure(RunnerIssue.invalidResponse);
+    }
+    componentPlan = response.componentPlan;
+    componentRunnerPlan = runnerPlan;
+  });
 
   void dismissComponent() {
     if (busy) return;
@@ -1591,7 +1597,7 @@ class RunnerController extends ChangeNotifier {
     activeComponent = plan.component;
     return _run((remote, token) async {
       final current = await remote.request(
-        RunnerRequest.componentPlan(plan.component),
+        RunnerRequest.componentPlan(plan.component, choice: componentChoice),
         token,
         sudoPassword: password(),
       );
@@ -1612,7 +1618,11 @@ class RunnerController extends ChangeNotifier {
         16,
         (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
       ).join();
-      pending = RunnerRequest.componentInstall(id, plan);
+      pending = RunnerRequest.componentInstall(
+        id,
+        plan,
+        choice: componentChoice,
+      );
       selected = null;
       cursor = 0;
       await _save();
@@ -1647,6 +1657,7 @@ class RunnerController extends ChangeNotifier {
       );
       token.check();
     }
+    componentUpgradePlan = null;
     final response = await remote.request(
       RunnerRequest.componentUpgradeCheck(component, candidate: candidate),
       token,
@@ -1657,8 +1668,55 @@ class RunnerController extends ChangeNotifier {
       activeComponent = component;
       componentUpgradePlan = response.componentUpgrade;
       _notify();
+    } else {
+      responseCode = response.code;
     }
   });
+
+  /// What the version picker needs from the server for each component: its
+  /// architecture, the installed version and the previous version that can
+  /// be restored from a snapshot (`snapshot`).
+  Future<Map<String, Map<String, dynamic>>> componentVersionPlans(
+    List<String> components,
+  ) async {
+    final plans = <String, Map<String, dynamic>>{};
+    await _run((remote, token) async {
+      if (installation?.upgradable == true ||
+          !installed ||
+          (bundledRelease != null && installation?.release != bundledRelease)) {
+        installation = await remote.install(
+          installation ?? await remote.inspect(token),
+          token,
+          sudoPassword: password(),
+        );
+        token.check();
+      }
+      for (final component in components) {
+        final response = await remote.request(
+          RunnerRequest.componentUpgradeCheck(component),
+          token,
+          sudoPassword: password(),
+        );
+        token.check();
+        if (response.code == 'ok' && response.componentUpgrade != null) {
+          plans[component] = response.componentUpgrade!;
+        }
+      }
+    });
+    return plans;
+  }
+
+  /// Install exactly the chosen version (a release asset or the snapshot of
+  /// the previous version) through the checked upgrade pipeline.
+  Future<void> installComponentVersion(Map<String, Object?> candidate) async {
+    await checkComponentUpgrade(
+      candidate['component'] as String,
+      candidate: candidate,
+    );
+    final plan = componentUpgradePlan;
+    if (plan == null || plan['upgradable'] != true) return;
+    await applyComponentUpgrade(plan, candidate);
+  }
 
   Future<void> applyComponentUpgrade(
     Map<String, dynamic> plan,
@@ -1695,12 +1753,13 @@ class RunnerController extends ChangeNotifier {
   });
 
   void prepareResume() {
+    // A failed component upgrade has already been rolled back; the runner
+    // refuses to resume it, a new choice of version starts it again.
     if (busy ||
         !const {
           'panel_install',
           'panel_update',
           'component_install',
-          'component_upgrade_apply',
           'protocol_remove',
           'inbound_update',
           'inbound_remove',
@@ -1882,6 +1941,7 @@ class RunnerController extends ChangeNotifier {
     String id,
   ) async {
     final requestedCursor = selected?.id == id ? cursor : 0;
+    final wasTerminal = selected?.id == id && selected?.terminal == true;
     final response = await remote.request(
       RunnerRequest.status(id, requestedCursor),
       token,
@@ -1956,10 +2016,34 @@ class RunnerController extends ChangeNotifier {
     if (job.kind == 'protocol_remove' && job.status == 'succeeded') {
       await _discoverPanel(remote, token);
     }
-    if (job.kind == 'panel_update' &&
-        job.status == 'succeeded' &&
+    if ((job.kind == 'panel_update' ||
+            job.kind == 'component_upgrade_apply' && !wasTerminal) &&
+        job.terminal &&
         panelAccess != null) {
+      // Panel and Xray upgrades change the versions the panel is verified
+      // against; re-verify so VLESS changes are not deferred on stale records.
       await _verifyPanel(remote, token, panelAccess!.id);
+    }
+    if (job.kind == 'component_upgrade_apply' &&
+        job.status == 'succeeded' &&
+        selected!.events.any(
+          (e) => e.code == 'upgrade_awaiting_confirmation',
+        ) &&
+        !selected!.events.any((e) => e.code == 'upgrade_confirmed')) {
+      // The server verified real connections; this device confirms that it
+      // still controls the server. Without this the server rolls back itself.
+      final confirm = await remote.request(
+        RunnerRequest.componentUpgradeConfirm(job.id),
+        token,
+        sudoPassword: password(),
+      );
+      token.check();
+      responseCode = confirm.code;
+      // A refused confirmation (already rolled back) shows up in the job
+      // itself; re-reading it once is enough and cannot loop.
+      if (confirm.code == 'ok' || confirm.code == 'upgrade_rolled_back') {
+        await _readJob(remote, token, job.id);
+      }
     }
     if (job.kind == 'panel_install' &&
         job.status == 'succeeded' &&

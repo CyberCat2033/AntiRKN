@@ -69,7 +69,8 @@
           "egress_check",
           "egress_access_plan",
           "egress_access_read",
-          "component_upgrade_check"
+          "component_upgrade_check",
+          "component_upgrade_confirm"
         ]
       },
       "id": {
@@ -220,7 +221,8 @@
       "component_plan": [
         "version",
         "action",
-        "component"
+        "component",
+        "payload"
       ],
       "panel_discover": [
         "version",
@@ -437,6 +439,11 @@
         "action",
         "component",
         "payload"
+      ],
+      "component_upgrade_confirm": [
+        "version",
+        "action",
+        "id"
       ]
     },
     "submissions": {
@@ -476,6 +483,7 @@
         "count",
         "interval",
         "component",
+        "payload",
         "fingerprint"
       ],
       "apt_update": [
@@ -867,7 +875,10 @@
     "upgrade_rollback_failed",
     "upgrade_rolling_back",
     "upgrade_completed",
-    "upgrade_download_failed"
+    "upgrade_download_failed",
+    "upgrade_awaiting_confirmation",
+    "upgrade_confirmed",
+    "upgrade_connectivity_failed"
   ],
   "codes": [
     "ok",
@@ -977,7 +988,8 @@
     "apt_failed",
     "apt_conflict",
     "apt_prerequisites",
-    "apt_interrupted"
+    "apt_interrupted",
+    "upgrade_connectivity_failed"
   ],
   "maxRequestBytes": 524288,
   "maxEvents": 256,

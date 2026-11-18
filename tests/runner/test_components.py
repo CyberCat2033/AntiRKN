@@ -16,7 +16,7 @@ from runner import Store
 
 
 def request():
-    return dict(version=1, action='submit', kind='component_install', component='trusttunnel',
+    return dict(version=1, action='submit', kind='component_install', component='trusttunnel', payload='',
         id='e'*32, count=6, interval=1, fingerprint='a'*64)
 
 
@@ -86,7 +86,7 @@ class ComponentTests(unittest.TestCase):
         self.assertFalse((self.root/'outside').exists())
 
     def test_build_step_non_blocking_yields_when_compiling(self):
-        req = dict(version=1, action='submit', kind='component_install', component='amneziawg',
+        req = dict(version=1, action='submit', kind='component_install', component='amneziawg', payload='',
                    id='f'*32, count=6, interval=1, fingerprint='b'*64)
         self.store.request(req)
         directory = self.root / ('component-' + req['id'])
@@ -130,7 +130,7 @@ class ComponentTests(unittest.TestCase):
         self.assertFalse((directory / 'build_pid.json').exists())
 
     def test_build_step_fails_when_process_fails(self):
-        req = dict(version=1, action='submit', kind='component_install', component='amneziawg',
+        req = dict(version=1, action='submit', kind='component_install', component='amneziawg', payload='',
                    id='f'*32, count=6, interval=1, fingerprint='b'*64)
         self.store.request(req)
         directory = self.root / ('component-' + req['id'])
@@ -155,7 +155,7 @@ class ComponentTests(unittest.TestCase):
         self.assertNotIn(req['id'], components.BUILD_PROCESSES)
 
     def test_cancel_during_compilation_terminates_process(self):
-        req = dict(version=1, action='submit', kind='component_install', component='amneziawg',
+        req = dict(version=1, action='submit', kind='component_install', component='amneziawg', payload='',
                    id='f'*32, count=6, interval=1, fingerprint='b'*64)
         self.store.request(req)
         directory = self.root / ('component-' + req['id'])

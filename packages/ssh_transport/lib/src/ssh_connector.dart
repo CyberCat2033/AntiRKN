@@ -383,10 +383,12 @@ final class _Connection implements SshConnection {
     CancellationToken cancellation, {
     bool useSudo = false,
     String? sudoPassword,
+    bool fresh = false,
   }) async {
     if (_closed) throw const SshFailure(SshIssue.disconnected);
     if (_observing) throw const SshFailure(SshIssue.commandFailed);
     _observing = true;
+    if (fresh) _cachedBinaries = const {};
     try {
       final privileges = PrivilegeRunner(
         _executor,

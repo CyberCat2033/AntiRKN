@@ -69,11 +69,11 @@ final class SshRunnerTransport implements RunnerTransport {
     }
   }
 
+  // The installer retains predecessor directories, so a fixed version path
+  // would keep serving RPC from old code after an upgrade. The newest
+  // installed runner owns the RPC, matching the running service.
   static String get _rpcDispatchCommand => python(
     "import os, glob, sys\n"
-    "t = '/usr/local/lib/antirkn-runner/v62/runner.py'\n"
-    "if os.path.exists(t):\n"
-    "    os.execv('/usr/bin/python3', ['/usr/bin/python3', '-I', t, 'rpc'])\n"
     "def _v(x):\n"
     "    try: return int(x.split('/v')[1].split('/')[0])\n"
     "    except Exception: return 0\n"

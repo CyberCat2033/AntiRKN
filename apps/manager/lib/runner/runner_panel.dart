@@ -277,6 +277,9 @@ String? tryResolveUpgradeLabel(AppLocalizations l, String code) {
     // Specific failures
     'upgrade_syntax_failed' => l.runnerUpgradeSyntaxFailed,
     'upgrade_healthcheck_failed' => l.runnerUpgradeHealthcheckFailed,
+    'upgrade_connectivity_failed' => l.runnerUpgradeConnectivityFailed,
+    'upgrade_awaiting_confirmation' => l.runnerUpgradeAwaitingConfirmation,
+    'upgrade_confirmed' => l.runnerUpgradeConfirmed,
     'upgrade_download_missing' => l.runnerUpgradeDownloadMissing,
     'upgrade_download_failed' => l.runnerUpgradeDownloadFailed,
     'upgrade_checksum_failed' => l.runnerUpgradeChecksumFailed,

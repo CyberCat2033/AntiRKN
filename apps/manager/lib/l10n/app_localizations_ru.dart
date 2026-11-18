@@ -1113,7 +1113,8 @@ class AppLocalizationsRu extends AppLocalizations {
   String get runnerUpgradeSwitching => 'Переключение версии...';
 
   @override
-  String get runnerUpgradeVerifying => 'Проверка работоспособности...';
+  String get runnerUpgradeVerifying =>
+      'Проверяем службу и настоящие подключения (до 1 мин)…';
 
   @override
   String get runnerUpgradeRollingBack => 'Выполняется откат...';
@@ -1130,6 +1131,17 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get runnerUpgradeHealthcheckFailed =>
       'Сбой проверки работы (выполнен откат)';
+
+  @override
+  String get runnerUpgradeAwaitingConfirmation =>
+      'Подключения проверены · подтверждаем (без подтверждения через 5 минут — автоматический откат)';
+
+  @override
+  String get runnerUpgradeConfirmed => 'Обновление подтверждено';
+
+  @override
+  String get runnerUpgradeConnectivityFailed =>
+      'После обновления перестали работать подключения — выполнен откат';
 
   @override
   String get runnerUpgradeDownloadMissing => 'Пакет не найден в релизе (404)';
@@ -1716,6 +1728,9 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get vpnObserved => 'Существующий · вне управления клиентами';
+
+  @override
+  String get vpnPendingDeletion => 'Удаляется · ждём подтверждения сервера';
 
   @override
   String get vpnObservedHelp =>
@@ -3876,4 +3891,93 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get catalogForgetServerJumpWarning =>
       'Ссылки на эти серверы как SSH-переход будут убраны из других сохранённых подключений. После удаления выберите для них новый SSH-маршрут.';
+
+  @override
+  String get versionsChoose => 'Версии';
+
+  @override
+  String versionsTitle(Object name) {
+    return 'Версии · $name';
+  }
+
+  @override
+  String get versionsLoading => 'Получаем список релизов и состояние сервера…';
+
+  @override
+  String get versionsFailed =>
+      'Не удалось получить список релизов или состояние сервера. Проверьте связь и повторите.';
+
+  @override
+  String get versionsHelp =>
+      'Новая версия ставится с проверкой настоящих подключений. Если они перестанут работать или это устройство потеряет сервер, сервер сам вернёт прежнюю версию в течение 5 минут. Более старые версии не предлагаются: вернуться можно только к той, что стояла до последнего обновления.';
+
+  @override
+  String versionsInstalled(Object version) {
+    return 'установлена $version';
+  }
+
+  @override
+  String get versionsNothing => 'Новее версий нет, возвращаться не к чему.';
+
+  @override
+  String get versionsVerified => 'проверена AntiRKN';
+
+  @override
+  String get versionsUnverified => 'не проверена AntiRKN';
+
+  @override
+  String get versionsPreview => 'предварительная';
+
+  @override
+  String get versionsPrevious => 'прежняя версия';
+
+  @override
+  String get versionsInstall => 'Поставить';
+
+  @override
+  String get versionsRestore => 'Вернуть';
+
+  @override
+  String versionsInstallTitle(Object name, Object version) {
+    return 'Поставить $name $version?';
+  }
+
+  @override
+  String versionsRestoreTitle(Object name, Object version) {
+    return 'Вернуть $name $version?';
+  }
+
+  @override
+  String versionsChange(Object from, Object to) {
+    return 'Сейчас: $from → $to.';
+  }
+
+  @override
+  String get versionsPanelCarriesXray =>
+      'В релизе 3x-ui есть свой Xray: ядро сменится вместе с панелью.';
+
+  @override
+  String versionsPanelRestoresXray(Object version) {
+    return 'Вместе с панелью вернётся Xray $version.';
+  }
+
+  @override
+  String get versionsSafety =>
+      'Инбаунды, клиенты и настройки остаются как есть. После переключения сервер проверит настоящие подключения; если это устройство не подтвердит за 5 минут, сервер вернёт текущую версию.';
+
+  @override
+  String get versionsAssetMissing =>
+      'В этом релизе нет файла для архитектуры сервера или нет контрольной суммы. Выберите другую версию.';
+
+  @override
+  String get versionsAwgBuild =>
+      'AmneziaWG собирается из исходного кода на сервере: это занимает несколько минут.';
+
+  @override
+  String get versionsSafetyInstaller =>
+      'Ключи и настройки остаются как есть. Новая версия ставится в отдельную папку; если после переключения служба не запустится или пропадут подключения, сервер сам вернёт текущую версию.';
+
+  @override
+  String get versionsHelpInstaller =>
+      'Новые стабильные версии ставятся в отдельную папку рядом с текущей. Если после переключения служба не запустится или пропадут подключения, сервер сам вернёт текущую версию. Более старые версии не предлагаются.';
 }

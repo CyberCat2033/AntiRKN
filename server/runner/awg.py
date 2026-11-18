@@ -13,8 +13,7 @@ import subprocess
 
 from awg_contract import SCHEMA
 from awg_network import configure as network_configure, rules as network_rules
-from components import CONFIG, installed, unit_source, UNITS, ComponentError, safe_directory
-from component_releases import RELEASES
+from components import CONFIG, installed, unit_source, UNITS, ComponentError, safe_directory, usable
 from panel import atomic_file, command, safe_file, PanelError
 from vless import canonical, digest, VlessError
 from vless_contract import validate_schema
@@ -97,8 +96,7 @@ def prerequisites():
         safe_directory(CONFIG)
         safe_directory(ROOT)
         record = installed('amneziawg')
-        release = RELEASES['amneziawg']
-        if not record or any(record[k] != release[k] for k in ('version', 'toolsVersion')):
+        if not usable('amneziawg', record):
             raise AwgError('awg_prerequisites')
         unit = UNITS / 'antirkn-awg@.service'
         safe_file(unit)

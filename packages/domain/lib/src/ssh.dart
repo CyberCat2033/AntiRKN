@@ -396,10 +396,14 @@ final class ServerObservation {
 
 abstract interface class SshConnection {
   RunnerTransport? get runner;
+
+  /// [fresh] re-reads installed program versions instead of reusing the
+  /// ones read earlier on this connection (needed after an install/update).
   Future<ServerObservation> observe(
     CancellationToken cancellation, {
     bool useSudo = false,
     String? sudoPassword,
+    bool fresh = false,
   });
   Future<PrivilegeCheck> checkPrivileges(
     CancellationToken cancellation, {

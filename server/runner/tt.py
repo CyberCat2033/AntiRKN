@@ -11,8 +11,7 @@ from pathlib import Path
 import secrets
 import socket
 
-from component_releases import RELEASES
-from components import installed
+from components import installed, usable
 from panel import atomic_file
 from tt_common import (ROOT, TtError, active, address, available, canonical, digest,
     domain, hash_file, identifier, ip, lock, mkdir, read, run, split_address,
@@ -77,7 +76,7 @@ def owned(store):
 
 def prerequisites():
     r = installed('trusttunnel')
-    if not r or r['version'] != RELEASES['trusttunnel']['version']:
+    if not usable('trusttunnel', r):
         raise TtError('tt_prerequisites')
     return r['release']
 

@@ -45,6 +45,7 @@ class AwgPanel extends StatelessWidget {
         spec: spec,
         network: network,
         motion: motion,
+        existing: current != null,
       ),
       animationStyle: AnimationStyle(
         duration: AppMotion.duration(context, motion),
@@ -152,12 +153,16 @@ class AwgForm extends StatefulWidget {
     required this.spec,
     required this.network,
     required this.motion,
+    this.existing = false,
     super.key,
   });
   final String serverId;
   final Map<String, Object?> spec;
   final NetworkController network;
   final MotionPreference motion;
+
+  /// Deletion is offered only for an interface that already exists.
+  final bool existing;
   @override
   State<AwgForm> createState() => _AwgFormState();
 }
@@ -280,14 +285,15 @@ class _AwgFormState extends State<AwgForm> {
                   if (v) spec['deleted'] = false;
                 }),
               ),
-              CheckboxListTile(
-                title: Text(l.vpnDeleteHelp),
-                value: spec['deleted'] as bool,
-                onChanged: (v) => setState(() {
-                  spec['deleted'] = v!;
-                  if (v) spec['enabled'] = false;
-                }),
-              ),
+              if (widget.existing)
+                CheckboxListTile(
+                  title: Text(l.vpnDeleteHelp),
+                  value: spec['deleted'] as bool,
+                  onChanged: (v) => setState(() {
+                    spec['deleted'] = v!;
+                    if (v) spec['enabled'] = false;
+                  }),
+                ),
               Text(l.connectionAfterSave),
               if (invalid)
                 Text(

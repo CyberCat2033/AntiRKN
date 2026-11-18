@@ -45,11 +45,15 @@ final class RunnerRequest {
         'panelId': plan.panelId,
         'fingerprint': plan.fingerprint,
       });
-  factory RunnerRequest.componentPlan(String component) =>
+
+  /// [choice] is empty for the version pinned in the app, or the JSON of a
+  /// newer upstream release (version, archive, AWG commit) to install.
+  factory RunnerRequest.componentPlan(String component, {String choice = ''}) =>
       RunnerRequest.fromJson({
         'version': 1,
         'action': 'component_plan',
         'component': component,
+        'payload': choice,
       });
   factory RunnerRequest.componentUpgradeCheck(
     String component, {
@@ -74,17 +78,30 @@ final class RunnerRequest {
     'payload': jsonEncode(candidate),
     'fingerprint': fingerprint,
   });
-  factory RunnerRequest.componentInstall(String id, ComponentPlan plan) =>
+
+  /// Confirms that this device still controls the server after an upgrade;
+  /// without it the server rolls the upgrade back on its own.
+  factory RunnerRequest.componentUpgradeConfirm(String id) =>
       RunnerRequest.fromJson({
         'version': 1,
-        'action': 'submit',
+        'action': 'component_upgrade_confirm',
         'id': id,
-        'kind': 'component_install',
-        'count': 6,
-        'interval': 1,
-        'component': plan.component,
-        'fingerprint': plan.fingerprint,
       });
+  factory RunnerRequest.componentInstall(
+    String id,
+    ComponentPlan plan, {
+    String choice = '',
+  }) => RunnerRequest.fromJson({
+    'version': 1,
+    'action': 'submit',
+    'id': id,
+    'kind': 'component_install',
+    'count': 6,
+    'interval': 1,
+    'component': plan.component,
+    'payload': choice,
+    'fingerprint': plan.fingerprint,
+  });
   factory RunnerRequest.realityScan(String id, String target, String sni) =>
       RunnerRequest.fromJson({
         'version': 1,
@@ -737,7 +754,7 @@ Map<String, dynamic> decodeRunnerObject(String source) {
 
   // 2. Scan balanced JSON objects if there are braces in leading/trailing noise
   for (var i = 0; i < trimmed.length; i++) {
-    if (trimmed.codeUnitAt(i) == 0x7B /* { */) {
+    if (trimmed.codeUnitAt(i) == 0x7B /* { */ ) {
       var depth = 0;
       var inString = false;
       var escaped = false;
@@ -747,18 +764,18 @@ Map<String, dynamic> decodeRunnerObject(String source) {
           escaped = false;
           continue;
         }
-        if (c == 0x5C /* \ */) {
+        if (c == 0x5C /* \ */ ) {
           escaped = true;
           continue;
         }
-        if (c == 0x22 /* " */) {
+        if (c == 0x22 /* " */ ) {
           inString = !inString;
           continue;
         }
         if (!inString) {
-          if (c == 0x7B /* { */) {
+          if (c == 0x7B /* { */ ) {
             depth++;
-          } else if (c == 0x7D /* } */) {
+          } else if (c == 0x7D /* } */ ) {
             depth--;
             if (depth == 0) {
               final candidate = trimmed.substring(i, j + 1);

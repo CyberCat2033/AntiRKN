@@ -17,6 +17,10 @@ import test_vless as vless_fixture
 def probe_api(api):
     original = api.call
     def call(path, data=None):
+        if path == '/panel/api/clients/add' or path.startswith('/panel/api/clients/del/'):
+            # This fixture is a panel without the 3.7+ client routes.
+            import urllib.error
+            raise urllib.error.HTTPError(path, 404, 'Not Found', {}, None)
         if path.endswith('/addClient'):
             row = next(r for r in api.rows if r['id'] == data['id'])
             row['settings']['clients'].extend(json.loads(data['settings'])['clients'])

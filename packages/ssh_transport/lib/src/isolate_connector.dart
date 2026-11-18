@@ -173,11 +173,12 @@ final class _WorkerConnection implements SshConnection, RunnerTransport {
     CancellationToken cancellation, {
     bool useSudo = false,
     String? sudoPassword,
+    bool fresh = false,
   }) async {
     try {
       cancellation.check();
       return (await cancellation.bind(
-            _request('observe', (useSudo, sudoPassword)),
+            _request('observe', (useSudo, sudoPassword, fresh)),
           ))
           as ServerObservation;
     } catch (_) {
@@ -292,11 +293,13 @@ void _runWorker((SendPort, Duration, Duration) input) {
             );
             events.send(('result', id, null));
           case 'observe':
-            final (useSudo, sudoPassword) = payload as (bool, String?);
+            final (useSudo, sudoPassword, fresh) =
+                payload as (bool, String?, bool);
             final observation = await connection!.observe(
               cancellation,
               useSudo: useSudo,
               sudoPassword: sudoPassword,
+              fresh: fresh,
             );
             events.send(('result', id, observation));
           case 'runnerInspect':

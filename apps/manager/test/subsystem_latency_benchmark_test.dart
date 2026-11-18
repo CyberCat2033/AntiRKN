@@ -52,6 +52,7 @@ class BenchmarkSshConnection implements SshConnection {
     CancellationToken cancellation, {
     bool useSudo = false,
     String? sudoPassword,
+    bool fresh = false,
   }) async {
     observeCount++;
     cancellation.check();

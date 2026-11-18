@@ -1110,7 +1110,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get runnerUpgradeSwitching => 'Switching version...';
 
   @override
-  String get runnerUpgradeVerifying => 'Verifying service health...';
+  String get runnerUpgradeVerifying =>
+      'Checking the service and real connections (up to 1 min)…';
 
   @override
   String get runnerUpgradeRollingBack => 'Rolling back...';
@@ -1127,6 +1128,17 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get runnerUpgradeHealthcheckFailed =>
       'Health check failed (rolled back)';
+
+  @override
+  String get runnerUpgradeAwaitingConfirmation =>
+      'Connections verified · confirming (automatic rollback in 5 minutes without confirmation)';
+
+  @override
+  String get runnerUpgradeConfirmed => 'Update confirmed';
+
+  @override
+  String get runnerUpgradeConnectivityFailed =>
+      'Connections stopped working after the update — rolled back';
 
   @override
   String get runnerUpgradeDownloadMissing => 'Package asset not found (404)';
@@ -1710,6 +1722,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get vpnObserved => 'Existing · outside client management';
+
+  @override
+  String get vpnPendingDeletion =>
+      'Deleting · waiting for the server to confirm';
 
   @override
   String get vpnObservedHelp =>
@@ -3869,4 +3885,94 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get catalogForgetServerJumpWarning =>
       'SSH jump references to these servers will be removed from other saved connections. Choose a new SSH route for those servers afterwards.';
+
+  @override
+  String get versionsChoose => 'Versions';
+
+  @override
+  String versionsTitle(Object name) {
+    return 'Versions · $name';
+  }
+
+  @override
+  String get versionsLoading =>
+      'Getting the release list and the server state…';
+
+  @override
+  String get versionsFailed =>
+      'Could not get the release list or the server state. Check the connection and try again.';
+
+  @override
+  String get versionsHelp =>
+      'A new version is installed with a check of real connections. If they stop working, or this device loses the server, the server returns the previous version by itself within 5 minutes. Older versions are not offered: you can only go back to the one that ran before the last update.';
+
+  @override
+  String versionsInstalled(Object version) {
+    return 'installed $version';
+  }
+
+  @override
+  String get versionsNothing => 'No newer versions and nothing to go back to.';
+
+  @override
+  String get versionsVerified => 'checked by AntiRKN';
+
+  @override
+  String get versionsUnverified => 'not checked by AntiRKN';
+
+  @override
+  String get versionsPreview => 'pre-release';
+
+  @override
+  String get versionsPrevious => 'previous version';
+
+  @override
+  String get versionsInstall => 'Install';
+
+  @override
+  String get versionsRestore => 'Go back';
+
+  @override
+  String versionsInstallTitle(Object name, Object version) {
+    return 'Install $name $version?';
+  }
+
+  @override
+  String versionsRestoreTitle(Object name, Object version) {
+    return 'Go back to $name $version?';
+  }
+
+  @override
+  String versionsChange(Object from, Object to) {
+    return 'Now: $from → $to.';
+  }
+
+  @override
+  String get versionsPanelCarriesXray =>
+      'The 3x-ui release carries its own Xray: the core changes together with the panel.';
+
+  @override
+  String versionsPanelRestoresXray(Object version) {
+    return 'Xray $version comes back together with the panel.';
+  }
+
+  @override
+  String get versionsSafety =>
+      'Inbounds, clients and settings stay as they are. After the switch the server checks real connections; if this device does not confirm within 5 minutes, the server returns the current version.';
+
+  @override
+  String get versionsAssetMissing =>
+      'This release has no file for this server\'s architecture or no checksum. Choose another version.';
+
+  @override
+  String get versionsAwgBuild =>
+      'AmneziaWG is built from source on the server: this takes several minutes.';
+
+  @override
+  String get versionsSafetyInstaller =>
+      'Keys and settings stay as they are. The new version goes into its own folder; if the service does not start or connections stop working after the switch, the server returns to the current version by itself.';
+
+  @override
+  String get versionsHelpInstaller =>
+      'Newer stable releases are installed into their own folder next to the current one. If the service does not start or connections stop working after the switch, the server returns to the current version by itself. Older versions are not offered.';
 }

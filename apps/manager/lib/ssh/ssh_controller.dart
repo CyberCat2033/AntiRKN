@@ -60,7 +60,7 @@ class SshController extends ChangeNotifier {
       password: () => isRoot ? null : _effectiveSudoPassword,
       accessFailure: recordPrivilegeFailure,
       software: () => software,
-      refreshSoftware: () => unawaited(refresh()),
+      refreshSoftware: () => unawaited(refresh(fresh: true)),
       connectForAction: ensureConnected,
     );
     runner.addListener(_notify);
@@ -217,6 +217,7 @@ class SshController extends ChangeNotifier {
   CancellationToken? _keyImport;
   Timer? _clock;
   Timer? _reconnectTimer;
+  Timer? _refreshRetry;
   bool _autoReconnect = false;
   int _reconnectAttempt = 0;
   int _generation = 0;
@@ -1091,9 +1092,18 @@ class SshController extends ChangeNotifier {
     }
   }
 
-  Future<void> refresh() async {
+  /// [fresh] re-reads installed program versions: after an install or
+  /// update the connection's cached versions are stale.
+  Future<void> refresh({bool fresh = false}) async {
     final connection = _connection;
-    if (busy || runner.busy || vaultBusy || connection == null || !unlocked) {
+    if (connection == null || !unlocked) return;
+    if (busy || runner.busy || vaultBusy) {
+      // Asked right after a server job, while the connection is still in
+      // use: read once it is free instead of dropping the request.
+      _refreshRetry ??= Timer(const Duration(seconds: 2), () {
+        _refreshRetry = null;
+        if (!_disposed) unawaited(refresh(fresh: fresh));
+      });
       return;
     }
     final generation = _generation;
@@ -1110,6 +1120,7 @@ class SshController extends ChangeNotifier {
         cancellation,
         useSudo: privileges?.granted == true && !isRoot,
         sudoPassword: _effectiveSudoPassword,
+        fresh: fresh,
       );
       if (!_disposed &&
           generation == _generation &&
@@ -1272,6 +1283,7 @@ class SshController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _refreshRetry?.cancel();
     runner.removeListener(_notify);
     runner.dispose();
     _disposed = true;

@@ -52,6 +52,19 @@ void main() {
     },
   );
 
+  test('after a server job the installed versions are read again', () async {
+    // The connection caches program versions; reusing them after an
+    // update showed the old version until the next reconnect.
+    final before = connector.connection.reads;
+    expect(connector.connection.lastFresh, isFalse);
+    c.runner.refreshSoftware!();
+    await pumpEventQueue();
+    expect(connector.connection.reads, before + 1);
+    expect(connector.connection.lastFresh, isTrue);
+    await c.refresh();
+    expect(connector.connection.lastFresh, isFalse);
+  });
+
   test('failure of a later protected probe reopens the prompt', () async {
     connector.connection.reader = () async => ServerObservation(
       os: c.observation!.os,

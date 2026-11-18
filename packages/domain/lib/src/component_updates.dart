@@ -36,8 +36,29 @@ bool? componentIsNewer(
   return false;
 }
 
+/// One upstream release offered for an explicit version choice.
+final class ComponentRelease {
+  const ComponentRelease(this.version, {this.preview = false, this.published});
+  final String version;
+
+  /// Marked as a pre-release (rc/beta) upstream.
+  final bool preview;
+  final DateTime? published;
+}
+
 abstract interface class ComponentReleaseSource {
   Future<Map<String, String>> check();
+
+  /// Recent releases, newest first, previews included and marked.
+  Future<List<ComponentRelease>> releases(String component);
+  /// A newer upstream TrustTunnel/AmneziaWG release for the AntiRKN
+  /// installer: `{version, archive: {url, bytes, sha256}[, commit]}`, or null
+  /// when it cannot be identified with a checksum.
+  Future<Map<String, Object?>?> resolveInstallerRelease({
+    required String component,
+    required String version,
+  });
+
   Future<Map<String, Object?>?> resolveAsset({
     required String component,
     required String version,

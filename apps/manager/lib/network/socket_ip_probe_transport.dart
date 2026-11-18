@@ -65,11 +65,17 @@ class SocketIpProbeTransport implements IpProbeTransport {
       if (table.exitCode != 0) throw const FormatException('network_unknown');
       routes = table.stdout as String;
     }
+    // Names alone miss common clients: Mihomo/Clash create "Meta", sing-box
+    // and Hiddify use their own names. A VPN in the path makes a failed probe
+    // look like broken server settings, so detect TUN/TAP devices by kind.
     final vpn = interfaces.any(
-      (i) => RegExp(
-        r'^(tun|tap|wg|utun)|vpn|wireguard',
-        caseSensitive: false,
-      ).hasMatch(i.name),
+      (i) =>
+          RegExp(
+            r'^(tun|tap|wg|utun|meta|mihomo|clash|sing-?box|hiddify|wintun|nekoray|throne)|vpn|wireguard|tunnel',
+            caseSensitive: false,
+          ).hasMatch(i.name) ||
+          (Platform.isLinux &&
+              File('/sys/class/net/${i.name}/tun_flags').existsSync()),
     );
     return ProbeNetwork('${addresses.join('|')}|$routes', 'system', vpn: vpn);
   }

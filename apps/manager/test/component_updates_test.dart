@@ -24,6 +24,15 @@ class Source implements ComponentReleaseSource {
   }
 
   @override
+  Future<List<ComponentRelease>> releases(String component) async => const [];
+
+  @override
+  Future<Map<String, Object?>?> resolveInstallerRelease({
+    required String component,
+    required String version,
+  }) async => null;
+
+  @override
   Future<Map<String, Object?>?> resolveAsset({
     required String component,
     required String version,
