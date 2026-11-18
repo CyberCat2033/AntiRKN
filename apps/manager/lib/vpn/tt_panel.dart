@@ -100,6 +100,7 @@ class _TtPanelState extends State<TtPanel> {
       builder: (_) => ManagedTtDialog(
         serverId: widget.serverId,
         spec: spec,
+        existing: current != null,
         runner: widget.runner,
         picker: widget.picker,
         network: widget.network,
@@ -553,6 +554,7 @@ class ManagedTtDialog extends StatefulWidget {
     required this.picker,
     required this.network,
     required this.motion,
+    this.existing = false,
     super.key,
   });
   final String serverId;
@@ -561,6 +563,9 @@ class ManagedTtDialog extends StatefulWidget {
   final PrivateKeyFilePicker picker;
   final NetworkController network;
   final MotionPreference motion;
+
+  /// An endpoint that already exists can be deleted here (as AmneziaWG).
+  final bool existing;
   @override
   State<ManagedTtDialog> createState() => _ManagedTtState();
 }
@@ -697,8 +702,19 @@ class _ManagedTtState extends State<ManagedTtDialog> {
                 value: spec['enabled'] as bool,
                 onChanged: (v) => setState(() {
                   spec['enabled'] = v;
+                  if (v) spec['deleted'] = false;
                 }),
               ),
+              if (widget.existing)
+                CheckboxListTile(
+                  key: const ValueKey('tt-delete'),
+                  title: Text(l.vpnDeleteHelp),
+                  value: spec['deleted'] == true,
+                  onChanged: (v) => setState(() {
+                    spec['deleted'] = v!;
+                    if (v) spec['enabled'] = false;
+                  }),
+                ),
               OutlinedButton.icon(
                 key: const ValueKey('tt-regenerate-passwords'),
                 onPressed: () => setState(() => rotate = true),

@@ -76,7 +76,12 @@ mixin TtPlannedState<T extends StatefulWidget> on State<T> {
         Text('${l.ttDnsChecked}: ${(dns['addresses'] as List).join(', ')}'),
       if (preview!['package'] case final Map package)
         Text(
-          '${package['installed'] == true ? l.ttCertbotPresent : l.ttCertbotInstall}: ${package['version']}',
+          [
+            package['installed'] == true
+                ? l.ttCertbotPresent
+                : l.ttCertbotInstall,
+            if (package['version'] case final Object version) '$version',
+          ].join(': '),
         ),
       if (preview!['preserveUsers'] == true) Text(l.ttPreserveUsers),
     ],
