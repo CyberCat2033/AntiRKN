@@ -16,17 +16,26 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/metacubex/mihomo/adapter"
+	"github.com/metacubex/mihomo/component/dialer"
+	"github.com/metacubex/mihomo/component/resolver"
 	C "github.com/metacubex/mihomo/constant"
+	mdns "github.com/metacubex/mihomo/dns"
 )
 
 type Request struct {
 	Mode string `json:"mode"`
 	YAML string `json:"yaml"`
 	UDP  bool   `json:"udp"`
+	// Interface is the device's physical interface while its VPN is on. Every
+	// outbound socket and DNS query of this worker then bypasses that VPN, so
+	// the result describes the device's own network.
+	Interface string `json:"interface,omitempty"`
 }
 type Result struct {
 	Status       string `json:"status"`
@@ -39,6 +48,31 @@ type Result struct {
 	Version      string `json:"version"`
 	Revision     string `json:"revision"`
 	Failure      string `json:"failure,omitempty"`
+	// Endpoint is a plain TCP check of the server address after a failed
+	// connection: reachable, refused, timeout, unreachable or unresolved.
+	Endpoint string `json:"endpoint,omitempty"`
+}
+
+var interfaceName = regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,15}$`)
+
+// DirectNameservers resolve proxy server names outside the device VPN.
+var DirectNameservers = []string{"1.1.1.1:53", "8.8.8.8:53", "9.9.9.9:53"}
+
+// UseInterface binds all dials and DNS of this process to one interface.
+func UseInterface(name string) bool {
+	if !interfaceName.MatchString(name) {
+		return false
+	}
+	dialer.DefaultInterface.Store(name)
+	servers := make([]mdns.NameServer, 0, len(DirectNameservers))
+	for _, address := range DirectNameservers {
+		servers = append(servers, mdns.NameServer{Net: "udp", Addr: address})
+	}
+	resolvers := mdns.NewResolver(mdns.Config{Main: servers, Default: servers})
+	resolver.DefaultResolver = resolvers.Resolver
+	resolver.ProxyServerHostResolver = resolvers.Resolver
+	resolver.DirectHostResolver = resolvers.Resolver
+	return true
 }
 
 type Targets struct {
@@ -58,8 +92,10 @@ func Execute(ctx context.Context, request Request, targets Targets) (result Resu
 		return
 	}
 	var proxy C.Proxy
+	var fields map[string]any
 	if request.Mode != "control" {
-		fields, err := proxyFields(request.YAML)
+		var err error
+		fields, err = proxyFields(request.YAML)
 		if err != nil {
 			result.Code = "invalid_proxy"
 			return
@@ -93,6 +129,14 @@ func Execute(ctx context.Context, request Request, targets Targets) (result Resu
 		}
 	}
 	result.Milliseconds = time.Since(started).Milliseconds()
+	if !result.TCP && proxy != nil && ctx.Err() == nil {
+		// Separates "this network does not reach the server address" from a
+		// protocol or settings failure; the UDP check cannot add to a failure.
+		result.Endpoint = endpoint(ctx, fields)
+		if ctx.Err() == nil {
+			return
+		}
+	}
 	if request.UDP && (proxy == nil || proxy.SupportUDP()) {
 		result.UDPTested = true
 		for _, target := range targets.DNS {
@@ -207,7 +251,7 @@ func https(parent context.Context, proxy C.Proxy, target string, roots *x509.Cer
 	}
 	var connection net.Conn
 	if proxy == nil {
-		connection, err = (&net.Dialer{}).DialContext(ctx, "tcp4", metadata.RemoteAddress())
+		connection, err = dialer.DialContext(ctx, "tcp4", metadata.RemoteAddress())
 	} else {
 		connection, err = proxy.DialContext(ctx, metadata)
 	}
@@ -245,7 +289,7 @@ func dns(parent context.Context, proxy C.Proxy, target netip.AddrPort) error {
 	var connection net.PacketConn
 	if proxy == nil {
 		var err error
-		connection, err = net.ListenPacket("udp", ":0")
+		connection, err = dialer.ListenPacket(ctx, "udp", ":0", target)
 		if err != nil {
 			return err
 		}
@@ -283,4 +327,44 @@ func dns(parent context.Context, proxy C.Proxy, target netip.AddrPort) error {
 		return errors.New("udp_question")
 	}
 	return nil
+}
+
+// endpoint dials the server address itself (TCP port of the proxy; 443 for
+// UDP-only WireGuard, an IP-level hint) through the same interface and DNS.
+func endpoint(parent context.Context, fields map[string]any) string {
+	host, _ := fields["server"].(string)
+	port := 443
+	if fields["type"] != "wireguard" {
+		switch value := fields["port"].(type) {
+		case int64:
+			port = int(value)
+		case float64:
+			port = int(value)
+		default:
+			return ""
+		}
+	}
+	if host == "" || port < 1 || port > 65535 {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(parent, 3*time.Second)
+	defer cancel()
+	ips, err := resolver.LookupIPv4WithResolver(ctx, host, resolver.ProxyServerHostResolver)
+	if err != nil || len(ips) == 0 {
+		return "unresolved"
+	}
+	connection, err := dialer.DialContext(ctx, "tcp4", net.JoinHostPort(ips[0].String(), strconv.Itoa(port)))
+	if err == nil {
+		connection.Close()
+		return "reachable"
+	}
+	text := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(text, "refused"):
+		return "refused"
+	case ctx.Err() != nil || strings.Contains(text, "timeout") || strings.Contains(text, "deadline"):
+		return "timeout"
+	default:
+		return "unreachable"
+	}
 }

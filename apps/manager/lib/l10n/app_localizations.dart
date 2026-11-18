@@ -6320,6 +6320,12 @@ abstract class AppLocalizations {
   /// **'Connection failed. Review the settings.'**
   String get connectionFailed;
 
+  /// No description provided for @connectionEndpointUnreachable.
+  ///
+  /// In en, this message translates to:
+  /// **'The server address does not answer from this network, it is likely blocked by the provider. The settings are fine: move the protocol to another server address.'**
+  String get connectionEndpointUnreachable;
+
   /// No description provided for @connectionCancelled.
   ///
   /// In en, this message translates to:

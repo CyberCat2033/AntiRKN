@@ -24,6 +24,9 @@ enum IpDiagnosticStage {
   insufficient,
   degraded,
   failed,
+
+  /// The device VPN carries every probe and cannot be bypassed: nothing measured.
+  vpnActive,
 }
 
 enum ControlHealth { healthy, degraded, strong }
@@ -86,9 +89,19 @@ final class ProbeNetwork {
     this.kind, {
     this.vpn = false,
     this.bound = false,
+    this.directInterface = '',
+    this.directSource = '',
   });
   final String identity, kind;
   final bool vpn, bound;
+
+  /// Physical interface and its IPv4 that probes use while a device VPN is on.
+  /// Empty when probes would go through the VPN (results describe the VPN).
+  final String directInterface, directSource;
+  bool get direct => directInterface.isNotEmpty && directSource.isNotEmpty;
+
+  /// Measurements describe the device's own network, not a VPN tunnel.
+  bool get measuresDevice => !vpn || direct;
 }
 
 abstract interface class IpProbeTransport {
@@ -150,6 +163,7 @@ final class IpDiagnosticRun {
     'network': network?.kind,
     'vpn': network?.vpn,
     'bound': network?.bound,
+    'direct': network?.direct,
     'completed': completed,
     'total': targets.length,
     'controlsReachable': controlsReachable,
@@ -271,6 +285,11 @@ class IpDiagnosticEngine {
 
     try {
       result.network = await token.bind(transport.network());
+      if (!result.network!.measuresDevice) {
+        result.stage = IpDiagnosticStage.vpnActive;
+        update(result);
+        return result;
+      }
       for (final target in targets) {
         token.check();
         result.currentIp = target.address.canonical;

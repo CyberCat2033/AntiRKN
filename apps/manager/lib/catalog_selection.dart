@@ -139,12 +139,21 @@ class CatalogNormalContent extends StatelessWidget {
   final CatalogSelection selection;
   final Widget child;
   @override
-  Widget build(BuildContext context) => AnimatedSize(
-    duration: AppMotion.duration(context, MotionPreference.system),
-    curve: Curves.easeInOutCubicEmphasized,
-    alignment: Alignment.topCenter,
-    child: selection.active ? const SizedBox(width: double.infinity) : child,
-  );
+  Widget build(BuildContext context) {
+    final content = selection.active
+        ? const SizedBox(width: double.infinity)
+        : child;
+    final duration = AppMotion.duration(context, MotionPreference.system);
+    // A zero-length AnimatedSize re-dirties itself during layout (Flutter
+    // assertion); with motion off the content simply switches, as AppAnimatedSize.
+    if (duration == Duration.zero) return content;
+    return AnimatedSize(
+      duration: duration,
+      curve: Curves.easeInOutCubicEmphasized,
+      alignment: Alignment.topCenter,
+      child: content,
+    );
+  }
 }
 
 class CatalogActions extends StatelessWidget {

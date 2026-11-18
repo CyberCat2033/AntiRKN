@@ -6,10 +6,11 @@ import 'package:flutter_test/flutter_test.dart';
 class FakeProbes implements IpProbeTransport {
   final calls = <IpProbeTarget>[];
   String route = 'wifi';
+  bool vpn = false;
   int closed = 0;
   FutureOr<IpProbeStatus> Function(IpProbeTarget)? answer;
   @override
-  Future<ProbeNetwork> network() async => ProbeNetwork(route, route);
+  Future<ProbeNetwork> network() async => ProbeNetwork(route, route, vpn: vpn);
   @override
   Future<IpProbeResult> probe(
     IpProbeTarget target,
@@ -271,5 +272,14 @@ void main() {
     expect(run.stage, IpDiagnosticStage.cancelled);
     expect(transport.closed, 1);
     expect(transport.calls, isNot(contains(second)));
+  });
+  test('a VPN that cannot be bypassed measures nothing', () async {
+    final transport = FakeProbes()..vpn = true;
+    final run = await IpDiagnosticEngine(
+      transport: transport,
+      controls: controls(),
+    ).run([IpProbeTarget('198.51.100.7', 443)], CancellationToken(), (_) {});
+    expect(run.stage, IpDiagnosticStage.vpnActive);
+    expect(transport.calls, isEmpty);
   });
 }

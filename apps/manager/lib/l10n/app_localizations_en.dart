@@ -3560,6 +3560,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get connectionFailed => 'Connection failed. Review the settings.';
 
   @override
+  String get connectionEndpointUnreachable =>
+      'The server address does not answer from this network, it is likely blocked by the provider. The settings are fine: move the protocol to another server address.';
+
+  @override
   String get connectionCancelled => 'Check stopped';
 
   @override

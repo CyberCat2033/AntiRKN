@@ -114,8 +114,18 @@ void main() {
       expect(find.text('3 / 3'), findsNothing);
       expect(find.text('SNI: example.com'), findsNothing);
       expect(find.text('Main node'), findsOneWidget);
+      // Connect and SSH access share one row across the card (since the
+      // SSH access action moved next to Connect).
       final connect = tester.getRect(find.byKey(const ValueKey('ssh-connect')));
-      expect(connect.right, greaterThan(width - 40));
+      final access = tester.getRect(
+        find.byKey(const ValueKey('server-ssh-access')),
+      );
+      final row = tester.getRect(find.byType(AppActionRow).first);
+      expect(connect.left, closeTo(row.left, 1));
+      expect(access.right, closeTo(row.right, 1));
+      expect(row.width, greaterThan(width * 0.5));
+      expect(connect.right, lessThan(access.left));
+      expect(connect.center.dy, closeTo(access.center.dy, 1));
       if (screenshot != null) {
         await tester.runAsync(() async {
           final image =
@@ -130,9 +140,13 @@ void main() {
           image.dispose();
         });
       }
-      await tester.tap(find.text('Main node'));
-      await tester.pumpAndSettle();
-      expect(find.textContaining('example.com:443'), findsWidgets);
+      // Managed inbound tiles carry no details (since 90b9d28): the REALITY
+      // target stays in the editor, not on the summary.
+      expect(
+        find.byKey(ValueKey('resource-details-${'1' * 32}')),
+        findsNothing,
+      );
+      expect(find.textContaining('example.com:443'), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(app(2));
       await tester.pumpAndSettle();

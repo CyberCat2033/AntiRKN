@@ -19,9 +19,15 @@ class Network implements IpProbeTransport {
   int goodControls = 10, probes = 0;
   String identity = 'wifi-1';
   bool vpn = false;
+  String direct = '';
   @override
-  Future<ProbeNetwork> network() async =>
-      ProbeNetwork(identity, 'wifi', vpn: vpn);
+  Future<ProbeNetwork> network() async => ProbeNetwork(
+    identity,
+    'wifi',
+    vpn: vpn,
+    directInterface: direct,
+    directSource: direct.isEmpty ? '' : '192.168.0.146',
+  );
   @override
   Future<void> cancel() async {}
   @override
@@ -45,14 +51,17 @@ class Core implements CoreProbeTransport {
   Core(this.answers);
   final List<CoreTrafficCheck> answers;
   final calls = <bool>[];
+  final interfaces = <String>[];
   void Function()? after;
   @override
   Future<CoreTrafficCheck> probe(
     Map<String, Object?>? proxy,
     CancellationToken cancellation, {
     required bool udp,
+    String directInterface = '',
   }) async {
     calls.add(proxy == null);
+    interfaces.add(directInterface);
     after?.call();
     return answers.removeAt(0);
   }
@@ -143,5 +152,36 @@ void main() {
     ]);
     expect((await check()).status, ConnectionCheckStatus.notTested);
     expect(core.calls, [false]);
+  });
+  test('a VPN with a proven direct route checks this network', () async {
+    setup([good]);
+    network
+      ..vpn = true
+      ..direct = 'wlp2s0';
+    expect((await check()).status, ConnectionCheckStatus.working);
+    expect(core.interfaces, ['wlp2s0']);
+  });
+  test('without a VPN the core is never bound to an interface', () async {
+    setup([good]);
+    network.direct = 'wlp2s0';
+    await check();
+    expect(core.interfaces, ['']);
+  });
+  CoreTrafficCheck failedAt(String endpoint) => CoreTrafficCheck(
+    status: CoreTrafficStatus.failed,
+    code: 'connection_failed',
+    endpoint: endpoint,
+  );
+  test('silent server address on a healthy network is named', () async {
+    setup([failedAt('timeout'), good, failedAt('timeout')]);
+    final result = await check();
+    expect(result.status, ConnectionCheckStatus.failed);
+    expect(result.code, 'endpoint_unreachable');
+  });
+  test('an answering server address keeps the settings failure', () async {
+    setup([failedAt('refused'), good, failedAt('refused')]);
+    final result = await check();
+    expect(result.status, ConnectionCheckStatus.failed);
+    expect(result.code, 'connection_failed');
   });
 }

@@ -68,16 +68,92 @@ class SocketIpProbeTransport implements IpProbeTransport {
     // Names alone miss common clients: Mihomo/Clash create "Meta", sing-box
     // and Hiddify use their own names. A VPN in the path makes a failed probe
     // look like broken server settings, so detect TUN/TAP devices by kind.
-    final vpn = interfaces.any(
-      (i) =>
-          RegExp(
-            r'^(tun|tap|wg|utun|meta|mihomo|clash|sing-?box|hiddify|wintun|nekoray|throne)|vpn|wireguard|tunnel',
-            caseSensitive: false,
-          ).hasMatch(i.name) ||
-          (Platform.isLinux &&
-              File('/sys/class/net/${i.name}/tun_flags').existsSync()),
+    final vpn = interfaces.any((i) => _tunnel(i.name));
+    final direct = vpn && Platform.isLinux
+        ? await _directRoute()
+        : (interface: '', source: '');
+    return ProbeNetwork(
+      '${addresses.join('|')}|$routes',
+      'system',
+      vpn: vpn,
+      directInterface: direct.interface,
+      directSource: direct.source,
     );
-    return ProbeNetwork('${addresses.join('|')}|$routes', 'system', vpn: vpn);
+  }
+
+  static bool _tunnel(String name) =>
+      RegExp(
+        r'^(tun|tap|wg|utun|meta|mihomo|clash|sing-?box|hiddify|wintun|nekoray|throne)|vpn|wireguard|tunnel',
+        caseSensitive: false,
+      ).hasMatch(name) ||
+      (Platform.isLinux && File('/sys/class/net/$name/tun_flags').existsSync());
+
+  /// Policy-routing VPNs (Mihomo/sing-box TUN) keep the physical default route
+  /// in the main table. A socket bound to that interface's address leaves the
+  /// device directly, so probes measure this network instead of the VPN. The
+  /// kernel's own route lookup must confirm it; otherwise nothing is bypassed.
+  static Future<({String interface, String source})> _directRoute() async {
+    const none = (interface: '', source: '');
+    Future<List> json(List<String> args) async {
+      final r = await Process.run(
+        'ip',
+        args,
+      ).timeout(const Duration(seconds: 2));
+      if (r.exitCode != 0) return const [];
+      return jsonDecode(r.stdout as String) as List? ?? const [];
+    }
+
+    try {
+      final defaults =
+          [
+            for (final route in await json([
+              '-j',
+              '-4',
+              'route',
+              'show',
+              'table',
+              'main',
+              'default',
+            ]))
+              if (route is Map &&
+                  route['dev'] is String &&
+                  !_tunnel(route['dev'] as String))
+                route,
+          ]..sort(
+            (a, b) =>
+                ((a['metric'] as int?) ?? 0) - ((b['metric'] as int?) ?? 0),
+          );
+      for (final route in defaults) {
+        final dev = route['dev'] as String;
+        var source = route['prefsrc'] as String?;
+        if (source == null) {
+          final links = await json(['-j', '-4', 'addr', 'show', 'dev', dev]);
+          source = links
+              .whereType<Map>()
+              .expand((l) => (l['addr_info'] as List? ?? const []))
+              .whereType<Map>()
+              .where((a) => a['family'] == 'inet' && a['scope'] == 'global')
+              .map((a) => a['local'])
+              .whereType<String>()
+              .firstOrNull;
+        }
+        if (source == null) continue;
+        final check = await json([
+          '-j',
+          'route',
+          'get',
+          '1.1.1.1',
+          'from',
+          source,
+        ]);
+        if (check.whereType<Map>().any((r) => r['dev'] == dev)) {
+          return (interface: dev, source: source);
+        }
+      }
+    } catch (_) {
+      /* No proven direct route: probes report the VPN as active. */
+    }
+    return none;
   }
 
   @override
@@ -100,10 +176,17 @@ class SocketIpProbeTransport implements IpProbeTransport {
     );
     try {
       cancellation.check();
+      final address = InternetAddress(target.address.canonical);
+      if (network.vpn &&
+          (!network.direct || address.type != InternetAddressType.IPv4)) {
+        // Through the VPN this would describe the VPN, never this network.
+        return IpProbeResult(IpProbeStatus.unavailable, 0);
+      }
       task = await cancellation.bind<ConnectionTask<Socket>>(
         Socket.startConnect(
-          InternetAddress(target.address.canonical),
+          address,
           target.port,
+          sourceAddress: network.vpn ? network.directSource : null,
         ).timeout(remaining()),
       );
       _pending.add(task);

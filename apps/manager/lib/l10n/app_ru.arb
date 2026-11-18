@@ -1376,6 +1376,7 @@
   "connectionChecking": "Проверяем соединение…",
   "connectionWorking": "Соединение работает · TCP и UDP",
   "connectionFailed": "Не удалось подключиться. Проверьте настройки.",
+  "connectionEndpointUnreachable": "Адрес сервера не отвечает из этой сети, похоже, его блокирует провайдер. Настройки в порядке: перенесите протокол на другой адрес сервера.",
   "connectionCancelled": "Проверка остановлена",
   "connectionVpnActive": "Отключите VPN на устройстве для проверки",
   "connectionNetworkChanged": "Сеть изменилась. Повторите проверку.",

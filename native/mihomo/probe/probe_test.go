@@ -126,3 +126,43 @@ func TestFailureCodeNeverExposesRawErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestUseInterfaceRejectsUnsafeNames(t *testing.T) {
+	for _, name := range []string{"", "wlan0;rm", "a/b", "abcdefghijklmnop", "eth 0"} {
+		if UseInterface(name) {
+			t.Fatalf("accepted %q", name)
+		}
+	}
+}
+
+// A failed proxy reports whether the server address itself answers, so the
+// app can tell a blocked address from wrong settings.
+func TestFailedProxyReportsServerAddress(t *testing.T) {
+	target, _ := targets(t, false)
+	open, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer open.Close()
+	go func() {
+		for {
+			c, err := open.Accept()
+			if err != nil {
+				return
+			}
+			c.Close()
+		}
+	}()
+	closed, _ := net.Listen("tcp", "127.0.0.1:0")
+	closedPort := closed.Addr().(*net.TCPAddr).Port
+	closed.Close()
+	for port, want := range map[int]string{open.Addr().(*net.TCPAddr).Port: "reachable", closedPort: "refused"} {
+		data, _ := json.Marshal(map[string]any{"name": "test", "type": "vless", "server": "127.0.0.1", "port": port, "uuid": "00000000-0000-4000-8000-000000000001"})
+		ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+		result := Execute(ctx, Request{Mode: "probe", YAML: string(data), UDP: true}, target)
+		cancel()
+		if result.Status != "failed" || result.Endpoint != want {
+			t.Fatalf("port %d: %#v", port, result)
+		}
+	}
+}

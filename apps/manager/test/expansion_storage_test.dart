@@ -132,10 +132,22 @@ void main() {
     rebuild(() => ready = true);
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
-    await tester.tap(find.text('First'));
+    // Details open in a sheet from the tile's own button (they no longer
+    // expand inline), so they cannot collide with the list's scroll state.
+    final details = find.byKey(const ValueKey('resource-details-one'));
+    await tester.ensureVisible(details);
+    await tester.pumpAndSettle();
+    final before = tester
+        .state<ScrollableState>(find.byType(Scrollable).first)
+        .position
+        .pixels;
+    await tester.tap(details);
     await tester.pumpAndSettle();
     expect(find.text('First details').hitTestable(), findsOneWidget);
-    expect(find.text('Second details').hitTestable(), findsNothing);
+    expect(find.text('Second details'), findsNothing);
+    await tester.tapAt(const Offset(5, 5));
+    await tester.pumpAndSettle();
+    expect(find.text('First details'), findsNothing);
     rebuild(() => visible = false);
     await tester.pumpAndSettle();
     rebuild(() => visible = true);
@@ -146,9 +158,8 @@ void main() {
           .state<ScrollableState>(find.byType(Scrollable).first)
           .position
           .pixels,
-      offset,
+      before,
     );
-    expect(find.text('First details').hitTestable(), findsOneWidget);
-    expect(find.text('Second details').hitTestable(), findsNothing);
+    expect(find.text('First details'), findsNothing);
   });
 }

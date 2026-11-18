@@ -102,6 +102,7 @@ String diagnosticAddressLabel(AppLocalizations l, IpAddressDiagnostic result) {
       IpDiagnosticStage.cancelled => l.diagCancelled,
       IpDiagnosticStage.networkChanged => l.diagNetworkChanged,
       IpDiagnosticStage.insufficient => l.diagInsufficient,
+      IpDiagnosticStage.vpnActive => l.connectionVpnActive,
       IpDiagnosticStage.failed => l.diagFailed,
       _ => l.diagNotTested,
     };

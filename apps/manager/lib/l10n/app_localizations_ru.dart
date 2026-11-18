@@ -3566,6 +3566,10 @@ class AppLocalizationsRu extends AppLocalizations {
       'Не удалось подключиться. Проверьте настройки.';
 
   @override
+  String get connectionEndpointUnreachable =>
+      'Адрес сервера не отвечает из этой сети, похоже, его блокирует провайдер. Настройки в порядке: перенесите протокол на другой адрес сервера.';
+
+  @override
   String get connectionCancelled => 'Проверка остановлена';
 
   @override

@@ -34,6 +34,10 @@ func Execute(input []byte, directory string) (result any) {
 	if os.MkdirAll(directory, 0700) != nil {
 		return
 	}
+	if request.Interface != "" && !probe.UseInterface(request.Interface) {
+		result = probe.Result{Status: "not_tested", Code: "unsupported_route", Version: validator.Version, Revision: validator.Revision}
+		return
+	}
 	C.SetHomeDir(directory)
 	C.Version = validator.Version
 	ctx, cancel := context.WithTimeout(context.Background(), 13*time.Second)

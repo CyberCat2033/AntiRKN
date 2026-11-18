@@ -31,6 +31,7 @@ class Probe implements CoreProbeTransport {
     Map<String, Object?>? proxy,
     CancellationToken cancellation, {
     required bool udp,
+    String directInterface = '',
   }) async {
     types.add(proxy?['type'] as String? ?? 'direct');
     if (hold != null) await cancellation.bind(hold!.future);
@@ -285,81 +286,85 @@ void main() {
     });
   }
 
-  testWidgets('ConnectionCheckView shows unavailable reason when resource unconfirmed', (
-    tester,
-  ) async {
-    final store = f.MemoryVpn(),
-        probe = Probe(),
-        remote = f.Remote(f.MemoryVpn());
-    final c = create(store, remote, probe, 'one');
-    addTearDown(c.dispose);
-    await c.load();
-    final inboundId = '1' * 32;
-    c.workspace = c.workspace.copy(
-      inbounds: [f.inbound('one', inboundId)],
-      servers: {
-        'one': {
-          'identity': 'identity-one',
-          'observed': <dynamic>[],
-          'pending': null,
-          'error': null,
+  testWidgets(
+    'ConnectionCheckView shows unavailable reason when resource unconfirmed',
+    (tester) async {
+      final store = f.MemoryVpn(),
+          probe = Probe(),
+          remote = f.Remote(f.MemoryVpn());
+      final c = create(store, remote, probe, 'one');
+      addTearDown(c.dispose);
+      await c.load();
+      final inboundId = '1' * 32;
+      c.workspace = c.workspace.copy(
+        inbounds: [f.inbound('one', inboundId)],
+        servers: {
+          'one': {
+            'identity': 'identity-one',
+            'observed': <dynamic>[],
+            'pending': null,
+            'error': null,
+          },
         },
-      },
-    );
-    final key = (target: 'one', resource: inboundId);
-    expect(c.connections.available(key), isFalse);
-    expect(c.connections.unavailableReasonCode(key), 'vpn_pending_readback');
+      );
+      final key = (target: 'one', resource: inboundId);
+      expect(c.connections.available(key), isFalse);
+      expect(c.connections.unavailableReasonCode(key), 'vpn_pending_readback');
 
-    await tester.pumpWidget(
-      MaterialApp(
-        locale: const Locale('ru'),
-        supportedLocales: AppLocalizations.supportedLocales,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        home: Scaffold(
-          body: ConnectionCheckView(
-            controller: c,
-            target: key,
-            onEdit: () {},
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('ru'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: Scaffold(
+            body: ConnectionCheckView(
+              controller: c,
+              target: key,
+              onEdit: () {},
+            ),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('Сервер ещё не подтвердил этот ресурс.'), findsOneWidget);
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Сервер ещё не подтвердил этот ресурс.'),
+        findsOneWidget,
+      );
 
-    c.workspace = c.workspace.copy(
-      servers: {
-        'one': {
-          'identity': 'identity-one',
-          'observed': <dynamic>[],
-          'pending': null,
-          'error': 'vless_conflict',
+      c.workspace = c.workspace.copy(
+        servers: {
+          'one': {
+            'identity': 'identity-one',
+            'observed': <dynamic>[],
+            'pending': null,
+            'error': 'vless_conflict',
+          },
         },
-      },
-    );
-    expect(c.connections.unavailableReasonCode(key), 'vless_conflict');
-    await tester.pumpWidget(
-      MaterialApp(
-        locale: const Locale('ru'),
-        supportedLocales: AppLocalizations.supportedLocales,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        home: Scaffold(
-          body: ConnectionCheckView(
-            controller: c,
-            target: key,
-            onEdit: () {},
+      );
+      expect(c.connections.unavailableReasonCode(key), 'vless_conflict');
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('ru'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: Scaffold(
+            body: ConnectionCheckView(
+              controller: c,
+              target: key,
+              onEdit: () {},
+            ),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(
-      find.text(
-        'Конфигурация сервера изменилась. Обновите сведения и разберите конфликт перед повторным применением.',
-      ),
-      findsOneWidget,
-    );
-  });
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.text(
+          'Конфигурация сервера изменилась. Обновите сведения и разберите конфликт перед повторным применением.',
+        ),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets('connectionCheckMessage formats busy and timeout explicitly', (
     tester,
@@ -453,7 +458,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    final buttonFinder = find.byKey(ValueKey('connection-check-one-$inboundId'));
+    final buttonFinder = find.byKey(
+      ValueKey('connection-check-one-$inboundId'),
+    );
     expect(tester.widget<TextButton>(buttonFinder).onPressed, isNotNull);
 
     // Simulate another check in progress (target2 is running, so c.connections.busy is true)
@@ -471,59 +478,64 @@ void main() {
     expect(tester.widget<TextButton>(buttonFinder).onPressed, isNotNull);
   });
 
-  test('transient busy does not discard target from pending and expires after 15s', () async {
-    final store = f.MemoryVpn(), probe = Probe();
-    final realRemote = DiagnosticRemote(store, {'closed': true, 'stable': true});
-    final c = VpnController(
-      repository: store,
-      remote: (id) => VpnRemote(
-        transport: realRemote,
-        panelId: f.panel,
-        identity: 'identity-$id',
-      ),
-      template: () => f.template,
-      enterConnectionTraffic: () async => false, // Always busy
-      connectionProbe: ConnectionProbeEngine(
-        core: probe,
-        network: Net(),
-        controls: [
-          for (var i = 1; i <= 10; i++)
-            IpControl('c$i', 'p$i', IpProbeTarget('192.0.2.$i', 443)),
-        ],
-      ),
-      timer: (d, f) => Timer(Duration.zero, () {}),
-    );
-    addTearDown(c.dispose);
-    await c.load();
-    await c.saveUser(VpnUser(id: f.alice, login: 'alice', name: 'Alice'));
-    final inbound = f.inbound('one', '1' * 32);
-    await c.saveInbound(inbound);
-    c.workspace = c.workspace.copy(
-      servers: {
-        'one': {
-          'identity': 'identity-one',
-          'workspaceId': c.workspace.resourceWorkspaceId('one'),
-          'observed': [
-            {
-              'id': inbound.id,
-              'workspaceId': c.workspace.resourceWorkspaceId('one'),
-              'spec': inbound.spec,
-              'confirmed': true,
-              'revision': '1',
-            },
+  test(
+    'transient busy does not discard target from pending and expires after 15s',
+    () async {
+      final store = f.MemoryVpn(), probe = Probe();
+      final realRemote = DiagnosticRemote(store, {
+        'closed': true,
+        'stable': true,
+      });
+      final c = VpnController(
+        repository: store,
+        remote: (id) => VpnRemote(
+          transport: realRemote,
+          panelId: f.panel,
+          identity: 'identity-$id',
+        ),
+        template: () => f.template,
+        enterConnectionTraffic: () async => false, // Always busy
+        connectionProbe: ConnectionProbeEngine(
+          core: probe,
+          network: Net(),
+          controls: [
+            for (var i = 1; i <= 10; i++)
+              IpControl('c$i', 'p$i', IpProbeTarget('192.0.2.$i', 443)),
           ],
-          'pending': null,
-          'error': null,
+        ),
+        timer: (d, f) => Timer(Duration.zero, () {}),
+      );
+      addTearDown(c.dispose);
+      await c.load();
+      await c.saveUser(VpnUser(id: f.alice, login: 'alice', name: 'Alice'));
+      final inbound = f.inbound('one', '1' * 32);
+      await c.saveInbound(inbound);
+      c.workspace = c.workspace.copy(
+        servers: {
+          'one': {
+            'identity': 'identity-one',
+            'workspaceId': c.workspace.resourceWorkspaceId('one'),
+            'observed': [
+              {
+                'id': inbound.id,
+                'workspaceId': c.workspace.resourceWorkspaceId('one'),
+                'spec': inbound.spec,
+                'confirmed': true,
+                'revision': '1',
+              },
+            ],
+            'pending': null,
+            'error': null,
+          },
         },
-      },
-    );
-    final key = (target: 'one', resource: inbound.id);
-    expect(c.connections.available(key), isTrue);
+      );
+      final key = (target: 'one', resource: inbound.id);
+      expect(c.connections.available(key), isTrue);
 
-    // Running check will encounter enterConnectionTraffic == false
-    final result = await c.connections.check(key);
-    expect(result?.code, 'busy');
-    expect(c.connections.result(key)?.code, 'busy');
-  });
+      // Running check will encounter enterConnectionTraffic == false
+      final result = await c.connections.check(key);
+      expect(result?.code, 'busy');
+      expect(c.connections.result(key)?.code, 'busy');
+    },
+  );
 }
-

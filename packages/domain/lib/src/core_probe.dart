@@ -13,19 +13,26 @@ final class CoreTrafficCheck {
     this.udp = false,
     this.udpTested = false,
     this.milliseconds = 0,
+    this.endpoint = '',
   });
   final CoreTrafficStatus status;
   final String code;
   final bool tcp, udp, udpTested;
   final int milliseconds;
+
+  /// After a failure: plain TCP check of the server address from this device
+  /// (reachable, refused, timeout, unreachable, unresolved; '' = not checked).
+  final String endpoint;
 }
 
 abstract interface class CoreProbeTransport {
   /// null runs the same fixed targets directly as controls, never a fallback.
+  /// [directInterface] makes the core bypass an active device VPN.
   Future<CoreTrafficCheck> probe(
     Map<String, Object?>? proxy,
     CancellationToken cancellation, {
     required bool udp,
+    String directInterface = '',
   });
 }
 
@@ -95,13 +102,15 @@ final class ConnectionProbeEngine {
     try {
       final before = await token.bind(network.network());
       identity = before.identity;
-      if (before.vpn) {
+      // A probe through the device VPN would describe the VPN, not this network.
+      if (!before.measuresDevice) {
         return result(ConnectionCheckStatus.networkProblem, 'vpn_active');
       }
+      final direct = before.vpn ? before.directInterface : '';
       Future<void> sameNetwork() async {
         token.check();
         final current = await token.bind(network.network());
-        if (current.vpn || current.identity != identity) {
+        if (!current.measuresDevice || current.identity != identity) {
           throw const FormatException('network_changed');
         }
       }
@@ -137,7 +146,12 @@ final class ConnectionProbeEngine {
         return result(ConnectionCheckStatus.networkProblem, 'control_failed');
       }
       await sameNetwork();
-      var traffic = await core.probe(proxy, token, udp: udp);
+      var traffic = await core.probe(
+        proxy,
+        token,
+        udp: udp,
+        directInterface: direct,
+      );
       await sameNetwork();
       if (traffic.status == CoreTrafficStatus.success) {
         return result(ConnectionCheckStatus.working, 'connected', traffic);
@@ -157,7 +171,12 @@ final class ConnectionProbeEngine {
           traffic,
         );
       }
-      final control = await core.probe(null, token, udp: udp);
+      final control = await core.probe(
+        null,
+        token,
+        udp: udp,
+        directInterface: direct,
+      );
       await sameNetwork();
       if (control.status != CoreTrafficStatus.success) {
         return result(
@@ -166,10 +185,25 @@ final class ConnectionProbeEngine {
           traffic,
         );
       }
-      traffic = await core.probe(proxy, token, udp: udp);
+      traffic = await core.probe(
+        proxy,
+        token,
+        udp: udp,
+        directInterface: direct,
+      );
       await sameNetwork();
       if (traffic.status == CoreTrafficStatus.success) {
         return result(ConnectionCheckStatus.working, 'connected', traffic);
+      }
+      // Healthy network, reachable controls, but the server address itself
+      // does not answer: the address is blocked on this network, not the settings.
+      if (traffic.status == CoreTrafficStatus.failed &&
+          const {'timeout', 'unreachable'}.contains(traffic.endpoint)) {
+        return result(
+          ConnectionCheckStatus.failed,
+          'endpoint_unreachable',
+          traffic,
+        );
       }
       return result(
         traffic.status == CoreTrafficStatus.failed
