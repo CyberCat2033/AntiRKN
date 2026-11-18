@@ -40,6 +40,7 @@ class ConnectionChecks extends ChangeNotifier {
       <ConnectionTarget, ({Map<String, Object?> spec, String identity})>{};
   final _results = <ConnectionTarget, _Entry>{};
   final _busyBackoff = <ConnectionTarget, DateTime>{};
+  Timer? _busyRetry;
   final _activeTargets = <ConnectionTarget>{};
   final _activeTokens = <ConnectionTarget, CancellationToken>{};
   CancellationToken? _token;
@@ -358,8 +359,11 @@ class ConnectionChecks extends ChangeNotifier {
 
   String? unavailableReasonCode(ConnectionTarget key) {
     final res = evaluateReadiness(key);
-    return res.state == InboundReadinessState.ready ? null : res.diagnosticReason;
+    return res.state == InboundReadinessState.ready
+        ? null
+        : res.diagnosticReason;
   }
+
   bool _queue = false;
   bool get queueRunning => _queue;
   Future<void> checkAll(Iterable<ConnectionTarget> keys) async {
@@ -368,6 +372,7 @@ class ConnectionChecks extends ChangeNotifier {
       void onBusyChanged() {
         if (!owner.busy && !idle.isCompleted) idle.complete();
       }
+
       owner.addListener(onBusyChanged);
       try {
         await idle.future.timeout(const Duration(seconds: 15));
@@ -410,7 +415,10 @@ class ConnectionChecks extends ChangeNotifier {
           notifyListeners();
         }
       }
-      final workerCount = items.length < concurrency ? items.length : concurrency;
+
+      final workerCount = items.length < concurrency
+          ? items.length
+          : concurrency;
       await Future.wait(List.generate(workerCount, (_) => worker()));
       skipped.addAll(queue.skip(completed));
     } finally {
@@ -507,7 +515,10 @@ class ConnectionChecks extends ChangeNotifier {
     });
   }
 
-  Future<ConnectionCheck?> check(ConnectionTarget key, {bool fromQueue = false}) async {
+  Future<ConnectionCheck?> check(
+    ConnectionTarget key, {
+    bool fromQueue = false,
+  }) async {
     if (_disposed ||
         !foreground ||
         !_ready(key) ||
@@ -639,6 +650,10 @@ class ConnectionChecks extends ChangeNotifier {
         _results[key] = _Entry(signature, result);
         if (result.code == 'busy') {
           _busyBackoff[key] = DateTime.now();
+          // Nothing else may change afterwards; retry once the backoff ends
+          // instead of leaving "busy" on the tile for good.
+          _busyRetry?.cancel();
+          _busyRetry = Timer(const Duration(seconds: 16), _changed);
         } else {
           _busyBackoff.remove(key);
           if (result.status != ConnectionCheckStatus.cancelled) {
@@ -664,6 +679,7 @@ class ConnectionChecks extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _busyRetry?.cancel();
     cancel(retryOnResume: true);
     owner.removeListener(_changed);
     super.dispose();

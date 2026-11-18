@@ -9,7 +9,7 @@ from urllib.parse import unquote
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'server/runner'))
 from runner import Store
-from vless import VlessApply, VlessError, parse_payload, plan, state, normal, digest, client_id, canonical
+from vless import VlessApply, VlessError, parse_payload, plan, state, normal, digest, client_id, canonical, marker
 
 
 def spec(number=1,transport='raw'):
@@ -375,6 +375,24 @@ class VlessTests(unittest.TestCase):
         with self.assertRaises(VlessError) as ctx:
             plan(self.store, dict(id='b'*32, payload=json.dumps(payload())))
         self.assertEqual(str(ctx.exception), 'vless_port_busy')
+    def test_replacing_inbound_on_same_port_in_one_plan(self):
+        # Reported on a real server: delete RAW and add XHTTP on the same port
+        # -> every plan failed with vless_port_busy and both stayed pending.
+        p=payload();req=self.submit(p);self.assertEqual(self.finish(req)['status'],'succeeded')
+        old=p['resources'][0];new=spec(3,'xhttp');new.update(port=old['port'],externalPort=old['port'])
+        p2=copy.deepcopy(p);p2['resources'][0].update(enabled=False,deleted=True);p2['resources'].insert(0,new)
+        second=self.submit(p2,2);self.assertEqual(self.finish(second)['status'],'succeeded')
+        ports={(r['port'],r['remark']) for r in self.api.rows}
+        self.assertEqual(len(self.api.rows),2)
+        self.assertIn((old['port'],marker(p['workspaceId'],new['id'])),ports)
+        self.assertNotIn((old['port'],marker(p['workspaceId'],old['id'])),ports)
+    def test_port_of_foreign_row_stays_busy_even_when_deleting_own(self):
+        p=payload();req=self.submit(p);self.assertEqual(self.finish(req)['status'],'succeeded')
+        self.api.rows.append(dict(id=99,protocol='vless',port=23409,listen='0.0.0.0',enable=True,remark='foreign',settings={},streamSettings={}))
+        new=spec(3,'xhttp');new.update(port=23409,externalPort=23409)
+        p2=copy.deepcopy(p);p2['resources'][0].update(enabled=False,deleted=True);p2['resources'].append(new)
+        with self.assertRaises(VlessError) as ctx:plan(self.store,dict(id=p2['panelId'],payload=json.dumps(p2)))
+        self.assertEqual(str(ctx.exception),'vless_port_busy')
     def test_tls_hostname_mismatch_blocks_before_any_mutation(self):
         p=payload();p['resources'][0].update(transport='xhttp',security='tls',certificate='/fixture.crt',certificateKey='/fixture.key')
         with patch('vless.command',return_value=b'Hostname example.com does NOT match certificate\n'):

@@ -575,19 +575,27 @@ def preflight(store, payload, api, rows=None):
         raise VlessError('vless_conflict')
     active = [r for r in payload['resources'] if r['enabled'] and not r['deleted'] and 'adoption' not in r]
     reserved = [(r['listen'], r['port'], r['id']) for r in active]
+    # Rows this plan deletes free their port before anything is created
+    # (VlessApply runs deletions first): replacing RAW by XHTTP on one port.
+    removing = [row for r in payload['resources'] if r['deleted'] and 'adoption' not in r
+                for row in [locate(rows, payload['workspaceId'], r['id'])] if row is not None]
+    removing_ids = {row['id'] for row in removing}
     for i, (address, port, rid) in enumerate(reserved):
         for other_address, other_port, other_id in reserved[:i]:
             if port == other_port and (address == other_address or address in ('0.0.0.0','::') or other_address in ('0.0.0.0','::')):
                 raise VlessError('vless_port_busy')
         current = locate(rows, payload['workspaceId'], rid)
         for other in rows:
+            if other['id'] in removing_ids: continue
             if other.get('enable') and other.get('port') == port and (not current or other['id'] != current['id']):
                 other_listen = other.get('listen') or ''
                 # Two specific non-wildcard addresses on the same port can coexist.
                 if other_listen not in ('', '0.0.0.0', '::') and address not in ('0.0.0.0', '::') and other_listen != address:
                     continue
                 raise VlessError('vless_port_busy')
-        if current is None or not current.get('enable') or (current.get('listen'), current.get('port')) != (address, port):
+        freed = any(row.get('enable') and row.get('port') == port and ((row.get('listen') or '') in ('', '0.0.0.0', '::') or
+                    address in ('0.0.0.0', '::') or row.get('listen') == address) for row in removing)
+        if (current is None or not current.get('enable') or (current.get('listen'), current.get('port')) != (address, port)) and not freed:
             try:
                 with socket.socket(socket.AF_INET6 if ':' in address else socket.AF_INET, socket.SOCK_STREAM) as sock:
                     sock.bind((address, port))
@@ -680,6 +688,9 @@ class VlessApply:
         self.store, self.req = store, req
         self.payload = parse_payload(req['payload'])
         if req['count'] != len(self.payload['resources']) + 2 or req['interval'] != 1: raise VlessError()
+        # Deletions first so a freed port can be reused in the same job; a
+        # stable sort keeps the order deterministic for resumed checkpoints.
+        self.order = sorted(range(len(self.payload['resources'])), key=lambda i: not self.payload['resources'][i]['deleted'])
 
     def step(self, checkpoint):
         p, db = self.payload, self.store.db
@@ -701,7 +712,7 @@ class VlessApply:
                 atomic_file(backup, canonical(dict(rows=rows, resources=owned_rows(self.store), clientRefs=refs)).encode())
             code = 'vless_preparing'
         elif checkpoint <= len(p['resources']):
-            r = p['resources'][checkpoint - 1]
+            r = p['resources'][self.order[checkpoint - 1]]
             if 'adoption' in r:
                 import managed_existing
                 managed_existing.apply(self.store, self.req, p, r, owned_rows(self.store).get(r['id']), 'vless', checkpoint)

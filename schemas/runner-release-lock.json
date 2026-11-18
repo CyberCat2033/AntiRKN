@@ -1,8 +1,8 @@
 {
-  "version": 65,
-  "release": "ac57c18a196cca2c1f256f28ea644125ce51e9e70bee89ec57f857e89401baf3",
+  "version": 66,
+  "release": "c219fefd31c5a7cb33037eb8d6b052e4a02703c0d007d4eaea07e4801aea7a3b",
   "hashes": {
-    "antirkn-runner.service": "4e0c81d4fea4e5d9f791a3966868baabd94078a292752625a3129cb0e1967a80",
+    "antirkn-runner.service": "a930009a47fabc019938030b5597295feeee867511887dc93abfe022dde31688",
     "apt.py": "61d4104cc63c45d3d0916fd0ad86494649e2ddb2703b8a37d276d0f0bb68bde3",
     "awg.py": "13dc93c944a9f63d188c12900b727cdf188892178431f1623d090ef36ef7635f",
     "awg_contract.py": "d9abd0099d91d4088a11d4bf0018f53dbed3e2797f0416e434b72c89fcc0534c",
@@ -46,7 +46,7 @@
     "tt_tomli_re.py": "1232a091728a07c08a6ed384c4d5ffd9cc1e1d31690b3f771a6527c0ba7e8907",
     "tt_tomli_types.py": "f864c6d9552a929c7032ace654ee05ef26ca75d21b027b801d77e65907138b74",
     "upgrade_probe.py": "835f9704a865d1a40f629e88227fd5c6fec107dbd29c9f5097910e5f38b55ac8",
-    "vless.py": "d3ae0b6ccd0639ea618424f5fbcb5134f4cb667b3a57b60504c06214e306131f",
+    "vless.py": "0a4bc1e470be43870fffc2e5c75ea3a44783e05901bc92fee481c86a67f453c6",
     "vless_contract.py": "44d0fb8edecf930489ef005592c225769cada4bd324522bcc1ee4709cc996f78",
     "xray_transaction.py": "6b300ad08f09db22f90077579ef2920a83b0890d190c1cb35b387bb00e8225d9",
     "xray_upgrade_release.py": "2f1475ec2d7687f2681c0c09bd004dfbbfbdf4c523016220eed3a443d8f782b9"
