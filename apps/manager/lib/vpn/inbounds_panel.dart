@@ -10,6 +10,7 @@ import '../drag_select_list.dart';
 import '../network/network_controller.dart';
 import '../network/server_address_field.dart';
 import 'vpn_controller.dart';
+import 'missing_on_server_notice.dart';
 import 'adopt_resource.dart';
 import 'observed_inbound_dialog.dart';
 import 'xhttp_options_editor.dart';
@@ -461,6 +462,13 @@ class InboundsPanelState extends State<InboundsPanel> {
                 ],
               ),
             ),
+            MissingOnServerNotice(
+              controller: controller,
+              target: serverId,
+              authorize: runner == null
+                  ? null
+                  : () => showPanelLogin(context, runner!),
+            ),
             AppSectionHeading(
               title: l.vpnInbounds,
               count: inbounds.length + externalInbounds.length + pendingDeleted.length,
@@ -672,7 +680,17 @@ class InboundsPanelState extends State<InboundsPanel> {
                                   !c.adoptionConfirmed(serverId, r.id)
                               ? l.vpnAdopting
                               : !c.adoptionConfirmed(serverId, r.id)
-                              ? l.vpnPendingReadback
+                              // The check below states why; without it
+                              // (selection mode) the note says it.
+                              ? (selection.active
+                                    ? (c.connections.unavailableReasonCode((
+                                                target: serverId,
+                                                resource: r.id,
+                                              )) ==
+                                              'vpn_missing'
+                                          ? l.vpnMissingOnServer
+                                          : l.vpnPendingReadback)
+                                    : null)
                               : r.internal
                               ? l.vpnInternal
                               : l.vpnClientAccess,

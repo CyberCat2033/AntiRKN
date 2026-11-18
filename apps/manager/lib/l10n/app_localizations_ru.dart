@@ -3980,4 +3980,36 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get versionsHelpInstaller =>
       'Новые стабильные версии ставятся в отдельную папку рядом с текущей. Если после переключения служба не запустится или пропадут подключения, сервер сам вернёт текущую версию. Более старые версии не предлагаются.';
+
+  @override
+  String get uiOperationRunning => 'Выполняется…';
+
+  @override
+  String get uiOperationQueued => 'В очереди';
+
+  @override
+  String get vpnMissingOnServer =>
+      'Пока нет на сервере. Приложение отправит само.';
+
+  @override
+  String vpnMissingNotice(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'На сервере пока нет $count подключений из приложения. Приложение отправляет их само; если не получилось — отправьте ещё раз.',
+      few:
+          'На сервере пока нет $count подключений из приложения. Приложение отправляет их само; если не получилось — отправьте ещё раз.',
+      one:
+          'На сервере пока нет $count подключения из приложения. Приложение отправляет его само; если не получилось — отправьте ещё раз.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get vpnSendToServer => 'Отправить на сервер';
+
+  @override
+  String get ttIssueWaiting =>
+      'Сервер занят другой операцией. Выпуск станет доступен, когда она закончится.';
 }

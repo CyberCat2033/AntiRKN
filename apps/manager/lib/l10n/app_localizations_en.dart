@@ -3975,4 +3975,34 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get versionsHelpInstaller =>
       'Newer stable releases are installed into their own folder next to the current one. If the service does not start or connections stop working after the switch, the server returns to the current version by itself. Older versions are not offered.';
+
+  @override
+  String get uiOperationRunning => 'In progress…';
+
+  @override
+  String get uiOperationQueued => 'Queued';
+
+  @override
+  String get vpnMissingOnServer =>
+      'Not on the server yet. The app sends it by itself.';
+
+  @override
+  String vpnMissingNotice(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          '$count connections from the app are not on this server yet. The app sends them by itself; if that did not work, send them again.',
+      one:
+          '1 connection from the app is not on this server yet. The app sends it by itself; if that did not work, send it again.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get vpnSendToServer => 'Send to server';
+
+  @override
+  String get ttIssueWaiting =>
+      'The server is busy with another operation. Issuing becomes available when it finishes.';
 }

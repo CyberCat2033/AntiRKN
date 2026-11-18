@@ -116,13 +116,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
     final c = widget.session;
     c.closeSettings();
     setState(() => workingProtocols.add(index));
-    await c.runner.installOrUpdate(
-      section.name == 'VLESS'
-          ? 'panel'
-          : section.name == 'AmneziaWG'
-          ? 'amneziawg'
-          : 'trusttunnel',
-    );
+    await c.runner.installOrUpdate(protocolComponent(section.name));
     if (mounted) {
       setState(() {
         workingProtocols.remove(index);
@@ -424,6 +418,10 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                             section: widget.sections[i],
                             motion: widget.motion,
                             busy: protocolBusy(i),
+                            queued: widget.session.runner.queuedInstalls
+                                .contains(
+                                  protocolComponent(widget.sections[i].name),
+                                ),
                             onTap: () => openProtocol(i),
                             onLongPress:
                                 widget.sections[i].onRemove == null ||
@@ -732,6 +730,13 @@ class _Count extends StatelessWidget {
   );
 }
 
+/// The installable component behind a protocol section.
+String protocolComponent(String section) => section == 'VLESS'
+    ? 'panel'
+    : section == 'AmneziaWG'
+    ? 'amneziawg'
+    : 'trusttunnel';
+
 class _ProtocolTile extends StatelessWidget {
   const _ProtocolTile({
     required this.section,
@@ -739,12 +744,13 @@ class _ProtocolTile extends StatelessWidget {
     required this.onTap,
     this.onLongPress,
     this.busy = false,
+    this.queued = false,
   });
   final ServerProtocolSection section;
   final MotionPreference motion;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
-  final bool busy;
+  final bool busy, queued;
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context),
@@ -813,8 +819,10 @@ class _ProtocolTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  busy
-                      ? l.uiOperationPending
+                  queued
+                      ? l.uiOperationQueued
+                      : busy
+                      ? l.uiOperationRunning
                       : !section.detected
                       ? l.uiNotInstalled
                       : section.count > 0

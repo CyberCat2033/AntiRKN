@@ -96,7 +96,8 @@ class InboundRemove:
                 api.call('/panel/api/server/restartXrayService', {})
                 deadline = time.monotonic() + 20
                 while time.monotonic() < deadline:
-                    if api.call('/panel/api/server/status').get('xray', {}).get('state') == 'running':
+                    from panel_api import xray_status
+                    if xray_status(api.call('/panel/api/server/status')).get('state') == 'running':
                         break
                     time.sleep(.25)
                 else:

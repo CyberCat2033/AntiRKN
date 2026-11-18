@@ -18,6 +18,10 @@ class ServerCatalogController extends ChangeNotifier {
   final NetworkInventoryReader reader;
   final bool agentAvailable;
   final _sessions = <String, SshController>{};
+
+  /// Wired to the VPN layer: a session confirmed that its server is a
+  /// different (reinstalled) machine now.
+  void Function(String serverId, String identity)? onServerReplaced;
   List<SavedServer> servers = [];
   String? selectedId;
   bool loading = false;
@@ -136,6 +140,8 @@ class ServerCatalogController extends ChangeNotifier {
         agentAvailable: agentAvailable,
         network: NetworkController(reader: reader),
       );
+      session.onServerReplaced = (identity) =>
+          onServerReplaced?.call(id, identity);
       _sessions[id] = session;
       session.addListener(_sessionChanged);
       await session.initialise();
@@ -258,6 +264,7 @@ class ServerCatalogController extends ChangeNotifier {
         agentAvailable: agentAvailable,
         network: NetworkController(reader: reader),
       );
+      c.onServerReplaced = (identity) => onServerReplaced?.call(id, identity);
       _sessions[id] = c;
       c.addListener(_sessionChanged);
       c.initialise();

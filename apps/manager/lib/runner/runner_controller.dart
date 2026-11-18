@@ -81,7 +81,99 @@ class RunnerController extends ChangeNotifier {
   }
 
   /// Install/Update is consent; preflight and fingerprint checks stay internal.
-  Future<void> installOrUpdate(String component) => requestAction(() async {
+  /// Installs confirmed while the server was busy, in confirmation order.
+  /// The server runs one job at a time; dropping the request silently made
+  /// a confirmed install look like it never happened.
+  final queuedInstalls = <String>[];
+  String? _installing;
+
+  /// Pause before a queued install retries after the server said busy.
+  @visibleForTesting
+  Duration busyRetryDelay = const Duration(seconds: 10);
+
+  Future<void> installOrUpdate(String component) async {
+    // A repeated confirmation of the same install is not a second install.
+    if (queuedInstalls.contains(component) || _installing == component) {
+      return;
+    }
+    queuedInstalls.add(component);
+    _notify();
+    try {
+      final deadline = DateTime.now().add(const Duration(hours: 1));
+      while (!_disposed && DateTime.now().isBefore(deadline)) {
+        await _turn(component, deadline);
+        // Resuming after the wait is a later microtask: the controller may
+        // have become busy again (a refresh or poll). Starting is checked in
+        // the same synchronous step as the start itself.
+        if (_disposed ||
+            !canRequestAction ||
+            queuedInstalls.first != component) {
+          continue;
+        }
+        queuedInstalls.remove(component);
+        responseCode = null;
+        final before = selected?.id;
+        _notify();
+        await _install(component);
+        // Done only when a job really went to the server or the server gave
+        // a reason the person sees (plan refused, error). The server runs one
+        // job at a time, including jobs this controller does not track (the
+        // app's own VPN sync, another device): "busy" or a silent stop
+        // because such a job appeared admits no effect, so wait and retry.
+        final submitted = selected != null && selected!.id != before;
+        final refused =
+            error != null ||
+            (component == 'panel'
+                ? panelPlan?.canApply == false
+                : componentPlan?.component == component &&
+                      componentPlan?.canApply == false) ||
+            (responseCode != null &&
+                responseCode != 'ok' &&
+                responseCode != 'busy');
+        if (_disposed || submitted || refused) return;
+        queuedInstalls.insert(0, component);
+        _notify();
+        await Future<void>.delayed(busyRetryDelay);
+      }
+    } finally {
+      if (queuedInstalls.remove(component)) _notify();
+    }
+  }
+
+  /// Completes when [component] heads the queue and the server is free, or
+  /// at [deadline]. Job status arrives by polling; a timer also looks, so a
+  /// missed notification cannot strand the queue.
+  Future<void> _turn(String component, DateTime deadline) async {
+    final turn = Completer<void>();
+    void check() {
+      if (_disposed ||
+          !DateTime.now().isBefore(deadline) ||
+          (canRequestAction && queuedInstalls.first == component)) {
+        if (!turn.isCompleted) turn.complete();
+      }
+    }
+
+    addListener(check);
+    final ticker = Timer.periodic(const Duration(seconds: 2), (_) => check());
+    try {
+      check();
+      await turn.future;
+    } finally {
+      ticker.cancel();
+      removeListener(check);
+    }
+  }
+
+  Future<void> _install(String component) async {
+    _installing = component;
+    try {
+      await requestAction(() => _installNow(component));
+    } finally {
+      _installing = null;
+    }
+  }
+
+  Future<void> _installNow(String component) async {
     if (component == 'panel') {
       if (panelDetected) {
         await preparePanelUpdate();
@@ -94,7 +186,8 @@ class RunnerController extends ChangeNotifier {
       await prepareComponent(component);
       await applyComponent();
     }
-  });
+  }
+
   final void Function()? refreshSoftware;
   bool _softwareRefreshPending = false;
   final ServerSoftwareInventory? Function()? software;

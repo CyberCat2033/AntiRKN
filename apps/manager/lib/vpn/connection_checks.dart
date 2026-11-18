@@ -190,9 +190,13 @@ class ConnectionChecks extends ChangeNotifier {
 
     final observed = _observed(key);
     if (observed == null || observed['confirmed'] != true) {
-      return const InboundReadinessResult(
+      // The server state was read and this resource is not there: it was
+      // never sent or the server was reinstalled. Waiting will not help.
+      return InboundReadinessResult(
         InboundReadinessState.unconfirmedReadback,
-        'vpn_pending_readback',
+        observed == null && record?['verifiedAt'] != null
+            ? 'vpn_missing'
+            : 'vpn_pending_readback',
       );
     }
     if (observed['workspaceId'] !=

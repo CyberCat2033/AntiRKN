@@ -7009,6 +7009,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Newer stable releases are installed into their own folder next to the current one. If the service does not start or connections stop working after the switch, the server returns to the current version by itself. Older versions are not offered.'**
   String get versionsHelpInstaller;
+
+  /// No description provided for @uiOperationRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'In progress…'**
+  String get uiOperationRunning;
+
+  /// No description provided for @uiOperationQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'Queued'**
+  String get uiOperationQueued;
+
+  /// No description provided for @vpnMissingOnServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Not on the server yet. The app sends it by itself.'**
+  String get vpnMissingOnServer;
+
+  /// No description provided for @vpnMissingNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 connection from the app is not on this server yet. The app sends it by itself; if that did not work, send it again.} other{{count} connections from the app are not on this server yet. The app sends them by itself; if that did not work, send them again.}}'**
+  String vpnMissingNotice(int count);
+
+  /// No description provided for @vpnSendToServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Send to server'**
+  String get vpnSendToServer;
+
+  /// No description provided for @ttIssueWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'The server is busy with another operation. Issuing becomes available when it finishes.'**
+  String get ttIssueWaiting;
 }
 
 class _AppLocalizationsDelegate

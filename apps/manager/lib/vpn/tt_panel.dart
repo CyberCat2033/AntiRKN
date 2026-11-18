@@ -11,6 +11,7 @@ import '../runner/runner_controller.dart';
 import 'tt_certificates.dart';
 import 'tt_dialog.dart';
 import 'vpn_controller.dart';
+import 'missing_on_server_notice.dart';
 import 'adopt_resource.dart';
 import 'vpn_plan_view.dart';
 import 'vpn_strings.dart';
@@ -185,6 +186,7 @@ class _TtPanelState extends State<TtPanel> {
             ],
           ),
           const SizedBox(height: 20),
+          MissingOnServerNotice(controller: c, target: target),
           AppSectionHeading(
             title: l.uiConnections,
             count: endpoints.length,
@@ -372,6 +374,7 @@ class TtSettingsEditor extends StatelessWidget {
     this.enabled = true,
     this.inheritedEgress = false,
     this.onIssueCertificate,
+    this.issueWaiting = false,
     super.key,
   });
   final Map<String, TextEditingController> fields;
@@ -381,6 +384,9 @@ class TtSettingsEditor extends StatelessWidget {
   final MotionPreference motion;
   final VoidCallback onChanged;
   final VoidCallback? onIssueCertificate;
+
+  /// The server is running another job; issuing starts after it.
+  final bool issueWaiting;
   final bool external, enabled, inheritedEgress;
   @override
   Widget build(BuildContext context) {
@@ -457,13 +463,23 @@ class TtSettingsEditor extends StatelessWidget {
             alignment: AlignmentDirectional.centerStart,
             child: OutlinedButton.icon(
               key: const ValueKey('tt-issue-certificate'),
-              onPressed: enabled && fields['domain']!.text.trim().isNotEmpty
+              onPressed:
+                  enabled &&
+                      !issueWaiting &&
+                      fields['domain']!.text.trim().isNotEmpty
                   ? onIssueCertificate
                   : null,
               icon: const Icon(Icons.add_moderator_outlined),
               label: Text(l.ttIssueAcme),
             ),
           ),
+          if (issueWaiting) ...[
+            const SizedBox(height: 4),
+            Text(
+              l.ttIssueWaiting,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
         ],
         const SizedBox(height: AppLayout.gap),
         if (inheritedEgress)
@@ -653,10 +669,10 @@ class _ManagedTtState extends State<ManagedTtDialog> {
                 motion: widget.motion,
                 enabled: !certificateDialogOpen && !widget.runner.busy,
                 inheritedEgress: widget.runner.egress?['enabled'] == true,
-                onIssueCertificate:
-                    widget.runner.canStart && widget.runner.installed
+                onIssueCertificate: widget.runner.installed
                     ? issueCertificate
                     : null,
+                issueWaiting: !widget.runner.canStart,
                 onChanged: () => setState(() => invalid = false),
               ),
               if (pendingCertificateId != null) ...[

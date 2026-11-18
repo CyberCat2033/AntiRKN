@@ -201,4 +201,66 @@ void main() {
       },
     );
   }
+
+  testWidgets(
+    'Issue stays visible while another server job runs and says why it waits',
+    (tester) async {
+      tester.view.physicalSize = const Size(700, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final store = MemoryRunnerJournal();
+      final remote = CertificateTransport(store);
+      final runner = RunnerController(
+        serverId: 'fixture',
+        transport: () => remote,
+        identity: () => 'fixture|key',
+        password: () => null,
+        accessFailure: (_) {},
+        store: store,
+      );
+      final network = NetworkController(reader: SampleInventoryReader());
+      addTearDown(network.dispose);
+      await tester.runAsync(network.load);
+      await runner.refresh(prepare: true);
+      // AmneziaWG is being built: the server runs one job at a time.
+      runner.jobs = [
+        runnerJob('b' * 32, kind: 'component_install', status: 'running'),
+      ];
+      late AppLocalizations l;
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('ru'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          theme: AppTheme.create(Brightness.light),
+          home: Builder(
+            builder: (context) {
+              l = AppLocalizations.of(context);
+              return Scaffold(
+                body: ManagedTtDialog(
+                  serverId: 'fixture',
+                  spec: {...fixture.spec(), 'certificateId': ''},
+                  runner: runner,
+                  picker: FakeKeyPicker(),
+                  network: network,
+                  motion: MotionPreference.off,
+                ),
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final issue = find.byKey(const ValueKey('tt-issue-certificate'));
+      expect(issue, findsOneWidget);
+      expect(
+        tester.widget<ButtonStyleButton>(issue).onPressed,
+        isNull,
+      );
+      expect(find.text(l.ttIssueWaiting), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      runner.dispose();
+    },
+  );
 }

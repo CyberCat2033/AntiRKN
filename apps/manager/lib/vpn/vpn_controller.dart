@@ -1379,6 +1379,7 @@ class VpnController extends ChangeNotifier {
   Future<void> prepare({Set<String>? serverIds, bool background = false}) =>
       _run((token) async {
         plans = [];
+        await _adoptIdentities();
         final availableTargets = serverIds ?? workspace.serverIds;
         final selected = availableTargets.where((id) {
           if (serverIds != null && !serverIds.contains(id)) return false;
@@ -1526,6 +1527,10 @@ class VpnController extends ChangeNotifier {
 
   Future<void> reconcile() async {
     if (!loaded || busy || _disposed || diagnosticsPaused) return;
+    if (_staleIdentities().isNotEmpty) {
+      await _run((_) => _adoptIdentities(), background: true);
+      if (busy || _disposed) return;
+    }
     final work = _hasServerReconcileWork;
     final fresh = (serverIds?.call() ?? const <String>[]).where((id) {
       final connection = remote(id);
@@ -1537,6 +1542,7 @@ class VpnController extends ChangeNotifier {
         fresh.isEmpty &&
         template() == _lastTemplate &&
         pendingDeletions.isEmpty) {
+      await _sendMissing();
       return;
     }
     await _run((token) async {
@@ -1560,6 +1566,7 @@ class VpnController extends ChangeNotifier {
       if (template() != _lastTemplate) await _profiles();
     }, background: true);
     _scheduleReconcile();
+    await _sendMissing();
   }
 
   bool _needsReconcile(String id, Map<String, dynamic> record) {
@@ -1887,6 +1894,225 @@ class VpnController extends ChangeNotifier {
     return changed;
   }
 
+  /// [serverId] is now the machine with [identity]: reinstalled, replaced or
+  /// moved. The SSH layer only connects to a host key the person trusted, so
+  /// a new identity always carries their consent. What the app knew about the
+  /// old machine's state no longer holds: jobs, applied payloads and
+  /// observations are dropped and read again. The app's own resources stay;
+  /// those the new machine lacks are sent again (see [missingOnServer]).
+  /// Unfinished client revocations restart against the new machine.
+  Future<void> rebindServer(String serverId, String identity) async {
+    await waitForBackgroundReconcile();
+    for (var i = 0; busy && !_disposed && i < 150; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    }
+    await _run((token) async {
+      if (loaded) await _rebindRecords(serverId, identity);
+    });
+    _scheduleReconcile();
+  }
+
+  Future<bool> _rebindRecords(String serverId, String identity) async {
+    final targets = {serverId, awgTarget(serverId), ttTarget(serverId)};
+    final servers = {...workspace.servers};
+    var changed = false;
+    for (final id in targets) {
+      final saved = servers[id]?['identity'];
+      if (saved == null || saved == identity) continue;
+      servers[id] = {'identity': identity};
+      observedJobs.remove(id);
+      observationErrors.remove(id);
+      _observedConnections.remove(id);
+      _autoSent.remove(id);
+      changed = true;
+    }
+    bool stale(MapEntry e) =>
+        targets.contains(e.key) &&
+        !vpnRevocationSettled(e.value) &&
+        (e.value as Map)['identity'] != null &&
+        (e.value as Map)['identity'] != identity;
+    final users = [
+      for (final user in workspace.users)
+        if (user.deletion case final Map deletion
+            when (deletion['targets'] as Map).entries.any(stale))
+          user.copyWith(
+            deletion: {
+              ...Map<String, dynamic>.from(deletion),
+              'targets': {
+                for (final e in (deletion['targets'] as Map).entries)
+                  e.key: stale(e)
+                      ? {'status': 'waiting', 'identity': identity}
+                      : e.value,
+              },
+            },
+          )
+        else
+          user,
+    ];
+    final usersChanged = !users.indexed.every(
+      (e) => identical(e.$2, workspace.users[e.$1]),
+    );
+    if (!changed && !usersChanged) return false;
+    if (error == 'vpn_identity') error = null;
+    if (serverSyncIssue == 'vpn_identity') serverSyncIssue = null;
+    await _write(workspace.copy(servers: servers, users: users));
+    return true;
+  }
+
+  /// Connected servers whose saved state (or an unfinished revocation)
+  /// belongs to another machine's identity, with their current identity.
+  Map<String, String> _staleIdentities() {
+    final ids = {
+      ...workspace.servers.keys,
+      for (final user in workspace.users)
+        if (user.deletion case final Map deletion)
+          ...(deletion['targets'] as Map).keys.cast<String>(),
+    };
+    final stale = <String, String>{};
+    for (final id in ids) {
+      final r = remote(id);
+      if (r == null) continue;
+      final saved = workspace.servers[id]?['identity'];
+      final revocation = workspace.users.any((u) {
+        final t = (u.deletion?['targets'] as Map?)?[id];
+        return t is Map &&
+            t['identity'] != null &&
+            t['identity'] != r.identity &&
+            !vpnRevocationSettled(t);
+      });
+      if ((saved != null && saved != r.identity) || revocation) {
+        stale[vpnServerId(id)] = r.identity;
+      }
+    }
+    return stale;
+  }
+
+  /// Rebinds every connected server whose saved identity is another
+  /// machine's (see [rebindServer]) before anything compares identities.
+  Future<void> _adoptIdentities() async {
+    for (final e in _staleIdentities().entries) {
+      await _rebindRecords(e.key, e.value);
+    }
+  }
+
+  /// Automatic sends per target: what was sent (desired payload and server
+  /// state) and how often. A transient refusal (a component still installing,
+  /// a panel not verified yet) is retried a few times with a pause; a lasting
+  /// one stays visible with its reason and a manual retry instead of looping.
+  final _autoSent = <String, ({String key, int attempts, DateTime at})>{};
+  final _sendIssues = <String, String>{};
+
+  /// Why the last automatic send for [target] did not land, if it did not.
+  String? sendIssue(String target) => _sendIssues[target];
+
+  /// Sends what the person already saved but the server does not reflect
+  /// (resources it lacks, deletions it never received): a never-sent
+  /// resource, a lost deletion or a reinstalled server heals without the
+  /// person having to find a button.
+  Future<void> _sendMissing() async {
+    if (_disposed || !loaded || busy || hasRunning) return;
+    final now = DateTime.now();
+    for (final id in workspace.servers.keys.toList()) {
+      if (missingOnServer(id) == 0 && unappliedDeletions(id) == 0) {
+        _sendIssues.remove(id);
+        continue;
+      }
+      final r = remote(id);
+      if (r == null) continue;
+      final panel = (isAwgTarget(id) || isTtTarget(id))
+          ? workspace.resourceWorkspaceId(id)
+          : r.panelId;
+      final key =
+          '${canonicalJson(workspace.desired(id, panel))}|${r.observationKey}';
+      final last = _autoSent[id];
+      if (last != null &&
+          last.key == key &&
+          (last.attempts >= 3 ||
+              now.difference(last.at) < const Duration(seconds: 45))) {
+        continue;
+      }
+      _autoSent[id] = (
+        key: key,
+        attempts: last?.key == key ? last!.attempts + 1 : 1,
+        at: now,
+      );
+      // The background issue is shared by every server; an old refusal for
+      // another target must neither block this send nor be blamed on it.
+      final previous = serverSyncIssue;
+      serverSyncIssue = null;
+      await prepareAndApply(serverIds: {id}, background: true);
+      final issue = serverSyncIssue;
+      serverSyncIssue = issue ?? previous;
+      if (issue != null) {
+        _sendIssues[id] = issue;
+      } else {
+        _sendIssues.remove(id);
+      }
+      _notify();
+      return;
+    }
+  }
+
+  /// How many of the app's resources for [target] the server does not have,
+  /// once its state was read and nothing is being applied: never sent, lost
+  /// with a reinstalled server or removed outside the app.
+  int missingOnServer(String target) {
+    final observed = _settledObservations(target);
+    if (observed == null) return 0;
+    return _resourceIds(target, deleted: false)
+        .where(
+          (id) => !observed.any((o) => o['id'] == id && o['confirmed'] == true),
+        )
+        .length;
+  }
+
+  /// Resources deleted in the app that the server still has, once its state
+  /// was read and nothing is being applied: the deletion never reached it.
+  int unappliedDeletions(String target) {
+    final observed = _settledObservations(target);
+    if (observed == null) return 0;
+    return _resourceIds(target, deleted: true)
+        .where(
+          (id) => observed.any(
+            (o) =>
+                o['id'] == id && o['exists'] != false && o['deleted'] != true,
+          ),
+        )
+        .length;
+  }
+
+  /// The server state read for [target], or null while it is unknown or an
+  /// operation is in flight.
+  Iterable<Map>? _settledObservations(String target) {
+    final record = workspace.servers[target];
+    if (record == null ||
+        record['verifiedAt'] == null ||
+        record['pending'] != null ||
+        record['error'] == 'vpn_identity') {
+      return null;
+    }
+    if (record['job'] case final Map job
+        when !RunnerJob.fromJson(Map<String, dynamic>.from(job)).terminal) {
+      return null;
+    }
+    return (record['observed'] as List? ?? const []).whereType<Map>();
+  }
+
+  Iterable<String> _resourceIds(String target, {required bool deleted}) {
+    final server = vpnServerId(target);
+    return isAwgTarget(target)
+        ? workspace.awgInterfaces
+              .where((r) => r.serverId == server && r.deleted == deleted)
+              .map((r) => r.id)
+        : isTtTarget(target)
+        ? workspace.ttEndpoints
+              .where((r) => r.serverId == server && r.deleted == deleted)
+              .map((r) => r.id)
+        : workspace.inbounds
+              .where((r) => r.serverId == target && r.deleted == deleted)
+              .map((r) => r.id);
+  }
+
   Future<void> refreshServer(String id) => _run((token) async {
     if (error == 'vless_conflict' ||
         error == 'vpn_conflict' ||
@@ -1895,6 +2121,7 @@ class VpnController extends ChangeNotifier {
     }
     await ensureConnected(id);
     token.check();
+    await _adoptIdentities();
     await _refreshServer(id, token);
   });
   Future<void> _refreshServer(

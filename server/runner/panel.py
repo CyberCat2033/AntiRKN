@@ -435,14 +435,21 @@ class PanelInstaller:
                 settings = api.call('/panel/api/setting/all', {})
                 inbounds = api.call('/panel/api/inbounds/list')
                 status = api.call('/panel/api/server/status')
+                # Right after start 3x-ui answers success with an empty
+                # status (obj null, xray null) until its collector runs: not
+                # ready yet, retry. An AttributeError here used to crash the
+                # runner daemon on every fresh panel install.
+                xray = status.get('xray') if isinstance(status, dict) else None
+                if not isinstance(settings, dict) or not isinstance(xray, dict):
+                    raise ValueError('panel_api_failed')
                 if (settings.get('webListen') != '127.0.0.1'
                         or settings.get('webPort') != access['port']
                         or settings.get('webBasePath') != access['basePath']
                         or settings.get('subEnable') is not False
                         or inbounds != []):
                     raise PanelError('panel_conflict')
-                if (status.get('xray', {}).get('state') != 'running'
-                        or status.get('xray', {}).get('version') != RELEASE['xrayVersion']
+                if (xray.get('state') != 'running'
+                        or xray.get('version') != RELEASE['xrayVersion']
                         or status.get('panelVersion') != RELEASE['panelVersion']):
                     raise ValueError('panel_api_failed')
                 if command([str(PANEL / 'x-ui'), '-v']).decode().strip() != RELEASE['panelVersion']:

@@ -33,6 +33,14 @@ def normalize_base_path(value):
     return value if value.endswith('/') else value + '/'
 
 
+
+def xray_status(status):
+    """The xray part of /panel/api/server/status; {} while 3x-ui has none.
+    Right after a start or an Xray restart it answers success with obj null
+    or xray null; calling .get on that crashed the runner daemon."""
+    xray = status.get('xray') if isinstance(status, dict) else None
+    return xray if isinstance(xray, dict) else {}
+
 class PanelApi:
     def __init__(self, port, base_path='/', *, tls=False, certificate=None, host='127.0.0.1'):
         base_path = normalize_base_path(base_path)

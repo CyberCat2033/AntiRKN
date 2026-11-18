@@ -52,7 +52,11 @@ def exists(path):
     return path.exists() or path.is_symlink()
 
 
-def path_state(path):
+def path_state(path, content=True):
+    """Digest of a tree. content=False keeps names, kinds and link targets
+    only: a running panel rewrites its database, WAL and metrics every few
+    seconds, so a content digest taken at plan time never matched the one at
+    removal and every VLESS removal failed as a conflict."""
     if not exists(path):
         return None
     # Do not follow links in a removed tree, or accept user-writable parents.
@@ -73,6 +77,8 @@ def path_state(path):
         elif stat.S_ISDIR(st.st_mode):
             value = None
             todo.extend(sorted(p.iterdir(), reverse=True))
+        elif stat.S_ISREG(st.st_mode) and not content:
+            value = None
         elif stat.S_ISREG(st.st_mode):
             # Metadata plus a content digest: never send configuration bytes.
             h = hashlib.sha256()
@@ -268,7 +274,8 @@ def discover(protocol):
     paths = {p for p in paths if exists(p)}
     paths = sorted(p for p in paths if not any(parent in paths for parent in p.parents))
     record = dict(protocol=protocol, units=sorted(units), containers=containers,
-                  paths={str(p): path_state(p) for p in paths}, interfaces=interfaces)
+                  paths={str(p): path_state(p, content=False) for p in paths},
+                  interfaces=interfaces)
     record['fingerprint'] = digest(record)
     return record
 

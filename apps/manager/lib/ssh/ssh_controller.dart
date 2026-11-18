@@ -87,6 +87,10 @@ class SshController extends ChangeNotifier {
   final String serverId;
   final ServerRepository? repository;
   final Duration Function(int attempt)? reconnectDelay;
+
+  /// Called with the new identity once the person confirmed that this saved
+  /// server is now a different machine (reinstalled or replaced).
+  void Function(String identity)? onServerReplaced;
   late final RunnerController runner;
   List<SavedServer> jumpCandidates = [];
   String? jumpServerId;
@@ -935,6 +939,7 @@ class SshController extends ChangeNotifier {
     if (replaceServer) {
       observation = null;
       network.clear();
+      if (!isJump) onServerReplaced?.call('${profile.host}|${key.fingerprint}');
     }
     stage = SshStage.connecting;
     _notify();

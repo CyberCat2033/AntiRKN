@@ -398,8 +398,12 @@
   "runnerVersionDetails": "Installed: {installed} · App: {bundled}. Update the app or report these IDs.",
   "@runnerVersionDetails": {
     "placeholders": {
-      "installed": {"type": "String"},
-      "bundled": {"type": "String"}
+      "installed": {
+        "type": "String"
+      },
+      "bundled": {
+        "type": "String"
+      }
     }
   },
   "runnerInstallFailed": "Setup could not be confirmed. Some changes may have been applied. Refresh the server state before retrying.",
@@ -1532,5 +1536,18 @@
   "versionsAssetMissing": "This release has no file for this server's architecture or no checksum. Choose another version.",
   "versionsAwgBuild": "AmneziaWG is built from source on the server: this takes several minutes.",
   "versionsSafetyInstaller": "Keys and settings stay as they are. The new version goes into its own folder; if the service does not start or connections stop working after the switch, the server returns to the current version by itself.",
-  "versionsHelpInstaller": "Newer stable releases are installed into their own folder next to the current one. If the service does not start or connections stop working after the switch, the server returns to the current version by itself. Older versions are not offered."
+  "versionsHelpInstaller": "Newer stable releases are installed into their own folder next to the current one. If the service does not start or connections stop working after the switch, the server returns to the current version by itself. Older versions are not offered.",
+  "uiOperationRunning": "In progress…",
+  "uiOperationQueued": "Queued",
+  "vpnMissingOnServer": "Not on the server yet. The app sends it by itself.",
+  "vpnMissingNotice": "{count, plural, =1{1 connection from the app is not on this server yet. The app sends it by itself; if that did not work, send it again.} other{{count} connections from the app are not on this server yet. The app sends them by itself; if that did not work, send them again.}}",
+  "@vpnMissingNotice": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "vpnSendToServer": "Send to server",
+  "ttIssueWaiting": "The server is busy with another operation. Issuing becomes available when it finishes."
 }

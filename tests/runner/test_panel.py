@@ -108,4 +108,38 @@ class PanelTests(unittest.TestCase):
         self.assertNotIn('panelAccess', result)
 
 
+    def test_verify_waits_for_an_empty_status_instead_of_crashing(self):
+        # 3x-ui answers success with obj null / xray null right after start;
+        # that raised AttributeError and killed the runner daemon.
+        import panel
+        installer = PanelInstaller(self.store, request())
+        good = dict(xray=dict(state='running', version=panel.RELEASE['xrayVersion']),
+                    panelVersion=panel.RELEASE['panelVersion'])
+        statuses = iter([None, dict(xray=None), good])
+        class Api:
+            def __init__(self, *a, **k): pass
+            def login(self, *a): pass
+            def call(self, path, data=None):
+                if path.endswith('setting/all'):
+                    return dict(webListen='127.0.0.1', webPort=2053, webBasePath='/x/', subEnable=False)
+                if path.endswith('inbounds/list'):
+                    return []
+                return next(statuses)
+        def command(argv, **k):
+            return (panel.RELEASE['panelVersion'] if argv[0].endswith('x-ui')
+                    else 'Xray ' + panel.RELEASE['xrayVersion'] + ' (fixture)').encode()
+        with patch.object(installer, 'assert_owned'), \
+                patch('panel.access_for', return_value=dict(port=2053, basePath='/x/', username='u', password='p')), \
+                patch('panel_api.PanelApi', Api), patch('panel.command', side_effect=command), \
+                patch('panel.systemctl'), patch('panel.time.sleep'):
+            installer.verify()
+        self.assertIsNone(next(statuses, None))
+
+    def test_xray_status_tolerates_missing_parts(self):
+        from panel_api import xray_status
+        for value in (None, [], {}, dict(xray=None), dict(xray='running')):
+            self.assertEqual(xray_status(value), {})
+        self.assertEqual(xray_status(dict(xray=dict(state='running'))), dict(state='running'))
+
+
 if __name__ == '__main__': unittest.main()

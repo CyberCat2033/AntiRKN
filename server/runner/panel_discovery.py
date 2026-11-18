@@ -142,6 +142,9 @@ def connect_existing(raw):
         status = api.call('/panel/api/server/status')
     except OSError:
         raise ValueError('panel_unreachable') from None
+    from panel_api import xray_status
+    if not isinstance(status, dict) or not xray_status(status).get('version'):
+        raise ValueError('panel_unreachable')
     old = external_access()
     access = dict(id=old['id'] if old and old['port'] == value['port'] else secrets.token_hex(16),
         port=value['port'], basePath=observed['basePath'], username=value['username'], password=value['password'],

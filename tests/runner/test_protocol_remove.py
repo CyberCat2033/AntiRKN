@@ -72,6 +72,25 @@ class RemovalTests(unittest.TestCase):
                     removal.quarantine(source, backup)
             self.assertEqual(source.read_text(), 'changed')
 
+    def test_plan_fingerprint_survives_live_panel_writes(self):
+        # 3x-ui rewrites its database, WAL and metrics every few seconds; a
+        # removal approved a moment ago must still match. New files do not.
+        from types import SimpleNamespace
+        trusted_parent = lambda self, **kw: SimpleNamespace(st_uid=0, st_mode=0o40755)
+        with tempfile.TemporaryDirectory() as root, patch.object(removal.Path, 'stat', trusted_parent):
+            data = Path(root) / 'x-ui'
+            data.mkdir()
+            (data / 'x-ui.db').write_bytes(b'one')
+            (data / 'system_metrics.gob').write_bytes(b'a')
+            planned = removal.path_state(data, content=False)
+            exact = removal.path_state(data)
+            (data / 'x-ui.db').write_bytes(b'two')
+            (data / 'system_metrics.gob').write_bytes(b'bb')
+            self.assertEqual(removal.path_state(data, content=False), planned)
+            self.assertNotEqual(removal.path_state(data), exact)
+            (data / 'foreign.conf').write_text('other software')
+            self.assertNotEqual(removal.path_state(data, content=False), planned)
+
     def test_prune_quarantines_retains_bounded_recent_directories(self):
         # Audit #24: Quarantine directories are pruned to prevent uncontrolled disk growth
         with tempfile.TemporaryDirectory() as root:

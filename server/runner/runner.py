@@ -883,7 +883,18 @@ def daemon(directory=STATE):
             except Exception as error:
                 sys.stderr.write(f'[runner] job directory sweep skipped: {type(error).__name__}\n')
             while not stopping:
-                delay = store.tick()
+                try:
+                    delay = store.tick()
+                except BaseException as error:
+                    # The unit restarts the daemon and the job resumes from its
+                    # checkpoint; say where it broke without the message, which
+                    # may carry panel responses or credentials.
+                    import traceback
+                    frames = traceback.extract_tb(error.__traceback__)[-3:]
+                    where = ' <- '.join(f'{Path(f.filename).name}:{f.lineno}' for f in reversed(frames))
+                    sys.stderr.write(f'[runner] job step failed: {type(error).__name__} at {where}\n')
+                    sys.stderr.flush()
+                    raise
                 deadline = time.monotonic() + delay
                 while not stopping and time.monotonic() < deadline:
                     time.sleep(min(0.1, max(0, deadline - time.monotonic())))

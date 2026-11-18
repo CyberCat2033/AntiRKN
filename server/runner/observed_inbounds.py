@@ -164,7 +164,8 @@ class ObservedInboundEdit:
             api.call('/panel/api/server/restartXrayService', {})
             deadline = time.monotonic() + 20
             while time.monotonic() < deadline:
-                if api.call('/panel/api/server/status').get('xray', {}).get('state') == 'running': break
+                from panel_api import xray_status
+                if xray_status(api.call('/panel/api/server/status')).get('state') == 'running': break
                 time.sleep(.25)
             else: raise VlessError('vless_api_failed')
             original = json.loads(self.backup.read_text())

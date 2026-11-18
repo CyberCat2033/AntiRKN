@@ -6,6 +6,7 @@ import '../l10n/app_localizations.dart';
 import '../network/network_controller.dart';
 import '../network/server_address_field.dart';
 import 'vpn_controller.dart';
+import 'missing_on_server_notice.dart';
 import 'adopt_resource.dart';
 import 'vpn_plan_view.dart';
 
@@ -93,6 +94,7 @@ class AwgPanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 20),
+          MissingOnServerNotice(controller: c, target: target),
           AppSectionHeading(
             title: l.uiInterfaces,
             count: interfaces.length,

@@ -81,7 +81,8 @@ def write_template(api, template, test_url):
     api.call('/panel/api/server/restartXrayService', {})
     deadline = time.monotonic() + 20
     while time.monotonic() < deadline:
-        if api.call('/panel/api/server/status').get('xray', {}).get('state') == 'running': return
+        from panel_api import xray_status
+        if xray_status(api.call('/panel/api/server/status')).get('state') == 'running': return
         time.sleep(.25)
     raise EgressError('egress_config_failed')
 

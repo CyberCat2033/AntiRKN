@@ -32,10 +32,12 @@ def configuration(api):
 
 
 def versions(api):
+    from panel_api import xray_status
     status = api.call('/panel/api/server/status')
-    if status.get('xray', {}).get('state') != 'running':
+    xray = xray_status(status)
+    if xray.get('state') != 'running' or not isinstance(status.get('panelVersion'), str):
         raise PanelError('panel_api_failed')
-    return dict(panelVersion=status['panelVersion'], xrayVersion=status['xray']['version'])
+    return dict(panelVersion=status['panelVersion'], xrayVersion=xray.get('version'))
 
 
 def semver(value):

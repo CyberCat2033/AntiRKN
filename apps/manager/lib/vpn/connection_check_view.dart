@@ -57,6 +57,7 @@ class ConnectionCheckView extends StatelessWidget {
           'vpn_disabled' => l.vpnDisabled,
           'vpn_pending' => l.vpnApplying,
           'vpn_pending_readback' => l.vpnPendingReadback,
+          'vpn_missing' => l.vpnMissingOnServer,
           'vpn_conflict' || 'vless_conflict' || 'awg_conflict' => l.vpnConflict,
           'vpn_user_deleted' => l.vpnUserDeleted,
           'target_unavailable' => l.connectionNetworkProblem,

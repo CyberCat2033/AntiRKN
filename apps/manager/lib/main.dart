@@ -478,6 +478,8 @@ class _ManagerShellState extends State<ManagerShell>
           reader: widget.networkReader,
           agentAvailable: ssh.agentAvailable,
         );
+        _catalog!.onServerReplaced = (id, identity) =>
+            unawaited(_vpn?.rebindServer(id, identity));
         _catalog!.addListener(_catalogChanged);
         catalogReady = _catalog!.load();
       } else {
@@ -488,6 +490,9 @@ class _ManagerShellState extends State<ManagerShell>
           agentAvailable: ssh.agentAvailable,
           network: _networkController,
         )..initialise();
+        _sshController!.onServerReplaced = (identity) => unawaited(
+          _vpn?.rebindServer(SshProfile.serverId, identity),
+        );
       }
     }
     _controller = TemplateController(
