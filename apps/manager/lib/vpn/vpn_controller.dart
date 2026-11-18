@@ -293,6 +293,16 @@ Map<String, ProfileResult> _compileBatch(
   return results;
 }
 
+/// The server no longer has this resource. VLESS state marks it at the top
+/// level (`deleted`/`exists`); AmneziaWG and TrustTunnel keep the confirmed
+/// deletion inside `spec`. Reading only the former made every successful AWG
+/// or TT deletion look like "Server configuration has changed" and like a
+/// deletion that never reached the server.
+bool observationGone(Map o) =>
+    o['deleted'] == true ||
+    o['exists'] == false ||
+    o['spec'] is Map && (o['spec'] as Map)['deleted'] == true;
+
 /// A single workspace coordinator owns client -> all resources reconciliation.
 /// Polling resumes only persisted, explicitly approved intentions.
 class VpnController extends ChangeNotifier {
@@ -370,6 +380,7 @@ class VpnController extends ChangeNotifier {
       }
     });
   }
+
   final Map<String, String> _observedConnections = {};
   String? _deviceId;
   Future<void> Function(VpnUser, Future<void> Function())? deletePublishedFile;
@@ -1218,7 +1229,8 @@ class VpnController extends ChangeNotifier {
     if (record == null || record['pending'] == null) return;
     final jobMap = record['job'] as Map?;
     final jobStatus = jobMap?['status'] as String?;
-    final isTerminal = jobStatus == 'failed' ||
+    final isTerminal =
+        jobStatus == 'failed' ||
         jobStatus == 'cancelled' ||
         jobStatus == 'partially_applied' ||
         jobStatus == 'succeeded';
@@ -1233,15 +1245,9 @@ class VpnController extends ChangeNotifier {
       }
     }
     if (isTerminal || expired) {
-      final updated = {
-        ...record,
-        'pending': null,
-      };
+      final updated = {...record, 'pending': null};
       workspace = workspace.copy(
-        servers: {
-          ...workspace.servers,
-          target: updated,
-        },
+        servers: {...workspace.servers, target: updated},
       );
       unawaited(_record(target, updated));
       notifyListeners();
@@ -1270,21 +1276,21 @@ class VpnController extends ChangeNotifier {
       // job may stay selected in the runner; that must not block VPN work.
       if (!_busy && _hasServerReconcileWork) unawaited(reconcile());
     }
+
     _boundRunners[serverId] = (runnerEvents, listener);
     runnerEvents.addListener(listener);
   }
 
   void onRunnerQueueReset(String serverId) {
     final targets = [serverId, awgTarget(serverId), ttTarget(serverId)];
-    final updatedServers = Map<String, Map<String, dynamic>>.from(workspace.servers);
+    final updatedServers = Map<String, Map<String, dynamic>>.from(
+      workspace.servers,
+    );
     bool changed = false;
     for (final target in targets) {
       final rec = updatedServers[target];
       if (rec != null && rec['pending'] != null) {
-        updatedServers[target] = {
-          ...rec,
-          'pending': null,
-        };
+        updatedServers[target] = {...rec, 'pending': null};
         changed = true;
         unawaited(_record(target, {...rec, 'pending': null}));
       }
@@ -1376,77 +1382,79 @@ class VpnController extends ChangeNotifier {
     if (prepared && error == null) await apply();
   }
 
-  Future<void> prepare({Set<String>? serverIds, bool background = false}) =>
-      _run((token) async {
-        plans = [];
-        await _adoptIdentities();
-        final availableTargets = serverIds ?? workspace.serverIds;
-        final selected = availableTargets.where((id) {
-          if (serverIds != null && !serverIds.contains(id)) return false;
-          final server = vpnServerId(id);
-          return this.serverIds == null ||
-              this.serverIds!().map(vpnServerId).contains(server);
-        }).toList();
-        // A hidden revocation is retained honestly, but it must not become an
-        // invisible permanent blocker. Once this explicit access change reconnects
-        // the server, finish the old revocation before planning the current state.
-        if (pendingRevocations.isNotEmpty) {
-          final selectedServers = selected.map(vpnServerId).toSet().toList();
-          await _mapServersBounded(
-            selectedServers,
-            (id) => ensureConnected(id),
-            cancellation: token,
-          );
-          await _reconcileDeletions(token);
+  Future<void> prepare({
+    Set<String>? serverIds,
+    bool background = false,
+  }) => _run((token) async {
+    plans = [];
+    await _adoptIdentities();
+    final availableTargets = serverIds ?? workspace.serverIds;
+    final selected = availableTargets.where((id) {
+      if (serverIds != null && !serverIds.contains(id)) return false;
+      final server = vpnServerId(id);
+      return this.serverIds == null ||
+          this.serverIds!().map(vpnServerId).contains(server);
+    }).toList();
+    // A hidden revocation is retained honestly, but it must not become an
+    // invisible permanent blocker. Once this explicit access change reconnects
+    // the server, finish the old revocation before planning the current state.
+    if (pendingRevocations.isNotEmpty) {
+      final selectedServers = selected.map(vpnServerId).toSet().toList();
+      await _mapServersBounded(
+        selectedServers,
+        (id) => ensureConnected(id),
+        cancellation: token,
+      );
+      await _reconcileDeletions(token);
+    }
+    await _mapServersBounded(
+      selected.map(vpnServerId).toSet().toList(),
+      (id) => ensureConnected(id),
+      cancellation: token,
+    );
+    final plansList = await _mapServersBounded(selected, (id) async {
+      token.check();
+      final connection = remote(id);
+      final previous = workspace.servers[id];
+      if (observesOperation(id)) {
+        if (!observedJobs.containsKey(id) && connection != null) {
+          await _observeOperation(id, token);
         }
-        await _mapServersBounded(
-          selected.map(vpnServerId).toSet().toList(),
-          (id) => ensureConnected(id),
-          cancellation: token,
+        if (currentJob(id)?.terminal == false) {
+          throw const FormatException('vpn_busy');
+        }
+      } else if (_isTargetBusy(previous)) {
+        throw const FormatException('vpn_busy');
+      }
+      final panelId = (isAwgTarget(id) || isTtTarget(id))
+          ? workspace.resourceWorkspaceId(id)
+          : connection?.panelId ?? previous?['panelId'] as String?;
+      if (panelId == null) throw const FormatException('vpn_panel_required');
+      final payload = workspace.desired(id, panelId);
+      if (connection == null || hasPendingRevocation(vpnServerId(id))) {
+        return VpnPlan(
+          id,
+          payload,
+          connection?.identity ?? previous?['identity'] as String?,
+          null,
         );
-        final plansList = await _mapServersBounded(selected, (id) async {
-          token.check();
-          final connection = remote(id);
-          final previous = workspace.servers[id];
-          if (observesOperation(id)) {
-            if (!observedJobs.containsKey(id) && connection != null) {
-              await _observeOperation(id, token);
-            }
-            if (currentJob(id)?.terminal == false) {
-              throw const FormatException('vpn_busy');
-            }
-          } else if (_isTargetBusy(previous)) {
-            throw const FormatException('vpn_busy');
-          }
-          final panelId = (isAwgTarget(id) || isTtTarget(id))
-              ? workspace.resourceWorkspaceId(id)
-              : connection?.panelId ?? previous?['panelId'] as String?;
-          if (panelId == null) throw const FormatException('vpn_panel_required');
-          final payload = workspace.desired(id, panelId);
-          if (connection == null || hasPendingRevocation(vpnServerId(id))) {
-            return VpnPlan(
-              id,
-              payload,
-              connection?.identity ?? previous?['identity'] as String?,
-              null,
-            );
-          }
-          if (previous?['identity'] != null &&
-              previous?['identity'] != connection.identity) {
-            throw const FormatException('vpn_identity');
-          }
-          final response = await _request(
-            connection,
-            _planRequest(id, panelId, payload),
-            token,
-          );
-          if (_preview(response, id) == null) {
-            throw const FormatException('vpn_failed');
-          }
-          return VpnPlan(id, payload, connection.identity, _preview(response, id));
-        }, cancellation: token);
-        plans = plansList;
-      }, background: background);
+      }
+      if (previous?['identity'] != null &&
+          previous?['identity'] != connection.identity) {
+        throw const FormatException('vpn_identity');
+      }
+      final response = await _request(
+        connection,
+        _planRequest(id, panelId, payload),
+        token,
+      );
+      if (_preview(response, id) == null) {
+        throw const FormatException('vpn_failed');
+      }
+      return VpnPlan(id, payload, connection.identity, _preview(response, id));
+    }, cancellation: token);
+    plans = plansList;
+  }, background: background);
 
   void dismissPlans() {
     if (!busy) {
@@ -1456,7 +1464,10 @@ class VpnController extends ChangeNotifier {
   }
 
   Future<void> apply({bool background = false}) => _run((token) async {
-    if (plans.any((p) => p.preview != null && hasBlockingRevocation(vpnServerId(p.serverId)))) {
+    if (plans.any(
+      (p) =>
+          p.preview != null && hasBlockingRevocation(vpnServerId(p.serverId)),
+    )) {
       throw const FormatException('vpn_busy');
     }
     if (plans.isEmpty) return;
@@ -1861,7 +1872,7 @@ class VpnController extends ChangeNotifier {
                       (obs['workspaceId'] ==
                               workspace.resourceWorkspaceId(id) &&
                           obs['confirmed'] == true &&
-                          (obs['deleted'] == true || obs['exists'] == false));
+                          observationGone(obs));
                 })) {
               throw const FormatException('vpn_conflict');
             }
@@ -2073,10 +2084,7 @@ class VpnController extends ChangeNotifier {
     if (observed == null) return 0;
     return _resourceIds(target, deleted: true)
         .where(
-          (id) => observed.any(
-            (o) =>
-                o['id'] == id && o['exists'] != false && o['deleted'] != true,
-          ),
+          (id) => observed.any((o) => o['id'] == id && !observationGone(o)),
         )
         .length;
   }
@@ -2213,8 +2221,7 @@ class VpnController extends ChangeNotifier {
           (o) =>
               o['workspaceId'] == workspace.resourceWorkspaceId(id) &&
               !workspace.inbounds.any((i) => i.id == o['id']) &&
-              o['deleted'] != true &&
-              o['exists'] != false,
+              !observationGone(o),
         )
         .map(
           (o) => VlessInbound(
@@ -2230,8 +2237,7 @@ class VpnController extends ChangeNotifier {
         (o) => o['id'] == ib.id,
         orElse: () => <String, dynamic>{},
       );
-      if (obs.isNotEmpty &&
-          (obs['deleted'] == true || obs['exists'] == false)) {
+      if (obs.isNotEmpty && observationGone(obs)) {
         changed = true;
         return VlessInbound(
           serverId: id,
@@ -2270,9 +2276,7 @@ class VpnController extends ChangeNotifier {
               response.jobs.single.id != op.operationId)) {
         throw const FormatException('vpn_failed');
       }
-      final job = response.code == 'missing'
-          ? null
-          : response.jobs.single;
+      final job = response.code == 'missing' ? null : response.jobs.single;
       observedJobs[id] = job;
       observationErrors.remove(id);
       if (job != null && job.terminal) {
@@ -2558,8 +2562,7 @@ class VpnController extends ChangeNotifier {
                 row['workspaceId'] == workspace.resourceWorkspaceId(target) &&
                 row['confirmed'] == true &&
                 row['revision'] == expectedRevision &&
-                row['deleted'] != true &&
-                row['exists'] != false,
+                !observationGone(row),
           )) {
             return false;
           }
