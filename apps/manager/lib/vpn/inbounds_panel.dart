@@ -65,6 +65,8 @@ class InboundsPanelState extends State<InboundsPanel> {
   String externalId(Map panel, Map inbound) =>
       'external-${panel['port']}-${inbound['id']}';
   String? _queried;
+  final Set<String> _busyInboundIds = {};
+  final Set<String> _busyExternalKeys = {};
   @override
   void initState() {
     super.initState();
@@ -414,7 +416,7 @@ class InboundsPanelState extends State<InboundsPanel> {
                   ],
                   FilledButton.icon(
                     key: const ValueKey('vpn-inbound-add'),
-                    onPressed: c.busy || !c.loaded
+                    onPressed: c.workspaceBusy || !c.loaded
                         ? null
                         : () => _edit(context),
                     icon: const Icon(Icons.add),
@@ -566,25 +568,50 @@ class InboundsPanelState extends State<InboundsPanel> {
                           note: l.vpnObserved,
                           detailsLabel: l.componentsDetails,
                           details: const [],
-                          badgeBusy:
-                              runner?.actionPending == true ||
-                              runner?.selected?.kind == 'inbound_update' &&
-                                  runner?.selected?.terminal == false,
-                          onBadgeTap: runner == null
+                          badgeBusy: _busyExternalKeys.contains(
+                            externalId(entry.panel, entry.row),
+                          ),
+                          onBadgeTap: runner == null ||
+                                  runner!.busy ||
+                                  runner!.actionPending ||
+                                  _busyExternalKeys.contains(
+                                    externalId(entry.panel, entry.row),
+                                  )
                               ? null
                               : () async {
-                                  if (!await showPanelLogin(
-                                        context,
-                                        runner!,
-                                        port: entry.panel['port'] as int,
-                                      ) ||
-                                      !context.mounted) {
+                                  final id = (entry.row['id'] as num?)?.toInt();
+                                  if (id == null) return;
+                                  final extKey = externalId(entry.panel, entry.row);
+                                  if (_busyExternalKeys.contains(extKey) ||
+                                      runner == null ||
+                                      runner!.busy ||
+                                      runner!.actionPending) {
                                     return;
                                   }
-                                  await runner!.setInboundEnabled(
-                                    entry.row['id'] as int,
-                                    entry.row['enabled'] != true,
+                                  setState(
+                                    () => _busyExternalKeys.add(extKey),
                                   );
+                                  try {
+                                    final port = (entry.panel['port'] as num?)?.toInt() ?? 0;
+                                    if (!await showPanelLogin(
+                                          context,
+                                          runner!,
+                                          port: port,
+                                        ) ||
+                                        !context.mounted) {
+                                      return;
+                                    }
+                                    await runner!.setInboundEnabled(
+                                      id,
+                                      entry.row['enabled'] != true,
+                                    );
+                                  } finally {
+                                    if (mounted) {
+                                      setState(
+                                        () => _busyExternalKeys.remove(extKey),
+                                      );
+                                    }
+                                  }
                                 },
                           actions: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -712,28 +739,45 @@ class InboundsPanelState extends State<InboundsPanel> {
                               : l.vpnClientAccess,
                           detailsLabel: l.componentsDetails,
                           details: const [],
-                          badgeBusy: c.busy,
-                          onBadgeTap: c.busy
+                          badgeBusy: _busyInboundIds.contains(r.id),
+                          onBadgeTap: _busyInboundIds.contains(r.id) ||
+                                  c.workspaceBusy
                               ? null
                               : () async {
-                                  if (runner != null &&
-                                      (!await showPanelLogin(
-                                            context,
-                                            runner!,
-                                          ) ||
-                                          !context.mounted)) {
+                                  if (_busyInboundIds.contains(r.id) ||
+                                      c.workspaceBusy) {
                                     return;
                                   }
-                                  await c.saveInbound(
-                                    VlessInbound(
-                                      serverId: r.serverId,
-                                      spec: {...r.spec, 'enabled': !r.enabled},
-                                    ),
-                                  );
-                                  if (c.error == null) {
-                                    await c.prepareAndApply(
-                                      serverIds: {r.serverId},
+                                  setState(() => _busyInboundIds.add(r.id));
+                                  try {
+                                    if (runner != null &&
+                                        (!await showPanelLogin(
+                                              context,
+                                              runner!,
+                                            ) ||
+                                            !context.mounted)) {
+                                      return;
+                                    }
+                                    await c.saveInbound(
+                                      VlessInbound(
+                                        serverId: r.serverId,
+                                        spec: {
+                                          ...r.spec,
+                                          'enabled': !r.enabled,
+                                        },
+                                      ),
                                     );
+                                    if (c.error == null) {
+                                      await c.prepareAndApply(
+                                        serverIds: {r.serverId},
+                                      );
+                                    }
+                                  } finally {
+                                    if (mounted) {
+                                      setState(
+                                        () => _busyInboundIds.remove(r.id),
+                                      );
+                                    }
                                   }
                                 },
                           actions: Row(
@@ -749,7 +793,7 @@ class InboundsPanelState extends State<InboundsPanel> {
                                       ? Icons.lock_outline
                                       : Icons.people_outline,
                                 ),
-                                onPressed: c.busy
+                                onPressed: c.workspaceBusy
                                     ? null
                                     : () async {
                                         await c.saveInbound(
@@ -770,7 +814,7 @@ class InboundsPanelState extends State<InboundsPanel> {
                               ),
                               IconButton(
                                 tooltip: l.vpnEdit,
-                                onPressed: c.busy
+                                onPressed: c.workspaceBusy
                                     ? null
                                     : () => _edit(context, r),
                                 icon: const Icon(Icons.edit_outlined),

@@ -422,7 +422,6 @@ class VpnController extends ChangeNotifier {
   bool get workspaceBusy => _busy || _upgradeBusy;
   bool get foregroundBusy =>
       (_busy && _backgroundReconcile == null) ||
-      connections.busy ||
       _upgradeBusy;
 
   Future<void> waitForBackgroundReconcile() async {
