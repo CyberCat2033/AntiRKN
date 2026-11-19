@@ -224,6 +224,14 @@ void main() {
     final indicator = tester.widget<LinearProgressIndicator>(progressFinder);
     expect(indicator.value, closeTo(0.5, 0.01));
 
+    // Even if vpn.foregroundBusy is simultaneously active, NO duplicate progress bars appear
+    vpn.upgradeBusy = true;
+    await tester.pump();
+    expect(vpn.foregroundBusy, isTrue);
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+    vpn.upgradeBusy = false;
+    await tester.pump();
+
     // Switches and QR buttons disabled during sync
     expect(tester.widget<Switch>(aliceSwitchFinder).onChanged, isNull);
     expect(tester.widget<IconButton>(aliceQrButtonFinder).onPressed, isNull);

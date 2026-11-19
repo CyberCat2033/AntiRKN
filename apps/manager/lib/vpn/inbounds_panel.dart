@@ -831,7 +831,11 @@ class InboundsPanelState extends State<InboundsPanel> {
                   serverId: serverId,
                 ),
                 if (showPlan)
-                  VpnPlanView(controller: c, serverName: serverName),
+                  VpnPlanView(
+                    controller: c,
+                    serverName: serverName,
+                    showProgress: !deleting,
+                  ),
               ],
             ),
           ],

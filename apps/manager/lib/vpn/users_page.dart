@@ -616,7 +616,21 @@ class _UsersPageState extends State<UsersPage> {
                   ],
                 ),
               ),
-            VpnPlanView(controller: c, serverName: serverName),
+            if (publications != null)
+              ListenableBuilder(
+                listenable: publications!,
+                builder: (context, _) => VpnPlanView(
+                  controller: c,
+                  serverName: serverName,
+                  showProgress: !_syncing && !publications!.hasActiveSync,
+                ),
+              )
+            else
+              VpnPlanView(
+                controller: c,
+                serverName: serverName,
+                showProgress: !_syncing,
+              ),
             if (allUsers.isEmpty)
               AppEmptyState(
                 title: l.vpnNoUsers,

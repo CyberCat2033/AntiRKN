@@ -12,17 +12,19 @@ class VpnPlanView extends StatelessWidget {
   const VpnPlanView({
     required this.controller,
     required this.serverName,
+    this.showProgress = true,
     super.key,
   });
   final VpnController controller;
   final String Function(String) serverName;
+  final bool showProgress;
   @override
   Widget build(BuildContext context) {
     final c = controller, l = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (c.foregroundBusy) const LinearProgressIndicator(),
+        if (showProgress && c.foregroundBusy) const LinearProgressIndicator(),
         if (c.visibleError case final error?)
           Semantics(
             liveRegion: true,
