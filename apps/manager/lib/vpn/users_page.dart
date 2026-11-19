@@ -228,6 +228,9 @@ class _UsersPageState extends State<UsersPage> {
           'total=${batchResult.total} failed=${batchResult.failed}',
         );
       }
+      if (mounted && batchResult != null && batchResult.total > 0) {
+        await Future<void>.delayed(const Duration(milliseconds: 600));
+      }
       if (mounted) {
         final activeUsers = controller.workspace.users
             .where((u) => u.enabled && !u.deleted)
@@ -326,6 +329,41 @@ class _UsersPageState extends State<UsersPage> {
     } finally {
       if (mounted) setState(() => _syncing = false);
     }
+  }
+
+  Widget _buildSyncButton(
+    BuildContext context,
+    VpnController c,
+    AppLocalizations l,
+  ) {
+    final isSyncingActive = _syncing || (publications?.hasActiveSync == true);
+    return Tooltip(
+      message: l.vpnSyncAndPublishTooltip,
+      child: FilledButton.tonalIcon(
+        key: const ValueKey('vpn-sync-and-publish'),
+        onPressed: c.foregroundBusy || !c.loaded || isSyncingActive
+            ? null
+            : () => _syncAndPublish(context, force: false),
+        onLongPress: c.foregroundBusy || !c.loaded || isSyncingActive
+            ? null
+            : () => _syncAndPublish(context, force: true),
+        icon: const Icon(Icons.cloud_sync),
+        label: Text(l.vpnSyncAndPublish),
+      ),
+    );
+  }
+
+  Widget _buildSyncProgress() {
+    final active = _syncing || (publications?.hasActiveSync == true);
+    if (!active) return const SizedBox.shrink();
+    final total = publications?.activeSyncTotal ?? 0;
+    final completed = publications?.activeSyncCompleted ?? 0;
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: LinearProgressIndicator(
+        value: total > 0 ? (completed / total).clamp(0.0, 1.0) : null,
+      ),
+    );
   }
 
   @override
@@ -442,34 +480,23 @@ class _UsersPageState extends State<UsersPage> {
                         icon: const Icon(Icons.add),
                         label: Text(l.vpnAddUser),
                       ),
-                      Tooltip(
-                        message: l.vpnSyncAndPublishTooltip,
-                        child: FilledButton.tonalIcon(
-                          key: const ValueKey('vpn-sync-and-publish'),
-                          onPressed: c.foregroundBusy || !c.loaded || _syncing
-                              ? null
-                              : () => _syncAndPublish(context, force: false),
-                          onLongPress: c.foregroundBusy || !c.loaded || _syncing
-                              ? null
-                              : () => _syncAndPublish(context, force: true),
-                          icon: _syncing
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.cloud_sync),
-                          label: Text(l.vpnSyncAndPublish),
-                        ),
-                      ),
+                      if (publications != null)
+                        ListenableBuilder(
+                          listenable: publications!,
+                          builder: (context, _) =>
+                              _buildSyncButton(context, c, l),
+                        )
+                      else
+                        _buildSyncButton(context, c, l),
                     ],
                   ),
-                  if (_syncing) ...[
-                    const SizedBox(height: 12),
-                    const LinearProgressIndicator(),
-                  ],
+                  if (publications != null)
+                    ListenableBuilder(
+                      listenable: publications!,
+                      builder: (context, _) => _buildSyncProgress(),
+                    )
+                  else
+                    _buildSyncProgress(),
                   const SizedBox(height: 20),
                 ],
               ),
@@ -613,6 +640,7 @@ class _UsersPageState extends State<UsersPage> {
                           protocolSummary: protocolSummary,
                           motion: motion,
                           onProfile: _profile,
+                          isSyncing: _syncing,
                         ),
                       ),
                     if (disabledUsers.isNotEmpty) ...{
@@ -667,6 +695,7 @@ class _UsersPageState extends State<UsersPage> {
                             protocolSummary: protocolSummary,
                             motion: motion,
                             onProfile: _profile,
+                            isSyncing: _syncing,
                           ),
                         ),
                     },
@@ -682,8 +711,11 @@ class _UsersPageState extends State<UsersPage> {
   );
 }
 
-class _UserTile extends StatelessWidget {
-  const _UserTile({
+typedef _UserTile = UserTile;
+
+@visibleForTesting
+class UserTile extends StatelessWidget {
+  const UserTile({
     required this.user,
     required this.isFirst,
     required this.controller,
@@ -692,6 +724,7 @@ class _UserTile extends StatelessWidget {
     required this.protocolSummary,
     required this.motion,
     required this.onProfile,
+    this.isSyncing = false,
   });
 
   final VpnUser user;
@@ -702,6 +735,7 @@ class _UserTile extends StatelessWidget {
   final String protocolSummary;
   final MotionPreference motion;
   final void Function(BuildContext, VpnUser) onProfile;
+  final bool isSyncing;
 
   @override
   Widget build(BuildContext context) {
@@ -786,32 +820,12 @@ class _UserTile extends StatelessWidget {
                 : () => UsersPage.edit(context, c, motion, user, publications),
             trailing: selection.active
                 ? null
-                : Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Switch(
-                        key: ValueKey('client-toggle-${user.id}'),
-                        value: user.enabled,
-                        onChanged: c.foregroundBusy
-                            ? null
-                            : (val) async {
-                                final next = user.copyWith(enabled: val);
-                                await c.saveUser(next);
-                                if (c.workspace.serverIds.isNotEmpty) {
-                                  unawaited(c.prepareAndApply(background: true));
-                                }
-                              },
-                      ),
-                      IconButton(
-                        key: ValueKey('client-qr-${user.id}'),
-                        tooltip: l.uiShareProfile,
-                        onPressed: c.foregroundBusy
-                            ? null
-                            : () => onProfile(context, user),
-                        icon: const Icon(Icons.qr_code_2),
-                      ),
-                    ],
-                  ),
+                : publications != null
+                    ? ListenableBuilder(
+                        listenable: publications!,
+                        builder: (context, _) => _buildTrailing(context, c),
+                      )
+                    : _buildTrailing(context, c),
           ),
         ),
       ),
@@ -819,6 +833,71 @@ class _UserTile extends StatelessWidget {
     ),
   );
 }
+
+  Widget _buildTrailing(BuildContext context, VpnController c) {
+    final pub = publications;
+    final activeSync = isSyncing || (pub?.hasActiveSync == true);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Switch(
+          key: ValueKey('client-toggle-${user.id}'),
+          value: user.enabled,
+          onChanged: c.foregroundBusy || activeSync
+              ? null
+              : (val) async {
+                  final next = user.copyWith(enabled: val);
+                  await c.saveUser(next);
+                  if (c.workspace.serverIds.isNotEmpty) {
+                    unawaited(c.prepareAndApply(background: true));
+                  }
+                },
+        ),
+        _buildTrailingAction(context, c, activeSync: activeSync),
+      ],
+    );
+  }
+
+  Widget _buildTrailingAction(
+    BuildContext context,
+    VpnController c, {
+    required bool activeSync,
+  }) {
+    final pub = publications;
+    final inFlight = activeSync && pub?.isUserInFlight(user.id) == true;
+    final completed = activeSync && pub?.isUserCompleted(user.id) == true;
+    final failed = activeSync && pub?.isUserFailed(user.id) == true;
+    final l = AppLocalizations.of(context);
+
+    Widget iconWidget;
+    if (inFlight) {
+      iconWidget = const SizedBox.square(
+        dimension: 18,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
+    } else if (completed) {
+      iconWidget = Icon(
+        Icons.check_circle,
+        color: Theme.of(context).colorScheme.primary,
+      );
+    } else if (failed) {
+      iconWidget = Icon(
+        Icons.error_outline,
+        color: Theme.of(context).colorScheme.error,
+      );
+    } else {
+      iconWidget = const Icon(Icons.qr_code_2);
+    }
+
+    return IconButton(
+      key: ValueKey('client-qr-${user.id}'),
+      tooltip: l.uiShareProfile,
+      onPressed: c.foregroundBusy || activeSync
+          ? null
+          : () => onProfile(context, user),
+      icon: iconWidget,
+    );
+  }
 }
 
 class _AttentionServersSection extends StatelessWidget {

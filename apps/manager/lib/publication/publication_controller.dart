@@ -62,6 +62,9 @@ class PublicationController extends ChangeNotifier {
   bool _pendingAll = false, _pendingForce = false, _pendingForceUpload = false;
   final Set<String> _pendingUserIds = {};
   final Set<String> _inFlightUserIds = {};
+  final Set<String> _completedUserIds = {};
+  final Set<String> _failedUserIds = {};
+  int _activeSyncTotal = 0;
   DateTime? _rateLimitedUntil;
   String? _profileStamp;
   Map<String, String> _readyProfileHashes = {};
@@ -69,6 +72,72 @@ class PublicationController extends ChangeNotifier {
   final Set<String> _newlyReadyUsers = {};
   int _reloadGeneration = 0;
   bool isUserBusy(String userId) => editing || _inFlightUserIds.contains(userId);
+  bool isUserInFlight(String userId) => _inFlightUserIds.contains(userId);
+  bool isUserCompleted(String userId) => _completedUserIds.contains(userId);
+  bool isUserFailed(String userId) => _failedUserIds.contains(userId);
+  Set<String> get inFlightUserIds => Set.unmodifiable(_inFlightUserIds);
+  Set<String> get completedUserIds => Set.unmodifiable(_completedUserIds);
+  static const syncProgressResetDelay = Duration(milliseconds: 600);
+  Timer? _clearProgressTimer;
+
+  Set<String> get failedUserIds => Set.unmodifiable(_failedUserIds);
+  int get activeSyncTotal => _activeSyncTotal;
+  int get activeSyncCompleted =>
+      _completedUserIds.length + _failedUserIds.length;
+  bool get isPublishing => _running != null;
+  bool get hasActiveSync =>
+      isPublishing ||
+      _activeSyncTotal > 0 ||
+      _inFlightUserIds.isNotEmpty ||
+      _completedUserIds.isNotEmpty ||
+      _failedUserIds.isNotEmpty;
+
+  void _resetSyncProgress({bool notify = true}) {
+    _clearProgressTimer?.cancel();
+    _clearProgressTimer = null;
+    _inFlightUserIds.clear();
+    _completedUserIds.clear();
+    _failedUserIds.clear();
+    _activeSyncTotal = 0;
+    if (notify) _notify();
+  }
+
+  @visibleForTesting
+  void resetSyncProgress() => _resetSyncProgress(notify: true);
+
+  @visibleForTesting
+  void simulateUserProgress({
+    Set<String>? inFlight,
+    Set<String>? completed,
+    Set<String>? failed,
+    int? total,
+  }) {
+    if (inFlight != null) {
+      _inFlightUserIds
+        ..clear()
+        ..addAll(inFlight);
+      _completedUserIds.removeAll(inFlight);
+      _failedUserIds.removeAll(inFlight);
+    }
+    if (completed != null) {
+      _completedUserIds
+        ..clear()
+        ..addAll(completed);
+      _inFlightUserIds.removeAll(completed);
+      _failedUserIds.removeAll(completed);
+    }
+    if (failed != null) {
+      _failedUserIds
+        ..clear()
+        ..addAll(failed);
+      _inFlightUserIds.removeAll(failed);
+      _completedUserIds.removeAll(failed);
+    }
+    if (total != null) {
+      _activeSyncTotal = total;
+    }
+    _notify();
+  }
   bool get busy => editing || _running != null;
 
   Map<String, dynamic>? deletionFileFor(String userId) {
@@ -388,6 +457,8 @@ class PublicationController extends ChangeNotifier {
         _running != null) {
       return _running;
     }
+    _clearProgressTimer?.cancel();
+    _clearProgressTimer = null;
     final future = _run(
       force,
       targetUserIds:
@@ -396,9 +467,22 @@ class PublicationController extends ChangeNotifier {
     );
     _running = future;
     future.whenComplete(() {
-      if (_running == future) _running = null;
+      final wasRunning = _running == future;
+      if (wasRunning) {
+        _running = null;
+      }
       _schedulePending();
-      _notify();
+      if (_running == null) {
+        if (!_disposed && !_suspended && hasActiveSync) {
+          _clearProgressTimer?.cancel();
+          _clearProgressTimer = Timer(syncProgressResetDelay, () {
+            if (!_disposed && !_suspended && _running == null) {
+              _resetSyncProgress(notify: true);
+            }
+          });
+        }
+        _notify();
+      }
     });
     _notify();
     return future;
@@ -447,6 +531,7 @@ class PublicationController extends ChangeNotifier {
     Set<String>? targetUserIds,
     bool forceUpload = false,
   }) async {
+    _resetSyncProgress(notify: false);
     if (!authorized ||
         needsAuthorization ||
         settings?.enabled != true ||
@@ -484,6 +569,11 @@ class PublicationController extends ChangeNotifier {
 
       var nextIndex = 0;
       final concurrency = activeUsers.isEmpty ? 1 : min(4, activeUsers.length);
+      _inFlightUserIds.clear();
+      _completedUserIds.clear();
+      _failedUserIds.clear();
+      _activeSyncTotal = activeUsers.length;
+      _notify();
 
       Future<void> worker() async {
         while (!_disposed && !_suspended) {
@@ -506,12 +596,16 @@ class PublicationController extends ChangeNotifier {
           final userTimer = Stopwatch()..start();
 
           _inFlightUserIds.add(user.id);
+          _completedUserIds.remove(user.id);
+          _failedUserIds.remove(user.id);
           _notify();
+          var success = false;
           try {
             // Fast-path: skip user if profile is already published and unchanged
             final wasUpToDate = isUserUpToDate(user.id);
             if (!force && !forceUpload && wasUpToDate) {
               upToDateCount++;
+              success = true;
               debugPrint(
                 'publication_timing phase=user index=$userIndex path=local '
                 'ms=${userTimer.elapsedMilliseconds}',
@@ -522,7 +616,7 @@ class PublicationController extends ChangeNotifier {
                 ? null
                 : canonicalJson(results[user.id]);
 
-            var success = false;
+            success = false;
             Map<String, dynamic>? publishQueue;
             for (var attempt = 0; attempt < 3; attempt++) {
               if (_disposed || _suspended) break;
@@ -656,9 +750,15 @@ class PublicationController extends ChangeNotifier {
             );
           } finally {
             _inFlightUserIds.remove(user.id);
+            if (success) {
+              _completedUserIds.add(user.id);
+              _failedUserIds.remove(user.id);
+            } else if (!_disposed && !_suspended) {
+              _failedUserIds.add(user.id);
+              _completedUserIds.remove(user.id);
+            }
             _notify();
           }
-          _notify();
           await Future<void>.delayed(Duration.zero);
         }
       }
@@ -680,6 +780,8 @@ class PublicationController extends ChangeNotifier {
       error = PublicationIssue.invalid;
     } finally {
       _cancel = null;
+      _inFlightUserIds.clear();
+      _notify();
     }
     return PublicationBatchResult(
       uploaded: uploadedCount,
@@ -691,11 +793,14 @@ class PublicationController extends ChangeNotifier {
   Future<void> suspend() async {
     _suspended = true;
     _timer?.cancel();
+    _clearProgressTimer?.cancel();
+    _clearProgressTimer = null;
     _pendingAll = false;
     _pendingForce = false;
     _pendingUserIds.clear();
     _cancel?.cancel();
     await _running;
+    _resetSyncProgress();
   }
 
   void resume() {
@@ -1025,6 +1130,7 @@ class PublicationController extends ChangeNotifier {
     _timer?.cancel();
     _pendingUserIds.clear();
     _cancel?.cancel();
+    _resetSyncProgress(notify: false);
     vpn.removeListener(_vpnChanged);
     sync?.removeListener(_syncChanged);
     super.dispose();
