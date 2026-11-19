@@ -30,6 +30,7 @@ class ClientEgressCard extends StatefulWidget {
 
 class _ClientEgressCardState extends State<ClientEgressCard> {
   bool opening = false;
+  bool dialogOpen = false;
   String? issue;
 
   Future<void> configure() async {
@@ -54,6 +55,12 @@ class _ClientEgressCardState extends State<ClientEgressCard> {
         setState(() => issue = c.responseCode ?? 'egress_failed');
         return;
       }
+      if (mounted) {
+        setState(() {
+          opening = false;
+          dialogOpen = true;
+        });
+      }
       await showDialog<void>(
         context: context,
         builder: (_) => ClientEgressForm(
@@ -64,7 +71,12 @@ class _ClientEgressCardState extends State<ClientEgressCard> {
         ),
       );
     } finally {
-      if (mounted) setState(() => opening = false);
+      if (mounted) {
+        setState(() {
+          opening = false;
+          dialogOpen = false;
+        });
+      }
     }
   }
 
@@ -77,7 +89,7 @@ class _ClientEgressCardState extends State<ClientEgressCard> {
       final enabled = info?['enabled'] == true;
       final job = c.jobs.where((j) => j.kind == 'egress_apply').firstOrNull;
       final busy =
-          opening || c.busy || c.actionPending || job?.terminal == false;
+          opening || dialogOpen || c.busy || c.actionPending || job?.terminal == false;
       final check = info?['lastCheck'] as Map?;
       final failure =
           issue ??
@@ -154,7 +166,7 @@ class _ClientEgressCardState extends State<ClientEgressCard> {
                         : runnerStateLabel(l, job.status),
                   ),
                 ),
-              if (busy)
+              if (busy && !dialogOpen)
                 const Padding(
                   padding: EdgeInsets.only(top: 8),
                   child: LinearProgressIndicator(),
