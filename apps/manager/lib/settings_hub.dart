@@ -4,11 +4,16 @@ import 'l10n/app_localizations.dart';
 
 class SettingsDestination {
   const SettingsDestination({
+    required this.id,
     required this.title,
     required this.subtitle,
     required this.icon,
     required this.content,
   });
+
+  /// Stable identity: destinations may appear or disappear (sync, backup),
+  /// so pages, drafts and the open page follow the id, not the position.
+  final String id;
   final String title, subtitle;
   final IconData icon;
   final Widget content;
@@ -20,26 +25,57 @@ class SettingsHub extends StatefulWidget {
     required this.destinations,
     required this.motion,
     this.status,
+    this.statusDestinationId,
     this.error,
     super.key,
   });
   final List<SettingsDestination> destinations;
   final MotionPreference motion;
   final Widget? status, error;
+
+  /// The destination that tapping [status] opens.
+  final String? statusDestinationId;
   @override
   State<SettingsHub> createState() => SettingsHubState();
 }
 
 class SettingsHubState extends State<SettingsHub> {
-  int selected = 0;
+  /// The open destination; null shows the menu.
+  String? selectedId;
+  final visited = <String>{};
+
+  /// Position in the page switch: 0 is the menu, then the destinations.
+  int get selected {
+    final i = widget.destinations.indexWhere((d) => d.id == selectedId);
+    return i < 0 ? 0 : i + 1;
+  }
+
   bool get canGoBack => selected != 0;
   void showRoot() => open(0);
-  final visited = <int>{0};
   void open(int value) {
+    final id = value <= 0 || value > widget.destinations.length
+        ? null
+        : widget.destinations[value - 1].id;
     setState(() {
-      selected = value;
-      visited.add(value);
+      selectedId = id;
+      if (id != null) visited.add(id);
     });
+  }
+
+  void openId(String id) {
+    final i = widget.destinations.indexWhere((d) => d.id == id);
+    if (i >= 0) open(i + 1);
+  }
+
+  @override
+  void didUpdateWidget(SettingsHub oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A destination that disappeared (for example sync turned off) returns
+    // to the menu instead of showing whatever moved into its position.
+    if (selectedId != null &&
+        !widget.destinations.any((d) => d.id == selectedId)) {
+      selectedId = null;
+    }
   }
 
   Widget scroll(String id, List<Widget> children) => ListView(
@@ -62,7 +98,7 @@ class SettingsHubState extends State<SettingsHub> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final active = AppPageVisibility.of(context);
-    if (selected > widget.destinations.length) selected = 0;
+    final selected = this.selected;
     return PopScope(
       canPop: !active || selected == 0,
       onPopInvokedWithResult: (didPop, _) {
@@ -107,12 +143,9 @@ class SettingsHubState extends State<SettingsHub> {
                       title: l.uiMyData,
                       child: InkWell(
                         borderRadius: BorderRadius.circular(AppLayout.radius),
-                        onTap: () {
-                          final i = widget.destinations.indexWhere(
-                            (d) => d.icon == Icons.sync,
-                          );
-                          if (i >= 0) open(i + 1);
-                        },
+                        onTap: widget.statusDestinationId == null
+                            ? null
+                            : () => openId(widget.statusDestinationId!),
                         child: widget.status!,
                       ),
                     ),
@@ -140,9 +173,12 @@ class SettingsHubState extends State<SettingsHub> {
                     ),
                   ),
                 ]),
-                for (var i = 0; i < widget.destinations.length; i++)
-                  visited.contains(i + 1)
-                      ? scroll('$i', [widget.destinations[i].content])
+                for (final destination in widget.destinations)
+                  visited.contains(destination.id)
+                      ? KeyedSubtree(
+                          key: ValueKey('settings-${destination.id}'),
+                          child: scroll(destination.id, [destination.content]),
+                        )
                       : const SizedBox.shrink(),
               ],
             ),

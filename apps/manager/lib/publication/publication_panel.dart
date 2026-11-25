@@ -175,12 +175,8 @@ class _PublicationSettingsState extends State<PublicationSettingsPanel> {
               SwitchListTile(
                 title: Text(l.publicationAuto),
                 subtitle: Text(l.uiPublicationAutoHelp),
-                value: settings.enabled,
-                onChanged: c.editing
-                    ? null
-                    : (value) {
-                        c.setEnabled(value);
-                      },
+                value: c.enabling ?? settings.enabled,
+                onChanged: c.editing ? null : c.setEnabled,
               ),
             if (c.error != null ||
                 c.queues.values.any((q) => q['status'] == 'error'))
@@ -224,7 +220,8 @@ class UserPublicationView extends StatelessWidget {
           result['hash'] == savedHash &&
           queue?['status'] != 'error';
       final issue = queue?['issue'] as String?;
-      final isConflict = queue?['status'] == 'error' &&
+      final isConflict =
+          queue?['status'] == 'error' &&
           (issue == 'conflict' || issue == 'readback');
       final content = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -240,7 +237,8 @@ class UserPublicationView extends StatelessWidget {
                 ? publicationMessage(l, issue)
                 : l.publicationWaiting,
           ),
-          if (!published && (controller.busy || isUserBusy)) const LinearProgressIndicator(),
+          if (!published && (controller.busy || isUserBusy))
+            const LinearProgressIndicator(),
           if (!published) ...[
             const SizedBox(height: 8),
             Wrap(
@@ -251,7 +249,10 @@ class UserPublicationView extends StatelessWidget {
                   key: ValueKey('publication-retry-$userId'),
                   onPressed: isUserBusy
                       ? null
-                      : () => controller.request(force: true, targetUserId: userId),
+                      : () => controller.request(
+                          force: true,
+                          targetUserId: userId,
+                        ),
                   child: Text(l.runnerRetry),
                 ),
                 if (isConflict)

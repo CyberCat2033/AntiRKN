@@ -389,6 +389,8 @@
   "runnerCancelRequested": "Cancellation requested; waiting for a safe stopping point.",
   "runnerCancel": "Cancel server job",
   "runnerResetQueue": "Reset job queue",
+  "runnerResetQueueTitle": "Reset the job queue?",
+  "runnerResetQueueHelp": "All server jobs of this server are cancelled and the queue is cleared. Steps already applied on the server are not undone; check the server state afterwards.",
   "runnerEventsTruncated": "Older events have been rotated on the server. The current checkpoint is available.",
   "runnerJournal": "Job events",
   "runnerHistory": "Recent jobs",
@@ -625,6 +627,7 @@
   "vpnStorageConflict": "Another application instance changed the client database. Reload before editing.",
   "vpnIdentity": "This saved server now has a different address or SSH identity. Its previous access bindings require review.",
   "vpnFailed": "The operation was not confirmed. Refresh the server status or retry the saved operation.",
+  "vpnBusy": "Another operation is still running, so this change was not made. Try again when it finishes.",
   "vpnPortBusy": "The listen address or port is unavailable or conflicts with another inbound.",
   "vpnPartial": "Some changes may already be applied. Review the saved job and resume it when ready.",
   "vpnApplying": "Applying client access",
@@ -650,6 +653,13 @@
   "protocolBuildFailed": "AmneziaWG build failed. Check Go modules connectivity, server memory and disk space.",
   "protocolCheckFailed": "Installed version verification failed.",
   "updatesCheck": "Check for updates",
+  "updatesCheckedRecently": "Updates were checked moments ago; the result shown is current.",
+  "updatesLastChecked": "Last checked: {time}",
+  "@updatesLastChecked": {
+    "placeholders": {
+      "time": {"type": "String"}
+    }
+  },
   "updatesAutomatic": "Check for new versions",
   "updatesSuggestions": "Suggest updates",
   "updatesFailed": "Could not check for updates. The previous result may be stale.",
@@ -767,6 +777,7 @@
   "observedEditPlan": "Save changes to the existing inbound and restart Xray. Active connections may be interrupted.",
   "componentUpdateUnverified": "This release is not yet included in the app’s verified versions. The installed version is retained.",
   "observedTransportJson": "Transport settings (JSON)",
+  "observedTransportInvalid": "The JSON is invalid: it must be an object, with realitySettings and xhttpSettings as objects. Fix it to save or to edit the fields.",
   "panelUpdateSummary": "Save settings and clients, create a backup, and update 3x-ui together with Xray. VPN connections will briefly stop during the restart.",
   "panelUpdateRecovery": "On failure, the backup remains on the server. Resume checks files already replaced. The database is not rolled back automatically.",
   "panelUpdateCompatibility": "Updates require verified versions of a standard 3x-ui installation with systemd and SQLite. Newer Xray cores are never downgraded.",
@@ -1404,6 +1415,7 @@
   "coreStop": "Stop",
   "connectionCheck": "Check connection",
   "connectionCheckAll": "Check all",
+  "connectionTargetsFailed": "Could not read the list of connections to check. Refresh the server and try again.",
   "connectionStop": "Stop check",
   "connectionReconfigure": "Reconfigure",
   "connectionChecking": "Checking connection…",

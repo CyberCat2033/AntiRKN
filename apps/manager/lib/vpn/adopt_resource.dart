@@ -133,6 +133,14 @@ Future<void> adoptExistingResource(
         context,
       ).showSnackBar(SnackBar(content: Text(vpnMessage(l, error.message))));
     }
+  } on TypeError catch (error) {
+    // A resource read from the server had an unexpected shape.
+    debugPrint('adopt_resource_invalid type=${error.runtimeType}');
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(vpnMessage(l, 'vpn_adoption_invalid'))),
+      );
+    }
   }
 }
 

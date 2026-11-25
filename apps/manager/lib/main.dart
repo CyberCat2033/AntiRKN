@@ -65,6 +65,17 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher>
   GoogleSyncAccountService? _google;
   LanguageController? _languages;
   int _generation = 0;
+  bool _retrying = false;
+
+  /// Reopens the workspace after an open error. One attempt at a time: a
+  /// parallel attempt would open a second database and sync controller.
+  void _retryLoad() {
+    if (_retrying) return;
+    _retrying = true;
+    setState(() {
+      _app = _load().whenComplete(() => _retrying = false);
+    });
+  }
 
   @override
   void initState() {
@@ -203,13 +214,18 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher>
           home: Builder(
             builder: (context) => Scaffold(
               body: Center(
-                child: snapshot.hasError
+                // A retry keeps the previous error in the snapshot while it
+                // runs; show progress instead of a second Retry button.
+                child:
+                    snapshot.hasError &&
+                        snapshot.connectionState == ConnectionState.done
                     ? Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(AppLocalizations.of(context).databaseOpenError),
                           FilledButton(
-                            onPressed: () => setState(() => _app = _load()),
+                            key: const ValueKey('database-open-retry'),
+                            onPressed: _retryLoad,
                             child: Text(
                               AppLocalizations.of(context).vaultRetry,
                             ),
@@ -490,9 +506,8 @@ class _ManagerShellState extends State<ManagerShell>
           agentAvailable: ssh.agentAvailable,
           network: _networkController,
         )..initialise();
-        _sshController!.onServerReplaced = (identity) => unawaited(
-          _vpn?.rebindServer(SshProfile.serverId, identity),
-        );
+        _sshController!.onServerReplaced = (identity) =>
+            unawaited(_vpn?.rebindServer(SshProfile.serverId, identity));
       }
     }
     _controller = TemplateController(
@@ -947,6 +962,7 @@ class _ManagerShellState extends State<ManagerShell>
                             (_settingsKey.currentState?.canGoBack ?? false) ||
                         _index < 2 && _selection.active),
                 onBack: () => Navigator.of(context).maybePop(),
+                motion: widget.motion,
                 child: SafeArea(
                   child: Row(
                     children: [
@@ -1014,6 +1030,7 @@ class _ManagerShellState extends State<ManagerShell>
                               error: widget.settingsError
                                   ? Text(l.settingsSaveError)
                                   : null,
+                              statusDestinationId: 'sync',
                               status: widget.autoSync == null
                                   ? null
                                   : ListenableBuilder(
@@ -1033,6 +1050,7 @@ class _ManagerShellState extends State<ManagerShell>
                                     ),
                               destinations: [
                                 SettingsDestination(
+                                  id: 'interface',
                                   title: l.uiInterface,
                                   subtitle:
                                       '${switch (widget.theme) {
@@ -1055,6 +1073,7 @@ class _ManagerShellState extends State<ManagerShell>
                                 ),
                                 if (widget.googleAccount?.supported == true)
                                   SettingsDestination(
+                                    id: 'sync',
                                     title: l.uiSynchronization,
                                     subtitle: l.uiSyncHelp,
                                     icon: Icons.sync,
@@ -1077,6 +1096,7 @@ class _ManagerShellState extends State<ManagerShell>
                                     ),
                                   ),
                                 SettingsDestination(
+                                  id: 'profiles',
                                   title: l.uiClientProfiles,
                                   subtitle: l.uiClientProfilesHelp,
                                   icon: Icons.description_outlined,
@@ -1108,6 +1128,7 @@ class _ManagerShellState extends State<ManagerShell>
                                     widget.backupFiles != null &&
                                     widget.onRestored != null)
                                   SettingsDestination(
+                                    id: 'backup',
                                     title: l.backupTitle,
                                     subtitle: l.uiBackupHelp,
                                     icon: Icons.history,
@@ -1119,6 +1140,7 @@ class _ManagerShellState extends State<ManagerShell>
                                     ),
                                   ),
                                 SettingsDestination(
+                                  id: 'updates',
                                   title: l.uiUpdatesShort,
                                   subtitle: l.uiUpdatesHelp,
                                   icon: Icons.system_update_alt,

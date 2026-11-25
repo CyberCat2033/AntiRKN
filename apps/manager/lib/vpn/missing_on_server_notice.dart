@@ -43,7 +43,7 @@ class MissingOnServerNotice extends StatelessWidget {
           padding: const EdgeInsets.only(top: 8),
           child: FilledButton.tonal(
             key: ValueKey('vpn-send-$target'),
-            onPressed: controller.busy
+            onPressed: !controller.canMutate
                 ? null
                 : () async {
                     if (authorize != null && !await authorize!()) return;

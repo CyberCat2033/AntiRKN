@@ -154,10 +154,30 @@ class _AppPageSwitchState extends State<AppPageSwitch>
     with TickerProviderStateMixin {
   final primaryAnimations = <AnimationController>[];
   final secondaryAnimations = <AnimationController>[];
+
+  /// The transition wrapping a page changes type (shared axis or fade
+  /// through) with the kind of navigation and with reduced motion. A global
+  /// key moves the page subtree into the new wrapper instead of remounting
+  /// it, so drafts, scroll positions and focus survive every transition.
+  /// A child with its own key keeps its page even when its position changes.
+  final pageKeys = <GlobalKey>[];
+  final keyedPages = <Key, GlobalKey>{};
+  GlobalKey pageKey(int i) {
+    final key = widget.children[i].key;
+    if (key == null) return pageKeys[i];
+    return keyedPages.putIfAbsent(
+      key,
+      () => GlobalKey(debugLabel: 'AppPageSwitch page $key'),
+    );
+  }
+
   void ensureAnimations() {
     while (primaryAnimations.length < widget.children.length) {
       primaryAnimations.add(AnimationController(vsync: this, value: 1));
       secondaryAnimations.add(AnimationController(vsync: this));
+    }
+    while (pageKeys.length < widget.children.length) {
+      pageKeys.add(GlobalKey(debugLabel: 'AppPageSwitch page'));
     }
   }
 
@@ -198,7 +218,19 @@ class _AppPageSwitchState extends State<AppPageSwitch>
   void didUpdateWidget(AppPageSwitch oldWidget) {
     super.didUpdateWidget(oldWidget);
     updateDuration();
+    // Pages can disappear (a settings destination turned off): never animate
+    // from or keep painting a page that no longer exists.
+    if (previous != null && previous! >= widget.children.length) {
+      previous = null;
+    }
     if (oldWidget.index == widget.index) return;
+    if (oldWidget.index >= widget.children.length) {
+      previous = null;
+      primaryAnimations[widget.index].value = 1;
+      secondaryAnimations[widget.index].value = 0;
+      animation.value = 1;
+      return;
+    }
     hierarchical = widget.depth != null && widget.depth != oldWidget.depth;
     opening = (widget.depth ?? 0) > (oldWidget.depth ?? 0);
     // A quick Back reverses the current reveal at exactly the same position.
@@ -254,8 +286,10 @@ class _AppPageSwitchState extends State<AppPageSwitch>
         hierarchical &&
         AppMotion.duration(context, widget.motion) == AppMotion.standard;
     final foreground = opening ? widget.index : previous;
-    // Stable keys retain drafts when paint order changes. Each transition
-    // caches its expensive page subtree instead of rebuilding it per frame.
+    final fill = Theme.of(context).scaffoldBackgroundColor;
+    Widget page(int i) =>
+        RepaintBoundary(key: pageKey(i), child: widget.children[i]);
+    // Stable keys retain drafts when paint order changes.
     final layers = <Widget>[
       for (var i = 0; i < widget.children.length; i++)
         Offstage(
@@ -271,31 +305,22 @@ class _AppPageSwitchState extends State<AppPageSwitch>
                   ignoring: !active || i != widget.index,
                   child: TickerMode(
                     enabled: active && i == widget.index,
-                    child: AnimatedBuilder(
-                      animation: animation,
-                      child: RepaintBoundary(child: widget.children[i]),
-                      builder: (context, child) {
-                        final primary = primaryAnimations[i];
-                        final secondary = secondaryAnimations[i];
-                        if (spatial) {
-                          return SharedAxisTransition(
-                            animation: primary,
-                            secondaryAnimation: secondary,
+                    // The transitions listen to their own animations; the
+                    // page subtree itself is not rebuilt per frame.
+                    child: spatial
+                        ? SharedAxisTransition(
+                            animation: primaryAnimations[i],
+                            secondaryAnimation: secondaryAnimations[i],
                             transitionType: SharedAxisTransitionType.scaled,
-                            fillColor: Theme.of(
-                              context,
-                            ).scaffoldBackgroundColor,
-                            child: child!,
-                          );
-                        }
-                        return FadeThroughTransition(
-                          animation: primary,
-                          secondaryAnimation: secondary,
-                          fillColor: Theme.of(context).scaffoldBackgroundColor,
-                          child: child!,
-                        );
-                      },
-                    ),
+                            fillColor: fill,
+                            child: page(i),
+                          )
+                        : FadeThroughTransition(
+                            animation: primaryAnimations[i],
+                            secondaryAnimation: secondaryAnimations[i],
+                            fillColor: fill,
+                            child: page(i),
+                          ),
                   ),
                 ),
               ),
@@ -1403,6 +1428,66 @@ class AppFormDialog extends StatelessWidget {
     );
   }
 }
+
+/// The confirming action of a destructive choice (reset, delete, remove):
+/// a filled button in the error colours of the scheme.
+class AppDangerButton extends StatelessWidget {
+  const AppDangerButton({
+    required this.onPressed,
+    required this.child,
+    this.icon,
+    super.key,
+  });
+  final VoidCallback? onPressed;
+  final Widget child;
+  final Widget? icon;
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final style = FilledButton.styleFrom(
+      backgroundColor: colors.error,
+      foregroundColor: colors.onError,
+    );
+    return icon == null
+        ? FilledButton(onPressed: onPressed, style: style, child: child)
+        : FilledButton.icon(
+            onPressed: onPressed,
+            style: style,
+            icon: icon!,
+            label: child,
+          );
+  }
+}
+
+/// Asks before a destructive action. Resolves to true only when the person
+/// chose [confirmLabel]; dismissing the dialog counts as "no".
+Future<bool> confirmAppDanger(
+  BuildContext context, {
+  required String title,
+  required String message,
+  required String confirmLabel,
+  required String cancelLabel,
+  Key? confirmKey,
+}) async =>
+    await showDialog<bool>(
+      context: context,
+      builder: (context) => AppFormDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(cancelLabel),
+          ),
+          AppDangerButton(
+            key: confirmKey,
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(confirmLabel),
+          ),
+        ],
+      ),
+    ) ??
+    false;
 
 Future<void> showAppDetails(
   BuildContext context, {

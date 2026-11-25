@@ -52,16 +52,30 @@ class PublicationController extends ChangeNotifier {
   final results = <String, Map<String, dynamic>>{};
   PublicationIssue? error;
   GoogleAccountIssue? accountError;
-  bool editing = false,
-      _disposed = false,
-      _suspended = false,
-      _foreground = true;
+
+  /// Account, folder or settings change in progress: blocks every client.
+  bool settingsEditing = false;
+
+  /// Client whose file binding is being inspected or stored. Only that
+  /// client's actions wait for it; requests for others are queued.
+  String? bindingUserId;
+  SyncCancellation? _bindingCancel;
+  Completer<void>? _bindingAbort;
+  bool get editing => settingsEditing || bindingUserId != null;
+  bool _disposed = false, _suspended = false, _foreground = true;
   Future<PublicationBatchResult>? _running;
   SyncCancellation? _cancel;
   Timer? _timer;
   bool _pendingAll = false, _pendingForce = false, _pendingForceUpload = false;
   final Set<String> _pendingUserIds = {};
   final Set<String> _inFlightUserIds = {};
+
+  /// Clients asked for by [publishUser]: shown as in flight while waiting for
+  /// an interrupted batch, untouched by batch progress resets.
+  final Set<String> _requestedUserIds = {};
+
+  /// Targets of the running batch; null while it covers every client.
+  Set<String>? _runningTargetIds;
   final Set<String> _completedUserIds = {};
   final Set<String> _failedUserIds = {};
   int _activeSyncTotal = 0;
@@ -71,11 +85,14 @@ class PublicationController extends ChangeNotifier {
   bool _readyBaselineSet = false;
   final Set<String> _newlyReadyUsers = {};
   int _reloadGeneration = 0;
-  bool isUserBusy(String userId) => editing || _inFlightUserIds.contains(userId);
-  bool isUserInFlight(String userId) => _inFlightUserIds.contains(userId);
+  bool isUserBusy(String userId) =>
+      settingsEditing || bindingUserId == userId || isUserInFlight(userId);
+  bool isUserInFlight(String userId) =>
+      _inFlightUserIds.contains(userId) || _requestedUserIds.contains(userId);
   bool isUserCompleted(String userId) => _completedUserIds.contains(userId);
   bool isUserFailed(String userId) => _failedUserIds.contains(userId);
-  Set<String> get inFlightUserIds => Set.unmodifiable(_inFlightUserIds);
+  Set<String> get inFlightUserIds =>
+      Set.unmodifiable({..._inFlightUserIds, ..._requestedUserIds});
   Set<String> get completedUserIds => Set.unmodifiable(_completedUserIds);
   static const syncProgressResetDelay = Duration(milliseconds: 600);
   Timer? _clearProgressTimer;
@@ -89,6 +106,7 @@ class PublicationController extends ChangeNotifier {
       isPublishing ||
       _activeSyncTotal > 0 ||
       _inFlightUserIds.isNotEmpty ||
+      _requestedUserIds.isNotEmpty ||
       _completedUserIds.isNotEmpty ||
       _failedUserIds.isNotEmpty;
 
@@ -138,6 +156,7 @@ class PublicationController extends ChangeNotifier {
     }
     _notify();
   }
+
   bool get busy => editing || _running != null;
 
   Map<String, dynamic>? deletionFileFor(String userId) {
@@ -268,6 +287,22 @@ class PublicationController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
+  static void _decodeInto(
+    Map<String, Map<String, dynamic>> target,
+    String id,
+    String? source,
+    String kind,
+  ) {
+    if (source == null) return;
+    try {
+      target[id] = jsonDecode(source) as Map<String, dynamic>;
+    } catch (e) {
+      debugPrint(
+        'publication_document_invalid kind=$kind type=${e.runtimeType}',
+      );
+    }
+  }
+
   Future<void> reload() async {
     final generation = ++_reloadGeneration;
     try {
@@ -295,15 +330,12 @@ class PublicationController extends ChangeNotifier {
         final b = batch == null
             ? await repository.readPublicationDocument('binding/$id')
             : batch[id]?['binding'];
-        if (b != null) {
-          nextBindings[id] = jsonDecode(b) as Map<String, dynamic>;
-        }
-        if (q != null) {
-          nextQueues[id] = jsonDecode(q) as Map<String, dynamic>;
-        }
-        if (r != null) {
-          nextResults[id] = jsonDecode(r) as Map<String, dynamic>;
-        }
+        // One unreadable document affects only its client: it is skipped
+        // (that client looks unpublished and is published again) instead of
+        // failing the whole publication state.
+        _decodeInto(nextBindings, id, b, 'binding');
+        _decodeInto(nextQueues, id, q, 'queue');
+        _decodeInto(nextResults, id, r, 'result');
       }
       if (_disposed || generation != _reloadGeneration) return;
       settingsSource = source;
@@ -317,7 +349,8 @@ class PublicationController extends ChangeNotifier {
       results
         ..clear()
         ..addAll(nextResults);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('publication_reload_failed type=${e.runtimeType}');
       error = PublicationIssue.invalid;
     }
     _notify();
@@ -346,9 +379,7 @@ class PublicationController extends ChangeNotifier {
     if (vpn.loaded && !vpn.workspaceBusy) {
       readyProfiles.clear();
     }
-    if (vpn.loaded &&
-        !vpn.workspaceBusy &&
-        vpn.hasCurrentVerifiedProfiles) {
+    if (vpn.loaded && !vpn.workspaceBusy && vpn.hasCurrentVerifiedProfiles) {
       for (final user in vpn.workspace.users) {
         final hash = savedProfileHashFor(user.id);
         final result = vpn.results[user.id];
@@ -394,7 +425,10 @@ class PublicationController extends ChangeNotifier {
     bool forceUpload = false,
     String? targetUserId,
   }) {
-    if (_disposed || _suspended || !_foreground || editing) return;
+    if (_disposed || !_foreground || settingsEditing) return;
+    // A binding edit suspends publishing briefly; keep the request and run it
+    // when the edit ends instead of dropping it.
+    if (_suspended && bindingUserId == null) return;
     _pendingForce |= force || forceUpload;
     _pendingForceUpload |= forceUpload;
     if (targetUserId == null) {
@@ -459,17 +493,20 @@ class PublicationController extends ChangeNotifier {
     }
     _clearProgressTimer?.cancel();
     _clearProgressTimer = null;
+    final targets =
+        targetUserIds ?? (targetUserId == null ? null : {targetUserId});
     final future = _run(
       force,
-      targetUserIds:
-          targetUserIds ?? (targetUserId == null ? null : {targetUserId}),
+      targetUserIds: targets,
       forceUpload: forceUpload,
     );
     _running = future;
+    _runningTargetIds = targets;
     future.whenComplete(() {
       final wasRunning = _running == future;
       if (wasRunning) {
         _running = null;
+        _runningTargetIds = null;
       }
       _schedulePending();
       if (_running == null) {
@@ -493,7 +530,14 @@ class PublicationController extends ChangeNotifier {
     bool force = false,
     bool forceUpload = false,
   }) async {
-    if (_disposed || _suspended || editing) return;
+    if (_disposed) return;
+    // Another client's binding edit only pauses publishing: queue this one
+    // (with its force flags) to run when the edit ends.
+    if (!settingsEditing && bindingUserId != null && bindingUserId != userId) {
+      request(force: force, forceUpload: forceUpload, targetUserId: userId);
+      return;
+    }
+    if (_suspended || editing) return;
     if (!authorized || needsAuthorization) {
       accountError = GoogleAccountIssue.reauthorize;
       error = PublicationIssue.unauthorized;
@@ -501,15 +545,34 @@ class PublicationController extends ChangeNotifier {
       return;
     }
     _timer?.cancel();
-    if (_running != null) {
-      _cancel?.cancel();
-      try {
-        await _running;
-      } catch (_) {}
-    }
-    _inFlightUserIds.add(userId);
+    _requestedUserIds.add(userId);
     _notify();
     try {
+      if (_running case final running?) {
+        // Put back what the interrupted batch has not finished: it runs again
+        // after this client (unchanged profiles are skipped quickly).
+        final interrupted = _runningTargetIds;
+        if (interrupted == null) {
+          _pendingAll = true;
+          _pendingUserIds.clear();
+        } else if (!_pendingAll) {
+          _pendingUserIds.addAll(interrupted.where((id) => id != userId));
+        }
+        _cancel?.cancel();
+        try {
+          await running;
+        } catch (e) {
+          debugPrint('publication_interrupted_failed type=${e.runtimeType}');
+        }
+      }
+      // Another requested client may have started meanwhile: wait for it
+      // instead of being dropped by [_start].
+      for (var other = _running; other != null; other = _running) {
+        try {
+          await other;
+        } catch (_) {}
+      }
+      if (_disposed || _suspended || editing) return;
       final future = _start(
         force || forceUpload,
         targetUserId: userId,
@@ -518,7 +581,7 @@ class PublicationController extends ChangeNotifier {
       );
       await future;
     } finally {
-      _inFlightUserIds.remove(userId);
+      _requestedUserIds.remove(userId);
       _notify();
     }
   }
@@ -650,7 +713,9 @@ class PublicationController extends ChangeNotifier {
                   break;
                 }
                 if (e.issue == PublicationIssue.rateLimited) {
-                  _rateLimitedUntil = DateTime.now().add(const Duration(seconds: 2));
+                  _rateLimitedUntil = DateTime.now().add(
+                    const Duration(seconds: 2),
+                  );
                 }
                 final isRetryable =
                     e.issue == PublicationIssue.network ||
@@ -724,15 +789,11 @@ class PublicationController extends ChangeNotifier {
             final resultDoc = await repository.readPublicationDocument(
               'result/${user.id}',
             );
-            if (resultDoc != null) {
-              results[user.id] = jsonDecode(resultDoc) as Map<String, dynamic>;
-            }
+            _decodeInto(results, user.id, resultDoc, 'result');
             final bindingDoc = await repository.readPublicationDocument(
               'binding/${user.id}',
             );
-            if (bindingDoc != null) {
-              bindings[user.id] = jsonDecode(bindingDoc) as Map<String, dynamic>;
-            }
+            _decodeInto(bindings, user.id, bindingDoc, 'binding');
             if (success) {
               if (!forceUpload &&
                   wasUpToDate &&
@@ -776,7 +837,8 @@ class PublicationController extends ChangeNotifier {
             ? PublicationIssue.unauthorized
             : PublicationIssue.network;
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('publication_batch_failed type=${e.runtimeType}');
       error = PublicationIssue.invalid;
     } finally {
       _cancel = null;
@@ -859,7 +921,7 @@ class PublicationController extends ChangeNotifier {
   Future<void> authorize() async {
     if (editing) return;
     await suspend();
-    editing = true;
+    settingsEditing = true;
     error = null;
     accountError = null;
     _notify();
@@ -876,7 +938,7 @@ class PublicationController extends ChangeNotifier {
       accountError = GoogleAccountIssue.unavailable;
     } finally {
       await sync?.accountChanged(current);
-      editing = false;
+      settingsEditing = false;
       resume();
     }
   }
@@ -944,23 +1006,68 @@ class PublicationController extends ChangeNotifier {
 
   bool _bindingEligible(PublicationDraft draft) => _draftEligible(draft);
 
-  Future<T> _bindingEdit<T>(Future<T> Function() action) async {
+  /// Runs a binding edit for [userId], or a settings edit when it is null.
+  Future<T> _bindingEdit<T>(
+    Future<T> Function(SyncCancellation cancel) action, {
+    String? userId,
+  }) async {
     if (editing || _disposed) {
       throw const PublicationFailure(PublicationIssue.conflict);
     }
-    editing = true;
+    final cancel = SyncCancellation();
+    if (userId == null) {
+      settingsEditing = true;
+    } else {
+      bindingUserId = userId;
+      _bindingCancel = cancel;
+      _bindingAbort = Completer<void>();
+    }
     _notify();
     try {
-      await suspend();
-      return await action();
+      // Waiting for the running batch can take a while; closing the binding
+      // dialog stops waiting (the batch is already cancelled).
+      await _abandonable(suspend());
+      cancel.check();
+      return await action(cancel);
     } finally {
-      editing = false;
+      if (userId == null) {
+        settingsEditing = false;
+      } else {
+        bindingUserId = null;
+        _bindingCancel = null;
+        _bindingAbort = null;
+      }
       resume();
+      _schedulePending();
     }
   }
 
+  /// Stops waiting for a binding inspection and skips the publication that
+  /// follows a stored binding. A consent that is already being stored still
+  /// completes; the client then shows the binding as pending.
+  void cancelBinding() {
+    _bindingCancel?.cancel();
+    if (_bindingAbort case final abort? when !abort.isCompleted) {
+      abort.complete();
+    }
+  }
+
+  /// Completes with `cancelled` as soon as [cancelBinding] is called,
+  /// without waiting for [work]. Only for read-only work whose late result
+  /// can be dropped.
+  Future<T> _abandonable<T>(Future<T> work) {
+    final abort = _bindingAbort;
+    if (abort == null) return work;
+    return Future.any([
+      work,
+      abort.future.then<T>(
+        (_) => throw const SyncTransportFailure(SyncTransportIssue.cancelled),
+      ),
+    ]);
+  }
+
   Future<void> configurePicker(String apiKey, String appId) =>
-      _bindingEdit(() async {
+      _bindingEdit((_) async {
         if (settings == null) {
           throw const PublicationFailure(PublicationIssue.invalid);
         }
@@ -972,30 +1079,35 @@ class PublicationController extends ChangeNotifier {
         await _saveSettings(next);
       });
 
-  Future<PublicationTarget?> pickFile() => _bindingEdit(() async {
+  /// Choosing a file writes nothing, so it neither suspends publishing nor
+  /// blocks other clients while the picker is open.
+  Future<PublicationTarget?> pickFile() async {
+    if (_disposed) throw const PublicationFailure(PublicationIssue.conflict);
     if (!authorized || !pickerReady) {
       throw const PublicationFailure(PublicationIssue.unauthorized);
     }
     return picker!.pick(apiKey: pickerApiKey, appId: pickerAppId);
-  });
+  }
 
   Future<PublicationBindingPreview> inspectFile(
     String userId,
     PublicationTarget target,
-  ) => _bindingEdit(() async {
+  ) => _bindingEdit((cancel) async {
     if (!authorized) {
       throw const PublicationFailure(PublicationIssue.unauthorized);
     }
-    return PublicationCoordinator(
-      repository: repository,
-      remote: remote(),
-      eligible: (d) async => _bindingEligible(d),
-      workspaceId: vpn.workspace.id,
-    ).inspectBinding(userId, target);
-  });
+    return _abandonable(
+      PublicationCoordinator(
+        repository: repository,
+        remote: remote(),
+        eligible: (d) async => _bindingEligible(d),
+        workspaceId: vpn.workspace.id,
+      ).inspectBinding(userId, target),
+    );
+  }, userId: userId);
 
   Future<void> bindFile(PublicationBindingPreview preview) =>
-      _bindingEdit(() async {
+      _bindingEdit((cancel) async {
         if (!authorized) {
           throw const PublicationFailure(PublicationIssue.unauthorized);
         }
@@ -1006,18 +1118,27 @@ class PublicationController extends ChangeNotifier {
         );
         await coordinator.acceptBinding(preview);
         final targetId = preview.userId ?? preview.draft?.userId;
-        if (targetId != null && preview.draft != null) {
-          final queue = await coordinator.publish(targetId, force: true);
-          if (queue != null) queues[targetId] = queue;
-          final result = await repository.readPublicationDocument(
-            'result/$targetId',
-          );
-          if (result != null) {
-            results[targetId] = jsonDecode(result) as Map<String, dynamic>;
+        try {
+          if (targetId != null && preview.draft != null) {
+            cancel.check();
+            final queue = await coordinator.publish(
+              targetId,
+              force: true,
+              cancellation: cancel,
+            );
+            if (queue != null) queues[targetId] = queue;
+            final result = await repository.readPublicationDocument(
+              'result/$targetId',
+            );
+            _decodeInto(results, targetId, result, 'result');
           }
+        } on SyncTransportFailure catch (e) {
+          if (e.issue != SyncTransportIssue.cancelled) rethrow;
+          // The binding is stored: queue its upload for when the edit ends.
+          if (targetId != null) request(force: true, targetUserId: targetId);
         }
         await reload();
-      });
+      }, userId: preview.userId ?? preview.draft?.userId);
 
   Future<List<PublicationFile>> folders() => remote().listFolders();
 
@@ -1028,7 +1149,7 @@ class PublicationController extends ChangeNotifier {
   }) async {
     if (settings != null || editing) return;
     await suspend();
-    editing = true;
+    settingsEditing = true;
     error = null;
     _notify();
     try {
@@ -1049,7 +1170,7 @@ class PublicationController extends ChangeNotifier {
     } catch (_) {
       error = PublicationIssue.invalid;
     } finally {
-      editing = false;
+      settingsEditing = false;
       resume();
     }
   }
@@ -1058,7 +1179,7 @@ class PublicationController extends ChangeNotifier {
     final current = settings;
     if (current == null || editing) return;
     await suspend();
-    editing = true;
+    settingsEditing = true;
     error = null;
     _notify();
     try {
@@ -1068,7 +1189,7 @@ class PublicationController extends ChangeNotifier {
     } catch (_) {
       error = PublicationIssue.invalid;
     } finally {
-      editing = false;
+      settingsEditing = false;
       resume();
     }
   }
@@ -1111,14 +1232,28 @@ class PublicationController extends ChangeNotifier {
     _notify();
   }
 
+  /// The value [setEnabled] is storing; the switch shows it meanwhile.
+  bool? enabling;
+
   Future<void> setEnabled(bool value) async {
     if (settings == null || editing) return;
-    await suspend();
+    // Mark the edit before waiting for the running batch to stop, which can
+    // take minutes: the switch shows the requested value and a second tap
+    // cannot start a conflicting write.
+    settingsEditing = true;
+    enabling = value;
+    _notify();
     try {
+      await suspend();
       await _saveSettings(settings!.copy(enabled: value));
-    } catch (_) {
+    } on PublicationFailure catch (e) {
+      error = e.issue;
+    } catch (e) {
+      debugPrint('publication_enable_failed type=${e.runtimeType}');
       error = PublicationIssue.invalid;
     } finally {
+      settingsEditing = false;
+      enabling = null;
       resume();
     }
   }

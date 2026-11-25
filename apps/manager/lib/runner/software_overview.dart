@@ -1,6 +1,7 @@
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../l10n/app_localizations.dart';
 import 'component_installation_view.dart';
 import 'component_updates_controller.dart';
@@ -362,12 +363,35 @@ class SoftwareOverview extends StatelessWidget {
         if (updates != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 24),
-            child: OutlinedButton.icon(
-              onPressed: updates.busy || !c.canRequestAction
-                  ? null
-                  : () => c.requestAction(updates.check),
-              icon: const Icon(Icons.refresh),
-              label: Text(l.updatesCheck),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: updates.busy || !c.canRequestAction
+                      ? null
+                      : () => c.requestAction(updates.check),
+                  icon: const Icon(Icons.refresh),
+                  label: Text(l.updatesCheck),
+                ),
+                if (updates.throttled || updates.checkedAt != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        key: const ValueKey('updates-checked-at'),
+                        updates.throttled
+                            ? l.updatesCheckedRecently
+                            : l.updatesLastChecked(
+                                DateFormat.yMMMd(
+                                  l.localeName,
+                                ).add_Hm().format(updates.checkedAt!.toLocal()),
+                              ),
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
       ],

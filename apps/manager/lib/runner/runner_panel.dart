@@ -38,6 +38,20 @@ class RunnerPanel extends StatelessWidget {
                       job.kind == 'protocol_remove' ||
                       job.kind == 'ssh_harden') &&
                   c.dismissedJobId != job.id));
+      final troubled =
+          c.error != null || c.installed && !c.alive || c.connectionLost;
+      // One reset action per panel: either under the error row or the job.
+      final resetAfterError =
+          troubled && (active || c.hasUnfinishedJob || c.pending != null);
+      final resetAfterJob =
+          !resetAfterError &&
+          active &&
+          job.kind != 'server_reboot' &&
+          (job.status == 'planned' ||
+              job.status == 'running' ||
+              job.cancelRequested ||
+              c.connectionLost ||
+              c.error != null);
       return AppAnimatedSize(
         motion: motion,
         child: Column(
@@ -72,7 +86,7 @@ class RunnerPanel extends StatelessWidget {
             if (c.panelDiscovery?['failed'] == true)
               AppNotice(message: l.panelDiscoveryFailed, error: true),
             if (c.installed && !c.alive) Text(l.runnerNotRunning),
-            if (c.error != null || c.installed && !c.alive || c.connectionLost)
+            if (troubled)
               Wrap(
                 spacing: 8,
                 children: [
@@ -85,17 +99,12 @@ class RunnerPanel extends StatelessWidget {
                         : null,
                     child: Text(l.runnerRetry),
                   ),
-                  if (active || c.hasUnfinishedJob || c.pending != null)
-                    TextButton(
-                      key: const ValueKey('runner-reset-queue-error'),
-                      onPressed: !c.busy && !c.actionPending
-                          ? () async {
-                              await c.resetJobQueue();
-                            }
-                          : null,
-                      child: Text(l.runnerResetQueue),
-                    ),
                 ],
+              ),
+            if (resetAfterError)
+              RunnerResetQueueButton(
+                controller: c,
+                buttonKey: const ValueKey('runner-reset-queue-error'),
               ),
             if (showJob) ...[
               const SizedBox(height: AppLayout.gap),
@@ -113,9 +122,10 @@ class RunnerPanel extends StatelessWidget {
                                   ? runnerEventLabel(l, event.code)
                                   : runnerStateLabel(l, job.status)))
                       : (failed && event != null
-                            ? (runnerEventLabel(l, event.code) != runnerStateLabel(l, job.status)
-                                ? runnerEventLabel(l, event.code)
-                                : runnerStateLabel(l, job.status))
+                            ? (runnerEventLabel(l, event.code) !=
+                                      runnerStateLabel(l, job.status)
+                                  ? runnerEventLabel(l, event.code)
+                                  : runnerStateLabel(l, job.status))
                             : runnerStateLabel(l, job.status)),
                 ),
               ),
@@ -124,7 +134,8 @@ class RunnerPanel extends StatelessWidget {
               if (failed &&
                   event != null &&
                   event.code != 'failed' &&
-                  runnerEventLabel(l, event.code) != runnerStateLabel(l, job.status))
+                  runnerEventLabel(l, event.code) !=
+                      runnerStateLabel(l, job.status))
                 Text(runnerEventLabel(l, event.code)),
               if (job.events.any((e) => e.code == 'apt_reboot_required'))
                 Text(l.aptReboot),
@@ -145,22 +156,13 @@ class RunnerPanel extends StatelessWidget {
                             : null,
                         child: Text(l.runnerCancel),
                       ),
-                      if (job.status == 'planned' ||
-                          job.status == 'running' ||
-                          job.cancelRequested ||
-                          c.connectionLost ||
-                          c.error != null)
-                        TextButton(
-                          key: const ValueKey('runner-reset-queue'),
-                          onPressed: !c.busy && !c.actionPending
-                            ? () async {
-                                await c.resetJobQueue();
-                              }
-                            : null,
-                          child: Text(l.runnerResetQueue),
-                        ),
                     ],
                   ),
+                ),
+              if (resetAfterJob)
+                RunnerResetQueueButton(
+                  controller: c,
+                  buttonKey: const ValueKey('runner-reset-queue'),
                 ),
               if (job.terminal)
                 Align(
@@ -250,8 +252,9 @@ String runnerCodeLabel(AppLocalizations l, String code) => switch (code) {
   'apt_failed' => l.aptFailed,
   'apt_conflict' => l.aptConflict,
   'apt_interrupted' => l.aptInterrupted,
-  'apt_prerequisites' || 'apt_disk_full' || 'apt_memory_low' =>
-    l.runnerPrerequisites,
+  'apt_prerequisites' ||
+  'apt_disk_full' ||
+  'apt_memory_low' => l.runnerPrerequisites,
   'apt_lock_busy' => l.runnerBusy,
   final String v when v.startsWith('upgrade_') => l.runnerFailed,
   'failed' => l.runnerFailed,
@@ -260,6 +263,7 @@ String runnerCodeLabel(AppLocalizations l, String code) => switch (code) {
   'capacity' => l.runnerCapacity,
   _ => l.runnerInvalidResponse,
 };
+
 /// Единый резолвер для кодов обновления (используется и в журнале событий, и в статусе раннера).
 String? tryResolveUpgradeLabel(AppLocalizations l, String code) {
   return switch (code) {
@@ -287,9 +291,12 @@ String? tryResolveUpgradeLabel(AppLocalizations l, String code) {
     'upgrade_binary_not_found' => l.runnerUpgradeSyntaxFailed,
     'upgrade_architecture_mismatch' => l.runnerUpgradeSyntaxFailed,
     // Safe fallback for future upgrade_* codes (never masks progress as failure)
-    final String v when v.startsWith('upgrade_') && (v.endsWith('_failed') || v.endsWith('_missing')) =>
+    final String v
+        when v.startsWith('upgrade_') &&
+            (v.endsWith('_failed') || v.endsWith('_missing')) =>
       l.runnerUpgradeFailedGeneric,
-    final String v when v.startsWith('upgrade_') => l.runnerUpgradeInProgressGeneric,
+    final String v when v.startsWith('upgrade_') =>
+      l.runnerUpgradeInProgressGeneric,
     _ => null,
   };
 }
@@ -389,3 +396,49 @@ String runnerEventLabel(AppLocalizations l, String code) =>
       'cancel_requested' => l.runnerCancelRequested,
       _ => runnerStateLabel(l, code),
     };
+
+/// Cancels every server job and resets the runner state. Destructive and
+/// rare, so it stands apart from Cancel/Retry, uses the error colour and
+/// asks first.
+class RunnerResetQueueButton extends StatelessWidget {
+  const RunnerResetQueueButton({
+    required this.controller,
+    this.buttonKey,
+    super.key,
+  });
+  final RunnerController controller;
+  final Key? buttonKey;
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context), c = controller;
+    return Padding(
+      padding: const EdgeInsets.only(top: AppLayout.gap / 2),
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: TextButton.icon(
+          key: buttonKey,
+          style: TextButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.error,
+          ),
+          onPressed: !c.busy && !c.actionPending
+              ? () async {
+                  final confirmed = await confirmAppDanger(
+                    context,
+                    title: l.runnerResetQueueTitle,
+                    message: l.runnerResetQueueHelp,
+                    confirmLabel: l.runnerResetQueue,
+                    cancelLabel: l.sshCancel,
+                    confirmKey: const ValueKey('runner-reset-queue-confirm'),
+                  );
+                  if (confirmed && !c.busy && !c.actionPending) {
+                    await c.resetJobQueue();
+                  }
+                }
+              : null,
+          icon: const Icon(Icons.restart_alt),
+          label: Text(l.runnerResetQueue),
+        ),
+      ),
+    );
+  }
+}

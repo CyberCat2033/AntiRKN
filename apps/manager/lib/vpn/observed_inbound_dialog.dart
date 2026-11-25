@@ -34,6 +34,45 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
   Map<String, Object?> stream = {};
   bool loading = true, failed = false, invalid = false, enabled = true;
   bool streamInvalid = false;
+
+  /// The transport JSON and the fields edit the same data. While the JSON is
+  /// open the fields are read-only; closing it refreshes them from the JSON,
+  /// so neither editor silently overwrites the other.
+  bool jsonOpen = false;
+  int streamGeneration = 0;
+
+  /// Invalid JSON keeps the fields read-only too: they could not show it.
+  bool get fieldsLocked => jsonOpen || streamInvalid;
+
+  /// The transport JSON as the fields read it, or null when it does not fit.
+  static Map<String, Object?>? _parseStream(String source) {
+    final value = jsonDecode(source);
+    if (value is! Map) return null;
+    for (final key in ['realitySettings', 'xhttpSettings']) {
+      if (value[key] != null && value[key] is! Map) return null;
+    }
+    final names = (value['realitySettings'] as Map?)?['serverNames'];
+    if (names != null && names is! List) return null;
+    return Map<String, Object?>.from(value);
+  }
+
+  void _syncFieldsFromStream() {
+    final reality = stream['realitySettings'] as Map?;
+    final xsettings = stream['xhttpSettings'] as Map? ?? const {};
+    final values = <String, String>{
+      if (reality != null) ...{
+        'target': '${reality['target'] ?? reality['dest'] ?? ''}',
+        'sni': (reality['serverNames'] as List? ?? []).join(', '),
+      },
+      'path': '${xsettings['path'] ?? '/'}',
+      'host': '${xsettings['host'] ?? ''}',
+    };
+    for (final entry in values.entries) {
+      fields[entry.key]?.text = entry.value;
+    }
+    streamGeneration++;
+  }
+
   bool get needsAccess =>
       widget.controller.panelAccess?.port != widget.port ||
       widget.controller.panelLoginRequired;
@@ -83,11 +122,13 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
     String initial = '',
     ValueChanged<String>? onChanged,
     bool number = false,
+    bool enabled = true,
   }) => Padding(
     padding: const EdgeInsets.only(bottom: AppLayout.gap),
     child: TextField(
       key: ValueKey('observed-$key'),
       controller: fieldController(key, initial),
+      enabled: enabled,
       autocorrect: false,
       enableSuggestions: false,
       keyboardType: number ? TextInputType.number : TextInputType.text,
@@ -225,6 +266,7 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
                   input(
                     'target',
                     l.vpnTarget,
+                    enabled: !fieldsLocked,
                     initial: '${reality['target'] ?? reality['dest'] ?? ''}',
                     onChanged: (v) {
                       stream['realitySettings'] = {
@@ -236,6 +278,7 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
                   input(
                     'sni',
                     l.vpnSni,
+                    enabled: !fieldsLocked,
                     initial: (reality['serverNames'] as List? ?? []).join(', '),
                     onChanged: (v) {
                       stream['realitySettings'] = {
@@ -253,6 +296,7 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
                   input(
                     'path',
                     l.vpnPath,
+                    enabled: !fieldsLocked,
                     initial: '${xsettings['path'] ?? '/'}',
                     onChanged: (v) {
                       stream['xhttpSettings'] = {
@@ -264,6 +308,7 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
                   input(
                     'host',
                     l.vpnHost,
+                    enabled: !fieldsLocked,
                     initial: '${xsettings['host'] ?? ''}',
                     onChanged: (v) {
                       stream['xhttpSettings'] = {
@@ -277,29 +322,39 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
                     label: l.vpnMode,
                     motion: widget.motion,
                     options: [for (final mode in modes) (mode, mode)],
-                    onChanged: (v) => setState(() {
-                      stream['xhttpSettings'] = {
-                        ...stream['xhttpSettings'] as Map? ?? {},
-                        'mode': v,
-                      };
-                    }),
+                    onChanged: fieldsLocked
+                        ? null
+                        : (v) => setState(() {
+                            stream['xhttpSettings'] = {
+                              ...stream['xhttpSettings'] as Map? ?? {},
+                              'mode': v,
+                            };
+                          }),
                   ),
-                  XhttpOptionsEditor(
-                    initial: {...xsettings}
-                      ..removeWhere(
-                        (k, _) => ['path', 'host', 'mode'].contains(k),
+                  IgnorePointer(
+                    ignoring: fieldsLocked,
+                    child: ExcludeFocus(
+                      excluding: fieldsLocked,
+                      child: XhttpOptionsEditor(
+                        key: ValueKey('observed-xhttp-$streamGeneration'),
+                        initial: {...xsettings}
+                          ..removeWhere(
+                            (k, _) => ['path', 'host', 'mode'].contains(k),
+                          ),
+                        motion: widget.motion,
+                        onChanged: (values) {
+                          final retained = Map<String, Object?>.from(
+                            stream['xhttpSettings'] as Map? ?? {},
+                          );
+                          retained.removeWhere(
+                            (key, _) =>
+                                (xhttpOptionsSchema['properties'] as Map)
+                                    .containsKey(key),
+                          );
+                          stream['xhttpSettings'] = {...retained, ...values};
+                        },
                       ),
-                    motion: widget.motion,
-                    onChanged: (values) {
-                      final retained = Map<String, Object?>.from(
-                        stream['xhttpSettings'] as Map? ?? {},
-                      );
-                      retained.removeWhere(
-                        (key, _) => (xhttpOptionsSchema['properties'] as Map)
-                            .containsKey(key),
-                      );
-                      stream['xhttpSettings'] = {...retained, ...values};
-                    },
+                    ),
                   ),
                 ],
                 SwitchListTile(
@@ -311,10 +366,15 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
                 AppExpansionTile(
                   title: Text(l.observedTransportJson),
                   onExpansionChanged: (open) {
-                    if (open && !streamInvalid) {
-                      fieldController('streamJson').text =
-                          const JsonEncoder.withIndent('  ').convert(stream);
-                    }
+                    setState(() {
+                      jsonOpen = open;
+                      if (open && !streamInvalid) {
+                        fieldController('streamJson').text =
+                            const JsonEncoder.withIndent('  ').convert(stream);
+                      } else if (!open && !streamInvalid) {
+                        _syncFieldsFromStream();
+                      }
+                    });
                   },
                   children: [
                     TextField(
@@ -324,15 +384,22 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
                       maxLines: 14,
                       autocorrect: false,
                       enableSuggestions: false,
+                      decoration: InputDecoration(
+                        errorText: streamInvalid
+                            ? l.observedTransportInvalid
+                            : null,
+                      ),
                       onChanged: (value) {
+                        Map<String, Object?>? parsed;
                         try {
-                          stream = Map<String, Object?>.from(
-                            jsonDecode(value) as Map,
-                          );
-                          streamInvalid = false;
+                          parsed = _parseStream(value);
                         } catch (_) {
-                          streamInvalid = true;
+                          parsed = null;
                         }
+                        setState(() {
+                          if (parsed != null) stream = parsed;
+                          streamInvalid = parsed == null;
+                        });
                       },
                     ),
                   ],

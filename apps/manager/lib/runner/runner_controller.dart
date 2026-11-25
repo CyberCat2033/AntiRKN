@@ -479,6 +479,10 @@ class RunnerController extends ChangeNotifier {
     await _checkCurrentOperation();
   }
 
+  /// Stops waiting for the request in flight. The server may already have
+  /// acted on it, so callers read the state again instead of assuming none.
+  void cancelAction() => _token?.cancel();
+
   Future<void> _run(
     Future<void> Function(RunnerTransport, CancellationToken) action, {
     bool background = false,
@@ -552,7 +556,15 @@ class RunnerController extends ChangeNotifier {
     }
   }
 
-  Future<void> refresh({bool prepare = false}) => _run((remote, token) async {
+  Future<void> refresh({bool prepare = false}) async {
+    // The background job poll runs every few seconds. An explicit refresh
+    // waits for it instead of being dropped, so the button and
+    // pull-to-refresh always do something.
+    if (backgroundBusy && !busy) await waitUntilIdle();
+    return _refresh(prepare);
+  }
+
+  Future<void> _refresh(bool prepare) => _run((remote, token) async {
     installation = await remote.inspect(token);
     token.check();
     if (installation!.state == 'conflict') {

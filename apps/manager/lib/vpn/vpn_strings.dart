@@ -55,8 +55,8 @@ String vpnMessage(AppLocalizations l, String code) => switch (code) {
   'vpn_runner' || 'vpn_panel_required' => l.vpnPanelRequired,
   'vless_port_busy' || 'awg_port_busy' => l.vpnPortBusy,
   'vpn_partially_applied' || 'vless_partial' => l.vpnPartial,
+  'vpn_busy' => l.vpnBusy,
   'vpn_failed' ||
-  'vpn_busy' ||
   'vpn_missing' ||
   'awg_failed' ||
   'vless_api_failed' ||

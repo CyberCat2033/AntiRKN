@@ -1017,6 +1017,13 @@ class AppLocalizationsRu extends AppLocalizations {
   String get runnerResetQueue => 'Сбросить зависшие операции';
 
   @override
+  String get runnerResetQueueTitle => 'Сбросить очередь заданий?';
+
+  @override
+  String get runnerResetQueueHelp =>
+      'Все задания этого сервера будут отменены, очередь очищена. Уже выполненные на сервере шаги не откатываются: после сброса проверьте состояние сервера.';
+
+  @override
   String get runnerEventsTruncated =>
       'Старые события удалены при ротации на сервере. Текущая контрольная точка доступна.';
 
@@ -1583,6 +1590,10 @@ class AppLocalizationsRu extends AppLocalizations {
       'Операция не подтверждена. Обновите состояние сервера или повторите сохранённую операцию.';
 
   @override
+  String get vpnBusy =>
+      'Выполняется другая операция, поэтому изменение не внесено. Повторите, когда она завершится.';
+
+  @override
   String get vpnPortBusy =>
       'Адрес или порт прослушивания недоступен либо конфликтует с другим inbound.';
 
@@ -1668,6 +1679,15 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get updatesCheck => 'Проверить обновления';
+
+  @override
+  String get updatesCheckedRecently =>
+      'Обновления проверены только что, показан актуальный результат.';
+
+  @override
+  String updatesLastChecked(String time) {
+    return 'Последняя проверка: $time';
+  }
 
   @override
   String get updatesAutomatic => 'Проверять новые версии';
@@ -1962,6 +1982,10 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get observedTransportJson => 'Настройки транспорта (JSON)';
+
+  @override
+  String get observedTransportInvalid =>
+      'JSON некорректен: нужен объект, realitySettings и xhttpSettings — тоже объекты. Исправьте его, чтобы сохранить или вернуться к полям.';
 
   @override
   String get panelUpdateSummary =>
@@ -3548,6 +3572,10 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get connectionCheckAll => 'Проверить все';
+
+  @override
+  String get connectionTargetsFailed =>
+      'Не удалось прочитать список подключений для проверки. Обновите сервер и повторите.';
 
   @override
   String get connectionStop => 'Остановить проверку';

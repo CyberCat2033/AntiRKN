@@ -150,7 +150,7 @@ class _TtPanelState extends State<TtPanel> {
         children: [
           AppPageIntro(l.uiTtIntro),
           FilledButton.icon(
-            onPressed: c.busy || !c.loaded || r.busy ? null : () => edit(),
+            onPressed: !c.canMutate || r.busy ? null : () => edit(),
             icon: const Icon(Icons.add),
             label: Text(l.ttAdd),
           ),
@@ -193,7 +193,7 @@ class _TtPanelState extends State<TtPanel> {
             count: endpoints.length,
             action: IconButton(
               tooltip: l.awgRefresh,
-              onPressed: c.busy || r.busy
+              onPressed: !c.canMutate || r.busy
                   ? null
                   : () async {
                       await c.refreshServer(target);
@@ -231,7 +231,7 @@ class _TtPanelState extends State<TtPanel> {
                     badge: e.enabled ? l.vpnEnabled : l.vpnDisabled,
                     detailsLabel: l.componentsDetails,
                     actions: IconButton(
-                      onPressed: c.busy || r.busy ? null : () => edit(e),
+                      onPressed: !c.canMutate || r.busy ? null : () => edit(e),
                       icon: const Icon(Icons.edit_outlined),
                       tooltip: l.vpnEdit,
                     ),
@@ -305,7 +305,7 @@ class _TtPanelState extends State<TtPanel> {
                           tooltip: l.vpnAdopt,
                           icon: const Icon(Icons.people_outline),
                           onPressed:
-                              c.busy ||
+                              !c.canMutate ||
                                   c.hasRunning ||
                                   r.busy ||
                                   r.actionPending
@@ -362,6 +362,26 @@ class _TtPanelState extends State<TtPanel> {
   );
 }
 
+/// Selects the first certificate for a managed endpoint whose certificate is
+/// missing, and fills an empty domain from it. Returns whether [spec] changed.
+/// Call from state changes (initState, a new certificate list), never build.
+bool applyDefaultTtCertificate(
+  Map<String, Object?> spec,
+  Map<String, TextEditingController> fields,
+  List<Map> certificates,
+) {
+  final id = spec['certificateId'] as String? ?? '';
+  if (certificates.isEmpty || certificates.any((c) => c['id'] == id)) {
+    return false;
+  }
+  final first = certificates.first;
+  spec['certificateId'] = first['id'] as String;
+  if (fields['domain']!.text.trim().isEmpty && first['domain'] is String) {
+    fields['domain']!.text = first['domain'] as String;
+  }
+  return true;
+}
+
 /// The listener, outbound and TLS controls are shared by both endpoint editors.
 class TtSettingsEditor extends StatelessWidget {
   const TtSettingsEditor({
@@ -412,13 +432,8 @@ class TtSettingsEditor extends StatelessWidget {
         : (certificates.isNotEmpty && !external
               ? (certificates.first['id'] as String)
               : '');
-    if (effectiveId != id && effectiveId.isNotEmpty) {
-      spec['certificateId'] = effectiveId;
-      final c = certificates.where((c) => c['id'] == effectiveId).firstOrNull;
-      if (c != null && fields['domain']!.text.trim().isEmpty) {
-        fields['domain']!.text = c['domain'] as String;
-      }
-    }
+    // The owner stores this default with [applyDefaultTtCertificate]; build
+    // only displays it.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -579,17 +594,27 @@ class _ManagedTtState extends State<ManagedTtDialog> {
   bool invalid = false, rotate = false;
   String? pendingCertificateId;
   bool certificateDialogOpen = false;
+  String? _certificatesSignature;
+  List<Map> get _certificates =>
+      (widget.runner.ttCertificates?['certificates'] as List? ?? [])
+          .whereType<Map>()
+          .toList();
+
   @override
   void initState() {
     super.initState();
+    _certificatesSignature = canonicalJson(_certificates);
+    applyDefaultTtCertificate(spec, fields, _certificates);
     widget.runner.addListener(certificateChanged);
   }
 
+  /// The dialog shows runner state (busy, job progress), so it rebuilds on
+  /// every runner event; the certificate default is reconsidered only when
+  /// the certificate list itself changed.
   void certificateChanged() {
     if (!mounted) return;
-    final certificates =
-        (widget.runner.ttCertificates?['certificates'] as List? ?? [])
-            .whereType<Map>();
+    final certificates = _certificates;
+    final signature = canonicalJson(certificates);
     final certificate = certificates
         .where((c) => c['id'] == pendingCertificateId)
         .firstOrNull;
@@ -600,6 +625,10 @@ class _ManagedTtState extends State<ManagedTtDialog> {
           spec['certificateId'] = certificate['id'];
         }
         pendingCertificateId = null;
+      }
+      if (signature != _certificatesSignature) {
+        _certificatesSignature = signature;
+        applyDefaultTtCertificate(spec, fields, certificates);
       }
     });
   }

@@ -82,12 +82,14 @@ class ClientDeletionPanel extends StatelessWidget {
               runSpacing: 8,
               children: [
                 OutlinedButton(
-                  onPressed: c.busy ? null : () => c.retryDeletion(user.id),
+                  onPressed: !c.canMutate
+                      ? null
+                      : () => c.retryDeletion(user.id),
                   child: Text(l.runnerRetry),
                 ),
                 if (c.canForceDelete(user))
                   FilledButton.tonal(
-                    onPressed: c.busy ? null : () => force(context, user),
+                    onPressed: !c.canMutate ? null : () => force(context, user),
                     child: Text(l.uiForceDeleteClient),
                   ),
               ],
@@ -141,7 +143,7 @@ class ClientDeletionPanel extends StatelessWidget {
                           message: l.uiForceDeleteOffer(user.name),
                           action: TextButton(
                             key: ValueKey('client-force-delete-${user.id}'),
-                            onPressed: c.busy
+                            onPressed: !c.canMutate
                                 ? null
                                 : () => force(context, user),
                             child: Text(l.uiForceDeleteClient),

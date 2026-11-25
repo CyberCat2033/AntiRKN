@@ -185,8 +185,11 @@ String factValue(
     ServerFact.availableMemoryKiB,
     ServerFact.freeDiskKiB,
   }.contains(f)) {
+    // The value comes from the server: never trust it to be a number.
+    final kib = int.tryParse(value.trim());
+    if (kib == null) return l.inventoryInvalid;
     return l.inventoryMiB(
-      NumberFormat.decimalPattern(l.localeName).format(int.parse(value) / 1024),
+      NumberFormat.decimalPattern(l.localeName).format(kib / 1024),
     );
   }
   return value;

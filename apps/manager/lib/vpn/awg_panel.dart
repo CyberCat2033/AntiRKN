@@ -83,7 +83,7 @@ class AwgPanel extends StatelessWidget {
           AppPageIntro(l.uiAwgIntro),
           FilledButton.icon(
             key: const ValueKey('awg-add'),
-            onPressed: c.busy || !c.loaded ? null : () => edit(context),
+            onPressed: !c.canMutate ? null : () => edit(context),
             icon: const Icon(Icons.add),
             label: Text(l.awgAdd),
           ),
@@ -100,7 +100,7 @@ class AwgPanel extends StatelessWidget {
             count: interfaces.length,
             action: IconButton(
               tooltip: l.awgRefresh,
-              onPressed: c.busy ? null : () => c.refreshServer(target),
+              onPressed: !c.canMutate ? null : () => c.refreshServer(target),
               icon: const Icon(Icons.refresh),
             ),
           ),
@@ -134,7 +134,7 @@ class AwgPanel extends StatelessWidget {
                     detailsLabel: l.componentsDetails,
                     actions: IconButton(
                       tooltip: l.vpnEdit,
-                      onPressed: c.busy ? null : () => edit(context, r),
+                      onPressed: !c.canMutate ? null : () => edit(context, r),
                       icon: const Icon(Icons.edit_outlined),
                     ),
                     details: const [],

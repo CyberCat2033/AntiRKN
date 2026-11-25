@@ -55,7 +55,7 @@ Future<bool> removeServerProtocol(
   );
   if (confirmed != true || !context.mounted) return false;
   AppHaptics.deleted();
-  if (vpn.busy || vpn.hasRunning) {
+  if (!vpn.canMutate || vpn.hasRunning) {
     notice(l.uiRemoveProtocolBusy);
     return false;
   }

@@ -81,13 +81,22 @@ class ComponentUpdatesController extends ChangeNotifier {
     maybeCheck();
   }
 
+  /// A repeated check within 30 seconds is skipped; [throttled] tells the
+  /// person the shown result is that fresh one instead of doing nothing.
+  bool throttled = false;
+
   Future<void> check({bool automaticRequest = false}) async {
     if (busy || _disposed || diagnosticsPaused) return;
     final now = DateTime.now();
     if (_attemptedAt != null &&
         now.difference(_attemptedAt!) < const Duration(seconds: 30)) {
+      if (!automaticRequest && !throttled) {
+        throttled = true;
+        _notify();
+      }
       return;
     }
+    throttled = false;
     manualResults = !automaticRequest;
     _attemptedAt = now;
     busy = true;

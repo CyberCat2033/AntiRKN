@@ -69,6 +69,27 @@ void main() {
           ),
         ),
       );
+      // The form stores the client before it closes (UI-01), so the save
+      // needs real async time, like opening the form does.
+      Future<void> saveForm() async {
+        await tester.runAsync(
+          () => tester.tap(find.byKey(const ValueKey('vpn-user-save'))),
+        );
+        for (
+          var i = 0;
+          i < 300 &&
+              find.byKey(const ValueKey('vpn-user-save')).evaluate().isNotEmpty;
+          i++
+        ) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+          await tester.pump();
+        }
+        await tester.runAsync(() => pending!);
+        await tester.pumpAndSettle();
+      }
+
       await tester.runAsync(() => tester.tap(find.text('rename')));
       await tester.pumpAndSettle();
       expect(find.text('Client login'), findsNothing);
@@ -77,10 +98,7 @@ void main() {
         find.byKey(const ValueKey('vpn-user-name')),
         'Пётр Петров',
       );
-      await tester.tap(find.byKey(const ValueKey('vpn-user-save')));
-      await tester.pumpAndSettle();
-      await tester.runAsync(() => pending!);
-      await tester.pumpAndSettle();
+      await saveForm();
       expect(c.workspace.users.single.id, fixtures.alice);
       expect(c.workspace.users.single.login, 'ivan-ivanov');
       expect(c.workspace.users.single.name, 'Пётр Петров');
@@ -90,10 +108,7 @@ void main() {
         find.byKey(const ValueKey('vpn-user-name')),
         'Иван Иванов',
       );
-      await tester.tap(find.byKey(const ValueKey('vpn-user-save')));
-      await tester.pumpAndSettle();
-      await tester.runAsync(() => pending!);
-      await tester.pumpAndSettle();
+      await saveForm();
       expect(c.error, isNull);
       expect(c.workspace.users, hasLength(2));
       final created = c.workspace.users.singleWhere(

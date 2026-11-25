@@ -1014,6 +1014,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get runnerResetQueue => 'Reset job queue';
 
   @override
+  String get runnerResetQueueTitle => 'Reset the job queue?';
+
+  @override
+  String get runnerResetQueueHelp =>
+      'All server jobs of this server are cancelled and the queue is cleared. Steps already applied on the server are not undone; check the server state afterwards.';
+
+  @override
   String get runnerEventsTruncated =>
       'Older events have been rotated on the server. The current checkpoint is available.';
 
@@ -1579,6 +1586,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'The operation was not confirmed. Refresh the server status or retry the saved operation.';
 
   @override
+  String get vpnBusy =>
+      'Another operation is still running, so this change was not made. Try again when it finishes.';
+
+  @override
   String get vpnPortBusy =>
       'The listen address or port is unavailable or conflicts with another inbound.';
 
@@ -1662,6 +1673,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get updatesCheck => 'Check for updates';
+
+  @override
+  String get updatesCheckedRecently =>
+      'Updates were checked moments ago; the result shown is current.';
+
+  @override
+  String updatesLastChecked(String time) {
+    return 'Last checked: $time';
+  }
 
   @override
   String get updatesAutomatic => 'Check for new versions';
@@ -1957,6 +1977,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get observedTransportJson => 'Transport settings (JSON)';
+
+  @override
+  String get observedTransportInvalid =>
+      'The JSON is invalid: it must be an object, with realitySettings and xhttpSettings as objects. Fix it to save or to edit the fields.';
 
   @override
   String get panelUpdateSummary =>
@@ -3543,6 +3567,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get connectionCheckAll => 'Check all';
+
+  @override
+  String get connectionTargetsFailed =>
+      'Could not read the list of connections to check. Refresh the server and try again.';
 
   @override
   String get connectionStop => 'Stop check';

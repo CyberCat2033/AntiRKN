@@ -38,7 +38,9 @@ class VpnPlanView extends StatelessWidget {
                     alignment: AlignmentDirectional.centerStart,
                     child: TextButton.icon(
                       key: const ValueKey('vpn-plan-retry'),
-                      onPressed: c.busy ? null : () => c.prepareAndApply(),
+                      onPressed: !c.canMutate
+                          ? null
+                          : () => c.prepareAndApply(),
                       icon: const Icon(Icons.refresh),
                       label: Text(l.runnerRetry),
                     ),
@@ -83,7 +85,7 @@ class VpnJobView extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: OutlinedButton(
                 key: ValueKey('operation-takeover-$serverId'),
-                onPressed: c.busy ? null : () => c.takeOver(serverId),
+                onPressed: !c.canMutate ? null : () => c.takeOver(serverId),
                 child: Text(l.operationTakeOver),
               ),
             ),
@@ -94,7 +96,7 @@ class VpnJobView extends StatelessWidget {
           Align(
             alignment: Alignment.centerLeft,
             child: OutlinedButton(
-              onPressed: c.busy ? null : () => c.reviewRestored(serverId),
+              onPressed: !c.canMutate ? null : () => c.reviewRestored(serverId),
               child: Text(l.backupReviewServer),
             ),
           ),
@@ -141,7 +143,7 @@ class VpnJobView extends StatelessWidget {
                           const SizedBox(height: 8),
                           OutlinedButton.icon(
                             key: ValueKey('vpn-error-refresh-$serverId'),
-                            onPressed: c.busy
+                            onPressed: !c.canMutate
                                 ? null
                                 : () async {
                                     await c.refreshServer(serverId);
@@ -192,14 +194,14 @@ class VpnJobView extends StatelessWidget {
             children: [
               if (job?.terminal != true)
                 TextButton(
-                  onPressed: c.busy ? null : () => c.cancel(serverId),
+                  onPressed: !c.canMutate ? null : () => c.cancel(serverId),
                   child: Text(l.runnerCancel),
                 ),
               if ((record['paused'] == true || c.observesOperation(serverId)) &&
                   (job?.status == 'failed' ||
                       job?.status == 'partially_applied'))
                 OutlinedButton(
-                  onPressed: c.busy ? null : () => c.resume(serverId),
+                  onPressed: !c.canMutate ? null : () => c.resume(serverId),
                   child: Text(l.runnerRetry),
                 ),
             ],

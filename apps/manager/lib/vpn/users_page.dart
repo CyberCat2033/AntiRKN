@@ -57,6 +57,12 @@ class UsersPage extends StatefulWidget {
         existingLogins: () => controller.workspace.users
             .where((u) => !u.deleted)
             .map((u) => u.login),
+        // The form stays open until the change is stored: a rejected or
+        // failed save is shown in the form instead of being lost.
+        save: (next) async {
+          await controller.saveUser(next);
+          return controller.error;
+        },
       ),
       animationStyle: AnimationStyle(
         duration: AppMotion.duration(context, motion),
@@ -69,23 +75,30 @@ class UsersPage extends StatefulWidget {
     ) = result is (VpnUser, PublicationTarget?)
         ? result
         : (result as VpnUser, null);
-    final saveTimer = Stopwatch()..start();
-    await controller.saveUser(nextUser);
-    debugPrint(
-      'client_save_timing phase=local ms=${saveTimer.elapsedMilliseconds} '
-      'ok=${controller.error == null}',
-    );
-    if (user == null && controller.error == null) AppHaptics.added();
-    if (customTarget != null &&
-        publications != null &&
-        controller.error == null) {
+    if (user == null) AppHaptics.added();
+    if (customTarget != null && publications != null) {
       try {
         final preview = await publications.inspectFile(
           nextUser.id,
           customTarget,
         );
         await publications.bindFile(preview);
-      } catch (_) {}
+      } on PublicationFailure catch (e) {
+        if (context.mounted) {
+          final l = AppLocalizations.of(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(publicationMessage(l, e.issue.name))),
+          );
+        }
+      } catch (e) {
+        debugPrint('client_bind_failed type=${e.runtimeType}');
+        if (context.mounted) {
+          final l = AppLocalizations.of(context);
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(l.publicationBindInvalid)));
+        }
+      }
     }
     final accessChanged =
         user == null ||
@@ -110,7 +123,9 @@ class UsersPage extends StatefulWidget {
               'client_save_timing phase=drive ms=${driveTimer.elapsedMilliseconds}',
             );
           }
-        } catch (_) {}
+        } catch (e) {
+          debugPrint('client_save_background_failed type=${e.runtimeType}');
+        }
       }());
     }
   }
@@ -124,7 +139,7 @@ class UsersPage extends StatefulWidget {
     final users = controller.workspace.users
         .where((u) => !u.deleted && selection.ids.contains(u.id))
         .toList();
-    if (users.isEmpty || controller.foregroundBusy) return;
+    if (users.isEmpty || !controller.canMutate) return;
     final l = AppLocalizations.of(context);
     final files = <String, Map<String, dynamic>>{
       for (final user in users)
@@ -165,9 +180,11 @@ class UsersPage extends StatefulWidget {
                 canonicalJson(publications?.deletionFileFor(e.key)) !=
                 canonicalJson(e.value),
           )) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(l.vpnConflict)));
+        if (context.mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(l.vpnConflict)));
+        }
         return;
       }
       await controller.deleteUsers(
@@ -198,7 +215,7 @@ class _UsersPageState extends State<UsersPage> {
     BuildContext context, {
     bool force = false,
   }) async {
-    if (_syncing || controller.foregroundBusy || !controller.loaded) return;
+    if (_syncing || !controller.canMutate) return;
     setState(() => _syncing = true);
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
@@ -341,10 +358,10 @@ class _UsersPageState extends State<UsersPage> {
       message: l.vpnSyncAndPublishTooltip,
       child: FilledButton.tonalIcon(
         key: const ValueKey('vpn-sync-and-publish'),
-        onPressed: c.foregroundBusy || !c.loaded || isSyncingActive
+        onPressed: !c.canMutate || isSyncingActive
             ? null
             : () => _syncAndPublish(context, force: false),
-        onLongPress: c.foregroundBusy || !c.loaded || isSyncingActive
+        onLongPress: !c.canMutate || isSyncingActive
             ? null
             : () => _syncAndPublish(context, force: true),
         icon: const Icon(Icons.cloud_sync),
@@ -451,7 +468,7 @@ class _UsersPageState extends State<UsersPage> {
       return DragSelectList(
         selection: selection,
         ids: [for (final u in sortedAllUsers) u.id],
-        enabled: !c.foregroundBusy && c.loaded,
+        enabled: c.canMutate,
         builder: (scroll, item) => ListView(
           controller: scroll,
           key: const PageStorageKey('vpn-users'),
@@ -468,7 +485,7 @@ class _UsersPageState extends State<UsersPage> {
                     runSpacing: 10,
                     children: [
                       FilledButton.icon(
-                        onPressed: c.foregroundBusy || !c.loaded || _syncing
+                        onPressed: !c.canMutate || _syncing
                             ? null
                             : () => UsersPage.edit(
                                 context,
@@ -516,7 +533,7 @@ class _UsersPageState extends State<UsersPage> {
                     selection: selection,
                     available: [for (final u in sortedAllUsers) u.id],
                     prefix: 'vpn-user',
-                    busy: c.foregroundBusy || !c.loaded,
+                    busy: !c.canMutate,
                     addLabel: l.vpnAddUser,
                     onAdd: () =>
                         UsersPage.edit(context, c, motion, null, publications),
@@ -548,10 +565,13 @@ class _UsersPageState extends State<UsersPage> {
                         const SizedBox(width: 6),
                         Text(
                           l.vpnSortBy,
-                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w500,
-                          ),
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w500,
+                              ),
                         ),
                       ],
                     ),
@@ -570,8 +590,8 @@ class _UsersPageState extends State<UsersPage> {
                       label: Text(l.vpnSortByName),
                       tooltip: _sortField == UserSortField.name
                           ? (_sortAscending
-                              ? l.vpnSortAscending
-                              : l.vpnSortDescending)
+                                ? l.vpnSortAscending
+                                : l.vpnSortDescending)
                           : null,
                       onSelected: (_) {
                         setState(() {
@@ -599,8 +619,8 @@ class _UsersPageState extends State<UsersPage> {
                       label: Text(l.vpnSortByDate),
                       tooltip: _sortField == UserSortField.creationDate
                           ? (_sortAscending
-                              ? l.vpnSortAscending
-                              : l.vpnSortDescending)
+                                ? l.vpnSortAscending
+                                : l.vpnSortDescending)
                           : null,
                       onSelected: (_) {
                         setState(() {
@@ -682,13 +702,11 @@ class _UsersPageState extends State<UsersPage> {
                               const SizedBox(width: 8),
                               Text(
                                 l.vpnDisabledClients,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleSmall
+                                style: Theme.of(context).textTheme.titleSmall
                                     ?.copyWith(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurfaceVariant,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
                                       fontWeight: FontWeight.w600,
                                     ),
                               ),
@@ -760,93 +778,104 @@ class UserTile extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.zero,
         child: Container(
-        decoration: BoxDecoration(
-          border: Border(
-            top: BorderSide(
-              color: isFirst
-                  ? Colors.transparent
-                  : Theme.of(
-                      context,
-                    ).colorScheme.outlineVariant.withValues(alpha: .55),
-            ),
-          ),
-          color: isSelected
-              ? Theme.of(context).colorScheme.secondaryContainer
-              : (!user.enabled
-                  ? Theme.of(context)
-                      .colorScheme
-                      .surfaceContainerHighest
-                      .withValues(alpha: .25)
-                  : null),
-        ),
-        child: Opacity(
-          opacity: user.enabled ? 1.0 : 0.72,
-          child: Material(
-            type: MaterialType.transparency,
-            clipBehavior: Clip.hardEdge,
-            child: ListTile(
-            key: ValueKey('client-${user.id}'),
-            leading: CatalogSelectionLeading(
-              active: selection.active,
-              selected: isSelected,
-              checkboxKey: ValueKey('client-select-${user.id}'),
-              onChanged: c.foregroundBusy
-                  ? null
-                  : (_) => selection.toggle(user.id),
-              child: AppIconTile(
-                round: true,
-                key: ValueKey('client-avatar-${user.id}'),
-                text:
-                    user.name.trim().characters.firstOrNull?.toUpperCase() ??
-                    '?',
+          decoration: BoxDecoration(
+            border: Border(
+              top: BorderSide(
+                color: isFirst
+                    ? Colors.transparent
+                    : Theme.of(
+                        context,
+                      ).colorScheme.outlineVariant.withValues(alpha: .55),
               ),
             ),
-            title: Text(user.name),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(user.enabled ? protocolSummary : l.vpnDisabled),
-                if (publications != null)
-                  ListenableBuilder(
-                    listenable: publications!,
-                    builder: (context, _) {
-                      final queue = publications!.queues[user.id];
-                      if (queue?['status'] == 'error') {
-                        return Text(
-                          publicationMessage(l, queue?['issue'] as String?),
-                        );
-                      }
-                      return const SizedBox.shrink();
-                    },
+            color: isSelected
+                ? Theme.of(context).colorScheme.secondaryContainer
+                : (!user.enabled
+                      ? Theme.of(context).colorScheme.surfaceContainerHighest
+                            .withValues(alpha: .25)
+                      : null),
+          ),
+          child: Opacity(
+            opacity: user.enabled ? 1.0 : 0.72,
+            child: Material(
+              type: MaterialType.transparency,
+              clipBehavior: Clip.hardEdge,
+              child: ListTile(
+                key: ValueKey('client-${user.id}'),
+                leading: CatalogSelectionLeading(
+                  active: selection.active,
+                  selected: isSelected,
+                  checkboxKey: ValueKey('client-select-${user.id}'),
+                  onChanged: !c.canMutate
+                      ? null
+                      : (_) => selection.toggle(user.id),
+                  child: AppIconTile(
+                    round: true,
+                    key: ValueKey('client-avatar-${user.id}'),
+                    text:
+                        user.name
+                            .trim()
+                            .characters
+                            .firstOrNull
+                            ?.toUpperCase() ??
+                        '?',
                   ),
-                if (c.results[user.id]?.hasBlockingErrors == true)
-                  Text(
-                    vpnMessage(l, c.results[user.id]!.diagnostics.first.code),
-                  ),
-                if (!selection.active)
-                  CoreConfigCheckAction(controller: c, userId: user.id),
-              ],
-            ),
-            onTap: c.foregroundBusy
-                ? null
-                : selection.active
-                ? () => selection.toggle(user.id)
-                : () => UsersPage.edit(context, c, motion, user, publications),
-            trailing: selection.active
-                ? null
-                : publications != null
+                ),
+                title: Text(user.name),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(user.enabled ? protocolSummary : l.vpnDisabled),
+                    if (publications != null)
+                      ListenableBuilder(
+                        listenable: publications!,
+                        builder: (context, _) {
+                          final queue = publications!.queues[user.id];
+                          if (queue?['status'] == 'error') {
+                            return Text(
+                              publicationMessage(l, queue?['issue'] as String?),
+                            );
+                          }
+                          return const SizedBox.shrink();
+                        },
+                      ),
+                    if (c.results[user.id]?.hasBlockingErrors == true)
+                      Text(
+                        vpnMessage(
+                          l,
+                          c.results[user.id]!.diagnostics.first.code,
+                        ),
+                      ),
+                    if (!selection.active)
+                      CoreConfigCheckAction(controller: c, userId: user.id),
+                  ],
+                ),
+                onTap: !c.canMutate
+                    ? null
+                    : selection.active
+                    ? () => selection.toggle(user.id)
+                    : () => UsersPage.edit(
+                        context,
+                        c,
+                        motion,
+                        user,
+                        publications,
+                      ),
+                trailing: selection.active
+                    ? null
+                    : publications != null
                     ? ListenableBuilder(
                         listenable: publications!,
                         builder: (context, _) => _buildTrailing(context, c),
                       )
                     : _buildTrailing(context, c),
+              ),
+            ),
           ),
         ),
       ),
-      ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildTrailing(BuildContext context, VpnController c) {
     final pub = publications;
@@ -857,11 +886,24 @@ class UserTile extends StatelessWidget {
         Switch(
           key: ValueKey('client-toggle-${user.id}'),
           value: user.enabled,
-          onChanged: c.foregroundBusy || activeSync
+          onChanged: !c.canMutate || activeSync
               ? null
               : (val) async {
                   final next = user.copyWith(enabled: val);
                   await c.saveUser(next);
+                  if (c.error case final code?) {
+                    // The switch snaps back to the stored value; say why.
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            vpnMessage(AppLocalizations.of(context), code),
+                          ),
+                        ),
+                      );
+                    }
+                    return;
+                  }
                   if (c.workspace.serverIds.isNotEmpty) {
                     unawaited(c.prepareAndApply(background: true));
                   }
@@ -906,7 +948,7 @@ class UserTile extends StatelessWidget {
     return IconButton(
       key: ValueKey('client-qr-${user.id}'),
       tooltip: l.uiShareProfile,
-      onPressed: c.foregroundBusy || activeSync
+      onPressed: !c.canMutate || activeSync
           ? null
           : () => onProfile(context, user),
       icon: iconWidget,
@@ -1007,11 +1049,15 @@ class _AttentionServersSection extends StatelessWidget {
 class _UserForm extends StatefulWidget {
   const _UserForm({
     required this.existingLogins,
+    required this.save,
     this.user,
     this.publications,
     this.pickTemplate,
   });
   final Iterable<String> Function() existingLogins;
+
+  /// Stores the client and returns the error code, or null on success.
+  final Future<String?> Function(VpnUser) save;
   final VpnUser? user;
   final PublicationController? publications;
   final Future<ImportedTemplate?> Function()? pickTemplate;
@@ -1029,8 +1075,8 @@ class _UserFormState extends State<_UserForm> {
     previewTemplate: previewInBackground,
     pickTemplate: widget.pickTemplate,
   )..importedName = widget.user?.baseTemplateName;
-  bool picking = false;
-  String? error;
+  bool picking = false, saving = false;
+  String? error, saveError;
   @override
   void dispose() {
     name.dispose();
@@ -1042,204 +1088,238 @@ class _UserFormState extends State<_UserForm> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    return AppFormDialog(
-      title: Text(widget.user == null ? l.vpnAddUser : l.vpnEdit),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              key: const ValueKey('vpn-user-name'),
-              controller: name,
-              decoration: InputDecoration(labelText: l.vpnName),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(l.vpnEnabled),
-              value: enabled,
-              onChanged: (v) {
-                setState(() => enabled = v);
-              },
-            ),
-            const Divider(),
-            SwitchListTile(
-              key: const ValueKey('vpn-user-individual-template'),
-              contentPadding: EdgeInsets.zero,
-              title: Text(l.vpnIndividualTemplate),
-              subtitle: Text(
-                individualTemplate
-                    ? l.vpnIndividualTemplateHelp
-                    : l.vpnSharedTemplateHelp,
-              ),
-              value: individualTemplate,
-              onChanged: (value) => setState(() => individualTemplate = value),
-            ),
-            if (individualTemplate)
-              TemplateSettings(
-                controller: template,
-                showTitle: false,
-                emptyMessage: l.vpnIndividualTemplateRequired,
-              ),
-            if (widget.user == null &&
-                widget.publications?.settings?.enabled == true &&
-                widget.publications?.settings?.folderReady == true) ...[
-              const Divider(),
+    // While the client is being stored the form cannot be dismissed: the
+    // follow-up (file binding, sending to servers) needs its result.
+    return PopScope(
+      canPop: !saving,
+      child: AppFormDialog(
+        title: Text(widget.user == null ? l.vpnAddUser : l.vpnEdit),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
               TextField(
-                key: const ValueKey('vpn-user-custom-link'),
-                controller: customLink,
-                decoration: InputDecoration(
-                  labelText: l.publicationFileLink,
-                  hintText: 'https://drive.google.com/...',
-                ),
+                key: const ValueKey('vpn-user-name'),
+                controller: name,
+                decoration: InputDecoration(labelText: l.vpnName),
               ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  OutlinedButton.icon(
-                    key: const ValueKey('vpn-user-pick-file'),
-                    onPressed:
-                        picking || widget.publications?.pickerReady != true
-                        ? null
-                        : () async {
-                            setState(() => picking = true);
-                            try {
-                              final target = await widget.publications!
-                                  .pickFile();
-                              if (target != null && mounted) {
-                                customLink.text = target.resourceKey == null
-                                    ? target.fileId
-                                    : Uri.https('drive.google.com', '/uc', {
-                                        'id': target.fileId,
-                                        'resourcekey': target.resourceKey!,
-                                      }).toString();
-                              }
-                            } catch (_) {}
-                            if (mounted) setState(() => picking = false);
-                          },
-                    icon: const Icon(Icons.folder_open),
-                    label: Text(l.publicationPickFile),
-                  ),
-                ],
-              ),
-            ],
-            if (widget.user != null && widget.publications != null)
-              ListenableBuilder(
-                listenable: Listenable.merge([
-                  name,
-                  template,
-                  widget.publications!,
-                ]),
-                builder: (context, _) {
-                  final c = widget.publications!;
-                  final unchanged =
-                      name.text.trim() == widget.user!.name &&
-                      enabled == widget.user!.enabled &&
-                      (individualTemplate ? template.source : null) ==
-                          widget.user!.baseTemplate;
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const Divider(),
-
-                      UserPublicationView(
-                        controller: c,
-                        userId: widget.user!.id,
-                      ),
-                      Builder(
-                        builder: (context) {
-                          final fileId =
-                              c.bindings[widget.user!.id]?['fileId'] ??
-                              c.results[widget.user!.id]?['fileId'];
-                          if (fileId is String && fileId.isNotEmpty) {
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 4, bottom: 8),
-                              child: Text(
-                                '${l.publicationFileLink}: $fileId',
-                                style: Theme.of(context).textTheme.bodySmall,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            );
-                          }
-                          return const SizedBox.shrink();
-                        },
-                      ),
-                      OutlinedButton.icon(
-                        key: const ValueKey('client-change-file'),
-                        onPressed:
-                            !unchanged ||
-                                c.editing ||
-                                !enabled ||
-                                c.settings?.folderReady != true ||
-                                c.settings?.enabled != true
-                            ? null
-                            : () => showDialog<void>(
-                                context: context,
-                                builder: (_) => PublicationBindingDialog(
-                                  controller: c,
-                                  user: widget.user!,
-                                ),
-                              ),
-                        icon: const Icon(Icons.edit_outlined),
-                        label: Text(l.publicationChangeFile),
-                      ),
-                      if (c.settings?.folderReady != true ||
-                          c.settings?.enabled != true)
-                        Text(l.publicationBindSetupHelp),
-                      if (!unchanged) Text(l.publicationSaveClientFirst),
-                    ],
-                  );
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(l.vpnEnabled),
+                value: enabled,
+                onChanged: (v) {
+                  setState(() => enabled = v);
                 },
               ),
-            if (error != null)
-              Text(
-                error == 'template_required'
-                    ? l.vpnIndividualTemplateRequired
-                    : l.vpnInvalid,
+              const Divider(),
+              SwitchListTile(
+                key: const ValueKey('vpn-user-individual-template'),
+                contentPadding: EdgeInsets.zero,
+                title: Text(l.vpnIndividualTemplate),
+                subtitle: Text(
+                  individualTemplate
+                      ? l.vpnIndividualTemplateHelp
+                      : l.vpnSharedTemplateHelp,
+                ),
+                value: individualTemplate,
+                onChanged: (value) =>
+                    setState(() => individualTemplate = value),
               ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(l.runnerNotNow),
-        ),
-        FilledButton(
-          key: const ValueKey('vpn-user-save'),
-          onPressed: () {
-            try {
-              if (template.importing || template.busy) return;
-              if (individualTemplate && template.source.trim().isEmpty) {
-                setState(() => error = 'template_required');
-                return;
-              }
-              PublicationTarget? target;
-              if (widget.user == null && customLink.text.trim().isNotEmpty) {
-                target = PublicationTarget.parse(customLink.text.trim());
-              }
-              final user = VpnUser(
-                id: widget.user?.id ?? newVpnId(),
-                login:
-                    widget.user?.login ??
-                    generateClientLogin(
-                      name.text.trim(),
-                      widget.existingLogins(),
+              if (individualTemplate)
+                TemplateSettings(
+                  controller: template,
+                  showTitle: false,
+                  emptyMessage: l.vpnIndividualTemplateRequired,
+                ),
+              if (widget.user == null &&
+                  widget.publications?.settings?.enabled == true &&
+                  widget.publications?.settings?.folderReady == true) ...[
+                const Divider(),
+                TextField(
+                  key: const ValueKey('vpn-user-custom-link'),
+                  controller: customLink,
+                  decoration: InputDecoration(
+                    labelText: l.publicationFileLink,
+                    hintText: 'https://drive.google.com/...',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    OutlinedButton.icon(
+                      key: const ValueKey('vpn-user-pick-file'),
+                      onPressed:
+                          picking || widget.publications?.pickerReady != true
+                          ? null
+                          : () async {
+                              setState(() => picking = true);
+                              try {
+                                final target = await widget.publications!
+                                    .pickFile();
+                                if (target != null && mounted) {
+                                  customLink.text = target.resourceKey == null
+                                      ? target.fileId
+                                      : Uri.https('drive.google.com', '/uc', {
+                                          'id': target.fileId,
+                                          'resourcekey': target.resourceKey!,
+                                        }).toString();
+                                }
+                              } catch (_) {}
+                              if (mounted) setState(() => picking = false);
+                            },
+                      icon: const Icon(Icons.folder_open),
+                      label: Text(l.publicationPickFile),
                     ),
-                name: name.text.trim(),
-                enabled: enabled,
-                baseTemplate: individualTemplate ? template.source : null,
-                baseTemplateName: individualTemplate
-                    ? template.importedName
-                    : null,
-              );
-              Navigator.pop(context, (user, target));
-            } catch (_) {
-              setState(() => error = 'invalid');
-            }
-          },
-          child: Text(l.vpnSave),
+                  ],
+                ),
+              ],
+              if (widget.user != null && widget.publications != null)
+                ListenableBuilder(
+                  listenable: Listenable.merge([
+                    name,
+                    template,
+                    widget.publications!,
+                  ]),
+                  builder: (context, _) {
+                    final c = widget.publications!;
+                    final unchanged =
+                        name.text.trim() == widget.user!.name &&
+                        enabled == widget.user!.enabled &&
+                        (individualTemplate ? template.source : null) ==
+                            widget.user!.baseTemplate;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Divider(),
+
+                        UserPublicationView(
+                          controller: c,
+                          userId: widget.user!.id,
+                        ),
+                        Builder(
+                          builder: (context) {
+                            final fileId =
+                                c.bindings[widget.user!.id]?['fileId'] ??
+                                c.results[widget.user!.id]?['fileId'];
+                            if (fileId is String && fileId.isNotEmpty) {
+                              return Padding(
+                                padding: const EdgeInsets.only(
+                                  top: 4,
+                                  bottom: 8,
+                                ),
+                                child: Text(
+                                  '${l.publicationFileLink}: $fileId',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              );
+                            }
+                            return const SizedBox.shrink();
+                          },
+                        ),
+                        OutlinedButton.icon(
+                          key: const ValueKey('client-change-file'),
+                          onPressed:
+                              !unchanged ||
+                                  c.editing ||
+                                  !enabled ||
+                                  c.settings?.folderReady != true ||
+                                  c.settings?.enabled != true
+                              ? null
+                              : () => showDialog<void>(
+                                  context: context,
+                                  builder: (_) => PublicationBindingDialog(
+                                    controller: c,
+                                    user: widget.user!,
+                                  ),
+                                ),
+                          icon: const Icon(Icons.edit_outlined),
+                          label: Text(l.publicationChangeFile),
+                        ),
+                        if (c.settings?.folderReady != true ||
+                            c.settings?.enabled != true)
+                          Text(l.publicationBindSetupHelp),
+                        if (!unchanged) Text(l.publicationSaveClientFirst),
+                      ],
+                    );
+                  },
+                ),
+              if (error != null)
+                Text(
+                  error == 'template_required'
+                      ? l.vpnIndividualTemplateRequired
+                      : l.vpnInvalid,
+                ),
+              if (saveError case final code?)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Semantics(
+                    liveRegion: true,
+                    child: AppNotice(
+                      key: const ValueKey('vpn-user-save-error'),
+                      message: vpnMessage(l, code),
+                      error: true,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
-      ],
+        actions: [
+          TextButton(
+            onPressed: saving ? null : () => Navigator.pop(context),
+            child: Text(l.runnerNotNow),
+          ),
+          FilledButton(
+            key: const ValueKey('vpn-user-save'),
+            onPressed: saving ? null : _submit,
+            child: Text(l.vpnSave),
+          ),
+        ],
+      ),
     );
+  }
+
+  Future<void> _submit() async {
+    if (template.importing || template.busy) return;
+    if (individualTemplate && template.source.trim().isEmpty) {
+      setState(() => error = 'template_required');
+      return;
+    }
+    final VpnUser user;
+    PublicationTarget? target;
+    try {
+      if (widget.user == null && customLink.text.trim().isNotEmpty) {
+        target = PublicationTarget.parse(customLink.text.trim());
+      }
+      user = VpnUser(
+        id: widget.user?.id ?? newVpnId(),
+        login:
+            widget.user?.login ??
+            generateClientLogin(name.text.trim(), widget.existingLogins()),
+        name: name.text.trim(),
+        enabled: enabled,
+        baseTemplate: individualTemplate ? template.source : null,
+        baseTemplateName: individualTemplate ? template.importedName : null,
+      );
+    } catch (_) {
+      setState(() => error = 'invalid');
+      return;
+    }
+    setState(() {
+      error = null;
+      saveError = null;
+      saving = true;
+    });
+    final issue = await widget.save(user);
+    if (!mounted) return;
+    if (issue != null) {
+      setState(() {
+        saving = false;
+        saveError = issue;
+      });
+      return;
+    }
+    Navigator.pop(context, (user, target));
   }
 }

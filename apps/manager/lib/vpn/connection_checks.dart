@@ -174,7 +174,6 @@ class ConnectionChecks extends ChangeNotifier {
       );
     }
 
-    owner.cleanStalePending(key.target);
     final record = owner.workspace.servers[key.target];
     if (record?['error'] != null) {
       return InboundReadinessResult(
@@ -182,7 +181,7 @@ class ConnectionChecks extends ChangeNotifier {
         record!['error'].toString(),
       );
     }
-    if (record?['pending'] != null) {
+    if (owner.pendingOf(key.target) != null) {
       return const InboundReadinessResult(
         InboundReadinessState.pendingOperation,
         'vpn_pending',
@@ -392,6 +391,9 @@ class ConnectionChecks extends ChangeNotifier {
     notifyListeners();
     try {
       final items = queue.take(64).toList();
+      _queueLeft
+        ..clear()
+        ..addAll(items);
       var cursor = 0;
       const concurrency = 4;
       Future<void> worker() async {
@@ -399,6 +401,7 @@ class ConnectionChecks extends ChangeNotifier {
         while (_queue && foreground && !_disposed) {
           if (cursor >= items.length) break;
           final key = items[cursor++];
+          _queueLeft.remove(key);
           if (!_ready(key)) {
             skipped.add(key);
             skippedBatch = true;
@@ -424,6 +427,7 @@ class ConnectionChecks extends ChangeNotifier {
     } finally {
       deadline.cancel();
       _queue = false;
+      _queueLeft.clear();
       if (!_disposed) notifyListeners();
     }
   }
@@ -450,6 +454,31 @@ class ConnectionChecks extends ChangeNotifier {
     skipped.removeWhere(belongs);
     await _save();
     if (!_disposed) notifyListeners();
+  }
+
+  int _inFlight = 0;
+  Completer<void>? _idle;
+
+  /// Targets of a running "check all" that have not started yet.
+  final _queueLeft = <ConnectionTarget>{};
+
+  /// Interrupts running checks so a workspace change can start, and waits
+  /// until their server-side cleanup has finished. Interrupted checks stay
+  /// pending and run again once the change completes.
+  Future<void> yieldToChange({
+    Duration timeout = const Duration(seconds: 20),
+  }) async {
+    if (!busy && _inFlight == 0) return;
+    // Interrupted and not yet started checks run again after the change.
+    _pending
+      ..addAll(_activeTargets)
+      ..addAll(_queueLeft);
+    _queueLeft.clear();
+    unawaited(_save());
+    cancel(retryOnResume: true);
+    if (_inFlight == 0) return;
+    final idle = _idle ??= Completer<void>();
+    await idle.future.timeout(timeout, onTimeout: () {});
   }
 
   void setForeground(bool value) {
@@ -529,6 +558,7 @@ class ConnectionChecks extends ChangeNotifier {
       return null;
     }
     final token = CancellationToken();
+    _inFlight++;
     _token ??= token;
     _activeTokens[key] = token;
     _activeTargets.add(key);
@@ -668,6 +698,10 @@ class ConnectionChecks extends ChangeNotifier {
         _token = _activeTokens.values.firstOrNull;
       }
       current = _activeTargets.firstOrNull;
+      if (--_inFlight == 0) {
+        _idle?.complete();
+        _idle = null;
+      }
       if (!_disposed) {
         notifyListeners();
         _changed();

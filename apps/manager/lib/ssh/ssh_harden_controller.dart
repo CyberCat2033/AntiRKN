@@ -50,7 +50,31 @@ class SshHardenController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
+  bool _cancelRequested = false;
+
+  /// Preparation only reads the plan and stores the recovery profile, so the
+  /// person can leave it. Once a job exists the server decides what happened.
+  bool get canCancelPreparation =>
+      stage == SshHardenStage.preparing && !_cancelRequested;
+
+  void cancelPreparation() {
+    if (!canCancelPreparation) return;
+    _cancelRequested = true;
+    session.runner.cancelAction();
+    _notify();
+  }
+
+  void _checkCancelled() {
+    if (_cancelRequested) throw const _HardenFailure('ssh_harden_cancelled');
+  }
+
   void _failure(Object error) {
+    if (error is _HardenFailure && error.code == 'ssh_harden_cancelled') {
+      errorCode = null;
+      // A job may have been submitted before the cancel arrived: follow it.
+      stage = jobId == null ? SshHardenStage.input : SshHardenStage.staging;
+      return;
+    }
     errorCode = error is _HardenFailure
         ? error.code
         : error is VaultFailure
@@ -81,13 +105,15 @@ class SshHardenController extends ChangeNotifier {
     bool disableRootLogin = true,
   }) => _run(() async {
     if (jobId != null) throw const _HardenFailure('ssh_harden_conflict');
+    _cancelRequested = false;
     stage = SshHardenStage.preparing;
     _notify();
     final runner = session.runner;
-    if (!await runner.ensureReady()) {
-      throw const _HardenFailure('ssh_harden_failed');
-    }
+    final ready = await runner.ensureReady();
+    _checkCancelled();
+    if (!ready) throw const _HardenFailure('ssh_harden_failed');
     final plan = await runner.prepareSshHarden(username: username, port: port);
+    _checkCancelled();
     if (plan == null || !plan.supported) {
       throw const _HardenFailure('ssh_harden_failed');
     }
@@ -100,6 +126,7 @@ class SshHardenController extends ChangeNotifier {
       sudoPassword: password,
       disableRootLogin: disableRootLogin,
       beforeSubmit: (id) async {
+        _checkCancelled();
         final original = session.profile;
         if (original == null) throw const VaultFailure(VaultIssue.writeFailed);
         await session.persistHardenProfile(
@@ -113,7 +140,10 @@ class SshHardenController extends ChangeNotifier {
       },
     );
     token.check();
-    if (jobId == null) throw const _HardenFailure('ssh_harden_failed');
+    if (jobId == null) {
+      _checkCancelled();
+      throw const _HardenFailure('ssh_harden_failed');
+    }
     stage = SshHardenStage.staging;
     await _poll();
   });

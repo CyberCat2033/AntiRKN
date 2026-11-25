@@ -69,6 +69,36 @@ class _ServerDetailViewState extends State<ServerDetailView> {
   final workingProtocols = <int>{};
   final protocolJobs = <int, String>{};
 
+  @override
+  void initState() {
+    super.initState();
+    widget.session.addListener(_keepAccessPage);
+    _keepAccessPage();
+  }
+
+  @override
+  void didUpdateWidget(ServerDetailView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.session != widget.session) {
+      oldWidget.session.removeListener(_keepAccessPage);
+      widget.session.addListener(_keepAccessPage);
+      _keepAccessPage();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.session.removeListener(_keepAccessPage);
+    super.dispose();
+  }
+
+  /// A server that needs a connection shows the access page; keep it built
+  /// afterwards so its drafts survive (outside build, which stays pure).
+  void _keepAccessPage() {
+    final c = widget.session;
+    if (!c.hasSavedProfile || c.challenge != null) visited.add(1);
+  }
+
   bool protocolBusy(int index) =>
       workingProtocols.contains(index) ||
       widget.session.runner.jobs.any(
@@ -116,14 +146,17 @@ class _ServerDetailViewState extends State<ServerDetailView> {
     final c = widget.session;
     c.closeSettings();
     setState(() => workingProtocols.add(index));
-    await c.runner.installOrUpdate(protocolComponent(section.name));
-    if (mounted) {
-      setState(() {
-        workingProtocols.remove(index);
-        if (c.runner.selected != null && !c.runner.selected!.terminal) {
-          protocolJobs[index] = c.runner.selected!.id;
-        }
-      });
+    try {
+      await c.runner.installOrUpdate(protocolComponent(section.name));
+    } finally {
+      if (mounted) {
+        setState(() {
+          workingProtocols.remove(index);
+          if (c.runner.selected != null && !c.runner.selected!.terminal) {
+            protocolJobs[index] = c.runner.selected!.id;
+          }
+        });
+      }
     }
     final componentPlan = c.runner.componentPlan;
     final panelPlan = c.runner.panelPlan;
@@ -159,11 +192,17 @@ class _ServerDetailViewState extends State<ServerDetailView> {
     }
   }
 
+  /// Back during IP diagnostics is their explicit cancel (the page stays so
+  /// the cancelled result is visible). Returns whether it was consumed.
+  bool _cancelDiagnostics() {
+    if (!(widget.diagnostics?.busy ?? false)) return false;
+    widget.diagnostics!.stop();
+    return true;
+  }
+
+  /// IP diagnostics keep running in the background: switching section never
+  /// silently stops them (the About page shows their progress again).
   void open(int index) {
-    if (widget.diagnostics?.busy ?? false) {
-      widget.diagnostics!.stop();
-      return;
-    }
     if (index == 1) {
       widget.session.editSettings();
     } else {
@@ -535,13 +574,59 @@ class _ServerDetailViewState extends State<ServerDetailView> {
       final c = widget.session, l = AppLocalizations.of(context);
       final active = AppPageVisibility.of(context);
       if (!c.initialised) {
-        return const Center(child: CircularProgressIndicator());
+        final issue = c.vaultError;
+        if (c.vaultBusy || issue == null) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        // Opening the vault failed: never leave an endless spinner without a
+        // way back or a retry.
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+              child: Row(
+                children: [
+                  IconButton(
+                    key: const ValueKey('server-list-back'),
+                    tooltip: l.uiBack,
+                    onPressed: widget.onBack,
+                    icon: const Icon(Icons.arrow_back),
+                  ),
+                  Expanded(child: AppAnimatedTitle(c.displayName)),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(AppLayout.gap),
+              child: Semantics(
+                liveRegion: true,
+                child: AppNotice(
+                  key: const ValueKey('server-vault-error'),
+                  message: vaultIssueLabel(l, issue),
+                  error: true,
+                  action: Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: TextButton.icon(
+                      key: const ValueKey('server-vault-retry'),
+                      onPressed: c.initialise,
+                      icon: const Icon(Icons.refresh),
+                      label: Text(l.runnerRetry),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
       }
       final requiresConnection = !c.hasSavedProfile || c.challenge != null;
       final index = requiresConnection ? 1 : selected;
       final section = index >= 5 ? widget.sections[index - 5] : null;
       final selecting = section?.selection?.active == true;
-      visited.add(index);
+      // Pages built so far plus the shown one; build itself never mutates
+      // [visited].
+      final built = {...visited, index};
       final titles = [
         c.displayName,
         l.uiSshAccess,
@@ -561,6 +646,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
             selection!.exit();
             return;
           }
+          if (_cancelDiagnostics()) return;
           if (index == 0 || (index == 1 && requiresConnection)) {
             widget.onBack?.call();
           } else {
@@ -596,6 +682,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                           : index == 0 || (index == 1 && requiresConnection)
                           ? widget.onBack
                           : () {
+                              if (_cancelDiagnostics()) return;
                               final selection = index >= 5
                                   ? widget.sections[index - 5].selection
                                   : null;
@@ -659,7 +746,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                 motion: widget.motion,
                 children: [
                   page('overview', [overview(context)]),
-                  visited.contains(1)
+                  built.contains(1)
                       ? page('ssh', [
                           SshPanel(
                             controller: c,
@@ -671,7 +758,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                           ),
                         ])
                       : const SizedBox.shrink(),
-                  visited.contains(2)
+                  built.contains(2)
                       ? page('updates', [
                           ?widget.coreUpgrade,
                           RunnerPanel(
@@ -680,10 +767,10 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                           ),
                         ])
                       : const SizedBox.shrink(),
-                  visited.contains(3)
+                  built.contains(3)
                       ? page('activity', [history(context)])
                       : const SizedBox.shrink(),
-                  visited.contains(4)
+                  built.contains(4)
                       ? page('about', [
                           ServerAboutView(
                             controller: c,
@@ -695,7 +782,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                         ])
                       : const SizedBox.shrink(),
                   for (var i = 0; i < widget.sections.length; i++)
-                    visited.contains(5 + i)
+                    built.contains(5 + i)
                         ? page('protocol-$i', [
                             widget.sections[i].child,
                             if (widget.plans != null) widget.plans!,

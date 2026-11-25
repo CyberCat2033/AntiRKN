@@ -421,8 +421,14 @@ class VpnController extends ChangeNotifier {
   bool get busy => _busy || connections.busy || _upgradeBusy;
   bool get workspaceBusy => _busy || _upgradeBusy;
   bool get foregroundBusy =>
-      (_busy && _backgroundReconcile == null) ||
-      _upgradeBusy;
+      (_busy && _backgroundReconcile == null) || _upgradeBusy;
+
+  /// Whether a person's change (save, delete, apply) can start now.
+  ///
+  /// The same rule gates the UI and [_run]: a background reconcile is awaited
+  /// and running connection checks are interrupted, so neither blocks a
+  /// change. A change rejected anyway reports `vpn_busy` in [error].
+  bool get canMutate => loaded && !_disposed && !foregroundBusy;
 
   Future<void> waitForBackgroundReconcile() async {
     await _backgroundReconcile?.future;
@@ -485,7 +491,9 @@ class VpnController extends ChangeNotifier {
       ));
       if (_disposed || token.isCancelled) return;
       final yaml = compiled.yaml, hash = compiled.sha256Hash;
-      if (yaml == null || hash == null || compiled.hasBlockingErrors) return;
+      if (yaml == null || hash == null || compiled.hasBlockingErrors) {
+        throw const FormatException('core_profile_unavailable');
+      }
       final check = coreValidator == null
           ? CoreConfigCheck(
               status: CoreConfigStatus.unavailable,
@@ -501,8 +509,25 @@ class VpnController extends ChangeNotifier {
           check.profileHash == hash) {
         _coreChecks[userId] = check;
       }
-    } catch (_) {
-      // No YAML, native errors or credentials are exposed by the controller.
+    } catch (e) {
+      // No YAML, native errors or credentials are exposed by the controller:
+      // only the error type is logged and the person sees "unavailable".
+      debugPrint('core_validation_failed type=${e.runtimeType}');
+      final hash = results[userId]?.sha256Hash;
+      final previous = _coreChecks[userId];
+      // An inconclusive retry never hides a known "invalid" verdict for the
+      // same profile: publication relies on it.
+      final keepsInvalid =
+          previous?.status == CoreConfigStatus.invalid &&
+          previous?.profileHash == hash;
+      if (!_disposed && !token.isCancelled && hash != null && !keepsInvalid) {
+        _coreChecks[userId] = CoreConfigCheck(
+          status: CoreConfigStatus.unavailable,
+          code: 'validation_failed',
+          profileHash: hash,
+          checkedAt: DateTime.now().toUtc(),
+        );
+      }
     } finally {
       _coreCancellation = null;
       coreCheckingUser = null;
@@ -550,15 +575,30 @@ class VpnController extends ChangeNotifier {
     bool background = false,
   }) async {
     if (!background) await waitForBackgroundReconcile();
-    if (busy || _disposed) return;
+    if (_disposed) return;
+    if (background && busy) return;
+    if (!background && workspaceBusy) {
+      // Never drop a change silently: callers check [error] before
+      // reporting success, closing a form or playing haptics.
+      error = 'vpn_busy';
+      _notify();
+      return;
+    }
     final backgroundDone = background ? Completer<void>() : null;
     _backgroundReconcile = backgroundDone;
     busy = true;
-    error = null;
+    // A background run must not erase an error the person has not seen yet.
+    if (!background) error = null;
     final token = CancellationToken();
     _token = token;
     if (!background) _notify();
     try {
+      // Checks only read the workspace; a change interrupts them and the
+      // interrupted ones stay queued to run again afterwards. [busy] is
+      // already set, so no new check starts meanwhile.
+      if (!background && connections.busy) {
+        await connections.yieldToChange();
+      }
       await action(token);
     } on SyncMergeFailure {
       if (background) {
@@ -985,7 +1025,7 @@ class VpnController extends ChangeNotifier {
   });
 
   Future<bool> retireProtocol(String serverId, String protocol) async {
-    if (busy || hasRunning || !loaded) return false;
+    if (!canMutate || hasRunning) return false;
     var saved = false;
     await _run((token) async {
       await checkProfileEffects();
@@ -1053,7 +1093,7 @@ class VpnController extends ChangeNotifier {
   /// as explicit `abandoned` audit records rather than reported as revoked.
   Future<bool> forgetServersLocally(Iterable<String> serverIds) async {
     final physical = serverIds.toSet();
-    if (busy || !loaded || physical.isEmpty) return false;
+    if (!canMutate || physical.isEmpty) return false;
     var saved = false;
     await _run((token) async {
       await checkProfileEffects();
@@ -1223,33 +1263,55 @@ class VpnController extends ChangeNotifier {
     }
   }
 
-  void cleanStalePending(String target) {
-    final record = workspace.servers[target];
-    if (record == null || record['pending'] == null) return;
-    final jobMap = record['job'] as Map?;
-    final jobStatus = jobMap?['status'] as String?;
-    final isTerminal =
-        jobStatus == 'failed' ||
+  /// A pending marker left by a finished job, or older than five minutes.
+  /// Readers treat it as cleared; [reconcile] removes it from storage.
+  bool _isStalePending(Map<String, dynamic>? record) {
+    if (record == null || record['pending'] == null) return false;
+    final jobStatus = (record['job'] as Map?)?['status'] as String?;
+    if (jobStatus == 'failed' ||
         jobStatus == 'cancelled' ||
         jobStatus == 'partially_applied' ||
-        jobStatus == 'succeeded';
-    bool expired = false;
+        jobStatus == 'succeeded') {
+      return true;
+    }
     if (record['pending'] case final Map pMap) {
       if (pMap['startedAt'] case final String started) {
         final start = DateTime.tryParse(started);
         if (start != null &&
             DateTime.now().difference(start) > const Duration(minutes: 5)) {
-          expired = true;
+          return true;
         }
       }
     }
-    if (isTerminal || expired) {
-      final updated = {...record, 'pending': null};
-      workspace = workspace.copy(
-        servers: {...workspace.servers, target: updated},
-      );
-      unawaited(_record(target, updated));
-      notifyListeners();
+    return false;
+  }
+
+  /// The pending operation of [target] as the UI should see it. Pure: safe to
+  /// call from `build`.
+  Object? pendingOf(String target) {
+    final record = workspace.servers[target];
+    return _isStalePending(record) ? null : record?['pending'];
+  }
+
+  /// A stale marker that may be removed from storage. A request whose job
+  /// failed or was partially applied stays: [resume] and automatic
+  /// recovery still need it.
+  bool _isRemovablePending(Map<String, dynamic>? record) {
+    if (!_isStalePending(record)) return false;
+    final status = (record!['job'] as Map?)?['status'];
+    return status != 'failed' && status != 'partially_applied';
+  }
+
+  List<String> _stalePendingTargets() => [
+    for (final entry in workspace.servers.entries)
+      if (_isRemovablePending(entry.value)) entry.key,
+  ];
+
+  Future<void> _clearStalePending(List<String> targets) async {
+    for (final target in targets) {
+      final record = workspace.servers[target];
+      if (!_isRemovablePending(record)) continue;
+      await _record(target, {...record!, 'pending': null});
     }
   }
 
@@ -1301,8 +1363,7 @@ class VpnController extends ChangeNotifier {
   }
 
   bool adoptionConfirmed(String target, String id) {
-    cleanStalePending(target);
-    return workspace.servers[target]?['pending'] == null &&
+    return pendingOf(target) == null &&
         (workspace.servers[target]?['observed'] as List? ?? []).any(
           (row) => row['id'] == id && row['confirmed'] == true,
         );
@@ -1537,6 +1598,11 @@ class VpnController extends ChangeNotifier {
 
   Future<void> reconcile() async {
     if (!loaded || busy || _disposed || diagnosticsPaused) return;
+    final stale = _stalePendingTargets();
+    if (stale.isNotEmpty) {
+      await _run((_) => _clearStalePending(stale), background: true);
+      if (busy || _disposed) return;
+    }
     if (_staleIdentities().isNotEmpty) {
       await _run((_) => _adoptIdentities(), background: true);
       if (busy || _disposed) return;
@@ -2597,7 +2663,7 @@ class VpnController extends ChangeNotifier {
       return ServerProfileSyncResult(revision: revision, issue: issue);
     }
 
-    if (!loaded || busy) {
+    if (!loaded || workspaceBusy) {
       return ServerProfileSyncResult(revision: revision, issue: 'vpn_busy');
     }
     // A template edit changes local YAML, not the confirmed server payload.

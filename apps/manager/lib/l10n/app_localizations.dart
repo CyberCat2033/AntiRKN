@@ -1874,6 +1874,18 @@ abstract class AppLocalizations {
   /// **'Reset job queue'**
   String get runnerResetQueue;
 
+  /// No description provided for @runnerResetQueueTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset the job queue?'**
+  String get runnerResetQueueTitle;
+
+  /// No description provided for @runnerResetQueueHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'All server jobs of this server are cancelled and the queue is cleared. Steps already applied on the server are not undone; check the server state afterwards.'**
+  String get runnerResetQueueHelp;
+
   /// No description provided for @runnerEventsTruncated.
   ///
   /// In en, this message translates to:
@@ -2852,6 +2864,12 @@ abstract class AppLocalizations {
   /// **'The operation was not confirmed. Refresh the server status or retry the saved operation.'**
   String get vpnFailed;
 
+  /// No description provided for @vpnBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'Another operation is still running, so this change was not made. Try again when it finishes.'**
+  String get vpnBusy;
+
   /// No description provided for @vpnPortBusy.
   ///
   /// In en, this message translates to:
@@ -3001,6 +3019,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Check for updates'**
   String get updatesCheck;
+
+  /// No description provided for @updatesCheckedRecently.
+  ///
+  /// In en, this message translates to:
+  /// **'Updates were checked moments ago; the result shown is current.'**
+  String get updatesCheckedRecently;
+
+  /// No description provided for @updatesLastChecked.
+  ///
+  /// In en, this message translates to:
+  /// **'Last checked: {time}'**
+  String updatesLastChecked(String time);
 
   /// No description provided for @updatesAutomatic.
   ///
@@ -3499,6 +3529,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Transport settings (JSON)'**
   String get observedTransportJson;
+
+  /// No description provided for @observedTransportInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'The JSON is invalid: it must be an object, with realitySettings and xhttpSettings as objects. Fix it to save or to edit the fields.'**
+  String get observedTransportInvalid;
 
   /// No description provided for @panelUpdateSummary.
   ///
@@ -6289,6 +6325,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Check all'**
   String get connectionCheckAll;
+
+  /// No description provided for @connectionTargetsFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read the list of connections to check. Refresh the server and try again.'**
+  String get connectionTargetsFailed;
 
   /// No description provided for @connectionStop.
   ///

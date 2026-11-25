@@ -355,6 +355,15 @@ class _SshHardenDialogState extends State<_SshHardenDialog> {
               child: Text(l.sshHardenStartAction),
             ),
           ],
+          if (_stage == SshHardenStage.preparing) ...[
+            TextButton(
+              key: const ValueKey('ssh-harden-cancel-preparing'),
+              onPressed: _flow.canCancelPreparation
+                  ? _flow.cancelPreparation
+                  : null,
+              child: Text(l.sshCancel),
+            ),
+          ],
           if (_stage == SshHardenStage.staging) ...[
             TextButton(
               onPressed: _flow.busy ? null : _abortHardening,

@@ -114,7 +114,7 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                   IconButton(
                     key: const ValueKey('profile-regenerate'),
                     tooltip: l.vpnRegenerateProfile,
-                    onPressed: regenerating || saving || c.busy
+                    onPressed: regenerating || saving || !c.canMutate
                         ? null
                         : _regenerate,
                     icon: regenerating
@@ -221,10 +221,10 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                   alignment: AlignmentDirectional.centerStart,
                   child: FilledButton.icon(
                     key: const ValueKey('profile-apply-servers'),
-                    onPressed: (c.busy || c.hasRunning || c.hasObservedRunning)
+                    onPressed: (!c.canMutate || c.hasRunning || c.hasObservedRunning)
                         ? null
                         : () => c.prepareAndApply(),
-                    icon: (c.busy || c.hasRunning || c.hasObservedRunning)
+                    icon: (!c.canMutate || c.hasRunning || c.hasObservedRunning)
                         ? const SizedBox.square(
                             dimension: 18,
                             child: CircularProgressIndicator(strokeWidth: 2),

@@ -182,7 +182,7 @@ class InboundsPanelState extends State<InboundsPanel> {
       prefix: 'inbound',
       busy:
           deleting ||
-          controller.busy ||
+          !controller.canMutate ||
           controller.hasRunning ||
           (runner?.busy ?? false) ||
           (runner?.actionPending ?? false),
@@ -374,7 +374,7 @@ class InboundsPanelState extends State<InboundsPanel> {
       return DragSelectList(
         selection: selection,
         ids: availableIds,
-        enabled: !deleting && !c.busy && !(runner?.busy ?? false),
+        enabled: !deleting && c.canMutate && !(runner?.busy ?? false),
         builder: (scroll, item) => ListView(
           controller: scroll,
           shrinkWrap: true,
@@ -416,9 +416,7 @@ class InboundsPanelState extends State<InboundsPanel> {
                   ],
                   FilledButton.icon(
                     key: const ValueKey('vpn-inbound-add'),
-                    onPressed: c.workspaceBusy || !c.loaded
-                        ? null
-                        : () => _edit(context),
+                    onPressed: !c.canMutate ? null : () => _edit(context),
                     icon: const Icon(Icons.add),
                     label: Text(l.vpnAddInbound),
                   ),
@@ -429,9 +427,13 @@ class InboundsPanelState extends State<InboundsPanel> {
                         : () async {
                             final keys = <({String target, String resource})>[];
                             for (final panel in runner!.panels) {
+                              if (panel['port'] is! int) continue;
                               for (final row
-                                  in (panel['inbounds'] as List)
+                                  in (panel['inbounds'] as List? ?? const [])
                                       .whereType<Map>()) {
+                                // Rows come from the server panel: skip ones
+                                // that cannot be addressed.
+                                if (row['id'] is! int) continue;
                                 if (inbounds.any(
                                   (r) =>
                                       (r.spec['adoption']
@@ -499,7 +501,7 @@ class InboundsPanelState extends State<InboundsPanel> {
                   ? null
                   : IconButton(
                       tooltip: l.sshRefresh,
-                      onPressed: (runner?.busy ?? false) || c.busy
+                      onPressed: (runner?.busy ?? false) || !c.canMutate
                           ? null
                           : () async {
                               await c.refreshServer(serverId);
@@ -571,7 +573,8 @@ class InboundsPanelState extends State<InboundsPanel> {
                           badgeBusy: _busyExternalKeys.contains(
                             externalId(entry.panel, entry.row),
                           ),
-                          onBadgeTap: runner == null ||
+                          onBadgeTap:
+                              runner == null ||
                                   runner!.busy ||
                                   runner!.actionPending ||
                                   _busyExternalKeys.contains(
@@ -581,18 +584,22 @@ class InboundsPanelState extends State<InboundsPanel> {
                               : () async {
                                   final id = (entry.row['id'] as num?)?.toInt();
                                   if (id == null) return;
-                                  final extKey = externalId(entry.panel, entry.row);
+                                  final extKey = externalId(
+                                    entry.panel,
+                                    entry.row,
+                                  );
                                   if (_busyExternalKeys.contains(extKey) ||
                                       runner == null ||
                                       runner!.busy ||
                                       runner!.actionPending) {
                                     return;
                                   }
-                                  setState(
-                                    () => _busyExternalKeys.add(extKey),
-                                  );
+                                  setState(() => _busyExternalKeys.add(extKey));
                                   try {
-                                    final port = (entry.panel['port'] as num?)?.toInt() ?? 0;
+                                    final port =
+                                        (entry.panel['port'] as num?)
+                                            ?.toInt() ??
+                                        0;
                                     if (!await showPanelLogin(
                                           context,
                                           runner!,
@@ -624,7 +631,9 @@ class InboundsPanelState extends State<InboundsPanel> {
                                   tooltip: l.vpnAdopt,
                                   icon: const Icon(Icons.people_outline),
                                   onPressed:
-                                      c.busy || c.hasRunning || runner == null
+                                      !c.canMutate ||
+                                          c.hasRunning ||
+                                          runner == null
                                       ? null
                                       : () => adoptExistingResource(
                                           context,
@@ -740,12 +749,12 @@ class InboundsPanelState extends State<InboundsPanel> {
                           detailsLabel: l.componentsDetails,
                           details: const [],
                           badgeBusy: _busyInboundIds.contains(r.id),
-                          onBadgeTap: _busyInboundIds.contains(r.id) ||
-                                  c.workspaceBusy
+                          onBadgeTap:
+                              _busyInboundIds.contains(r.id) || !c.canMutate
                               ? null
                               : () async {
                                   if (_busyInboundIds.contains(r.id) ||
-                                      c.workspaceBusy) {
+                                      !c.canMutate) {
                                     return;
                                   }
                                   setState(() => _busyInboundIds.add(r.id));
@@ -793,7 +802,7 @@ class InboundsPanelState extends State<InboundsPanel> {
                                       ? Icons.lock_outline
                                       : Icons.people_outline,
                                 ),
-                                onPressed: c.workspaceBusy
+                                onPressed: !c.canMutate
                                     ? null
                                     : () async {
                                         await c.saveInbound(
@@ -814,7 +823,7 @@ class InboundsPanelState extends State<InboundsPanel> {
                               ),
                               IconButton(
                                 tooltip: l.vpnEdit,
-                                onPressed: c.workspaceBusy
+                                onPressed: !c.canMutate
                                     ? null
                                     : () => _edit(context, r),
                                 icon: const Icon(Icons.edit_outlined),

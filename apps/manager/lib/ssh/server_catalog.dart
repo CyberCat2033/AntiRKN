@@ -153,6 +153,7 @@ class _ServerCatalogState extends State<ServerCatalog> {
   final navigation = GlobalKey<NavigatorState>();
   bool containerOpen = false;
   VoidCallback? closeContainer;
+  bool _closeScheduled = false;
   Widget? _detail;
   SshController? _detailSession;
 
@@ -461,16 +462,22 @@ class _ServerCatalogState extends State<ServerCatalog> {
                             builder: (context, _) {
                               if (c.selected == null) {
                                 final route = ModalRoute.of(context);
-                                WidgetsBinding.instance.addPostFrameCallback((
-                                  _,
-                                ) {
-                                  if (mounted &&
-                                      containerOpen &&
-                                      c.selected == null &&
-                                      route?.isCurrent == true) {
-                                    close();
-                                  }
-                                });
+                                // One close per deselection, not one
+                                // callback per rebuild while it animates.
+                                if (!_closeScheduled) {
+                                  _closeScheduled = true;
+                                  WidgetsBinding.instance.addPostFrameCallback((
+                                    _,
+                                  ) {
+                                    _closeScheduled = false;
+                                    if (mounted &&
+                                        containerOpen &&
+                                        c.selected == null &&
+                                        route?.isCurrent == true) {
+                                      close();
+                                    }
+                                  });
+                                }
                                 return _detail ?? const SizedBox.shrink();
                               }
                               _detail = _content(
