@@ -41,11 +41,12 @@ class AwgPanel extends StatelessWidget {
     if (current?.spec.containsKey('adoption') == true) {
       final spec = await editAdoptedResource(context, current!.spec);
       if (spec == null) return;
-      await controller.saveAwg(AwgInterface(serverId: serverId, spec: spec));
-      if (controller.error == null) {
-        await controller.prepareAndApply(serverIds: {awgTarget(serverId)});
-      }
-      return;
+      return saveAndApply(
+        controller,
+        target: awgTarget(serverId),
+        save: () =>
+            controller.saveAwg(AwgInterface(serverId: serverId, spec: spec)),
+      );
     }
     final spec = current?.spec ?? await controller.awgDefaults(serverId);
     if (spec == null || !context.mounted) return;
@@ -63,17 +64,13 @@ class AwgPanel extends StatelessWidget {
       ),
     );
     if (result == null) return;
-    await controller.saveAwg(result);
-    if (controller.error == null) {
-      if (result.deleted && current != null && !current.deleted) {
-        AppHaptics.deleted();
-      } else if (current == null && !result.deleted) {
-        AppHaptics.added();
-      }
-    }
-    if (controller.error == null) {
-      await controller.prepareAndApply(serverIds: {awgTarget(serverId)});
-    }
+    await saveAndApply(
+      controller,
+      target: awgTarget(serverId),
+      save: () => controller.saveAwg(result),
+      added: current == null && !result.deleted,
+      deleted: result.deleted && current != null && !current.deleted,
+    );
   }
 
   @override

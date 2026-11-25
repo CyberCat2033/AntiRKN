@@ -144,6 +144,26 @@ Future<void> adoptExistingResource(
   }
 }
 
+/// The save step shared by the VLESS, AmneziaWG and TrustTunnel panels
+/// (UI-52): haptics follow a successful save, and only then is [target]
+/// planned and applied.
+Future<void> saveAndApply(
+  VpnController controller, {
+  required String target,
+  required Future<void> Function() save,
+  bool added = false,
+  bool deleted = false,
+}) async {
+  await save();
+  if (controller.error != null) return;
+  if (deleted) {
+    AppHaptics.deleted();
+  } else if (added) {
+    AppHaptics.added();
+  }
+  await controller.prepareAndApply(serverIds: {target});
+}
+
 Future<Map<String, Object?>?> editAdoptedResource(
   BuildContext context,
   Map<String, Object?> spec,

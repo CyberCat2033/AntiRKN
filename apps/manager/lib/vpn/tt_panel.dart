@@ -83,15 +83,13 @@ class _TtPanelState extends State<TtPanel> {
     if (current?.spec.containsKey('adoption') == true) {
       final spec = await editAdoptedResource(context, current!.spec);
       if (spec == null) return;
-      await widget.controller.saveTt(
-        TrustTunnelEndpoint(serverId: widget.serverId, spec: spec),
+      return saveAndApply(
+        widget.controller,
+        target: ttTarget(widget.serverId),
+        save: () => widget.controller.saveTt(
+          TrustTunnelEndpoint(serverId: widget.serverId, spec: spec),
+        ),
       );
-      if (widget.controller.error == null) {
-        await widget.controller.prepareAndApply(
-          serverIds: {ttTarget(widget.serverId)},
-        );
-      }
-      return;
     }
     final spec =
         current?.spec ?? await widget.controller.ttDefaults(widget.serverId);
@@ -112,19 +110,13 @@ class _TtPanelState extends State<TtPanel> {
       ),
     );
     if (value == null) return;
-    await widget.controller.saveTt(value);
-    if (widget.controller.error == null) {
-      if (value.deleted && current != null && !current.deleted) {
-        AppHaptics.deleted();
-      } else if (current == null && !value.deleted) {
-        AppHaptics.added();
-      }
-    }
-    if (widget.controller.error == null) {
-      await widget.controller.prepareAndApply(
-        serverIds: {ttTarget(widget.serverId)},
-      );
-    }
+    await saveAndApply(
+      widget.controller,
+      target: ttTarget(widget.serverId),
+      save: () => widget.controller.saveTt(value),
+      added: current == null && !value.deleted,
+      deleted: value.deleted && current != null && !current.deleted,
+    );
   }
 
   @override

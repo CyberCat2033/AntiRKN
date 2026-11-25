@@ -866,13 +866,13 @@ class InboundsPanelState extends State<InboundsPanel> {
     if (inbound?.spec.containsKey('adoption') == true) {
       final spec = await editAdoptedResource(context, inbound!.spec);
       if (spec == null) return;
-      await controller.saveInbound(
-        VlessInbound(serverId: serverId, spec: spec),
+      return saveAndApply(
+        controller,
+        target: serverId,
+        save: () => controller.saveInbound(
+          VlessInbound(serverId: serverId, spec: spec),
+        ),
       );
-      if (controller.error == null) {
-        await controller.prepareAndApply(serverIds: {serverId});
-      }
-      return;
     }
     final result = await showDialog<VlessInbound>(
       context: context,
@@ -889,17 +889,13 @@ class InboundsPanelState extends State<InboundsPanel> {
       ),
     );
     if (result == null) return;
-    await controller.saveInbound(result);
-    if (controller.error == null) {
-      if (result.deleted && inbound != null && !inbound.deleted) {
-        AppHaptics.deleted();
-      } else if (inbound == null && !result.deleted) {
-        AppHaptics.added();
-      }
-    }
-    if (controller.error == null) {
-      await controller.prepareAndApply(serverIds: {serverId});
-    }
+    await saveAndApply(
+      controller,
+      target: serverId,
+      save: () => controller.saveInbound(result),
+      added: inbound == null && !result.deleted,
+      deleted: result.deleted && inbound != null && !inbound.deleted,
+    );
   }
 }
 
