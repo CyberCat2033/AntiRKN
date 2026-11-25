@@ -2031,6 +2031,23 @@ def _read_window(path):
     return json.loads(path.read_text())
 
 
+def _settle_window_job(store, job_id, info, only_succeeded=False):
+    """The job status after the window's rollback, recorded in deadman.json
+    first. One transaction with its event; with only_succeeded (recovery
+    after a crash between the two writes) a job already moved on is kept."""
+    failed = bool(info.get('rollbackFailed'))
+    with store.db:
+        row = store.db.execute('SELECT status FROM jobs WHERE id=?', (job_id,)).fetchone()
+        if row is None or only_succeeded and row[0] != 'succeeded':
+            return False
+        store.db.execute('UPDATE jobs SET status=? WHERE id=?', ('needs_attention' if failed else 'failed', job_id))
+        store.event(job_id, 'upgrade_rollback_failed' if failed else 'upgrade_rolled_back', 6, 6)
+    if not failed:
+        _drop_inplace_backup(store.directory, job_id)
+        retire_work_dir(store.directory, job_id)
+    return True
+
+
 def fire_deadman(store, job_id, wait=True):
     """Roll back an unconfirmed upgrade (timer expiry or recovery after a reboot)."""
     path = _deadman_path(store.directory, job_id)
@@ -2070,23 +2087,20 @@ def fire_deadman(store, job_id, wait=True):
             sys.stderr.write(f'[runner] late rollback failed: {type(error).__name__}\n')
             info['rollbackFailed'] = True
             atomic_file(path, json.dumps(info).encode())
-            with store.db:
-                store.db.execute("UPDATE jobs SET status='needs_attention' WHERE id=?", (job_id,))
-                store.event(job_id, 'upgrade_rollback_failed', 6, 6)
+            _settle_window_job(store, job_id, info)
             raise
         if upgrader.component in ('panel', 'xray'):
             try:
                 sync_installed_versions()
             except Exception as error:
                 sys.stderr.write(f'[runner] version sync after rollback failed: {type(error).__name__}\n')
+        # The window first: a crash before the job update below leaves
+        # rolledBack with a succeeded job, which recover_deadmen settles
+        # without rolling back a second time.
         info['rolledBack'] = True
         info.pop('rollingBack', None)
         atomic_file(path, json.dumps(info).encode())
-        with store.db:
-            store.db.execute("UPDATE jobs SET status='failed' WHERE id=?", (job_id,))
-            store.event(job_id, 'upgrade_rolled_back', 6, 6)
-        _drop_inplace_backup(store.directory, job_id)
-        retire_work_dir(store.directory, job_id)
+        _settle_window_job(store, job_id, info)
     return True
 
 
@@ -2157,7 +2171,13 @@ def recover_deadmen(store):
     for path in Path(store.directory).glob('upgrade-*/deadman.json'):
         try:
             info = json.loads(path.read_text())
-            if info.get('confirmed') or info.get('rolledBack') or info.get('rollbackFailed'):
+            if info.get('rolledBack') or info.get('rollbackFailed'):
+                # The window's rollback ended but the job update was lost.
+                job_id = path.parent.name[len('upgrade-'):]
+                if info.get('id') == job_id:
+                    _settle_window_job(store, job_id, info, only_succeeded=True)
+                continue
+            if info.get('confirmed'):
                 continue
             remaining = info.get('deadline', 0) - time.time()
             if info.get('rollingBack'):

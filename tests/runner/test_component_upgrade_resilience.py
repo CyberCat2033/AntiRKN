@@ -1074,7 +1074,7 @@ class ConfirmationWindowLifecycleTests(unittest.TestCase):
         self.request = {'version': 1, 'action': 'submit', 'id': self.job_id, 'kind': 'component_upgrade_apply',
                         'count': 6, 'interval': 1, 'payload': json.dumps({'component': 'xray', 'version': '26.11.9'}),
                         'fingerprint': 'b' * 64}
-        self.store.db.execute('INSERT INTO jobs VALUES (?,?,?,6,5,0,?)', (self.job_id, json.dumps(self.request), 'running', time.time()))
+        self.store.db.execute('INSERT INTO jobs VALUES (?,?,?,5,5,0,?)', (self.job_id, json.dumps(self.request), 'running', time.time()))
         self.store.db.commit()
         self.work = Path(self.temp_dir.name) / ('upgrade-' + self.job_id)
 
