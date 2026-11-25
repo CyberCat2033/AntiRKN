@@ -520,7 +520,7 @@ class Store:
                 res = component_upgrade_plan(self, req.get('component'), req.get('payload'))
                 return {**self.response('ok'), 'componentUpgrade': res}
             except ComponentUpgradeError as error:
-                return self.response(error.code)
+                return self.response(error.code if error.code in SCHEMA['codes'] else 'upgrade_failed')
             except Exception:
                 return self.response('upgrade_failed')
         if action.startswith('xray_check_'):
@@ -943,26 +943,32 @@ class Store:
             return 0.5
         if req['kind'] == 'component_upgrade_apply':
             task = ComponentUpgradeJob(self, req)
-            try:
-                if row['cancel']:
-                    task.rollback()
-                    status, code = 'cancelled', 'cancelled'
-                else:
+
+            def undo(status, code):
+                # Before the switch only staging goes; after it the backup is
+                # restored once. A failed restore needs a person and keeps the
+                # backup (needs_attention is never cleaned up below).
+                try:
+                    if task.rollback(row['checkpoint']) and code == 'upgrade_healthcheck_failed':
+                        code = 'upgrade_rolled_back'
+                    return status, code
+                except Exception as error:
+                    sys.stderr.write(f"[runner] component_upgrade rollback failed: {type(error).__name__}\n")
+                    return 'needs_attention', 'upgrade_rollback_failed'
+
+            if row['cancel']:
+                status, code = undo('cancelled', 'cancelled')
+            else:
+                try:
                     task.step(row['checkpoint'])
                     if row['checkpoint'] + 1 < req['count']:
                         return 0.1
                     status, code = 'succeeded', 'succeeded'
-            except (ComponentUpgradeError, OSError, ValueError, subprocess.SubprocessError) as error:
-                code = error.code if isinstance(error, ComponentUpgradeError) else 'upgrade_failed'
-                # Code and type only: error text may quote upstream output.
-                sys.stderr.write(f"[runner] component_upgrade failed ({code}): {type(error).__name__}\n")
-                status = 'failed'
-                try:
-                    task.rollback()
-                    if code == 'upgrade_healthcheck_failed':
-                        code = 'upgrade_rolled_back'
-                except Exception:
-                    status, code = 'needs_attention', 'upgrade_rollback_failed'
+                except (ComponentUpgradeError, OSError, ValueError, subprocess.SubprocessError) as error:
+                    code = error.code if isinstance(error, ComponentUpgradeError) else 'upgrade_failed'
+                    # Code and type only: error text may quote upstream output.
+                    sys.stderr.write(f"[runner] component_upgrade failed ({code}): {type(error).__name__}\n")
+                    status, code = undo('failed', code)
             self.finish(job_id, status, code, req['count'])
             if status == 'succeeded':
                 # The backup stays until the app confirms or the window expires.

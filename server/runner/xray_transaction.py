@@ -6,7 +6,7 @@ import platform
 import stat
 from pathlib import Path
 import secrets
-import socket
+import shutil
 import subprocess
 import sys
 import time
@@ -24,6 +24,13 @@ BINARY = Path('/usr/local/x-ui/bin/xray-linux-amd64')
 CONFIG = Path('/usr/local/x-ui/bin/config.json')
 UNITS = Path('/etc/systemd/system')
 FINAL = {'committed', 'rolled_back', 'not_changed'}
+# A rollback that could not finish: mutations stay blocked and nothing retries
+# it automatically; only an explicit xray_check_abort tries again.
+STUCK = 'recovery_required'
+MAX_ROLLBACK_ATTEMPTS = 3
+ROLLBACK_RETRY_SECONDS = 20
+# Large files no finished transaction needs (the state record stays).
+TRANSIENT = ('previous', 'candidate', 'candidate.zip', 'download.tmp')
 
 def boot(): return Path('/proc/sys/kernel/random/boot_id').read_text().strip()
 def uptime(): return float(Path('/proc/uptime').read_text().split()[0])
@@ -56,20 +63,40 @@ def save(store,info):
     atomic_file(path/'state.json',vless.canonical(info).encode())
 
 def active(store):
+    """Whether a transaction blocks mutations. Read-only apart from settling a
+    begin that crashed before arming: an expired transaction is rolled back by
+    its watchdog, never inside an RPC."""
     for path in directory(store).iterdir():
         if path.is_dir():
             info = load(store, path.name)
-            if info and info['phase'] not in FINAL:
-                if expired(info):
-                    try:
-                        rollback(store, info)
-                    except Exception:
-                        info.update(phase='recovery_required', code='xray_check_timeout')
-                        save(store, info)
-                        continue
-                else:
-                    return True
+            if info and info['phase'] not in FINAL and not settle_unarmed(store, info):
+                return True
     return False
+
+def settle_unarmed(store, info):
+    """A crash before arming cannot have launched the replacement worker.
+    Callers hold the operation lock, under which begin() arms."""
+    if info['phase']=='preparing' and not (UNITS/unit(info['id'],'rollback')).exists():
+        info.update(phase='not_changed',code='xray_check_watchdog');save(store,info)
+        return True
+    return False
+
+def prune(store):
+    """Finished transactions keep only their state record, and only the newest
+    one per panel (latest() reports it); stuck or running ones stay whole."""
+    newest={}
+    finished=[]
+    for path in directory(store).iterdir():
+        if not path.is_dir() or path.is_symlink():continue
+        try:info=load(store,path.name)
+        except Exception:continue
+        if not info or info.get('phase') not in FINAL:continue
+        for name in TRANSIENT:(path/name).unlink(missing_ok=True)
+        panel_id=(info.get('payload') or {}).get('panelId')
+        finished.append((info.get('created',0),path,panel_id))
+        if panel_id not in newest or info.get('created',0)>newest[panel_id][0]:newest[panel_id]=(info.get('created',0),path)
+    for created,path,panel_id in finished:
+        if newest[panel_id][1]!=path:shutil.rmtree(str(path),ignore_errors=True)
 
 def leases(store,keys):
     if not isinstance(keys,list) or not 1<=len(keys)<=TARGET['maxInbounds'] or len(set(keys))!=len(keys):raise UpdateError('xray_check_coverage')
@@ -140,8 +167,11 @@ def latest(store,panel_id):
     return public(max(records,key=lambda r:r['created'])) if records else None
 
 def holds_lease(store,key):
-    return any((info:=load(store,p.name)) and info['phase'] not in FINAL and key in info['payload']['leases']
-               for p in directory(store).iterdir() if p.is_dir())
+    for p in directory(store).iterdir():
+        if p.is_dir():
+            info=load(store,p.name)
+            if info and info['phase'] not in FINAL and key in info['payload']['leases']:return True
+    return False
 
 
 def unit(key,role):return 'antirkn-xray-'+role+'-'+probes.identifier(key)+'.service'
@@ -150,17 +180,16 @@ def arm(info):
     source=str(Path(__file__).resolve())
     name=unit(info['id'],'rollback')
     atomic_file(UNITS/name,('[Unit]\nDescription=AntiRKN Xray rollback watchdog\nAfter=local-fs.target\nStartLimitIntervalSec=0\n'
-        '[Service]\nType=simple\nUMask=0077\nRestart=on-failure\nRestartSec=3\n'
+        '[Service]\nType=simple\nUMask=0077\nRestart=on-failure\nRestartSec=10\n'
         f'ExecStart=/usr/bin/python3 -I {source} watchdog {info["id"]}\n[Install]\nWantedBy=multi-user.target\n').encode(),0o644)
     command(['/usr/bin/systemctl','daemon-reload'])
     command(['/usr/bin/systemctl','enable','--now',name])
     command(['/usr/bin/systemctl','is-active','--quiet',name])
 
 def retire(info):
-    name=unit(info['id'],'rollback')
-    if (UNITS/name).exists():
-        command(['/usr/bin/systemctl','disable',name]);(UNITS/name).unlink(missing_ok=True)
-        command(['/usr/bin/systemctl','daemon-reload'])
+    """Idempotent: the unit may be disabled, unloaded or gone already. The
+    watchdog calls this from inside the unit, so it is never stopped here."""
+    probes.retire_unit(unit(info['id'],'rollback'))
 
 def begin(store,req):
     key=probes.identifier(req['id']);payload=json.loads(req['payload']);old=load(store,key)
@@ -168,6 +197,7 @@ def begin(store,req):
         if old['requestHash']!=vless.digest(payload):raise UpdateError('xray_check_changed')
         return {**public(old),'nonce':old['nonce']}
     if TARGET.get('prerelease') is not False:raise UpdateError('xray_check_invalid')
+    prune(store)
     if active(store) or store.db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running')").fetchone():raise UpdateError('xray_check_busy')
     if set(payload)!={'panelId','fingerprint','leases','network','baseline','core'} or not isinstance(payload['network'],str) or not 1<=len(payload['network'])<=1024:
         raise UpdateError('xray_check_invalid')
@@ -289,9 +319,34 @@ def apply(store,key):
     except Exception as error:
         with probes.operation_lock(store):
             info=load(store,key)
-            if info and info['phase'] not in FINAL:
+            if info and info['phase'] not in FINAL and info['phase']!=STUCK:
                 info['code']=error.code if isinstance(error,UpdateError) else 'xray_check_failed';save(store,info)
-                rollback(store,info)
+                attempt_rollback(store,info)
+
+def attempt_rollback(store,info):
+    """Automatic rollback with a bounded number of attempts across restarts.
+
+    The attempt is counted before it starts, so a crash inside it (or a panel
+    that never confirms the version) cannot restart x-ui forever. Returns True
+    when the transaction is settled (rolled back or stuck), False to retry."""
+    if info['phase'] in FINAL or info['phase']==STUCK:
+        retire(info);return True
+    attempts=info.get('rollbackAttempts',0)+1
+    if attempts>MAX_ROLLBACK_ATTEMPTS:
+        info.update(phase=STUCK,code=info.get('code') if info.get('code','').startswith('xray_check_') else 'xray_check_rollback')
+        save(store,info);retire(info);return True
+    info['rollbackAttempts']=attempts;save(store,info)
+    try:
+        rollback(store,info)
+        return True
+    except Exception as error:
+        current=load(store,info['id']) or info
+        if current['phase'] in FINAL or current['phase']==STUCK:
+            retire(current);return True
+        current['code']=error.code if isinstance(error,UpdateError) else 'xray_check_rollback'
+        if attempts>=MAX_ROLLBACK_ATTEMPTS:
+            current['phase']=STUCK;save(store,current);retire(current);return True
+        save(store,current);return False
 
 def rollback(store,info):
     if info['phase'] in FINAL:return public(info)
@@ -311,7 +366,7 @@ def rollback(store,info):
     if hashlib.sha256(BINARY.read_bytes()).hexdigest()!=info['oldHash']:raise UpdateError('xray_check_rollback')
     # External configuration edits are preserved, so report them separately.
     if not unchanged(store,info,new=False):info['code']='xray_check_changed'
-    info['phase']='rolled_back';save(store,info);retire(info);return public(info)
+    info['phase']='rolled_back';save(store,info);retire(info);prune(store);return public(info)
 
 def unchanged(store,info,new):
     after=snapshot(store,info['payload']['panelId']);before=info['before']
@@ -338,60 +393,36 @@ def finish(store,req):
     if payload.get('network')!=info['payload']['network']:return rollback(store,info)
     verify_checks(payload.get('checks'),info['payload']['leases']);leases(store,info['payload']['leases'])
     if not unchanged(store,info,new=True):return rollback(store,info)
-    info.update(phase='committed',code='committed');save(store,info);retire(info);return public(info)
+    info.update(phase='committed',code='committed');save(store,info);retire(info);prune(store);return public(info)
 
 def status(store,req):
     info=load(store,req['id'])
     if not info:raise UpdateError('xray_check_missing')
-    if info['phase']=='preparing' and not (UNITS/unit(info['id'],'rollback')).exists():
-        # A crash before arming cannot have launched the replacement worker.
-        info.update(phase='not_changed',code='xray_check_watchdog');save(store,info)
+    settle_unarmed(store,info)
     return public(info)
 
-def check_connectivity(info):
-    inbounds = info.get('before', {}).get('configuration', {}).get('inbounds', [])
-    enabled = [r for r in inbounds if r.get('enable')]
-    if not enabled:
-        return False
-    for r in enabled:
-        port = r.get('port')
-        if not port or not isinstance(port, int):
-            return False
-        listen = r.get('listen')
-        targets = [listen] if listen and listen not in ('0.0.0.0', '::', '') else ['127.0.0.1', '::1']
-        bound = False
-        for host in targets:
-            try:
-                with socket.create_connection((host, port), timeout=2):
-                    bound = True
-                    break
-            except (OSError, socket.error):
-                pass
-        if not bound:
-            return False
-    return True
-
 def watchdog(key):
+    """Rolls back once the window ends without a commit (checks arrive only
+    through finish()); a rollback that keeps failing becomes recovery_required
+    and the unit retires itself instead of restarting x-ui forever."""
     from runner import Store,STATE
     started=time.monotonic()
     while True:
+        delay=1
         store=Store(STATE)
         try:
             with probes.operation_lock(store):
                 info=load(store,key)
-                if not info or info['phase'] in FINAL:
+                if not info or info['phase'] in FINAL or info['phase']==STUCK:
                     if info:retire(info)
                     return
-                if info['phase'] in ('rolling_back','recovery_required') or expired(info) or time.monotonic()-started>=600:
-                    healthy=False
-                    if info['phase']=='awaiting_checks':
-                        try:healthy=unchanged(store,info,new=True) and check_connectivity(info)
-                        except Exception:healthy=False
-                    if healthy:
-                        info.update(phase='committed',code='committed');save(store,info);retire(info);return
-                    rollback(store,info);return
+                if info['phase']=='rolling_back' or expired(info) or time.monotonic()-started>=600:
+                    if attempt_rollback(store,info):return
+                    delay=ROLLBACK_RETRY_SECONDS
+        except probes.ProbeError:
+            pass  # The lock is busy (apply or an RPC): look again shortly.
         finally:store.close()
-        time.sleep(1)
+        time.sleep(delay)
 
 if __name__=='__main__':
     try:

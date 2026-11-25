@@ -98,11 +98,27 @@ def _wait_port(port, deadline):
     return False
 
 
-def probe_vless(binary=XRAY_BINARY, config_path=XRAY_CONFIG, timeout=10):
-    """{target: ok} for every enabled REALITY inbound, using `binary` as the client."""
+def _remaining(deadline, cap):
+    """Seconds left for one probe: `cap`, cut by the overall deadline (monotonic)."""
+    if deadline is None:
+        return cap
+    return min(cap, deadline - time.monotonic())
+
+
+def probe_vless(binary=XRAY_BINARY, config_path=XRAY_CONFIG, timeout=10, deadline=None):
+    """{target: ok} for every enabled REALITY inbound, using `binary` as the client.
+
+    Nothing runs past `deadline`; targets left without time count as failed."""
     results = {}
     for key, target in vless_targets(config_path).items():
-        _wait_port(target['port'], time.monotonic() + 15)
+        if _remaining(deadline, 1) <= 0:
+            results[key] = False
+            continue
+        _wait_port(target['port'], time.monotonic() + _remaining(deadline, 15))
+        budget = _remaining(deadline, timeout)
+        if budget <= 0:
+            results[key] = False
+            continue
         socks = _free_port()
         user = dict(id=target['user']['id'], encryption='none', flow=target['user'].get('flow') or '')
         client = dict(log=dict(loglevel='none'),
@@ -116,11 +132,14 @@ def probe_vless(binary=XRAY_BINARY, config_path=XRAY_CONFIG, timeout=10):
         proc = subprocess.Popen([str(binary), 'run', '-c', path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         ok = False
         try:
-            deadline = time.monotonic() + timeout
-            if _wait_port(socks, deadline):
+            until = time.monotonic() + budget
+            if _wait_port(socks, until):
                 for _ in range(2):  # one retry absorbs a cold DNS/TLS start on the server
+                    left = until - time.monotonic()
+                    if left <= 0:
+                        break
                     try:
-                        ok = _socks_https(socks, max(1.0, deadline - time.monotonic()))
+                        ok = _socks_https(socks, max(0.5, left))
                     except (OSError, ssl.SSLError):
                         ok = False
                     if ok:
@@ -148,7 +167,7 @@ def _tls_handshake(host, port, timeout=5):
         return False
 
 
-def probe_tls_listeners(targets):
+def probe_tls_listeners(targets, deadline=None):
     """TrustTunnel endpoints: a TLS handshake on every TCP binding."""
     results = {}
     for target in targets or []:
@@ -156,20 +175,28 @@ def probe_tls_listeners(targets):
             if getattr(binding, 'protocol', 'tcp') != 'tcp':
                 continue
             host = binding.host if binding.host not in ('0.0.0.0', '::', '') else '127.0.0.1'
-            results[f'tls:{binding.port}'] = _tls_handshake(host, binding.port)
+            budget = _remaining(deadline, 5)
+            results[f'tls:{binding.port}'] = budget > 0 and _tls_handshake(host, binding.port, timeout=budget)
     return results
 
 
-def probe_awg():
+def probe_awg(deadline=None):
     """AmneziaWG: every interface still has a listening UDP port."""
     results = {}
+    budget = _remaining(deadline, 10)
+    if budget <= 0:
+        return results
     try:
-        names = subprocess.run(['/usr/local/bin/awg', 'show', 'interfaces'], capture_output=True, text=True, timeout=10).stdout.split()
+        names = subprocess.run(['/usr/local/bin/awg', 'show', 'interfaces'], capture_output=True, text=True, timeout=budget).stdout.split()
     except (OSError, subprocess.SubprocessError):
         return results
     for name in names:
+        budget = _remaining(deadline, 10)
+        if budget <= 0:
+            results[f'awg:{name}'] = False
+            continue
         try:
-            port = subprocess.run(['/usr/local/bin/awg', 'show', name, 'listen-port'], capture_output=True, text=True, timeout=10).stdout.strip()
+            port = subprocess.run(['/usr/local/bin/awg', 'show', name, 'listen-port'], capture_output=True, text=True, timeout=budget).stdout.strip()
             results[f'awg:{name}'] = port.isdigit() and int(port) > 0
         except (OSError, subprocess.SubprocessError):
             results[f'awg:{name}'] = False

@@ -27,13 +27,17 @@ class XrayTransactionTests(unittest.TestCase):
         self.patch(x,'safe_file',lambda *a,**k:None)
         self.patch(x,'snapshot',self.snapshot)
         self.patch(x,'leases',lambda *a:[dict(status='active',protocol='vless',rowId=1,saved={'panelId':self.panel},expires=time.time()+900)])
-        self.patch(x,'arm',lambda info:self.events.append('armed'))
+        self.patch(x,'arm',self.arm)
         self.patch(x,'retire',lambda info:self.events.append('retired'))
         self.patch(x,'command',lambda *a,**k:b'')
         self.patch(x,'download',self.download)
         self.patch(x,'config_test',lambda *a:None)
         self.patch(x,'restart',self.restart)
         self.patch(x.os,'chown',lambda *a:None)
+    def arm(self,info):
+        # Like the real arm(): the unit file exists before anything else runs.
+        (self.root/'units').mkdir(exist_ok=True);(self.root/'units'/x.unit(info['id'],'rollback')).write_text('unit')
+        self.events.append('armed')
     def patch(self,obj,name,value):
         p=patch.object(obj,name,value);p.start();self.patches.append(p)
     def tearDown(self):
@@ -152,55 +156,86 @@ class XrayTransactionTests(unittest.TestCase):
             REAL_RESTART(self.store,info,info['current'])
             command.assert_called_once_with(['/usr/bin/systemctl','restart','x-ui.service'])
 
-    def test_check_connectivity_validates_open_inbound_ports(self):
-        info = dict(before=dict(configuration=dict(inbounds=[
-            dict(port=443, enable=True, listen='127.0.0.1'),
-            dict(port=8443, enable=False, listen='0.0.0.0'),
-        ])))
-        with patch.object(x.socket, 'create_connection') as mock_conn:
-            mock_conn.return_value.__enter__ = Mock()
-            mock_conn.return_value.__exit__ = Mock()
-            self.assertTrue(x.check_connectivity(info))
-            mock_conn.assert_called_once_with(('127.0.0.1', 443), timeout=2)
-
-        with patch.object(x.socket, 'create_connection', side_effect=OSError('refused')):
-            self.assertFalse(x.check_connectivity(info))
-
-    def test_watchdog_auto_commits_when_connectivity_confirmed_on_timeout(self):
-        self.begin()
-        x.apply(self.store, self.key)
-        info = x.load(self.store, self.key)
-        self.assertEqual(info['phase'], 'awaiting_checks')
-        info['deadline'] = time.time() - 1
-        x.save(self.store, info)
-
-        with patch('runner.Store', side_effect=lambda d: Store(self.root)), \
-             patch('runner.STATE', self.root), \
-             patch.object(x, 'check_connectivity', return_value=True):
+    def watchdog(self):
+        with patch('runner.Store', side_effect=lambda d: Store(self.root)), patch('runner.STATE', self.root), \
+             patch.object(x.time, 'sleep'):
             x.watchdog(self.key)
 
-        updated = x.load(self.store, self.key)
-        self.assertEqual(updated['phase'], 'committed')
-        self.assertEqual(self.binary.read_bytes(), b'new')
-        self.assertIn('retired', self.events)
+    def expire(self):
+        info = x.load(self.store, self.key); info['deadline'] = time.time() - 1; x.save(self.store, info)
 
-    def test_watchdog_rolls_back_when_connectivity_fails_on_timeout(self):
-        self.begin()
-        x.apply(self.store, self.key)
-        info = x.load(self.store, self.key)
-        self.assertEqual(info['phase'], 'awaiting_checks')
-        info['deadline'] = time.time() - 1
-        x.save(self.store, info)
-
-        with patch('runner.Store', side_effect=lambda d: Store(self.root)), \
-             patch('runner.STATE', self.root), \
-             patch.object(x, 'check_connectivity', return_value=False):
-            x.watchdog(self.key)
-
-        updated = x.load(self.store, self.key)
-        self.assertEqual(updated['phase'], 'rolled_back')
+    def test_watchdog_rolls_back_an_unchecked_upgrade_even_when_it_looks_healthy(self):
+        # No device checks arrived before the window ended: never auto-commit.
+        self.begin(); x.apply(self.store, self.key)
+        self.assertEqual(x.load(self.store, self.key)['phase'], 'awaiting_checks')
+        self.expire()
+        with patch('socket.create_connection'):  # Every inbound port answers.
+            self.watchdog()
+        self.assertEqual(x.load(self.store, self.key)['phase'], 'rolled_back')
         self.assertEqual(self.binary.read_bytes(), b'old')
         self.assertIn('retired', self.events)
+
+    def test_failed_rollback_is_bounded_and_terminal(self):
+        self.begin(); x.apply(self.store, self.key); self.expire()
+        restarts = []
+        def unconfirmed(store, info, version):
+            restarts.append(version); raise x.UpdateError('xray_check_restart')
+        with patch.object(x, 'restart', unconfirmed):
+            self.watchdog()  # Returns instead of raising into Restart=on-failure.
+            info = x.load(self.store, self.key)
+            self.assertEqual(info['phase'], 'recovery_required')
+            self.assertEqual(info['code'], 'xray_check_restart')
+            self.assertEqual(len(restarts), x.MAX_ROLLBACK_ATTEMPTS)
+            self.assertIn('retired', self.events)
+            # A restarted watchdog retires at once, without touching x-ui again.
+            self.events.clear(); self.watchdog()
+            self.assertEqual(len(restarts), x.MAX_ROLLBACK_ATTEMPTS); self.assertEqual(self.events, ['retired'])
+            # RPCs only report busy: no rollback (and no restart) inside them.
+            self.assertTrue(x.active(self.store)); self.assertEqual(len(restarts), x.MAX_ROLLBACK_ATTEMPTS)
+        # An explicit abort is the manual retry.
+        abort = dict(id=self.key, action='xray_check_abort', payload=json.dumps(dict(nonce=info['nonce'], manifest=info['manifest'])))
+        self.assertEqual(x.finish(self.store, abort)['phase'], 'rolled_back')
+        self.assertFalse(x.active(self.store))
+
+    def test_crash_inside_rollback_counts_as_an_attempt(self):
+        self.begin(); x.apply(self.store, self.key)
+        info = x.load(self.store, self.key); info.update(phase='rolling_back', rollbackAttempts=x.MAX_ROLLBACK_ATTEMPTS); x.save(self.store, info)
+        with patch.object(x, 'restart', side_effect=AssertionError('x-ui must not restart again')):
+            self.watchdog()
+        self.assertEqual(x.load(self.store, self.key)['phase'], 'recovery_required')
+
+    def test_active_does_not_roll_back_inside_an_rpc(self):
+        self.begin(); x.apply(self.store, self.key); self.expire()
+        self.events.clear()
+        self.assertTrue(x.active(self.store))
+        self.assertEqual(self.binary.read_bytes(), b'new'); self.assertEqual(self.events, [])
+        self.assertEqual(x.load(self.store, self.key)['phase'], 'awaiting_checks')
+
+    def test_begin_that_crashed_before_arming_does_not_block(self):
+        with patch.object(x, 'arm', side_effect=SystemExit):
+            with self.assertRaises(SystemExit): self.begin()
+        self.assertEqual(x.load(self.store, self.key)['phase'], 'preparing')
+        self.assertFalse(x.active(self.store))
+        self.assertEqual(x.load(self.store, self.key)['phase'], 'not_changed')
+
+    def test_finished_transactions_are_retired(self):
+        keys = ['1' * 32, '2' * 32, '3' * 32]
+        for number, key in enumerate(keys):
+            self.key = key; self.running = '26.7.28'; self.binary.write_bytes(b'old')
+            begin = self.begin(); x.apply(self.store, key)
+            info = x.load(self.store, key); info['created'] = 1000 + number; x.save(self.store, info)
+            (x.location(self.store, key) / 'candidate.zip').write_bytes(b'zip')
+            self.assertEqual(self.finish(begin)['phase'], 'committed')
+        # Only the newest record per panel stays, without its binaries.
+        self.assertEqual(sorted(p.name for p in x.directory(self.store).iterdir()), [keys[-1]])
+        self.assertEqual(sorted(p.name for p in x.location(self.store, keys[-1]).iterdir()), ['state.json'])
+        self.assertEqual(x.latest(self.store, self.panel)['id'], keys[-1])
+        # A stuck transaction keeps everything a manual recovery needs.
+        self.key = '4' * 32; self.running = '26.7.28'; self.binary.write_bytes(b'old')
+        self.begin(); x.apply(self.store, self.key); self.binary.write_bytes(b'foreign')
+        with self.assertRaises(x.UpdateError): x.rollback(self.store, x.load(self.store, self.key))
+        x.prune(self.store)
+        self.assertTrue((x.location(self.store, self.key) / 'previous').exists())
 
     def test_parse_semver_robustness(self):
         self.assertEqual(x.parse_semver('3.8.0'), (3, 8, 0))

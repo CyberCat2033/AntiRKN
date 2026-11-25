@@ -25,6 +25,32 @@ def install_lock():
         os.close(fd)
 
 
+def _records(paths):
+    for path in paths:
+        try:
+            data = json.loads(path.read_text())
+        except (OSError, ValueError):
+            continue  # Unreadable records are not evidence of work in progress.
+        if isinstance(data, dict):
+            yield data
+
+
+def transactions_busy(state, now):
+    """An Xray replacement or a temporary probe access is in progress.
+
+    A transaction counts until it is final (recovery_required needs a person,
+    not a blocked runner) or long past its window; a probe until it is closed
+    or expired."""
+    for data in _records((state / 'xray-upgrades').glob('*/state.json')):
+        if (data.get('phase') not in ('committed', 'rolled_back', 'not_changed', 'recovery_required')
+                and data.get('deadline', 0) > now - 900):
+            return True
+    for data in _records((state / 'connectivity-probes').glob('*.json')):
+        if data.get('status') != 'closed' and data.get('expires', 0) > now:
+            return True
+    return False
+
+
 def install_runner(request):
     if os.geteuid() != 0:
         raise ValueError('permissions')
@@ -57,35 +83,20 @@ def install_runner(request):
             finally:
                 db.close()
             rw_db = sqlite3.connect('/var/lib/antirkn-runner/jobs.sqlite')
+            rw_db.row_factory = sqlite3.Row  # Rows are read by column name below.
             try:
                 with rw_db:
                     for row in rw_db.execute("SELECT * FROM jobs WHERE status IN ('planned','running')").fetchall():
                         if not alive:
-                            status = 'cancelled' if row['cancel'] else 'failed'
+                            applied = row['checkpoint'] > 0 and json.loads(row['request']).get('kind') != 'diagnostic'
+                            status = 'partially_applied' if applied else 'cancelled' if row['cancel'] else 'failed'
                             rw_db.execute("UPDATE jobs SET status=? WHERE id=?", (status, row['id']))
                         elif row['cancel'] and row['status'] == 'planned':
                             rw_db.execute("UPDATE jobs SET status='cancelled' WHERE id=?", (row['id'],))
             finally:
                 rw_db.close()
-        if changing and alive:
-            state = Path('/var/lib/antirkn-runner')
-            now = time.time()
-            for record in (state / 'xray-upgrades').glob('*/state.json'):
-                try:
-                    data = json.loads(record.read_text())
-                    if (now - record.stat().st_mtime) <= 600 and data.get('phase') not in ('committed', 'rolled_back', 'not_changed'):
-                        if data.get('deadline', 0) > now:
-                            raise ValueError('busy')
-                except (OSError, ValueError):
-                    pass
-            for record in (state / 'connectivity-probes').glob('*.json'):
-                try:
-                    data = json.loads(record.read_text())
-                    if (now - record.stat().st_mtime) <= 120 and data.get('status') != 'closed':
-                        if data.get('expires', 0) > now:
-                            raise ValueError('busy')
-                except (OSError, ValueError):
-                    pass
+        if changing and alive and transactions_busy(Path('/var/lib/antirkn-runner'), time.time()):
+            raise ValueError('busy')
         if not (BASE / 'v67').exists():
             temp = Path(tempfile.mkdtemp(prefix='.antirkn-', dir='/usr/local/lib'))
             try:

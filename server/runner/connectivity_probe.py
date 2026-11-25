@@ -26,6 +26,9 @@ from tt_common import toml_bytes, toml_loads
 
 TTL = 900
 UNITS = Path('/etc/systemd/system')
+# A closed record (no credentials left) answers repeated probe_end calls for a
+# while, then goes: every RPC scans this directory.
+CLOSED_RETENTION = 24 * 3600
 
 
 class ProbeError(Exception):
@@ -102,6 +105,18 @@ def save(store, info):
     atomic_file(directory(store) / (identifier(info['id']) + '.json'), vless.canonical(info).encode())
 
 
+def prune(store, now=None):
+    """Drop closed records past CLOSED_RETENTION. Open ones always stay."""
+    now = time.time() if now is None else now
+    for path in directory(store).glob('*.json'):
+        try:
+            info = load(store, path.stem)
+            if info and info.get('status') == 'closed' and now - info.get('closedAt', path.stat().st_mtime) >= CLOSED_RETENTION:
+                path.unlink(missing_ok=True)
+        except (ProbeError, OSError):
+            continue
+
+
 def active(store):
     for p in directory(store).glob('*.json'):
         try:
@@ -130,12 +145,28 @@ def arm(info):
     command(['/usr/bin/systemctl', 'is-active', '--quiet', name])
 
 
+def retire_unit(name):
+    """Remove a watchdog unit; idempotent (disabled, not loaded or gone is fine).
+
+    Never stops it: the watchdog itself runs in that unit's cgroup."""
+    path = UNITS / name
+    wanted = UNITS / 'multi-user.target.wants' / name
+    if not (path.exists() or path.is_symlink() or wanted.is_symlink()):
+        return
+    try:
+        command(['/usr/bin/systemctl', 'disable', name])
+    except PanelError:
+        pass  # Not loaded any more: removing the files below is all that is left.
+    wanted.unlink(missing_ok=True)
+    path.unlink(missing_ok=True)
+    try:
+        command(['/usr/bin/systemctl', 'daemon-reload'])
+    except PanelError:
+        pass  # The unit file is gone; the next reload forgets it.
+
+
 def retire(key):
-    name = 'antirkn-probe-' + identifier(key) + '.service'
-    # Do not stop the cgroup containing the cleanup process itself.
-    command(['/usr/bin/systemctl', 'disable', name])
-    (UNITS / name).unlink(missing_ok=True)
-    command(['/usr/bin/systemctl', 'daemon-reload'])
+    retire_unit('antirkn-probe-' + identifier(key) + '.service')
 
 
 def users(saved, key):
@@ -314,6 +345,7 @@ def begin(store, request):
         if store.db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running')").fetchone():
             raise ProbeError('probe_busy')
         payload = json.loads(request['payload'])
+        prune(store)
         leases = [load(store, path.stem) for path in directory(store).glob('*.json')]
         live = [row for row in leases if row['status'] != 'closed']
         if len(live) >= 32 or any(row['protocol'] == payload.get('protocol') and row['saved']['spec']['id'] == payload.get('resource') for row in live):
@@ -374,20 +406,11 @@ def cleanup(store, info):
                     after['runtime'] is not None and client['publicKey'] in awg.runtime_config(after['runtime'].encode())[1]):
                 raise ProbeError('probe_cleanup')
             return
+        # Adopted TrustTunnel (VLESS returned above, AWG just before).
         plan = copy.deepcopy(info['plan'])
         plan['before'] = current
-        if info['protocol'] == 'vless':
-            row = copy.deepcopy(current['row'])
-            settings = json.loads(row['settings']) if isinstance(row['settings'], str) else row['settings']
-            settings['clients'] = [c for c in settings['clients'] if c['id'] != client['uuid']]
-            row['settings'] = vless.canonical(settings)
-            plan['after'] = row
-        else:
-            field = 'raw' if info['protocol'] == 'awg' else 'credentials'
-            original = info['plan']['before'][field]
-            raw = current[field]
-            plan['after'] = original if raw == info['plan']['after'] else (
-                remove_peer(raw, client['publicKey']) if info['protocol'] == 'awg' else remove_user(raw, client))
+        raw = current['credentials']
+        plan['after'] = info['plan']['before']['credentials'] if raw == info['plan']['after'] else remove_user(raw, client)
         adapter.apply(store, info['payload'], spec, plan)
         if not adapter.verify(adapter.snapshot(store, info['payload'], spec), plan):
             raise ProbeError('probe_cleanup')
@@ -414,6 +437,7 @@ def end(store, key):
     if info is None or info['status'] == 'closed':
         if info is not None:
             retire(key)
+        prune(store)
         return dict(closed=True, stable=bool(info and info.get('stable')))
     try:
         stable = info.get('afterHash') == fingerprint(store, info)
@@ -421,8 +445,9 @@ def end(store, key):
         stable = False
     cleanup(store, info)
     # Drop all credentials/config copies once cleanup has succeeded.
-    save(store, dict(id=key, status='closed', stable=stable, requestHash=info['requestHash']))
+    save(store, dict(id=key, status='closed', stable=stable, requestHash=info['requestHash'], closedAt=time.time()))
     retire(key)
+    prune(store)
     return dict(closed=True, stable=stable)
 
 

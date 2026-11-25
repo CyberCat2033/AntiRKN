@@ -294,6 +294,9 @@ class ComponentUpgradeResilienceTests(unittest.TestCase):
             with self.assertRaises(ComponentUpgradeError) as ctx:
                 upgrader.verify_health(timeout=1)
             self.assertEqual(ctx.exception.code, 'upgrade_healthcheck_failed')
+            # The check only reports; the job rolls back exactly once.
+            self.assertEqual(active_bin.read_bytes(), b'crashed_new_version')
+            upgrader.rollback()
 
         # 4. Verify SELF-HEALING ROLLBACK has succeeded!
         # Active binary must be reverted to the original working version
@@ -791,6 +794,8 @@ class ComponentUpgradeResilienceTests(unittest.TestCase):
             with self.assertRaises(ComponentUpgradeError) as ctx:
                 upgrader.verify_health(timeout=0.1)
             self.assertEqual(ctx.exception.code, 'upgrade_healthcheck_failed')
+            self.assertEqual(active_bin.read_bytes(), b'broken_new_binary')
+            upgrader.rollback()
 
         # Rollback restored the original binary!
         self.assertEqual(active_bin.read_bytes(), b'healthy_old_binary')
@@ -986,16 +991,20 @@ class UpgradeConnectivityAndConfirmationTests(unittest.TestCase):
         upgrader.detection = {'installed': True, 'binaryPath': '/nonexistent/xray'}
         return upgrader
 
-    def test_inbound_that_stops_working_rolls_back(self):
+    def test_inbound_that_stops_working_fails_the_check(self):
         upgrader = self._upgrader({'vless:443': True, 'vless:8443': False})
-        with patch('component_upgrade.probe_component', return_value={'vless:443': False, 'vless:8443': False}), \
+        clock = iter([0, 0, 100])
+        with patch('component_upgrade.probe_component', return_value={'vless:443': False, 'vless:8443': False}) as probe, \
              patch('component_upgrade.time.sleep'), \
-             patch('component_upgrade.time.monotonic', side_effect=[0, 0, 31]), \
+             patch('component_upgrade.time.monotonic', side_effect=lambda: next(clock)), \
              patch.object(ComponentUpgrader, 'rollback') as rollback:
             with self.assertRaises(ComponentUpgradeError) as ctx:
                 upgrader.verify_connectivity()
         self.assertEqual(ctx.exception.code, 'upgrade_connectivity_failed')
-        rollback.assert_called_once()
+        # The job rolls back on the error; the check itself never does.
+        rollback.assert_not_called()
+        # Every probe gets the one overall deadline.
+        self.assertEqual({c.kwargs['deadline'] for c in probe.call_args_list}, {54})
 
     def test_previous_core_cut_off_rolls_back(self):
         """Double hop: an entry on the previous core must still reach this server."""
@@ -1009,14 +1018,14 @@ class UpgradeConnectivityAndConfirmationTests(unittest.TestCase):
             with patch('component_upgrade.probe_component', return_value={'vless:443': True}), \
                  patch('upgrade_probe.probe_vless', return_value={'vless:443': False}) as old_client, \
                  patch('component_upgrade.time.sleep'), \
-                 patch('component_upgrade.time.monotonic', side_effect=[0, 0, 31]), \
+                 patch('component_upgrade.time.monotonic', side_effect=[0, 0, 100]), \
                  patch.object(ComponentUpgrader, 'rollback') as rollback:
                 with self.assertRaises(ComponentUpgradeError) as ctx:
                     upgrader.verify_connectivity()
             self.assertEqual(ctx.exception.code, 'upgrade_connectivity_failed')
             self.assertIn('previous:vless:443', ctx.exception.detail)
             self.assertEqual(old_client.call_args.kwargs['binary'], core)
-            rollback.assert_called_once()
+            rollback.assert_not_called()
 
     def test_inbound_broken_before_does_not_block_upgrade(self):
         upgrader = self._upgrader({'vless:443': True, 'vless:8443': False})
@@ -1128,17 +1137,18 @@ class ConfirmationWindowLifecycleTests(unittest.TestCase):
              patch('component_upgrade._units_settled', return_value=True), \
              patch('component_upgrade.probe_component', return_value={'vless:443': False}):
             _late_rollback(upgrader)
-        self.assertEqual([c.kwargs for c in rollback.call_args_list], [{'restore_data': False}, {'restore_data': True}])
+        self.assertEqual([c.kwargs for c in rollback.call_args_list], [{'restore_data': False}, {'restore_data': True, 'force': True}])
 
     def test_expiry_waits_for_a_running_job(self):
         from component_upgrade import _wait_for_idle
         other = 'd' * 32
         self.store.db.execute('INSERT INTO jobs VALUES (?,?,?,6,0,0,?)', (other, json.dumps({**self.request, 'id': other}), 'running', time.time()))
         self.store.db.commit()
+        self.store.heartbeat()  # A live worker runs the other job.
         clock = iter([0, 0, 10, 200])
         with patch('component_upgrade.time.monotonic', side_effect=lambda: next(clock)), \
              patch('component_upgrade.time.sleep') as sleep:
-            _wait_for_idle(self.store, self.job_id)
+            self.assertFalse(_wait_for_idle(self.store, self.job_id))
         self.assertTrue(sleep.called)
 
 
