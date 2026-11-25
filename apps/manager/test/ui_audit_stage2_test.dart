@@ -441,7 +441,8 @@ void main() {
       tester,
     ) async {
       tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(1000, 4000);
+      // Tall enough for all 30 rows: the list is lazy (UI-31).
+      tester.view.physicalSize = const Size(1000, 8000);
       addTearDown(tester.view.resetDevicePixelRatio);
       addTearDown(tester.view.resetPhysicalSize);
       final store = fx.MemoryVpn()

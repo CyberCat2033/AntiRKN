@@ -361,9 +361,19 @@ class AppAnimatedCollection extends StatefulWidget {
     required this.items,
     this.motion = MotionPreference.system,
     super.key,
-  });
+  }) : sliver = false;
+
+  /// The lazy form for long lists inside a [CustomScrollView]: a sliver on a
+  /// filled card surface whose rows are built only as they scroll into view,
+  /// with the same insertion and removal motion (UI-31).
+  const AppAnimatedCollection.sliver({
+    required this.items,
+    this.motion = MotionPreference.system,
+    super.key,
+  }) : sliver = true;
   final Map<String, Widget> items;
   final MotionPreference motion;
+  final bool sliver;
   @override
   State<AppAnimatedCollection> createState() => _AppAnimatedCollectionState();
 }
@@ -430,28 +440,62 @@ class _AppAnimatedCollectionState extends State<AppAnimatedCollection>
         order.insert(i < order.length ? i : order.length, previous[i]);
       }
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final id in order)
-          SizeTransition(
-            key: ValueKey(id),
-            sizeFactor: animations[id]!.drive(
-              CurveTween(curve: AppMotion.curve),
-            ),
-            axisAlignment: -1,
-            child: FadeTransition(
-              opacity: animations[id]!,
-              child: IgnorePointer(
-                ignoring: !widget.items.containsKey(id),
-                child: ExcludeSemantics(
-                  excluding: !widget.items.containsKey(id),
-                  child: RepaintBoundary(child: rows[id]!),
-                ),
-              ),
-            ),
+    Widget row(String id, {Key? key}) => SizeTransition(
+      key: key,
+      sizeFactor: animations[id]!.drive(CurveTween(curve: AppMotion.curve)),
+      axisAlignment: -1,
+      child: FadeTransition(
+        opacity: animations[id]!,
+        child: IgnorePointer(
+          ignoring: !widget.items.containsKey(id),
+          child: ExcludeSemantics(
+            excluding: !widget.items.containsKey(id),
+            child: RepaintBoundary(child: rows[id]!),
           ),
-      ],
+        ),
+      ),
+    );
+    if (!widget.sliver) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [for (final id in order) row(id, key: ValueKey(id))],
+      );
+    }
+    final card = Theme.of(context).cardTheme;
+    final shape =
+        card.shape ??
+        const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(AppLayout.radius)),
+        );
+    // The rows' clip follows the card's own corners.
+    final radius = shape is RoundedRectangleBorder
+        ? shape.borderRadius.resolve(Directionality.of(context)).topLeft
+        : const Radius.circular(AppLayout.radius);
+    final index = {for (var i = 0; i < order.length; i++) order[i]: i};
+    return DecoratedSliver(
+      decoration: ShapeDecoration(
+        color: card.color ?? Theme.of(context).colorScheme.surfaceContainerLow,
+        shape: shape,
+      ),
+      sliver: SliverList.builder(
+        itemCount: order.length,
+        findChildIndexCallback: (key) =>
+            key is ValueKey<String> ? index[key.value] : null,
+        // A sliver is not clipped by its card: the first and last rows follow
+        // its corners so ink and selection stay inside (one widget type for
+        // every row keeps their state when the ends change).
+        itemBuilder: (context, i) => ClipRRect(
+          key: ValueKey(order[i]),
+          borderRadius: BorderRadius.vertical(
+            top: i == 0 ? radius : Radius.zero,
+            bottom: i == order.length - 1 ? radius : Radius.zero,
+          ),
+          clipBehavior: i == 0 || i == order.length - 1
+              ? Clip.antiAlias
+              : Clip.none,
+          child: row(order[i]),
+        ),
+      ),
     );
   }
 }

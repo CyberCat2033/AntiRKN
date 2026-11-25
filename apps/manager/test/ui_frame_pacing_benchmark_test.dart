@@ -340,11 +340,12 @@ void main() {
         ),
       );
 
-      // Measure number of CoreConfigCheckAction rebuilds
+      // The client list is lazy (UI-31): only the rows in view are built,
+      // not all 50.
       final initialChecks = tester.widgetList(
         find.byType(CoreConfigCheckAction),
       );
-      expect(initialChecks.length, 50);
+      expect(initialChecks.length, inInclusiveRange(1, 49));
 
       // Toggling one single user's state
       final sw = Stopwatch()..start();

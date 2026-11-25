@@ -476,254 +476,294 @@ class _UsersPageState extends State<UsersPage> {
         selection: selection,
         ids: [for (final u in sortedAllUsers) u.id],
         enabled: c.canMutate,
-        builder: (scroll, item) => ListView(
+        builder: (scroll, item) => CustomScrollView(
           controller: scroll,
           key: const PageStorageKey('vpn-users'),
-          padding: AppLayout.screenPadding(context),
-          children: [
-            AppPageIntro(l.uiClientsIntro),
-            CatalogNormalContent(
-              selection: selection,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 10,
+          slivers: [
+            SliverPadding(
+              padding: AppLayout.screenPadding(context),
+              sliver: SliverMainAxisGroup(
+                slivers: [
+                  SliverList.list(
                     children: [
-                      FilledButton.icon(
-                        onPressed: !c.canMutate || _syncing
-                            ? null
-                            : () => UsersPage.edit(
+                      AppPageIntro(l.uiClientsIntro),
+                      CatalogNormalContent(
+                        selection: selection,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Wrap(
+                              spacing: 12,
+                              runSpacing: 10,
+                              children: [
+                                FilledButton.icon(
+                                  onPressed: !c.canMutate || _syncing
+                                      ? null
+                                      : () => UsersPage.edit(
+                                          context,
+                                          c,
+                                          motion,
+                                          null,
+                                          publications,
+                                        ),
+                                  icon: const Icon(Icons.add),
+                                  label: Text(l.vpnAddUser),
+                                ),
+                                if (publications != null)
+                                  ListenableBuilder(
+                                    listenable: publications!,
+                                    builder: (context, _) =>
+                                        _buildSyncButton(context, c, l),
+                                  )
+                                else
+                                  _buildSyncButton(context, c, l),
+                              ],
+                            ),
+                            if (publications != null)
+                              ListenableBuilder(
+                                listenable: publications!.changes,
+                                builder: (context, _) => _buildSyncProgress(),
+                              )
+                            else
+                              _buildSyncProgress(),
+                            const SizedBox(height: 20),
+                          ],
+                        ),
+                      ),
+                      AppSectionHeading(
+                        title: l.vpnUsers,
+                        count: allUsers.length,
+                      ),
+                      if (showAddAction)
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                selection.active
+                                    ? l.catalogSelected(selection.ids.length)
+                                    : l.vpnUsers,
+                              ),
+                            ),
+                            CatalogActions(
+                              selection: selection,
+                              available: [for (final u in sortedAllUsers) u.id],
+                              prefix: 'vpn-user',
+                              busy: !c.canMutate,
+                              addLabel: l.vpnAddUser,
+                              onAdd: () => UsersPage.edit(
                                 context,
                                 c,
                                 motion,
                                 null,
                                 publications,
                               ),
-                        icon: const Icon(Icons.add),
-                        label: Text(l.vpnAddUser),
-                      ),
-                      if (publications != null)
-                        ListenableBuilder(
-                          listenable: publications!,
-                          builder: (context, _) =>
-                              _buildSyncButton(context, c, l),
-                        )
-                      else
-                        _buildSyncButton(context, c, l),
-                    ],
-                  ),
-                  if (publications != null)
-                    ListenableBuilder(
-                      listenable: publications!.changes,
-                      builder: (context, _) => _buildSyncProgress(),
-                    )
-                  else
-                    _buildSyncProgress(),
-                  const SizedBox(height: 20),
-                ],
-              ),
-            ),
-            AppSectionHeading(title: l.vpnUsers, count: allUsers.length),
-            if (showAddAction)
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      selection.active
-                          ? l.catalogSelected(selection.ids.length)
-                          : l.vpnUsers,
-                    ),
-                  ),
-                  CatalogActions(
-                    selection: selection,
-                    available: [for (final u in sortedAllUsers) u.id],
-                    prefix: 'vpn-user',
-                    busy: !c.canMutate,
-                    addLabel: l.vpnAddUser,
-                    onAdd: () =>
-                        UsersPage.edit(context, c, motion, null, publications),
-                    onDelete: () => UsersPage.deleteSelected(
-                      context,
-                      c,
-                      selection,
-                      publications,
-                    ),
-                  ),
-                ],
-              ),
-            if (allUsers.length > 1 && !selection.active)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(4, 4, 4, 12),
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.sort,
-                          size: 18,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          l.vpnSortBy,
-                          style: Theme.of(context).textTheme.labelMedium
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                                fontWeight: FontWeight.w500,
-                              ),
-                        ),
-                      ],
-                    ),
-                    // The field is a segmented choice; the direction is its
-                    // own visible button, not a hidden second tap (UI-59).
-                    SegmentedButton<UserSortField>(
-                      showSelectedIcon: false,
-                      segments: [
-                        ButtonSegment(
-                          value: UserSortField.name,
-                          label: Text(
-                            key: const ValueKey('vpn-sort-name'),
-                            l.vpnSortByName,
-                          ),
-                        ),
-                        ButtonSegment(
-                          value: UserSortField.creationDate,
-                          label: Text(
-                            key: const ValueKey('vpn-sort-date'),
-                            l.vpnSortByDate,
-                          ),
-                        ),
-                      ],
-                      selected: {_sortField},
-                      onSelectionChanged: (value) => setState(() {
-                        _sortField = value.single;
-                        _sortAscending = true;
-                      }),
-                    ),
-                    IconButton(
-                      key: const ValueKey('vpn-sort-direction'),
-                      tooltip: _sortAscending
-                          ? l.vpnSortAscending
-                          : l.vpnSortDescending,
-                      onPressed: () =>
-                          setState(() => _sortAscending = !_sortAscending),
-                      icon: Icon(
-                        _sortAscending
-                            ? Icons.arrow_upward
-                            : Icons.arrow_downward,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            if (publications != null)
-              ListenableBuilder(
-                listenable: publications!,
-                builder: (context, _) => VpnPlanView(
-                  controller: c,
-                  serverName: serverName,
-                  showProgress: !_syncing && !publications!.hasActiveSync,
-                ),
-              )
-            else
-              VpnPlanView(
-                controller: c,
-                serverName: serverName,
-                showProgress: !_syncing,
-              ),
-            if (allUsers.isEmpty)
-              AppEmptyState(
-                title: l.vpnNoUsers,
-                icon: Icons.people_outline,
-                message: l.uiClientsEmptyHelp,
-              ),
-            if (allUsers.isNotEmpty)
-              Card.filled(
-                child: AppAnimatedCollection(
-                  motion: motion,
-                  items: {
-                    for (var i = 0; i < enabledUsers.length; i++)
-                      enabledUsers[i].id: item(
-                        enabledUsers[i].id,
-                        _UserTile(
-                          user: enabledUsers[i],
-                          isFirst: i == 0,
-                          controller: c,
-                          selection: selection,
-                          publications: publications,
-                          protocolSummary: protocolSummary,
-                          motion: motion,
-                          onProfile: _profile,
-                          isSyncing: _syncing,
-                        ),
-                      ),
-                    if (disabledUsers.isNotEmpty) ...{
-                      if (enabledUsers.isNotEmpty)
-                        '__disabled_header__': Container(
-                          key: const ValueKey('vpn-disabled-section-header'),
-                          padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
-                          decoration: BoxDecoration(
-                            border: Border(
-                              top: BorderSide(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .outlineVariant
-                                    .withValues(alpha: .55),
+                              onDelete: () => UsersPage.deleteSelected(
+                                context,
+                                c,
+                                selection,
+                                publications,
                               ),
                             ),
-                          ),
-                          child: Row(
+                          ],
+                        ),
+                      if (allUsers.length > 1 && !selection.active)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(4, 4, 4, 12),
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
-                              Icon(
-                                Icons.pause_circle_outline,
-                                size: 18,
-                                color: Theme.of(context).colorScheme.outline,
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.sort,
+                                    size: 18,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    l.vpnSortBy,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelMedium
+                                        ?.copyWith(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onSurfaceVariant,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 8),
-                              Text(
-                                l.vpnDisabledClients,
-                                style: Theme.of(context).textTheme.titleSmall
-                                    ?.copyWith(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onSurfaceVariant,
-                                      fontWeight: FontWeight.w600,
+                              // The field is a segmented choice; the direction is its
+                              // own visible button, not a hidden second tap (UI-59).
+                              SegmentedButton<UserSortField>(
+                                showSelectedIcon: false,
+                                segments: [
+                                  ButtonSegment(
+                                    value: UserSortField.name,
+                                    label: Text(
+                                      key: const ValueKey('vpn-sort-name'),
+                                      l.vpnSortByName,
                                     ),
+                                  ),
+                                  ButtonSegment(
+                                    value: UserSortField.creationDate,
+                                    label: Text(
+                                      key: const ValueKey('vpn-sort-date'),
+                                      l.vpnSortByDate,
+                                    ),
+                                  ),
+                                ],
+                                selected: {_sortField},
+                                onSelectionChanged: (value) => setState(() {
+                                  _sortField = value.single;
+                                  _sortAscending = true;
+                                }),
                               ),
-                              const SizedBox(width: 8),
-                              AppBadge(label: '${disabledUsers.length}'),
+                              IconButton(
+                                key: const ValueKey('vpn-sort-direction'),
+                                tooltip: _sortAscending
+                                    ? l.vpnSortAscending
+                                    : l.vpnSortDescending,
+                                onPressed: () => setState(
+                                  () => _sortAscending = !_sortAscending,
+                                ),
+                                icon: Icon(
+                                  _sortAscending
+                                      ? Icons.arrow_upward
+                                      : Icons.arrow_downward,
+                                ),
+                              ),
                             ],
                           ),
                         ),
-                      for (var i = 0; i < disabledUsers.length; i++)
-                        disabledUsers[i].id: item(
-                          disabledUsers[i].id,
-                          _UserTile(
-                            user: disabledUsers[i],
-                            isFirst: i == 0 && enabledUsers.isEmpty,
+                      if (publications != null)
+                        ListenableBuilder(
+                          listenable: publications!,
+                          builder: (context, _) => VpnPlanView(
                             controller: c,
-                            selection: selection,
-                            publications: publications,
-                            protocolSummary: protocolSummary,
-                            motion: motion,
-                            onProfile: _profile,
-                            isSyncing: _syncing,
+                            serverName: serverName,
+                            showProgress:
+                                !_syncing && !publications!.hasActiveSync,
                           ),
+                        )
+                      else
+                        VpnPlanView(
+                          controller: c,
+                          serverName: serverName,
+                          showProgress: !_syncing,
                         ),
-                    },
-                  },
-                ),
+                      if (allUsers.isEmpty)
+                        AppEmptyState(
+                          title: l.vpnNoUsers,
+                          icon: Icons.people_outline,
+                          message: l.uiClientsEmptyHelp,
+                        ),
+                    ],
+                  ),
+                  // A lazy sliver: only the rows in view are built, so a long
+                  // client list does not stall the first frame (UI-31).
+                  if (allUsers.isNotEmpty)
+                    AppAnimatedCollection.sliver(
+                      motion: motion,
+                      items: {
+                        for (var i = 0; i < enabledUsers.length; i++)
+                          enabledUsers[i].id: item(
+                            enabledUsers[i].id,
+                            _UserTile(
+                              user: enabledUsers[i],
+                              isFirst: i == 0,
+                              controller: c,
+                              selection: selection,
+                              publications: publications,
+                              protocolSummary: protocolSummary,
+                              motion: motion,
+                              onProfile: _profile,
+                              isSyncing: _syncing,
+                            ),
+                          ),
+                        if (disabledUsers.isNotEmpty) ...{
+                          if (enabledUsers.isNotEmpty)
+                            '__disabled_header__': Container(
+                              key: const ValueKey(
+                                'vpn-disabled-section-header',
+                              ),
+                              padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
+                              decoration: BoxDecoration(
+                                border: Border(
+                                  top: BorderSide(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .outlineVariant
+                                        .withValues(alpha: .55),
+                                  ),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.pause_circle_outline,
+                                    size: 18,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.outline,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    l.vpnDisabledClients,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleSmall
+                                        ?.copyWith(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onSurfaceVariant,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  AppBadge(label: '${disabledUsers.length}'),
+                                ],
+                              ),
+                            ),
+                          for (var i = 0; i < disabledUsers.length; i++)
+                            disabledUsers[i].id: item(
+                              disabledUsers[i].id,
+                              _UserTile(
+                                user: disabledUsers[i],
+                                isFirst: i == 0 && enabledUsers.isEmpty,
+                                controller: c,
+                                selection: selection,
+                                publications: publications,
+                                protocolSummary: protocolSummary,
+                                motion: motion,
+                                onProfile: _profile,
+                                isSyncing: _syncing,
+                              ),
+                            ),
+                        },
+                      },
+                    ),
+                  SliverList.list(
+                    children: [
+                      ClientDeletionPanel(
+                        controller: c,
+                        serverName: serverName,
+                      ),
+                      _AttentionServersSection(
+                        controller: c,
+                        serverName: serverName,
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            ClientDeletionPanel(controller: c, serverName: serverName),
-            _AttentionServersSection(controller: c, serverName: serverName),
+            ),
           ],
         ),
       );

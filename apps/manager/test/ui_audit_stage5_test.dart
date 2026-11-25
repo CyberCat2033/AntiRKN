@@ -1,11 +1,13 @@
 // Regressions for UI audit stage 5: l10n, accessibility, dead code (UI-71…
-// UI-75).
+// UI-75), the shared protocol save step (UI-52) and the lazy client list
+// (UI-31).
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_manager/app_strings.dart';
 import 'package:antirkn_manager/l10n/app_localizations.dart';
 import 'package:antirkn_manager/publication/profile_link_qr.dart';
 import 'package:antirkn_manager/vpn/users_page.dart';
+import 'package:antirkn_manager/vpn/vpn_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
@@ -20,6 +22,8 @@ Widget _app(Widget child, {Locale locale = const Locale('en')}) => MaterialApp(
   localizationsDelegates: AppLocalizations.localizationsDelegates,
   home: Scaffold(body: child),
 );
+
+String _id(int i) => i.toRadixString(16).padLeft(32, '0');
 
 class _Export implements ProfileExporter {
   @override
@@ -193,6 +197,104 @@ void main() {
       expect(c.error, isNull);
       expect(c.clientCountOn('one'), 1);
       expect(c.clientCountOn('two'), 0);
+    });
+  });
+
+  group('UI-31 lazy client list', () {
+    Future<VpnController> start(WidgetTester tester, int count) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(800, 1000);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final store = f.MemoryVpn()
+        ..raw = VpnWorkspace(
+          id: _id(9999),
+          users: [
+            for (var i = 1; i <= count; i++)
+              VpnUser(id: _id(i), login: 'user-$i', name: 'Client $i'),
+          ],
+        ).encode();
+      final c = f.controller(store, {});
+      addTearDown(c.dispose);
+      await tester.runAsync(c.load);
+      await tester.pumpWidget(
+        _app(
+          UsersPage(
+            controller: c,
+            serverName: (s) => s,
+            exporter: _Export(),
+            motion: MotionPreference.system,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return c;
+    }
+
+    testWidgets('only rows in view are built; the last one scrolls in', (
+      tester,
+    ) async {
+      await start(tester, 100);
+      final built = find.byType(UserTile).evaluate().length;
+      expect(built, greaterThan(0));
+      expect(built, lessThan(100));
+      final last = find.byKey(ValueKey('client-${_id(100)}'));
+      expect(last, findsNothing);
+      await tester.scrollUntilVisible(
+        last,
+        400,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(last, findsOneWidget);
+    });
+
+    testWidgets('insertion and removal still animate with AppMotion', (
+      tester,
+    ) async {
+      final c = await start(tester, 3);
+      final gone = find.byKey(ValueKey('client-${_id(2)}'));
+      expect(gone, findsOneWidget);
+      await tester.runAsync(
+        () => c.deleteUsers([c.workspace.userById(_id(2))!]),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
+      // Mid-animation the removed row is still there, shrinking.
+      expect(gone, findsOneWidget);
+      await tester.pumpAndSettle();
+      expect(gone, findsNothing);
+
+      await tester.runAsync(
+        () => c.saveUser(VpnUser(id: _id(50), login: 'new', name: 'Client 0')),
+      );
+      await tester.pump();
+      final added = find.ancestor(
+        of: find.byKey(ValueKey('client-${_id(50)}')),
+        matching: find.byType(SizeTransition),
+      );
+      expect(added, findsOneWidget);
+      expect(
+        tester.widget<SizeTransition>(added).sizeFactor.value,
+        lessThan(1),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.widget<SizeTransition>(added).sizeFactor.value, 1);
+    });
+
+    testWidgets('system reduced motion removes a row at once', (tester) async {
+      final c = await start(tester, 3);
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          FakeAccessibilityFeatures.allOn;
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      await tester.pump();
+      await tester.runAsync(
+        () => c.deleteUsers([c.workspace.userById(_id(2))!]),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(find.byKey(ValueKey('client-${_id(2)}')), findsNothing);
     });
   });
 }
