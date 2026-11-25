@@ -1505,5 +1505,6 @@
   "runnerUpgradeInvalidComponent": "Этот компонент нельзя обновить таким способом",
   "runnerUpgradeBinaryNotFound": "В пакете нет ожидаемого исполняемого файла",
   "runnerUpgradeArchitectureMismatch": "Пакет собран для другой архитектуры сервера",
-  "runnerUpgradeRollbackFailed": "Откат не удался: предыдущая версия не восстановлена. Проверьте сервер"
+  "runnerUpgradeRollbackFailed": "Откат не удался: предыдущая версия не восстановлена. Проверьте сервер",
+  "softwareAwgDockerUpdate": "AmneziaWG работает в Docker. Приложение не обновляет Docker-контейнеры: обновите образ контейнера самостоятельно."
 }

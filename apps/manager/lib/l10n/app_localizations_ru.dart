@@ -4145,4 +4145,8 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get runnerUpgradeRollbackFailed =>
       'Откат не удался: предыдущая версия не восстановлена. Проверьте сервер';
+
+  @override
+  String get softwareAwgDockerUpdate =>
+      'AmneziaWG работает в Docker. Приложение не обновляет Docker-контейнеры: обновите образ контейнера самостоятельно.';
 }

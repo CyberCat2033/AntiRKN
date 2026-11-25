@@ -40,6 +40,7 @@ class SoftwareOverview extends StatelessWidget {
           ? ComponentPresence.detected
           : c.presence(component);
       final versions = <String, String>{};
+      var inDocker = false;
       for (final observation
           in inventory?.components ?? <ComponentObservation>[]) {
         if (observation.component != component &&
@@ -47,10 +48,13 @@ class SoftwareOverview extends StatelessWidget {
                 observation.component == VpnComponent.xray)) {
           continue;
         }
+        inDocker = inDocker || awgOnlyInDocker(observation);
         for (final installation in observation.installations) {
           if (installation.version?.value case final version?) {
-            versions[releaseKey(observation.component, installation.identity)] =
-                version;
+            if (installationReleaseKey(observation.component, installation)
+                case final key?) {
+              versions[key] = version;
+            }
           }
         }
       }
@@ -108,7 +112,9 @@ class SoftwareOverview extends StatelessWidget {
       final hasPlan = isPanel
           ? c.panelPlan != null || c.panelUpdatePlan != null
           : c.componentPlan?.component == key;
-      final applyAction = !detected || canUpdate;
+      // No update path for an AmneziaWG container: no Update, no version
+      // choice, a note instead.
+      final applyAction = !detected || (canUpdate && !inDocker);
       final installingThis =
           (c.selected?.kind == 'component_install' ||
               c.selected?.kind == 'component_upgrade' ||
@@ -230,8 +236,9 @@ class SoftwareOverview extends StatelessWidget {
               ),
             );
       final choosable = [
-        for (final k in versions.keys)
-          if (choosableComponents.contains(k)) k,
+        if (!inDocker)
+          for (final k in versions.keys)
+            if (choosableComponents.contains(k)) k,
       ];
       final summary = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -266,7 +273,12 @@ class SoftwareOverview extends StatelessWidget {
             ),
           if (changes.isNotEmpty)
             Text(l.softwareUpdateAvailableList(changes.join(', '))),
-          if (updatable.keys.any((k) => k != 'xray') && !canUpdate)
+          if (inDocker && detected && (changes.isNotEmpty || canUpdate))
+            Text(
+              key: ValueKey('software-docker-$key'),
+              l.softwareAwgDockerUpdate,
+            )
+          else if (updatable.keys.any((k) => k != 'xray') && !canUpdate)
             Text(
               isPanel
                   ? l.panelUpdateCompatibility

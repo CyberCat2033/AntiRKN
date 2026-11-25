@@ -1550,5 +1550,6 @@
   "runnerUpgradeInvalidComponent": "This component cannot be updated this way",
   "runnerUpgradeBinaryNotFound": "The package does not contain the expected program file",
   "runnerUpgradeArchitectureMismatch": "The package is built for a different server architecture",
-  "runnerUpgradeRollbackFailed": "Rollback failed: the previous version was not restored. Check the server"
+  "runnerUpgradeRollbackFailed": "Rollback failed: the previous version was not restored. Check the server",
+  "softwareAwgDockerUpdate": "AmneziaWG runs in Docker. The app does not update Docker containers: update the container image yourself."
 }

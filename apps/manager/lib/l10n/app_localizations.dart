@@ -7243,6 +7243,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Rollback failed: the previous version was not restored. Check the server'**
   String get runnerUpgradeRollbackFailed;
+
+  /// No description provided for @softwareAwgDockerUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'AmneziaWG runs in Docker. The app does not update Docker containers: update the container image yourself.'**
+  String get softwareAwgDockerUpdate;
 }
 
 class _AppLocalizationsDelegate

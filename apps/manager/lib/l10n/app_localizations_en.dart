@@ -4139,4 +4139,8 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get runnerUpgradeRollbackFailed =>
       'Rollback failed: the previous version was not restored. Check the server';
+
+  @override
+  String get softwareAwgDockerUpdate =>
+      'AmneziaWG runs in Docker. The app does not update Docker containers: update the container image yourself.';
 }

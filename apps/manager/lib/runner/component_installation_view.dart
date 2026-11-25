@@ -194,16 +194,41 @@ bool hostsComponentInstallation(RunnerController c, String key) =>
               'partially_applied',
             }.contains(c.selected?.status)));
 
+/// Release key of an installation identity. AmneziaWG has two programs:
+/// the `awg` tool (amneziawg-tools) and `amneziawg-go`. The program is the
+/// last part of a binary path (`/usr/bin/awg`) or of a Docker identity
+/// (`<image> · <id> · awg`); an image name is never read for it.
 String releaseKey(VpnComponent component, String identity) =>
     switch (component) {
       VpnComponent.panel => 'panel',
       VpnComponent.xray => 'xray',
       VpnComponent.trustTunnel => 'trusttunnel',
       VpnComponent.amneziaWg =>
-        identity.contains('tools') || identity.endsWith('/awg')
+        identity.split(' · ').last.split('/').last == 'awg'
             ? 'amneziawgTools'
             : 'amneziawg',
     };
+
+/// Release key whose upstream versions apply to [installation], or null.
+/// The AmneziaWG kernel module has no release the app tracks: its version
+/// is not an AmneziaWG Go version.
+String? installationReleaseKey(
+  VpnComponent component,
+  ComponentInstallation installation,
+) => installation.source == InstallationSource.kernel
+    ? null
+    : releaseKey(component, installation.identity);
+
+/// AmneziaWG runs only in Docker here: the app has no update path for a
+/// container, so it offers no update or version choice for it.
+bool awgOnlyInDocker(ComponentObservation? observation) =>
+    observation?.component == VpnComponent.amneziaWg &&
+    observation!.installations.any(
+      (i) => i.source == InstallationSource.docker,
+    ) &&
+    !observation.installations.any(
+      (i) => i.source == InstallationSource.binary,
+    );
 
 /// Product name of [component] for software cards and the inventory: one
 /// name table with [componentName] (UI-53).

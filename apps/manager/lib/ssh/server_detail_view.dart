@@ -256,8 +256,10 @@ class _ServerDetailViewState extends State<ServerDetailView> {
         in widget.session.software?.components ?? <ComponentObservation>[]) {
       for (final installation in component.installations) {
         if (installation.version?.value case final version?) {
-          versions[releaseKey(component.component, installation.identity)] =
-              version;
+          if (installationReleaseKey(component.component, installation)
+              case final key?) {
+            versions[key] = version;
+          }
         }
       }
     }
