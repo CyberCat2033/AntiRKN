@@ -51,3 +51,43 @@ python3 tool/test_component_recovery_vm.py
 ```
 
 Кэш содержит официальные архивы с закреплёнными hashes. Без `--cache` первый тест загружает текущие архивы с VM; Go modules при сборке проверяются по upstream go.sum. Тестовый TLS-сертификат создаётся только внутри VM. Эти испытания не заменяют проверку персональных Mihomo TCP/UDP-профилей.
+
+## Автоматический VM-регресс раннера (`tool/vm_regression.py`)
+
+Одноразовый регрессионный прогон на изолированных thin-overlay VM (`artifacts/regression-vm`, SSH порт `2232`). Обычный запуск автоматически выполняется внутри `unshare -rn` без доступа VM к внешнему интернету.
+
+### Когда запускать
+- Перед каждым повышением версии раннера (`runner version bump`).
+- Перед слиянием любых изменений в `server/runner/`, `schemas/`, контракте RPC или компиляторе профилей.
+
+### Команды запуска
+```bash
+# 1. Один раз скачать и проверить SHA-256 всех оффлайн-артефактов (с сетью хоста / через HTTP(S)_PROXY):
+python3 tool/vm_regression.py --fetch
+
+# 2. Полный регрессионный прогон (полностью оффлайн):
+python3 tool/vm_regression.py
+
+# 3. Выборочный запуск и ускорение разработки:
+python3 tool/vm_regression.py --only protocols,reboot
+python3 tool/vm_regression.py --only inbound_isolation --reuse-protocols
+python3 tool/vm_regression.py --only runner_upgrade --previous <git-commit>
+
+# 4. Проверка мутаций (каждый сценарий обязан упасть ровно на ожидаемом check):
+python3 tool/vm_regression.py --mutation
+```
+
+### Типичное время выполнения
+- `--fetch`: ~1–2 мин (разово; включает предзагрузку и проверку `go.sum` для Go-модулей AmneziaWG).
+- Первая сборка `golden.qcow2` (или `--rebuild-golden`): ~1–2 мин.
+- `runner_upgrade`: ~95 с (автоматически находит предыдущую версию `runner_bundle.g.dart` в `git log`).
+- `protocols`: ~120 с (устанавливает 3x-ui, VLESS RAW/REALITY, XHTTP/REALITY, XHTTP/TLS, TrustTunnel и AmneziaWG из оффлайн-кэша с двумя пользователями, проверяет реальный TCP/UDP-трафик через Mihomo и сохраняет `protocols.qcow2`).
+- `inbound_isolation`: ~80 с.
+- `upgrade_rollback`: ~150 с.
+- `reboot`: ~90 с.
+- Полный прогон: ~9 мин; полный `--mutation` прогон (6 мутаций): ~10–12 мин.
+
+### Что покрывает и что НЕ покрывает
+- **Покрывает:** свежую установку и обновление раннера с сохранением БД задач; установку 3x-ui из кэша; настройку VLESS (RAW/REALITY, XHTTP/REALITY, XHTTP/TLS), TrustTunnel 1.1.0 и AmneziaWG 3.1 (оффлайн-сборка Go-модулей) с двумя пользователями и компиляцией профилей через `tool/compile_vless_fixture.dart`; реальный TCP+UDP-трафик через закреплённый Mihomo `v1.19.30`; изоляцию отказа одного инбаунда (`tt_state`/`awg_state` и изоляцию трафика); транзакцию обновления Xray (`xray_check_*`: откат при canary-регрессии, независимый watchdog при остановленном раннере, успешный коммит); реальную перезагрузку VM с проверкой БД задач и всех инбаундов.
+- **Известная нестабильность:** `upgrade_rollback` падает примерно в половине прогонов: после отката Xray (abort или watchdog) один из inbounds (VLESS RAW, XHTTP/TLS или TrustTunnel) не пропускает трафик дольше 40 с, хотя службы активны и порты слушают. Сама механика отката (abort, watchdog, возврат версии, отказ позднего commit) проверяется стабильно. Причина не установлена; вероятно, это дефект продукта, а не тайминг теста — расследуется отдельной стадией. До исправления падение этого сценария на проверках `all_inbounds_pass_after_*`, `canary_regression_detected` или `probe baseline` перезапускают и сверяют с этим описанием.
+- **Не покрывает:** VPS владельца и реальный внешний egress; реальные обновления 3x-ui между upstream-версиями (`panel_update`); adoption сторонних сервисов; SSH hardening; client egress / exit-узлы; ACME/Certbot; клиенты Windows/Android; задание `component_upgrade_apply` (его пробы ходят во внешний интернет, которого у VM нет); автономный `runnerComponentInspector` — сценарий временно вызывает `component_plan` установленного runner, пока не исправлен генератор (см. отчёт стадии). (Ограничение продукта: `vless_state.confirmed` читает БД панели 3x-ui и не видит недоступный по сети порт Xray, поэтому изоляция VLESS проверяется на уровне трафика.)

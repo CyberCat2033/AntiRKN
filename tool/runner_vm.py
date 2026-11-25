@@ -22,7 +22,9 @@ def prepare():
     DIRECTORY.mkdir(mode=0o700, exist_ok=True)
     DIRECTORY.chmod(0o700)
     reuse = os.environ.get('ANTIRKN_VM_REUSE') == '1'
-    if (DIRECTORY / 'disk.qcow2').exists() and not reuse:
+    # Optional explicit disk (regression suite overlays); default behaviour is unchanged.
+    disk = Path(os.environ['ANTIRKN_VM_DISK']) if os.environ.get('ANTIRKN_VM_DISK') else DIRECTORY / 'disk.qcow2'
+    if 'ANTIRKN_VM_DISK' not in os.environ and disk.exists() and not reuse:
         raise RuntimeError('Stop the old fixture and remove its disposable overlay before preparing a new VM')
     image = DIRECTORY / 'ubuntu.img'
     if not image.exists():
@@ -60,8 +62,8 @@ def prepare():
     (seed / 'user-data').write_text('#cloud-config\n' + json.dumps(config))
     (seed / 'meta-data').write_text(json.dumps({'instance-id': 'antirkn-runner-v1', 'local-hostname': 'antirkn-runner-fixture'}))
     (seed / 'user-data').chmod(0o600)
-    if not (DIRECTORY / 'disk.qcow2').exists():
-        subprocess.run(['qemu-img', 'create', '-f', 'qcow2', '-F', 'qcow2', '-b', str(image), str(DIRECTORY / 'disk.qcow2'), '8G'], check=True, stdout=subprocess.DEVNULL)
+    if not disk.exists():
+        subprocess.run(['qemu-img', 'create', '-f', 'qcow2', '-F', 'qcow2', '-b', str(image), str(disk), '8G'], check=True, stdout=subprocess.DEVNULL)
     fingerprint = subprocess.check_output(['ssh-keygen', '-lf', str(DIRECTORY / 'host.pub')], text=True).split()[1]
     (DIRECTORY / 'fingerprint').write_text(fingerprint)
     class QuietHandler(http.server.SimpleHTTPRequestHandler):
@@ -87,7 +89,7 @@ def prepare():
             raise ValueError('Invalid fixture UDP forward')
         forwards += f',hostfwd=udp:127.0.0.1:{local}-:{guest}'
     command = ['qemu-system-x86_64', '-accel', 'kvm' if os.access('/dev/kvm', os.R_OK | os.W_OK) else 'tcg', '-m', '1536', '-smp', '2', '-display', 'none',
-               '-drive', f'file={DIRECTORY / "disk.qcow2"},if=virtio,format=qcow2',
+               '-drive', f'file={disk},if=virtio,format=qcow2',
                '-nic', f'user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:{port}-:22' + forwards,
                '-smbios', f'type=1,serial=ds=nocloud;s=http://10.0.2.2:{server.server_port}/',
                '-chardev', f'socket,id=console,path={DIRECTORY / "console.sock"},server=on,wait=off,logfile={DIRECTORY / "console.txt"}',
@@ -118,7 +120,8 @@ def prepare():
 
 
 def ssh_command(user='root'):
-    return ['ssh', '-i', str(DIRECTORY / 'client'), '-o', 'IdentitiesOnly=yes', '-o', 'BatchMode=yes',
+    # -F /dev/null: all options are explicit; system ssh_config is unreadable inside `unshare -r`.
+    return ['ssh', '-F', '/dev/null', '-i', str(DIRECTORY / 'client'), '-o', 'IdentitiesOnly=yes', '-o', 'BatchMode=yes',
             '-o', 'ConnectTimeout=3', '-o', f'UserKnownHostsFile={DIRECTORY / "known_hosts"}',
             '-p', (DIRECTORY / 'port').read_text(), f'{user}@127.0.0.1']
 
