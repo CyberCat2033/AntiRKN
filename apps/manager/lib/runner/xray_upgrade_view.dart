@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
@@ -165,7 +166,12 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
                   child: LinearProgressIndicator(),
                 ),
               if (message.isNotEmpty) Text(message),
-              if (problem.isNotEmpty) Text(problem),
+              if (problem.isNotEmpty)
+                AppNotice(
+                  message: problem,
+                  error: true,
+                  margin: const EdgeInsets.only(top: 8),
+                ),
               for (final row in c.rows)
                 Padding(
                   padding: const EdgeInsets.only(top: 10),
@@ -192,7 +198,19 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
               FilledButton.icon(
                 key: const ValueKey('xray-check-update'),
                 onPressed: c.running
-                    ? c.cancel
+                    // Stopping aborts the upgrade and rolls the core back on
+                    // the server: confirm in error colours (UI-55).
+                    ? () async {
+                        final stop = await confirmAppDanger(
+                          context,
+                          title: l.xrayUpgradeStopTitle,
+                          message: l.xrayUpgradeStopHelp,
+                          confirmLabel: l.connectionStop,
+                          cancelLabel: l.runnerNotNow,
+                          confirmKey: const ValueKey('xray-stop-confirm'),
+                        );
+                        if (stop && c.running) c.cancel();
+                      }
                     : c.busy ||
                           widget.vpn.busy ||
                           !widget.runner.canRequestAction ||

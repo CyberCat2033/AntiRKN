@@ -152,15 +152,21 @@ void main() {
           expect(find.byKey(ValueKey('tt-certificate-$key')), findsNothing);
         }
         remote.planCode = 'tt_dns_mismatch';
+        // Two steps (UI-61): "Check" shows the plan, "Apply" submits it.
         await tester.tap(
-          find.descendant(of: dialog, matching: find.text(l.vpnSave)),
+          find.descendant(of: dialog, matching: find.text(l.uiCheck)),
         );
         await tester.pumpAndSettle();
         expect(remote.submissions, 0);
         expect(find.text(l.ttDnsMismatch), findsOneWidget);
         remote.planCode = 'ok';
         await tester.tap(
-          find.descendant(of: dialog, matching: find.text(l.vpnSave)),
+          find.descendant(of: dialog, matching: find.text(l.uiCheck)),
+        );
+        await tester.pumpAndSettle();
+        expect(remote.submissions, 0);
+        await tester.tap(
+          find.descendant(of: dialog, matching: find.text(l.uiApply)),
         );
         await tester.pumpAndSettle();
         expect(remote.planned!['mode'], 'acme');

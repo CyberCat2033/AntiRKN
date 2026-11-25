@@ -70,12 +70,24 @@ class _PublicationSettingsState extends State<PublicationSettingsPanel> {
             : setup;
       }
 
+      final needsAuthorization =
+          c.needsAuthorization ||
+          ['unauthorized', 'forbidden'].contains(folderError);
+      // One primary action per state: while sign-in is the primary step,
+      // enabling is tonal (UI-66).
+      final enableStyle = needsAuthorization
+          ? FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+              foregroundColor: Theme.of(
+                context,
+              ).colorScheme.onSecondaryContainer,
+            )
+          : null;
       final content = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (settings == null) Text(l.publicationHelp),
-          if (c.needsAuthorization ||
-              ['unauthorized', 'forbidden'].contains(folderError))
+          if (needsAuthorization)
             FilledButton.icon(
               key: const ValueKey('publication-authorize'),
               onPressed: c.editing ? null : c.authorize,
@@ -89,7 +101,7 @@ class _PublicationSettingsState extends State<PublicationSettingsPanel> {
             if (c.accountError != null) l.publicationAuthorizeHelp,
             if (c.error != null) publicationMessage(l, c.error!.name),
           })
-            Text(message),
+            AppNotice(message: message, error: true),
           if (settings == null && c.authorized) ...[
             Text(l.publicationLinkHelp),
             if (folders != null) ...[
@@ -113,7 +125,11 @@ class _PublicationSettingsState extends State<PublicationSettingsPanel> {
               const SizedBox(height: 8),
             ],
             if (folders == null) Text(l.publicationNewFolder),
-            if (folderError != null) Text(publicationMessage(l, folderError)),
+            if (folderError != null)
+              AppNotice(
+                message: publicationMessage(l, folderError),
+                error: true,
+              ),
             TextButton(
               onPressed: c.editing || loading
                   ? null
@@ -141,6 +157,7 @@ class _PublicationSettingsState extends State<PublicationSettingsPanel> {
             ),
             FilledButton(
               key: const ValueKey('publication-configure'),
+              style: enableStyle,
               onPressed: c.editing
                   ? null
                   : () => c.configure(access, folder: folder),
@@ -234,15 +251,22 @@ class UserPublicationView extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (controller.bindingPending(userId)) Text(l.publicationBindPending),
-          Text(
-            serverUnverified && result != null
-                ? l.publicationPreviousVerified
-                : published
-                ? l.publicationPublished
-                : queue?['status'] == 'error'
-                ? publicationMessage(l, issue)
-                : l.publicationWaiting,
-          ),
+          if (!(serverUnverified && result != null) &&
+              !published &&
+              queue?['status'] == 'error')
+            AppNotice(
+              message: publicationMessage(l, issue),
+              error: true,
+              margin: EdgeInsets.zero,
+            )
+          else
+            Text(
+              serverUnverified && result != null
+                  ? l.publicationPreviousVerified
+                  : published
+                  ? l.publicationPublished
+                  : l.publicationWaiting,
+            ),
           if (!published && (controller.busy || isUserBusy))
             const LinearProgressIndicator(),
           if (!published) ...[
@@ -340,7 +364,12 @@ class _PickerSettingsDialogState extends State<_PickerSettingsDialog> {
                     labelText: l.publicationPickerProject,
                   ),
                 ),
-                if (invalid) Text(l.publicationFailed),
+                if (invalid)
+                  AppNotice(
+                    message: l.publicationFailed,
+                    error: true,
+                    margin: const EdgeInsets.only(top: 12),
+                  ),
               ],
             ),
           ),

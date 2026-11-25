@@ -207,7 +207,7 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
                 : () async {
                     await showDialog<void>(
                       context: context,
-                      builder: (_) => AppFormDialog(
+                      builder: (dialogContext) => AppFormDialog(
                         title: Text(l.uiGoogleDrive),
                         content: GoogleAccountPanel(
                           service: widget.service,
@@ -217,6 +217,13 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
                           beforeAccountChange: widget.beforeAccountChange,
                           afterAccountChange: widget.afterAccountChange,
                         ),
+                        // Every dialog can be closed by a button (UI-65).
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(dialogContext),
+                            child: Text(l.networkClose),
+                          ),
+                        ],
                       ),
                     );
                     if (mounted) await _load();

@@ -1,3 +1,4 @@
+import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../runner/runner_controller.dart';
@@ -36,10 +37,12 @@ mixin TtPlannedState<T extends StatefulWidget> on State<T> {
         if (result == null) {
           throw FormatException(runner.responseCode ?? 'tt_failed');
         }
+        // Two steps: the plan is shown and waits for "Apply" (UI-61).
         setState(() {
           preview = result;
           payload = p;
         });
+        return;
       }
       {
         final ok = await runner.applyTtJob(
@@ -66,8 +69,7 @@ mixin TtPlannedState<T extends StatefulWidget> on State<T> {
 
   List<Widget> status(AppLocalizations l) => [
     if (busy) const LinearProgressIndicator(),
-    if (error != null)
-      Semantics(liveRegion: true, child: Text(vpnMessage(l, error!))),
+    if (error != null) AppNotice(message: vpnMessage(l, error!), error: true),
     if (preview != null) ...[
       const Divider(),
       Text(l.vpnPlan, style: Theme.of(context).textTheme.titleMedium),
@@ -93,6 +95,10 @@ mixin TtPlannedState<T extends StatefulWidget> on State<T> {
     ),
     if (preview != null)
       TextButton(onPressed: busy ? null : changed, child: Text(l.vpnEdit)),
-    FilledButton(onPressed: busy ? null : submit, child: Text(l.vpnSave)),
+    FilledButton(
+      key: const ValueKey('tt-plan-submit'),
+      onPressed: busy ? null : submit,
+      child: Text(preview == null ? l.uiCheck : l.uiApply),
+    ),
   ];
 }

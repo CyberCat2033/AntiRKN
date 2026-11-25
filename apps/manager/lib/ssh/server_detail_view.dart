@@ -298,7 +298,12 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                           const SizedBox(height: 4),
                           SelectableText(
                             c.host.text,
-                            style: Theme.of(context).textTheme.bodyMedium,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
                           ),
                           const SizedBox(height: 6),
                           Text(
@@ -389,43 +394,15 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                 widget.session.profile?.hardenRecovery != null) &&
             widget.session.stage == SshStage.connected) ...[
           const SizedBox(height: 16),
-          Card(
-            color: Theme.of(context).colorScheme.errorContainer.withAlpha(80),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.security_outlined,
-                    color: Theme.of(context).colorScheme.error,
-                    size: 32,
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l.sshHardenBannerTitle,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          l.sshHardenBannerSubtitle,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  FilledButton.tonal(
-                    onPressed: () =>
-                        showSshHardenWizard(context, widget.session),
-                    child: Text(l.sshHardenBannerAction),
-                  ),
-                ],
-              ),
+          // The shared notice instead of a card tinted by alpha (UI-57).
+          AppNotice(
+            icon: Icons.security_outlined,
+            title: l.sshHardenBannerTitle,
+            message: l.sshHardenBannerSubtitle,
+            margin: EdgeInsets.zero,
+            action: FilledButton.tonal(
+              onPressed: () => showSshHardenWizard(context, widget.session),
+              child: Text(l.sshHardenBannerAction),
             ),
           ),
         ],
@@ -461,7 +438,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                                   protocolComponent(widget.sections[i].name),
                                 ),
                             onTap: () => openProtocol(i),
-                            onLongPress:
+                            onRemove:
                                 widget.sections[i].onRemove == null ||
                                     !widget.sections[i].detected
                                 ? null
@@ -606,14 +583,11 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                   key: const ValueKey('server-vault-error'),
                   message: vaultIssueLabel(l, issue),
                   error: true,
-                  action: Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: TextButton.icon(
-                      key: const ValueKey('server-vault-retry'),
-                      onPressed: c.initialise,
-                      icon: const Icon(Icons.refresh),
-                      label: Text(l.runnerRetry),
-                    ),
+                  action: TextButton.icon(
+                    key: const ValueKey('server-vault-retry'),
+                    onPressed: c.initialise,
+                    icon: const Icon(Icons.refresh),
+                    label: Text(l.runnerRetry),
                   ),
                 ),
               ),
@@ -714,7 +688,10 @@ class _ServerDetailViewState extends State<ServerDetailView> {
             // it would repeat it (UI-44).
             if (c.error != null && index != 1)
               ListTile(
-                leading: const Icon(Icons.error_outline),
+                leading: Icon(
+                  Icons.error_outline,
+                  color: Theme.of(context).colorScheme.error,
+                ),
                 title: Text(sshIssueLabel(l, c.error!)),
                 onTap: () => open(1),
               ),
@@ -833,15 +810,42 @@ class _ProtocolTile extends StatelessWidget {
     required this.section,
     required this.motion,
     required this.onTap,
-    this.onLongPress,
+    this.onRemove,
     this.busy = false,
     this.queued = false,
   });
   final ServerProtocolSection section;
   final MotionPreference motion;
   final VoidCallback onTap;
-  final VoidCallback? onLongPress;
+
+  /// Offered from the "more" menu (mouse, keyboard, screen readers) and,
+  /// as a shortcut on touch, by long press (UI-60).
+  final VoidCallback? onRemove;
   final bool busy, queued;
+
+  /// An empty slot is outlined, a used one filled. The card theme sets a
+  /// shape without a side, which would erase the outline of
+  /// [Card.outlined]; the side and surface are therefore given here.
+  Widget _card(
+    BuildContext context, {
+    required Key key,
+    required Widget child,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    if (section.count == 0 && !section.detected) {
+      return Card.outlined(
+        key: key,
+        color: colors.surfaceContainerLowest,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppLayout.radius),
+          side: BorderSide(color: colors.outlineVariant),
+        ),
+        child: child,
+      );
+    }
+    return Card.filled(key: key, child: child);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context),
@@ -857,25 +861,15 @@ class _ProtocolTile extends StatelessWidget {
           child: child,
         ),
       ),
-      child: Card.filled(
+      child: _card(
+        context,
         key: ValueKey('${section.detected}-$busy'),
-        color: section.count == 0 && !section.detected
-            ? Theme.of(context).scaffoldBackgroundColor
-            : null,
-        clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppLayout.radius),
-          side: section.count == 0 && !section.detected
-              ? BorderSide(color: colors.outlineVariant)
-              : BorderSide.none,
-        ),
         child: InkWell(
-          borderRadius: BorderRadius.circular(AppLayout.radius),
           onTap: busy ? null : onTap,
-          onLongPress: busy ? null : onLongPress,
+          onLongPress: busy ? null : onRemove,
           enableFeedback: false,
           child: Padding(
-            padding: const EdgeInsets.all(17),
+            padding: const EdgeInsets.all(AppLayout.gap),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -883,27 +877,43 @@ class _ProtocolTile extends StatelessWidget {
                   children: [
                     Text(
                       section.mark,
-                      style: TextStyle(
-                        color: colors.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelLarge?.copyWith(color: colors.primary),
                     ),
                     const Spacer(),
                     if (busy)
                       const SizedBox.square(
-                        dimension: 19,
+                        dimension: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    else if (onRemove != null)
+                      AppMoreMenu(
+                        buttonKey: ValueKey('protocol-menu-${section.name}'),
+                        tooltip: l.uiProtocolActions,
+                        children: [
+                          MenuItemButton(
+                            key: ValueKey('protocol-remove-${section.name}'),
+                            style: MenuItemButton.styleFrom(
+                              foregroundColor: colors.error,
+                              iconColor: colors.error,
+                            ),
+                            leadingIcon: const Icon(Icons.delete_outline),
+                            onPressed: onRemove,
+                            child: Text(l.uiRemoveProtocol),
+                          ),
+                        ],
                       )
                     else
                       Icon(
                         section.count == 0 && !section.detected
                             ? Icons.add
                             : Icons.arrow_forward,
-                        size: 19,
+                        size: 20,
                       ),
                   ],
                 ),
-                const SizedBox(height: 22),
+                const SizedBox(height: AppLayout.gap),
                 Text(
                   section.name,
                   style: Theme.of(context).textTheme.titleMedium,

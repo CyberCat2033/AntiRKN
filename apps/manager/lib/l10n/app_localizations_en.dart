@@ -4043,4 +4043,53 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get ttIssueWaiting =>
       'The server is busy with another operation. Issuing becomes available when it finishes.';
+
+  @override
+  String get vpnDelete => 'Delete';
+
+  @override
+  String get awgDelete => 'Delete AmneziaWG interface';
+
+  @override
+  String get awgDeleteHelp =>
+      'The next plan removes this AmneziaWG interface and its client keys on the server. Clients in this app remain.';
+
+  @override
+  String get ttDelete => 'Delete TrustTunnel endpoint';
+
+  @override
+  String get ttDeleteHelp =>
+      'The next plan removes this TrustTunnel endpoint and its client credentials on the server. Clients in this app remain.';
+
+  @override
+  String get xrayUpgradeStopTitle => 'Stop the Xray upgrade?';
+
+  @override
+  String get xrayUpgradeStopHelp =>
+      'The server aborts the upgrade and restores the previous core. Connections are checked again.';
+
+  @override
+  String get uiProtocolActions => 'Protocol actions';
+
+  @override
+  String get uiBusySync => 'Profiles are being synced and published';
+
+  @override
+  String get uiBusyChanges => 'Wait for the current change to finish';
+
+  @override
+  String get uiBusyServerOperation => 'The server is running another operation';
+
+  @override
+  String get uiBusyConnecting => 'Connecting to the server';
+
+  @override
+  String get uiNeedsConnection => 'Not connected to the server';
+
+  @override
+  String get uiApply => 'Apply';
+
+  @override
+  String get inboundDeleteReadFailed =>
+      'The selected inbounds could not be read on the server. Nothing was deleted; try again after refreshing the list.';
 }

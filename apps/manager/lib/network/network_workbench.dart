@@ -148,13 +148,12 @@ class _NetworkWorkbenchState extends State<NetworkWorkbench> {
                         ),
                       ),
                     ),
-                  if (controller.failed) ...[
-                    const SizedBox(height: AppLayout.smallGap),
-                    Semantics(
-                      liveRegion: true,
-                      child: Text(l.networkLoadError),
+                  if (controller.failed)
+                    AppNotice(
+                      message: l.networkLoadError,
+                      error: true,
+                      margin: const EdgeInsets.only(top: AppLayout.smallGap),
                     ),
-                  ],
                   if (inventory == null) ...[
                     const SizedBox(height: AppLayout.gap),
                     Text(l.networkNotLoaded),

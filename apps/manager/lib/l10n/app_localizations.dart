@@ -7105,6 +7105,96 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The server is busy with another operation. Issuing becomes available when it finishes.'**
   String get ttIssueWaiting;
+
+  /// No description provided for @vpnDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get vpnDelete;
+
+  /// No description provided for @awgDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete AmneziaWG interface'**
+  String get awgDelete;
+
+  /// No description provided for @awgDeleteHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'The next plan removes this AmneziaWG interface and its client keys on the server. Clients in this app remain.'**
+  String get awgDeleteHelp;
+
+  /// No description provided for @ttDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete TrustTunnel endpoint'**
+  String get ttDelete;
+
+  /// No description provided for @ttDeleteHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'The next plan removes this TrustTunnel endpoint and its client credentials on the server. Clients in this app remain.'**
+  String get ttDeleteHelp;
+
+  /// No description provided for @xrayUpgradeStopTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop the Xray upgrade?'**
+  String get xrayUpgradeStopTitle;
+
+  /// No description provided for @xrayUpgradeStopHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'The server aborts the upgrade and restores the previous core. Connections are checked again.'**
+  String get xrayUpgradeStopHelp;
+
+  /// No description provided for @uiProtocolActions.
+  ///
+  /// In en, this message translates to:
+  /// **'Protocol actions'**
+  String get uiProtocolActions;
+
+  /// No description provided for @uiBusySync.
+  ///
+  /// In en, this message translates to:
+  /// **'Profiles are being synced and published'**
+  String get uiBusySync;
+
+  /// No description provided for @uiBusyChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Wait for the current change to finish'**
+  String get uiBusyChanges;
+
+  /// No description provided for @uiBusyServerOperation.
+  ///
+  /// In en, this message translates to:
+  /// **'The server is running another operation'**
+  String get uiBusyServerOperation;
+
+  /// No description provided for @uiBusyConnecting.
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting to the server'**
+  String get uiBusyConnecting;
+
+  /// No description provided for @uiNeedsConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Not connected to the server'**
+  String get uiNeedsConnection;
+
+  /// No description provided for @uiApply.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply'**
+  String get uiApply;
+
+  /// No description provided for @inboundDeleteReadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The selected inbounds could not be read on the server. Nothing was deleted; try again after refreshing the list.'**
+  String get inboundDeleteReadFailed;
 }
 
 class _AppLocalizationsDelegate

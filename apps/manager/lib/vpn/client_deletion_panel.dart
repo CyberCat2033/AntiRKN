@@ -22,27 +22,17 @@ class ClientDeletionPanel extends StatelessWidget {
         .map((e) => serverName(vpnServerId(e.key as String)))
         .toSet()
         .join(', ');
-    final accepted = await showDialog<bool>(
-      context: context,
-      builder: (context) => AppFormDialog(
-        title: Text(l.uiForceDeleteClient),
-        content: Text(l.uiForceDeleteWarning(user.name, servers)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(l.sshCancel),
-          ),
-          FilledButton(
-            onPressed: () {
-              AppHaptics.deleted();
-              Navigator.pop(context, true);
-            },
-            child: Text(l.uiForceDeleteClient),
-          ),
-        ],
-      ),
+    final accepted = await confirmAppDanger(
+      context,
+      title: l.uiForceDeleteClient,
+      message: l.uiForceDeleteWarning(user.name, servers),
+      confirmLabel: l.uiForceDeleteClient,
+      cancelLabel: l.sshCancel,
     );
-    if (accepted == true) await controller.forceDeleteClient(user.id);
+    if (!accepted) return;
+    await controller.forceDeleteClient(user.id);
+    // Haptic confirms the accepted deletion, not the tap before checks.
+    if (controller.error == null) AppHaptics.deleted();
   }
 
   Widget details(BuildContext context) => ListenableBuilder(

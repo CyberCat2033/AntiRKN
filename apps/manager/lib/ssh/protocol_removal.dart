@@ -21,40 +21,29 @@ Future<bool> removeServerProtocol(
     }
   }
 
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => AppFormDialog(
-      title: Text(l.uiRemoveProtocol),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '$name · ${session.displayName}',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+  final confirmed = await confirmAppDanger(
+    context,
+    title: l.uiRemoveProtocol,
+    confirmLabel: l.uiRemoveProtocol,
+    cancelLabel: l.sshCancel,
+    content: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$name · ${session.displayName}',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 12),
+        Text(l.uiRemoveProtocolHelp),
+        if (protocol == 'vless') ...[
           const SizedBox(height: 12),
-          Text(l.uiRemoveProtocolHelp),
-          if (protocol == 'vless') ...[
-            const SizedBox(height: 12),
-            Text(l.uiRemoveVlessHelp),
-          ],
+          Text(l.uiRemoveVlessHelp),
         ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: Text(l.sshCancel),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: Text(l.uiRemoveProtocol),
-        ),
       ],
     ),
   );
-  if (confirmed != true || !context.mounted) return false;
-  AppHaptics.deleted();
+  if (!confirmed || !context.mounted) return false;
   if (!vpn.canMutate || vpn.hasRunning) {
     notice(l.uiRemoveProtocolBusy);
     return false;
@@ -73,6 +62,8 @@ Future<bool> removeServerProtocol(
     plan,
     () => vpn.retireProtocol(session.serverId, protocol),
   );
+  // Haptic confirms an accepted removal, not the tap before the checks.
+  if (submitted) AppHaptics.deleted();
   notice(submitted ? l.uiRemoveProtocolStarted : l.uiRemoveProtocolFailed);
   return submitted;
 }

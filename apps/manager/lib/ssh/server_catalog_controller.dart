@@ -25,6 +25,14 @@ class ServerCatalogController extends ChangeNotifier {
   List<SavedServer> servers = [];
   String? selectedId;
   bool loading = false;
+
+  /// [loading] of a list already shown (returning to the catalogue, a sync
+  /// reload): it keeps other writes out but must not block taps (UI-63).
+  bool refreshing = false;
+
+  /// Whether the catalogue UI waits for [load]: only the first load and
+  /// writes block it, a background refresh does not.
+  bool get blocking => loading && !refreshing;
   VaultIssue? error;
   bool _disposed = false;
   SshController? get selected => _sessions[selectedId];
@@ -70,6 +78,7 @@ class ServerCatalogController extends ChangeNotifier {
   Future<void> load({String? password}) async {
     if (loading || _disposed) return;
     loading = true;
+    refreshing = servers.isNotEmpty && password == null && error == null;
     error = null;
     notifyListeners();
     try {
@@ -95,6 +104,7 @@ class ServerCatalogController extends ChangeNotifier {
       error = VaultIssue.unavailable;
     } finally {
       loading = false;
+      refreshing = false;
       if (!_disposed) notifyListeners();
     }
   }
@@ -242,7 +252,7 @@ class ServerCatalogController extends ChangeNotifier {
   }
 
   void select(String id) {
-    if (_disposed || loading) return;
+    if (_disposed || blocking) return;
     selectedId = id;
     final previous = _sessions[id];
     if (previous != null &&

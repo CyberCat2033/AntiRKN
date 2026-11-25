@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import 'ssh_controller.dart';
@@ -136,25 +137,15 @@ class _ServerRebootViewState extends State<ServerRebootView>
           onPressed: c.busy || !c.runner.canRequestAction
               ? null
               : () async {
-                  final accepted = await showDialog<bool>(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: Text(l.serverReboot),
-                      content: Text(l.serverRebootConfirm),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: Text(l.runnerNotNow),
-                        ),
-                        FilledButton(
-                          key: const ValueKey('server-reboot-confirm'),
-                          onPressed: () => Navigator.pop(context, true),
-                          child: Text(l.serverReboot),
-                        ),
-                      ],
-                    ),
+                  final accepted = await confirmAppDanger(
+                    context,
+                    title: l.serverReboot,
+                    message: l.serverRebootConfirm,
+                    confirmLabel: l.serverReboot,
+                    cancelLabel: l.runnerNotNow,
+                    confirmKey: const ValueKey('server-reboot-confirm'),
                   );
-                  if (accepted != true || !mounted) return;
+                  if (!accepted || !mounted) return;
                   attempted = true;
                   await c.runner.rebootServer();
                   if (!mounted) return;

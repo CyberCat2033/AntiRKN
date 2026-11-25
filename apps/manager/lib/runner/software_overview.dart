@@ -2,6 +2,7 @@ import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../busy_reason.dart';
 import '../l10n/app_localizations.dart';
 import 'component_installation_view.dart';
 import 'component_updates_controller.dart';
@@ -136,90 +137,96 @@ class SoftwareOverview extends StatelessWidget {
           : hasPlan || !applyAction
           // The one update check is the page's button (UI-45).
           ? null
-          : OutlinedButton(
-              key: ValueKey(
-                isPanel
-                    ? (detected ? 'panel-update' : 'components-choose')
-                    : 'component-$key',
-              ),
-              onPressed:
-                  updates?.busy == true ||
-                      c.busy ||
-                      c.actionPending ||
-                      !c.canRequestAction
-                  ? null
-                  : () => c.requestAction(() async {
-                      if (isPanel &&
-                          detected &&
-                          (!await showPanelLogin(context, c) ||
-                              !context.mounted)) {
-                        return;
-                      }
-                      if (updates != null && updates.latest.isNotEmpty) {
-                        // 3x-ui first; its own Xray when the panel is
-                        // current. Asset for the server's architecture.
-                        String? target;
-                        for (final comp in isPanel ? const ['panel'] : [key]) {
-                          final latest = updates.latest[comp];
-                          final current = versions[comp];
-                          if (latest != null &&
-                              (current == null ||
-                                  componentIsNewer(
-                                        latest,
-                                        current,
-                                        allowPreview: true,
-                                      ) ==
-                                      true)) {
-                            target = comp;
-                            break;
+          : AppDisabledReason(
+              reason: busyReason(l, runner: c),
+              child: OutlinedButton(
+                key: ValueKey(
+                  isPanel
+                      ? (detected ? 'panel-update' : 'components-choose')
+                      : 'component-$key',
+                ),
+                onPressed:
+                    updates?.busy == true ||
+                        c.busy ||
+                        c.actionPending ||
+                        !c.canRequestAction
+                    ? null
+                    : () => c.requestAction(() async {
+                        if (isPanel &&
+                            detected &&
+                            (!await showPanelLogin(context, c) ||
+                                !context.mounted)) {
+                          return;
+                        }
+                        if (updates != null && updates.latest.isNotEmpty) {
+                          // 3x-ui first; its own Xray when the panel is
+                          // current. Asset for the server's architecture.
+                          String? target;
+                          for (final comp
+                              in isPanel ? const ['panel'] : [key]) {
+                            final latest = updates.latest[comp];
+                            final current = versions[comp];
+                            if (latest != null &&
+                                (current == null ||
+                                    componentIsNewer(
+                                          latest,
+                                          current,
+                                          allowPreview: true,
+                                        ) ==
+                                        true)) {
+                              target = comp;
+                              break;
+                            }
+                          }
+                          if (target != null &&
+                              installerComponents.contains(target)) {
+                            final choice = await updates.source
+                                .resolveInstallerRelease(
+                                  component: target,
+                                  version: updates.latest[target]!,
+                                );
+                            if (choice != null) {
+                              await c.prepareComponent(target, choice: choice);
+                              await c.applyComponent();
+                              return;
+                            }
+                          } else if (target != null &&
+                              choosableComponents.contains(target)) {
+                            final plans = await c.componentVersionPlans([
+                              target,
+                            ]);
+                            final candidate = await updates.source.resolveAsset(
+                              component: target,
+                              version: updates.latest[target]!,
+                              architecture: plans[target]?['arch'] as String?,
+                            );
+                            if (candidate != null) {
+                              await c.installComponentVersion(candidate);
+                              return;
+                            }
+                            if (c.error != null) return;
                           }
                         }
-                        if (target != null &&
-                            installerComponents.contains(target)) {
-                          final choice = await updates.source
-                              .resolveInstallerRelease(
-                                component: target,
-                                version: updates.latest[target]!,
-                              );
-                          if (choice != null) {
-                            await c.prepareComponent(target, choice: choice);
-                            await c.applyComponent();
-                            return;
+                        if (isPanel) {
+                          if (c.panelDetected) {
+                            await c.preparePanelUpdate();
+                            await c.applyPanelUpdate();
+                          } else {
+                            await c.openPanelPlan();
+                            await c.applyPanel();
                           }
-                        } else if (target != null &&
-                            choosableComponents.contains(target)) {
-                          final plans = await c.componentVersionPlans([target]);
-                          final candidate = await updates.source.resolveAsset(
-                            component: target,
-                            version: updates.latest[target]!,
-                            architecture: plans[target]?['arch'] as String?,
-                          );
-                          if (candidate != null) {
-                            await c.installComponentVersion(candidate);
-                            return;
-                          }
-                          if (c.error != null) return;
-                        }
-                      }
-                      if (isPanel) {
-                        if (c.panelDetected) {
-                          await c.preparePanelUpdate();
-                          await c.applyPanelUpdate();
                         } else {
-                          await c.openPanelPlan();
-                          await c.applyPanel();
+                          await c.prepareComponent(key);
+                          await c.applyComponent();
                         }
-                      } else {
-                        await c.prepareComponent(key);
-                        await c.applyComponent();
-                      }
-                    }),
-              child: Text(
-                detected
-                    ? l.softwareUpdate
-                    : presence == ComponentPresence.absent
-                    ? l.softwareInstall
-                    : l.softwareInspect,
+                      }),
+                child: Text(
+                  detected
+                      ? l.softwareUpdate
+                      : presence == ComponentPresence.absent
+                      ? l.softwareInstall
+                      : l.softwareInspect,
+                ),
               ),
             );
       final choosable = [
@@ -233,23 +240,28 @@ class SoftwareOverview extends StatelessWidget {
           if (detected && updates != null && choosable.isNotEmpty)
             Align(
               alignment: AlignmentDirectional.centerStart,
-              child: TextButton.icon(
-                key: ValueKey('component-versions-$key'),
-                style: TextButton.styleFrom(
-                  padding: EdgeInsets.zero,
-                  visualDensity: VisualDensity.compact,
+              child: AppDisabledReason(
+                reason: busyReason(l, runner: c),
+                child: TextButton.icon(
+                  key: ValueKey('component-versions-$key'),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  onPressed: c.busy || !c.canRequestAction
+                      ? null
+                      : () => showComponentVersions(
+                          context,
+                          controller: c,
+                          updates: updates,
+                          title: name,
+                          installed: {
+                            for (final k in choosable) k: versions[k]!,
+                          },
+                        ),
+                  icon: const Icon(Icons.history, size: 18),
+                  label: Text(l.versionsChoose),
                 ),
-                onPressed: c.busy || !c.canRequestAction
-                    ? null
-                    : () => showComponentVersions(
-                        context,
-                        controller: c,
-                        updates: updates,
-                        title: name,
-                        installed: {for (final k in choosable) k: versions[k]!},
-                      ),
-                icon: const Icon(Icons.history, size: 18),
-                label: Text(l.versionsChoose),
               ),
             ),
           if (changes.isNotEmpty)
@@ -280,10 +292,13 @@ class SoftwareOverview extends StatelessWidget {
         );
       } else {
         if (others.isNotEmpty) {
-          others.add(const Divider(indent: 17, endIndent: 17));
+          others.add(
+            const Divider(indent: AppLayout.gap, endIndent: AppLayout.gap),
+          );
         }
         others.add(
           SummaryCard(
+            embedded: true,
             leading: AppIconTile(
               icon: isPanel ? Icons.dns_outlined : Icons.shield_outlined,
             ),
@@ -306,15 +321,19 @@ class SoftwareOverview extends StatelessWidget {
     }
     if (updates != null) {
       if (updates.busy) content.add(const LinearProgressIndicator());
-      if (updates.failed) content.add(Text(l.updatesFailed));
-      if (updates.storageFailed) content.add(Text(l.settingsSaveError));
+      if (updates.failed) {
+        content.add(AppNotice(message: l.updatesFailed, error: true));
+      }
+      if (updates.storageFailed) {
+        content.add(AppNotice(message: l.settingsSaveError, error: true));
+      }
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         AppPageIntro(l.uiInstalledComponents),
         if (available.isNotEmpty) ...[
-          AppSectionHeading(title: l.softwareUpdateAvailable, uppercase: true),
+          AppSectionHeading(title: l.softwareUpdateAvailable, subheader: true),
           ...available,
           const SizedBox(height: 16),
         ],

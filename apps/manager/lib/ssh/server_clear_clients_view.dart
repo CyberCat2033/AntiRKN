@@ -1,3 +1,4 @@
+import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../vpn/vpn_controller.dart';
@@ -32,31 +33,15 @@ class _ServerClearClientsViewState extends State<ServerClearClientsView> {
           onPressed: disabled
               ? null
               : () async {
-                  final accepted = await showDialog<bool>(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: Text(l.serverClearClients),
-                      content: Text(l.serverClearClientsConfirm),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: Text(l.runnerNotNow),
-                        ),
-                        FilledButton(
-                          key: const ValueKey('server-clear-clients-confirm'),
-                          style: FilledButton.styleFrom(
-                            backgroundColor:
-                                Theme.of(context).colorScheme.error,
-                            foregroundColor:
-                                Theme.of(context).colorScheme.onError,
-                          ),
-                          onPressed: () => Navigator.pop(context, true),
-                          child: Text(l.serverClearClients),
-                        ),
-                      ],
-                    ),
+                  final accepted = await confirmAppDanger(
+                    context,
+                    title: l.serverClearClients,
+                    message: l.serverClearClientsConfirm,
+                    confirmLabel: l.serverClearClients,
+                    cancelLabel: l.runnerNotNow,
+                    confirmKey: const ValueKey('server-clear-clients-confirm'),
                   );
-                  if (accepted != true || !mounted) return;
+                  if (!accepted || !mounted) return;
                   setState(() {
                     clearing = true;
                     lastResult = null;

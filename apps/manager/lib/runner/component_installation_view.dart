@@ -151,8 +151,9 @@ class ComponentUpdateSettings extends StatelessWidget {
             },
           ),
           if (c.busy) const LinearProgressIndicator(),
-          if (c.failed) Text(l.updatesFailed),
-          if (c.storageFailed) Text(l.settingsSaveError),
+          if (c.failed) AppNotice(message: l.updatesFailed, error: true),
+          if (c.storageFailed)
+            AppNotice(message: l.settingsSaveError, error: true),
         ],
       ),
     );

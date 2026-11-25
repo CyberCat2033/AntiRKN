@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
+import '../busy_reason.dart';
 import '../l10n/app_localizations.dart';
 import '../network/network_controller.dart';
 import '../network/server_address_field.dart';
@@ -149,10 +150,13 @@ class _TtPanelState extends State<TtPanel> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           AppPageIntro(l.uiTtIntro),
-          FilledButton.icon(
-            onPressed: !c.canMutate || r.busy ? null : () => edit(),
-            icon: const Icon(Icons.add),
-            label: Text(l.ttAdd),
+          AppDisabledReason(
+            reason: busyReason(l, vpn: c, runner: r),
+            child: FilledButton.icon(
+              onPressed: !c.canMutate || r.busy ? null : () => edit(),
+              icon: const Icon(Icons.add),
+              label: Text(l.ttAdd),
+            ),
           ),
           ConnectionCheckAll(
             controller: c,
@@ -192,7 +196,7 @@ class _TtPanelState extends State<TtPanel> {
             title: l.uiConnections,
             count: endpoints.length,
             action: IconButton(
-              tooltip: l.awgRefresh,
+              tooltip: busyReason(l, vpn: c, runner: r) ?? l.awgRefresh,
               onPressed: !c.canMutate || r.busy
                   ? null
                   : () async {
@@ -233,7 +237,7 @@ class _TtPanelState extends State<TtPanel> {
                     actions: IconButton(
                       onPressed: !c.canMutate || r.busy ? null : () => edit(e),
                       icon: const Icon(Icons.edit_outlined),
-                      tooltip: l.vpnEdit,
+                      tooltip: busyReason(l, vpn: c, runner: r) ?? l.vpnEdit,
                     ),
                     details: const [],
                   ),
@@ -722,21 +726,8 @@ class _ManagedTtState extends State<ManagedTtDialog> {
               SwitchListTile(
                 title: Text(l.vpnEnabled),
                 value: spec['enabled'] as bool,
-                onChanged: (v) => setState(() {
-                  spec['enabled'] = v;
-                  if (v) spec['deleted'] = false;
-                }),
+                onChanged: (v) => setState(() => spec['enabled'] = v),
               ),
-              if (widget.existing)
-                CheckboxListTile(
-                  key: const ValueKey('tt-delete'),
-                  title: Text(l.vpnDeleteHelp),
-                  value: spec['deleted'] == true,
-                  onChanged: (v) => setState(() {
-                    spec['deleted'] = v!;
-                    if (v) spec['enabled'] = false;
-                  }),
-                ),
               OutlinedButton.icon(
                 key: const ValueKey('tt-regenerate-passwords'),
                 onPressed: () => setState(() => rotate = true),
@@ -744,12 +735,47 @@ class _ManagedTtState extends State<ManagedTtDialog> {
                 label: Text(l.ttRegeneratePasswords),
               ),
               Text(rotate ? l.ttPasswordsRegenerated : l.ttPasswordsAutomatic),
-              if (invalid) Text(l.vpnInvalid),
+              if (invalid)
+                AppNotice(
+                  message: l.vpnInvalid,
+                  error: true,
+                  margin: const EdgeInsets.only(top: 12),
+                ),
             ],
           ),
         ),
       ),
       actions: [
+        // Deleting is its own confirmed action, not a form field (UI-54).
+        if (widget.existing)
+          AppDangerButton.text(
+            key: const ValueKey('tt-delete'),
+            onPressed: certificateDialogOpen
+                ? null
+                : () async {
+                    final confirmed = await confirmAppDanger(
+                      context,
+                      title: l.ttDelete,
+                      message: l.ttDeleteHelp,
+                      confirmLabel: l.vpnDelete,
+                      cancelLabel: l.sshCancel,
+                      confirmKey: const ValueKey('tt-delete-confirm'),
+                    );
+                    if (!confirmed || !context.mounted) return;
+                    Navigator.pop(
+                      context,
+                      TrustTunnelEndpoint(
+                        serverId: widget.serverId,
+                        spec: {
+                          ...widget.spec,
+                          'deleted': true,
+                          'enabled': false,
+                        },
+                      ),
+                    );
+                  },
+            child: Text(l.vpnDelete),
+          ),
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: Text(l.runnerNotNow),

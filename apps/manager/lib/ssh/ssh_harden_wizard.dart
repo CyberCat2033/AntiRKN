@@ -145,204 +145,183 @@ class _SshHardenDialogState extends State<_SshHardenDialog> {
       canPop: _stage == SshHardenStage.input || _flow.terminal,
       child: AppFormDialog(
         title: Text(l.sshHardenDialogTitle),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (_stage == SshHardenStage.input) ...[
-                Text(
-                  l.sshHardenDialogDescription,
-                  style: theme.textTheme.bodyMedium,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_stage == SshHardenStage.input) ...[
+              Text(
+                l.sshHardenDialogDescription,
+                style: theme.textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 16),
+              AppNotice(
+                icon: Icons.shield_outlined,
+                margin: EdgeInsets.zero,
+                message: l.sshHardenFirewallWarning(
+                  int.tryParse(_portCtrl.text) ?? 2222,
                 ),
-                const SizedBox(height: 16),
-                Card(
-                  color: theme.colorScheme.tertiaryContainer.withAlpha(80),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.shield_outlined,
-                          color: theme.colorScheme.tertiary,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            l.sshHardenFirewallWarning(
-                              int.tryParse(_portCtrl.text) ?? 2222,
-                            ),
-                            style: theme.textTheme.bodySmall,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _usernameCtrl,
-                        decoration: InputDecoration(
-                          labelText: l.sshHardenUsername,
-                          prefixIcon: const Icon(Icons.person_outline),
-                        ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _usernameCtrl,
+                      decoration: InputDecoration(
+                        labelText: l.sshHardenUsername,
+                        prefixIcon: const Icon(Icons.person_outline),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    IconButton.filledTonal(
-                      tooltip: l.sshHardenRandomUser,
-                      onPressed: _pickRandomUsername,
-                      icon: const Icon(Icons.casino_outlined),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filledTonal(
+                    tooltip: l.sshHardenRandomUser,
+                    onPressed: _pickRandomUsername,
+                    icon: const Icon(Icons.casino_outlined),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _portCtrl,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: l.sshHardenPort,
+                  prefixIcon: const Icon(Icons.tag),
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _passwordCtrl,
+                obscureText: _obscurePassword,
+                decoration: InputDecoration(
+                  labelText: l.sshHardenSudoPassword,
+                  prefixIcon: const Icon(Icons.lock_outline),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_off
+                          : Icons.visibility,
                     ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _portCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: l.sshHardenPort,
-                    prefixIcon: const Icon(Icons.tag),
+                    onPressed: () =>
+                        setState(() => _obscurePassword = !_obscurePassword),
                   ),
-                  onChanged: (_) => setState(() {}),
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _passwordCtrl,
-                  obscureText: _obscurePassword,
-                  decoration: InputDecoration(
-                    labelText: l.sshHardenSudoPassword,
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_off
-                            : Icons.visibility,
-                      ),
-                      onPressed: () =>
-                          setState(() => _obscurePassword = !_obscurePassword),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _confirmCtrl,
+                obscureText: _obscureConfirm,
+                decoration: InputDecoration(
+                  labelText: l.sshHardenSudoPasswordConfirm,
+                  prefixIcon: const Icon(Icons.lock_outline),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscureConfirm ? Icons.visibility_off : Icons.visibility,
                     ),
+                    onPressed: () =>
+                        setState(() => _obscureConfirm = !_obscureConfirm),
                   ),
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _confirmCtrl,
-                  obscureText: _obscureConfirm,
-                  decoration: InputDecoration(
-                    labelText: l.sshHardenSudoPasswordConfirm,
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscureConfirm
-                            ? Icons.visibility_off
-                            : Icons.visibility,
-                      ),
-                      onPressed: () =>
-                          setState(() => _obscureConfirm = !_obscureConfirm),
-                    ),
-                  ),
-                ),
-                CheckboxListTile(
-                  value: _disableRootLogin,
-                  onChanged: (value) =>
-                      setState(() => _disableRootLogin = value ?? true),
-                  title: Text(l.sshHardenDisableRoot),
-                  controlAffinity: ListTileControlAffinity.leading,
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ],
-              if (_stage == SshHardenStage.preparing ||
-                  _stage == SshHardenStage.staging) ...[
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: CircularProgressIndicator(),
-                  ),
-                ),
-                Text(
-                  _statusMessage,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyMedium,
-                ),
-              ],
-              if (_stage == SshHardenStage.testing ||
-                  _stage == SshHardenStage.testFailed) ...[
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: Column(
-                      children: [
-                        if (_testInProgress)
-                          const CircularProgressIndicator()
-                        else
-                          Icon(
-                            Icons.warning_amber_rounded,
-                            size: 48,
-                            color: theme.colorScheme.error,
-                          ),
-                        const SizedBox(height: 12),
-                        Text(
-                          l.sshHardenTesting,
-                          style: theme.textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        Chip(
-                          avatar: const Icon(Icons.timer_outlined, size: 18),
-                          label: Text(
-                            l.sshHardenTestingCountdown(
-                              _formatTimer(_remainingSeconds),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-              if (_stage == SshHardenStage.tested) ...[
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: Column(
-                      children: [
-                        Icon(
-                          Icons.check_circle_outline,
-                          size: 56,
-                          color: theme.colorScheme.primary,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          l.sshHardenTestSuccess(
-                            _usernameCtrl.text.trim(),
-                            int.tryParse(_portCtrl.text) ?? 2222,
-                          ),
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.bodyLarge,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-              if (_stage == SshHardenStage.confirming ||
-                  _stage == SshHardenStage.aborting) ...[
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: CircularProgressIndicator(),
-                  ),
-                ),
-              ],
-              if (_error != null) ...[
-                const SizedBox(height: 16),
-                AppNotice(message: _error!, error: true),
-              ],
+              ),
+              CheckboxListTile(
+                value: _disableRootLogin,
+                onChanged: (value) =>
+                    setState(() => _disableRootLogin = value ?? true),
+                title: Text(l.sshHardenDisableRoot),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+              ),
             ],
-          ),
+            if (_stage == SshHardenStage.preparing ||
+                _stage == SshHardenStage.staging) ...[
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+              Text(
+                _statusMessage,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium,
+              ),
+            ],
+            if (_stage == SshHardenStage.testing ||
+                _stage == SshHardenStage.testFailed) ...[
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Column(
+                    children: [
+                      if (_testInProgress)
+                        const CircularProgressIndicator()
+                      else
+                        Icon(
+                          Icons.warning_amber_rounded,
+                          size: 48,
+                          color: theme.colorScheme.error,
+                        ),
+                      const SizedBox(height: 12),
+                      Text(
+                        l.sshHardenTesting,
+                        style: theme.textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      // A countdown is a status, not a chip (UI-59).
+                      AppBadge(
+                        icon: Icons.timer_outlined,
+                        label: l.sshHardenTestingCountdown(
+                          _formatTimer(_remainingSeconds),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+            if (_stage == SshHardenStage.tested) ...[
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.check_circle_outline,
+                        size: 56,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        l.sshHardenTestSuccess(
+                          _usernameCtrl.text.trim(),
+                          int.tryParse(_portCtrl.text) ?? 2222,
+                        ),
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodyLarge,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+            if (_stage == SshHardenStage.confirming ||
+                _stage == SshHardenStage.aborting) ...[
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+            ],
+            if (_error != null) ...[
+              const SizedBox(height: 16),
+              AppNotice(message: _error!, error: true),
+            ],
+          ],
         ),
         actions: [
           if (_stage == SshHardenStage.input) ...[

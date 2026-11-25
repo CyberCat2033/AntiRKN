@@ -277,7 +277,8 @@ class _EditExistingAwgState extends State<_EditExistingAwg> {
                   ),
                 ),
               if (busy) const LinearProgressIndicator(),
-              if (error != null) Text(vpnMessage(l, error!)),
+              if (error != null)
+                AppNotice(message: vpnMessage(l, error!), error: true),
               if (preview != null) ...[
                 const Divider(),
                 Text(l.vpnPlan, style: Theme.of(context).textTheme.titleMedium),
@@ -327,6 +328,7 @@ class _EditExistingAwgState extends State<_EditExistingAwg> {
                         payload: p,
                       );
                       if (!mounted) return;
+                      // Two steps: the plan waits for "Apply" (UI-61).
                       setState(() {
                         preview = response;
                         payload = p;
@@ -334,8 +336,7 @@ class _EditExistingAwgState extends State<_EditExistingAwg> {
                           error = widget.runner.responseCode ?? 'awg_failed';
                         }
                       });
-                    }
-                    if (preview != null) {
+                    } else {
                       final success = await widget.runner.applyExternalAwg(
                         payload!,
                         preview!['fingerprint'] as String,
@@ -354,7 +355,7 @@ class _EditExistingAwgState extends State<_EditExistingAwg> {
                     if (mounted) setState(() => busy = false);
                   }
                 },
-          child: Text(l.vpnSave),
+          child: Text(preview == null ? l.uiCheck : l.uiApply),
         ),
       ],
     );

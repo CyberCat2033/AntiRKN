@@ -88,7 +88,7 @@ class VpnJobView extends StatelessWidget {
           if (c.observedJobs.containsKey(serverId) && job == null)
             Text(l.operationMissing),
           if (c.observationErrors[serverId] case final String error)
-            Text(vpnMessage(l, error)),
+            AppNotice(message: vpnMessage(l, error), error: true),
           if (c.observedJobs.containsKey(serverId) && job == null)
             Align(
               alignment: Alignment.centerLeft,
@@ -112,27 +112,22 @@ class VpnJobView extends StatelessWidget {
         ],
         // The shared notice, not a copy of it (UI-53).
         if (record['error'] case final String error)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: AppNotice(
-              message: vpnMessage(l, error),
-              error: true,
-              action: Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: OutlinedButton.icon(
-                  key: ValueKey('vpn-error-refresh-$serverId'),
-                  onPressed: !c.canMutate
-                      ? null
-                      : () async {
-                          await c.refreshServer(serverId);
-                          if (c.error == null) {
-                            await c.prepareAndApply(serverIds: {serverId});
-                          }
-                        },
-                  icon: const Icon(Icons.refresh, size: 16),
-                  label: Text(l.sshRefresh),
-                ),
-              ),
+          AppNotice(
+            margin: const EdgeInsets.only(top: 8, bottom: 12),
+            message: vpnMessage(l, error),
+            error: true,
+            action: OutlinedButton.icon(
+              key: ValueKey('vpn-error-refresh-$serverId'),
+              onPressed: !c.canMutate
+                  ? null
+                  : () async {
+                      await c.refreshServer(serverId);
+                      if (c.error == null) {
+                        await c.prepareAndApply(serverIds: {serverId});
+                      }
+                    },
+              icon: const Icon(Icons.refresh, size: 16),
+              label: Text(l.sshRefresh),
             ),
           ),
         if (job != null) ...[

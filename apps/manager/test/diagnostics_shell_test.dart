@@ -115,6 +115,8 @@ void main() {
         await tester.tap(find.byKey(const ValueKey('server-fixture')));
         await tester.pumpAndSettle();
         await tester.ensureVisible(find.byKey(const ValueKey('server-about')));
+        // ensureVisible scrolls without a frame; lay out before tapping.
+        await tester.pump();
         await tester.tap(find.byKey(const ValueKey('server-about')));
         await tester.pumpAndSettle();
         expect(find.byType(ServerAboutView), findsOneWidget);

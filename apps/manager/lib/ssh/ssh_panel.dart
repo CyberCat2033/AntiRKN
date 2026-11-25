@@ -3,6 +3,7 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../busy_reason.dart';
 import '../l10n/app_localizations.dart';
 import 'ssh_controller.dart';
 import 'ssh_harden_wizard.dart';
@@ -99,7 +100,7 @@ class _SshPanelState extends State<SshPanel> {
           // connection (UI-42).
           if (c.vaultSaving && !_wizardOpen) const LinearProgressIndicator(),
           if (c.vaultError case final issue?)
-            Semantics(liveRegion: true, child: Text(vaultIssueLabel(l, issue))),
+            AppNotice(message: vaultIssueLabel(l, issue), error: true),
           if (!c.initialised && !c.vaultBusy)
             OutlinedButton(onPressed: c.initialise, child: Text(l.vaultRetry)),
           if (c.unlocked) ...[
@@ -124,7 +125,7 @@ class _SshPanelState extends State<SshPanel> {
                       AppPageIntro(l.sshReadOnly),
                       AppSectionHeading(
                         title: l.uiConnectionSettings,
-                        uppercase: true,
+                        subheader: true,
                       ),
                       _field(
                         c.serverName,
@@ -178,7 +179,7 @@ class _SshPanelState extends State<SshPanel> {
                       ],
                       AppSectionHeading(
                         title: l.uiAuthentication,
-                        uppercase: true,
+                        subheader: true,
                       ),
                       Wrap(
                         spacing: AppLayout.smallGap,
@@ -267,9 +268,10 @@ class _SshPanelState extends State<SshPanel> {
                     if (c.jumpServerId != null)
                       Text(l.sshVia(c.jumpName ?? l.sshJumpMissing)),
                     if (c.error case final issue?)
-                      Semantics(
-                        liveRegion: true,
-                        child: Text(sshIssueLabel(l, issue)),
+                      AppNotice(
+                        message: sshIssueLabel(l, issue),
+                        error: true,
+                        margin: const EdgeInsets.only(top: 8),
                       ),
                     if (c.error == SshIssue.hostKeyChanged)
                       Align(
@@ -382,17 +384,20 @@ class _SshPanelState extends State<SshPanel> {
                               ),
                             ),
                           if (expanded)
-                            OutlinedButton(
-                              key: const ValueKey('ssh-save'),
-                              onPressed: c.editing && !c.saved
-                                  ? () async {
-                                      final adding = !c.hasSavedProfile;
-                                      if (await c.save() && adding) {
-                                        AppHaptics.added();
+                            AppDisabledReason(
+                              reason: busyReason(l, runner: c.runner, ssh: c),
+                              child: OutlinedButton(
+                                key: const ValueKey('ssh-save'),
+                                onPressed: c.editing && !c.saved
+                                    ? () async {
+                                        final adding = !c.hasSavedProfile;
+                                        if (await c.save() && adding) {
+                                          AppHaptics.added();
+                                        }
                                       }
-                                    }
-                                  : null,
-                              child: Text(l.sshSave),
+                                    : null,
+                                child: Text(l.sshSave),
+                              ),
                             ),
                           if (expanded && c.hasSavedProfile)
                             TextButton(
@@ -551,25 +556,15 @@ Future<void> confirmSshProfileDeletion(
   SshController c,
 ) async {
   final l = AppLocalizations.of(context);
-  final accepted = await showDialog<bool>(
-    context: context,
-    builder: (context) => AppFormDialog(
-      title: Text(l.uiDeleteServer),
-      content: Text(l.sshDeleteHelp),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: Text(l.sshCancel),
-        ),
-        TextButton(
-          key: const ValueKey('ssh-delete-confirm'),
-          onPressed: () => Navigator.pop(context, true),
-          child: Text(l.uiDeleteServer),
-        ),
-      ],
-    ),
+  final accepted = await confirmAppDanger(
+    context,
+    title: l.uiDeleteServer,
+    message: l.sshDeleteHelp,
+    confirmLabel: l.uiDeleteServer,
+    cancelLabel: l.sshCancel,
+    confirmKey: const ValueKey('ssh-delete-confirm'),
   );
-  if (accepted == true && c.editing) {
+  if (accepted && c.editing) {
     await c.deleteProfile();
   }
 }

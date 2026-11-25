@@ -208,7 +208,11 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher>
     future: _app,
     builder: (context, snapshot) =>
         snapshot.data ??
+        // Themed like the app: an unthemed MaterialApp flashed a light
+        // default scheme on dark systems while storage opened (UI-64).
         MaterialApp(
+          theme: AppTheme.create(Brightness.light),
+          darkTheme: AppTheme.create(Brightness.dark),
           supportedLocales: AppLocalizations.supportedLocales,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           home: Builder(
@@ -219,18 +223,25 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher>
                 child:
                     snapshot.hasError &&
                         snapshot.connectionState == ConnectionState.done
-                    ? Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(AppLocalizations.of(context).databaseOpenError),
-                          FilledButton(
-                            key: const ValueKey('database-open-retry'),
-                            onPressed: _retryLoad,
-                            child: Text(
-                              AppLocalizations.of(context).vaultRetry,
+                    ? Padding(
+                        padding: const EdgeInsets.all(AppLayout.gap),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 560),
+                          child: AppNotice(
+                            message: AppLocalizations.of(
+                              context,
+                            ).databaseOpenError,
+                            error: true,
+                            margin: EdgeInsets.zero,
+                            action: FilledButton(
+                              key: const ValueKey('database-open-retry'),
+                              onPressed: _retryLoad,
+                              child: Text(
+                                AppLocalizations.of(context).vaultRetry,
+                              ),
                             ),
                           ),
-                        ],
+                        ),
                       )
                     : const CircularProgressIndicator(),
               ),
@@ -362,7 +373,14 @@ class _AntiRknAppState extends State<AntiRknApp> {
             ? Builder(
                 builder: (context) => Scaffold(
                   body: Center(
-                    child: Text(AppLocalizations.of(context).loadError),
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppLayout.gap),
+                      child: AppNotice(
+                        message: AppLocalizations.of(context).loadError,
+                        error: true,
+                        margin: EdgeInsets.zero,
+                      ),
+                    ),
                   ),
                 ),
               )
@@ -463,6 +481,9 @@ class _ManagerShellState extends State<ManagerShell>
   late final IpDiagnosticsController _diagnostics;
   String _serverNameSnapshot = '';
   static const _icons = [Icons.dns_outlined, Icons.people_outline, Icons.tune];
+
+  /// Filled variants for the selected destination, as M3 expects (UI-68).
+  static const _selectedIcons = [Icons.dns, Icons.people, Icons.tune];
 
   @override
   void initState() {
@@ -963,6 +984,7 @@ class _ManagerShellState extends State<ManagerShell>
                         for (var i = 0; i < labels.length; i++)
                           NavigationDestination(
                             icon: Icon(_icons[i]),
+                            selectedIcon: Icon(_selectedIcons[i]),
                             label: labels[i],
                           ),
                       ],
@@ -994,6 +1016,7 @@ class _ManagerShellState extends State<ManagerShell>
                             for (var i = 0; i < labels.length; i++)
                               NavigationRailDestination(
                                 icon: Icon(_icons[i]),
+                                selectedIcon: Icon(_selectedIcons[i]),
                                 label: Text(labels[i]),
                               ),
                           ],
@@ -1037,7 +1060,10 @@ class _ManagerShellState extends State<ManagerShell>
                               key: _settingsKey,
                               motion: widget.motion,
                               error: widget.settingsError
-                                  ? Text(l.settingsSaveError)
+                                  ? AppNotice(
+                                      message: l.settingsSaveError,
+                                      error: true,
+                                    )
                                   : null,
                               statusDestinationId: 'sync',
                               status: widget.autoSync == null

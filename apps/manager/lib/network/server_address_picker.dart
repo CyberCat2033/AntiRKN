@@ -59,14 +59,12 @@ class ServerAddressPicker extends StatelessWidget {
             ),
           ),
           if (selectionIssue case final issue?) ...[
-            const SizedBox(height: AppLayout.smallGap),
-            Semantics(
-              liveRegion: true,
-              child: Text(
-                '${l.networkSelectedUnavailable} ${issueLabel(l, issue)}',
-                key: ValueKey('selection-issue-${role.name}'),
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
+            AppNotice(
+              key: ValueKey('selection-issue-${role.name}'),
+              message:
+                  '${l.networkSelectedUnavailable} ${issueLabel(l, issue)}',
+              error: true,
+              margin: const EdgeInsets.only(top: AppLayout.smallGap),
             ),
           ],
           if (selected != null)
@@ -107,6 +105,7 @@ Future<AddressChoice?> showServerAddressChoice(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
+    showDragHandle: true,
     sheetAnimationStyle: AnimationStyle(
       duration: duration,
       reverseDuration: duration,
@@ -120,37 +119,45 @@ Future<AddressChoice?> showServerAddressChoice(
             ...choices.where((c) => c.address.addressClass == group),
           ],
       ];
-      return FractionallySizedBox(
-        heightFactor: 0.85,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 8, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
+      // Sized by its content, up to the screen: two or three addresses do
+      // not open a mostly empty sheet (UI-69).
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 8, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
-                  IconButton(
-                    tooltip: l.networkClose,
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
+                ),
+                IconButton(
+                  tooltip: l.networkClose,
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
             ),
-            if (!choices.any((choice) => choice.enabled))
-              Padding(
-                padding: AppLayout.screenPadding(context),
-                child: Text(l.networkNoCandidates),
+          ),
+          if (!choices.any((choice) => choice.enabled))
+            Padding(
+              padding: AppLayout.screenPadding(context),
+              child: Text(l.networkNoCandidates),
+            ),
+          Flexible(
+            child: RadioGroup<String>(
+              groupValue: selected?.id,
+              onChanged: (id) => Navigator.pop(
+                context,
+                choices.firstWhere((choice) => choice.id == id),
               ),
-            Expanded(
               child: ListView.builder(
                 key: ValueKey('address-options-${role.name}'),
+                shrinkWrap: true,
                 itemCount: rows.length,
                 itemBuilder: (context, index) {
                   final row = rows[index];
@@ -166,30 +173,26 @@ Future<AddressChoice?> showServerAddressChoice(
                     );
                   }
                   final choice = row as AddressChoice;
+                  // A real radio: state and group are announced (UI-69).
+                  // Its own clipped Material: the selected tile colour is ink
+                  // and must not paint over the fixed header while scrolled.
                   return Material(
                     type: MaterialType.transparency,
                     clipBehavior: Clip.hardEdge,
-                    child: ListTile(
+                    child: RadioListTile<String>(
                       key: ValueKey('option-${choice.id}'),
+                      value: choice.id,
                       enabled: choice.enabled,
                       selected: choice.id == selected?.id,
-                      leading: Icon(
-                        choice.id == selected?.id
-                            ? Icons.radio_button_checked
-                            : Icons.radio_button_off,
-                      ),
                       title: Text(choice.host),
                       subtitle: Text(choiceDescription(l, choice)),
-                      onTap: choice.enabled
-                          ? () => Navigator.pop(context, choice)
-                          : null,
                     ),
                   );
                 },
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       );
     },
   );

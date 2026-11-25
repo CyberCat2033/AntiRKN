@@ -50,30 +50,31 @@ class TemplateSettings extends StatelessWidget {
           ),
           if (hasSource &&
               controller.draftStore != null &&
-              (controller.draftSaveFailed || controller.savingDraft)) ...[
-            Text(
-              controller.draftSaveFailed
-                  ? l.draftSaveError
-                  : controller.savingDraft
-                  ? l.draftSaving
-                  : l.draftSaved,
-            ),
-            if (controller.draftSaveFailed)
-              OutlinedButton(
+              controller.draftSaveFailed)
+            AppNotice(
+              message: l.draftSaveError,
+              error: true,
+              action: OutlinedButton(
                 onPressed: controller.persistDraft,
                 child: Text(l.vaultRetry),
               ),
-          ],
+            )
+          else if (hasSource &&
+              controller.draftStore != null &&
+              controller.savingDraft)
+            Text(l.draftSaving),
           if (controller.importError != null)
-            Text(
-              controller.importError == 'template_size_limit'
+            AppNotice(
+              error: true,
+              message: controller.importError == 'template_size_limit'
                   ? l.diagnostic('template_size_limit')
                   : l.templateReadError,
             ),
-          if (controller.failed) Text(l.unexpectedError),
+          if (controller.failed)
+            AppNotice(message: l.unexpectedError, error: true),
           if (!controller.stale && controller.result?.hasBlockingErrors == true)
             for (final d in controller.result!.diagnostics)
-              Text(l.diagnostic(d.code)),
+              AppNotice(message: l.diagnostic(d.code), error: true),
         ],
       );
       return showTitle

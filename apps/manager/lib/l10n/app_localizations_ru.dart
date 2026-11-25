@@ -4050,4 +4050,53 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get ttIssueWaiting =>
       'Сервер занят другой операцией. Выпуск станет доступен, когда она закончится.';
+
+  @override
+  String get vpnDelete => 'Удалить';
+
+  @override
+  String get awgDelete => 'Удалить интерфейс AmneziaWG';
+
+  @override
+  String get awgDeleteHelp =>
+      'Следующий план удалит этот интерфейс AmneziaWG и его клиентские ключи на сервере. Клиенты в приложении сохранятся.';
+
+  @override
+  String get ttDelete => 'Удалить точку TrustTunnel';
+
+  @override
+  String get ttDeleteHelp =>
+      'Следующий план удалит эту точку TrustTunnel и её клиентские пароли на сервере. Клиенты в приложении сохранятся.';
+
+  @override
+  String get xrayUpgradeStopTitle => 'Остановить обновление Xray?';
+
+  @override
+  String get xrayUpgradeStopHelp =>
+      'Сервер прервёт обновление и вернёт прежнее ядро. Подключения будут проверены ещё раз.';
+
+  @override
+  String get uiProtocolActions => 'Действия с протоколом';
+
+  @override
+  String get uiBusySync => 'Идёт синхронизация и публикация профилей';
+
+  @override
+  String get uiBusyChanges => 'Дождитесь завершения текущего изменения';
+
+  @override
+  String get uiBusyServerOperation => 'Сервер выполняет другую операцию';
+
+  @override
+  String get uiBusyConnecting => 'Идёт подключение к серверу';
+
+  @override
+  String get uiNeedsConnection => 'Нет подключения к серверу';
+
+  @override
+  String get uiApply => 'Применить';
+
+  @override
+  String get inboundDeleteReadFailed =>
+      'Не удалось прочитать выбранные inbounds на сервере. Ничего не удалено; повторите после обновления списка.';
 }

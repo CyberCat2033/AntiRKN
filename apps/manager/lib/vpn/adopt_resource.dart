@@ -230,7 +230,12 @@ class _AdoptedResourceDialogState extends State<AdoptedResourceDialog> {
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(labelText: l.vpnExternalPort),
               ),
-              if (invalid) Text(l.vpnInvalid),
+              if (invalid)
+                AppNotice(
+                  message: l.vpnInvalid,
+                  error: true,
+                  margin: const EdgeInsets.only(top: 12),
+                ),
             ],
           ),
         ),

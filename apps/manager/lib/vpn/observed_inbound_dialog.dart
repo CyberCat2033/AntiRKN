@@ -185,27 +185,31 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
     }
     final result = await widget.controller.planInbound(payload!);
     if (!mounted) return;
+    // Two steps: the plan is shown and waits for "Apply" (UI-61).
     setState(() {
       loading = false;
       plan = result;
       failed = result == null;
     });
-    if (result != null) {
-      setState(() => loading = true);
-      final ok = await widget.controller.applyInbound(
-        payload!,
-        result['fingerprint'] as String,
-      );
-      if (!mounted) return;
-      if (ok) {
-        Navigator.pop(context);
-      } else {
-        setState(() {
-          loading = false;
-          failed = true;
-          plan = null;
-        });
-      }
+  }
+
+  Future<void> apply() async {
+    final current = plan;
+    if (current == null) return;
+    setState(() => loading = true);
+    final ok = await widget.controller.applyInbound(
+      payload!,
+      current['fingerprint'] as String,
+    );
+    if (!mounted) return;
+    if (ok) {
+      Navigator.pop(context);
+    } else {
+      setState(() {
+        loading = false;
+        failed = true;
+        plan = null;
+      });
     }
   }
 
@@ -232,8 +236,9 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
             children: [
               if (loading) const LinearProgressIndicator(),
               if (failed)
-                Text(
-                  c.responseCode != null && c.responseCode != 'ok'
+                AppNotice(
+                  error: true,
+                  message: c.responseCode != null && c.responseCode != 'ok'
                       ? runnerCodeLabel(l, c.responseCode!)
                       : l.vpnFailed,
                 ),
@@ -416,7 +421,12 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
                     ),
                   ],
                 ),
-                if (invalid) Text(l.vpnInvalid),
+                if (invalid)
+                  AppNotice(
+                    message: l.vpnInvalid,
+                    error: true,
+                    margin: const EdgeInsets.only(top: 12),
+                  ),
               ],
               if (plan != null) ...[
                 Text(l.observedEditPlan),
@@ -453,15 +463,20 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
             child: Text(l.sshRefresh),
           ),
 
+        if (plan != null)
+          TextButton(
+            onPressed: loading ? null : () => setState(() => plan = null),
+            child: Text(l.vpnEdit),
+          ),
         if (!needsAccess)
           FilledButton(
             key: const ValueKey('observed-save'),
-            onPressed: loading
+            onPressed: loading || snapshot == null
                 ? null
-                : snapshot == null
-                ? null
-                : prepare,
-            child: Text(l.vpnSave),
+                : plan == null
+                ? prepare
+                : apply,
+            child: Text(plan == null ? l.uiCheck : l.uiApply),
           ),
       ],
     );

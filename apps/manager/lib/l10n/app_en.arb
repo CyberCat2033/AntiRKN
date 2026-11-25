@@ -1564,5 +1564,20 @@
     }
   },
   "vpnSendToServer": "Send to server",
-  "ttIssueWaiting": "The server is busy with another operation. Issuing becomes available when it finishes."
+  "ttIssueWaiting": "The server is busy with another operation. Issuing becomes available when it finishes.",
+  "vpnDelete": "Delete",
+  "awgDelete": "Delete AmneziaWG interface",
+  "awgDeleteHelp": "The next plan removes this AmneziaWG interface and its client keys on the server. Clients in this app remain.",
+  "ttDelete": "Delete TrustTunnel endpoint",
+  "ttDeleteHelp": "The next plan removes this TrustTunnel endpoint and its client credentials on the server. Clients in this app remain.",
+  "xrayUpgradeStopTitle": "Stop the Xray upgrade?",
+  "xrayUpgradeStopHelp": "The server aborts the upgrade and restores the previous core. Connections are checked again.",
+  "uiProtocolActions": "Protocol actions",
+  "uiBusySync": "Profiles are being synced and published",
+  "uiBusyChanges": "Wait for the current change to finish",
+  "uiBusyServerOperation": "The server is running another operation",
+  "uiBusyConnecting": "Connecting to the server",
+  "uiNeedsConnection": "Not connected to the server",
+  "uiApply": "Apply",
+  "inboundDeleteReadFailed": "The selected inbounds could not be read on the server. Nothing was deleted; try again after refreshing the list."
 }

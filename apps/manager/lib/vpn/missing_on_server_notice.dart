@@ -39,18 +39,15 @@ class MissingOnServerNotice extends StatelessWidget {
           l.vpnMissingNotice(count),
           if (issue != null) vpnMessage(l, issue),
         ].join('\n'),
-        action: Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: FilledButton.tonal(
-            key: ValueKey('vpn-send-$target'),
-            onPressed: !controller.canMutate
-                ? null
-                : () async {
-                    if (authorize != null && !await authorize!()) return;
-                    await controller.prepareAndApply(serverIds: {target});
-                  },
-            child: Text(l.vpnSendToServer),
-          ),
+        action: FilledButton.tonal(
+          key: ValueKey('vpn-send-$target'),
+          onPressed: !controller.canMutate
+              ? null
+              : () async {
+                  if (authorize != null && !await authorize!()) return;
+                  await controller.prepareAndApply(serverIds: {target});
+                },
+          child: Text(l.vpnSendToServer),
         ),
       );
     },

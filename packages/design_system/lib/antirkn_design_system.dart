@@ -461,26 +461,11 @@ class AppSettingsSection extends StatelessWidget {
   final String? title;
   final Widget child;
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 24),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (title case final title?)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(6, 8, 6, 12),
-            child: Text(
-              title.toUpperCase(),
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
-                letterSpacing: 1,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        Card.filled(clipBehavior: Clip.antiAlias, child: child),
-      ],
-    ),
+  Widget build(BuildContext context) => _CardSection(
+    heading: title == null
+        ? null
+        : AppSectionHeading(title: title!, subheader: true),
+    child: child,
   );
 }
 
@@ -570,45 +555,21 @@ abstract final class AppTheme {
           outline: Color(dark ? 0xffa48b8f : 0xff8c7377),
           outlineVariant: Color(dark ? 0xff493638 : 0xffddc8ca),
         );
-    final typography = ThemeData(brightness: brightness).textTheme
-        .apply(bodyColor: colors.onSurface, displayColor: colors.onSurface)
-        .copyWith(
-          headlineSmall: TextStyle(
-            fontSize: 25,
-            height: 1.25,
-            fontWeight: FontWeight.w500,
-            letterSpacing: -.6,
-            color: colors.onSurface,
-          ),
-          titleLarge: TextStyle(
-            fontSize: 19,
-            height: 1.3,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -.3,
-            color: colors.onSurface,
-          ),
-          titleMedium: TextStyle(
-            fontSize: 16,
-            height: 1.35,
-            fontWeight: FontWeight.w500,
-            color: colors.onSurface,
-          ),
-          bodyMedium: TextStyle(
-            fontSize: 13,
-            height: 1.5,
-            color: colors.onSurfaceVariant,
-          ),
-          bodySmall: TextStyle(
-            fontSize: 12,
-            height: 1.4,
-            color: colors.onSurfaceVariant,
-          ),
-          labelLarge: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: colors.onSurface,
-          ),
-        );
+    // The M3 type scale: sizes, line heights and tracking stay the
+    // baseline's; only a few weights change. Body text is onSurface; a
+    // secondary colour is set where text is secondary (UI-56).
+    // ThemeData.textTheme carries no sizes until Theme.of localizes it; the
+    // component themes below read [typography] directly, so it is merged
+    // with the M3 (2021) geometry here.
+    final base = Typography.englishLike2021
+        .merge(ThemeData(brightness: brightness).textTheme)
+        .apply(bodyColor: colors.onSurface, displayColor: colors.onSurface);
+    final typography = base.copyWith(
+      headlineSmall: base.headlineSmall?.copyWith(fontWeight: FontWeight.w500),
+      titleLarge: base.titleLarge?.copyWith(fontWeight: FontWeight.w500),
+      bodySmall: base.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+      labelLarge: base.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+    );
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(AppLayout.radius),
     );
@@ -629,7 +590,6 @@ abstract final class AppTheme {
           horizontal: 16,
           vertical: 16,
         ),
-        labelStyle: typography.bodyMedium,
       ),
       appBarTheme: AppBarTheme(
         backgroundColor: colors.surfaceContainerLowest,
@@ -650,7 +610,9 @@ abstract final class AppTheme {
       listTileTheme: ListTileThemeData(
         enableFeedback: false,
         titleTextStyle: typography.titleMedium,
-        subtitleTextStyle: typography.bodyMedium,
+        subtitleTextStyle: typography.bodyMedium?.copyWith(
+          color: colors.onSurfaceVariant,
+        ),
         iconColor: colors.onSurfaceVariant,
         minVerticalPadding: 14,
         contentPadding: const EdgeInsets.symmetric(horizontal: 17, vertical: 2),
@@ -686,8 +648,7 @@ abstract final class AppTheme {
         surfaceTintColor: Colors.transparent,
         indicatorColor: colors.secondaryContainer,
         labelTextStyle: WidgetStateProperty.resolveWith(
-          (states) => TextStyle(
-            fontSize: 12,
+          (states) => typography.labelMedium?.copyWith(
             fontWeight: states.contains(WidgetState.selected)
                 ? FontWeight.w600
                 : FontWeight.w400,
@@ -723,6 +684,7 @@ abstract final class AppTheme {
   }
 }
 
+/// A status with its icon; the same pill as [AppBadge] (UI-53).
 class StatusChip extends StatelessWidget {
   const StatusChip({
     required this.label,
@@ -735,61 +697,49 @@ class StatusChip extends StatelessWidget {
   final bool error;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: error ? colors.errorContainer : colors.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(30),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            size: 15,
-            color: error ? colors.onErrorContainer : colors.primary,
-          ),
-          const SizedBox(width: 5),
-          Flexible(
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: error
-                    ? colors.onErrorContainer
-                    : colors.onSurfaceVariant,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      AppBadge(label: label, icon: icon, error: error);
 }
 
+/// A titled card with padded content. Shares its layout with
+/// [AppSettingsSection], which holds edge-to-edge rows (UI-53).
 class SectionCard extends StatelessWidget {
   const SectionCard({
     required this.title,
     required this.child,
     this.trailing,
-    this.uppercase = false,
+    this.subheader = false,
     super.key,
   });
   final String title;
   final Widget child;
   final Widget? trailing;
-  final bool uppercase;
+
+  /// A list-style subheader instead of a page-level section title.
+  final bool subheader;
+  @override
+  Widget build(BuildContext context) => _CardSection(
+    heading: AppSectionHeading(
+      title: title,
+      action: trailing,
+      subheader: subheader,
+    ),
+    child: Padding(padding: const EdgeInsets.all(18), child: child),
+  );
+}
+
+class _CardSection extends StatelessWidget {
+  const _CardSection({required this.heading, required this.child});
+  final Widget? heading;
+  final Widget child;
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 24),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AppSectionHeading(title: title, action: trailing, uppercase: uppercase),
-        Card.filled(
-          child: Padding(padding: const EdgeInsets.all(18), child: child),
-        ),
+        ?heading,
+        Card.filled(clipBehavior: Clip.antiAlias, child: child),
       ],
     ),
   );
@@ -804,6 +754,7 @@ class SummaryCard extends StatelessWidget {
     this.action,
     this.onTap,
     this.selected = false,
+    this.embedded = false,
     super.key,
   });
   final String title;
@@ -811,64 +762,78 @@ class SummaryCard extends StatelessWidget {
   final Widget? leading, action;
   final VoidCallback? onTap;
   final bool selected;
+
+  /// A row inside a section card: no card of its own, so there is no card
+  /// in a card (UI-58).
+  final bool embedded;
   @override
-  Widget build(BuildContext context) => Card.filled(
-    color: selected ? Theme.of(context).colorScheme.secondaryContainer : null,
-    clipBehavior: Clip.antiAlias,
-    child: InkWell(
-      borderRadius: BorderRadius.circular(AppLayout.radius),
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.all(AppLayout.gap),
-        child: LayoutBuilder(
-          builder: (context, size) {
-            final stacked =
-                size.maxWidth < 480 ||
-                MediaQuery.textScalerOf(context).scale(14) > 21;
-            final summary = Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    if (embedded) {
+      return Material(
+        color: selected ? colors.secondaryContainer : Colors.transparent,
+        child: _content(context),
+      );
+    }
+    return Card.filled(
+      color: selected ? colors.secondaryContainer : null,
+      clipBehavior: Clip.antiAlias,
+      child: _content(context),
+    );
+  }
+
+  Widget _content(BuildContext context) => InkWell(
+    onTap: onTap,
+    child: Padding(
+      padding: const EdgeInsets.all(AppLayout.gap),
+      child: LayoutBuilder(
+        builder: (context, size) {
+          final stacked =
+              size.maxWidth < 480 ||
+              MediaQuery.textScalerOf(context).scale(14) > 21;
+          final summary = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                title,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 4),
+              DefaultTextStyle.merge(
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
-                const SizedBox(height: 4),
-                DefaultTextStyle.merge(
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                  child: subtitle,
-                ),
-              ],
-            );
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    if (leading != null) ...[
-                      leading!,
-                      const SizedBox(width: AppLayout.gap),
-                    ],
-                    Expanded(child: summary),
-                    if (!stacked && action != null) ...[
-                      const SizedBox(width: AppLayout.gap),
-                      action!,
-                    ],
+                child: subtitle,
+              ),
+            ],
+          );
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  if (leading != null) ...[
+                    leading!,
+                    const SizedBox(width: AppLayout.gap),
                   ],
+                  Expanded(child: summary),
+                  if (!stacked && action != null) ...[
+                    const SizedBox(width: AppLayout.gap),
+                    action!,
+                  ],
+                ],
+              ),
+              if (stacked && action != null)
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: action!,
                 ),
-                if (stacked && action != null)
-                  Align(
-                    alignment: AlignmentDirectional.centerEnd,
-                    child: action!,
-                  ),
-              ],
-            );
-          },
-        ),
+            ],
+          );
+        },
       ),
     ),
   );
@@ -931,6 +896,10 @@ class ResourceTile extends StatelessWidget {
     this.detailsLabel,
     this.onBadgeTap,
     this.badgeBusy = false,
+    this.switchValue,
+    this.selected = false,
+    this.selecting = false,
+    this.onTap,
     super.key,
   });
   final String title, subtitle, storageId;
@@ -939,80 +908,124 @@ class ResourceTile extends StatelessWidget {
   final String? badge, note, detailsLabel;
   final VoidCallback? onBadgeTap;
   final bool badgeBusy;
+
+  /// When set, [badge] labels a switch with this value and [onBadgeTap]
+  /// flips it: a state is shown as a switch, not as a button that reads
+  /// like its state (UI-59).
+  final bool? switchValue;
+
+  /// Selection is drawn by the card itself, with its ripple on top: a
+  /// highlight under the opaque card was invisible (UI-58).
+  final bool selected;
+
+  /// In selection mode the whole card toggles; its own controls do not
+  /// take the tap.
+  final bool selecting;
+  final VoidCallback? onTap;
   @override
   Widget build(BuildContext context) => Card.filled(
-    child: Padding(
-      padding: const EdgeInsets.all(17),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    if (subtitle.isNotEmpty) ...[
-                      const SizedBox(height: 5),
-                      Text(subtitle),
-                    ],
-                  ],
-                ),
-              ),
-              ?actions,
-            ],
-          ),
-          if (details.isNotEmpty || badge != null || note != null) ...[
-            const SizedBox(height: 12),
-            const Divider(),
-            const SizedBox(height: 8),
-            Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                if (note != null)
-                  Text(note!, style: Theme.of(context).textTheme.bodySmall),
-                if (badge != null)
-                  onBadgeTap == null && !badgeBusy
-                      ? AppBadge(label: badge!)
-                      : FilledButton.tonal(
-                          onPressed: badgeBusy ? null : onBadgeTap,
-                          child: badgeBusy
-                              ? const SizedBox.square(
-                                  dimension: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : Text(badge!),
-                        ),
-                if (details.isNotEmpty)
-                  TextButton.icon(
-                    key: ValueKey('resource-details-$storageId'),
-                    onPressed: () {
-                      showAppDetails(context, title: title, children: details);
-                    },
-                    icon: const Icon(Icons.chevron_right, size: 18),
-                    label: Text(
-                      detailsLabel ??
-                          MaterialLocalizations.of(context).moreButtonTooltip,
+    color: selected ? Theme.of(context).colorScheme.secondaryContainer : null,
+    child: InkWell(
+      onTap: onTap,
+      child: AbsorbPointer(absorbing: selecting, child: _body(context)),
+    ),
+  );
+
+  Widget _body(BuildContext context) => Padding(
+    padding: const EdgeInsets.all(AppLayout.gap),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-              ],
+                  if (subtitle.isNotEmpty) ...[
+                    const SizedBox(height: 5),
+                    Text(subtitle),
+                  ],
+                ],
+              ),
             ),
+            ?actions,
           ],
-          ?footer,
+        ),
+        if (details.isNotEmpty || badge != null || note != null) ...[
+          const SizedBox(height: 12),
+          const Divider(),
+          const SizedBox(height: 8),
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              if (note != null)
+                Text(note!, style: Theme.of(context).textTheme.bodySmall),
+              if (badge != null)
+                switchValue != null
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            badge!,
+                            style: Theme.of(context).textTheme.labelLarge,
+                          ),
+                          const SizedBox(width: AppLayout.smallGap),
+                          if (badgeBusy)
+                            const SizedBox.square(
+                              dimension: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          else
+                            Switch(
+                              key: ValueKey('resource-switch-$storageId'),
+                              value: switchValue!,
+                              onChanged: onBadgeTap == null
+                                  ? null
+                                  : (_) => onBadgeTap!(),
+                            ),
+                        ],
+                      )
+                    : onBadgeTap == null && !badgeBusy
+                    ? AppBadge(label: badge!)
+                    : FilledButton.tonal(
+                        onPressed: badgeBusy ? null : onBadgeTap,
+                        child: badgeBusy
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(badge!),
+                      ),
+              if (details.isNotEmpty)
+                TextButton.icon(
+                  key: ValueKey('resource-details-$storageId'),
+                  onPressed: () {
+                    showAppDetails(context, title: title, children: details);
+                  },
+                  icon: const Icon(Icons.chevron_right, size: 18),
+                  label: Text(
+                    detailsLabel ??
+                        MaterialLocalizations.of(context).moreButtonTooltip,
+                  ),
+                ),
+            ],
+          ),
         ],
-      ),
+        ?footer,
+      ],
     ),
   );
 }
@@ -1190,13 +1203,16 @@ class AppSectionHeading extends StatelessWidget {
     required this.title,
     this.count,
     this.action,
-    this.uppercase = false,
+    this.subheader = false,
     super.key,
   });
   final String title;
   final int? count;
   final Widget? action;
-  final bool uppercase;
+
+  /// The M3 list subheader (titleSmall in primary, sentence case) instead of
+  /// a section title. One style for every subheader; no upper case (UI-53).
+  final bool subheader;
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.fromLTRB(4, 8, 4, 12),
@@ -1204,12 +1220,10 @@ class AppSectionHeading extends StatelessWidget {
       children: [
         Expanded(
           child: Text(
-            uppercase ? title.toUpperCase() : title,
-            style: uppercase
-                ? Theme.of(context).textTheme.labelSmall?.copyWith(
+            title,
+            style: subheader
+                ? Theme.of(context).textTheme.titleSmall?.copyWith(
                     color: Theme.of(context).colorScheme.primary,
-                    letterSpacing: 1.2,
-                    fontWeight: FontWeight.w700,
                   )
                 : Theme.of(context).textTheme.titleLarge,
           ),
@@ -1221,27 +1235,52 @@ class AppSectionHeading extends StatelessWidget {
   );
 }
 
+/// A small non-interactive label: a count, a state, a status with icon.
 class AppBadge extends StatelessWidget {
-  const AppBadge({required this.label, this.icon, super.key});
+  const AppBadge({
+    required this.label,
+    this.icon,
+    this.error = false,
+    super.key,
+  });
   final String label;
   final IconData? icon;
+  final bool error;
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surfaceContainerHigh,
-      borderRadius: BorderRadius.circular(9),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (icon != null) ...[Icon(icon, size: 14), const SizedBox(width: 5)],
-        Flexible(
-          child: Text(label, style: Theme.of(context).textTheme.bodySmall),
-        ),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final foreground = error
+        ? colors.onErrorContainer
+        : colors.onSurfaceVariant;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: error ? colors.errorContainer : colors.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(
+              icon,
+              size: 16,
+              color: error ? colors.onErrorContainer : colors.primary,
+            ),
+            const SizedBox(width: 4),
+          ],
+          Flexible(
+            child: Text(
+              label,
+              style: Theme.of(
+                context,
+              ).textTheme.labelMedium?.copyWith(color: foreground),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class AppIconTile extends StatelessWidget {
@@ -1284,7 +1323,13 @@ class AppPageIntro extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.fromLTRB(4, 0, 4, 20),
-    child: Text(text, style: Theme.of(context).textTheme.bodyMedium),
+    // Introductory, supporting text: the secondary role (UI-56).
+    child: Text(
+      text,
+      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+    ),
   );
 }
 
@@ -1315,7 +1360,13 @@ class AppEmptyState extends StatelessWidget {
           ),
           if (message != null) ...[
             const SizedBox(height: 8),
-            Text(message!, textAlign: TextAlign.center),
+            Text(
+              message!,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
           ],
           if (action != null) ...[const SizedBox(height: 20), action!],
         ],
@@ -1327,53 +1378,87 @@ class AppEmptyState extends StatelessWidget {
 class AppNotice extends StatelessWidget {
   const AppNotice({
     required this.message,
+    this.title,
     this.error = false,
     this.icon = Icons.info_outline,
     this.action,
+    this.margin = const EdgeInsets.only(bottom: 12),
+    bool? liveRegion,
     super.key,
-  });
+  }) : liveRegion = liveRegion ?? error;
   final String message;
+
+  /// Optional heading above [message], for notices that recommend an action.
+  final String? title;
   final bool error;
   final IconData icon;
   final Widget? action;
+
+  /// Space around the notice; inline notices in rows and dialogs pass zero.
+  final EdgeInsetsGeometry margin;
+
+  /// Announces the message when it appears. On by default for errors, so a
+  /// failure is not only a colour change.
+  final bool liveRegion;
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: error ? colors.errorContainer : colors.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                error ? Icons.error_outline : icon,
-                size: 21,
-                color: error ? colors.onErrorContainer : colors.primary,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      message,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: error
-                            ? colors.onErrorContainer
-                            : colors.onSurface,
-                      ),
-                    ),
-                    ?action,
-                  ],
+      padding: margin,
+      child: Semantics(
+        container: true,
+        liveRegion: liveRegion,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: error ? colors.errorContainer : colors.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  error ? Icons.error_outline : icon,
+                  size: 21,
+                  color: error ? colors.onErrorContainer : colors.primary,
                 ),
-              ),
-            ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (title case final title?)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Text(
+                            title,
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(
+                                  color: error
+                                      ? colors.onErrorContainer
+                                      : colors.onSurface,
+                                ),
+                          ),
+                        ),
+                      Text(
+                        message,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: error
+                              ? colors.onErrorContainer
+                              : colors.onSurface,
+                        ),
+                      ),
+                      if (action case final action?)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: action,
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1447,6 +1532,73 @@ class AppFormDialog extends StatelessWidget {
   }
 }
 
+/// A "more" (⋮) button with a menu of actions, reachable by mouse, touch
+/// and keyboard: the button owns the focus node the menu needs to move focus
+/// into its items with the arrow keys.
+class AppMoreMenu extends StatefulWidget {
+  const AppMoreMenu({
+    required this.tooltip,
+    required this.children,
+    this.buttonKey,
+    super.key,
+  });
+  final String tooltip;
+  final List<Widget> children;
+  final Key? buttonKey;
+  @override
+  State<AppMoreMenu> createState() => _AppMoreMenuState();
+}
+
+class _AppMoreMenuState extends State<AppMoreMenu> {
+  final _focus = FocusNode(debugLabel: 'AppMoreMenu');
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => MenuAnchor(
+    childFocusNode: _focus,
+    menuChildren: widget.children,
+    builder: (context, menu, _) => IconButton(
+      key: widget.buttonKey,
+      focusNode: _focus,
+      tooltip: widget.tooltip,
+      onPressed: () => menu.isOpen ? menu.close() : menu.open(),
+      icon: const Icon(Icons.more_vert),
+    ),
+  );
+}
+
+/// Says why a control is unavailable: a tooltip present only while [reason]
+/// is set, so an enabled control keeps its own tooltip and semantics. The
+/// control keeps its state (e.g. a switch mid-animation) when the reason
+/// comes and goes.
+class AppDisabledReason extends StatefulWidget {
+  const AppDisabledReason({
+    required this.reason,
+    required this.child,
+    super.key,
+  });
+  final String? reason;
+  final Widget child;
+  @override
+  State<AppDisabledReason> createState() => _AppDisabledReasonState();
+}
+
+class _AppDisabledReasonState extends State<AppDisabledReason> {
+  final _child = GlobalKey();
+  @override
+  Widget build(BuildContext context) {
+    final child = KeyedSubtree(key: _child, child: widget.child);
+    return switch (widget.reason) {
+      final reason? => Tooltip(message: reason, child: child),
+      null => child,
+    };
+  }
+}
+
 /// The confirming action of a destructive choice (reset, delete, remove):
 /// a filled button in the error colours of the scheme.
 class AppDangerButton extends StatelessWidget {
@@ -1455,13 +1607,34 @@ class AppDangerButton extends StatelessWidget {
     required this.child,
     this.icon,
     super.key,
-  });
+  }) : _text = false;
+
+  /// The low-emphasis entry to a destructive action, e.g. "Delete" beside
+  /// "Save" in a form: error-coloured text that opens [confirmAppDanger].
+  const AppDangerButton.text({
+    required this.onPressed,
+    required this.child,
+    this.icon,
+    super.key,
+  }) : _text = true;
   final VoidCallback? onPressed;
   final Widget child;
   final Widget? icon;
+  final bool _text;
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    if (_text) {
+      final style = TextButton.styleFrom(foregroundColor: colors.error);
+      return icon == null
+          ? TextButton(onPressed: onPressed, style: style, child: child)
+          : TextButton.icon(
+              onPressed: onPressed,
+              style: style,
+              icon: icon!,
+              label: child,
+            );
+    }
     final style = FilledButton.styleFrom(
       backgroundColor: colors.error,
       foregroundColor: colors.onError,
@@ -1482,30 +1655,33 @@ class AppDangerButton extends StatelessWidget {
 Future<bool> confirmAppDanger(
   BuildContext context, {
   required String title,
-  required String message,
+  String? message,
+  Widget? content,
   required String confirmLabel,
   required String cancelLabel,
   Key? confirmKey,
-}) async =>
-    await showDialog<bool>(
-      context: context,
-      builder: (context) => AppFormDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(cancelLabel),
-          ),
-          AppDangerButton(
-            key: confirmKey,
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(confirmLabel),
-          ),
-        ],
-      ),
-    ) ??
-    false;
+}) async {
+  assert((message == null) != (content == null), 'message or content');
+  return await showDialog<bool>(
+        context: context,
+        builder: (context) => AppFormDialog(
+          title: Text(title),
+          content: content ?? Text(message!),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(cancelLabel),
+            ),
+            AppDangerButton(
+              key: confirmKey,
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(confirmLabel),
+            ),
+          ],
+        ),
+      ) ??
+      false;
+}
 
 Future<void> showAppDetails(
   BuildContext context, {
@@ -1667,7 +1843,10 @@ class AppSelectField<T> extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodyLarge?.copyWith(
-                color: onChanged == null ? theme.disabledColor : null,
+                // The M3 disabled role: onSurface at 38 % (UI-68).
+                color: onChanged == null
+                    ? theme.colorScheme.onSurface.withValues(alpha: .38)
+                    : null,
               ),
             ),
           ),

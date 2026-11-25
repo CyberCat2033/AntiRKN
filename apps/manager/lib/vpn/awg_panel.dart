@@ -2,6 +2,7 @@ import 'connection_check_view.dart';
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
+import '../busy_reason.dart';
 import '../l10n/app_localizations.dart';
 import '../network/network_controller.dart';
 import '../network/server_address_field.dart';
@@ -93,11 +94,14 @@ class AwgPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           AppPageIntro(l.uiAwgIntro),
-          FilledButton.icon(
-            key: const ValueKey('awg-add'),
-            onPressed: !c.canMutate ? null : () => edit(context),
-            icon: const Icon(Icons.add),
-            label: Text(l.awgAdd),
+          AppDisabledReason(
+            reason: busyReason(l, vpn: c),
+            child: FilledButton.icon(
+              key: const ValueKey('awg-add'),
+              onPressed: !c.canMutate ? null : () => edit(context),
+              icon: const Icon(Icons.add),
+              label: Text(l.awgAdd),
+            ),
           ),
           ConnectionCheckAll(
             controller: c,
@@ -163,7 +167,7 @@ class AwgPanel extends StatelessWidget {
                         : null,
                     detailsLabel: l.componentsDetails,
                     actions: IconButton(
-                      tooltip: l.vpnEdit,
+                      tooltip: busyReason(l, vpn: c) ?? l.vpnEdit,
                       onPressed: !c.canMutate ? null : () => edit(context, r),
                       icon: const Icon(Icons.edit_outlined),
                     ),
@@ -312,31 +316,44 @@ class _AwgFormState extends State<AwgForm> {
               SwitchListTile(
                 title: Text(l.vpnEnabled),
                 value: spec['enabled'] as bool,
-                onChanged: (v) => setState(() {
-                  spec['enabled'] = v;
-                  if (v) spec['deleted'] = false;
-                }),
+                onChanged: (v) => setState(() => spec['enabled'] = v),
               ),
-              if (widget.existing)
-                CheckboxListTile(
-                  title: Text(l.vpnDeleteHelp),
-                  value: spec['deleted'] as bool,
-                  onChanged: (v) => setState(() {
-                    spec['deleted'] = v!;
-                    if (v) spec['enabled'] = false;
-                  }),
-                ),
               Text(l.connectionAfterSave),
               if (invalid)
-                Text(
-                  l.vpnInvalid,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                AppNotice(
+                  message: l.vpnInvalid,
+                  error: true,
+                  margin: const EdgeInsets.only(top: 12),
                 ),
             ],
           ),
         ),
       ),
       actions: [
+        // Deleting is its own confirmed action, not a form field (UI-54).
+        if (widget.existing)
+          AppDangerButton.text(
+            key: const ValueKey('awg-delete'),
+            onPressed: () async {
+              final confirmed = await confirmAppDanger(
+                context,
+                title: l.awgDelete,
+                message: l.awgDeleteHelp,
+                confirmLabel: l.vpnDelete,
+                cancelLabel: l.sshCancel,
+                confirmKey: const ValueKey('awg-delete-confirm'),
+              );
+              if (!confirmed || !context.mounted) return;
+              Navigator.pop(
+                context,
+                AwgInterface(
+                  serverId: widget.serverId,
+                  spec: {...widget.spec, 'deleted': true, 'enabled': false},
+                ),
+              );
+            },
+            child: Text(l.vpnDelete),
+          ),
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: Text(l.runnerNotNow),

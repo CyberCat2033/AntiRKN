@@ -172,9 +172,10 @@ class _ClientEgressCardState extends State<ClientEgressCard> {
                   child: LinearProgressIndicator(),
                 ),
               if (failure != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(egressIssue(l, failure)),
+                AppNotice(
+                  message: egressIssue(l, failure),
+                  error: true,
+                  margin: const EdgeInsets.only(top: 8),
                 ),
               const SizedBox(height: 8),
               Wrap(
@@ -489,9 +490,10 @@ class _ClientEgressFormState extends State<ClientEgressForm> {
               ),
             ),
             if (issue != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Text(egressIssue(l, issue!)),
+              AppNotice(
+                message: egressIssue(l, issue!),
+                error: true,
+                margin: const EdgeInsets.only(top: 12),
               ),
             if (busy)
               const Padding(

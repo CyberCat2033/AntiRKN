@@ -5,6 +5,7 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import '../busy_reason.dart';
 import '../l10n/app_localizations.dart';
 import '../network/ip_diagnostics_controller.dart';
 import '../network/server_ip_diagnostics.dart';
@@ -80,11 +81,20 @@ class ServerAboutView extends StatelessWidget {
                   c.stage == SshStage.connected
                       ? l.uiServerAboutHelp
                       : l.inventoryStale,
-                  style: Theme.of(context).textTheme.bodyMedium,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
               IconButton(
-                tooltip: l.sshRefresh,
+                tooltip:
+                    busyReason(
+                      l,
+                      runner: c.runner,
+                      ssh: c,
+                      needsConnection: true,
+                    ) ??
+                    l.sshRefresh,
                 onPressed:
                     c.stage == SshStage.connected &&
                         !c.busy &&
@@ -205,24 +215,37 @@ class ServerAboutView extends StatelessWidget {
                           ),
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
-                  if (c.trafficStorageFailed) Text(l.settingsSaveError),
+                  if (c.trafficStorageFailed)
+                    AppNotice(
+                      message: l.settingsSaveError,
+                      error: true,
+                      margin: const EdgeInsets.only(top: 8),
+                    ),
                   Align(
                     alignment: AlignmentDirectional.centerStart,
-                    child: TextButton.icon(
-                      key: const ValueKey('server-traffic-reset'),
-                      onPressed:
-                          c.stage == SshStage.connected &&
-                              !c.busy &&
-                              !c.runner.busy &&
-                              !c.resettingTraffic &&
-                              c.canResetTraffic &&
-                              c.trafficSample != null
-                          ? () async {
-                              await c.resetTraffic();
-                            }
-                          : null,
-                      icon: const Icon(Icons.restart_alt),
-                      label: Text(l.uiTrafficReset),
+                    child: AppDisabledReason(
+                      reason: busyReason(
+                        l,
+                        runner: c.runner,
+                        ssh: c,
+                        needsConnection: true,
+                      ),
+                      child: TextButton.icon(
+                        key: const ValueKey('server-traffic-reset'),
+                        onPressed:
+                            c.stage == SshStage.connected &&
+                                !c.busy &&
+                                !c.runner.busy &&
+                                !c.resettingTraffic &&
+                                c.canResetTraffic &&
+                                c.trafficSample != null
+                            ? () async {
+                                await c.resetTraffic();
+                              }
+                            : null,
+                        icon: const Icon(Icons.restart_alt),
+                        label: Text(l.uiTrafficReset),
+                      ),
                     ),
                   ),
                   Text(

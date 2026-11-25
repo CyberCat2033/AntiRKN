@@ -125,7 +125,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('vless-panel-login')), findsNothing);
       expect(find.text('Details'), findsNothing);
-      await tester.tap(find.widgetWithText(FilledButton, 'Enabled'));
+      // The state is a labelled switch, not a button showing it (UI-59).
+      await tester.tap(find.byType(Switch).last);
       await tester.pump(const Duration(milliseconds: 400));
       final request = remote.requests.lastWhere(
         (r) => r.json['kind'] == 'inbound_update',

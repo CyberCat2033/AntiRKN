@@ -33,7 +33,8 @@ void main() {
       expect(x(), initial);
       await tester.pump(const Duration(milliseconds: 110));
       expect(x(), greaterThan(initial));
-      expect(x(), lessThan(initial + 36));
+      // The checkbox slot is the full 48 dp target (UI-67).
+      expect(x(), lessThan(initial + 48));
       final halfway = x();
       active.value = false;
       await tester.pump();

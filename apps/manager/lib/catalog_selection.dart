@@ -80,13 +80,14 @@ class CatalogSelectionLeading extends StatelessWidget {
         duration: AppMotion.duration(context, MotionPreference.system),
         curve: Curves.easeInOutCubicEmphasized,
         builder: (context, value, _) => ClipRect(
+          // The full 48 dp target of the checkbox, not a clipped 36 (UI-67).
           child: SizedBox(
-            width: 36 * value,
+            width: 48 * value,
             height: 48,
             child: OverflowBox(
               alignment: Alignment.centerLeft,
-              minWidth: 36,
-              maxWidth: 36,
+              minWidth: 48,
+              maxWidth: 48,
               child: ExcludeSemantics(
                 excluding: !active,
                 child: IgnorePointer(
@@ -124,6 +125,12 @@ class CatalogTitle extends StatelessWidget {
     listenable: selection,
     builder: (context, _) => AnimatedSwitcher(
       duration: AppMotion.duration(context, MotionPreference.system),
+      // Start-aligned: the title does not drift to the centre while the
+      // two texts cross-fade (UI-67).
+      layoutBuilder: (current, previous) => Stack(
+        alignment: AlignmentDirectional.centerStart,
+        children: [...previous, ?current],
+      ),
       child: Text(
         selection.active
             ? AppLocalizations.of(context).catalogSelected(selection.ids.length)
@@ -186,6 +193,11 @@ class CatalogActions extends StatelessWidget {
       return AnimatedSwitcher(
         duration: AppMotion.duration(context, MotionPreference.system),
         switchInCurve: AppMotion.curve,
+        // End-aligned like the app bar actions it replaces (UI-67).
+        layoutBuilder: (current, previous) => Stack(
+          alignment: AlignmentDirectional.centerEnd,
+          children: [...previous, ?current],
+        ),
         child: Row(
           key: ValueKey(selection.active),
           mainAxisSize: MainAxisSize.min,
@@ -245,24 +257,22 @@ Future<bool> confirmCatalogDeletion(
         context: context,
         builder: (context) => AppFormDialog(
           title: Text(l.catalogDeleteSelected),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(explanation),
-                const SizedBox(height: AppLayout.gap),
-                for (final name in names) Text(name),
-                ?extra,
-              ],
-            ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(explanation),
+              const SizedBox(height: AppLayout.gap),
+              for (final name in names) Text(name),
+              ?extra,
+            ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
               child: Text(l.sshCancel),
             ),
-            FilledButton(
+            AppDangerButton(
               key: ValueKey(confirmKey),
               onPressed: () {
                 AppHaptics.deleted();

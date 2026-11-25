@@ -57,6 +57,10 @@ class InboundsPanelState extends State<InboundsPanel> {
   final deletionState = ValueNotifier(false);
   bool get deleting => deletionState.value;
   set deleting(bool value) => deletionState.value = value;
+
+  /// Guards a deletion while its sign-ins and consent are still open; the
+  /// list and its bar stay idle until the person confirms (UI-62).
+  bool _preparingDeletion = false;
   String? deletionIssue;
   String externalId(Map panel, Map inbound) =>
       'external-${panel['port']}-${inbound['id']}';
@@ -185,7 +189,12 @@ class InboundsPanelState extends State<InboundsPanel> {
     ),
   );
 
-  Widget selectable(String id, Widget child) => Row(
+  /// The card draws its own selection and ripple (UI-58).
+  Widget selectable(
+    String id,
+    ResourceTile Function(bool selected, bool selecting, VoidCallback? onTap)
+    tile,
+  ) => Row(
     children: [
       CatalogSelectionLeading(
         active: selection.active,
@@ -194,21 +203,10 @@ class InboundsPanelState extends State<InboundsPanel> {
         child: const SizedBox.shrink(),
       ),
       Expanded(
-        child: Material(
-          color: selection.ids.contains(id)
-              ? Theme.of(context).colorScheme.secondaryContainer
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(AppLayout.radius),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: selection.active && !deleting
-                ? () => selection.toggle(id)
-                : null,
-            child: AbsorbPointer(
-              absorbing: selection.active || deleting,
-              child: child,
-            ),
-          ),
+        child: tile(
+          selection.ids.contains(id),
+          selection.active || deleting,
+          selection.active && !deleting ? () => selection.toggle(id) : null,
         ),
       ),
     ],
@@ -253,11 +251,14 @@ class InboundsPanelState extends State<InboundsPanel> {
         }
       }
     }
-    if (managed.isEmpty && external.isEmpty || deleting) return;
-    setState(() {
-      deleting = true;
-      deletionIssue = null;
-    });
+    if (managed.isEmpty && external.isEmpty || deleting || _preparingDeletion) {
+      return;
+    }
+    _preparingDeletion = true;
+    setState(() => deletionIssue = null);
+    // Before consent nothing has changed: a failure then is a read failure,
+    // not an incomplete deletion.
+    var started = false;
     try {
       // Read external snapshots before consent, then retain their fingerprints through execution.
       final removals = <int, List<Map<String, Object?>>>{};
@@ -296,6 +297,8 @@ class InboundsPanelState extends State<InboundsPanel> {
           !mounted) {
         return;
       }
+      setState(() => deleting = true);
+      started = true;
       if (managed.isNotEmpty) {
         if (runner != null &&
             (!await showPanelLogin(context, runner!) || !mounted)) {
@@ -346,8 +349,15 @@ class InboundsPanelState extends State<InboundsPanel> {
       }
       selection.exit();
     } catch (_) {
-      if (mounted) setState(() => deletionIssue = l.inboundDeleteIncomplete);
+      if (mounted) {
+        setState(
+          () => deletionIssue = started
+              ? l.inboundDeleteIncomplete
+              : l.inboundDeleteReadFailed,
+        );
+      }
     } finally {
+      _preparingDeletion = false;
       if (mounted) setState(() => deleting = false);
     }
   }
@@ -396,7 +406,8 @@ class InboundsPanelState extends State<InboundsPanel> {
                 !c.foregroundBusy &&
                 c.currentJob(serverId)?.terminal != false)
               const LinearProgressIndicator(),
-            if (deletionIssue != null) Text(deletionIssue!),
+            if (deletionIssue != null)
+              AppNotice(message: deletionIssue!, error: true),
             CatalogNormalContent(
               selection: selection,
               child: Column(
@@ -545,7 +556,10 @@ class InboundsPanelState extends State<InboundsPanel> {
                       externalId(entry.panel, entry.row),
                       selectable(
                         externalId(entry.panel, entry.row),
-                        ResourceTile(
+                        (selected, selecting, onTap) => ResourceTile(
+                          selected: selected,
+                          selecting: selecting,
+                          onTap: onTap,
                           storageId:
                               'observed-$serverId-${entry.panel['port']}-${entry.row['id']}',
                           footer:
@@ -566,9 +580,8 @@ class InboundsPanelState extends State<InboundsPanel> {
                               : '${entry.row['name']}',
                           subtitle:
                               '${entry.row['transport']} · ${entry.row['security']}',
-                          badge: entry.row['enabled'] == true
-                              ? l.vpnEnabled
-                              : l.vpnDisabled,
+                          badge: l.vpnEnabled,
+                          switchValue: entry.row['enabled'] == true,
                           note: l.vpnObserved,
                           detailsLabel: l.componentsDetails,
                           details: const [],
@@ -715,7 +728,10 @@ class InboundsPanelState extends State<InboundsPanel> {
                       r.id,
                       selectable(
                         r.id,
-                        ResourceTile(
+                        (selected, selecting, onTap) => ResourceTile(
+                          selected: selected,
+                          selecting: selecting,
+                          onTap: onTap,
                           key: ValueKey('inbound-summary-${r.id}'),
                           footer: selection.active
                               ? null
@@ -728,7 +744,8 @@ class InboundsPanelState extends State<InboundsPanel> {
                           title: r.spec['name'] as String,
                           subtitle:
                               '${r.spec['transport'].toString().toUpperCase()} · ${r.spec['security'].toString().toUpperCase()}',
-                          badge: r.enabled ? l.vpnEnabled : l.vpnDisabled,
+                          badge: l.vpnEnabled,
+                          switchValue: r.enabled,
                           note:
                               r.spec.containsKey('adoption') &&
                                   !c.adoptionConfirmed(serverId, r.id)
@@ -1171,9 +1188,7 @@ class _InboundFormState extends State<InboundForm> {
                 contentPadding: EdgeInsets.zero,
                 title: Text(l.vpnEnabled),
                 value: spec['enabled'] as bool,
-                onChanged: spec['deleted'] == true
-                    ? null
-                    : (v) => setState(() => spec['enabled'] = v),
+                onChanged: (v) => setState(() => spec['enabled'] = v),
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
@@ -1183,28 +1198,43 @@ class _InboundFormState extends State<InboundForm> {
                 value: spec['internal'] == true,
                 onChanged: (v) => setState(() => spec['internal'] = v),
               ),
-              if (widget.inbound != null)
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l.vpnDeleteInbound),
-                  subtitle: Text(l.vpnDeleteHelp),
-                  value: spec['deleted'] as bool,
-                  onChanged: (v) => setState(() {
-                    spec['deleted'] = v == true;
-                    if (v == true) spec['enabled'] = false;
-                  }),
-                ),
               Text(l.connectionAfterSave),
               if (invalid)
-                Text(
-                  l.vpnInvalid,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                AppNotice(
+                  message: l.vpnInvalid,
+                  error: true,
+                  margin: const EdgeInsets.only(top: 12),
                 ),
             ],
           ),
         ),
       ),
       actions: [
+        // Deleting is its own confirmed action, not a form field applied by
+        // "Save" (UI-54).
+        if (widget.inbound case final inbound?)
+          AppDangerButton.text(
+            key: const ValueKey('vpn-inbound-delete'),
+            onPressed: () async {
+              final confirmed = await confirmAppDanger(
+                context,
+                title: l.vpnDeleteInbound,
+                message: l.vpnDeleteHelp,
+                confirmLabel: l.vpnDelete,
+                cancelLabel: l.sshCancel,
+                confirmKey: const ValueKey('vpn-inbound-delete-confirm'),
+              );
+              if (!confirmed || !context.mounted) return;
+              Navigator.pop(
+                context,
+                VlessInbound(
+                  serverId: widget.serverId,
+                  spec: {...inbound.spec, 'deleted': true, 'enabled': false},
+                ),
+              );
+            },
+            child: Text(l.vpnDelete),
+          ),
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: Text(l.runnerNotNow),

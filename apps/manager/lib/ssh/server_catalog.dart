@@ -72,31 +72,29 @@ class ServerCatalog extends StatefulWidget {
         context: context,
         builder: (context) => AppFormDialog(
           title: Text(l.catalogForgetServerTitle),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(l.catalogForgetServerWarning),
-                if (controller.servers.any(
-                  (server) =>
-                      !chosen.any((s) => s.id == server.id) &&
-                      chosen.any((s) => s.id == server.profile.jumpServerId),
-                )) ...[
-                  const SizedBox(height: AppLayout.gap),
-                  Text(l.catalogForgetServerJumpWarning),
-                ],
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(l.catalogForgetServerWarning),
+              if (controller.servers.any(
+                (server) =>
+                    !chosen.any((s) => s.id == server.id) &&
+                    chosen.any((s) => s.id == server.profile.jumpServerId),
+              )) ...[
                 const SizedBox(height: AppLayout.gap),
-                for (final server in chosen) Text(server.profile.displayName),
+                Text(l.catalogForgetServerJumpWarning),
               ],
-            ),
+              const SizedBox(height: AppLayout.gap),
+              for (final server in chosen) Text(server.profile.displayName),
+            ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
               child: Text(l.sshCancel),
             ),
-            FilledButton(
+            AppDangerButton(
               key: const ValueKey('ssh-forget-local-confirm'),
               onPressed: () {
                 AppHaptics.deleted();
@@ -229,11 +227,7 @@ class _ServerCatalogState extends State<ServerCatalog> {
         vpn: vpn,
         coreUpgrade: vpn == null
             ? null
-            : XrayUpgradeView(
-                runner: session.runner,
-                vpn: vpn,
-                host: host,
-              ),
+            : XrayUpgradeView(runner: session.runner, vpn: vpn, host: host),
         diagnostics: widget.diagnostics,
         motion: widget.motion,
         onBack: onBack ?? c.showList,
@@ -382,7 +376,7 @@ class _ServerCatalogState extends State<ServerCatalog> {
     return DragSelectList(
       selection: selection,
       ids: c.servers.map((s) => s.id).toList(),
-      enabled: !c.loading,
+      enabled: !c.blocking,
       builder: (scroll, item) => RefreshIndicator(
         onRefresh: () async {
           await c.refresh();
@@ -400,7 +394,7 @@ class _ServerCatalogState extends State<ServerCatalog> {
                 children: [
                   FilledButton.icon(
                     key: const ValueKey('server-add'),
-                    onPressed: c.loading
+                    onPressed: c.blocking
                         ? null
                         : () {
                             c.add();
@@ -413,12 +407,20 @@ class _ServerCatalogState extends State<ServerCatalog> {
               ),
             ),
             AppSectionHeading(title: l.uiMyServers, count: c.servers.length),
-            if (c.loading) const LinearProgressIndicator(),
+            // A fixed slot: the bar of a background refresh must not move
+            // the list under the pointer (UI-63).
+            SizedBox(
+              height: 4,
+              child: c.loading ? const LinearProgressIndicator() : null,
+            ),
             if (c.error case final issue?) ...[
-              Text(vaultIssueLabel(l, issue)),
-              OutlinedButton(
-                onPressed: c.loading ? null : c.load,
-                child: Text(l.vaultRetry),
+              AppNotice(
+                message: vaultIssueLabel(l, issue),
+                error: true,
+                action: OutlinedButton(
+                  onPressed: c.loading ? null : c.load,
+                  child: Text(l.vaultRetry),
+                ),
               ),
             ],
             if (c.needsLegacyPassword)
@@ -508,116 +510,126 @@ class _ServerCatalogState extends State<ServerCatalog> {
                               child: Padding(
                                 padding: EdgeInsets.zero,
                                 child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              border: Border(
-                                top: BorderSide(
-                                  color: server.id == c.servers.first.id
-                                      ? Colors.transparent
-                                      : Theme.of(context)
-                                            .colorScheme
-                                            .outlineVariant
-                                            .withValues(alpha: .55),
-                                ),
-                              ),
-                            ),
-                            child: Material(
-                              type: MaterialType.transparency,
-                              clipBehavior: Clip.hardEdge,
-                              child: ListTile(
-                                key: ValueKey('server-${server.id}'),
-                                selected:
-                                    selection.active &&
-                                    selection.ids.contains(server.id),
-                                leading: CatalogSelectionLeading(
-                                  active: selection.active,
-                                  selected: selection.ids.contains(server.id),
-                                  checkboxKey: ValueKey(
-                                    'server-select-${server.id}',
-                                  ),
-                                  onChanged: c.loading
-                                      ? null
-                                      : (_) => selection.toggle(server.id),
-                                  child: AppIconTile(
-                                    text: server.profile.displayName
-                                        .trim()
-                                        .characters
-                                        .take(2)
-                                        .toString()
-                                        .toUpperCase(),
-                                  ),
-                                ),
-                                title: Text(server.profile.displayName),
-                                subtitle: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      [
-                                        ?c.osFor(server.id),
-                                        server.profile.host,
-                                      ].join(' · '),
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      // No divider above the first row
+                                      // instead of a transparent one (UI-59).
+                                      top: server.id == c.servers.first.id
+                                          ? BorderSide.none
+                                          : BorderSide(
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.outlineVariant,
+                                            ),
                                     ),
-                                    const SizedBox(height: 5),
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          c.stageFor(server.id) ==
-                                                  SshStage.connected
-                                              ? Icons.check_circle_outline
-                                              : Icons.circle_outlined,
-                                          size: 13,
-                                          color:
-                                              c.stageFor(server.id) ==
-                                                  SshStage.connected
-                                              ? Theme.of(
-                                                  context,
-                                                ).colorScheme.primary
-                                              : Theme.of(
-                                                  context,
-                                                ).colorScheme.onSurfaceVariant,
+                                  ),
+                                  child: Material(
+                                    type: MaterialType.transparency,
+                                    clipBehavior: Clip.hardEdge,
+                                    child: ListTile(
+                                      key: ValueKey('server-${server.id}'),
+                                      selected:
+                                          selection.active &&
+                                          selection.ids.contains(server.id),
+                                      leading: CatalogSelectionLeading(
+                                        active: selection.active,
+                                        selected: selection.ids.contains(
+                                          server.id,
                                         ),
-                                        const SizedBox(width: 5),
-                                        Flexible(
-                                          child: Text(
-                                            switch (c.stageFor(server.id)) {
-                                              SshStage.connected =>
-                                                l.sshConnected,
-                                              SshStage.connecting =>
-                                                l.sshConnecting,
-                                              SshStage.verifying =>
-                                                l.sshTrustTitle,
-                                              SshStage.reading => l.sshReading,
-                                              SshStage.checkingPrivileges =>
-                                                l.privilegesChecking,
-                                              SshStage.idle => l.uiOffline,
-                                            },
-                                            style: Theme.of(
-                                              context,
-                                            ).textTheme.bodySmall,
+                                        checkboxKey: ValueKey(
+                                          'server-select-${server.id}',
+                                        ),
+                                        onChanged: c.blocking
+                                            ? null
+                                            : (_) =>
+                                                  selection.toggle(server.id),
+                                        child: AppIconTile(
+                                          text: server.profile.displayName
+                                              .trim()
+                                              .characters
+                                              .take(2)
+                                              .toString()
+                                              .toUpperCase(),
+                                        ),
+                                      ),
+                                      title: Text(server.profile.displayName),
+                                      subtitle: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            [
+                                              ?c.osFor(server.id),
+                                              server.profile.host,
+                                            ].join(' · '),
                                           ),
-                                        ),
-                                      ],
+                                          const SizedBox(height: 5),
+                                          Row(
+                                            children: [
+                                              Icon(
+                                                c.stageFor(server.id) ==
+                                                        SshStage.connected
+                                                    ? Icons.check_circle_outline
+                                                    : Icons.circle_outlined,
+                                                size: 13,
+                                                color:
+                                                    c.stageFor(server.id) ==
+                                                        SshStage.connected
+                                                    ? Theme.of(
+                                                        context,
+                                                      ).colorScheme.primary
+                                                    : Theme.of(context)
+                                                          .colorScheme
+                                                          .onSurfaceVariant,
+                                              ),
+                                              const SizedBox(width: 5),
+                                              Flexible(
+                                                child: Text(
+                                                  switch (c.stageFor(
+                                                    server.id,
+                                                  )) {
+                                                    SshStage.connected =>
+                                                      l.sshConnected,
+                                                    SshStage.connecting =>
+                                                      l.sshConnecting,
+                                                    SshStage.verifying =>
+                                                      l.sshTrustTitle,
+                                                    SshStage.reading =>
+                                                      l.sshReading,
+                                                    SshStage
+                                                        .checkingPrivileges =>
+                                                      l.privilegesChecking,
+                                                    SshStage.idle =>
+                                                      l.uiOffline,
+                                                  },
+                                                  style: Theme.of(
+                                                    context,
+                                                  ).textTheme.bodySmall,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                      trailing: selection.active
+                                          ? null
+                                          : const Icon(Icons.chevron_right),
+                                      onTap: c.blocking
+                                          ? null
+                                          : selection.active
+                                          ? () => selection.toggle(server.id)
+                                          : () {
+                                              containerOpen = true;
+                                              c.select(server.id);
+                                              openContainer();
+                                            },
                                     ),
-                                  ],
+                                  ),
                                 ),
-                                trailing: selection.active
-                                    ? null
-                                    : const Icon(Icons.chevron_right),
-                                onTap: c.loading
-                                    ? null
-                                    : selection.active
-                                    ? () => selection.toggle(server.id)
-                                    : () {
-                                        containerOpen = true;
-                                        c.select(server.id);
-                                        openContainer();
-                                      },
                               ),
                             ),
-                          ),
-                        ),
                       ),
-                    ),
                     ),
                 },
               ),
