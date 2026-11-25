@@ -50,12 +50,9 @@ final class _RestorePlan implements WorkspaceRestorePlan {
   String toString() => 'WorkspaceRestorePlan(<redacted>)';
 }
 
-String _backupStamp(WorkspaceDatabase store) => jsonEncode([
-  ...store._db.select(
-    'SELECT workspace_id,device_id,sequence FROM sync_identity',
-  ),
-  ...store._db.select('SELECT epoch FROM sync_merge_meta'),
-]);
+String _backupStamp(WorkspaceDatabase store) => jsonEncode(
+  store._db.select('SELECT workspace_id,device_id,sequence FROM sync_identity'),
+);
 
 /// The file backup keeps format 4 with everything this device knows; with
 /// [cloud] the automatic sync snapshot v5 carries intent only.
@@ -69,9 +66,7 @@ Future<_CapturedSnapshot> _currentSnapshot(
   store._db.execute('BEGIN');
   try {
     store._journal.checkIdentity();
-    // Backup v4 contains the current materialized workspace. Legacy merge
-    // conflicts and waiting packets are deliberately absent from this format;
-    // they cannot make an export of the visible state stale.
+    // Backup v4 contains the current materialized workspace.
     for (final (name, sql) in [
       ('servers', 'SELECT * FROM servers ORDER BY id'),
       ('documents', 'SELECT * FROM documents ORDER BY id'),
@@ -170,37 +165,9 @@ Future<Uint8List> _createBackup(
   }
 }
 
-Future<void> _compactCurrentHistory(
-  WorkspaceDatabase store,
-) => store._serial(() {
-  store._transaction(() {
-    // Merge state left by the network exchange removed on 2026-09-24 has no
-    // consumer: snapshots carry the materialized rows. Unresolved conflicts,
-    // waiting packets and extra branches collapse to the current heads, once.
-    store._db.execute('DELETE FROM sync_conflicts');
-    store._db.execute('DELETE FROM sync_branches');
-    store._db.execute(
-      'INSERT INTO sync_branches SELECT entity_kind,entity_id,change_id FROM sync_heads',
-    );
-    store._db.execute('DELETE FROM sync_packets');
-    store._db.execute('DELETE FROM sync_outbox');
-    store._db.execute('DROP TRIGGER sync_changes_immutable_delete');
-    store._db.execute('''
-          DELETE FROM sync_changes
-          WHERE change_id NOT IN (SELECT change_id FROM sync_heads)
-        ''');
-    store._db.execute(
-      "CREATE TRIGGER sync_changes_immutable_delete BEFORE DELETE ON sync_changes BEGIN SELECT RAISE(ABORT, 'immutable_change'); END",
-    );
-    store._db.execute('''
-          DELETE FROM sync_incoming
-          WHERE change_id NOT IN (SELECT change_id FROM sync_heads)
-        ''');
-    store._merge.advance();
-  });
-  store._merge._decryptedEventCache.clear();
-  return Future<void>.value();
-});
+/// After a confirmed upload only the current heads are kept.
+Future<void> _compactCurrentHistory(WorkspaceDatabase store) =>
+    store._serial(() => store._transaction(store._journal.compact));
 
 Future<WorkspaceRestorePlan> _prepareRestore(
   WorkspaceDatabase store,
@@ -247,13 +214,6 @@ Future<void> _restoreBackup(
       final deviceId = plan.cloudBound
           ? local['device_id'] as String
           : newVpnId();
-      final keptSyncKey =
-          plan.cloudBound && local['workspace_id'] == workspaceId
-          ? (store._db
-                    .select('SELECT payload FROM sync_keys WHERE singleton=1')
-                    .firstOrNull?['payload']
-                as Uint8List?)
-          : null;
       final owner = WorkspaceIdentity(
         workspaceId: workspaceId,
         deviceId: deviceId,
@@ -267,13 +227,6 @@ Future<void> _restoreBackup(
           'deviceId': deviceId,
         }),
       );
-      final syncKeyPayload =
-          keptSyncKey ??
-          await store._encrypt(
-            _WorkspaceSync.keyScope(workspaceId),
-            1,
-            canonicalJson(await _newSyncKey()),
-          );
       final records = <String, List<List<Object?>>>{
         'servers': [],
         'documents': [],
@@ -305,58 +258,16 @@ Future<void> _restoreBackup(
           );
         }
       }
-      // The current implementation still needs heads for local publication
-      // guards. Recreate them from state; old changes and packets are discarded.
-      final bootstrap = await store._journal._prepare(
-        {},
-        entities,
-        owner,
-        0,
-        bootstrap: true,
-      );
       store._transaction(() {
         if (_backupStamp(store) != plan.stamp || plan._snapshot == null) {
           throw const BackupFailure(BackupIssue.changed);
         }
-        for (final table in ['servers', 'documents']) {
-          for (final action in ['insert', 'update', 'delete']) {
-            store._db.execute('DROP TRIGGER journal_guard_${table}_$action');
-          }
-        }
+        _LocalChangeJournal.dropGuards(store._db);
         store._db.execute('DELETE FROM vpn_user_overlay');
         store._db.execute('DELETE FROM vpn_profile_overlay');
         store._db.execute('DELETE FROM vpn_overlay_state');
         store._db.execute('DELETE FROM servers');
         store._db.execute('DELETE FROM documents');
-        for (final table in [
-          'sync_incoming',
-          'sync_branches',
-          'sync_conflicts',
-          'sync_merge_meta',
-          'sync_packets',
-          'sync_keys',
-          'sync_outbox',
-          'sync_heads',
-          'sync_changes',
-          'sync_identity',
-        ]) {
-          store._db.execute('DROP TABLE $table');
-        }
-        for (final sql in _LocalChangeJournal._ddl) {
-          store._db.execute(sql);
-        }
-        store._db.execute(
-          'ALTER TABLE sync_identity ADD COLUMN writer_device TEXT',
-        );
-        _WorkspaceSync.installSchema(store._db);
-        _WorkspaceMerge.installSchema(store._db);
-        store._db.execute('INSERT INTO sync_keys VALUES (1,?)', [
-          syncKeyPayload,
-        ]);
-        store._db.execute(
-          'INSERT INTO sync_identity VALUES (1, ?, ?, 0, ?, 1, ?, 5)',
-          [workspaceId, deviceId, proof, deviceId],
-        );
         for (final table in ['servers', 'documents']) {
           for (final row in records[table]!) {
             store._db.execute(
@@ -365,7 +276,8 @@ Future<void> _restoreBackup(
             );
           }
         }
-        store._journal.commit(bootstrap);
+        // Publication guards need heads: one per entity of the restored state.
+        final heads = store._journal.restart(owner, proof, entities);
         store._db.execute(
           "INSERT OR IGNORE INTO migrations VALUES ('legacy-vault-v1')",
         );
@@ -377,7 +289,7 @@ Future<void> _restoreBackup(
           for (final (key, value) in [
             (
               'syncSnapshotLocalSequence',
-              plan.boundIntent == null ? '${bootstrap.changes.length}' : '',
+              plan.boundIntent == null ? '$heads' : '',
             ),
             ('syncSnapshotRemoteFileId', plan.remoteFileId!),
             ('syncSnapshotRemoteVersion', plan.remoteVersion!),
@@ -410,8 +322,7 @@ Future<void> _restoreBackup(
             ),
           ],
         );
-        _VpnOverlay.installGuards(store._db);
-        store._db.userVersion = 6;
+        _LocalChangeJournal.installGuards(store._db);
       });
       store._restored = true;
       store.needsLegacyPassword = false;

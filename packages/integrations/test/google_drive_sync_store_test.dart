@@ -73,34 +73,6 @@ void main() {
   });
 
   test(
-    'real HTTP fixture: IDs, resumable upload, duplicate, metadata/media, list and changes',
-    () async {
-      final fixture = DriveFixture();
-      await fixture.start();
-      addTearDown(fixture.close);
-      final store = GoogleDriveSyncStore(
-        tokens: FixtureTokens(),
-        http: fixture,
-      );
-      final start = await store.getStartPageToken();
-      final id = await store.generateFileId();
-      final name = '$syncTransportNamePrefix${'a' * 64}';
-      final bytes = Uint8List.fromList([1, 2, 3, 4]);
-      await store.createPacket(id, name, bytes);
-      expect(await store.download(id), bytes);
-      expect((await store.getFile(id)).packet, isTrue);
-      expect((await store.listFiles()).files.single.id, id);
-      expect((await store.listChanges(start)).files.single.id, id);
-      await expectLater(
-        store.createPacket(id, name, bytes),
-        throwsA(issue(SyncTransportIssue.conflict)),
-      );
-      fixture.remove(id);
-      expect((await store.listChanges('1')).files.single.removed, isTrue);
-    },
-  );
-
-  test(
     'upload Location and redirects cannot leak the bearer to another origin',
     () async {
       for (final location in [
@@ -114,19 +86,22 @@ void main() {
         final store = GoogleDriveSyncStore(
           tokens: FixtureTokens(),
           http: FakeHttp((m, u, h, b) async {
-            requests++;
+            // The first request reserves the file ID, the second starts the
+            // resumable upload; nothing goes to the returned Location.
+            if (requests++ == 0) {
+              return reply(200, {
+                'ids': ['file'],
+                'space': 'appDataFolder',
+              });
+            }
             return reply(200, {}, {'location': location});
           }),
         );
         await expectLater(
-          store.createPacket(
-            'file',
-            '$syncTransportNamePrefix${'a' * 64}',
-            Uint8List(4),
-          ),
+          store.writeSnapshot(null, Uint8List(4)),
           throwsA(issue(SyncTransportIssue.invalid)),
         );
-        expect(requests, 1);
+        expect(requests, 2);
       }
     },
   );
@@ -153,7 +128,7 @@ void main() {
         ),
       );
       try {
-        await store.getFile('file');
+        await store.readSnapshot('file');
         fail('expected failure');
       } on SyncTransportFailure catch (e) {
         expect(e.issue, entry.value);
@@ -161,12 +136,17 @@ void main() {
         expect(e.retryAfter, const Duration(seconds: 15));
       }
     }
+    // A rejected page token of a listing.
+    var pages = 0;
     final store = GoogleDriveSyncStore(
       tokens: FixtureTokens(),
-      http: FakeHttp((m, u, h, b) async => reply(410)),
+      http: FakeHttp(
+        (m, u, h, b) async =>
+            pages++ == 0 ? reply(200, {'nextPageToken': 'old'}) : reply(410),
+      ),
     );
     await expectLater(
-      store.listChanges('old'),
+      store.findSnapshot(),
       throwsA(issue(SyncTransportIssue.invalidCursor)),
     );
   });
@@ -187,7 +167,7 @@ void main() {
         ),
       );
       await expectLater(
-        rate.generateFileId(),
+        rate.writeSnapshot(null, Uint8List(4)),
         throwsA(issue(SyncTransportIssue.rateLimited)),
       );
       for (final value in <Object>[
@@ -205,7 +185,7 @@ void main() {
           http: FakeHttp((m, u, h, b) async => reply(200, value)),
         );
         await expectLater(
-          store.generateFileId(),
+          store.writeSnapshot(null, Uint8List(4)),
           throwsA(issue(SyncTransportIssue.invalid)),
         );
       }
@@ -216,23 +196,27 @@ void main() {
         ),
       );
       await expectLater(
-        incomplete.listFiles(),
+        incomplete.findSnapshot(),
         throwsA(issue(SyncTransportIssue.unavailable)),
       );
       final big = GoogleDriveSyncStore(
         tokens: FixtureTokens(),
         http: FakeHttp(
           (m, u, h, b) async => reply(200, {
-            'id': 'x',
-            'name': '$syncTransportNamePrefix${'a' * 64}',
-            'mimeType': 'application/octet-stream',
-            'spaces': ['appDataFolder'],
-            'size': '${syncTransportPacketLimit + 1}',
+            'items': [
+              {
+                'id': 'x',
+                'title': syncSnapshotKeyName,
+                'fileSize': '4097',
+                'version': '1',
+                'etag': '"x"',
+              },
+            ],
           }),
         ),
       );
       await expectLater(
-        big.getFile('x'),
+        big.readSnapshotKey(),
         throwsA(issue(SyncTransportIssue.limit)),
       );
     },
@@ -249,12 +233,12 @@ void main() {
       }),
     );
     await expectLater(
-      store.download('../x'),
+      store.readSnapshot('../x'),
       throwsA(issue(SyncTransportIssue.invalid)),
     );
     tokens.accountKey = 'other';
     await expectLater(
-      store.generateFileId(),
+      store.findSnapshot(),
       throwsA(issue(SyncTransportIssue.changed)),
     );
     expect(requests, 0);
@@ -448,7 +432,6 @@ void main() {
             name: syncSnapshotName,
             size: 0,
             version: seen.version,
-            packet: false,
           ),
           Uint8List.fromList([3]),
         ),

@@ -11,8 +11,6 @@ dependencies:
     sdk: flutter
   antirkn_domain:
     path: ../domain
-  antirkn_sync:
-    path: ../sync
   shared_preferences: ^2.5.5
   file_selector: 1.1.0
   flutter_secure_storage: ^11.2.0

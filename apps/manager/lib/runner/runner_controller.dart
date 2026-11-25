@@ -348,8 +348,9 @@ class RunnerController extends ChangeNotifier {
       choosingPanel = false;
       panelSelected = false;
     }
-    _deviceId = store is ChangeJournalStore
-        ? (await (store as ChangeJournalStore).readWorkspaceIdentity()).deviceId
+    _deviceId = store is WorkspaceIdentityStore
+        ? (await (store as WorkspaceIdentityStore).readWorkspaceIdentity())
+              .deviceId
         : null;
     final raw = await store?.readRunnerJournal(serverId);
     _journalSource = raw;

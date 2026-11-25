@@ -22,7 +22,7 @@ final class DriveFixture implements DriveHttp {
   final paths = <String>[];
   int generated = 0, creates = 0, puts = 0, conditionalPuts = 0, clock = 0;
   int pageSize = 100;
-  bool loseUploadResponse = false, denyDownload = false, expired = false;
+  bool loseUploadResponse = false, denyDownload = false;
   Future<void> Function()? duringFirstList;
   Future<void> Function()? beforeDownload;
 
@@ -77,12 +77,6 @@ final class DriveFixture implements DriveHttp {
     files[id] = metadata;
     contents[id] = bytes;
     log.add({'fileId': id, 'removed': false, 'file': metadata});
-  }
-
-  void remove(String id) {
-    files.remove(id);
-    contents.remove(id);
-    log.add({'fileId': id, 'removed': true});
   }
 
   Future<void> _handle(HttpRequest request) async {
@@ -204,53 +198,6 @@ final class DriveFixture implements DriveHttp {
         ],
         if (start + page.length < matching.length)
           'nextPageToken': '${start + page.length}',
-      });
-    }
-    if (path == '/drive/v3/changes/startPageToken') {
-      return json({'startPageToken': '${log.length}'});
-    }
-    if (path == '/drive/v3/files') {
-      if (query['spaces'] != 'appDataFolder') return json({}, 400);
-      final prefix = RegExp(
-        r"name contains '([^']+)'",
-      ).firstMatch(query['q'] ?? '')?.group(1);
-      final snapshot = files.values
-          .where(
-            (file) =>
-                prefix == null || (file['name'] as String).contains(prefix),
-          )
-          .toList();
-      final start = int.tryParse(query['pageToken'] ?? '0') ?? -1;
-      if (start < 0) return json({}, 400);
-      final page = snapshot.skip(start).take(pageSize).toList();
-      final hook = duringFirstList;
-      duringFirstList = null;
-      if (hook != null) await hook();
-      return json({
-        'files': page,
-        'incompleteSearch': false,
-        if (start + page.length < snapshot.length)
-          'nextPageToken': '${start + page.length}',
-      });
-    }
-    if (path == '/drive/v3/changes') {
-      if (query['spaces'] != 'appDataFolder' ||
-          query['includeRemoved'] != 'true') {
-        return json({}, 400);
-      }
-      if (expired) {
-        expired = false;
-        return json({}, 410);
-      }
-      final start = int.tryParse(query['pageToken'] ?? '') ?? -1;
-      if (start < 0) return json({}, 400);
-      final page = log.skip(start).take(pageSize).toList();
-      return json({
-        'changes': page,
-        if (start + page.length < log.length)
-          'nextPageToken': '${start + page.length}'
-        else
-          'newStartPageToken': '${log.length}',
       });
     }
     if (path.startsWith('/drive/v3/files/')) {

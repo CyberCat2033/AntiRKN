@@ -165,7 +165,7 @@ def main():
     if not args.login:
         return
     credentials = authorize(client)
-    print('Вход подтверждён. Проверяю синтетический E2EE-пакет через настоящий Drive API.', flush=True)
+    print('Вход подтверждён. Проверяю синтетический снимок и ключ через настоящий Drive API.', flush=True)
     process = subprocess.run(['dart', 'run', 'tool/drive_smoke.dart'],
         cwd=ROOT, input=json.dumps(credentials),
         text=True, capture_output=True, timeout=600)

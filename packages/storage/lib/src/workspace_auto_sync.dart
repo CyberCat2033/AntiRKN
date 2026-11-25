@@ -28,14 +28,14 @@ typedef _ReceivedSnapshot = ({SyncRemoteFile file, _BackupSnapshot snapshot});
 extension WorkspaceAutomaticSync on WorkspaceDatabase {
   Future<AutoSyncSession> openAutoSync(
     SyncAccessTokenProvider tokens, {
-    SyncRemoteStore? remote,
+    SyncSnapshotStore? remote,
     DriveHttp? http,
   }) async {
     final cloud = remote ?? GoogleDriveSyncStore(tokens: tokens, http: http);
-    if (cloud is! SyncSnapshotStore || cloud.accountKey != tokens.accountKey) {
+    if (cloud.accountKey != tokens.accountKey) {
       throw const SyncTransportFailure(SyncTransportIssue.changed);
     }
-    return _SnapshotAutoSync(this, cloud as SyncSnapshotStore);
+    return _SnapshotAutoSync(this, cloud);
   }
 
   /// Called before controllers open. An unbound or locally edited workspace is
@@ -200,7 +200,6 @@ extension WorkspaceAutomaticSync on WorkspaceDatabase {
       name: syncSnapshotName,
       size: 0,
       version: version,
-      packet: false,
       etag: await readSetting('syncSnapshotRemoteEtag') ?? '',
     );
   }

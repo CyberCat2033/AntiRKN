@@ -52,55 +52,26 @@ abstract interface class RefreshableSyncAccessTokenProvider {
   Future<void> invalidateAccessToken(String rejected);
 }
 
+/// A file in the private appDataFolder, as Drive reports it.
 final class SyncRemoteFile {
   const SyncRemoteFile({
     required this.id,
     required this.name,
     required this.size,
     required this.version,
-    required this.packet,
     this.removed = false,
     this.etag = '',
     this.createdAt,
   });
   final String id, name, version;
   final int size;
-  final bool packet, removed;
+  final bool removed;
 
   /// Precondition for a conditional write; empty when the listing had none.
   final String etag;
 
   /// Orders duplicates created concurrently by several devices.
   final DateTime? createdAt;
-}
-
-final class SyncRemotePage {
-  SyncRemotePage({
-    required List<SyncRemoteFile> files,
-    this.nextPageToken,
-    this.newStartPageToken,
-  }) : files = List.unmodifiable(files);
-  final List<SyncRemoteFile> files;
-  final String? nextPageToken, newStartPageToken;
-}
-
-/// Opaque immutable object delivery only; no merge, publication or device trust.
-abstract interface class SyncRemoteStore {
-  String get accountKey;
-  Future<String> generateFileId();
-  Future<void> createPacket(String fileId, String name, Uint8List bytes);
-  Future<SyncRemoteFile> getFile(String fileId);
-  Future<Uint8List> download(String fileId);
-  Future<String> getStartPageToken();
-  Future<SyncRemotePage> listFiles({String? pageToken});
-  Future<SyncRemotePage> listChanges(String pageToken);
-}
-
-/// Account-authorized onboarding material in the same private appDataFolder.
-/// Access to this store, unlike the legacy packet-only mode, grants membership.
-abstract interface class SyncAccountStore {
-  Future<SyncRemotePage> listAccountKeys({String? pageToken});
-  Future<void> createAccountKey(String fileId, String name, Uint8List bytes);
 }
 
 /// One mutable workspace snapshot and one account-private encryption key.
@@ -128,80 +99,3 @@ abstract interface class SyncSnapshotStore {
 
 const syncSnapshotName = 'antirkn-current-snapshot-v1';
 const syncSnapshotKeyName = 'antirkn-current-snapshot-key-v1';
-
-const syncAccountKeyPrefix = 'antirkn-account-key-v1-';
-
-/// Capture startToken BEFORE enumeration. Then replay changes from that token.
-final class SyncTransportCursor {
-  const SyncTransportCursor({
-    this.revision = 0,
-    this.startToken,
-    this.listing = true,
-    this.pageToken,
-    this.lastDownloadAt,
-  });
-  final int revision;
-  final String? startToken, pageToken;
-  final bool listing;
-  final DateTime? lastDownloadAt;
-}
-
-final class SyncUploadReceipt {
-  const SyncUploadReceipt({
-    required this.changeId,
-    required this.fileId,
-    required this.digest,
-    required this.size,
-    this.confirmed = false,
-  });
-  final String changeId, fileId, digest;
-  final int size;
-  final bool confirmed;
-}
-
-/// Untrusted cloud bytes. Only the future device authorization layer may pass
-/// them to SyncMergeStore. A removed object is NOT an entity tombstone.
-final class StagedSyncObject {
-  StagedSyncObject({
-    required this.fileId,
-    required this.version,
-    required this.digest,
-    required Uint8List bytes,
-    this.removed = false,
-    this.sequence = 0,
-  }) : bytes = Uint8List.fromList(bytes).asUnmodifiableView();
-  final String fileId, version, digest;
-  final int sequence;
-  final Uint8List bytes;
-  final bool removed;
-  @override
-  String toString() => 'StagedSyncObject(<untrusted>)';
-}
-
-/// Device-local journal, separate from portable workspace backup. Binding must
-/// include account, workspace AND device, and reject a different binding/key.
-abstract interface class SyncTransportJournal {
-  String get accountKey;
-  String get workspaceId;
-  String get deviceId;
-  Future<SyncTransportCursor> readCursor();
-  Future<void> saveCursor(
-    SyncTransportCursor cursor, {
-    required int expectedRevision,
-  });
-  Future<SyncUploadReceipt?> readUpload(String changeId);
-
-  /// First durable reservation wins even between processes.
-  Future<SyncUploadReceipt> reserveUpload(SyncUploadReceipt receipt);
-  Future<void> confirmUpload(SyncUploadReceipt receipt);
-
-  /// Durable before the page cursor advances. Exact duplicates are harmless.
-  Future<void> stageObject(StagedSyncObject object);
-  Future<List<StagedSyncObject>> readStagedObjects({
-    int afterSequence = 0,
-    int limit = 100,
-  });
-}
-
-const syncTransportPacketLimit = 16 * 1024 * 1024;
-const syncTransportNamePrefix = 'antirkn-packet-v1-';

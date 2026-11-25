@@ -203,8 +203,6 @@ Future<void> _databaseWorkerMain(
         reply.send((false, error));
       } on BackupFailure catch (error) {
         reply.send((false, error));
-      } on SyncPacketFailure catch (error) {
-        reply.send((false, error));
       } on SyncMergeFailure catch (error) {
         reply.send((false, error));
       } on SyncTransportFailure catch (error) {
@@ -321,32 +319,7 @@ Future<Object?> _dispatchDatabase(
       expectedSource: args[2] as String?,
     ),
   ),
-  'receiveSyncPackets' => await db.receiveSyncPackets(
-    args[0] as List<Uint8List>,
-  ),
-  'readSyncMergeStatus' => await db.readSyncMergeStatus(),
-  'retrySyncMerge' => await db.retrySyncMerge(),
-  'resolveSyncConflict' => await _unit(
-    db.resolveSyncConflict(args[0] as SyncConflict, args[1] as String),
-  ),
-  'checkSyncEffects' => await _unit(db.checkSyncEffects()),
   'readWorkspaceIdentity' => await db.readWorkspaceIdentity(),
-  'preparePendingPackets' => await db.preparePendingPackets(
-    afterSequence: args[0] as int,
-    limit: args[1] as int,
-  ),
-  'verifySyncPacket' => await db.verifySyncPacket(args[0] as Uint8List),
-  'readChanges' => await db.readChanges(
-    afterSequence: args[0] as int,
-    limit: args[1] as int,
-  ),
-  'readPendingChanges' => await db.readPendingChanges(
-    afterSequence: args[0] as int,
-    limit: args[1] as int,
-  ),
-  'acknowledgeChanges' => await _unit(
-    db.acknowledgeChanges(args[0] as List<String>),
-  ),
   'createBackup' => await db.createBackup(args[0] as String),
   'readRestoredTargets' => await db.readRestoredTargets(),
   'approveRestoredTargets' => await _unit(

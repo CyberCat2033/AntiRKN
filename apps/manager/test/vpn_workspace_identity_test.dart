@@ -45,13 +45,20 @@ void main() {
         controller.dispose();
         controllers.remove(controller);
       }
-      final changes = await db.readChanges();
-      expect(
-        changes
-            .where((e) => e.header.entityKind == ChangeEntityKind.vpnWorkspace)
-            .length,
-        1,
-      );
+      // The workspace was created once: its head is still the first version.
+      final raw = sqlite3.open('${directory.path}/test.sqlite');
+      try {
+        expect(
+          raw
+              .select(
+                "SELECT revision FROM sync_heads WHERE entity_kind='vpnWorkspace'",
+              )
+              .single['revision'],
+          1,
+        );
+      } finally {
+        raw.dispose();
+      }
     },
   );
 

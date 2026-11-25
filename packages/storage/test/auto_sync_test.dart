@@ -156,7 +156,7 @@ void main() {
       int count() {
         final db = sqlite3.open(path);
         try {
-          return db.select('SELECT count(*) AS n FROM sync_changes').single['n']
+          return db.select('SELECT count(*) AS n FROM sync_history').single['n']
               as int;
         } finally {
           db.dispose();
@@ -166,10 +166,8 @@ void main() {
       expect(count(), greaterThan(50));
       await _upload(await session(first));
       expect(count(), lessThan(5));
-      expect((await first.readSyncMergeStatus()).conflicts, isEmpty);
       await first.writeDraft('draft after compaction');
       expect(await first.readDraft(), 'draft after compaction');
-      expect((await first.readSyncMergeStatus()).conflicts, isEmpty);
       await _upload(await session(first));
       expect(count(), lessThan(5));
     },
@@ -218,7 +216,6 @@ void main() {
         (await first.readPublicationDraft(userId))!.bytes,
         utf8.encode('third current profile'),
       );
-      expect((await first.readSyncMergeStatus()).conflicts, isEmpty);
     },
   );
 
@@ -413,124 +410,77 @@ void main() {
     },
   );
 
-  test(
-    'device id and sync key stay stable across cloud pulls of one workspace',
-    () async {
-      final first = open('first', 11);
-      await first.writeDraft('version one');
-      await _upload(await session(first));
-      final second = open('second', 22);
-      final ownDevice = (await second.readWorkspaceIdentity()).deviceId;
-      expect(await second.pullCurrentSnapshot(tokens, remote: remote), isTrue);
-      await second.close();
-      var restored = open('second', 22);
-      final identity = await restored.readWorkspaceIdentity();
-      expect(identity.deviceId, ownDevice);
-      Uint8List syncKey() {
-        final db = sqlite3.open('${directory.path}/second.sqlite');
-        try {
-          return db.select('SELECT payload FROM sync_keys').single['payload']
-              as Uint8List;
-        } finally {
-          db.dispose();
-        }
-      }
-
-      final operation = ServerOperation(
-        operationId: 'e' * 32,
-        executorDeviceId: identity.deviceId,
-      );
-      final vpn = await restored.readVpn();
-      await restored.writeVpn(
-        VpnWorkspace(
-          id: identity.workspaceId,
-          servers: {
-            fixtureServerId: {'operation': operation.toJson()},
-          },
-        ).encode(),
-        expectedRevision: vpn.revision,
-      );
-      await _upload(await session(restored));
-      final key = syncKey();
-      await first.close();
-      final firstAgain = open('first', 11);
-      expect(
-        await firstAgain.pullCurrentSnapshot(tokens, remote: remote),
-        isTrue,
-      );
-      await firstAgain.close();
-      final edited = open('first', 11);
-      await edited.writeDraft('version two');
-      await _upload(await session(edited));
-      expect(
-        await restored.pullCurrentSnapshot(tokens, remote: remote),
-        isTrue,
-      );
-      await restored.close();
-      restored = open('second', 22);
-      final after = await restored.readWorkspaceIdentity();
-      expect(after.deviceId, ownDevice);
-      expect(after.workspaceId, identity.workspaceId);
-      expect(syncKey(), key);
-      expect(await restored.readDraft(), 'version two');
-      final record = VpnWorkspace.decode(
-        (await restored.readVpn()).source!,
-      ).servers[fixtureServerId]!;
-      expect(
-        ServerOperation.fromJson(record['operation'] as Map).executorDeviceId,
-        after.deviceId,
-      );
-    },
-  );
+  test('device id stays stable across cloud pulls of one workspace', () async {
+    final first = open('first', 11);
+    await first.writeDraft('version one');
+    await _upload(await session(first));
+    final second = open('second', 22);
+    final ownDevice = (await second.readWorkspaceIdentity()).deviceId;
+    expect(await second.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+    await second.close();
+    var restored = open('second', 22);
+    final identity = await restored.readWorkspaceIdentity();
+    expect(identity.deviceId, ownDevice);
+    final operation = ServerOperation(
+      operationId: 'e' * 32,
+      executorDeviceId: identity.deviceId,
+    );
+    final vpn = await restored.readVpn();
+    await restored.writeVpn(
+      VpnWorkspace(
+        id: identity.workspaceId,
+        servers: {
+          fixtureServerId: {'operation': operation.toJson()},
+        },
+      ).encode(),
+      expectedRevision: vpn.revision,
+    );
+    await _upload(await session(restored));
+    await first.close();
+    final firstAgain = open('first', 11);
+    expect(
+      await firstAgain.pullCurrentSnapshot(tokens, remote: remote),
+      isTrue,
+    );
+    await firstAgain.close();
+    final edited = open('first', 11);
+    await edited.writeDraft('version two');
+    await _upload(await session(edited));
+    expect(await restored.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+    await restored.close();
+    restored = open('second', 22);
+    final after = await restored.readWorkspaceIdentity();
+    expect(after.deviceId, ownDevice);
+    expect(after.workspaceId, identity.workspaceId);
+    expect(await restored.readDraft(), 'version two');
+    final record = VpnWorkspace.decode(
+      (await restored.readVpn()).source!,
+    ).servers[fixtureServerId]!;
+    expect(
+      ServerOperation.fromJson(record['operation'] as Map).executorDeviceId,
+      after.deviceId,
+    );
+  });
 
   test(
-    'legacy merge conflicts do not block upload and are cleared after it',
+    'a database with legacy merge conflicts uploads and edits after migration',
     () async {
       final path = '${directory.path}/legacy.sqlite';
-      var store = open('legacy', 33);
-      await store.writeDraft('materialized state');
-      await store.close();
+      createV6Legacy(path);
+      final store = open('legacy', 19);
+      await _upload(await session(store));
+      expect(remote.writes, 1);
       final db = sqlite3.open(path);
       try {
-        for (final row in db.select(
-          'SELECT entity_kind,entity_id FROM sync_heads',
-        )) {
-          db.execute('INSERT INTO sync_conflicts VALUES (?,?)', [
-            row['entity_kind'],
-            row['entity_id'],
-          ]);
-          db.execute('INSERT INTO sync_branches VALUES (?,?,?)', [
-            row['entity_kind'],
-            row['entity_id'],
-            'f' * 32,
-          ]);
-        }
-        db.execute("INSERT INTO sync_incoming VALUES (?,'{}',x'00',0)", [
-          'a' * 32,
-        ]);
+        expect(
+          db.select(
+            "SELECT name FROM sqlite_master WHERE name IN ('sync_conflicts','sync_incoming','sync_branches')",
+          ),
+          isEmpty,
+        );
       } finally {
         db.dispose();
       }
-      store = open('legacy', 33);
-      await _upload(await session(store));
-      expect(remote.writes, 1);
-      int count(String sql) {
-        final db = sqlite3.open(path);
-        try {
-          return db.select(sql).single['n'] as int;
-        } finally {
-          db.dispose();
-        }
-      }
-
-      expect(count('SELECT count(*) AS n FROM sync_conflicts'), 0);
-      expect(count('SELECT count(*) AS n FROM sync_incoming'), 0);
-      expect(
-        count(
-          'SELECT count(*) AS n FROM (SELECT 1 FROM sync_branches GROUP BY entity_kind,entity_id HAVING count(*)>1)',
-        ),
-        0,
-      );
       await store.writeDraft('edited after cleanup');
       expect(await store.readDraft(), 'edited after cleanup');
       await _upload(await session(store));

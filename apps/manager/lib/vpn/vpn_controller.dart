@@ -610,8 +610,8 @@ class VpnController extends ChangeNotifier {
   Future<void> load() => _run((token) async {
     serverSyncIssue = null;
     _restoredTargets = await recovery?.readRestoredTargets() ?? {};
-    _deviceId = repository is ChangeJournalStore
-        ? (await (repository as ChangeJournalStore).readWorkspaceIdentity())
+    _deviceId = repository is WorkspaceIdentityStore
+        ? (await (repository as WorkspaceIdentityStore).readWorkspaceIdentity())
               .deviceId
         : null;
     observedJobs.clear();

@@ -4,12 +4,16 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'drive_conditional.dart';
 import 'drive_http.dart';
 
-/// Drive v3 adapter for appDataFolder. No OAuth token persistence or app UI.
-final class GoogleDriveSyncStore
-    implements SyncRemoteStore, SyncAccountStore, SyncSnapshotStore {
+/// Drive adapter for the snapshot and its key in appDataFolder. No OAuth token
+/// persistence or app UI.
+final class GoogleDriveSyncStore implements SyncSnapshotStore {
+  /// [snapshotName] and [keyName] differ only for a synthetic probe that
+  /// must not touch the real snapshot of the account.
   GoogleDriveSyncStore({
     required SyncAccessTokenProvider tokens,
     DriveHttp? http,
+    this.snapshotName = syncSnapshotName,
+    this.keyName = syncSnapshotKeyName,
   }) : _tokens = tokens,
        _http = http ?? NativeDriveHttp(),
        accountKey = tokens.accountKey;
@@ -17,13 +21,11 @@ final class GoogleDriveSyncStore
   final DriveHttp _http;
   @override
   final String accountKey;
+  final String snapshotName, keyName;
   static const scope = 'https://www.googleapis.com/auth/drive.appdata';
-  static const _fileFields = 'id,name,mimeType,size,version,spaces,trashed';
   static const _v2FileFields =
       'id,title,fileSize,version,etag,createdDate,labels(trashed)';
   static final _idPattern = RegExp(r'^[A-Za-z0-9_-]{1,256}$');
-  static final _packetName = RegExp('^$syncTransportNamePrefix[a-f0-9]{64}\$');
-  static final _accountKeyName = RegExp('^$syncAccountKeyPrefix[a-f0-9]{32}\$');
 
   Uri _uri(String path, [Map<String, String>? query]) =>
       Uri.https('www.googleapis.com', '/drive/v3/$path', query);
@@ -136,41 +138,6 @@ final class GoogleDriveSyncStore
     }
   }
 
-  SyncRemoteFile _file(Object? input) {
-    try {
-      final map = input as Map;
-      final id = map['id'] as String;
-      _id(id);
-      final name = map['name'] as String;
-      if (name.length > 1024) throw const FormatException();
-      final spaces = map['spaces'] as List;
-      final packet =
-          spaces.contains('appDataFolder') &&
-          map['mimeType'] == 'application/octet-stream' &&
-          _packetName.hasMatch(name);
-      final size = int.tryParse(map['size'] as String? ?? '0');
-      final version = map['version'] as String? ?? '0';
-      if (size == null || size < 0 || version.length > 256) {
-        throw const FormatException();
-      }
-      if (packet && size > syncTransportPacketLimit) {
-        throw const SyncTransportFailure(SyncTransportIssue.limit);
-      }
-      return SyncRemoteFile(
-        id: id,
-        name: name,
-        size: size,
-        version: version,
-        packet: packet,
-        removed: map['trashed'] == true,
-      );
-    } on SyncTransportFailure {
-      rethrow;
-    } catch (_) {
-      throw const SyncTransportFailure(SyncTransportIssue.invalid);
-    }
-  }
-
   /// Identity comes from Drive using the granted token, never a typed email.
   Future<GoogleDriveAccount> readAccount() async {
     final json = _json(
@@ -194,8 +161,7 @@ final class GoogleDriveSyncStore
     }
   }
 
-  @override
-  Future<String> generateFileId() async {
+  Future<String> _generateFileId() async {
     final json = _json(
       await _send(
         'GET',
@@ -219,31 +185,11 @@ final class GoogleDriveSyncStore
     return id;
   }
 
-  @override
-  Future<void> createPacket(String fileId, String name, Uint8List bytes) async {
-    if (!_packetName.hasMatch(name)) {
-      throw const SyncTransportFailure(SyncTransportIssue.invalid);
-    }
-    await _createObject(fileId, name, bytes);
-  }
-
-  @override
-  Future<void> createAccountKey(
-    String fileId,
-    String name,
-    Uint8List bytes,
-  ) async {
-    if (!_accountKeyName.hasMatch(name) || bytes.length > 4096) {
-      throw const SyncTransportFailure(SyncTransportIssue.invalid);
-    }
-    await _createObject(fileId, name, bytes);
-  }
-
   Future<void> _createObject(
     String fileId,
     String name,
     Uint8List bytes, {
-    int maxBytes = syncTransportPacketLimit,
+    required int maxBytes,
   }) async {
     _id(fileId);
     if (bytes.isEmpty || bytes.length > maxBytes) {
@@ -298,42 +244,14 @@ final class GoogleDriveSyncStore
     }
   }
 
-  @override
-  Future<SyncRemoteFile> getFile(String fileId) async {
-    _id(fileId);
-    return _file(
-      _json(await _send('GET', _uri('files/$fileId', {'fields': _fileFields}))),
-    );
-  }
-
-  @override
-  Future<Uint8List> download(String fileId) async {
+  Future<Uint8List> _download(String fileId, int limit) async {
     _id(fileId);
     return (await _send(
       'GET',
       _uri('files/$fileId', {'alt': 'media'}),
-      limit: syncTransportPacketLimit,
+      limit: limit,
     )).bytes;
   }
-
-  @override
-  Future<String> getStartPageToken() async => _token(
-    _json(
-      await _send(
-        'GET',
-        _uri('changes/startPageToken', {'fields': 'startPageToken'}),
-      ),
-    )['startPageToken'],
-  );
-
-  @override
-  Future<SyncRemotePage> listFiles({String? pageToken}) async {
-    return _listObjects(syncTransportNamePrefix, pageToken);
-  }
-
-  @override
-  Future<SyncRemotePage> listAccountKeys({String? pageToken}) =>
-      _listObjects(syncAccountKeyPrefix, pageToken);
 
   /// Drive v2 metadata: unlike v3 it carries the etag for conditional writes.
   SyncRemoteFile _v2File(Object? input) {
@@ -358,7 +276,6 @@ final class GoogleDriveSyncStore
         name: name,
         size: size,
         version: version,
-        packet: false,
         removed: (map['labels'] as Map?)?['trashed'] == true,
         etag: etag,
         createdAt: created == null ? null : DateTime.parse(created).toUtc(),
@@ -418,17 +335,11 @@ final class GoogleDriveSyncStore
   }
 
   @override
-  Future<SyncRemoteFile?> findSnapshot() => _singleNamed(syncSnapshotName);
+  Future<SyncRemoteFile?> findSnapshot() => _singleNamed(snapshotName);
 
   @override
-  Future<Uint8List> readSnapshot(String fileId) async {
-    _id(fileId);
-    return (await _send(
-      'GET',
-      _uri('files/$fileId', {'alt': 'media'}),
-      limit: maxWorkspaceBackupBytes,
-    )).bytes;
-  }
+  Future<Uint8List> readSnapshot(String fileId) =>
+      _download(fileId, maxWorkspaceBackupBytes);
 
   @override
   Future<SyncRemoteFile> writeSnapshot(
@@ -439,10 +350,10 @@ final class GoogleDriveSyncStore
       throw const SyncTransportFailure(SyncTransportIssue.limit);
     }
     if (expected == null) {
-      final id = await generateFileId();
+      final id = await _generateFileId();
       await _createObject(
         id,
-        syncSnapshotName,
+        snapshotName,
         bytes,
         maxBytes: maxWorkspaceBackupBytes,
       );
@@ -486,10 +397,9 @@ final class GoogleDriveSyncStore
     }
     return SyncRemoteFile(
       id: expected.id,
-      name: syncSnapshotName,
+      name: snapshotName,
       size: bytes.length,
       version: version,
-      packet: false,
       etag: etag,
       createdAt: expected.createdAt,
     );
@@ -497,12 +407,12 @@ final class GoogleDriveSyncStore
 
   @override
   Future<Uint8List?> readSnapshotKey() async {
-    final file = await _singleNamed(syncSnapshotKeyName);
+    final file = await _singleNamed(keyName);
     if (file == null) return null;
     if (file.size > 4096) {
       throw const SyncTransportFailure(SyncTransportIssue.limit);
     }
-    final bytes = await download(file.id);
+    final bytes = await _download(file.id, 4096);
     if (bytes.length != file.size || bytes.length > 4096) {
       throw const SyncTransportFailure(SyncTransportIssue.invalid);
     }
@@ -514,10 +424,10 @@ final class GoogleDriveSyncStore
     if (bytes.length != 32) {
       throw const SyncTransportFailure(SyncTransportIssue.invalid);
     }
-    if (await _singleNamed(syncSnapshotKeyName) == null) {
+    if (await _singleNamed(keyName) == null) {
       await _createObject(
-        await generateFileId(),
-        syncSnapshotKeyName,
+        await _generateFileId(),
+        keyName,
         bytes,
         maxBytes: 4096,
       );
@@ -525,93 +435,5 @@ final class GoogleDriveSyncStore
     // Re-read: a key another device created at the same time may win.
     return await readSnapshotKey() ??
         (throw const SyncTransportFailure(SyncTransportIssue.notFound));
-  }
-
-  Future<SyncRemotePage> _listObjects(String prefix, String? pageToken) async {
-    if (pageToken != null) _token(pageToken);
-    final json = _json(
-      await _send(
-        'GET',
-        _uri('files', {
-          'spaces': 'appDataFolder',
-          'pageSize': '100',
-          'q': "trashed = false and name contains '$prefix'",
-          'fields': 'nextPageToken,incompleteSearch,files($_fileFields)',
-          'pageToken': ?pageToken,
-        }),
-        page: pageToken != null,
-      ),
-    );
-    if (json['incompleteSearch'] == true) {
-      throw const SyncTransportFailure(SyncTransportIssue.unavailable);
-    }
-    final files = json['files'] ?? <dynamic>[];
-    if (files is! List || files.length > 100) {
-      throw const SyncTransportFailure(SyncTransportIssue.invalid);
-    }
-    return SyncRemotePage(
-      files: files.map(_file).toList(),
-      nextPageToken: json['nextPageToken'] == null
-          ? null
-          : _token(json['nextPageToken']),
-    );
-  }
-
-  @override
-  Future<SyncRemotePage> listChanges(String pageToken) async {
-    _token(pageToken);
-    final json = _json(
-      await _send(
-        'GET',
-        _uri('changes', {
-          'spaces': 'appDataFolder',
-          'pageSize': '100',
-          'pageToken': pageToken,
-          'includeRemoved': 'true',
-          'fields':
-              'nextPageToken,newStartPageToken,changes(fileId,removed,file($_fileFields))',
-        }),
-        page: true,
-      ),
-    );
-    final changes = json['changes'] ?? <dynamic>[];
-    if (changes is! List || changes.length > 100) {
-      throw const SyncTransportFailure(SyncTransportIssue.invalid);
-    }
-    final files = <SyncRemoteFile>[];
-    for (final change in changes) {
-      if (change is! Map || change['fileId'] is! String) {
-        throw const SyncTransportFailure(SyncTransportIssue.invalid);
-      }
-      final id = change['fileId'] as String;
-      _id(id);
-      if (change['removed'] == true) {
-        files.add(
-          SyncRemoteFile(
-            id: id,
-            name: '',
-            size: 0,
-            version: 'removed',
-            packet: false,
-            removed: true,
-          ),
-        );
-      } else {
-        final file = _file(change['file']);
-        if (file.id != id) {
-          throw const SyncTransportFailure(SyncTransportIssue.invalid);
-        }
-        files.add(file);
-      }
-    }
-    return SyncRemotePage(
-      files: files,
-      nextPageToken: json['nextPageToken'] == null
-          ? null
-          : _token(json['nextPageToken']),
-      newStartPageToken: json['newStartPageToken'] == null
-          ? null
-          : _token(json['newStartPageToken']),
-    );
   }
 }

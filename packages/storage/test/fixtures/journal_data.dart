@@ -217,3 +217,23 @@ void createV6Legacy(String path, {String fixtures = 'test/fixtures'}) {
     db.dispose();
   }
 }
+
+/// Heads of the local journal at [path]: `kind:id` to its current change id.
+Map<String, String> journalHeads(String path) {
+  final db = sqlite3.open(path);
+  try {
+    return {
+      for (final row in db.select('SELECT * FROM sync_heads'))
+        '${row['entity_kind']}:${row['entity_id']}': row['change_id'] as String,
+    };
+  } finally {
+    db.dispose();
+  }
+}
+
+/// Entities whose head moved between two [journalHeads] readings.
+Set<String> movedHeads(Map<String, String> before, Map<String, String> after) =>
+    {
+      for (final entry in after.entries)
+        if (before[entry.key] != entry.value) entry.key,
+    };

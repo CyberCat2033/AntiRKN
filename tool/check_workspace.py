@@ -50,7 +50,7 @@ allowed = {
     'network_inventory': {'antirkn_domain'},
     'profile_compiler': {'antirkn_domain', 'crypto', 'yaml', 'yaml_edit'},
     'design_system': {'flutter', 'animations'},
-    'storage': {'antirkn_domain', 'antirkn_sync', 'antirkn_integrations', 'shared_preferences', 'file_selector', 'url_launcher', 'flutter', 'cryptography', 'flutter_secure_storage', 'path_provider', 'sqlite3', 'sqlite3_flutter_libs'},
+    'storage': {'antirkn_domain', 'antirkn_integrations', 'shared_preferences', 'file_selector', 'url_launcher', 'flutter', 'cryptography', 'flutter_secure_storage', 'path_provider', 'sqlite3', 'sqlite3_flutter_libs'},
     'integrations': {'antirkn_domain', 'cryptography'},
     'sync': {'antirkn_domain', 'cryptography'},
     'ssh_transport': {'antirkn_domain', 'antirkn_network_inventory', 'dartssh2'},

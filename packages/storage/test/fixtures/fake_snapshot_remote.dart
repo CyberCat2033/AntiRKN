@@ -11,7 +11,7 @@ final class FakeSnapshotTokens implements SyncAccessTokenProvider {
   Future<String> accessToken() async => 'fixture';
 }
 
-final class FakeSnapshotRemote implements SyncRemoteStore, SyncSnapshotStore {
+final class FakeSnapshotRemote implements SyncSnapshotStore {
   @override
   String get accountKey => 'snapshot-test-account';
   Uint8List? snapshot, key;
@@ -45,7 +45,6 @@ final class FakeSnapshotRemote implements SyncRemoteStore, SyncSnapshotStore {
           name: syncSnapshotName,
           size: snapshot!.length,
           version: '$version',
-          packet: false,
           etag: 'etag-$version',
         );
 
@@ -100,9 +99,6 @@ final class FakeSnapshotRemote implements SyncRemoteStore, SyncSnapshotStore {
     key ??= racingKey ?? Uint8List.fromList(bytes);
     return Uint8List.fromList(key!);
   }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 const _magic = [65, 110, 116, 105, 82, 75, 78, 83, 1];

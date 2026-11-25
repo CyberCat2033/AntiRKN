@@ -1,10 +1,10 @@
 // Invoked by tool/google_drive_setup.py; credentials arrive on stdin, never argv.
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
+import 'dart:typed_data';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_integrations/antirkn_integrations.dart';
-import 'package:antirkn_sync/antirkn_sync.dart';
-import 'package:cryptography/cryptography.dart';
 
 final class _Tokens implements SyncAccessTokenProvider {
   _Tokens(this.accountKey, this.token);
@@ -15,13 +15,15 @@ final class _Tokens implements SyncAccessTokenProvider {
   Future<String> accessToken() async => token;
 }
 
+/// The requests of automatic sync on a synthetic snapshot and key of its own
+/// names: the account's real snapshot is never read or written.
 Future<void> main() async {
   final result = <String, Object?>{
     'kind': 'real-google-drive-synthetic-probe',
     'checks': <String, bool>{},
   };
   final checks = result['checks'] as Map<String, bool>;
-  final cleanup = <String>[];
+  final cleanup = <String>{};
   _Tokens? tokens;
   final http = NativeDriveHttp();
   try {
@@ -33,80 +35,67 @@ Future<void> main() async {
       input['accessToken'] as String,
     );
     input.clear();
-    final store = GoogleDriveSyncStore(tokens: tokens, http: http);
-    final fixture =
-        jsonDecode(
-              await File.fromUri(
-                Platform.script.resolve(
-                  '../packages/sync/test/fixtures/libsodium-packet.json',
-                ),
-              ).readAsString(),
-            )
-            as Map<String, dynamic>;
-    final body = fixture['body'] as Map<String, dynamic>;
-    final key = await Xchacha20.poly1305Aead().newSecretKey();
-    final codec = SyncPacketCodec(
-      workspaceId: 'a' * 32,
-      keyVersion: 1,
-      key: key,
+    final random = Random.secure();
+    final tag = List.generate(
+      16,
+      (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ).join();
+    final store = GoogleDriveSyncStore(
+      tokens: tokens,
+      http: http,
+      snapshotName: 'antirkn-probe-snapshot-$tag',
+      keyName: 'antirkn-probe-key-$tag',
     );
-    try {
-      final bytes = await codec.seal(
-        LocalChange(
-          header: ChangeHeader.fromJson(body['header'] as Map<String, dynamic>),
-          source: body['source'] as String,
-        ),
-      );
-      final digest = (await Sha256().hash(
-        bytes,
-      )).bytes.map((v) => v.toRadixString(16).padLeft(2, '0')).join();
-      final name = '$syncTransportNamePrefix$digest';
-      final start = await store.getStartPageToken();
-      checks['startToken'] = start.isNotEmpty;
-      final id = await store.generateFileId();
-      cleanup.add(id);
-      checks['generatedAppDataId'] = true;
-      await store.createPacket(id, name, bytes);
-      checks['resumableUpload'] = true;
-      final downloaded = await store.download(id);
-      if (base64Encode(downloaded) != base64Encode(bytes)) {
-        throw StateError('readback');
-      }
-      if ((await codec.open(downloaded)).source != body['source']) {
-        throw StateError('decrypt');
-      }
-      checks['exactCiphertextAndDecrypt'] = true;
-      if (!(await store.getFile(id)).packet) throw StateError('metadata');
-      checks['privateAppDataMetadata'] = true;
-      try {
-        await store.createPacket(id, name, bytes);
-        throw StateError('duplicate');
-      } on SyncTransportFailure catch (error) {
-        if (error.issue != SyncTransportIssue.conflict) rethrow;
-      }
-      checks['sameIdRetry409'] = true;
-      var page = await store.listFiles();
-      var listed = page.files.any((f) => f.id == id);
-      for (var i = 0; !listed && page.nextPageToken != null && i < 20; i++) {
-        page = await store.listFiles(pageToken: page.nextPageToken);
-        listed = page.files.any((f) => f.id == id);
-      }
-      if (!listed) throw StateError('listing');
-      checks['appDataListing'] = true;
-      page = await store.listChanges(start);
-      var changed = page.files.any((f) => f.id == id);
-      for (var i = 0; page.nextPageToken != null && i < 20; i++) {
-        page = await store.listChanges(page.nextPageToken!);
-        changed |= page.files.any((f) => f.id == id);
-      }
-      if (!changed || page.newStartPageToken == null) {
-        throw StateError('changes');
-      }
-      checks['appDataChangesAndCursor'] = true;
-      result['status'] = 'PASS';
-    } finally {
-      key.destroy();
+    Uint8List bytes(int length) =>
+        Uint8List.fromList(List.generate(length, (_) => random.nextInt(256)));
+
+    if (await store.findSnapshot() != null) throw StateError('fresh');
+    final key = bytes(32);
+    final stored = await store.createSnapshotKey(key);
+    final keyFile = await store.readSnapshotKey();
+    if (base64Encode(stored) != base64Encode(key) ||
+        keyFile == null ||
+        base64Encode(keyFile) != base64Encode(key)) {
+      throw StateError('key');
     }
+    // The key's file id, through a store that sees the key as its snapshot.
+    final keyMetadata = await GoogleDriveSyncStore(
+      tokens: tokens,
+      http: http,
+      snapshotName: store.keyName,
+    ).findSnapshot();
+    if (keyMetadata == null) throw StateError('key');
+    cleanup.add(keyMetadata.id);
+    checks['keyCreatedAndRead'] = true;
+    final first = bytes(4096);
+    final created = await store.writeSnapshot(null, first);
+    cleanup.add(created.id);
+    final found = await store.findSnapshot();
+    if (found == null || found.id != created.id || found.etag.isEmpty) {
+      throw StateError('listing');
+    }
+    checks['createdAndListedWithEtag'] = true;
+    final second = bytes(4096);
+    final written = await store.writeSnapshot(found, second);
+    if (written.version == found.version ||
+        base64Encode(await store.readSnapshot(found.id)) !=
+            base64Encode(second)) {
+      throw StateError('conditional');
+    }
+    checks['conditionalWriteAndReadback'] = true;
+    try {
+      // The etag seen before the last write no longer matches.
+      await store.writeSnapshot(found, bytes(16));
+      throw StateError('stale');
+    } on SyncTransportFailure catch (error) {
+      if (error.issue != SyncTransportIssue.conflict) rethrow;
+    }
+    if (base64Encode(await store.readSnapshot(found.id)) !=
+        base64Encode(second)) {
+      throw StateError('stale');
+    }
+    checks['staleWriteRejected'] = true;
+    result['status'] = 'PASS';
   } on SyncTransportFailure catch (error) {
     result['status'] = 'FAIL';
     result['issue'] = error.issue.name;
@@ -120,7 +109,7 @@ Future<void> main() async {
     if (tokens != null) {
       for (final id in cleanup) {
         try {
-          // Only IDs allocated by THIS probe. No listing-driven cleanup.
+          // Only IDs created by THIS probe. No listing-driven cleanup.
           final response = await http.send(
             'DELETE',
             Uri.https('www.googleapis.com', '/drive/v3/files/$id'),
