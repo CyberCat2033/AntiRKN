@@ -384,6 +384,8 @@
   "runnerNotNow": "Not now",
   "runnerPending": "The submission is saved locally; its server result needs checking.",
   "runnerRetry": "Check and retry this request",
+  "runnerReconnect": "Reconnect runner",
+  "runnerResend": "Send again",
   "runnerConnectionLost": "Connection lost. The server job may still be running. Reconnect to retrieve its result.",
   "runnerNotRunning": "The worker has not confirmed that it is running. Refresh its status or apply the setup plan.",
   "runnerCancelRequested": "Cancellation requested; waiting for a safe stopping point.",

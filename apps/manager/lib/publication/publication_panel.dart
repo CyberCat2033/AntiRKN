@@ -83,8 +83,13 @@ class _PublicationSettingsState extends State<PublicationSettingsPanel> {
               label: Text(l.publicationAuthorize),
             ),
           if (c.editing) const LinearProgressIndicator(),
-          if (c.accountError != null) Text(l.publicationAuthorizeHelp),
-          if (c.error != null) Text(publicationMessage(l, c.error!.name)),
+          // An unauthorized error and the account error read the same:
+          // one line (UI-51).
+          for (final message in {
+            if (c.accountError != null) l.publicationAuthorizeHelp,
+            if (c.error != null) publicationMessage(l, c.error!.name),
+          })
+            Text(message),
           if (settings == null && c.authorized) ...[
             Text(l.publicationLinkHelp),
             if (folders != null) ...[

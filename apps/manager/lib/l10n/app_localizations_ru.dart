@@ -999,6 +999,12 @@ class AppLocalizationsRu extends AppLocalizations {
   String get runnerRetry => 'Проверить и повторить этот запрос';
 
   @override
+  String get runnerReconnect => 'Переподключить исполнитель';
+
+  @override
+  String get runnerResend => 'Отправить снова';
+
+  @override
   String get runnerConnectionLost =>
       'Связь потеряна. Задание на сервере может продолжать работу. Подключитесь для получения результата.';
 

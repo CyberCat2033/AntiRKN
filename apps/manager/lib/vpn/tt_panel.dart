@@ -238,16 +238,9 @@ class _TtPanelState extends State<TtPanel> {
                     details: const [],
                   ),
                 ),
+              // Certificate errors and expiry are shown once, in
+              // TtCertificates below (UI-48).
               VpnJobView(showSnapshot: false, controller: c, serverId: target),
-              for (final cert
-                  in (r.ttCertificates?['certificates'] as List? ?? [])
-                      .whereType<Map>()) ...[
-                if (cert['error'] case final String issue)
-                  Text('${cert['domain']}: ${vpnMessage(l, issue)}'),
-                if ((cert['expiresAt'] as num) <
-                    DateTime.now().millisecondsSinceEpoch / 1000 + 21 * 86400)
-                  Text('${cert['domain']}: ${l.ttExpirySoon}'),
-              ],
               const SizedBox(height: 20),
               AppSettingsSection(
                 title: l.ttCertificates,

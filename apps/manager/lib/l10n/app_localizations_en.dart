@@ -996,6 +996,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get runnerRetry => 'Check and retry this request';
 
   @override
+  String get runnerReconnect => 'Reconnect runner';
+
+  @override
+  String get runnerResend => 'Send again';
+
+  @override
   String get runnerConnectionLost =>
       'Connection lost. The server job may still be running. Reconnect to retrieve its result.';
 

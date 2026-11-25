@@ -120,7 +120,9 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                     onPressed: regenerating || saving || !c.canMutate
                         ? null
                         : _regenerate,
-                    icon: regenerating
+                    // The generating card is the indicator while there is
+                    // no profile yet (UI-47).
+                    icon: regenerating && result != null
                         ? const SizedBox.square(
                             dimension: 24,
                             child: CircularProgressIndicator(strokeWidth: 2),
@@ -227,7 +229,9 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                     onPressed: (!c.canMutate || c.hasRunning || c.hasObservedRunning)
                         ? null
                         : () => c.prepareAndApply(),
-                    icon: (!c.canMutate || c.hasRunning || c.hasObservedRunning)
+                    // Spins for the person's apply, not for background
+                    // checks (UI-47).
+                    icon: (c.foregroundBusy || c.hasRunning || c.hasObservedRunning)
                         ? const SizedBox.square(
                             dimension: 18,
                             child: CircularProgressIndicator(strokeWidth: 2),
@@ -277,7 +281,7 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                   ),
                 ),
               const SizedBox(height: 12),
-              if (message != null)
+              if (message != null && !(regenerating && result == null))
                 Semantics(liveRegion: true, child: Text(message!)),
               if (usable)
                 Align(

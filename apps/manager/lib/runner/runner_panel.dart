@@ -30,8 +30,12 @@ class RunnerPanel extends StatelessWidget {
             'needs_attention',
           }.contains(job.status);
       final event = job?.events.where((e) => e.code != 'succeeded').lastOrNull;
+      // ComponentInstallationView owns an active install's step, progress
+      // and cancel (UI-39).
+      final installationOwned = active && job.kind == 'component_install';
       final showJob =
           job != null &&
+          !installationOwned &&
           (active ||
               failed ||
               ((job.kind.startsWith('apt_') ||
@@ -57,7 +61,9 @@ class RunnerPanel extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if ((c.busy || c.actionPending) && !active)
+            if ((c.busy || c.actionPending) &&
+                !c.actionShowsOwnProgress &&
+                !active)
               const LinearProgressIndicator(),
             if (c.error case final issue?)
               Semantics(
@@ -97,7 +103,7 @@ class RunnerPanel extends StatelessWidget {
                             await c.refresh(prepare: true);
                           }
                         : null,
-                    child: Text(l.runnerRetry),
+                    child: Text(l.runnerReconnect),
                   ),
                 ],
               ),
@@ -110,23 +116,11 @@ class RunnerPanel extends StatelessWidget {
               const SizedBox(height: AppLayout.gap),
               Semantics(
                 liveRegion: true,
+                // A failed job's event goes on the line below, once (UI-43).
                 child: Text(
-                  active
-                      ? (job.kind == 'component_install'
-                            ? componentStepProgressText(
-                                l,
-                                job.checkpoint,
-                                job.count,
-                              )
-                            : (event != null
-                                  ? runnerEventLabel(l, event.code)
-                                  : runnerStateLabel(l, job.status)))
-                      : (failed && event != null
-                            ? (runnerEventLabel(l, event.code) !=
-                                      runnerStateLabel(l, job.status)
-                                  ? runnerEventLabel(l, event.code)
-                                  : runnerStateLabel(l, job.status))
-                            : runnerStateLabel(l, job.status)),
+                  active && event != null
+                      ? runnerEventLabel(l, event.code)
+                      : runnerStateLabel(l, job.status),
                 ),
               ),
               if (active)
@@ -159,11 +153,6 @@ class RunnerPanel extends StatelessWidget {
                     ],
                   ),
                 ),
-              if (resetAfterJob)
-                RunnerResetQueueButton(
-                  controller: c,
-                  buttonKey: const ValueKey('runner-reset-queue'),
-                ),
               if (job.terminal)
                 Align(
                   alignment: AlignmentDirectional.centerStart,
@@ -173,6 +162,11 @@ class RunnerPanel extends StatelessWidget {
                   ),
                 ),
             ],
+            if (resetAfterJob)
+              RunnerResetQueueButton(
+                controller: c,
+                buttonKey: const ValueKey('runner-reset-queue'),
+              ),
             if (c.observesOperation) Text(l.operationObserving),
             if (c.pending != null) ...[
               Text(c.observesOperation ? l.operationMissing : l.runnerPending),
@@ -184,7 +178,7 @@ class RunnerPanel extends StatelessWidget {
                       }
                     : null,
                 child: Text(
-                  c.observesOperation ? l.operationTakeOver : l.runnerRetry,
+                  c.observesOperation ? l.operationTakeOver : l.runnerResend,
                 ),
               ),
             ],
@@ -200,8 +194,9 @@ class RunnerPanel extends StatelessWidget {
                 child: Text(l.runnerRetry),
               ),
             SoftwareOverview(controller: c, motion: motion),
-            if (c.componentPlan == null &&
-                c.activeComponent == null &&
+            if (!softwareComponentKeys.any(
+                  (k) => hostsComponentInstallation(c, k),
+                ) &&
                 (active || failed) &&
                 job.kind == 'component_install')
               ComponentInstallationView(controller: c),

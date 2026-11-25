@@ -76,10 +76,17 @@ class TtCertificates extends StatelessWidget {
               Text(
                 '${l.ttNextCheck}: ${DateTime.fromMillisecondsSinceEpoch((at * 1000).toInt()).toLocal()}',
               ),
-            if (c['error'] case final String error) Text(vpnMessage(l, error)),
-            if ((c['expiresAt'] as num) <
-                DateTime.now().millisecondsSinceEpoch / 1000 + 21 * 86400)
-              Text(l.ttExpirySoon),
+            if ([
+                  if (c['error'] case final String error) vpnMessage(l, error),
+                  if ((c['expiresAt'] as num) <
+                      DateTime.now().millisecondsSinceEpoch / 1000 + 21 * 86400)
+                    l.ttExpirySoon,
+                ]
+                case final issues when issues.isNotEmpty)
+              AppNotice(
+                message: issues.join('\n'),
+                error: c['error'] is String,
+              ),
           ],
           Wrap(
             spacing: AppLayout.smallGap,

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../l10n/app_localizations.dart';
+import '../runner/component_installation_view.dart' show vpnComponentName;
 
 class ServerInventoryPanel extends StatelessWidget {
   const ServerInventoryPanel({
@@ -42,7 +43,7 @@ class ServerInventoryPanel extends StatelessWidget {
               expansionAnimationStyle: animation,
               key: PageStorageKey('component-${component.component.name}'),
               tilePadding: EdgeInsets.zero,
-              title: Text(componentName(component.component)),
+              title: Text(vpnComponentName(component.component)),
               subtitle: Text(switch (component.presence) {
                 ComponentPresence.detected => l.inventoryDetected,
                 ComponentPresence.absent => l.inventoryAbsent,
@@ -142,12 +143,6 @@ class ServerInventoryPanel extends StatelessWidget {
   }
 }
 
-String componentName(VpnComponent c) => switch (c) {
-  VpnComponent.panel => '3x-ui',
-  VpnComponent.xray => 'Xray',
-  VpnComponent.trustTunnel => 'TrustTunnel',
-  VpnComponent.amneziaWg => 'AmneziaWG',
-};
 String inventoryStatusLabel(AppLocalizations l, InventoryStatus s) =>
     switch (s) {
       InventoryStatus.ok => l.inventoryOk,

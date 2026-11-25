@@ -454,12 +454,11 @@ class _AppAnimatedCollectionState extends State<AppAnimatedCollection>
 
 /// Named settings groups with a visible boundary, without nested disclosures.
 class AppSettingsSection extends StatelessWidget {
-  const AppSettingsSection({
-    required this.title,
-    required this.child,
-    super.key,
-  });
-  final String title;
+  const AppSettingsSection({this.title, required this.child, super.key});
+
+  /// Null when the section is the page's only one: the page title already
+  /// names it.
+  final String? title;
   final Widget child;
   @override
   Widget build(BuildContext context) => Padding(
@@ -467,17 +466,18 @@ class AppSettingsSection extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(6, 8, 6, 12),
-          child: Text(
-            title.toUpperCase(),
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: Theme.of(context).colorScheme.primary,
-              letterSpacing: 1,
-              fontWeight: FontWeight.w600,
+        if (title case final title?)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(6, 8, 6, 12),
+            child: Text(
+              title.toUpperCase(),
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: Theme.of(context).colorScheme.primary,
+                letterSpacing: 1,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
-        ),
         Card.filled(clipBehavior: Clip.antiAlias, child: child),
       ],
     ),

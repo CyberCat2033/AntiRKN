@@ -24,8 +24,13 @@ class ServerProtocolSection {
     this.selection,
     this.selectionEnabled = true,
     this.selectionActions,
+    this.plans,
   });
   final String name, mark;
+
+  /// The plan and error view of this tab; replaces [ServerDetailView.plans]
+  /// so its progress yields to the tab's own job view (UI-40).
+  final Widget? plans;
   final int count;
   final bool detected;
   final Widget child;
@@ -256,13 +261,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
         }
       }
     }
-    return versions.entries
-        .where(
-          (entry) =>
-              updates.latest[entry.key] != null &&
-              updates.latest[entry.key] != entry.value,
-        )
-        .length;
+    return availableUpdates(updates, versions).length;
   }
 
   Widget overview(BuildContext context) {
@@ -640,7 +639,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
       return PopScope(
         canPop: !active,
         onPopInvokedWithResult: (didPop, _) {
-          if (didPop || !active || c.vaultBusy || c.picking) return;
+          if (didPop || !active || c.vaultSaving || c.picking) return;
           final selection = index >= 5
               ? widget.sections[index - 5].selection
               : null;
@@ -679,7 +678,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                     IconButton(
                       key: const ValueKey('server-list-back'),
                       tooltip: l.uiBack,
-                      onPressed: c.vaultBusy || c.picking
+                      onPressed: c.vaultSaving || c.picking
                           ? null
                           : index == 0 || (index == 1 && requiresConnection)
                           ? widget.onBack
@@ -711,13 +710,15 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                   ],
                 ),
               ),
-            if (c.error != null)
+            // A banner leads to the page that shows the issue; on that page
+            // it would repeat it (UI-44).
+            if (c.error != null && index != 1)
               ListTile(
                 leading: const Icon(Icons.error_outline),
                 title: Text(sshIssueLabel(l, c.error!)),
                 onTap: () => open(1),
               ),
-            if (c.showPrivilegePrompt)
+            if (c.showPrivilegePrompt && index != 1)
               ListTile(
                 leading: const Icon(Icons.lock_outline),
                 title: Text(
@@ -728,13 +729,14 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => open(1),
               ),
-            if (c.runner.error != null ||
-                c.runner.selected != null &&
-                    [
-                      'failed',
-                      'partially_applied',
-                      'needs_attention',
-                    ].contains(c.runner.selected!.status))
+            if (index != 2 &&
+                (c.runner.error != null ||
+                    c.runner.selected != null &&
+                        [
+                          'failed',
+                          'partially_applied',
+                          'needs_attention',
+                        ].contains(c.runner.selected!.status)))
               ListTile(
                 leading: const Icon(Icons.error_outline),
                 title: Text(l.runnerAttention),
@@ -787,7 +789,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                     built.contains(5 + i)
                         ? page('protocol-$i', [
                             widget.sections[i].child,
-                            if (widget.plans != null) widget.plans!,
+                            ?(widget.sections[i].plans ?? widget.plans),
                           ])
                         : const SizedBox.shrink(),
                 ],

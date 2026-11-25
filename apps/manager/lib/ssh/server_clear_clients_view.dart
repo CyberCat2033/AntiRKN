@@ -84,17 +84,9 @@ class _ServerClearClientsViewState extends State<ServerClearClientsView> {
                     if (mounted) {
                       setState(() {
                         clearing = false;
+                        // The result is shown once, under the button (UI-51).
                         lastResult = ok ? 'done' : 'failed';
                       });
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            ok
-                                ? l.serverClearClientsDone
-                                : l.serverClearClientsFailed,
-                          ),
-                        ),
-                      );
                     }
                   }
                 },
@@ -112,7 +104,9 @@ class _ServerClearClientsViewState extends State<ServerClearClientsView> {
         if (lastResult != null)
           Padding(
             padding: const EdgeInsets.only(top: 4),
-            child: Text(
+            child: Semantics(
+              liveRegion: true,
+              child: Text(
               lastResult == 'done'
                   ? l.serverClearClientsDone
                   : l.serverClearClientsFailed,
@@ -121,6 +115,7 @@ class _ServerClearClientsViewState extends State<ServerClearClientsView> {
                         ? null
                         : Theme.of(context).colorScheme.error,
                   ),
+              ),
             ),
           ),
       ],

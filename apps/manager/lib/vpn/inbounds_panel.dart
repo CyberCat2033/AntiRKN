@@ -25,7 +25,6 @@ class InboundsPanel extends StatefulWidget {
     this.runner,
     this.selection,
     this.selectionInHeader = false,
-    this.showPlan = true,
     this.serverHost = '',
     required this.serverId,
     required this.serverName,
@@ -34,7 +33,6 @@ class InboundsPanel extends StatefulWidget {
     super.key,
   });
   final VpnController controller;
-  final bool showPlan;
   final RunnerController? runner;
   final String serverHost;
   final String serverId;
@@ -54,10 +52,8 @@ class InboundsPanelState extends State<InboundsPanel> {
   RunnerController? get runner => widget.runner;
   String get serverId => widget.serverId;
   String get serverHost => widget.serverHost;
-  String Function(String) get serverName => widget.serverName;
   NetworkController get network => widget.network;
   MotionPreference get motion => widget.motion;
-  bool get showPlan => widget.showPlan;
   final deletionState = ValueNotifier(false);
   bool get deleting => deletionState.value;
   set deleting(bool value) => deletionState.value = value;
@@ -393,7 +389,13 @@ class InboundsPanelState extends State<InboundsPanel> {
                   selectionActions(),
                 ],
               ),
-            if (deleting) const LinearProgressIndicator(),
+            // The page's VpnPlanView shows a busy controller and
+            // VpnJobView a running job; this bar covers the rest of a
+            // deletion, so the tab has one indicator (UI-40).
+            if (deleting &&
+                !c.foregroundBusy &&
+                c.currentJob(serverId)?.terminal != false)
+              const LinearProgressIndicator(),
             if (deletionIssue != null) Text(deletionIssue!),
             CatalogNormalContent(
               selection: selection,
@@ -839,12 +841,6 @@ class InboundsPanelState extends State<InboundsPanel> {
                   controller: c,
                   serverId: serverId,
                 ),
-                if (showPlan)
-                  VpnPlanView(
-                    controller: c,
-                    serverName: serverName,
-                    showProgress: !deleting,
-                  ),
               ],
             ),
           ],

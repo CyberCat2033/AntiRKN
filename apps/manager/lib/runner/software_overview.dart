@@ -27,6 +27,7 @@ class SoftwareOverview extends StatelessWidget {
     final content = <Widget>[];
     final available = <Widget>[];
     final others = <Widget>[];
+    var installationShown = false;
     if (!c.connected) content.add(AppNotice(message: l.inventoryStale));
     for (final component in [
       VpnComponent.panel,
@@ -58,40 +59,38 @@ class SoftwareOverview extends StatelessWidget {
         versions.putIfAbsent('panel', () => c.panelAccess!.panelVersion);
         versions.putIfAbsent('xray', () => c.panelAccess!.xrayVersion);
       }
-      final changes = <String>[];
-      if (updates != null && (updates.suggestions || updates.manualResults)) {
-        for (final v in versions.entries) {
-          final latest = updates.latest[v.key];
-          if (latest != null &&
-              (componentIsNewer(latest, v.value) == true ||
-                  componentIsNewer(latest, v.value, allowPreview: true) ==
-                      true)) {
-            changes.add('${componentName(v.key)} $latest');
-          }
-        }
-      }
-      final canUpdate = versions.entries.any(
-        (v) =>
-            (verifiedComponentVersions[v.key] != null &&
-                componentIsNewer(verifiedComponentVersions[v.key]!, v.value) ==
-                    true) ||
-            (updates != null &&
-                updates.latest[v.key] != null &&
-                (componentIsNewer(updates.latest[v.key]!, v.value) == true ||
+      final updatable = updates == null
+          ? const <String, String>{}
+          : availableUpdates(updates, versions);
+      final changes = [
+        for (final u in updatable.entries) '${componentName(u.key)} ${u.value}',
+      ];
+      // Xray is upgraded only through XrayUpgradeView, which checks the
+      // connections before and after and rolls back (UI-45).
+      final canUpdate = versions.entries
+          .where((v) => v.key != 'xray')
+          .any(
+            (v) =>
+                (verifiedComponentVersions[v.key] != null &&
                     componentIsNewer(
-                          updates.latest[v.key]!,
+                          verifiedComponentVersions[v.key]!,
                           v.value,
-                          allowPreview: true,
                         ) ==
-                        true)),
-      );
+                        true) ||
+                (updates != null &&
+                    updates.latest[v.key] != null &&
+                    (componentIsNewer(updates.latest[v.key]!, v.value) ==
+                            true ||
+                        componentIsNewer(
+                              updates.latest[v.key]!,
+                              v.value,
+                              allowPreview: true,
+                            ) ==
+                            true)),
+          );
       final isPanel = component == VpnComponent.panel;
       final detected = presence == ComponentPresence.detected;
-      final name = isPanel
-          ? '3x-ui / Xray'
-          : component == VpnComponent.amneziaWg
-          ? 'AmneziaWG'
-          : 'TrustTunnel';
+      final name = isPanel ? '3x-ui / Xray' : vpnComponentName(component);
       final status = versions.isNotEmpty
           ? versions.entries
                 .map(
@@ -126,128 +125,101 @@ class SoftwareOverview extends StatelessWidget {
                   (c.activeComponent == 'panel' ||
                       c.activeComponent == 'xray')));
       final activeOnThisComponent = installingThis || isPanelJob;
+      // The job's progress bar lives in its own view; the card keeps a
+      // compact step count (UI-39).
       final action = activeOnThisComponent
-          ? SizedBox(
-              width: 80,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    '${c.selected!.checkpoint}/${c.selected!.count}',
-                    style: Theme.of(context).textTheme.labelSmall,
-                  ),
-                  const SizedBox(height: 4),
-                  LinearProgressIndicator(
-                    value: c.selected!.count > 0 && c.selected!.checkpoint > 0
-                        ? c.selected!.checkpoint / c.selected!.count
-                        : null,
-                  ),
-                ],
-              ),
+          ? Text(
+              key: ValueKey('software-progress-$key'),
+              '${c.selected!.checkpoint}/${c.selected!.count}',
+              style: Theme.of(context).textTheme.labelSmall,
             )
-          : hasPlan
+          : hasPlan || !applyAction
+          // The one update check is the page's button (UI-45).
           ? null
           : OutlinedButton(
               key: ValueKey(
-                applyAction
-                    ? isPanel
-                          ? (detected ? 'panel-update' : 'components-choose')
-                          : 'component-$key'
-                    : 'software-check-$key',
+                isPanel
+                    ? (detected ? 'panel-update' : 'components-choose')
+                    : 'component-$key',
               ),
-              onPressed: updates?.busy == true || c.busy || c.actionPending
+              onPressed:
+                  updates?.busy == true ||
+                      c.busy ||
+                      c.actionPending ||
+                      !c.canRequestAction
                   ? null
-                  : applyAction
-                  ? (!c.canRequestAction
-                        ? null
-                        : () => c.requestAction(() async {
-                            if (isPanel &&
-                                detected &&
-                                (!await showPanelLogin(context, c) ||
-                                    !context.mounted)) {
-                              return;
-                            }
-                            if (updates != null && updates.latest.isNotEmpty) {
-                              // 3x-ui first; its own Xray when the panel is
-                              // current. Asset for the server's architecture.
-                              String? target;
-                              for (final comp
-                                  in isPanel
-                                      ? const ['panel', 'xray']
-                                      : [key]) {
-                                final latest = updates.latest[comp];
-                                final current = versions[comp];
-                                if (latest != null &&
-                                    (current == null ||
-                                        componentIsNewer(
-                                              latest,
-                                              current,
-                                              allowPreview: true,
-                                            ) ==
-                                            true)) {
-                                  target = comp;
-                                  break;
-                                }
-                              }
-                              if (target != null &&
-                                  installerComponents.contains(target)) {
-                                final choice = await updates.source
-                                    .resolveInstallerRelease(
-                                      component: target,
-                                      version: updates.latest[target]!,
-                                    );
-                                if (choice != null) {
-                                  await c.prepareComponent(
-                                    target,
-                                    choice: choice,
-                                  );
-                                  await c.applyComponent();
-                                  return;
-                                }
-                              } else if (target != null &&
-                                  choosableComponents.contains(target)) {
-                                final plans = await c.componentVersionPlans([
-                                  target,
-                                ]);
-                                final candidate = await updates.source
-                                    .resolveAsset(
-                                      component: target,
-                                      version: updates.latest[target]!,
-                                      architecture:
-                                          plans[target]?['arch'] as String?,
-                                    );
-                                if (candidate != null) {
-                                  await c.installComponentVersion(candidate);
-                                  return;
-                                }
-                                if (c.error != null) return;
-                              }
-                            }
-                            if (isPanel) {
-                              if (c.panelDetected) {
-                                await c.preparePanelUpdate();
-                                await c.applyPanelUpdate();
-                              } else {
-                                await c.openPanelPlan();
-                                await c.applyPanel();
-                              }
-                            } else {
-                              await c.prepareComponent(key);
-                              await c.applyComponent();
-                            }
-                          }))
-                  : updates == null
-                  ? null
-                  : () => updates.check(),
+                  : () => c.requestAction(() async {
+                      if (isPanel &&
+                          detected &&
+                          (!await showPanelLogin(context, c) ||
+                              !context.mounted)) {
+                        return;
+                      }
+                      if (updates != null && updates.latest.isNotEmpty) {
+                        // 3x-ui first; its own Xray when the panel is
+                        // current. Asset for the server's architecture.
+                        String? target;
+                        for (final comp in isPanel ? const ['panel'] : [key]) {
+                          final latest = updates.latest[comp];
+                          final current = versions[comp];
+                          if (latest != null &&
+                              (current == null ||
+                                  componentIsNewer(
+                                        latest,
+                                        current,
+                                        allowPreview: true,
+                                      ) ==
+                                      true)) {
+                            target = comp;
+                            break;
+                          }
+                        }
+                        if (target != null &&
+                            installerComponents.contains(target)) {
+                          final choice = await updates.source
+                              .resolveInstallerRelease(
+                                component: target,
+                                version: updates.latest[target]!,
+                              );
+                          if (choice != null) {
+                            await c.prepareComponent(target, choice: choice);
+                            await c.applyComponent();
+                            return;
+                          }
+                        } else if (target != null &&
+                            choosableComponents.contains(target)) {
+                          final plans = await c.componentVersionPlans([target]);
+                          final candidate = await updates.source.resolveAsset(
+                            component: target,
+                            version: updates.latest[target]!,
+                            architecture: plans[target]?['arch'] as String?,
+                          );
+                          if (candidate != null) {
+                            await c.installComponentVersion(candidate);
+                            return;
+                          }
+                          if (c.error != null) return;
+                        }
+                      }
+                      if (isPanel) {
+                        if (c.panelDetected) {
+                          await c.preparePanelUpdate();
+                          await c.applyPanelUpdate();
+                        } else {
+                          await c.openPanelPlan();
+                          await c.applyPanel();
+                        }
+                      } else {
+                        await c.prepareComponent(key);
+                        await c.applyComponent();
+                      }
+                    }),
               child: Text(
-                applyAction
-                    ? detected
-                          ? l.softwareUpdate
-                          : presence == ComponentPresence.absent
-                          ? l.softwareInstall
-                          : l.softwareInspect
-                    : l.uiCheck,
+                detected
+                    ? l.softwareUpdate
+                    : presence == ComponentPresence.absent
+                    ? l.softwareInstall
+                    : l.softwareInspect,
               ),
             );
       final choosable = [
@@ -282,7 +254,7 @@ class SoftwareOverview extends StatelessWidget {
             ),
           if (changes.isNotEmpty)
             Text('${l.softwareUpdateAvailable}: ${changes.join(', ')}'),
-          if (changes.isNotEmpty && !canUpdate)
+          if (updatable.keys.any((k) => k != 'xray') && !canUpdate)
             Text(
               isPanel
                   ? l.panelUpdateCompatibility
@@ -327,16 +299,8 @@ class SoftwareOverview extends StatelessWidget {
           PanelUpdateView(controller: c),
         ]);
       }
-      if (c.componentPlan?.component == key ||
-          (c.activeComponent == key &&
-              (c.selected?.kind == 'component_install' ||
-                  c.selected?.kind == 'component_upgrade' ||
-                  c.selected?.kind == 'component_upgrade_apply') &&
-              (c.selected?.terminal == false ||
-                  const {
-                    'failed',
-                    'partially_applied',
-                  }.contains(c.selected?.status)))) {
+      if (!installationShown && hostsComponentInstallation(c, key)) {
+        installationShown = true;
         content.add(ComponentInstallationView(controller: c));
       }
     }
@@ -367,9 +331,9 @@ class SoftwareOverview extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 OutlinedButton.icon(
-                  onPressed: updates.busy || !c.canRequestAction
-                      ? null
-                      : () => c.requestAction(updates.check),
+                  // A GitHub request: no SSH or runner refresh (UI-45).
+                  key: const ValueKey('updates-check'),
+                  onPressed: updates.busy ? null : updates.check,
                   icon: const Icon(Icons.refresh),
                   label: Text(l.updatesCheck),
                 ),

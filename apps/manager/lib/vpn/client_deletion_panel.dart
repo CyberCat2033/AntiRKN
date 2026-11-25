@@ -77,6 +77,7 @@ class ClientDeletionPanel extends StatelessWidget {
               ),
             if (user.deletion!['file']?['error'] case final String issue)
               AppNotice(message: publicationMessage(l, issue), error: true),
+            // Force deletion is offered once, by the panel's notice (UI-51).
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -87,11 +88,6 @@ class ClientDeletionPanel extends StatelessWidget {
                       : () => c.retryDeletion(user.id),
                   child: Text(l.runnerRetry),
                 ),
-                if (c.canForceDelete(user))
-                  FilledButton.tonal(
-                    onPressed: !c.canMutate ? null : () => force(context, user),
-                    child: Text(l.uiForceDeleteClient),
-                  ),
               ],
             ),
           ],

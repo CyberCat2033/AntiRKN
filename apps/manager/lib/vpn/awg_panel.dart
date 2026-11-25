@@ -9,6 +9,8 @@ import 'vpn_controller.dart';
 import 'missing_on_server_notice.dart';
 import 'adopt_resource.dart';
 import 'vpn_plan_view.dart';
+import 'awg_existing_panel.dart';
+import '../runner/runner_controller.dart';
 
 class AwgPanel extends StatelessWidget {
   const AwgPanel({
@@ -16,12 +18,19 @@ class AwgPanel extends StatelessWidget {
     required this.serverId,
     required this.network,
     required this.motion,
+    this.runner,
+    this.serverHost = '',
     super.key,
   });
   final VpnController controller;
   final String serverId;
   final NetworkController network;
   final MotionPreference motion;
+
+  /// Reads the interfaces AntiRKN does not manage, for the one "check all"
+  /// and refresh of the section (UI-49).
+  final RunnerController? runner;
+  final String serverHost;
 
   Future<void> edit(BuildContext context, [AwgInterface? current]) async {
     if (!await controller.ensureConnected(awgTarget(serverId)) ||
@@ -68,10 +77,13 @@ class AwgPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: controller,
+    listenable: Listenable.merge([controller, ?runner]),
     builder: (context, _) {
-      final l = AppLocalizations.of(context), c = controller;
+      final l = AppLocalizations.of(context), c = controller, r = runner;
       final target = awgTarget(serverId);
+      final external = r == null
+          ? const <Map>[]
+          : awgExternalResources(r, c, serverId);
       final interfaces = c.workspace.awgInterfaces.where(
         (r) => r.serverId == serverId && !r.deleted,
       );
@@ -92,6 +104,16 @@ class AwgPanel extends StatelessWidget {
             targets: [
               for (final r in interfaces) (target: target, resource: r.id),
             ],
+            readOthers: r == null || external.isEmpty
+                ? null
+                : () => readAwgExternal(
+                    context,
+                    controller: c,
+                    runner: r,
+                    serverId: serverId,
+                    host: serverHost,
+                    external: external,
+                  ),
           ),
           const SizedBox(height: 20),
           MissingOnServerNotice(controller: c, target: target),
@@ -100,7 +122,15 @@ class AwgPanel extends StatelessWidget {
             count: interfaces.length,
             action: IconButton(
               tooltip: l.awgRefresh,
-              onPressed: !c.canMutate ? null : () => c.refreshServer(target),
+              onPressed:
+                  !c.canMutate || r != null && (r.busy || r.actionPending)
+                  ? null
+                  : () async {
+                      await c.refreshServer(target);
+                      await r?.requestAction(() async {
+                        await r.awgRequest('awg_discover');
+                      });
+                    },
               icon: const Icon(Icons.refresh),
             ),
           ),

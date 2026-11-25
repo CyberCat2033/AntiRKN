@@ -30,6 +30,10 @@ class SshPanel extends StatefulWidget {
 class _SshPanelState extends State<SshPanel> {
   final _visibleSecrets = <String>{};
 
+  /// The hardening wizard shows its own progress; bars behind its scrim
+  /// would be a second indicator (UI-42).
+  bool _wizardOpen = false;
+
   Widget _field(
     TextEditingController controller,
     String label, {
@@ -91,7 +95,9 @@ class _SshPanelState extends State<SshPanel> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (c.vaultBusy) const LinearProgressIndicator(),
+          // One bar: a vault write the person waits for, else the
+          // connection (UI-42).
+          if (c.vaultSaving && !_wizardOpen) const LinearProgressIndicator(),
           if (c.vaultError case final issue?)
             Semantics(liveRegion: true, child: Text(vaultIssueLabel(l, issue))),
           if (!c.initialised && !c.vaultBusy)
@@ -276,7 +282,10 @@ class _SshPanelState extends State<SshPanel> {
                       ),
                     if (expanded && c.saved) Text(l.sshSaved),
                     const SizedBox(height: AppLayout.gap),
-                    if (c.busy && c.stage != SshStage.verifying)
+                    if (c.busy &&
+                        c.stage != SshStage.verifying &&
+                        !c.vaultSaving &&
+                        !_wizardOpen)
                       const LinearProgressIndicator(),
                     Semantics(
                       liveRegion: true,
@@ -441,7 +450,14 @@ class _SshPanelState extends State<SshPanel> {
                       FilledButton.tonalIcon(
                         icon: const Icon(Icons.shield_outlined),
                         label: Text(l.sshHardenBannerAction),
-                        onPressed: () => showSshHardenWizard(context, c),
+                        onPressed: () async {
+                          setState(() => _wizardOpen = true);
+                          try {
+                            await showSshHardenWizard(context, c);
+                          } finally {
+                            if (mounted) setState(() => _wizardOpen = false);
+                          }
+                        },
                       ),
                     ],
                     if (!c.isRoot) ...[

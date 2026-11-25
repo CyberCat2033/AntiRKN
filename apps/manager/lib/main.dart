@@ -1027,12 +1027,7 @@ class _ManagerShellState extends State<ManagerShell>
                                 selection: _clientSelection,
                                 publications: _publications,
                                 serverName: (id) =>
-                                    _catalog?.servers
-                                        .where((s) => s.id == id)
-                                        .firstOrNull
-                                        ?.profile
-                                        .displayName ??
-                                    id,
+                                    _catalog?.serverDisplayName(id) ?? id,
                                 exporter: SystemProfileExporter(),
                                 motion: widget.motion,
                               )
@@ -1091,22 +1086,27 @@ class _ManagerShellState extends State<ManagerShell>
                                     title: l.uiSynchronization,
                                     subtitle: l.uiSyncHelp,
                                     icon: Icons.sync,
-                                    content: Column(
-                                      children: [
-                                        GoogleAccountPanel(
-                                          service: widget.googleAccount!,
-                                          sync: widget.autoSync,
-                                          beforeAccountChange:
-                                              _publications?.suspend,
-                                          afterAccountChange: (signedIn) {
-                                            _publications?.resume();
-                                            if (signedIn) {
-                                              _publications
-                                                  ?.accountAuthorizationChanged();
-                                            }
-                                          },
-                                        ),
-                                      ],
+                                    // The page title names the section
+                                    // (UI-50).
+                                    content: AppSettingsSection(
+                                      child: Column(
+                                        children: [
+                                          GoogleAccountPanel(
+                                            showTitle: false,
+                                            service: widget.googleAccount!,
+                                            sync: widget.autoSync,
+                                            beforeAccountChange:
+                                                _publications?.suspend,
+                                            afterAccountChange: (signedIn) {
+                                              _publications?.resume();
+                                              if (signedIn) {
+                                                _publications
+                                                    ?.accountAuthorizationChanged();
+                                              }
+                                            },
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 SettingsDestination(
@@ -1115,7 +1115,6 @@ class _ManagerShellState extends State<ManagerShell>
                                   subtitle: l.uiClientProfilesHelp,
                                   icon: Icons.description_outlined,
                                   content: AppSettingsSection(
-                                    title: l.uiClientProfiles,
                                     child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.stretch,

@@ -1844,6 +1844,18 @@ abstract class AppLocalizations {
   /// **'Check and retry this request'**
   String get runnerRetry;
 
+  /// No description provided for @runnerReconnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnect runner'**
+  String get runnerReconnect;
+
+  /// No description provided for @runnerResend.
+  ///
+  /// In en, this message translates to:
+  /// **'Send again'**
+  String get runnerResend;
+
   /// No description provided for @runnerConnectionLost.
   ///
   /// In en, this message translates to:

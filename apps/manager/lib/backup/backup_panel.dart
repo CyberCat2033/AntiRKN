@@ -173,7 +173,17 @@ class _BackupDialogState extends State<_BackupDialog> {
                     const SizedBox(height: AppLayout.gap),
                     Text(l.backupReplaceHelp),
                   ] else ...[
-                    Text(l.backupPasswordHelp),
+                    Semantics(
+                      liveRegion: c.error == BackupIssue.password,
+                      child: Text(
+                        l.backupPasswordHelp,
+                        style: c.error == BackupIssue.password
+                            ? TextStyle(
+                                color: Theme.of(context).colorScheme.error,
+                              )
+                            : null,
+                      ),
+                    ),
                     TextField(
                       key: const ValueKey('backup-password'),
                       controller: _password,
@@ -209,7 +219,12 @@ class _BackupDialogState extends State<_BackupDialog> {
                     if (_invalid) Text(l.backupPasswordMismatch),
                   ],
                   if (_activeWork) Text(l.backupActiveWork),
-                  if (error != null)
+                  // The password help above the field is that error's text;
+                  // it is shown once (UI-51).
+                  if (error != null &&
+                      !(c.error == BackupIssue.password &&
+                          !c.completed &&
+                          summary == null))
                     Semantics(liveRegion: true, child: Text(error)),
                 ],
               ),

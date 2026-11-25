@@ -184,7 +184,7 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
                 syncStatusLabel(l, sync),
                 key: const ValueKey('google-sync-status'),
               ),
-              subtitle: Text(account.email),
+              // The account is named once, on the Google Drive row (UI-51).
             ),
             const Divider(indent: 17, endIndent: 17),
             if ((sync.result?.otherWorkspaces ?? 0) > 0)

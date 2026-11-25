@@ -191,6 +191,14 @@ class SshController extends ChangeNotifier {
   SecretVault? _vault;
   bool initialised = false;
   bool vaultBusy = false;
+
+  /// [vaultBusy] for the background save of observed server facts.
+  bool _remembering = false;
+
+  /// A vault write the person waits for. The background save of server
+  /// facts keeps [vaultBusy] as a lock but shows no bar and keeps Back
+  /// enabled (UI-42).
+  bool get vaultSaving => vaultBusy && !_remembering;
   bool picking = false;
   bool get saved {
     final profile = unlocked ? _vault!.profile : null;
@@ -1261,7 +1269,7 @@ class SshController extends ChangeNotifier {
       return;
     }
     vaultBusy = true;
-    _notify();
+    _remembering = true;
     try {
       await _vault!.saveProfile(
         profile.withInfo(
@@ -1280,6 +1288,7 @@ class SshController extends ChangeNotifier {
       if (!_disposed) vaultError = VaultIssue.writeFailed;
     } finally {
       vaultBusy = false;
+      _remembering = false;
       _notify();
     }
   }

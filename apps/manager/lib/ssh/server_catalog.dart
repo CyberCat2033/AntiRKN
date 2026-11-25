@@ -205,13 +205,7 @@ class _ServerCatalogState extends State<ServerCatalog> {
                 ),
               )
               .toList();
-      String serverName(String id) =>
-          c.servers
-              .where((s) => s.id == vpnServerId(id))
-              .firstOrNull
-              ?.profile
-              .displayName ??
-          id;
+      String serverName(String id) => c.serverDisplayName(vpnServerId(id));
       final activityTargets = vpn == null
           ? <String>[]
           : vpn.workspace.serverIds
@@ -289,13 +283,17 @@ class _ServerCatalogState extends State<ServerCatalog> {
                     'VLESS',
                   ),
                   mark: 'V',
+                  plans: VpnPlanView(
+                    controller: vpn,
+                    serverName: serverName,
+                    jobServerId: c.selectedId!,
+                  ),
                   count: managed.length + external.length,
                   detected: session.runner.panelDetected,
                   child: InboundsPanel(
                     key: inboundPanel,
                     selectionInHeader: true,
                     selection: inboundSelection,
-                    showPlan: false,
                     controller: vpn,
                     runner: session.runner,
                     serverHost: host,
@@ -315,6 +313,11 @@ class _ServerCatalogState extends State<ServerCatalog> {
                     'AmneziaWG',
                   ),
                   mark: 'W',
+                  plans: VpnPlanView(
+                    controller: vpn,
+                    serverName: serverName,
+                    jobServerId: awgTarget(c.selectedId!),
+                  ),
                   count: awgManaged.length + awgExternal.length,
                   detected:
                       session.runner.presence(VpnComponent.amneziaWg) ==
@@ -325,6 +328,8 @@ class _ServerCatalogState extends State<ServerCatalog> {
                     children: [
                       AwgPanel(
                         controller: vpn,
+                        runner: session.runner,
+                        serverHost: host,
                         serverId: c.selectedId!,
                         network: session.network,
                         motion: widget.motion,
@@ -350,6 +355,11 @@ class _ServerCatalogState extends State<ServerCatalog> {
                     'TrustTunnel',
                   ),
                   mark: 'T',
+                  plans: VpnPlanView(
+                    controller: vpn,
+                    serverName: serverName,
+                    jobServerId: ttTarget(c.selectedId!),
+                  ),
                   count: vpn.workspace.ttEndpoints
                       .where((r) => r.serverId == c.selectedId && !r.deleted)
                       .length,
