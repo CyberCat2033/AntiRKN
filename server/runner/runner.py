@@ -121,7 +121,7 @@ MAX_STEP_CRASHES = 3  # Then the job is parked, not retried until StartLimit.
 RETAIN_SECONDS = 30 * 86400
 # Rows that later code reads back by id as ownership or result records.
 RETAINED_KINDS = ('panel_install', 'component_install', 'panel_update', 'ssh_harden',
-                  'component_upgrade_apply', 'egress_access', 'egress_apply')
+                  'component_upgrade_apply', 'egress_access', 'egress_apply', 'relay_apply')
 TABLES = (
     'CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, request TEXT NOT NULL, status TEXT NOT NULL, checkpoint INTEGER NOT NULL, sequence INTEGER NOT NULL, cancel INTEGER NOT NULL, created REAL NOT NULL)',
     'CREATE TABLE IF NOT EXISTS events (id TEXT NOT NULL, sequence INTEGER NOT NULL, event TEXT NOT NULL, PRIMARY KEY(id,sequence))',
@@ -267,6 +267,8 @@ def cleanup_job_transients(directory, job_id):
                     # credentials); the egress intent holds the exit link.
                     f'awg-external-{job_id}.json', f'tt-external-{job_id}.json',
                     f'client-egress-{job_id}.json', f'tt-certificate-{job_id}.json',
+                    # The relay intent holds the inbound rows (client UUIDs).
+                    f'relay-{job_id}.json',
                     f'recover-{job_id}.json'):
         for p in directory.glob(pattern):
             try:
@@ -454,6 +456,17 @@ class Store:
                 return self.response(error.code)
             except Exception:
                 return self.response('egress_failed')
+        if action in ('relay_state', 'relay_plan', 'relay_link'):
+            import relay_inbound as relay
+            try:
+                if action == 'relay_state': result = relay.public(self)
+                elif action == 'relay_plan': result = relay.plan(self, req)
+                else: result = relay.link(self, req)
+                return {**self.response('ok'), 'relay': result}
+            except (relay.RelayError, VlessError) as error:
+                return self.response(error.code if error.code in SCHEMA['codes'] else 'relay_failed')
+            except Exception:
+                return self.response('relay_failed')
         if action == 'component_upgrade_confirm':
             from component_upgrade import confirm_upgrade
             try:
@@ -651,7 +664,7 @@ class Store:
                 code = 'missing'
             elif action == 'resume':
                 original = json.loads(row['request'])
-                if original['kind'] not in ('panel_install', 'panel_update', 'vless_apply', 'awg_apply', 'awg_external_edit', 'tt_apply', 'tt_external_edit', 'tt_certificate', 'component_install', 'protocol_remove', 'inbound_update', 'inbound_remove', 'egress_access') or row['status'] not in ('failed', 'partially_applied'):
+                if original['kind'] not in ('panel_install', 'panel_update', 'vless_apply', 'awg_apply', 'awg_external_edit', 'tt_apply', 'tt_external_edit', 'tt_certificate', 'component_install', 'protocol_remove', 'inbound_update', 'inbound_remove', 'egress_access', 'relay_apply') or row['status'] not in ('failed', 'partially_applied'):
                     code = 'conflict'
                 elif self.db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running')").fetchone():
                     code = 'busy'
@@ -855,6 +868,33 @@ class Store:
             if req['kind'] == 'egress_apply' and status in ('succeeded', 'cancelled', 'failed'):
                 # Applied or rolled back (egress jobs are not resumable): the
                 # intent with the exit link is no longer needed.
+                cleanup_job_transients(self.directory, job_id)
+            return .1
+        if req['kind'] == 'relay_apply':
+            import relay_inbound as relay
+            task = relay.RelayApply(self, req)
+            try:
+                if row['cancel']:
+                    if task.path.exists(): task.rollback()
+                    status, code = 'cancelled', 'cancelled'
+                else:
+                    if pending:
+                        task.step(row['checkpoint'])
+                    if row['checkpoint'] + 1 < req['count']: return .1
+                    status, code = 'succeeded', 'succeeded'
+            except Exception as error:
+                # Codes only: upstream panel text may carry credentials.
+                code = error.code if isinstance(error, relay.RelayError) else 'relay_failed'
+                status = 'failed'
+                if task.path.exists():
+                    try: task.rollback()
+                    except Exception as failure:
+                        # Our objects changed outside the job: a person decides.
+                        status = 'needs_attention'
+                        code = failure.code if isinstance(failure, relay.RelayError) else 'relay_failed'
+            self.finish(job_id, status, code, req['count'])
+            if status in ('succeeded', 'cancelled'):
+                # A failed job keeps its intent: resume replays it.
                 cleanup_job_transients(self.directory, job_id)
             return .1
         if req['kind']=='server_reboot':

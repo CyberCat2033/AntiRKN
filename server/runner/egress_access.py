@@ -75,18 +75,20 @@ def link(row, client, endpoint, port):
     return result
 
 
-def prepare(store, req):
-    p = decode(req)
-    api = vless.panel_for(store, p['panelId'])
-    row = api.call('/panel/api/inbounds/get/%d' % p['inboundId'])
-    if not row or row['protocol'] != 'vless' or row.get('enable') is not True:
-        raise EgressError('egress_unsupported')
+def record(key):
+    return next((r for r in records() if r['key'] == key), None)
+
+
+def issue(row, key, prefix):
+    """The inbound row with one dedicated service client.
+
+    A recorded UUID is reused, so a repeated issue keeps earlier links valid.
+    Returns the client, its previous record and the desired row."""
     from managed_vless import proxy_fields
     _, flow = proxy_fields(row)
-    key = vless.digest([p['panelId'], p['inboundId'], p['source']])
-    saved = next((r for r in records() if r['key'] == key), None)
+    saved = record(key)
     uid = saved['client']['id'] if saved else str(uuid.uuid4())
-    client = dict(id=uid, email='ar_egress_' + key[:40], enable=True, flow=flow,
+    client = dict(id=uid, email=prefix + key[:40], enable=True, flow=flow,
                   totalGB=0, expiryTime=0, limitIp=0, tgId=0, subId='', reset=0)
     desired = copy.deepcopy(row)
     settings = object_field(row['settings'])
@@ -95,6 +97,77 @@ def prepare(store, req):
         raise EgressError('egress_conflict')
     settings['clients'] = [c for c in settings.get('clients', []) if c not in matches] + [client]
     desired['settings'] = vless.canonical(settings)
+    return client, saved, desired
+
+
+def revoke(row, client):
+    """The inbound row without our service client (unchanged when absent)."""
+    desired = copy.deepcopy(row)
+    settings = object_field(row['settings'])
+    entries = settings.get('clients', [])
+    matches = [c for c in entries if c.get('email') == client['email'] or client.get('id') and c.get('id') == client['id']]
+    if len(matches) > 1 or matches and client.get('id') and matches[0].get('id') != client['id']:
+        raise EgressError('egress_conflict')
+    settings['clients'] = [c for c in entries if c not in matches]
+    desired['settings'] = vless.canonical(settings)
+    return desired
+
+
+def ensure_inbound(api, inbound_id, before, after):
+    """Write ``after`` unless the panel already holds it; a third state is
+    a foreign change. Returns the panel's readback."""
+    current = api.call('/panel/api/inbounds/get/%d' % inbound_id)
+    if not vless.subset(vless.normal(after), vless.normal(current)):
+        if vless.normal(current) != vless.normal(before): raise EgressError('egress_conflict')
+        api.call('/panel/api/inbounds/update/%d' % inbound_id, after)
+        current = api.call('/panel/api/inbounds/get/%d' % inbound_id)
+        if not vless.subset(vless.normal(after), vless.normal(current)):
+            raise EgressError('egress_config_failed')
+    return current
+
+
+def restore_client(api, inbound_id, client, before, readd=False):
+    """Return only our service client to its state in ``before``; other
+    clients keep later panel edits. ``readd`` also restores a revoked one."""
+    current = api.call('/panel/api/inbounds/get/%d' % inbound_id)
+    if current is None: raise EgressError('egress_conflict')
+    settings = object_field(current['settings'])
+    entries = settings.get('clients', [])
+    matches = [x for x in entries if x.get('id') == client['id'] or x.get('email') == client['email']]
+    original = object_field(before['settings']).get('clients', [])
+    prior = [x for x in original if x.get('id') == client['id']]
+    if matches != prior:
+        if not (len(matches) == 1 and vless.subset(client, matches[0]) or readd and not matches):
+            raise EgressError('egress_conflict')
+        settings['clients'] = [x for x in entries if x not in matches] + prior
+        current['settings'] = vless.canonical(settings)
+        api.call('/panel/api/inbounds/update/%d' % inbound_id, current)
+        current = api.call('/panel/api/inbounds/get/%d' % inbound_id)
+        if not vless.subset(settings, object_field(current['settings'])):
+            raise EgressError('egress_conflict')
+    return current
+
+
+def save_record(value):
+    ROOT.mkdir(mode=0o700, exist_ok=True)
+    atomic_file(ROOT / (value['key'] + '.json'), vless.canonical(
+        {k: value[k] for k in ('key', 'panelId', 'inboundId', 'client')}).encode())
+
+
+def restore_record(key, previous):
+    path = ROOT / (key + '.json')
+    if previous is None: path.unlink(missing_ok=True)
+    else: atomic_file(path, vless.canonical(previous).encode())
+
+
+def prepare(store, req):
+    p = decode(req)
+    api = vless.panel_for(store, p['panelId'])
+    row = api.call('/panel/api/inbounds/get/%d' % p['inboundId'])
+    if not row or row['protocol'] != 'vless' or row.get('enable') is not True:
+        raise EgressError('egress_unsupported')
+    key = vless.digest([p['panelId'], p['inboundId'], p['source']])
+    client, saved, desired = issue(row, key, 'ar_egress_')
     uri = link(row, client, p['endpoint'], p['externalPort'])
     # The plan fingerprint excludes the not-yet-issued random UUID.
     fingerprint = vless.digest(dict(payload=p, before=vless.normal(row), existing=saved))
@@ -116,25 +189,8 @@ class AccessApply:
         safe_file(self.intent)
         value = json.loads(self.intent.read_text())
         api = vless.panel_for(self.store, value['panelId'])
-        current = api.call('/panel/api/inbounds/get/%d' % value['inboundId'])
-        if current is None: raise EgressError('egress_conflict')
-        settings = object_field(current['settings'])
-        entries = settings.get('clients', [])
-        matches = [x for x in entries if x.get('id') == value['client']['id'] or x.get('email') == value['client']['email']]
-        original = object_field(value['before']['settings']).get('clients', [])
-        prior = [x for x in original if x.get('id') == value['client']['id']]
-        if matches != prior:
-            if len(matches) != 1 or not vless.subset(value['client'], matches[0]):
-                raise EgressError('egress_conflict')
-            settings['clients'] = [x for x in entries if x not in matches] + prior
-            current['settings'] = vless.canonical(settings)
-            api.call('/panel/api/inbounds/update/%d' % value['inboundId'], current)
-            current = api.call('/panel/api/inbounds/get/%d' % value['inboundId'])
-            if not vless.subset(settings, object_field(current['settings'])):
-                raise EgressError('egress_conflict')
-        record = ROOT / (value['key'] + '.json')
-        if value['previous'] is None: record.unlink(missing_ok=True)
-        else: atomic_file(record, vless.canonical(value['previous']).encode())
+        current = restore_client(api, value['inboundId'], value['client'], value['before'])
+        restore_record(value['key'], value['previous'])
         refresh_observation(self.store, value, current)
         api.call('/panel/api/server/restartXrayService', {})
 
@@ -149,16 +205,8 @@ class AccessApply:
         if value['requestHash'] != vless.digest(self.req['payload']): raise EgressError('egress_conflict')
         if checkpoint > 0:
             api = vless.panel_for(self.store, value['panelId'])
-            current = api.call('/panel/api/inbounds/get/%d' % value['inboundId'])
-            if not vless.subset(vless.normal(value['after']), vless.normal(current)):
-                if vless.normal(current) != vless.normal(value['before']): raise EgressError('egress_conflict')
-                api.call('/panel/api/inbounds/update/%d' % value['inboundId'], value['after'])
-                current = api.call('/panel/api/inbounds/get/%d' % value['inboundId'])
-                if not vless.subset(vless.normal(value['after']), vless.normal(current)):
-                    raise EgressError('egress_config_failed')
-            ROOT.mkdir(mode=0o700, exist_ok=True)
-            atomic_file(ROOT / (value['key'] + '.json'), vless.canonical(
-                {k: value[k] for k in ('key', 'panelId', 'inboundId', 'client')}).encode())
+            current = ensure_inbound(api, value['inboundId'], value['before'], value['after'])
+            save_record(value)
             # Record our authorized addition so normal client reconciliation
             # keeps using the same observation and preserves this service user.
             refresh_observation(self.store, value, current)
@@ -168,16 +216,21 @@ class AccessApply:
             self.store.event(self.req['id'], ('egress_preparing', 'egress_applying', 'egress_checking')[checkpoint], checkpoint + 1, 3)
 
 
-def refresh_observation(store, value, current):
+def owners(store, panel_id, inbound_id, row):
+    """Managed and adopted resources that track this panel inbound."""
     for rid, saved in vless.owned_rows(store).items():
-        if saved.get('panelId') != value['panelId']: continue
+        if saved.get('panelId') != panel_id: continue
         spec = saved['spec']
-        same = (str(value['inboundId']) == spec.get('adoption', {}).get('sourceId') if saved.get('adopted')
-                else current.get('remark') == vless.marker(saved['workspaceId'], rid))
-        if same:
-            saved['observedHash'] = vless.digest(vless.normal(current))
-            with store.db:
-                store.db.execute('UPDATE vless_resources SET data=? WHERE id=?', (vless.canonical(saved), rid))
+        if (str(inbound_id) == spec.get('adoption', {}).get('sourceId') if saved.get('adopted')
+                else row.get('remark') == vless.marker(saved['workspaceId'], rid)):
+            yield rid, saved
+
+
+def refresh_observation(store, value, current):
+    for rid, saved in list(owners(store, value['panelId'], value['inboundId'], current)):
+        saved['observedHash'] = vless.digest(vless.normal(current))
+        with store.db:
+            store.db.execute('UPDATE vless_resources SET data=? WHERE id=?', (vless.canonical(saved), rid))
 
 
 def result(store, key):

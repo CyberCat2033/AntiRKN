@@ -279,11 +279,19 @@ def discover(protocol):
     return record
 
 
-def plan(protocol):
+def xray_routes_guard(protocol):
+    """Removing 3x-ui would silently drop the egress and relay routes."""
     if protocol == 'vless':
         from client_egress import load
         if (load() or {}).get('enabled'):
             raise RemovalError('egress_disable_first')
+        import relay_inbound
+        if relay_inbound.entries(relay_inbound.load()):
+            raise RemovalError('relay_disable_first')
+
+
+def plan(protocol):
+    xray_routes_guard(protocol)
     record = discover(protocol)
     return dict(protocol=protocol, fingerprint=record['fingerprint'],
                 services=record['units'], containers=[c['name'] for c in record['containers']],
@@ -297,10 +305,7 @@ class ProtocolRemoval:
         self.record_file = self.directory / 'plan.json'
 
     def step(self, checkpoint):
-        if self.request['protocol'] == 'vless':
-            from client_egress import load
-            if (load() or {}).get('enabled'):
-                raise RemovalError('egress_disable_first')
+        xray_routes_guard(self.request['protocol'])
         if checkpoint == 0:
             prune_quarantines(self.store.directory, keep=2)
             record = discover(self.request['protocol'])

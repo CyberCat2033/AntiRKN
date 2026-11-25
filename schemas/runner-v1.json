@@ -69,6 +69,9 @@
           "egress_check",
           "egress_access_plan",
           "egress_access_read",
+          "relay_state",
+          "relay_plan",
+          "relay_link",
           "component_upgrade_check",
           "component_upgrade_confirm"
         ]
@@ -99,6 +102,7 @@
           "server_reboot",
           "egress_apply",
           "egress_access",
+          "relay_apply",
           "component_upgrade_apply"
         ]
       },
@@ -434,6 +438,20 @@
         "action",
         "id"
       ],
+      "relay_state": [
+        "version",
+        "action"
+      ],
+      "relay_plan": [
+        "version",
+        "action",
+        "payload"
+      ],
+      "relay_link": [
+        "version",
+        "action",
+        "payload"
+      ],
       "component_upgrade_check": [
         "version",
         "action",
@@ -631,6 +649,16 @@
         "payload",
         "fingerprint"
       ],
+      "relay_apply": [
+        "version",
+        "action",
+        "id",
+        "kind",
+        "count",
+        "interval",
+        "payload",
+        "fingerprint"
+      ],
       "component_upgrade_apply": [
         "version",
         "action",
@@ -700,6 +728,10 @@
         "interval": 1
       },
       "egress_access": {
+        "count": 3,
+        "interval": 1
+      },
+      "relay_apply": {
         "count": 3,
         "interval": 1
       },
@@ -851,6 +883,16 @@
     "egress_applying",
     "egress_checking",
     "egress_disable_first",
+    "relay_unsupported",
+    "relay_client_inbound",
+    "relay_conflict",
+    "relay_config_failed",
+    "relay_disable_first",
+    "relay_missing",
+    "relay_failed",
+    "relay_preparing",
+    "relay_applying",
+    "relay_checking",
     "upgrade_preparing",
     "upgrade_downloading",
     "upgrade_backing_up",
@@ -973,6 +1015,13 @@
     "egress_failed",
     "egress_rollback_failed",
     "egress_disable_first",
+    "relay_unsupported",
+    "relay_client_inbound",
+    "relay_conflict",
+    "relay_config_failed",
+    "relay_disable_first",
+    "relay_missing",
+    "relay_failed",
     "upgrade_failed",
     "upgrade_conflict",
     "upgrade_checksum_failed",

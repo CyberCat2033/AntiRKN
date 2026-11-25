@@ -38,8 +38,10 @@ def preflight(store, panel_id, payload, api=None, rows=None):
     if rows is None:
         rows = api.call('/panel/api/inbounds/list')
     rows = {row['id']: row for row in rows}
+    from relay_inbound import guard
     for entry in payload['removals']:
         check(rows.get(entry['inboundId']), entry)
+        guard(panel_id, entry['inboundId'])
     return dict(fingerprint=digest(dict(panelId=panel_id, removals=payload['removals'])),
                 deletes=len(payload['removals']))
 

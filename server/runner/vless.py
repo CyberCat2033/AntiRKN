@@ -599,12 +599,20 @@ def preflight(store, payload, api, rows=None):
     if not isinstance(rows, list): raise VlessError('vless_api_failed')
     saved = owned_rows(store)
     adopted = {}
+    from relay_inbound import guard as relay_guard
     for r in payload['resources']:
         if 'adoption' in r:
+            # A relay inbound stays internal and present until relay is off.
+            if r['deleted'] or not r.get('internal', False):
+                for row in rows:
+                    if str(row.get('id')) == str(r['adoption'].get('sourceId')):
+                        relay_guard(payload['panelId'], row['id'])
             import managed_existing
             adopted[r['id']] = managed_existing.preflight(store, payload, r, saved.get(r['id']), 'vless', inbounds=rows)
             continue
         current = locate(rows, payload['workspaceId'], r['id'])
+        if current and (r['deleted'] or not r.get('internal', False)):
+            relay_guard(payload['panelId'], current['id'])
         previous = saved.get(r['id'])
         if previous and previous['workspaceId'] != payload['workspaceId']: raise VlessError('vless_conflict')
         if current:
