@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -14,6 +15,7 @@ class AptTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(); self.store = Store(self.temp.name)
         self.addCleanup(self.temp.cleanup); self.addCleanup(self.store.close)
         self.prereq = patch('apt.prerequisites'); self.prereq.start(); self.addCleanup(self.prereq.stop)
+        self.dpkg = patch('apt.dpkg_interrupted', return_value=False); self.dpkg.start(); self.addCleanup(self.dpkg.stop)
     def request(self, kind='apt_update', number=1):
         r = dict(version=1, action='submit', id=f'{number:032x}', kind=kind, count=2, interval=1)
         if kind == 'apt_upgrade': r['fingerprint'] = 'a' * 64
@@ -84,19 +86,123 @@ class AptTests(unittest.TestCase):
         with patch('apt.is_unit_active', return_value=False), patch('apt.unit_properties', return_value=failed), \
                 patch('apt.run') as run:
             self.store.tick(); run.assert_not_called()
-        self.assertEqual(self.result(r)['status'], 'partially_applied')
+        # A failed list refresh changed no package.
+        self.assertEqual(self.result(r)['status'], 'failed')
         self.assertEqual(self.result(r)['events'][-1]['code'], 'apt_failed')
 
     def test_interrupted_command_is_not_replayed_after_worker_recovery(self):
         # apt-get started, then the server rebooted: its end is unknown.
-        r = self.request(); self.store.request(r)
+        for kind, status in (('apt_upgrade', 'partially_applied'), ('apt_update', 'failed')):
+            with self.subTest(kind=kind):
+                r = self.request(kind, number=2 if kind == 'apt_update' else 3); self.store.request(r)
+                marker = Path(self.temp.name) / ('apt-' + r['id'] + '.started')
+                marker.write_text('running')
+                self.store.recover()
+                with patch('apt.is_unit_active', return_value=False), patch('apt.unit_properties', return_value={}), \
+                        patch('apt.run') as run:
+                    self.store.tick(); run.assert_not_called()
+                self.assertEqual(self.result(r)['status'], status)
+                self.assertEqual(self.result(r)['events'][-1]['code'], 'apt_interrupted')
+                # A list refresh changed no package: a resume starts afresh.
+                self.assertEqual(marker.exists(), kind == 'apt_upgrade')
+
+    def test_failure_before_apt_get_started_is_not_partial(self):
+        # systemd-run could not start the unit: the marker never left 'started'.
+        for kind in ('apt_update', 'apt_upgrade'):
+            with self.subTest(kind=kind):
+                r = self.request(kind, number=4 if kind == 'apt_update' else 5); self.store.request(r)
+                marker = Path(self.temp.name) / ('apt-' + r['id'] + '.started')
+
+                def unit_run(args, unit=None, **kwargs):
+                    if unit is None:
+                        return OUTPUT
+                    self.assertEqual(marker.read_text(), 'started')
+                    raise AptError()
+                with patch('apt.plan', return_value=dict(fingerprint='a'*64, packages=parse_packages(OUTPUT))), \
+                        patch('apt.run', side_effect=unit_run), patch('apt.is_unit_active', return_value=False), \
+                        patch('apt.unit_properties', return_value={}):
+                    self.store.tick()
+                self.assertEqual(self.result(r)['status'], 'failed')
+                self.assertEqual(self.result(r)['events'][-1]['code'], 'apt_failed')
+                self.assertFalse(marker.exists())
+
+    def test_failed_upgrade_after_apt_get_started_is_partial(self):
+        r = self.request('apt_upgrade', number=6); self.store.request(r)
+        marker = Path(self.temp.name) / ('apt-' + r['id'] + '.started')
+
+        def unit_run(args, unit=None, **kwargs):
+            if unit is None:
+                return OUTPUT
+            marker.write_text('exit 100')
+            raise AptError()
+        with patch('apt.plan', return_value=dict(fingerprint='a'*64, packages=parse_packages(OUTPUT))), \
+                patch('apt.run', side_effect=unit_run), patch('apt.is_unit_active', return_value=False):
+            self.store.tick()
+        self.assertEqual(self.result(r)['status'], 'partially_applied')
+        self.assertTrue(marker.exists())
+
+    def test_interrupted_dpkg_is_reported_and_never_repaired(self):
+        self.dpkg.stop()
+        with patch('apt.dpkg_interrupted', return_value=True), patch('apt.run') as run:
+            reply = self.store.request(dict(version=1, action='apt_plan'))
+            self.assertEqual(reply['code'], 'apt_dpkg_interrupted')
+            self.assertNotIn('aptPlan', reply)
+            r = self.request(); self.store.request(r); self.store.tick()
+            run.assert_not_called()
+        self.assertEqual(self.result(r)['status'], 'failed')
+        self.assertEqual(self.result(r)['events'][-1]['code'], 'apt_dpkg_interrupted')
+        self.dpkg.start()
+
+    def test_interrupted_dpkg_detection_is_read_only(self):
+        import apt
+        from unittest.mock import MagicMock
+        self.dpkg.stop()
+        updates = Path(self.temp.name) / 'updates'; updates.mkdir()
+        query = lambda states: MagicMock(returncode=0, stdout=''.join('install ok %s\n' % s for s in states).encode())
+        with patch('apt.DPKG_UPDATES', updates), patch('apt.LOCKS', ()), patch('apt.run_command') as run:
+            run.return_value = query(['installed', 'config-files'])
+            self.assertFalse(apt.dpkg_interrupted())
+            self.assertEqual(run.call_args.args[0][0], '/usr/bin/dpkg-query')
+            for state in ('half-configured', 'unpacked', 'triggers-pending'):
+                run.return_value = query(['installed', state])
+                self.assertTrue(apt.dpkg_interrupted())
+            run.return_value = query(['installed'])
+            (updates / 'tmp.i').write_text('')
+            self.assertFalse(apt.dpkg_interrupted())
+            (updates / '0003').write_text('journal')
+            self.assertTrue(apt.dpkg_interrupted())
+            self.assertFalse(any('--configure' in c.args[0] for c in run.call_args_list))
+        with patch('apt.DPKG_UPDATES', updates), patch('apt.lock_busy', return_value=True):
+            self.assertFalse(apt.dpkg_interrupted())  # A dpkg run in progress is not judged.
+        self.dpkg.start()
+
+    def test_plan_errors_are_codes_not_a_crashed_rpc(self):
+        for error, code in ((AptError('apt_lock_busy'), 'apt_lock_busy'), (AptError('unknown_code'), 'apt_failed'),
+                            (OSError('missing'), 'apt_failed'), (__import__('subprocess').TimeoutExpired('apt', 60), 'apt_failed')):
+            with self.subTest(code=code), patch('apt.plan', side_effect=error):
+                reply = self.store.request(dict(version=1, action='apt_plan'))
+                self.assertEqual(reply['code'], code)
+
+    def test_preflight_codes_reach_the_job_events(self):
+        r = self.request(number=7); self.store.request(r)
+        with patch('apt.check_disk_and_memory', side_effect=AptError('apt_disk_full')):
+            self.store.tick()
+        self.assertEqual(self.result(r)['events'][-1]['code'], 'apt_disk_full')
+
+    def test_stopped_worker_with_a_started_apt_unit_is_not_reported_failed(self):
+        import runner
+        r = self.request('apt_upgrade', number=8); self.store.request(r)
         (Path(self.temp.name) / ('apt-' + r['id'] + '.started')).write_text('running')
-        self.store.recover()
-        with patch('apt.is_unit_active', return_value=False), patch('apt.unit_properties', return_value={}), \
-                patch('apt.run') as run:
-            self.store.tick(); run.assert_not_called()
+        with self.store.db:
+            self.store.db.execute('UPDATE jobs SET created=created-?', (runner.STALE_AFTER + 5,))
+            self.store.reap_stale_jobs()
         self.assertEqual(self.result(r)['status'], 'partially_applied')
         self.assertEqual(self.result(r)['events'][-1]['code'], 'apt_interrupted')
+        other = self.request(number=9); self.store.request(other)  # Never started apt.
+        with self.store.db:
+            self.store.db.execute('UPDATE jobs SET created=created-?', (runner.STALE_AFTER + 5,))
+            self.store.reap_stale_jobs()
+        self.assertEqual(self.result(other)['status'], 'failed')
 
     def test_stale_marker_cleaned_up_if_unit_inactive(self):
         r = self.request(); self.store.request(r)
@@ -202,6 +308,25 @@ class AptTests(unittest.TestCase):
         self.assertEqual(recorded(marker), INTERRUPTED)
         self.assertEqual(record_exit(marker, [sys.executable, '-c', 'raise SystemExit(3)']), 3)
         self.assertEqual(recorded(marker), 3)
+
+    def test_stopped_unit_leaves_the_end_unknown(self):
+        # A reboot or RuntimeMaxSec sends SIGTERM to the unit while dpkg runs.
+        import signal
+        import subprocess
+        from apt import recorded, INTERRUPTED
+        marker = Path(self.temp.name) / 'marker'
+        source = Path(__file__).resolve().parents[2] / 'server/runner/apt.py'
+        process = subprocess.Popen([sys.executable, '-I', '-c',
+            'import sys; sys.path.insert(0, %r); from pathlib import Path; import apt; '
+            'apt.record_exit(Path(%r), [sys.executable, "-c", "import time; time.sleep(30)"])'
+            % (str(source.parent), str(marker))], start_new_session=True)
+        for _ in range(200):
+            if recorded(marker) == INTERRUPTED:
+                break
+            __import__('time').sleep(0.05)
+        os.killpg(process.pid, signal.SIGTERM)  # systemd stops the whole unit.
+        self.assertEqual(process.wait(timeout=30), 128 + signal.SIGTERM)
+        self.assertEqual(recorded(marker), INTERRUPTED)
 
     def test_run_guarantees_noninteractive_and_force_confold(self):
         from apt import run as apt_run

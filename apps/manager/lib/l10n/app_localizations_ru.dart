@@ -4114,4 +4114,51 @@ class AppLocalizationsRu extends AppLocalizations {
   String uiClientAccessFor(Object name) {
     return 'Доступ для $name';
   }
+
+  @override
+  String get aptDiskFull =>
+      'На сервере не хватает места для APT (/, /boot или кэш пакетов). Освободите место и повторите.';
+
+  @override
+  String get aptMemoryLow =>
+      'На сервере не хватает свободной памяти для APT. Остановите тяжёлые процессы или добавьте память и повторите.';
+
+  @override
+  String get aptLockBusy =>
+      'Блокировку APT держит другой процесс менеджера пакетов (например, автоматические обновления Ubuntu). Дождитесь его завершения и повторите.';
+
+  @override
+  String get aptDpkgInterrupted =>
+      'Предыдущая установка пакетов была прервана. Выполните на сервере sudo dpkg --configure -a и повторите.';
+
+  @override
+  String get runnerUpgradeDiskFull =>
+      'Недостаточно места на диске для обновления';
+
+  @override
+  String get runnerUpgradeMemoryLow =>
+      'Недостаточно свободной памяти для обновления';
+
+  @override
+  String get runnerUpgradeNotInstalled => 'Компонент не установлен на сервере';
+
+  @override
+  String get runnerUpgradeInvalidComponent =>
+      'Этот компонент нельзя обновить таким способом';
+
+  @override
+  String get runnerUpgradeBinaryNotFound =>
+      'В пакете нет ожидаемого исполняемого файла';
+
+  @override
+  String get runnerUpgradeArchitectureMismatch =>
+      'Пакет собран для другой архитектуры сервера';
+
+  @override
+  String get runnerUpgradeRollbackFailed =>
+      'Откат не удался: предыдущая версия не восстановлена. Проверьте сервер';
+
+  @override
+  String get softwareAwgDockerUpdate =>
+      'AmneziaWG работает в Docker. Приложение не обновляет Docker-контейнеры: обновите образ контейнера самостоятельно.';
 }

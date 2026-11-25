@@ -7195,6 +7195,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Access for {name}'**
   String uiClientAccessFor(Object name);
+
+  /// No description provided for @aptDiskFull.
+  ///
+  /// In en, this message translates to:
+  /// **'Not enough free disk space on the server for APT (/, /boot or the package cache). Free up space, then try again.'**
+  String get aptDiskFull;
+
+  /// No description provided for @aptMemoryLow.
+  ///
+  /// In en, this message translates to:
+  /// **'Not enough free memory on the server for APT. Stop heavy processes or add memory, then try again.'**
+  String get aptMemoryLow;
+
+  /// No description provided for @aptLockBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'Another package manager process (for example, automatic Ubuntu updates) holds the APT lock. Wait for it to finish, then try again.'**
+  String get aptLockBusy;
+
+  /// No description provided for @aptDpkgInterrupted.
+  ///
+  /// In en, this message translates to:
+  /// **'A previous package installation was interrupted. Run sudo dpkg --configure -a on the server, then try again.'**
+  String get aptDpkgInterrupted;
+
+  /// No description provided for @runnerUpgradeDiskFull.
+  ///
+  /// In en, this message translates to:
+  /// **'Not enough free disk space for the update'**
+  String get runnerUpgradeDiskFull;
+
+  /// No description provided for @runnerUpgradeMemoryLow.
+  ///
+  /// In en, this message translates to:
+  /// **'Not enough free memory for the update'**
+  String get runnerUpgradeMemoryLow;
+
+  /// No description provided for @runnerUpgradeNotInstalled.
+  ///
+  /// In en, this message translates to:
+  /// **'The component is not installed on the server'**
+  String get runnerUpgradeNotInstalled;
+
+  /// No description provided for @runnerUpgradeInvalidComponent.
+  ///
+  /// In en, this message translates to:
+  /// **'This component cannot be updated this way'**
+  String get runnerUpgradeInvalidComponent;
+
+  /// No description provided for @runnerUpgradeBinaryNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'The package does not contain the expected program file'**
+  String get runnerUpgradeBinaryNotFound;
+
+  /// No description provided for @runnerUpgradeArchitectureMismatch.
+  ///
+  /// In en, this message translates to:
+  /// **'The package is built for a different server architecture'**
+  String get runnerUpgradeArchitectureMismatch;
+
+  /// No description provided for @runnerUpgradeRollbackFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Rollback failed: the previous version was not restored. Check the server'**
+  String get runnerUpgradeRollbackFailed;
+
+  /// No description provided for @softwareAwgDockerUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'AmneziaWG runs in Docker. The app does not update Docker containers: update the container image yourself.'**
+  String get softwareAwgDockerUpdate;
 }
 
 class _AppLocalizationsDelegate

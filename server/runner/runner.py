@@ -526,7 +526,12 @@ class Store:
         if action == 'inbound_plan':
             return {**self.response('ok'), 'inboundPlan': (inbound_removal_plan(self, req) if 'removals' in json.loads(req['payload']) else inbound_plan(self, req))}
         if action == 'apt_plan':
-            return {**self.response('ok'), 'aptPlan': apt_plan()}
+            try:
+                return {**self.response('ok'), 'aptPlan': apt_plan()}
+            except AptError as error:
+                return self.response(error.code if error.code in SCHEMA['codes'] else 'apt_failed')
+            except (OSError, ValueError, subprocess.SubprocessError):
+                return self.response('apt_failed')
         if action == 'reality_scan':
             result = panel_for(self, req['id']).call('/panel/api/server/scanRealityTarget',
                 dict(target=req['target'], sni=req['sni'], xver='0', allowPrivate='false'), form=True)
@@ -697,12 +702,16 @@ class Store:
             (cutoff,)).fetchall()
         for r in rows:
             request = json.loads(r['request'])
+            code = 'cancelled' if r['cancel'] else 'failed'
             if r['checkpoint'] > 0 and request['kind'] != 'diagnostic':
                 status = 'partially_applied'  # Earlier steps changed the server.
+            elif request['kind'] in ('apt_update', 'apt_upgrade') and (self.directory / ('apt-' + r['id'] + '.started')).exists():
+                # Its transient apt unit runs on (or ran) without the worker.
+                status, code = 'partially_applied', 'apt_interrupted'
             else:
-                status = 'cancelled' if r['cancel'] else 'failed'
+                status = code
             self.db.execute('UPDATE jobs SET status=? WHERE id=?', (status, r['id']))
-            self.event(r['id'], 'cancelled' if r['cancel'] else 'failed', r['checkpoint'], request['count'])
+            self.event(r['id'], code, r['checkpoint'], request['count'])
 
     def prune_jobs(self):
         """Free room for new jobs by forgetting old finished history.
@@ -810,6 +819,10 @@ class Store:
         req = validate_request(json.loads(row['request']))
         job_id = row['id']
         self.current = (job_id, row['checkpoint'])
+        # Checkpointed steps record their own completion; the terminal status
+        # is a separate commit. After a crash between the two the job resumes
+        # with every step done: it succeeds without running a step past the end.
+        pending = row['checkpoint'] < req['count']
         with self.db:
             if row['cancel'] and req['kind'] == 'diagnostic':
                 self.db.execute("UPDATE jobs SET status='cancelled' WHERE id=?", (job_id,))
@@ -827,7 +840,8 @@ class Store:
                     if task.path.exists(): task.rollback()
                     status, code = 'cancelled', 'cancelled'
                 else:
-                    task.step(row['checkpoint'])
+                    if pending:
+                        task.step(row['checkpoint'])
                     if row['checkpoint'] + 1 < req['count']: return .1
                     status, code = 'succeeded', 'succeeded'
             except Exception as error:
@@ -862,7 +876,7 @@ class Store:
                     status = task.abort() if hasattr(task, 'abort') and row['checkpoint'] == 0 else ('cancelled' if row['checkpoint'] == 0 and not task.marker.exists() else 'partially_applied')
                     code = 'cancelled' if status == 'cancelled' else 'apt_interrupted'
                 else:
-                    if task.step(row['checkpoint']) is False:
+                    if pending and task.step(row['checkpoint']) is False:
                         return 1  # The transient apt unit is still running.
                     if row['checkpoint'] + 1 < req['count']:
                         return 0.1
@@ -893,7 +907,8 @@ class Store:
                             sys.stderr.write('[runner] %s cancel rollback failed: %s\n' % (req['kind'], type(error).__name__))
                             status, code = 'needs_attention', 'failed'
                 else:
-                    task.step(row['checkpoint'])
+                    if pending:
+                        task.step(row['checkpoint'])
                     if row['checkpoint'] + 1 < req['count']:
                         return 0.1
                     status, code = 'succeeded', 'succeeded'
@@ -920,7 +935,8 @@ class Store:
                     status = 'partially_applied' if row['checkpoint'] > 0 else 'cancelled'
                     code = 'cancelled'
                 else:
-                    ProtocolRemoval(self, req).step(row['checkpoint'])
+                    if pending:
+                        ProtocolRemoval(self, req).step(row['checkpoint'])
                     if row['checkpoint'] + 1 < req['count']:
                         return 0.1
                     status, code = 'succeeded', 'succeeded'
@@ -951,7 +967,8 @@ class Store:
                 status, code = undo('cancelled', 'cancelled')
             else:
                 try:
-                    task.step(row['checkpoint'])
+                    if pending:
+                        task.step(row['checkpoint'])
                     if row['checkpoint'] + 1 < req['count']:
                         return 0.1
                     status, code = 'succeeded', 'succeeded'
@@ -985,7 +1002,7 @@ class Store:
                     status = installer.abort()
                     code = 'component_partial' if status == 'partially_applied' else 'cancelled'
                 else:
-                    if installer.step(row['checkpoint']) is False:
+                    if pending and installer.step(row['checkpoint']) is False:
                         return 0.5
                     if row['checkpoint'] + 1 < req['count']:
                         return 0.1
@@ -1006,7 +1023,8 @@ class Store:
                     status = installer.abort()
                     code = 'panel_cancelled_partial' if status == 'partially_applied' else 'cancelled'
                 else:
-                    installer.step(row['checkpoint'])
+                    if pending:
+                        installer.step(row['checkpoint'])
                     if row['checkpoint'] + 1 < req['count']:
                         return 0.1
                     status, code = 'succeeded', 'succeeded'

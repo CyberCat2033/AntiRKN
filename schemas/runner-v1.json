@@ -784,6 +784,10 @@
     "apt_conflict",
     "apt_interrupted",
     "apt_prerequisites",
+    "apt_disk_full",
+    "apt_memory_low",
+    "apt_lock_busy",
+    "apt_dpkg_interrupted",
     "panel_update_preparing",
     "panel_update_backup",
     "panel_update_switching",
@@ -990,6 +994,7 @@
     "apt_conflict",
     "apt_prerequisites",
     "apt_interrupted",
+    "apt_dpkg_interrupted",
     "upgrade_connectivity_failed"
   ],
   "maxRequestBytes": 524288,

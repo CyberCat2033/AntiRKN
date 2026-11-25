@@ -834,6 +834,11 @@ def detect_component(component):
 
 def extract_archive_safe(archive_path, extract_dir, binary_name=None, max_size=500 * 1024 * 1024):
     """Safe extraction preventing path traversal, symlink hijacking, and zip-bombs."""
+    # binaryName comes from the request payload and names the raw-binary file:
+    # a plain file name only, checked before anything is written.
+    if binary_name is not None and (not isinstance(binary_name, str) or binary_name in ('.', '..')
+                                    or not re.fullmatch(r'[A-Za-z0-9._+-]{1,64}', binary_name)):
+        raise ComponentUpgradeError(UpgradeEventCode.SYNTAX_FAILED, detail='archive_unsafe_path')
     dest = Path(extract_dir)
     dest.mkdir(parents=True, exist_ok=True)
     seen, total_size = set(), 0
@@ -1497,7 +1502,9 @@ class ComponentUpgrader:
         repeated (force=True repeats it, for the late data restore), and when
         no file of the new version is in place only the units are started.
         Raises ComponentUpgradeError('upgrade_rollback_failed') when nothing
-        can be restored or the restored binary does not match the backup.
+        can be restored, a unit does not stop (nothing is replaced under a
+        running service; the backup stays), the restored binary does not
+        match the backup or a restarted unit does not become active.
         """
         meta = self._load_backup_meta()
         items = self._restore_plan(meta)
@@ -1519,8 +1526,8 @@ class ComponentUpgrader:
         restore_data = bool(restore_data or state.get('restoreData'))
         atomic_file(marker, json.dumps(dict(done=False, restoreData=restore_data)).encode())
 
-        for unit in units:
-            _systemctl('stop', unit)
+        if not all([_systemctl('stop', unit) for unit in units]):
+            raise ComponentUpgradeError('upgrade_rollback_failed', detail='unit did not stop')
 
         for saved, live, owner in items:
             install_bytes(live, saved.read_bytes(), owner.get('mode', 0o755), owner.get('uid'), owner.get('gid'))
@@ -1549,11 +1556,12 @@ class ComponentUpgrader:
                 owner = meta.get('configOwner') or _owner_or_default(cfg_path)
                 install_bytes(cfg_path, cfg_backup.read_bytes(), owner['mode'], owner.get('uid'), owner.get('gid'))
 
-        for unit in units:
-            _systemctl('restart', unit)
+        restarted = all([_systemctl('restart', unit) for unit in units])
 
         if meta.get('sha256') and digest(items[0][1]) != meta['sha256']:
             raise ComponentUpgradeError('upgrade_rollback_failed', detail='restored binary differs')
+        if not restarted or not _units_active(units):
+            raise ComponentUpgradeError('upgrade_rollback_failed', detail='unit not active')
         atomic_file(marker, json.dumps(dict(done=True, restoreData=restore_data)).encode())
         return True
 
@@ -1565,8 +1573,23 @@ def _owner_or_default(path):
         return dict(mode=0o600, uid=None, gid=None)
 
 
+def _units_active(units, timeout=15):
+    """All units report active within ``timeout`` seconds (bounded polling)."""
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            if all(sysutil_run(['/usr/bin/systemctl', 'is-active', '--quiet', unit], timeout=5).returncode == 0
+                   for unit in units):
+                return True
+        except (OSError, subprocess.SubprocessError):
+            pass
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(1)
+
+
 def _systemctl(action, unit, timeout=30):
-    """Best effort: a unit that does not stop/start in time must not block restoring files."""
+    """Whether the action succeeded in time; callers decide what a failure means."""
     try:
         return sysutil_run(['/usr/bin/systemctl', action, unit], timeout=timeout).returncode == 0
     except (OSError, subprocess.SubprocessError):
@@ -2031,6 +2054,23 @@ def _read_window(path):
     return json.loads(path.read_text())
 
 
+def _settle_window_job(store, job_id, info, only_succeeded=False):
+    """The job status after the window's rollback, recorded in deadman.json
+    first. One transaction with its event; with only_succeeded (recovery
+    after a crash between the two writes) a job already moved on is kept."""
+    failed = bool(info.get('rollbackFailed'))
+    with store.db:
+        row = store.db.execute('SELECT status FROM jobs WHERE id=?', (job_id,)).fetchone()
+        if row is None or only_succeeded and row[0] != 'succeeded':
+            return False
+        store.db.execute('UPDATE jobs SET status=? WHERE id=?', ('needs_attention' if failed else 'failed', job_id))
+        store.event(job_id, 'upgrade_rollback_failed' if failed else 'upgrade_rolled_back', 6, 6)
+    if not failed:
+        _drop_inplace_backup(store.directory, job_id)
+        retire_work_dir(store.directory, job_id)
+    return True
+
+
 def fire_deadman(store, job_id, wait=True):
     """Roll back an unconfirmed upgrade (timer expiry or recovery after a reboot)."""
     path = _deadman_path(store.directory, job_id)
@@ -2070,23 +2110,20 @@ def fire_deadman(store, job_id, wait=True):
             sys.stderr.write(f'[runner] late rollback failed: {type(error).__name__}\n')
             info['rollbackFailed'] = True
             atomic_file(path, json.dumps(info).encode())
-            with store.db:
-                store.db.execute("UPDATE jobs SET status='needs_attention' WHERE id=?", (job_id,))
-                store.event(job_id, 'upgrade_rollback_failed', 6, 6)
+            _settle_window_job(store, job_id, info)
             raise
         if upgrader.component in ('panel', 'xray'):
             try:
                 sync_installed_versions()
             except Exception as error:
                 sys.stderr.write(f'[runner] version sync after rollback failed: {type(error).__name__}\n')
+        # The window first: a crash before the job update below leaves
+        # rolledBack with a succeeded job, which recover_deadmen settles
+        # without rolling back a second time.
         info['rolledBack'] = True
         info.pop('rollingBack', None)
         atomic_file(path, json.dumps(info).encode())
-        with store.db:
-            store.db.execute("UPDATE jobs SET status='failed' WHERE id=?", (job_id,))
-            store.event(job_id, 'upgrade_rolled_back', 6, 6)
-        _drop_inplace_backup(store.directory, job_id)
-        retire_work_dir(store.directory, job_id)
+        _settle_window_job(store, job_id, info)
     return True
 
 
@@ -2157,7 +2194,13 @@ def recover_deadmen(store):
     for path in Path(store.directory).glob('upgrade-*/deadman.json'):
         try:
             info = json.loads(path.read_text())
-            if info.get('confirmed') or info.get('rolledBack') or info.get('rollbackFailed'):
+            if info.get('rolledBack') or info.get('rollbackFailed'):
+                # The window's rollback ended but the job update was lost.
+                job_id = path.parent.name[len('upgrade-'):]
+                if info.get('id') == job_id:
+                    _settle_window_job(store, job_id, info, only_succeeded=True)
+                continue
+            if info.get('confirmed'):
                 continue
             remaining = info.get('deadline', 0) - time.time()
             if info.get('rollingBack'):

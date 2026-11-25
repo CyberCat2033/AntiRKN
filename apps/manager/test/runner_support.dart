@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:antirkn_domain/antirkn_domain.dart';
+import 'package:antirkn_manager/runner/runner_controller.dart';
 
 RunnerJob runnerJob(
   String id, {
@@ -257,4 +258,55 @@ class FakeRunnerTransport implements RunnerTransport {
       job = runnerJob(job!.id, status: 'cancelled');
     }
   }
+}
+
+/// A controller for [remote] with the fixture identity.
+RunnerController fixtureRunner(
+  FakeRunnerTransport remote,
+  MemoryRunnerJournal store, {
+  void Function()? refreshSoftware,
+}) => RunnerController(
+  serverId: 'fixture',
+  transport: () => remote,
+  identity: () => 'fixture',
+  password: () => null,
+  accessFailure: (_) {},
+  store: store,
+  refreshSoftware: refreshSoftware,
+);
+
+/// Answers chosen RPCs with a fixed code or an SSH failure.
+class ScriptedTransport extends FakeRunnerTransport {
+  ScriptedTransport(super.store);
+  String? submitCode;
+  final confirmCodes = <String>[];
+  bool confirmDisconnects = false;
+  int confirms = 0;
+
+  @override
+  Future<RunnerResponse> request(
+    RunnerRequest request,
+    CancellationToken cancellation, {
+    String? sudoPassword,
+  }) async {
+    final action = request.json['action'];
+    if (action == 'submit' && submitCode != null) {
+      requests.add(request);
+      return _code(submitCode!);
+    }
+    if (action == 'component_upgrade_confirm') {
+      requests.add(request);
+      confirms++;
+      if (confirmDisconnects) throw const SshFailure(SshIssue.disconnected);
+      return _code(confirmCodes.isEmpty ? 'ok' : confirmCodes.removeAt(0));
+    }
+    return super.request(request, cancellation, sudoPassword: sudoPassword);
+  }
+
+  RunnerResponse _code(String code) => RunnerResponse.fromJson({
+    'version': 1,
+    'code': code,
+    'alive': true,
+    'jobs': <Object?>[],
+  });
 }

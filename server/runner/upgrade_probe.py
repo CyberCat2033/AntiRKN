@@ -13,6 +13,7 @@ No dependencies besides the standard library and the installed binaries.
 import base64
 import json
 import os
+import platform
 import socket
 import ssl
 import struct
@@ -26,8 +27,23 @@ _sys.path.insert(0, str(_Path(__file__).resolve().parent))
 from sysutil import run as sysutil_run
 
 XRAY_CONFIG = Path('/usr/local/x-ui/bin/config.json')
-XRAY_BINARY = Path('/usr/local/x-ui/bin/xray-linux-amd64')
+# 3x-ui ships the core of its architecture under one of these names.
+XRAY_BINARIES = (Path('/usr/local/x-ui/bin/xray-linux-amd64'), Path('/usr/local/x-ui/bin/xray-linux-arm64'))
+# awg from the runner's own install, else the distribution package.
+AWG_BINARIES = (Path('/usr/local/bin/awg'), Path('/usr/bin/awg'))
 PROBE_HOST, PROBE_PATH = 'www.gstatic.com', '/generate_204'
+
+
+def _installed(candidates):
+    """The first candidate that is a file, else the first (the probe then
+    fails like a missing binary)."""
+    return next((path for path in candidates if path.is_file()), candidates[0])
+
+
+def xray_binary():
+    """The panel's Xray core, this machine's architecture first."""
+    arm = platform.machine() in ('aarch64', 'arm64')
+    return _installed(XRAY_BINARIES[::-1] if arm else XRAY_BINARIES)
 
 
 def _free_port():
@@ -108,10 +124,12 @@ def _remaining(deadline, cap):
     return min(cap, deadline - time.monotonic())
 
 
-def probe_vless(binary=XRAY_BINARY, config_path=XRAY_CONFIG, timeout=10, deadline=None):
-    """{target: ok} for every enabled REALITY inbound, using `binary` as the client.
+def probe_vless(binary=None, config_path=XRAY_CONFIG, timeout=10, deadline=None):
+    """{target: ok} for every enabled REALITY inbound, using `binary` (default:
+    the panel's core) as the client.
 
     Nothing runs past `deadline`; targets left without time count as failed."""
+    binary = binary or xray_binary()
     results = {}
     for key, target in vless_targets(config_path).items():
         if _remaining(deadline, 1) <= 0:
@@ -189,8 +207,9 @@ def probe_awg(deadline=None):
     budget = _remaining(deadline, 10)
     if budget <= 0:
         return results
+    awg = str(_installed(AWG_BINARIES))
     try:
-        names = sysutil_run(['/usr/local/bin/awg', 'show', 'interfaces'], text=True, timeout=budget).stdout.split()
+        names = sysutil_run([awg, 'show', 'interfaces'], text=True, timeout=budget).stdout.split()
     except (OSError, subprocess.SubprocessError):
         return results
     for name in names:
@@ -199,7 +218,7 @@ def probe_awg(deadline=None):
             results[f'awg:{name}'] = False
             continue
         try:
-            port = sysutil_run(['/usr/local/bin/awg', 'show', name, 'listen-port'], text=True, timeout=budget).stdout.strip()
+            port = sysutil_run([awg, 'show', name, 'listen-port'], text=True, timeout=budget).stdout.strip()
             results[f'awg:{name}'] = port.isdigit() and int(port) > 0
         except (OSError, subprocess.SubprocessError):
             results[f'awg:{name}'] = False
@@ -213,5 +232,5 @@ def compare(before, after):
 
 if __name__ == '__main__':
     import sys
-    binary = Path(sys.argv[1]) if len(sys.argv) > 1 else XRAY_BINARY
+    binary = Path(sys.argv[1]) if len(sys.argv) > 1 else xray_binary()
     print(json.dumps(probe_vless(binary)))
