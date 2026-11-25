@@ -928,6 +928,7 @@ class ResourceTile extends StatelessWidget {
     required this.subtitle,
     required this.storageId,
     this.details = const [],
+    this.tags = const [],
     this.actions,
     this.footer,
     this.badge,
@@ -943,6 +944,9 @@ class ResourceTile extends StatelessWidget {
   });
   final String title, subtitle, storageId;
   final List<Widget> details;
+
+  /// Short states under the subtitle, e.g. [AppBadge]s of a resource class.
+  final List<Widget> tags;
   final Widget? actions, footer;
   final String? badge, note, detailsLabel;
   final VoidCallback? onBadgeTap;
@@ -991,6 +995,10 @@ class ResourceTile extends StatelessWidget {
                   if (subtitle.isNotEmpty) ...[
                     const SizedBox(height: 5),
                     Text(subtitle),
+                  ],
+                  if (tags.isNotEmpty) ...[
+                    const SizedBox(height: AppLayout.smallGap),
+                    Wrap(spacing: 8, runSpacing: 4, children: tags),
                   ],
                 ],
               ),

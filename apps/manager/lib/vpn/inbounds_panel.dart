@@ -18,6 +18,7 @@ import '../runner/runner_controller.dart';
 import '../runner/panel_login_view.dart';
 import 'vpn_plan_view.dart';
 import 'reality_scan_result.dart';
+import 'relay_inbound_view.dart';
 
 class InboundsPanel extends StatefulWidget {
   const InboundsPanel({
@@ -123,19 +124,73 @@ class InboundsPanelState extends State<InboundsPanel> {
         _queried != key) {
       _queried = key;
       unawaited(r.discoverPanel());
+      return;
     }
+    // Relay state once per page and panel: the journal copy may predate a
+    // panel edit that left a relay rule stale.
+    final relayKey = '${r.identity()}|${r.panelAccess?.id}';
+    if (r.installed &&
+        r.connected &&
+        r.canRequestAction &&
+        r.panelAccess != null &&
+        !r.panelLoginRequired &&
+        _relayQueried != relayKey) {
+      _relayQueried = relayKey;
+      unawaited(r.refreshRelay());
+    }
+  }
+
+  String? _relayQueried;
+
+  /// True when [row] of [panel] is the server copy of [r].
+  bool _matches(VlessInbound r, Map panel, Map row) =>
+      (r.spec['adoption'] as Map?)?['sourceId'] == '${row['id']}' &&
+          (r.spec['adoption'] as Map?)?['panelPort'] == panel['port'] ||
+      row['name'] ==
+          'AntiRKN:${controller.workspace.resourceWorkspaceId(r.serverId)}:${r.id}';
+
+  /// The direct exit candidate of a VLESS row of the connected panel; null
+  /// for other protocols, other panels or before the panel login.
+  RelayTarget? relayTarget(Map panel, Map row, [VlessInbound? resource]) {
+    final r = runner, id = row['id'];
+    if (r == null ||
+        r.panelAccess == null ||
+        panel['port'] != r.panelAccess!.port ||
+        row['protocol'] != 'vless' ||
+        id is! int) {
+      return null;
+    }
+    final name = '${row['name'] ?? ''}'.trim();
+    final title =
+        resource?.name ?? (name.isEmpty ? 'VLESS · ${row['port']}' : name);
+    return RelayTarget(
+      inboundId: id,
+      title: title,
+      linkName: '${widget.serverName(serverId)} · $title',
+      row: row,
+      resource: resource,
+      clientFacing: resource != null && !resource.internal,
+    );
+  }
+
+  /// The relay candidate of a managed or adopted inbound, once the server
+  /// reports its row.
+  RelayTarget? managedRelayTarget(VlessInbound r) {
+    for (final panel in runner?.panels ?? <Map<String, dynamic>>[]) {
+      for (final row in panel['inbounds'] as List? ?? const []) {
+        if (row is Map && _matches(r, panel, row)) {
+          return relayTarget(panel, row, r);
+        }
+      }
+    }
+    return null;
   }
 
   /// True when a panel row belongs to one of this device's resources,
   /// including a resource whose deletion is still waiting for the server.
   /// Such a row must never be presented as a foreign inbound.
   bool ownsRow(Map panel, Map row) => controller.workspace.inbounds.any(
-    (r) =>
-        r.serverId == serverId &&
-        ((r.spec['adoption'] as Map?)?['sourceId'] == '${row['id']}' &&
-                (r.spec['adoption'] as Map?)?['panelPort'] == panel['port'] ||
-            row['name'] ==
-                'AntiRKN:${controller.workspace.resourceWorkspaceId(r.serverId)}:${r.id}'),
+    (r) => r.serverId == serverId && _matches(r, panel, row),
   );
 
   /// Locally deleted resources that the server still reports.
@@ -351,7 +406,11 @@ class InboundsPanelState extends State<InboundsPanel> {
     } catch (_) {
       if (mounted) {
         setState(
-          () => deletionIssue = started
+          () => deletionIssue =
+              runner?.responseCode == 'relay_disable_first' ||
+                  controller.error == 'relay_disable_first'
+              ? l.relayDisableFirst
+              : started
               ? l.inboundDeleteIncomplete
               : l.inboundDeleteReadFailed,
         );
@@ -560,6 +619,15 @@ class InboundsPanelState extends State<InboundsPanel> {
                           selected: selected,
                           selecting: selecting,
                           onTap: onTap,
+                          tags: [
+                            if (relayTarget(entry.panel, entry.row)
+                                case final target?)
+                              if (runner!.relayEntry(target.inboundId)
+                                  case final relay?)
+                                RelayInboundBadge(
+                                  stale: relay['stale'] == true,
+                                ),
+                          ],
                           storageId:
                               'observed-$serverId-${entry.panel['port']}-${entry.row['id']}',
                           footer:
@@ -636,6 +704,13 @@ class InboundsPanelState extends State<InboundsPanel> {
                           actions: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              if (relayTarget(entry.panel, entry.row)
+                                  case final target?)
+                                RelayInboundButton(
+                                  controller: runner!,
+                                  target: target,
+                                  sshHost: serverHost,
+                                ),
                               if (entry.row['protocol'] == 'vless')
                                 IconButton(
                                   key: ValueKey(
@@ -729,6 +804,10 @@ class InboundsPanelState extends State<InboundsPanel> {
                           selecting: selecting,
                           onTap: onTap,
                           key: ValueKey('inbound-summary-${r.id}'),
+                          tags: [
+                            if (relayOf(r) case final relay?)
+                              RelayInboundBadge(stale: relay['stale'] == true),
+                          ],
                           footer: selection.active
                               ? null
                               : ConnectionCheckView(
@@ -805,16 +884,26 @@ class InboundsPanelState extends State<InboundsPanel> {
                           actions: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              if (managedRelayTarget(r) case final target?)
+                                RelayInboundButton(
+                                  controller: runner!,
+                                  target: target,
+                                  sshHost: serverHost,
+                                ),
                               IconButton(
                                 key: ValueKey('vpn-internal-${r.id}'),
-                                tooltip: r.internal
+                                // A relay inbound stays internal until its
+                                // direct exit is off (the runner refuses too).
+                                tooltip: relayOf(r) != null
+                                    ? l.relayInternalLocked
+                                    : r.internal
                                     ? l.vpnInternal
                                     : l.vpnClientAccess,
                                 // A toggle: "internal" is its on state (UI-73).
                                 isSelected: r.internal,
                                 icon: const Icon(Icons.people_outline),
                                 selectedIcon: const Icon(Icons.lock_outline),
-                                onPressed: !c.canMutate
+                                onPressed: !c.canMutate || relayOf(r) != null
                                     ? null
                                     : () async {
                                         await c.saveInbound(
@@ -858,6 +947,14 @@ class InboundsPanelState extends State<InboundsPanel> {
       );
     },
   );
+
+  /// The relay state of [r] on the connected panel, or null.
+  Map<String, dynamic>? relayOf(VlessInbound r) =>
+      switch (managedRelayTarget(r)) {
+        final target? => runner!.relayEntry(target.inboundId),
+        null => null,
+      };
+
   Future<void> _edit(BuildContext context, [VlessInbound? inbound]) async {
     if (runner != null &&
         (!await showPanelLogin(context, runner!) || !context.mounted)) {
@@ -881,6 +978,7 @@ class InboundsPanelState extends State<InboundsPanel> {
         network: network,
         motion: motion,
         inbound: inbound,
+        internalLocked: inbound != null && relayOf(inbound) != null,
         defaultEndpoint: serverHost,
         scanReality: runner?.scanReality,
       ),
@@ -907,12 +1005,16 @@ class InboundForm extends StatefulWidget {
     this.inbound,
     this.defaultEndpoint = '',
     this.scanReality,
+    this.internalLocked = false,
     super.key,
   });
   final String serverId;
   final NetworkController network;
   final MotionPreference motion;
   final VlessInbound? inbound;
+
+  /// The direct exit is on: the inbound stays internal until it is off.
+  final bool internalLocked;
   final String defaultEndpoint;
   final Future<Map<String, dynamic>?> Function(String target, String sni)?
   scanReality;
@@ -1182,10 +1284,16 @@ class _InboundFormState extends State<InboundForm> {
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text(l.vpnInternal),
-                subtitle: Text(l.vpnInternalHelp),
+                subtitle: Text(
+                  widget.internalLocked
+                      ? l.relayInternalLocked
+                      : l.vpnInternalHelp,
+                ),
                 secondary: const Icon(Icons.lock_outline),
                 value: spec['internal'] == true,
-                onChanged: (v) => setState(() => spec['internal'] = v),
+                onChanged: widget.internalLocked
+                    ? null
+                    : (v) => setState(() => spec['internal'] = v),
               ),
               Text(l.connectionAfterSave),
               if (invalid)

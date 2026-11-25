@@ -261,6 +261,24 @@ class RunnerController extends ChangeNotifier {
   String? activeComponent;
 
   Map<String, dynamic>? egress;
+
+  /// Public relay state of this server: `{inbounds: [{panelId, inboundId,
+  /// tag, stale}], observedHash}`. The service link is read on request and
+  /// never kept here or in the journal.
+  Map<String, dynamic>? relay;
+
+  /// The code of the last failed `relay_state`; [relay] keeps the last known
+  /// state then.
+  String? relayStateIssue;
+
+  /// Relay inbounds of the connected panel.
+  List<Map<String, dynamic>> get relayInbounds => [
+    for (final entry in relay?['inbounds'] as List? ?? const [])
+      if (entry is Map && entry['panelId'] == panelAccess?.id)
+        Map<String, dynamic>.from(entry),
+  ];
+  Map<String, dynamic>? relayEntry(int inboundId) =>
+      relayInbounds.where((e) => e['inboundId'] == inboundId).firstOrNull;
   Map<String, dynamic>? panelDiscovery;
   PanelAccess? panelAccess;
   ComponentPresence presence(VpnComponent component) =>
@@ -409,6 +427,8 @@ class RunnerController extends ChangeNotifier {
     panelAccess = null;
     panelDiscovery = null;
     egress = null;
+    relay = null;
+    relayStateIssue = null;
     panelVerifiedAt = null;
     activeComponent = null;
     _identity = current;
@@ -425,6 +445,9 @@ class RunnerController extends ChangeNotifier {
         }
         if (json['egress'] case final Map savedEgress) {
           egress = Map<String, dynamic>.from(savedEgress);
+        }
+        if (json['relay'] case final Map savedRelay) {
+          relay = _publicRelay(savedRelay);
         }
         if (json['panelDiscovery'] case final Map discovery) {
           panelDiscovery = Map<String, dynamic>.from(discovery);
@@ -490,6 +513,7 @@ class RunnerController extends ChangeNotifier {
       if (operation != null) 'operation': operation!.toJson(),
       if (activeComponent != null) 'activeComponent': activeComponent,
       'egress': egress,
+      'relay': relay,
       'panelDiscovery': panelDiscovery,
       'panelAccess': panelAccess?.toJson(),
       'panelVerifiedAt': panelVerifiedAt?.toUtc().toIso8601String(),
@@ -866,8 +890,9 @@ class RunnerController extends ChangeNotifier {
     CancellationToken token,
     Map<String, Object?> payload,
     String kind,
-    String action,
-  ) async {
+    String action, {
+    Map<String, dynamic>? Function(RunnerResponse) result = _egressResult,
+  }) async {
     final plan = await remote.request(
       RunnerRequest.fromJson({
         'version': 1,
@@ -879,9 +904,8 @@ class RunnerController extends ChangeNotifier {
     );
     token.check();
     responseCode = plan.code;
-    if (plan.code != 'ok' || plan.egress?['fingerprint'] is! String) {
-      return false;
-    }
+    final fingerprint = result(plan)?['fingerprint'];
+    if (plan.code != 'ok' || fingerprint is! String) return false;
     pending = RunnerRequest.fromJson({
       'version': 1,
       'action': 'submit',
@@ -890,7 +914,7 @@ class RunnerController extends ChangeNotifier {
       'count': 3,
       'interval': 1,
       'payload': jsonEncode(payload),
-      'fingerprint': plan.egress!['fingerprint'],
+      'fingerprint': fingerprint,
     });
     selected = null;
     cursor = 0;
@@ -898,6 +922,126 @@ class RunnerController extends ChangeNotifier {
     token.check();
     await _submit(remote, token);
     return responseCode == 'ok';
+  }
+
+  static Map<String, dynamic>? _egressResult(RunnerResponse r) => r.egress;
+
+  /// Only the public fields: nothing secret reaches the journal even if a
+  /// runner answered with more.
+  static Map<String, dynamic> _publicRelay(Map value) => {
+    'inbounds': [
+      for (final e in value['inbounds'] as List? ?? const [])
+        if (e is Map &&
+            e['panelId'] is String &&
+            e['inboundId'] is int &&
+            e['tag'] is String)
+          {
+            'panelId': e['panelId'],
+            'inboundId': e['inboundId'],
+            'tag': e['tag'],
+            'stale': e['stale'] == true,
+          },
+    ],
+    'observedHash': value['observedHash'] as String,
+  };
+
+  Future<void> _readRelay(
+    RunnerTransport remote,
+    CancellationToken token,
+  ) async {
+    final result = await remote.request(
+      RunnerRequest.fromJson({'version': 1, 'action': 'relay_state'}),
+      token,
+      sudoPassword: password(),
+    );
+    token.check();
+    if (result.code != 'ok') {
+      // An unreachable panel says nothing about relay: keep the last state.
+      relayStateIssue = result.code;
+    } else if (result.relay?['observedHash'] is String) {
+      relay = _publicRelay(result.relay!);
+      relayStateIssue = null;
+    }
+  }
+
+  Future<void> refreshRelay() => requestAction(() async {
+    await _run((remote, token) async {
+      await _readRelay(remote, token);
+      await _save();
+    });
+  });
+
+  /// Turns the direct exit of [inboundId] on the connected panel on or off.
+  /// [observedHash] defaults to the state the caller showed; a change since
+  /// then is a conflict, as for egress.
+  Future<bool> applyRelay({
+    required int inboundId,
+    required bool enabled,
+    String? observedHash,
+  }) async {
+    final expected = observedHash ?? relay?['observedHash'] as String?;
+    var success = false;
+    await requestAction(() async {
+      if (panelAccess == null || panelLoginRequired) return;
+      await _run((remote, token) async {
+        if (relay == null) await _readRelay(remote, token);
+        if (relay == null) {
+          responseCode = relayStateIssue ?? 'relay_failed';
+          return;
+        }
+        final payload = <String, Object?>{
+          'panelId': panelAccess!.id,
+          'inboundId': inboundId,
+          'enabled': enabled,
+          'observedHash': expected ?? relay!['observedHash'],
+        };
+        success = await _submitEgress(
+          remote,
+          token,
+          payload,
+          'relay_apply',
+          'relay_plan',
+          result: (r) => r.relay,
+        );
+      });
+    });
+    return success;
+  }
+
+  /// The service link of a relay inbound, named "[label]" in its fragment.
+  /// It is returned only to the caller: never stored or logged.
+  Future<String?> relayLink({
+    required int inboundId,
+    required String endpoint,
+    required int externalPort,
+    required String label,
+  }) async {
+    String? uri;
+    await requestAction(() async {
+      if (panelAccess == null || panelLoginRequired) return;
+      await _run((remote, token) async {
+        final result = await remote.request(
+          RunnerRequest.fromJson({
+            'version': 1,
+            'action': 'relay_link',
+            'payload': jsonEncode({
+              'panelId': panelAccess!.id,
+              'inboundId': inboundId,
+              'endpoint': endpoint,
+              'externalPort': externalPort,
+            }),
+          }),
+          token,
+          sudoPassword: password(),
+        );
+        token.check();
+        responseCode = result.code;
+        if (result.code == 'ok' && result.relay?['uri'] is String) {
+          uri = namedShareLink(result.relay!['uri'] as String, label);
+        }
+      });
+    });
+    return uri;
   }
 
   Future<String?> createEgressAccess({
@@ -1998,6 +2142,7 @@ class RunnerController extends ChangeNotifier {
     panelLoginRequired = false;
     panelVerifiedAt = DateTime.now();
     await _readEgress(remote, token);
+    await _readRelay(remote, token);
     await _save();
   }
 
@@ -2173,6 +2318,10 @@ class RunnerController extends ChangeNotifier {
     }
     if (job.kind == 'egress_apply' && job.terminal) {
       await _readEgress(remote, token);
+      await _save();
+    }
+    if (job.kind == 'relay_apply' && job.terminal) {
+      await _readRelay(remote, token);
       await _save();
     }
     if (job.kind == 'protocol_remove' && job.status == 'succeeded') {

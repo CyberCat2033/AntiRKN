@@ -4155,4 +4155,113 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get softwareAwgDockerUpdate =>
       'AmneziaWG runs in Docker. The app does not update Docker containers: update the container image yourself.';
+
+  @override
+  String get relayTitle => 'Direct exit for servers';
+
+  @override
+  String get relayHelp =>
+      'Traffic of this inbound leaves the server directly, bypassing the internet egress. For your own servers, not for clients.';
+
+  @override
+  String get relayEgressOff =>
+      'Internet egress is not set up now, so traffic already goes direct. The setting takes effect once egress is enabled.';
+
+  @override
+  String get relayClientFacing =>
+      'This inbound is assigned to clients. Switch it to “Internal use” first.';
+
+  @override
+  String get relayInboundDisabled =>
+      'Enable the inbound to set up the direct exit.';
+
+  @override
+  String get relayBadge => 'Direct exit';
+
+  @override
+  String get relayStaleBadge => 'Direct exit not in effect';
+
+  @override
+  String get relayStale =>
+      'The inbound settings changed in 3x-ui, so the direct exit is not in effect now. Apply it again.';
+
+  @override
+  String get relayApplyAgain => 'Apply again';
+
+  @override
+  String get relayLink => 'Link';
+
+  @override
+  String get relayLinkTitle => 'Link for servers';
+
+  @override
+  String get relayLinkHelp =>
+      'Service access for your own servers. Do not give this link to clients. To change the link, turn the direct exit off and on again.';
+
+  @override
+  String get relayLinkHidden => 'Link hidden';
+
+  @override
+  String get relayShow => 'Show';
+
+  @override
+  String get relayHide => 'Hide';
+
+  @override
+  String get relayCopy => 'Copy link';
+
+  @override
+  String get relayCopyFailed => 'Could not copy the link.';
+
+  @override
+  String relayDirectCount(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Direct: $count inbounds',
+      one: 'Direct: $count inbound',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get relayInternalLocked =>
+      'Turn off the direct exit for servers first';
+
+  @override
+  String get relayStateFailed =>
+      'Could not read the direct exit state. The last known state is shown.';
+
+  @override
+  String get relayPreparing => 'Checking the direct exit settings';
+
+  @override
+  String get relayApplying => 'Configuring the direct exit';
+
+  @override
+  String get relayUnsupported =>
+      'This inbound cannot be a direct exit: an enabled 3x-ui VLESS inbound is required.';
+
+  @override
+  String get relayClientInbound =>
+      'This inbound is assigned to clients. Switch it to “Internal use”, apply, and try again.';
+
+  @override
+  String get relayConflict => 'Settings have changed. Refresh and try again.';
+
+  @override
+  String get relayConfigFailed =>
+      'Xray rejected the routing settings. Nothing was changed.';
+
+  @override
+  String get relayDisableFirst =>
+      'The direct exit for servers is on for this inbound. Turn it off first.';
+
+  @override
+  String get relayMissing =>
+      'The inbound or its service access was not found on the server. Refresh the list.';
+
+  @override
+  String get relayFailed =>
+      'Could not configure the direct exit. See the operation history for details.';
 }

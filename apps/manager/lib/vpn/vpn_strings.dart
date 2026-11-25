@@ -9,6 +9,8 @@ String vpnMessage(AppLocalizations l, String code) => switch (code) {
   'vpn_user_deleted' => l.vpnUserDeleted,
   'vpn_revocation_failed' => l.vpnRevocationFailed,
   'sync_conflict' => l.syncEffectsBlocked,
+  // A relay inbound stays internal and present until relay is off.
+  'relay_disable_first' => l.relayDisableFirst,
   'succeeded' => l.runnerSucceeded,
   'planned' => l.runnerPlanned,
   'running' => l.runnerRunning,

@@ -1279,7 +1279,9 @@ class VpnController extends ChangeNotifier {
           (response.code.startsWith('vless_') ||
                   response.code.startsWith('vpn_adoption_') ||
                   response.code.startsWith('awg_') ||
-                  response.code.startsWith('tt_'))
+                  response.code.startsWith('tt_') ||
+                  // The runner refuses to expose or remove a relay inbound.
+                  response.code == 'relay_disable_first')
               ? response.code
               : 'vpn_${response.code}',
         );

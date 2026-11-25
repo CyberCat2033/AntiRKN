@@ -4161,4 +4161,115 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get softwareAwgDockerUpdate =>
       'AmneziaWG работает в Docker. Приложение не обновляет Docker-контейнеры: обновите образ контейнера самостоятельно.';
+
+  @override
+  String get relayTitle => 'Прямой выход для серверов';
+
+  @override
+  String get relayHelp =>
+      'Трафик этого inbound выходит напрямую с сервера, минуя выход в интернет. Для ваших серверов, не для клиентов.';
+
+  @override
+  String get relayEgressOff =>
+      'Выход в интернет сейчас не настроен, поэтому трафик и так идёт напрямую. Настройка начнёт действовать, когда выход включат.';
+
+  @override
+  String get relayClientFacing =>
+      'Inbound выдаётся клиентам. Сначала переведите его в «Для внутренних нужд».';
+
+  @override
+  String get relayInboundDisabled =>
+      'Включите inbound, чтобы настроить прямой выход.';
+
+  @override
+  String get relayBadge => 'Прямой выход';
+
+  @override
+  String get relayStaleBadge => 'Прямой выход не действует';
+
+  @override
+  String get relayStale =>
+      'Настройки inbound изменились в 3x-ui, и прямой выход сейчас не действует. Примените его снова.';
+
+  @override
+  String get relayApplyAgain => 'Применить снова';
+
+  @override
+  String get relayLink => 'Ссылка';
+
+  @override
+  String get relayLinkTitle => 'Ссылка для серверов';
+
+  @override
+  String get relayLinkHelp =>
+      'Служебный доступ для ваших серверов. Не передавайте ссылку клиентам. Чтобы сменить ссылку, выключите и снова включите прямой выход.';
+
+  @override
+  String get relayLinkHidden => 'Ссылка скрыта';
+
+  @override
+  String get relayShow => 'Показать';
+
+  @override
+  String get relayHide => 'Скрыть';
+
+  @override
+  String get relayCopy => 'Копировать ссылку';
+
+  @override
+  String get relayCopyFailed => 'Не удалось скопировать ссылку.';
+
+  @override
+  String relayDirectCount(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Напрямую: $count inbound',
+      many: 'Напрямую: $count inbound',
+      few: 'Напрямую: $count inbound',
+      one: 'Напрямую: $count inbound',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get relayInternalLocked =>
+      'Сначала выключите прямой выход для серверов';
+
+  @override
+  String get relayStateFailed =>
+      'Не удалось прочитать состояние прямого выхода. Показано последнее известное.';
+
+  @override
+  String get relayPreparing => 'Проверка настроек прямого выхода';
+
+  @override
+  String get relayApplying => 'Настройка прямого выхода';
+
+  @override
+  String get relayUnsupported =>
+      'Этот inbound нельзя сделать прямым выходом: нужен включённый VLESS inbound 3x-ui.';
+
+  @override
+  String get relayClientInbound =>
+      'Inbound выдаётся клиентам. Переведите его в «Для внутренних нужд», примените и повторите.';
+
+  @override
+  String get relayConflict => 'Настройки изменились. Обновите и повторите.';
+
+  @override
+  String get relayConfigFailed =>
+      'Xray отклонил настройки маршрутизации. Ничего не изменено.';
+
+  @override
+  String get relayDisableFirst =>
+      'Для этого inbound включён прямой выход для серверов. Сначала выключите его.';
+
+  @override
+  String get relayMissing =>
+      'Inbound или его служебный доступ не найден на сервере. Обновите список.';
+
+  @override
+  String get relayFailed =>
+      'Не удалось настроить прямой выход. Подробности — в истории операций.';
 }

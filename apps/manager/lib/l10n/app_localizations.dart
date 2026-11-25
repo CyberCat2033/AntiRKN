@@ -7267,6 +7267,180 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'AmneziaWG runs in Docker. The app does not update Docker containers: update the container image yourself.'**
   String get softwareAwgDockerUpdate;
+
+  /// No description provided for @relayTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Direct exit for servers'**
+  String get relayTitle;
+
+  /// No description provided for @relayHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Traffic of this inbound leaves the server directly, bypassing the internet egress. For your own servers, not for clients.'**
+  String get relayHelp;
+
+  /// No description provided for @relayEgressOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Internet egress is not set up now, so traffic already goes direct. The setting takes effect once egress is enabled.'**
+  String get relayEgressOff;
+
+  /// No description provided for @relayClientFacing.
+  ///
+  /// In en, this message translates to:
+  /// **'This inbound is assigned to clients. Switch it to “Internal use” first.'**
+  String get relayClientFacing;
+
+  /// No description provided for @relayInboundDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable the inbound to set up the direct exit.'**
+  String get relayInboundDisabled;
+
+  /// No description provided for @relayBadge.
+  ///
+  /// In en, this message translates to:
+  /// **'Direct exit'**
+  String get relayBadge;
+
+  /// No description provided for @relayStaleBadge.
+  ///
+  /// In en, this message translates to:
+  /// **'Direct exit not in effect'**
+  String get relayStaleBadge;
+
+  /// No description provided for @relayStale.
+  ///
+  /// In en, this message translates to:
+  /// **'The inbound settings changed in 3x-ui, so the direct exit is not in effect now. Apply it again.'**
+  String get relayStale;
+
+  /// No description provided for @relayApplyAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply again'**
+  String get relayApplyAgain;
+
+  /// No description provided for @relayLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Link'**
+  String get relayLink;
+
+  /// No description provided for @relayLinkTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Link for servers'**
+  String get relayLinkTitle;
+
+  /// No description provided for @relayLinkHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Service access for your own servers. Do not give this link to clients. To change the link, turn the direct exit off and on again.'**
+  String get relayLinkHelp;
+
+  /// No description provided for @relayLinkHidden.
+  ///
+  /// In en, this message translates to:
+  /// **'Link hidden'**
+  String get relayLinkHidden;
+
+  /// No description provided for @relayShow.
+  ///
+  /// In en, this message translates to:
+  /// **'Show'**
+  String get relayShow;
+
+  /// No description provided for @relayHide.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide'**
+  String get relayHide;
+
+  /// No description provided for @relayCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy link'**
+  String get relayCopy;
+
+  /// No description provided for @relayCopyFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not copy the link.'**
+  String get relayCopyFailed;
+
+  /// No description provided for @relayDirectCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{Direct: {count} inbound} other{Direct: {count} inbounds}}'**
+  String relayDirectCount(num count);
+
+  /// No description provided for @relayInternalLocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn off the direct exit for servers first'**
+  String get relayInternalLocked;
+
+  /// No description provided for @relayStateFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read the direct exit state. The last known state is shown.'**
+  String get relayStateFailed;
+
+  /// No description provided for @relayPreparing.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking the direct exit settings'**
+  String get relayPreparing;
+
+  /// No description provided for @relayApplying.
+  ///
+  /// In en, this message translates to:
+  /// **'Configuring the direct exit'**
+  String get relayApplying;
+
+  /// No description provided for @relayUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This inbound cannot be a direct exit: an enabled 3x-ui VLESS inbound is required.'**
+  String get relayUnsupported;
+
+  /// No description provided for @relayClientInbound.
+  ///
+  /// In en, this message translates to:
+  /// **'This inbound is assigned to clients. Switch it to “Internal use”, apply, and try again.'**
+  String get relayClientInbound;
+
+  /// No description provided for @relayConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings have changed. Refresh and try again.'**
+  String get relayConflict;
+
+  /// No description provided for @relayConfigFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Xray rejected the routing settings. Nothing was changed.'**
+  String get relayConfigFailed;
+
+  /// No description provided for @relayDisableFirst.
+  ///
+  /// In en, this message translates to:
+  /// **'The direct exit for servers is on for this inbound. Turn it off first.'**
+  String get relayDisableFirst;
+
+  /// No description provided for @relayMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'The inbound or its service access was not found on the server. Refresh the list.'**
+  String get relayMissing;
+
+  /// No description provided for @relayFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not configure the direct exit. See the operation history for details.'**
+  String get relayFailed;
 }
 
 class _AppLocalizationsDelegate

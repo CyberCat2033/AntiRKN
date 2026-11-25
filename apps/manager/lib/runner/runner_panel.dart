@@ -1,4 +1,5 @@
 import 'egress_strings.dart';
+import 'relay_strings.dart';
 import '../vpn/vpn_strings.dart';
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
@@ -223,6 +224,7 @@ String runnerIssueLabel(AppLocalizations l, RunnerIssue issue) =>
     };
 String runnerCodeLabel(AppLocalizations l, String code) => switch (code) {
   final String v when v.startsWith('egress_') => egressIssue(l, v),
+  final String v when v.startsWith('relay_') => relayIssue(l, v),
   'protocol_remove_conflict' => l.uiRemoveProtocolConflict,
   'protocol_remove_unsupported' => l.uiRemoveProtocolUnsupported,
   'protocol_remove_failed' => l.uiRemoveProtocolFailed,
@@ -336,7 +338,11 @@ String runnerEventLabel(AppLocalizations l, String code) =>
       'egress_preparing' => l.egressPreparing,
       'egress_applying' => l.egressApplying,
       'egress_checking' => l.egressChecking,
+      'relay_preparing' => l.relayPreparing,
+      'relay_applying' => l.relayApplying,
+      'relay_checking' => l.egressChecking,
       final String v when v.startsWith('egress_') => egressIssue(l, v),
+      final String v when v.startsWith('relay_') => relayIssue(l, v),
       'protocol_remove_conflict' => l.uiRemoveProtocolConflict,
       'protocol_remove_unsupported' => l.uiRemoveProtocolUnsupported,
       'protocol_remove_failed' => l.uiRemoveProtocolFailed,

@@ -335,6 +335,12 @@ final class RunnerEvent {
   };
 }
 
+/// A share link issued by a runner, named "[label]" in its fragment (at most
+/// 128 characters), as client applications show it.
+String namedShareLink(String uri, String label) => Uri.parse(
+  uri,
+).replace(fragment: String.fromCharCodes(label.runes.take(128))).toString();
+
 /// Whether a job with [status] has finished on the runner.
 bool runnerStatusTerminal(Object? status) =>
     (runnerSchema['terminal'] as List).contains(status);
@@ -371,6 +377,7 @@ final class RunnerJob {
           'server_reboot',
           'egress_apply',
           'egress_access',
+          'relay_apply',
           'inbound_update',
           'inbound_remove',
           'apt_update',
@@ -439,6 +446,9 @@ final class RunnerResponse {
     : egress = value['egress'] == null
           ? null
           : Map<String, dynamic>.from(value['egress'] as Map),
+      relay = value['relay'] == null
+          ? null
+          : Map<String, dynamic>.from(value['relay'] as Map),
       xrayCheck = value['xrayCheck'] == null
           ? null
           : Map<String, dynamic>.from(value['xrayCheck'] as Map),
@@ -542,6 +552,9 @@ final class RunnerResponse {
   }
   final String code;
   final Map<String, dynamic>? egress;
+
+  /// `relay_state`, `relay_plan` and `relay_link` results.
+  final Map<String, dynamic>? relay;
   final Map<String, dynamic>? xrayCheck;
   final Map<String, dynamic>? removalPlan;
   final Map<String, dynamic>? awgDefaults, awgPlan, awgExternal, tt;

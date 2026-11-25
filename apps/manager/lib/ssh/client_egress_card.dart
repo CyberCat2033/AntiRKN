@@ -148,6 +148,12 @@ class _ClientEgressCardState extends State<ClientEgressCard> {
                     ? '${info['name']} · ${info['host']}:${info['port']}'
                     : l.egressDirect,
               ),
+              // Relay inbounds leave directly whatever the egress is.
+              if (c.relayInbounds.isNotEmpty)
+                Text(
+                  l.relayDirectCount(c.relayInbounds.length),
+                  key: const ValueKey('client-egress-relay'),
+                ),
               const SizedBox(height: 4),
               Text(
                 l.egressClientTraffic,
@@ -367,9 +373,7 @@ class _ClientEgressFormState extends State<ClientEgressForm> {
         }
         final label =
             '${widget.catalog!.serverDisplayName(target!)} · ${inboundLabel(inbounds.firstWhere((r) => r['id'] == inbound))}';
-        link = Uri.parse(issued)
-            .replace(fragment: String.fromCharCodes(label.runes.take(128)))
-            .toString();
+        link = namedShareLink(issued, label);
         uri.text = link;
       }
       if (!validEgressLink(link)) {
