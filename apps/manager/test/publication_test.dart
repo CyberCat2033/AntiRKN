@@ -2114,6 +2114,7 @@ class _TestAutoSyncSession implements AutoSyncSession {
     required SyncApplyGate apply,
     required SyncCancellation cancellation,
     bool forceRecovery = false,
+    bool enter = false,
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 20));
     executed = true;
@@ -2123,6 +2124,13 @@ class _TestAutoSyncSession implements AutoSyncSession {
       lastSuccess: DateTime.now(),
     );
   }
+
+  @override
+  Future<AutoSyncResult> resolve(
+    SyncDivergenceChoice choice, {
+    required SyncApplyGate apply,
+    required SyncCancellation cancellation,
+  }) async => const AutoSyncResult();
 
   @override
   Future<void> close() async {}

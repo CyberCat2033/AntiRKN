@@ -2492,7 +2492,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get autoSyncHelp =>
-      'The current snapshot uploads when the app closes or enters the background. A temporary failure is retried automatically; an unsent snapshot is also retried on the next launch.';
+      'Changes upload 30 seconds after an edit and when the app closes or enters the background. At launch and when you return to the app, a newer version is loaded from Google Drive. A temporary failure is retried automatically.';
 
   @override
   String get autoSyncDisabled => 'Automatic sync is off.';
@@ -2508,7 +2508,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get autoSyncEditing =>
-      'Data received. Close the server editor and open settings or the server list to apply it. Current operations must finish first.';
+      'A newer version from Google Drive is downloaded. It is applied as soon as editors and dialogs are closed and current operations finish.';
 
   @override
   String get autoSyncConflict =>
@@ -2520,7 +2520,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get autoSyncError =>
-      'The exchange did not finish. Your data is saved on this device. The next attempt happens when the app enters the background or on the next launch.';
+      'The exchange did not finish. Your data is saved on this device. The next attempt happens after the next edit, or when the app enters the background or you return to it.';
 
   @override
   String get autoSyncRetrying =>
@@ -2528,7 +2528,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get autoSyncRemoteNewer =>
-      'Google Drive has a newer version. It loads on the next app launch; nothing was uploaded from this device.';
+      'Google Drive has a newer version. It loads when you return to the app; nothing was uploaded from this device.';
 
   @override
   String get autoSyncUpdateRequired =>
@@ -2577,7 +2577,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get autoSyncPairing =>
-      'Sign in to the same Google account on your devices. A device without unsent changes loads the newer snapshot at launch; changes upload when the app closes or enters the background. Do not edit on two devices at once.';
+      'Sign in to the same Google account on your devices and use them in turn. Changes upload 30 seconds after an edit and when the app closes or enters the background; a device without unsent changes loads the newer version at launch and when you return to the app.';
 
   @override
   String get googleDesktopConfigurationError =>
@@ -3067,7 +3067,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get uiUpdatesSuggestionsHelp => 'Notify about available updates';
 
   @override
-  String get uiSyncAutomaticHelp => 'Upload on background or exit';
+  String get uiSyncAutomaticHelp =>
+      'Upload after edits and on leaving, load on return';
 
   @override
   String get uiPairDeviceHelp => 'Sign in to the same Google account';

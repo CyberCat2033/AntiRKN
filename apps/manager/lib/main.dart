@@ -773,6 +773,7 @@ class _ManagerShellState extends State<ManagerShell>
       desktop: isDesktop,
     );
     if (syncForeground != null) widget.autoSync?.foreground(syncForeground);
+    if (state == AppLifecycleState.resumed) widget.autoSync?.resumed();
     _publications?.foreground(inForeground);
     if (state == AppLifecycleState.resumed) {
       _networkController.tick();
@@ -803,29 +804,25 @@ class _ManagerShellState extends State<ManagerShell>
       return false;
     }
     setState(() => _applyingSync = true);
+    var replacing = false;
     try {
       // Fence user input before any asynchronous repository mutation.
       await WidgetsBinding.instance.endOfFrame;
       if (!mounted) return false;
       await _publications?.suspend();
+      replacing = true;
       await receive();
-      await _catalog?.reloadAfterSync();
-      final source = await widget.drafts?.readDraft();
-      if (source != null && source != _controller.source) {
-        _controller.source = source;
-        await _controller.refresh();
-      }
-      await _vpn?.load();
-      await _repairOrphanedVpnState();
-      await _publications?.reload();
       return true;
-    } catch (_) {
-      // If refreshing a projection fails, reopen before exposing stale forms.
-      unawaited(widget.onRestored?.call());
-      rethrow;
     } finally {
-      if (mounted) _publications?.resume();
-      if (mounted) setState(() => _applyingSync = false);
+      if (replacing) {
+        // The workspace was replaced (or a failed restore may have touched
+        // it): reopen everything, as after restoring a backup. Input stays
+        // fenced until the new shell replaces this one.
+        unawaited(widget.onRestored?.call());
+      } else if (mounted) {
+        _publications?.resume();
+        setState(() => _applyingSync = false);
+      }
     }
   }
 

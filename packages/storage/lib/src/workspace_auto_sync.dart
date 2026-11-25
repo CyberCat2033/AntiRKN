@@ -22,6 +22,9 @@ final class _PullDeadline {
   }
 }
 
+/// A validated cloud snapshot newer than this device's data.
+typedef _ReceivedSnapshot = ({SyncRemoteFile file, _BackupSnapshot snapshot});
+
 extension WorkspaceAutomaticSync on WorkspaceDatabase {
   Future<AutoSyncSession> openAutoSync(
     SyncAccessTokenProvider tokens, {
@@ -74,28 +77,53 @@ extension WorkspaceAutomaticSync on WorkspaceDatabase {
         await _unsentSnapshotPending(localState)) {
       return false;
     }
+    final received = await _newerCloudSnapshot(cloud, localState);
+    if (received == null) return false;
+    await _applyCloudSnapshot(received, commit: deadline?.commit);
+    return true;
+  }
+
+  /// The cloud snapshot when it differs from the version this device last
+  /// uploaded or received, validated. [held] is reused instead of another
+  /// download while it is still the cloud version. One metadata request when
+  /// nothing changed.
+  Future<_ReceivedSnapshot?> _newerCloudSnapshot(
+    SyncSnapshotStore cloud,
+    ({bool empty, int sequence, String workspaceId}) state, {
+    _ReceivedSnapshot? held,
+  }) async {
     final file = await cloud.findSnapshot();
-    if (file == null) return false;
-    if (!localState.empty && !await _snapshotRemoteChanged(file)) {
-      return false;
+    if (file == null) return null;
+    if (!state.empty && !await _snapshotRemoteChanged(file)) return null;
+    if (held != null &&
+        held.file.id == file.id &&
+        held.file.version == file.version) {
+      return held;
     }
     final source = await _openCloudSnapshot(
       cloud,
       await cloud.readSnapshot(file.id),
     );
     final snapshot = await _validateCloudSnapshot(source);
-    if (!localState.empty &&
-        snapshot.summary.workspaceId != localState.workspaceId) {
+    if (!state.empty && snapshot.summary.workspaceId != state.workspaceId) {
       throw const SyncTransportFailure(SyncTransportIssue.conflict);
     }
+    return (file: file, snapshot: snapshot);
+  }
+
+  /// Replaces local data of a replaceable workspace with [received]. [commit]
+  /// runs synchronously right before the replacement begins.
+  Future<void> _applyCloudSnapshot(
+    _ReceivedSnapshot received, {
+    void Function()? commit,
+  }) async {
     final stamp = await _snapshotStamp();
-    deadline?.commit();
-    // Any local file left here holds no unsent edits (checked above). It
-    // would describe the replaced state, so it must not outlive the restore.
+    commit?.call();
+    // Any local file left here holds no unsent edits (checked by the caller).
+    // It would describe the replaced state, so it must not outlive the restore.
     final local = File('$_path.current-snapshot');
     if (await local.exists()) await local.delete();
-    await _restoreCloudSnapshot(snapshot, stamp, file);
-    return true;
+    await _restoreCloudSnapshot(received.snapshot, stamp, received.file);
   }
 
   /// Empty, or bound to the cloud and unchanged since the last confirmed
@@ -272,6 +300,9 @@ final class _SnapshotAutoSync implements AutoSyncSession {
   final WorkspaceDatabase store;
   final SyncSnapshotStore remote;
   bool _closed = false, _running = false;
+
+  /// Downloaded while an editor was open; applied without another download.
+  _ReceivedSnapshot? _held;
   static const _magic = [65, 110, 116, 105, 82, 75, 78, 83, 1];
   File get _local => File('${store._path}.current-snapshot');
   String get _scope => 'cloud:${remote.accountKey}';
@@ -510,95 +541,157 @@ final class _SnapshotAutoSync implements AutoSyncSession {
     required SyncApplyGate apply,
     required SyncCancellation cancellation,
     bool forceRecovery = false,
+    bool enter = false,
   }) async {
     if (_closed || _running) {
       throw const SyncTransportFailure(SyncTransportIssue.changed);
     }
     _running = true;
     try {
-      var state = await store._snapshotLocalState();
-      _CapturedSnapshot? fresh;
-      if (!forceRecovery &&
-          await store._absorbCacheChanges(state, captured: (c) => fresh = c)) {
-        state = await store._snapshotLocalState();
+      AutoSyncResult? sent;
+      if (enter && forceRecovery) {
+        // A snapshot an earlier launch could not send goes first, as the same
+        // bytes, so that a write whose response was lost is recognized.
+        sent = await _send(cancellation, recovery: true);
       }
-      if (await store._snapshotReplaceable(state) &&
-          !await store._unsentSnapshotPending(state)) {
-        // Nothing here is missing from the cloud: no capture and no request.
-        // A newer cloud snapshot is received by a pull, never overwritten.
-        // A newer format in the cloud is refused until the app is updated.
-        if ((await store.readSetting('syncSnapshotUnsupported') ?? '')
-            .isNotEmpty) {
-          throw const SyncTransportFailure(
-            SyncTransportIssue.unsupportedVersion,
-          );
+      // Then edits made since, including ones a killed process never saved
+      // to a local snapshot.
+      sent =
+          await _send(cancellation, recovery: forceRecovery && !enter) ?? sent;
+      if (sent != null) return sent;
+      // Nothing here is missing from the cloud. A newer format in the cloud
+      // is refused until the app is updated.
+      if ((await store.readSetting('syncSnapshotUnsupported') ?? '')
+          .isNotEmpty) {
+        throw const SyncTransportFailure(SyncTransportIssue.unsupportedVersion);
+      }
+      final held = _held;
+      if (!enter) {
+        // A received snapshot waiting for an editor costs no request again.
+        if (held != null) return _applyReceived(held, apply);
+        if (forceRecovery || !(await store._snapshotLocalState()).empty) {
+          return const AutoSyncResult();
         }
-        if (forceRecovery || !state.empty) return const AutoSyncResult();
         // An empty device signed in after launch learns the cloud has data.
         cancellation.check();
         return AutoSyncResult(remoteNewer: await remote.findSnapshot() != null);
       }
-      final String source, workspaceId, intent;
-      final int capturedSequence;
-      final pendingSequence = await store.readSetting(
-        'syncSnapshotPendingSequence',
+      // Entering the app: a newer cloud snapshot replaces unchanged data.
+      cancellation.check();
+      final received = await store._newerCloudSnapshot(
+        remote,
+        await store._snapshotLocalState(),
+        held: held,
       );
-      Uint8List? unsent;
-      var digest = '';
-      if ((forceRecovery || pendingSequence == '${state.sequence}') &&
-          await _local.exists()) {
-        final bytes = await _local.readAsBytes();
-        digest = await _snapshotDigest(bytes);
-        if (await store.readSetting('syncSnapshotUploaded') != digest) {
-          unsent = bytes;
-        }
+      _held = received;
+      if (received == null) {
+        return AutoSyncResult(lastSuccess: DateTime.now().toUtc());
       }
-      if (unsent != null) {
-        // Retry of an unconfirmed snapshot without newer edits: the same bytes,
-        // so a write whose response was lost is recognized in the cloud.
-        capturedSequence = int.tryParse(pendingSequence ?? '') ?? -1;
-        source = await open(unsent, store._key, 'local');
-        final validated = await _validateBackupInBackground(
-          source,
-          cloud: true,
-        );
-        workspaceId = validated.summary.workspaceId;
-        intent = validated.intent;
-      } else {
-        if (forceRecovery) return const AutoSyncResult();
-        cancellation.check();
-        // The capture is validated once; its source goes straight to the cloud.
-        final captured = fresh ?? await store._captureSnapshot();
-        capturedSequence = captured.sequence;
-        source = captured.source;
-        workspaceId = captured.workspaceId;
-        intent = captured.intent;
-        final local = await seal(source, store._key, 'local');
-        digest = await _snapshotDigest(local);
-        await writeBackupFile(_local.path, local);
-        await store.writeSetting(
-          'syncSnapshotPendingSequence',
-          '$capturedSequence',
-        );
-      }
-      final result = await _upload(
-        source,
-        workspaceId,
-        digest,
-        capturedSequence,
-        intent,
-        cancellation,
-      );
-      // Bounding the legacy journal is housekeeping after a confirmed upload;
-      // it never decides whether the snapshot reaches the cloud.
-      try {
-        await store._compactHistory();
-      } catch (_) {}
-      return result;
+      cancellation.check();
+      return _applyReceived(received, apply);
     } finally {
       _running = false;
     }
   }
+
+  /// Applies [received] through the owner's gate. A refused gate keeps it
+  /// for the next exchange; edits made meanwhile are never replaced.
+  Future<AutoSyncResult> _applyReceived(
+    _ReceivedSnapshot received,
+    SyncApplyGate apply,
+  ) async {
+    final applied = await apply(() async {
+      final state = await store._snapshotLocalState();
+      if (!await store._snapshotReplaceable(state) ||
+          await store._unsentSnapshotPending(state)) {
+        throw const SyncTransportFailure(SyncTransportIssue.changed);
+      }
+      await store._applyCloudSnapshot(received);
+    });
+    if (!applied) return const AutoSyncResult(waitingForEditor: true);
+    _held = null;
+    return AutoSyncResult(received: true, lastSuccess: DateTime.now().toUtc());
+  }
+
+  /// Uploads what the cloud is missing; null when there is nothing to send.
+  /// With [recovery] only an unsent local snapshot is retried.
+  Future<AutoSyncResult?> _send(
+    SyncCancellation cancellation, {
+    required bool recovery,
+  }) async {
+    var state = await store._snapshotLocalState();
+    _CapturedSnapshot? fresh;
+    if (!recovery &&
+        await store._absorbCacheChanges(state, captured: (c) => fresh = c)) {
+      state = await store._snapshotLocalState();
+    }
+    if (await store._snapshotReplaceable(state) &&
+        !await store._unsentSnapshotPending(state)) {
+      // A newer cloud snapshot is received by a pull, never overwritten.
+      return null;
+    }
+    final String source, workspaceId, intent;
+    final int capturedSequence;
+    final pendingSequence = await store.readSetting(
+      'syncSnapshotPendingSequence',
+    );
+    Uint8List? unsent;
+    var digest = '';
+    if ((recovery || pendingSequence == '${state.sequence}') &&
+        await _local.exists()) {
+      final bytes = await _local.readAsBytes();
+      digest = await _snapshotDigest(bytes);
+      if (await store.readSetting('syncSnapshotUploaded') != digest) {
+        unsent = bytes;
+      }
+    }
+    if (unsent != null) {
+      // Retry of an unconfirmed snapshot without newer edits: the same bytes,
+      // so a write whose response was lost is recognized in the cloud.
+      capturedSequence = int.tryParse(pendingSequence ?? '') ?? -1;
+      source = await open(unsent, store._key, 'local');
+      final validated = await _validateBackupInBackground(source, cloud: true);
+      workspaceId = validated.summary.workspaceId;
+      intent = validated.intent;
+    } else {
+      if (recovery) return null;
+      cancellation.check();
+      // The capture is validated once; its source goes straight to the cloud.
+      final captured = fresh ?? await store._captureSnapshot();
+      capturedSequence = captured.sequence;
+      source = captured.source;
+      workspaceId = captured.workspaceId;
+      intent = captured.intent;
+      final local = await seal(source, store._key, 'local');
+      digest = await _snapshotDigest(local);
+      await writeBackupFile(_local.path, local);
+      await store.writeSetting(
+        'syncSnapshotPendingSequence',
+        '$capturedSequence',
+      );
+    }
+    final result = await _upload(
+      source,
+      workspaceId,
+      digest,
+      capturedSequence,
+      intent,
+      cancellation,
+    );
+    // Bounding the legacy journal is housekeeping after a confirmed upload;
+    // it never decides whether the snapshot reaches the cloud.
+    try {
+      await store._compactHistory();
+    } catch (_) {}
+    return result;
+  }
+
+  @override
+  Future<AutoSyncResult> resolve(
+    SyncDivergenceChoice choice, {
+    required SyncApplyGate apply,
+    required SyncCancellation cancellation,
+  }) => throw const SyncTransportFailure(SyncTransportIssue.conflict);
 
   @override
   Future<void> close() async {

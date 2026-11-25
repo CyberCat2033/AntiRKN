@@ -24,9 +24,11 @@ enum AutoSyncPhase {
   error,
 }
 
-/// One worker per workspace. Automatic uploads start on background/exit; at
-/// startup only a previously failed local snapshot may be retried. Temporary
-/// failures schedule their own retry; divergent data and revoked access wait.
+/// One worker per workspace; devices work in turn. Entering the app (launch,
+/// return from the background) sends what is unsent, then checks the cloud
+/// version and receives a newer one. Edits upload [uploadDebounce] after the
+/// last change and on leaving. Temporary failures schedule their own retry;
+/// divergent data and revoked access wait.
 class AutoSyncController extends ChangeNotifier {
   AutoSyncController({
     required this.accountService,
@@ -36,16 +38,40 @@ class AutoSyncController extends ChangeNotifier {
     required this.apply,
     this.interval = const Duration(seconds: 30),
     this.debounce = const Duration(seconds: 1),
+    this.uploadDebounce = const Duration(seconds: 30),
+    this.uploadMaxWait = const Duration(minutes: 2),
+    this.applyRetry = const Duration(seconds: 2),
+    this.exitDeadline = const Duration(seconds: 5),
     Random? random,
   }) : _random = random ?? Random() {
     ready = _initialize();
+    _changes = changes.listen((_) => _edited());
   }
   final GoogleAccountService accountService;
   final SettingsStore settings;
   final Future<AutoSyncSession> Function() openSession;
+
+  /// Local writes; cache-only ones are recognized by the session and cost no
+  /// request.
   final Stream<void> changes;
   SyncApplyGate apply;
+
+  /// [interval]: least time between entry checks on focus or a transient
+  /// inactive state; returning from the background always checks.
   final Duration interval, debounce;
+
+  /// Upload after edits: [uploadDebounce] after the last change, at most
+  /// [uploadMaxWait] after the first one while changes keep coming.
+  final Duration uploadDebounce, uploadMaxWait;
+
+  /// How often a received snapshot waiting for an editor is tried again.
+  final Duration applyRetry;
+
+  /// Closing the desktop window waits at most this long; the local snapshot
+  /// already written is sent at the next launch.
+  final Duration exitDeadline;
+  late final StreamSubscription<void> _changes;
+  Timer? _editTimer, _editDeadline, _entryThrottle;
   late final Future<void> ready;
   GoogleDriveAccount? account;
   bool enabled = true;
@@ -134,7 +160,7 @@ class AutoSyncController extends ChangeNotifier {
           : enabled
           ? AutoSyncPhase.waiting
           : AutoSyncPhase.disabled;
-      request(immediate: true, forceRecovery: true);
+      request(immediate: true, forceRecovery: true, enter: true);
     } on GoogleAccountFailure catch (error) {
       accountError = error.issue;
       phase = AutoSyncPhase.error;
@@ -145,18 +171,30 @@ class AutoSyncController extends ChangeNotifier {
     _notify();
   }
 
-  bool _forceRecovery = false;
+  bool _forceRecovery = false, _enter = false, _runningEnter = false;
+  bool _retryEnter = false;
 
-  void request({bool immediate = false, bool forceRecovery = false}) {
+  void request({
+    bool immediate = false,
+    bool forceRecovery = false,
+    bool enter = false,
+  }) {
     if (!_allowed) return;
+    // A return to the app while its entry check runs does not start another.
+    if (enter && _runningEnter) return;
     if (forceRecovery) _forceRecovery = true;
+    if (enter) {
+      _enter = true;
+      _entryThrottle?.cancel();
+      _entryThrottle = Timer(interval, () {});
+    }
     if (_running != null) {
       _again = true;
       return;
     }
     _timer?.cancel();
     _timer = Timer(
-      immediate || forceRecovery ? Duration.zero : debounce,
+      immediate || forceRecovery || enter ? Duration.zero : debounce,
       _start,
     );
   }
@@ -170,21 +208,50 @@ class AutoSyncController extends ChangeNotifier {
         return;
       }
       if (_again || _retry) {
-        if (_retry) _forceRecovery = _forceRecovery || _retryRecovery;
+        if (_retry) {
+          _forceRecovery = _forceRecovery || _retryRecovery;
+          _enter = _enter || _retryEnter;
+        }
         _again = _retry = false;
         final delay = _failureBackoff > Duration.zero
             ? _failureBackoff
             : debounce;
         _timer = Timer(delay, _start);
+      } else if (phase == AutoSyncPhase.editing && _foreground) {
+        // The received snapshot is kept; trying the gate again is free.
+        _timer = Timer(applyRetry, _start);
       }
     });
   }
 
+  /// A local change: upload once the edits settle.
+  void _edited() {
+    if (!_allowed) return;
+    _editTimer?.cancel();
+    _editTimer = Timer(uploadDebounce, _uploadEdits);
+    _editDeadline ??= Timer(uploadMaxWait, _uploadEdits);
+  }
+
+  void _uploadEdits() {
+    _cancelEdits();
+    request(immediate: true);
+  }
+
+  void _cancelEdits() {
+    _editTimer?.cancel();
+    _editDeadline?.cancel();
+    _editTimer = _editDeadline = null;
+  }
+
   Future<void> _run() async {
-    final forceRecovery = _forceRecovery;
-    _forceRecovery = false;
+    final forceRecovery = _forceRecovery, enter = _enter;
+    _forceRecovery = _enter = false;
+    _runningEnter = enter;
+    // Edits made so far go with this exchange.
+    _cancelEdits();
     _cancel = SyncCancellation();
-    phase = AutoSyncPhase.syncing;
+    // A received snapshot waiting for an editor keeps saying so.
+    if (phase != AutoSyncPhase.editing) phase = AutoSyncPhase.syncing;
     accountError = null;
     transportError = null;
     _notify();
@@ -194,6 +261,7 @@ class AutoSyncController extends ChangeNotifier {
       final next = await _session!.exchange(
         cancellation: _cancel!,
         forceRecovery: forceRecovery,
+        enter: enter,
         apply: (receive) => apply(() async {
           _cancel!.check();
           applying = true;
@@ -208,7 +276,9 @@ class AutoSyncController extends ChangeNotifier {
       );
       _cancel!.check();
       result = next;
-      phase = next.waitingForEditor
+      phase = next.received
+          ? AutoSyncPhase.synced
+          : next.waitingForEditor
           ? AutoSyncPhase.editing
           : next.conflicts > 0
           ? AutoSyncPhase.conflict
@@ -238,6 +308,7 @@ class AutoSyncController extends ChangeNotifier {
       _failed(forceRecovery, transport: SyncTransportIssue.storage);
     } finally {
       _cancel = null;
+      _runningEnter = false;
       _notify();
     }
   }
@@ -254,6 +325,7 @@ class AutoSyncController extends ChangeNotifier {
       _failureBackoff = _retryDelay(retryAfter: retryAfter);
       _retry = true;
       _retryRecovery = forceRecovery;
+      _retryEnter = _runningEnter;
       return;
     }
     // Divergent data, revoked access or a local failure would fail the same
@@ -280,22 +352,53 @@ class AutoSyncController extends ChangeNotifier {
     AppLifecycleState.detached => false,
   };
 
+  /// Leaving uploads unsent edits; returning checks the cloud version.
   void foreground(bool value) {
     if (_foreground == value) return;
     _foreground = value;
-    if (!value) {
-      request(immediate: true);
-    }
+    request(immediate: true, enter: value);
   }
 
-  /// Desktop exit can wait for the local save and the best-effort upload.
+  /// The app is resumed (also after focus or a notification shade): checks
+  /// the cloud unless an entry check ran within [interval].
+  void resumed() {
+    if (!_foreground || (_entryThrottle?.isActive ?? false)) return;
+    request(immediate: true, enter: true);
+  }
+
+  /// Desktop exit waits for the local save and the upload, at most
+  /// [exitDeadline]: a local snapshot not sent by then is sent at the next
+  /// launch, and unsaved edits are captured then.
   Future<void> flushOnExit() async {
-    await ready;
-    if (!_allowed) return;
-    _timer?.cancel();
-    final pending = _running;
-    if (pending != null) await pending;
-    await _run();
+    final done = Completer<void>();
+    final deadline = Timer(exitDeadline, () {
+      if (!done.isCompleted) done.complete();
+    });
+    unawaited(
+      () async {
+        await ready;
+        if (!_allowed) return;
+        _timer?.cancel();
+        _cancelEdits();
+        final pending = _running;
+        if (pending != null) await pending;
+        if (done.isCompleted || _running != null) return;
+        // Leaving: send edits, no entry check.
+        _enter = false;
+        final run = _run();
+        _running = run;
+        try {
+          await run;
+        } finally {
+          if (identical(_running, run)) _running = null;
+        }
+      }().whenComplete(() {
+        if (!done.isCompleted) done.complete();
+      }),
+    );
+    await done.future;
+    if (!deadline.isActive) _cancel?.cancel();
+    deadline.cancel();
   }
 
   Future<void> setEnabled(bool value) async {
@@ -333,7 +436,7 @@ class AutoSyncController extends ChangeNotifier {
         ? AutoSyncPhase.waiting
         : AutoSyncPhase.disabled;
     _notify();
-    request(immediate: true, forceRecovery: true);
+    request(immediate: true, forceRecovery: true, enter: true);
   }
 
   /// Owner must join this before replacing the workspace database.
@@ -342,6 +445,9 @@ class AutoSyncController extends ChangeNotifier {
   Future<void> _stop() async {
     _disposed = true;
     _timer?.cancel();
+    _cancelEdits();
+    _entryThrottle?.cancel();
+    unawaited(_changes.cancel());
     _cancel?.cancel();
     await ready;
     final pending = _running;

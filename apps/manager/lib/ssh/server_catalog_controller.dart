@@ -296,17 +296,6 @@ class ServerCatalogController extends ChangeNotifier {
     }
   }
 
-  Future<void> reloadAfterSync() async {
-    if (selectedId != null || hasActiveWork || hasUnsavedEdits) return;
-    for (final session in _sessions.values) {
-      session.removeListener(_sessionChanged);
-      session.dispose();
-      session.network.dispose();
-    }
-    _sessions.clear();
-    await load();
-  }
-
   SshStage stageFor(String id) => _sessions[id]?.stage ?? SshStage.idle;
   String? osFor(String id) =>
       _sessions[id]?.os ??

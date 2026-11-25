@@ -29,19 +29,39 @@ final class _NoJitter implements Random {
 
 class Session implements AutoSyncSession {
   final modes = <bool>[];
+
+  /// Whether each exchange was an entry (launch or return to the app).
+  final enters = <bool>[];
   Completer<void>? hold;
   SyncCancellation? cancellation;
   int active = 0, maxActive = 0, closed = 0;
   bool fail = false;
   final failures = <Object>[];
+
+  /// Results of the next exchanges in order; then [next].
+  final results = <AutoSyncResult>[];
   AutoSyncResult? next;
+  final resolved = <SyncDivergenceChoice>[];
+  @override
+  Future<AutoSyncResult> resolve(
+    SyncDivergenceChoice choice, {
+    required SyncApplyGate apply,
+    required SyncCancellation cancellation,
+  }) async {
+    resolved.add(choice);
+    if (failures.isNotEmpty) throw failures.removeAt(0);
+    return results.isNotEmpty ? results.removeAt(0) : const AutoSyncResult();
+  }
+
   @override
   Future<AutoSyncResult> exchange({
     required SyncApplyGate apply,
     required SyncCancellation cancellation,
     bool forceRecovery = false,
+    bool enter = false,
   }) async {
     modes.add(forceRecovery);
+    enters.add(enter);
     this.cancellation = cancellation;
     active++;
     if (active > maxActive) maxActive = active;
@@ -50,6 +70,7 @@ class Session implements AutoSyncSession {
       cancellation.check();
       if (fail) throw const SyncTransportFailure(SyncTransportIssue.network);
       if (failures.isNotEmpty) throw failures.removeAt(0);
+      if (results.isNotEmpty) return results.removeAt(0);
       return next ?? AutoSyncResult(lastSuccess: DateTime(2026, 9, 23));
     } finally {
       active--;
@@ -63,8 +84,29 @@ class Session implements AutoSyncSession {
 }
 
 void main() {
+  Future<(AutoSyncController, Session)> started(
+    WidgetTester tester, [
+    Session? value,
+  ]) async {
+    final account = AccountService();
+    await account.signIn();
+    final session = value ?? Session();
+    final controller = AutoSyncController(
+      accountService: account,
+      settings: Settings(),
+      changes: const Stream<void>.empty(),
+      openSession: () async => session,
+      apply: (_) async => true,
+      random: _NoJitter(),
+    );
+    await tester.pump(Duration.zero);
+    await tester.pump(Duration.zero);
+    expect(session.modes, [true]);
+    return (controller, session);
+  }
+
   testWidgets(
-    'startup retries only pending state; changes and foreground do not upload',
+    'launch and return check the cloud; an edit uploads 30 s after the last change',
     (tester) async {
       final account = AccountService();
       await account.signIn();
@@ -79,21 +121,117 @@ void main() {
       );
       await tester.pump(Duration.zero);
       await tester.pump(Duration.zero);
+      // Launch: an unsent snapshot first, then the cloud version.
       expect(session.modes, [true]);
+      expect(session.enters, [true]);
+      // Three edits in a burst: one upload 30 s after the last of them.
       changes.add(null);
-      await tester.pump(const Duration(minutes: 2));
+      await tester.pump(const Duration(seconds: 10));
+      changes.add(null);
+      await tester.pump(const Duration(seconds: 10));
+      changes.add(null);
+      await tester.pump(const Duration(seconds: 29));
       expect(session.modes, [true]);
+      await tester.pump(const Duration(seconds: 1));
+      expect(session.modes, [true, false]);
+      expect(session.enters, [true, false]);
+      await tester.pump(const Duration(minutes: 2));
+      expect(session.modes, hasLength(2));
+      // Leaving uploads; returning checks the cloud again.
       controller.foreground(false);
       await tester.pump(Duration.zero);
-      expect(session.modes, [true, false]);
+      expect(session.enters, [true, false, false]);
       controller.foreground(true);
+      await tester.pump(Duration.zero);
+      expect(session.enters, [true, false, false, true]);
       await tester.pump(const Duration(minutes: 2));
-      expect(session.modes, [true, false]);
+      expect(session.modes, hasLength(4));
       await tester.runAsync(controller.stop);
       controller.dispose();
       await changes.close();
     },
   );
+
+  testWidgets('a return during an entry check does not start another', (
+    tester,
+  ) async {
+    final (controller, session) = await started(tester);
+    session.hold = Completer<void>();
+    controller.foreground(false);
+    await tester.pump(Duration.zero);
+    session.hold!.complete();
+    session.hold = Completer<void>();
+    await tester.pump(Duration.zero);
+    controller.foreground(true);
+    await tester.pump(Duration.zero);
+    expect(session.enters, [true, false, true]);
+    // Focus and resume events while the check is still running.
+    controller.resumed();
+    controller.resumed();
+    await tester.pump(const Duration(seconds: 5));
+    session.hold!.complete();
+    session.hold = null;
+    await tester.pump(const Duration(seconds: 5));
+    expect(session.enters, [true, false, true]);
+    // A later return within 30 s is not checked again; after that it is.
+    controller.resumed();
+    await tester.pump(Duration.zero);
+    expect(session.enters, hasLength(3));
+    await tester.pump(const Duration(seconds: 30));
+    controller.resumed();
+    await tester.pump(Duration.zero);
+    expect(session.enters, [true, false, true, true]);
+    await tester.runAsync(controller.stop);
+    controller.dispose();
+  });
+
+  testWidgets('a received snapshot is applied once the editor closes', (
+    tester,
+  ) async {
+    final (controller, session) = await started(tester);
+    session.results.addAll([
+      const AutoSyncResult(waitingForEditor: true),
+      const AutoSyncResult(waitingForEditor: true),
+      const AutoSyncResult(received: true),
+    ]);
+    controller.resumed();
+    await tester.pump(const Duration(seconds: 30));
+    controller.resumed();
+    await tester.pump(Duration.zero);
+    expect(controller.phase, AutoSyncPhase.editing);
+    await tester.pump(const Duration(seconds: 2));
+    expect(controller.phase, AutoSyncPhase.editing);
+    await tester.pump(const Duration(seconds: 2));
+    expect(controller.phase, AutoSyncPhase.synced);
+    // The retries reuse what was downloaded: plain exchanges, no entry.
+    expect(session.enters, [true, true, false, false]);
+    await tester.pump(const Duration(minutes: 5));
+    expect(session.enters, hasLength(4));
+    await tester.runAsync(controller.stop);
+    controller.dispose();
+  });
+
+  testWidgets('exit waits at most five seconds for an unreachable Drive', (
+    tester,
+  ) async {
+    final (controller, session) = await started(tester);
+    session.hold = Completer<void>();
+    var exited = false;
+    unawaited(controller.flushOnExit().then((_) => exited = true));
+    await tester.pump(const Duration(seconds: 4));
+    expect(exited, isFalse);
+    await tester.pump(const Duration(seconds: 1));
+    expect(exited, isTrue);
+    expect(
+      () => session.cancellation!.check(),
+      throwsA(isA<SyncTransportFailure>()),
+    );
+    session.hold!.complete();
+    session.hold = null;
+    await tester.pump(Duration.zero);
+    await tester.runAsync(controller.stop);
+    controller.dispose();
+  });
 
   testWidgets('disabled auto sync does not upload on background', (
     tester,
@@ -179,27 +317,6 @@ void main() {
     await tester.runAsync(controller.stop);
     controller.dispose();
   });
-
-  Future<(AutoSyncController, Session)> started(
-    WidgetTester tester, [
-    Session? value,
-  ]) async {
-    final account = AccountService();
-    await account.signIn();
-    final session = value ?? Session();
-    final controller = AutoSyncController(
-      accountService: account,
-      settings: Settings(),
-      changes: const Stream<void>.empty(),
-      openSession: () async => session,
-      apply: (_) async => true,
-      random: _NoJitter(),
-    );
-    await tester.pump(Duration.zero);
-    await tester.pump(Duration.zero);
-    expect(session.modes, [true]);
-    return (controller, session);
-  }
 
   testWidgets(
     'network failure retries with backoff without a lifecycle event',

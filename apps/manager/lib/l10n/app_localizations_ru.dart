@@ -2497,7 +2497,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get autoSyncHelp =>
-      'Текущий снимок отправляется при уходе приложения в фон или закрытии. Временный сбой повторяется автоматически; неотправленный снимок также повторяется при следующем запуске.';
+      'Изменения отправляются через 30 секунд после правки, а также при уходе приложения в фон или закрытии. При запуске и возвращении в приложение загружается более новая версия из Google Drive. Временный сбой повторяется автоматически.';
 
   @override
   String get autoSyncDisabled => 'Автосинхронизация выключена.';
@@ -2513,7 +2513,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get autoSyncEditing =>
-      'Данные получены. Закройте редактор сервера и перейдите в настройки или список серверов для применения. Текущие операции должны завершиться.';
+      'Новая версия из Google Drive загружена. Она применится, как только вы закроете редакторы и диалоги и завершатся текущие операции.';
 
   @override
   String get autoSyncConflict =>
@@ -2525,7 +2525,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get autoSyncError =>
-      'Не удалось завершить обмен. Данные сохранены на этом устройстве. Следующая попытка — при уходе приложения в фон или при следующем запуске.';
+      'Не удалось завершить обмен. Данные сохранены на этом устройстве. Следующая попытка — после следующей правки, при уходе приложения в фон или возвращении в него.';
 
   @override
   String get autoSyncRetrying =>
@@ -2533,7 +2533,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get autoSyncRemoteNewer =>
-      'В Google Drive есть более новая версия. Она загрузится при следующем запуске приложения; с этого устройства ничего не отправлялось.';
+      'В Google Drive есть более новая версия. Она загрузится при возвращении в приложение; с этого устройства ничего не отправлялось.';
 
   @override
   String get autoSyncUpdateRequired =>
@@ -2582,7 +2582,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get autoSyncPairing =>
-      'Войдите в один Google-аккаунт на своих устройствах. Устройство без неотправленных изменений получает более новый снимок при запуске; изменения отправляются при уходе приложения в фон или закрытии. Не редактируйте данные на двух устройствах одновременно.';
+      'Войдите в один Google-аккаунт на своих устройствах и работайте на них по очереди. Изменения отправляются через 30 секунд после правки и при уходе приложения в фон или закрытии; устройство без неотправленных изменений получает более новую версию при запуске и возвращении в приложение.';
 
   @override
   String get googleDesktopConfigurationError =>
@@ -3071,7 +3071,8 @@ class AppLocalizationsRu extends AppLocalizations {
   String get uiUpdatesSuggestionsHelp => 'Сообщать о доступных обновлениях';
 
   @override
-  String get uiSyncAutomaticHelp => 'Отправка при закрытии или уходе в фон';
+  String get uiSyncAutomaticHelp =>
+      'Отправка после правок и при уходе, загрузка при входе';
 
   @override
   String get uiPairDeviceHelp => 'Войти в тот же Google-аккаунт';
