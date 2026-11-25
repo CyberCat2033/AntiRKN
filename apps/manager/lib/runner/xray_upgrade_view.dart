@@ -32,10 +32,25 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
     host: widget.host,
   );
   Timer? _poll;
+  late final XrayVersionChoice _choice = XrayVersionChoice(
+    install: _install,
+    ready: () => c.ready,
+    previous: () => c.previousVersion,
+  );
+
+  /// A version chosen in the component versions dialog (UI-45).
+  Future<void> _install(Map<String, Object?> asset) async {
+    if (!mounted || !await showPanelLogin(context, widget.runner) || !mounted) {
+      return;
+    }
+    await c.install(asset);
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    widget.runner.xrayVersionChoice = _choice;
     unawaited(c.inspect());
     _poll = Timer.periodic(const Duration(seconds: 5), (_) {
       if (mounted &&
@@ -70,6 +85,9 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    if (identical(widget.runner.xrayVersionChoice, _choice)) {
+      widget.runner.xrayVersionChoice = null;
+    }
     _poll?.cancel();
     c.dispose();
     super.dispose();
@@ -102,13 +120,20 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
                     allowPreview: true,
                   ) ==
                   true);
-      final effectiveCandidate = hasPlanCandidate
-          ? c.plan!['candidate'] as String
-          : (hasDynamicCandidate ? dynamicXray : null);
+      final effectiveCandidate =
+          c.chosen?['version'] as String? ??
+          (hasPlanCandidate
+              ? c.plan!['candidate'] as String
+              : (hasDynamicCandidate ? dynamicXray : null));
       final isCandidateNewer = hasPlanCandidate || hasDynamicCandidate;
+      // Every path is the checked transaction: the pinned candidate, or a
+      // newer upstream release chosen explicitly (UI-45).
       final canRun =
-          (c.available && c.plan?['available'] == true && hasPlanCandidate) ||
-          ((hasDynamicCandidate || hasPlanCandidate) && updates != null);
+          c.available &&
+          ((c.plan?['available'] == true && hasPlanCandidate) ||
+              (hasDynamicCandidate &&
+                  updates != null &&
+                  c.plan?['choosable'] == true));
       final message = switch (c.phase) {
         'baseline' => l.xrayUpgradeBaseline,
         'preparing' || 'replacing' => l.xrayUpgradePreparing,
@@ -125,6 +150,8 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
         'xray_check_layout' => isCandidateNewer ? '' : l.xrayUpgradeLayout,
         'xray_check_changed' => l.xrayUpgradeConflict,
         'xray_check_rollback' => l.xrayUpgradeAttention,
+        'xray_check_panel_api' => l.xrayUpgradePanelApi,
+        'xray_release_missing' => l.versionsAssetMissing,
         'vpn_pending_readback' => l.xrayUpgradeProblemAfter(
           l.vpnPendingReadback,
         ),
@@ -223,22 +250,11 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
                           await c.run();
                         } else if (effectiveCandidate != null &&
                             updates != null) {
-                          final candidate = await updates.source.resolveAsset(
+                          final asset = await updates.source.resolveAsset(
                             component: 'xray',
                             version: effectiveCandidate,
                           );
-                          if (candidate != null && context.mounted) {
-                            await widget.runner.checkComponentUpgrade(
-                              'xray',
-                              candidate: candidate,
-                            );
-                            if (widget.runner.componentUpgradePlan != null) {
-                              await widget.runner.applyComponentUpgrade(
-                                widget.runner.componentUpgradePlan!,
-                                candidate,
-                              );
-                            }
-                          }
+                          if (context.mounted) await c.install(asset);
                         }
                       },
                 icon: Icon(

@@ -28,6 +28,9 @@ class XrayUpgradeController extends ChangeNotifier {
   final VpnController vpn;
   final String host;
   Map<String, dynamic>? plan, operation;
+
+  /// The explicitly chosen release of the running transaction, if any.
+  Map<String, Object?>? chosen;
   final rows = <XrayComparison>[];
   bool busy = false, running = false, _disposed = false;
   String phase = 'idle', code = '';
@@ -40,6 +43,44 @@ class XrayUpgradeController extends ChangeNotifier {
 
   void cancel() => _token?.cancel();
   bool get available => vpn.connections.engine != null;
+  bool get ready => available && !busy && !vpn.busy && runner.canRequestAction;
+
+  static String officialUrl(String version) =>
+      'https://github.com/XTLS/Xray-core/releases/download/v$version/Xray-linux-64.zip';
+
+  /// The begin payload's candidate for a release asset
+  /// (`ComponentReleaseSource.resolveAsset`): only XTLS's own amd64 archive
+  /// with the SHA-256 read from the release. Null otherwise.
+  static Map<String, Object?>? releaseCandidate(Map<String, Object?>? asset) {
+    final version = asset?['version'], url = asset?['url'];
+    final sha = asset?['sha256'];
+    if (version is! String || url is! String || sha is! String) return null;
+    if (!RegExp(r'^\d{1,4}\.\d{1,4}\.\d{1,4}$').hasMatch(version) ||
+        url != officialUrl(version) ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(sha)) {
+      return null;
+    }
+    return {'version': version, 'url': url, 'sha256': sha};
+  }
+
+  /// The version that ran before the last committed core change.
+  String? get previousVersion => switch (plan?['latest']) {
+    {'phase': 'committed', 'current': final String current} => current,
+    _ => null,
+  };
+
+  /// Installs an explicitly chosen release (newer or older) through the same
+  /// checked transaction as the pinned candidate.
+  Future<void> install(Map<String, Object?>? asset) async {
+    final candidate = releaseCandidate(asset);
+    if (candidate == null) {
+      phase = 'not_changed';
+      code = 'xray_release_missing';
+      changed();
+      return;
+    }
+    await run(candidate: candidate);
+  }
 
   Future<RunnerResponse> request(
     String action,
@@ -159,12 +200,15 @@ class XrayUpgradeController extends ChangeNotifier {
     return vpn.connections.registerExternal(key.target, spec, identity);
   }
 
-  Future<void> run() async {
+  /// [candidate] is an explicitly chosen release ([releaseCandidate]);
+  /// without it the runner's pinned version is installed, only forward.
+  Future<void> run({Map<String, Object?>? candidate}) async {
     if (busy || vpn.busy || !runner.canRequestAction || !available) return;
     busy = true;
     running = true;
     phase = 'baseline';
     code = '';
+    chosen = candidate;
     rows.clear();
     changed();
     final token = CancellationToken();
@@ -204,16 +248,26 @@ class XrayUpgradeController extends ChangeNotifier {
             throw const FormatException('xray_check_busy');
           }
         }
-        if (plan!['supported'] != true) {
+        // An explicit choice needs only a supported panel; the runner keeps
+        // its panel and config checks either way.
+        if (plan![candidate == null ? 'supported' : 'choosable'] != true) {
           throw const FormatException('xray_check_layout');
         }
-        if (plan!['candidate'] != null &&
-            plan!['current'] == plan!['candidate']) {
-          phase = 'not_changed';
-          return;
-        }
-        if (plan!['available'] != true) {
-          return;
+        String bare(Object? v) => '$v'.replaceFirst(RegExp(r'^v'), '');
+        if (candidate != null) {
+          if (bare(plan!['current']) == bare(candidate['version'])) {
+            phase = 'not_changed';
+            return;
+          }
+        } else {
+          if (plan!['candidate'] != null &&
+              plan!['current'] == plan!['candidate']) {
+            phase = 'not_changed';
+            return;
+          }
+          if (plan!['available'] != true) {
+            return;
+          }
         }
         final inventory = (plan!['inbounds'] as List).cast<Map>();
         final enabled = inventory.where((r) => r['enabled'] == true).toList();
@@ -291,6 +345,7 @@ class XrayUpgradeController extends ChangeNotifier {
           'leases': leases,
           'network': network,
           'core': revision,
+          'candidate': ?candidate,
           'baseline': [
             for (final lease in leases)
               {'lease': lease, 'tcp': true, 'udp': true},
@@ -360,6 +415,14 @@ class XrayUpgradeController extends ChangeNotifier {
             });
           }
           phase = operation!['phase'] as String;
+          // The server's reason (e.g. 3x-ui stopped answering) is more
+          // precise than the generic failure seen here.
+          if (operation!['code'] case final String reason
+              when code == 'xray_check_failed' &&
+                  reason.startsWith('xray_check_') &&
+                  reason != 'xray_check_failed') {
+            code = reason;
+          }
           if (phase == 'rolled_back' && !token.isCancelled) {
             // Repeat on the original device. A restored binary alone is not a
             // claim that traffic has also recovered.
@@ -393,6 +456,7 @@ class XrayUpgradeController extends ChangeNotifier {
       }
       deadline.cancel();
       _token = null;
+      chosen = null;
       vpn.upgradeBusy = false;
       if (entered) await vpn.leaveConnectionTraffic?.call();
       running = false;

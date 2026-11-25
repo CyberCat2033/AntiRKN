@@ -5,6 +5,7 @@ import '../l10n/app_localizations.dart';
 import 'component_installation_view.dart';
 import 'component_updates_controller.dart';
 import 'runner_controller.dart';
+import 'xray_upgrade_controller.dart';
 
 /// Components whose version can be chosen.
 const choosableComponents = {'panel', 'xray', 'trusttunnel', 'amneziawg'};
@@ -18,7 +19,8 @@ const installerComponents = {'trusttunnel', 'amneziawg'};
 /// and the version that ran before the last confirmed upgrade. Older
 /// versions are not offered: a version the server never ran may not read
 /// the data a newer one already wrote; the previous one is restored from
-/// its snapshot.
+/// its snapshot. Xray, newer or previous, changes only through the checked
+/// transaction of [RunnerController.xrayVersionChoice] (UI-45).
 Future<void> showComponentVersions(
   BuildContext context, {
   required RunnerController controller,
@@ -55,6 +57,7 @@ class _ComponentVersionsDialogState extends State<_ComponentVersionsDialog> {
   final releases = <String, List<ComponentRelease>>{};
   var plans = <String, Map<String, dynamic>>{};
   bool loading = true, failed = false, resolving = false, assetMissing = false;
+  bool xrayUnavailable = false;
 
   List<String> get components => [
     for (final key in widget.installed.keys)
@@ -86,6 +89,13 @@ class _ComponentVersionsDialogState extends State<_ComponentVersionsDialog> {
 
   Future<void> _choose(String component, String version, bool restore) async {
     final l = AppLocalizations.of(context);
+    final xray = component == 'xray'
+        ? widget.controller.xrayVersionChoice
+        : null;
+    if (component == 'xray' && xray?.ready() != true) {
+      setState(() => xrayUnavailable = true);
+      return;
+    }
     final from = widget.installed[component]!;
     final snapshot = plans[component]?['snapshot'] as Map?;
     final accepted = await showDialog<bool>(
@@ -105,7 +115,9 @@ class _ComponentVersionsDialogState extends State<_ComponentVersionsDialog> {
                 snapshot?['xrayVersion'] != null)
               l.versionsPanelRestoresXray(snapshot!['xrayVersion'] as String),
             if (component == 'amneziawg') l.versionsAwgBuild,
-            installerComponents.contains(component)
+            xray != null
+                ? l.versionsXraySafety
+                : installerComponents.contains(component)
                 ? l.versionsSafetyInstaller
                 : l.versionsSafety,
           ].join('\n\n'),
@@ -126,7 +138,9 @@ class _ComponentVersionsDialogState extends State<_ComponentVersionsDialog> {
     if (accepted != true || !mounted) return;
     final arch = plans[component]?['arch'] as String?;
     Map<String, Object?>? candidate;
-    if (restore) {
+    // The previous Xray is downloaded again from its release: the checked
+    // transaction verifies it like any chosen version.
+    if (restore && xray == null) {
       candidate = {
         'component': component,
         'version': version,
@@ -152,6 +166,10 @@ class _ComponentVersionsDialogState extends State<_ComponentVersionsDialog> {
       } catch (_) {
         candidate = null;
       }
+      if (xray != null &&
+          XrayUpgradeController.releaseCandidate(candidate) == null) {
+        candidate = null;
+      }
       if (!mounted) return;
       setState(() {
         resolving = false;
@@ -161,6 +179,10 @@ class _ComponentVersionsDialogState extends State<_ComponentVersionsDialog> {
     if (candidate == null) return;
     final chosen = candidate;
     Navigator.pop(context);
+    if (xray != null) {
+      await xray.install(chosen);
+      return;
+    }
     final c = widget.controller;
     await c.requestAction(() async {
       if (installerComponents.contains(component)) {
@@ -216,6 +238,15 @@ class _ComponentVersionsDialogState extends State<_ComponentVersionsDialog> {
           AppNotice(message: l.versionsAssetMissing),
         ]);
       }
+      if (xrayUnavailable) {
+        children.addAll([
+          const SizedBox(height: 12),
+          AppNotice(
+            key: const ValueKey('component-version-xray-unavailable'),
+            message: l.versionsXrayUnavailable,
+          ),
+        ]);
+      }
       for (final component in components) {
         final current = widget.installed[component]!;
         final verified = verifiedComponentVersions[component];
@@ -227,7 +258,11 @@ class _ComponentVersionsDialogState extends State<_ComponentVersionsDialog> {
               r,
         ].take(8).toList();
         final snapshot = plans[component]?['snapshot'] as Map?;
-        final previous = snapshot?['version'] as String?;
+        final previous =
+            snapshot?['version'] as String? ??
+            (component == 'xray'
+                ? widget.controller.xrayVersionChoice?.previous()
+                : null);
         children.addAll([
           const SizedBox(height: 16),
           Text(

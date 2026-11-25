@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import stat
 from pathlib import Path
 import secrets
@@ -32,6 +33,14 @@ MAX_ROLLBACK_ATTEMPTS = 3
 ROLLBACK_RETRY_SECONDS = 20
 # Large files no finished transaction needs (the state record stays).
 TRANSIENT = ('previous', 'candidate', 'candidate.zip', 'download.tmp')
+# An explicitly chosen release: only XTLS's own amd64 asset, with the digest
+# the device read from the release (as for component upgrades), size-bounded.
+OFFICIAL = 'https://github.com/XTLS/Xray-core/releases/download/v{0}/Xray-linux-64.zip'
+MAX_ARCHIVE = 64 * 1024 * 1024
+DOWNLOAD_FIELDS = ('version', 'url', 'sha256', 'bytes', 'binarySha256')
+BEGIN_FIELDS = {'panelId', 'fingerprint', 'leases', 'network', 'baseline', 'core'}
+# How often the watchdog logs in to 3x-ui while the device compares.
+PANEL_CHECK_SECONDS = 30
 
 def boot(): return Path('/proc/sys/kernel/random/boot_id').read_text().strip()
 def uptime(): return float(Path('/proc/uptime').read_text().split()[0])
@@ -140,6 +149,7 @@ def plan(store,panel_id):
         if error.code=='panel_update_incompatible':raise UpdateError('xray_check_layout') from None
         raise
     stable = TARGET.get('prerelease') is False
+    panel_supported = False
     try:
         panel_ver = parse_semver(current['panelVersion'])
         min_panel = min(parse_semver(p) for p in TARGET.get('supportedPanels', ['3.7.0']))
@@ -150,6 +160,8 @@ def plan(store,panel_id):
         supported = panel_supported and core_supported
     except (ValueError, TypeError, KeyError):
         supported = False
+    try:parse_semver(current['xrayVersion'])
+    except (ValueError, TypeError, KeyError):panel_supported = False
     rows=current['configuration']['inbounds']
     try:
         candidate_available = stable and supported and (parse_semver(current['xrayVersion']) != parse_semver(TARGET['version']))
@@ -157,7 +169,10 @@ def plan(store,panel_id):
         candidate_available = False
     return dict(supported=supported,current=current['xrayVersion'],candidate=TARGET['version'] if stable else None,fingerprint=vless.digest(current),
         inbounds=[dict(id=r['id'],enabled=r['enable'],protocol=r['protocol'],name=r.get('remark',''),port=r['port']) for r in rows],
-        available=candidate_available,maxInbounds=TARGET['maxInbounds'],latest=latest(store,panel_id))
+        available=candidate_available,maxInbounds=TARGET['maxInbounds'],latest=latest(store,panel_id),
+        # An explicitly chosen version (newer or older) needs only a supported
+        # panel; the pinned target above is offered only forward.
+        choosable=panel_supported)
 
 def public(info):
     return {k:info[k] for k in ('id','phase','current','candidate','deadline','code','manifest','history') if k in info}
@@ -192,30 +207,55 @@ def retire(info):
     watchdog calls this from inside the unit, so it is never stopped here."""
     probes.retire_unit(unit(info['id'],'rollback'))
 
+def chosen_target(candidate):
+    """(release, explicit): the pinned TARGET, or the version the device chose
+    with the archive digest it read from the release. The pinned version keeps
+    its pinned archive and binary hashes."""
+    if candidate is None:
+        if TARGET.get('prerelease') is not False:raise UpdateError('xray_check_invalid')
+        return {k:TARGET[k] for k in DOWNLOAD_FIELDS},False
+    if not isinstance(candidate,dict) or set(candidate)!={'version','url','sha256'} or not all(isinstance(v,str) for v in candidate.values()):
+        raise UpdateError('xray_check_invalid')
+    version=candidate['version']
+    if not re.fullmatch(r'[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}',version) or candidate['url']!=OFFICIAL.format(version):
+        raise UpdateError('xray_check_invalid')
+    if not re.fullmatch(r'[0-9a-f]{64}',candidate['sha256']):raise UpdateError('xray_check_digest')
+    if version==TARGET['version']:
+        if candidate['url']!=TARGET['url'] or candidate['sha256']!=TARGET['sha256']:raise UpdateError('xray_check_digest')
+        return {k:TARGET[k] for k in DOWNLOAD_FIELDS},True
+    return dict(version=version,url=candidate['url'],sha256=candidate['sha256']),True
+
 def begin(store,req):
     key=probes.identifier(req['id']);payload=json.loads(req['payload']);old=load(store,key)
     if old:
         if old['requestHash']!=vless.digest(payload):raise UpdateError('xray_check_changed')
         return {**public(old),'nonce':old['nonce']}
-    if TARGET.get('prerelease') is not False:raise UpdateError('xray_check_invalid')
+    if not isinstance(payload,dict) or set(payload)-{'candidate'}!=BEGIN_FIELDS or not isinstance(payload['network'],str) or not 1<=len(payload['network'])<=1024:
+        raise UpdateError('xray_check_invalid')
+    target,explicit=chosen_target(payload.get('candidate'))
     prune(store)
     if active(store) or store.db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running')").fetchone():raise UpdateError('xray_check_busy')
-    if set(payload)!={'panelId','fingerprint','leases','network','baseline','core'} or not isinstance(payload['network'],str) or not 1<=len(payload['network'])<=1024:
-        raise UpdateError('xray_check_invalid')
     if payload['core']!='ac017cdd246ce8bd547653d927e7bf77d7ee73d5':raise UpdateError('xray_check_invalid')
     owned=leases(store,payload['leases']);current=snapshot(store,payload['panelId'])
-    if vless.digest(current)!=payload['fingerprint'] or not plan(store,payload['panelId'])['available']:raise UpdateError('xray_check_changed')
+    if vless.digest(current)!=payload['fingerprint']:raise UpdateError('xray_check_changed')
+    offer=plan(store,payload['panelId'])
+    if explicit:
+        # An older version only when chosen; the panel check is the same.
+        try:same=parse_semver(current['xrayVersion'])==parse_semver(target['version'])
+        except ValueError:same=True
+        if not offer['choosable'] or same:raise UpdateError('xray_check_changed')
+    elif not offer['available']:raise UpdateError('xray_check_changed')
     wanted={r['id'] for r in current['configuration']['inbounds'] if r['enable']}
     covered={row['rowId'] for row in owned if row['protocol']=='vless' and row['saved']['panelId']==payload['panelId']}
     if not wanted or covered!=wanted or any(r['enable'] and r['protocol']!='vless' for r in current['configuration']['inbounds']):raise UpdateError('xray_check_coverage')
     if len(covered)!=len(owned):raise UpdateError('xray_check_coverage')
     verify_checks(payload['baseline'],payload['leases'])
     if min(r['expires'] for r in owned)-time.time()<120+65*len(owned):raise UpdateError('xray_check_timeout')
-    info=dict(id=key,phase='preparing',current=current['xrayVersion'],candidate=TARGET['version'],deadline=min(time.time()+600,min(r['expires'] for r in owned)-30),
+    info=dict(id=key,phase='preparing',current=current['xrayVersion'],candidate=target['version'],target=target,deadline=min(time.time()+600,min(r['expires'] for r in owned)-30),
         created=time.time(),boot=boot(),uptimeDeadline=uptime()+600,payload=payload,requestHash=vless.digest(payload),nonce=secrets.token_hex(32),before=current,oldHash=hashlib.sha256(BINARY.read_bytes()).hexdigest(),code='preparing')
     meta=BINARY.stat()
     info['oldMode']=stat.S_IMODE(meta.st_mode);info['oldUid']=meta.st_uid;info['oldGid']=meta.st_gid
-    info['manifest']=vless.digest(dict(before=current,target=TARGET,leases=payload['leases'],network=payload['network'],id=key))
+    info['manifest']=vless.digest(dict(before=current,target=target,leases=payload['leases'],network=payload['network'],id=key))
     save(store,info)
     atomic_file(location(store,key)/'previous',BINARY.read_bytes(),0o700)
     if hashlib.sha256((location(store,key)/'previous').read_bytes()).hexdigest()!=info['oldHash']:raise UpdateError()
@@ -231,32 +271,39 @@ def verify_checks(checks,keys):
     if not isinstance(checks,list) or len(checks)!=len(keys) or {r.get('lease') for r in checks if isinstance(r,dict)}!=set(keys):raise UpdateError('xray_check_coverage')
     if any(set(r)!={'lease','tcp','udp'} or r['tcp'] is not True or r['udp'] is not True for r in checks):raise UpdateError('xray_check_coverage')
 
-def download(path):
-    output=path/'candidate.zip';temporary=path/'download.tmp'
-    if not output.exists() or hashlib.sha256(output.read_bytes()).hexdigest()!=TARGET['sha256']:
-        client=urllib.request.build_opener(urllib.request.ProxyHandler({}));total=0;started=time.monotonic()
-        with client.open(TARGET['url'],timeout=20) as response,temporary.open('wb') as stream:
+class HttpsRedirects(urllib.request.HTTPRedirectHandler):
+    """Every redirect hop of a release download stays on https."""
+    def redirect_request(self,req,fp,code,msg,headers,newurl):
+        if not newurl.startswith('https://'):raise UpdateError('xray_check_digest')
+        return super().redirect_request(req,fp,code,msg,headers,newurl)
+
+def reports(output,version):
+    return output.startswith('Xray '+version+' ') or output.startswith('Xray v'+version+' ')
+
+def download(path,target):
+    """The verified core of `target` (see chosen_target): archive digest and
+    size, the pinned binary digest when there is one, and its own version."""
+    output=path/'candidate.zip';temporary=path/'download.tmp';limit=target.get('bytes') or MAX_ARCHIVE
+    if not output.exists() or hashlib.sha256(output.read_bytes()).hexdigest()!=target['sha256']:
+        client=urllib.request.build_opener(urllib.request.ProxyHandler({}),HttpsRedirects());total=0;started=time.monotonic()
+        with client.open(target['url'],timeout=20) as response,temporary.open('wb') as stream:
             if not response.geturl().startswith('https://'):raise UpdateError()
             while True:
                 chunk=response.read(262144)
                 if not chunk:break
                 total+=len(chunk)
-                if total>TARGET['bytes'] or time.monotonic()-started>120:raise UpdateError()
+                if total>min(limit,MAX_ARCHIVE) or time.monotonic()-started>120:raise UpdateError()
                 stream.write(chunk)
             stream.flush();os.fsync(stream.fileno())
-        if total!=TARGET['bytes'] or hashlib.sha256(temporary.read_bytes()).hexdigest()!=TARGET['sha256']:raise UpdateError('xray_check_digest')
+        if (target.get('bytes') and total!=target['bytes']) or hashlib.sha256(temporary.read_bytes()).hexdigest()!=target['sha256']:raise UpdateError('xray_check_digest')
         os.replace(temporary,output)
     with zipfile.ZipFile(output) as archive:
         item=archive.getinfo('xray')
         if item.file_size>100*1024*1024:raise UpdateError()
         data=archive.read(item)
-        if hashlib.sha256(data).hexdigest()!=TARGET['binarySha256']:raise UpdateError('xray_check_digest')
+        if target.get('binarySha256') and hashlib.sha256(data).hexdigest()!=target['binarySha256']:raise UpdateError('xray_check_digest')
         atomic_file(path/'candidate',data,0o700)
-    if not command([str(path/'candidate'),'version']).decode().startswith('Xray '+TARGET['version']+' '):
-        out = command([str(path/'candidate'),'version']).decode().strip()
-        target_v = TARGET['version'].lstrip('v')
-        if not (out.startswith(f'Xray {target_v} ') or out.startswith(f'Xray v{target_v} ') or f' {target_v} ' in out):
-            raise UpdateError()
+    if not reports(command([str(path/'candidate'),'version']).decode(),target['version'].lstrip('v')):raise UpdateError()
     return path/'candidate'
 
 def config_test(binary):
@@ -298,13 +345,23 @@ def cache_versions(store,info,actual):
             atomic_file(panel.DATABASE/'.antirkn-versions',vless.canonical(dict(id=marker.read_text(),**actual)).encode())
 
 
+def panel_api(store,info):
+    """The app still works with 3x-ui after the core change: a fresh login to
+    its API and inbounds/list returns the same inbound ids as before."""
+    expected=sorted(row['id'] for row in info['before']['configuration']['inbounds'])
+    try:
+        api=panel.client(vless.access_for_panel(store,info['payload']['panelId']))
+        actual=sorted(row['id'] for row in api.call('/panel/api/inbounds/list'))
+    except Exception:raise UpdateError('xray_check_panel_api') from None
+    if actual!=expected:raise UpdateError('xray_check_panel_api')
+
 def replace_binary(info,data):
     atomic_file(BINARY,data,info['oldMode'])
     os.chown(BINARY,info['oldUid'],info['oldGid'])
 
 def apply(store,key):
     try:
-        candidate=download(location(store,key))
+        candidate=download(location(store,key),load(store,key).get('target',TARGET))
         with probes.operation_lock(store):
             info=load(store,key)
             if info['phase']!='preparing':return
@@ -314,7 +371,8 @@ def apply(store,key):
             config_test(candidate)
             info.update(phase='replacing',newHash=hashlib.sha256(candidate.read_bytes()).hexdigest(),code='replacing');save(store,info)
             replace_binary(info,candidate.read_bytes())
-            restart(store,info,TARGET['version'])
+            restart(store,info,info['candidate'])
+            panel_api(store,info)
             if not unchanged(store,info,new=True):raise UpdateError('xray_check_changed')
             info.update(phase='awaiting_checks',code='awaiting_checks');save(store,info)
     except Exception as error:
@@ -393,6 +451,9 @@ def finish(store,req):
     if info['phase']!='awaiting_checks' or expired(info):return rollback(store,info)
     if payload.get('network')!=info['payload']['network']:return rollback(store,info)
     verify_checks(payload.get('checks'),info['payload']['leases']);leases(store,info['payload']['leases'])
+    try:panel_api(store,info)
+    except UpdateError as error:
+        info['code']=error.code;save(store,info);return rollback(store,info)
     if not unchanged(store,info,new=True):return rollback(store,info)
     info.update(phase='committed',code='committed');save(store,info);retire(info);prune(store);return public(info)
 
@@ -402,22 +463,39 @@ def status(store,req):
     settle_unarmed(store,info)
     return public(info)
 
+def panel_failure(store,key):
+    """The code of a failed 3x-ui check while the device compares, else None.
+    Runs without the operation lock: RPCs (a commit) are not held up by it."""
+    info=load(store,key)
+    if not info or info['phase']!='awaiting_checks' or expired(info):return None
+    try:panel_api(store,info)
+    except UpdateError as error:return error.code
+    return None
+
 def watchdog(key):
     """Rolls back once the window ends without a commit (checks arrive only
-    through finish()); a rollback that keeps failing becomes recovery_required
-    and the unit retires itself instead of restarting x-ui forever."""
+    through finish()) or as soon as the app can no longer work with 3x-ui; a
+    rollback that keeps failing becomes recovery_required and the unit retires
+    itself instead of restarting x-ui forever."""
     from runner import Store,STATE
-    started=time.monotonic()
+    started=time.monotonic();next_check=started+PANEL_CHECK_SECONDS;failure=None
     while True:
         delay=1
         store=Store(STATE)
         try:
+            if failure is None and time.monotonic()>=next_check:
+                next_check=time.monotonic()+PANEL_CHECK_SECONDS
+                failure=panel_failure(store,key)
             with probes.operation_lock(store):
                 info=load(store,key)
                 if not info or info['phase'] in FINAL or info['phase']==STUCK:
                     if info:retire(info)
                     return
-                if info['phase']=='rolling_back' or expired(info) or time.monotonic()-started>=600:
+                if failure and info['phase']=='awaiting_checks':
+                    info['code']=failure;save(store,info)
+                    if attempt_rollback(store,info):return
+                    delay=ROLLBACK_RETRY_SECONDS
+                elif info['phase']=='rolling_back' or expired(info) or time.monotonic()-started>=600:
                     if attempt_rollback(store,info):return
                     delay=ROLLBACK_RETRY_SECONDS
         except probes.ProbeError:

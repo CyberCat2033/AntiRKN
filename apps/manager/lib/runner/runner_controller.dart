@@ -7,6 +7,27 @@ import 'package:flutter/foundation.dart';
 
 /// One controller per server. Connection setup prepares the runner; polling
 /// observes jobs. Persist each job request before submitting it.
+/// The one way to change the Xray core (UI-45): the safe transaction of the
+/// visible `XrayUpgradeView`. Connections are compared before and after the
+/// switch and the app must still work with 3x-ui; otherwise the server keeps
+/// or restores the current core.
+class XrayVersionChoice {
+  const XrayVersionChoice({
+    required this.install,
+    required this.ready,
+    required this.previous,
+  });
+
+  /// Installs a release asset (`ComponentReleaseSource.resolveAsset`).
+  final Future<void> Function(Map<String, Object?> asset) install;
+
+  /// Whether a transaction can start now (connection checks are available).
+  final bool Function() ready;
+
+  /// The version that ran before the last committed core change.
+  final String? Function() previous;
+}
+
 class RunnerController extends ChangeNotifier {
   RunnerController({
     required this.serverId,
@@ -198,6 +219,9 @@ class RunnerController extends ChangeNotifier {
   }
 
   final void Function()? refreshSoftware;
+
+  /// Registered while the server's `XrayUpgradeView` is shown.
+  XrayVersionChoice? xrayVersionChoice;
   bool _softwareRefreshPending = false;
   final ServerSoftwareInventory? Function()? software;
   final RunnerTransport? Function() transport;
@@ -1821,8 +1845,12 @@ class RunnerController extends ChangeNotifier {
   }
 
   /// Install exactly the chosen version (a release asset or the snapshot of
-  /// the previous version) through the checked upgrade pipeline.
+  /// the previous version) through the checked upgrade pipeline. Never Xray:
+  /// its core changes only through [xrayVersionChoice] (UI-45).
   Future<void> installComponentVersion(Map<String, Object?> candidate) async {
+    if (candidate['component'] == 'xray') {
+      throw ArgumentError.value('xray', 'component');
+    }
     await checkComponentUpgrade(
       candidate['component'] as String,
       candidate: candidate,

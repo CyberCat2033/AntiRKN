@@ -14,12 +14,13 @@ import xray_transaction as x
 from runner import Store
 REAL_DOWNLOAD=x.download
 REAL_RESTART=x.restart
+REAL_PANEL_API=x.panel_api
 
 class XrayTransactionTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.root=Path(self.temp.name)
         self.store=Store(self.root);self.binary=self.root/'xray';self.binary.write_bytes(b'old');self.binary.chmod(0o751)
-        self.panel='a'*32;self.key='b'*32;self.lease='c'*32;self.running='26.7.28'
+        self.panel='a'*32;self.key='b'*32;self.lease='c'*32;self.running='26.7.28';self.panel_version='3.8.0';self.panel_down=False
         self.configuration={'settings':{'route':'preserve'},'inbounds':[dict(id=1,enable=True,protocol='vless',remark='one',port=443,settings={'clients':[{'id':'existing'}]})]}
         self.events=[];self.patches=[]
         self.patch(x,'TARGET',{**x.TARGET,'prerelease':False})
@@ -34,6 +35,7 @@ class XrayTransactionTests(unittest.TestCase):
         self.patch(x,'config_test',lambda *a:None)
         self.patch(x,'restart',self.restart)
         self.patch(x.os,'chown',lambda *a:None)
+        self.patch(x,'panel_api',self.panel_api)
     def arm(self,info):
         # Like the real arm(): the unit file exists before anything else runs.
         (self.root/'units').mkdir(exist_ok=True);(self.root/'units'/x.unit(info['id'],'rollback')).write_text('unit')
@@ -43,16 +45,25 @@ class XrayTransactionTests(unittest.TestCase):
     def tearDown(self):
         for p in reversed(self.patches):p.stop()
         self.store.close();self.temp.cleanup()
+    def panel_api(self,store,info):
+        self.events.append('panel_api')
+        if self.panel_down:raise x.UpdateError('xray_check_panel_api')
     def snapshot(self,*args):
-        return dict(panelId=self.panel,panelVersion='3.8.0',xrayVersion=self.running,
+        return dict(panelId=self.panel,panelVersion=self.panel_version,xrayVersion=self.running,
                     configuration=copy.deepcopy(self.configuration),files={str(self.binary):hashlib.sha256(self.binary.read_bytes()).hexdigest()},release='fixture')
-    def download(self,path):
+    def download(self,path,target):
+        self.downloaded=target
         p=path/'candidate';p.write_bytes(b'new');return p
     def restart(self,store,info,version):
         self.events.append('restart');self.running=version
-    def request(self):
-        return dict(id=self.key,payload=json.dumps(dict(panelId=self.panel,fingerprint=x.vless.digest(self.snapshot()),leases=[self.lease],network='wifi',core='ac017cdd246ce8bd547653d927e7bf77d7ee73d5',baseline=[dict(lease=self.lease,tcp=True,udp=True)])))
-    def begin(self):return x.begin(self.store,self.request())
+    def request(self,candidate=None,**extra):
+        payload=dict(panelId=self.panel,fingerprint=x.vless.digest(self.snapshot()),leases=[self.lease],network='wifi',core='ac017cdd246ce8bd547653d927e7bf77d7ee73d5',baseline=[dict(lease=self.lease,tcp=True,udp=True)],**extra)
+        if candidate is not None:payload['candidate']=candidate
+        return dict(id=self.key,payload=json.dumps(payload))
+    def begin(self,candidate=None):return x.begin(self.store,self.request(candidate))
+    @staticmethod
+    def chosen(version,sha='a'*64,url=None):
+        return dict(version=version,url=url or x.OFFICIAL.format(version),sha256=sha)
     def test_prerelease_target_is_not_offered_or_started(self):
         with patch.object(x,'TARGET',{**x.TARGET,'prerelease':True}):
             candidate=x.plan(self.store,self.panel)
@@ -139,7 +150,7 @@ class XrayTransactionTests(unittest.TestCase):
         response=io.BytesIO(b'invalid');response.geturl=lambda:'https://fixture.invalid/release'
         client=Mock();client.open.return_value=response
         with patch.object(x.urllib.request,'build_opener',return_value=client):
-            with self.assertRaises(x.UpdateError) as error:REAL_DOWNLOAD(folder)
+            with self.assertRaises(x.UpdateError) as error:REAL_DOWNLOAD(folder,x.chosen_target(None)[0])
         self.assertEqual(error.exception.code,'xray_check_digest')
         self.assertFalse((folder/'candidate').exists());self.assertEqual(self.binary.read_bytes(),b'old')
 
@@ -288,3 +299,150 @@ class XrayTransactionTests(unittest.TestCase):
                 p = x.plan(self.store, self.panel)
                 self.assertEqual(p['supported'], expected_supp, f'xray {xray} supported should be {expected_supp}')
                 self.assertEqual(p['available'], expected_avail, f'xray {xray} available should be {expected_avail}')
+
+    # UI-45: a version chosen on the device goes through this transaction.
+    def test_explicitly_chosen_older_version_is_installed_with_all_checks(self):
+        begin=self.begin(self.chosen('26.5.1'))
+        info=x.load(self.store,self.key)
+        self.assertEqual((info['candidate'],info['current']),('26.5.1','26.7.28'))
+        self.assertEqual(info['target'],dict(version='26.5.1',url=x.OFFICIAL.format('26.5.1'),sha256='a'*64))
+        x.apply(self.store,self.key)
+        self.assertEqual(self.downloaded,info['target'])
+        self.assertEqual(self.events,['armed','restart','panel_api'])
+        self.assertEqual(self.running,'26.5.1')
+        self.assertEqual(x.load(self.store,self.key)['phase'],'awaiting_checks')
+        self.assertEqual(self.finish(begin)['phase'],'committed')
+        self.assertEqual(self.events[-2:],['panel_api','retired'])
+
+    def test_explicit_newer_version_beyond_the_pinned_target(self):
+        self.begin(self.chosen('27.1.2'));x.apply(self.store,self.key)
+        self.assertEqual(self.running,'27.1.2');self.assertEqual(x.load(self.store,self.key)['phase'],'awaiting_checks')
+
+    def test_downgrade_only_when_explicitly_chosen(self):
+        self.running='27.0.0'
+        with self.assertRaises(x.UpdateError) as error:self.begin()
+        self.assertEqual(error.exception.code,'xray_check_changed')
+        self.assertEqual(self.events,[])
+        self.key='d'*32;self.begin(self.chosen(x.TARGET['version'],x.TARGET['sha256']))
+        self.assertEqual(x.load(self.store,self.key)['candidate'],x.TARGET['version'])
+
+    def test_explicit_choice_keeps_the_panel_compatibility_check(self):
+        self.panel_version='3.6.0'
+        with self.assertRaises(x.UpdateError) as error:self.begin(self.chosen('26.5.1'))
+        self.assertEqual(error.exception.code,'xray_check_changed')
+        self.panel_version='3.8.0'
+        with self.assertRaises(x.UpdateError) as error:self.begin(self.chosen(self.running))
+        self.assertEqual(error.exception.code,'xray_check_changed')
+        self.assertEqual(self.events,[]);self.assertEqual(self.binary.read_bytes(),b'old')
+
+    def test_only_the_official_asset_with_a_full_digest_is_accepted(self):
+        bad=[(dict(version='26.5.1',url=x.OFFICIAL.format('26.5.1')),'xray_check_invalid'),
+             ({**self.chosen('26.5.1'),'bytes':1},'xray_check_invalid'),
+             (self.chosen('26.5.1',url=x.OFFICIAL.format('26.5.1').replace('https','http',1)),'xray_check_invalid'),
+             (self.chosen('26.5.1',url=x.OFFICIAL.format('26.5.2')),'xray_check_invalid'),
+             (self.chosen('26.5.1',url='https://github.com/other/Xray-core/releases/download/v26.5.1/Xray-linux-64.zip'),'xray_check_invalid'),
+             (self.chosen('26.5.1',url=x.OFFICIAL.format('26.5.1').replace('linux-64','linux-arm64-v8a')),'xray_check_invalid'),
+             (self.chosen('../26.5.1'),'xray_check_invalid'),(self.chosen('26.5.1-rc1'),'xray_check_invalid'),
+             (self.chosen('26.5.1',sha='A'*64),'xray_check_digest'),(self.chosen('26.5.1',sha='a'*63),'xray_check_digest'),
+             (self.chosen('26.5.1',sha='sha256:'+'a'*64),'xray_check_digest'),
+             (self.chosen(x.TARGET['version'],sha='a'*64),'xray_check_digest'),
+             ('26.5.1','xray_check_invalid'),(dict(version=26,url='',sha256=''),'xray_check_invalid')]
+        for candidate,code in bad:
+            with self.subTest(candidate=candidate):
+                with self.assertRaises(x.UpdateError) as error:self.begin(candidate)
+                self.assertEqual(error.exception.code,code)
+        with self.assertRaises(x.UpdateError) as error:x.begin(self.store,self.request(extra='field'))
+        self.assertEqual(error.exception.code,'xray_check_invalid')
+        self.assertEqual(self.events,[]);self.assertEqual(self.binary.read_bytes(),b'old')
+        self.assertIsNone(x.load(self.store,self.key))
+
+    def test_pinned_target_keeps_its_pinned_hashes(self):
+        target,explicit=x.chosen_target(self.chosen(x.TARGET['version'],x.TARGET['sha256']))
+        self.assertTrue(explicit)
+        self.assertEqual((target['bytes'],target['binarySha256']),(x.TARGET['bytes'],x.TARGET['binarySha256']))
+        self.assertEqual(x.chosen_target(None),(target,False))
+
+    def test_config_test_failure_of_a_chosen_version_leaves_old_binary(self):
+        self.begin(self.chosen('26.5.1'))
+        with patch.object(x,'config_test',side_effect=x.UpdateError('xray_check_config')) as test:x.apply(self.store,self.key)
+        test.assert_called_once()
+        self.assertEqual(x.load(self.store,self.key)['phase'],'not_changed');self.assertEqual(self.binary.read_bytes(),b'old')
+
+    def test_panel_api_failure_after_restart_rolls_back_without_commit(self):
+        self.begin(self.chosen('26.5.1'));self.panel_down=True
+        x.apply(self.store,self.key)
+        info=x.load(self.store,self.key)
+        self.assertEqual((info['phase'],info['code']),('rolled_back','xray_check_panel_api'))
+        self.assertEqual(self.binary.read_bytes(),b'old');self.assertEqual(self.running,'26.7.28')
+
+    def test_panel_api_failure_before_commit_rolls_back(self):
+        begin=self.begin();x.apply(self.store,self.key);self.panel_down=True
+        result=self.finish(begin)
+        self.assertEqual((result['phase'],result['code']),('rolled_back','xray_check_panel_api'))
+        self.assertEqual(self.binary.read_bytes(),b'old')
+        with self.assertRaises(x.UpdateError) as error:self.finish(begin)
+        self.assertEqual(error.exception.code,'xray_check_late')
+
+    def test_watchdog_rolls_back_when_the_panel_api_stops_answering(self):
+        begin=self.begin();x.apply(self.store,self.key);self.panel_down=True
+        with patch.object(x,'PANEL_CHECK_SECONDS',0):self.watchdog()
+        info=x.load(self.store,self.key)
+        self.assertEqual((info['phase'],info['code']),('rolled_back','xray_check_panel_api'))
+        self.assertEqual(self.binary.read_bytes(),b'old');self.assertIn('retired',self.events)
+
+    def test_watchdog_keeps_a_healthy_panel_until_the_window_ends(self):
+        self.begin();x.apply(self.store,self.key)
+        checks=[]
+        def healthy(store,info):
+            checks.append(1)
+            if len(checks)==3:self.expire()
+        with patch.object(x,'PANEL_CHECK_SECONDS',0),patch.object(x,'panel_api',healthy):self.watchdog()
+        info=x.load(self.store,self.key)
+        self.assertEqual(len(checks),3)
+        self.assertEqual(info['phase'],'rolled_back');self.assertNotEqual(info['code'],'xray_check_panel_api')
+
+    def test_panel_api_needs_a_fresh_login_and_the_same_inbound_ids(self):
+        self.begin();info=x.load(self.store,self.key)
+        api=Mock()
+        with patch.object(x.vless,'access_for_panel',return_value={}) as access,patch.object(x.panel,'client',return_value=api) as client:
+            api.call.return_value=[dict(id=1)]
+            REAL_PANEL_API(self.store,info)
+            access.assert_called_once_with(self.store,self.panel);client.assert_called_once()
+            api.call.assert_called_once_with('/panel/api/inbounds/list')
+            for rows in ([],[dict(id=1),dict(id=2)],[dict(id=2)],None):
+                api.call.return_value=rows
+                with self.assertRaises(x.UpdateError) as error:REAL_PANEL_API(self.store,info)
+                self.assertEqual(error.exception.code,'xray_check_panel_api')
+            client.side_effect=ValueError('panel_auth_failed')
+            with self.assertRaises(x.UpdateError) as error:REAL_PANEL_API(self.store,info)
+            self.assertEqual(error.exception.code,'xray_check_panel_api')
+
+    def test_release_redirects_stay_on_https(self):
+        handler=x.HttpsRedirects();request=x.urllib.request.Request(x.OFFICIAL.format('26.5.1'))
+        with self.assertRaises(x.UpdateError):handler.redirect_request(request,None,302,'Found',{},'http://objects.githubusercontent.com/x')
+        self.assertIsNotNone(handler.redirect_request(request,None,302,'Found',{},'https://objects.githubusercontent.com/x'))
+
+    def test_chosen_archive_is_size_bounded_and_must_report_its_version(self):
+        folder=self.root/'download';folder.mkdir()
+        target=x.chosen_target(self.chosen('26.5.1'))[0]
+        response=io.BytesIO(b'x'*(x.MAX_ARCHIVE+1));response.geturl=lambda:'https://fixture.invalid/release'
+        client=Mock();client.open.return_value=response
+        with patch.object(x.urllib.request,'build_opener',return_value=client):
+            with self.assertRaises(x.UpdateError):REAL_DOWNLOAD(folder,target)
+        self.assertFalse((folder/'candidate.zip').exists())
+        import zipfile
+        archive=folder/'candidate.zip'
+        with zipfile.ZipFile(archive,'w') as z:z.writestr('xray',b'binary')
+        target['sha256']=hashlib.sha256(archive.read_bytes()).hexdigest()
+        for output,ok in ((b'Xray 26.5.1 (Xray, Penetrates Everything.)',True),(b'Xray 26.5.10 (Xray)',False),(b'Xray 26.7.28 (Xray)',False)):
+            with self.subTest(output=output),patch.object(x,'command',return_value=output):
+                if ok:self.assertEqual(REAL_DOWNLOAD(folder,target),folder/'candidate')
+                else:
+                    with self.assertRaises(x.UpdateError):REAL_DOWNLOAD(folder,target)
+
+    def test_plan_reports_explicit_choice_for_a_newer_core(self):
+        self.running='27.0.0'
+        offer=x.plan(self.store,self.panel)
+        self.assertEqual((offer['supported'],offer['available'],offer['choosable']),(False,False,True))
+        self.panel_version='3.6.0'
+        self.assertFalse(x.plan(self.store,self.panel)['choosable'])

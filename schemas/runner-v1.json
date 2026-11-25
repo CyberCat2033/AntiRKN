@@ -952,6 +952,7 @@
     "xray_check_watchdog",
     "xray_check_digest",
     "xray_check_late",
+    "xray_check_panel_api",
     "server_reboot_waiting",
     "server_reboot_done",
     "server_reboot_failed",

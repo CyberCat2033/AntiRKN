@@ -6494,6 +6494,12 @@ abstract class AppLocalizations {
   /// **'The server state changed. External edits were preserved; check the server before retrying.'**
   String get xrayUpgradeConflict;
 
+  /// No description provided for @xrayUpgradePanelApi.
+  ///
+  /// In en, this message translates to:
+  /// **'After the Xray restart the app could not sign in to 3x-ui or read the same inbounds. The core was not confirmed and the server returns the previous version.'**
+  String get xrayUpgradePanelApi;
+
   /// No description provided for @xrayUpgradePrerelease.
   ///
   /// In en, this message translates to:
@@ -7003,6 +7009,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Keys and settings stay as they are. The new version goes into its own folder; if the service does not start or connections stop working after the switch, the server returns to the current version by itself.'**
   String get versionsSafetyInstaller;
+
+  /// No description provided for @versionsXraySafety.
+  ///
+  /// In en, this message translates to:
+  /// **'Xray changes only with a check: real connections are tested before and after the switch, and the app must still sign in to 3x-ui and see the same inbounds. Otherwise, or if this device does not confirm within 5 minutes, the server returns the current version. Inbounds, clients and settings stay as they are.'**
+  String get versionsXraySafety;
+
+  /// No description provided for @versionsXrayUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Xray can change only together with the connection check. Open the server\'s Updates page on a device that can test connections and choose the version again.'**
+  String get versionsXrayUnavailable;
 
   /// No description provided for @versionsHelpInstaller.
   ///

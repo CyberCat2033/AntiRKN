@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_manager/l10n/app_localizations.dart';
+import 'package:antirkn_manager/runner/component_updates_controller.dart';
+import 'package:antirkn_manager/runner/component_versions_view.dart';
 import 'package:antirkn_manager/runner/runner_controller.dart';
 import 'package:antirkn_manager/runner/xray_upgrade_controller.dart';
 import 'package:antirkn_manager/runner/xray_upgrade_view.dart';
@@ -18,6 +20,12 @@ class UpgradeRemote extends f.Remote {
   bool loseCommit = false;
   bool supported = true;
   bool available = true;
+  bool choosable = true;
+  Map<String, Object?>? latest;
+  Map? begun;
+
+  /// The server rolled back on its own after the restart (e.g. 3x-ui API).
+  String? serverFailure;
   String currentVersion = '26.7.28';
   String candidateVersion = '26.9.9';
   String? operationId;
@@ -40,6 +48,8 @@ class UpgradeRemote extends f.Remote {
       value = {
         'supported': supported,
         'available': available,
+        'choosable': choosable,
+        'latest': latest,
         'maxInbounds': 8,
         'current': currentVersion,
         'candidate': candidateVersion,
@@ -94,13 +104,14 @@ class UpgradeRemote extends f.Remote {
       });
     } else if (a == 'xray_check_begin') {
       operationId = id;
-      phase = 'awaiting_checks';
+      begun = jsonDecode(r['payload'] as String) as Map;
+      phase = serverFailure == null ? 'awaiting_checks' : 'rolled_back';
       value = {
         'id': id,
         'phase': phase,
         'nonce': 'nonce',
         'manifest': 'manifest',
-        'code': phase,
+        'code': serverFailure ?? phase,
       };
     } else if (a == 'xray_check_abort') {
       phase = 'rolled_back';
@@ -110,7 +121,11 @@ class UpgradeRemote extends f.Remote {
       if (loseCommit) throw const SshFailure(SshIssue.disconnected);
       value = {'id': id, 'phase': phase, 'code': phase};
     } else if (a == 'xray_check_status' || a == 'xray_check_latest') {
-      value = {'id': operationId ?? id, 'phase': phase, 'code': phase};
+      value = {
+        'id': operationId ?? id,
+        'phase': phase,
+        'code': serverFailure ?? phase,
+      };
     }
     return RunnerResponse.fromJson({...response(), 'xrayCheck': value});
   }
@@ -131,6 +146,54 @@ class ReadyRunner extends RunnerController {
     bool ownProgress = false,
   }) async => action();
 }
+
+class VersionsRunner extends ReadyRunner {
+  VersionsRunner(super.remote);
+  final generic = <Map<String, Object?>>[];
+  @override
+  Future<Map<String, Map<String, dynamic>>> componentVersionPlans(
+    List<String> components,
+  ) async => {
+    for (final c in components) c: {'arch': 'x86_64'},
+  };
+  @override
+  Future<void> installComponentVersion(Map<String, Object?> candidate) async =>
+      generic.add(candidate);
+}
+
+class XraySource implements ComponentReleaseSource {
+  final resolved = <String>[];
+  @override
+  Future<Map<String, String>> check() async => {'xray': '26.11.9'};
+  @override
+  Future<List<ComponentRelease>> releases(String component) async => [
+    const ComponentRelease('26.11.9'),
+  ];
+  @override
+  Future<Map<String, Object?>?> resolveInstallerRelease({
+    required String component,
+    required String version,
+  }) async => null;
+  @override
+  Future<Map<String, Object?>?> resolveAsset({
+    required String component,
+    required String version,
+    String? architecture,
+  }) async {
+    resolved.add(version);
+    return asset(version);
+  }
+}
+
+Map<String, Object?> asset(String version, {String sha = ''}) => {
+  'component': 'xray',
+  'version': version,
+  'architecture': 'x86_64',
+  'assetName': 'Xray-linux-64.zip',
+  'url': XrayUpgradeController.officialUrl(version),
+  'bytes': 1,
+  'sha256': sha.isEmpty ? 'a' * 64 : sha,
+};
 
 class UpgradeCore implements CoreProbeTransport {
   UpgradeCore(this.remote);
@@ -320,6 +383,212 @@ void main() {
       expect(upgrade.code, isEmpty);
     },
   );
+  group('UI-45 explicit Xray version', () {
+    test('only the official amd64 archive with a SHA-256 is a candidate', () {
+      expect(XrayUpgradeController.releaseCandidate(asset('26.5.1')), {
+        'version': '26.5.1',
+        'url':
+            'https://github.com/XTLS/Xray-core/releases/download/v26.5.1/Xray-linux-64.zip',
+        'sha256': 'a' * 64,
+      });
+      for (final bad in [
+        null,
+        {...asset('26.5.1'), 'sha256': ''},
+        {...asset('26.5.1'), 'sha256': 'sha256:${'a' * 64}'},
+        {...asset('26.5.1'), 'sha256': 'A' * 64},
+        {...asset('26.5.1'), 'url': XrayUpgradeController.officialUrl('26.5')},
+        {
+          ...asset('26.5.1'),
+          'url':
+              'https://github.com/XTLS/Xray-core/releases/download/v26.5.1/Xray-linux-arm64-v8a.zip',
+        },
+        {...asset('26.5.1-rc1')},
+      ]) {
+        expect(XrayUpgradeController.releaseCandidate(bad), isNull);
+      }
+    });
+    test(
+      'an older version below the pinned target runs the full check',
+      () async {
+        await setup();
+        remote.currentVersion = '27.0.0';
+        remote.supported = false;
+        remote.available = false;
+        await upgrade.install(asset('26.5.1'));
+        expect(upgrade.phase, 'committed');
+        expect(remote.begun?['candidate'], {
+          'version': '26.5.1',
+          'url': XrayUpgradeController.officialUrl('26.5.1'),
+          'sha256': 'a' * 64,
+        });
+        expect(remote.calls.where((a) => a == 'probe_begin').length, 2);
+        expect(remote.calls, contains('xray_check_commit'));
+        expect(upgrade.chosen, isNull);
+      },
+    );
+    test('the pinned flow sends no candidate', () async {
+      await setup();
+      await upgrade.run();
+      expect(upgrade.phase, 'committed');
+      expect(remote.begun!.containsKey('candidate'), isFalse);
+    });
+    test('an unsupported panel is not relaxed for a chosen version', () async {
+      await setup();
+      remote.choosable = false;
+      await upgrade.install(asset('26.5.1'));
+      expect(upgrade.code, 'xray_check_layout');
+      expect(remote.calls, isNot(contains('probe_begin')));
+      expect(remote.calls, isNot(contains('xray_check_begin')));
+    });
+    test('the running version is not changed', () async {
+      await setup();
+      await upgrade.install(asset('26.7.28'));
+      expect(upgrade.phase, 'not_changed');
+      expect(remote.calls, isNot(contains('xray_check_begin')));
+    });
+    test('a release without a digest never reaches the server', () async {
+      await setup();
+      await upgrade.install({...asset('26.5.1'), 'sha256': ''});
+      expect(upgrade.code, 'xray_release_missing');
+      expect(remote.calls, isEmpty);
+    });
+    test('the server reason is shown when 3x-ui stops answering', () async {
+      await setup();
+      remote.serverFailure = 'xray_check_panel_api';
+      await upgrade.install(asset('26.5.1'));
+      expect(upgrade.phase, 'rolled_back');
+      expect(upgrade.code, 'xray_check_panel_api');
+      expect(remote.calls, isNot(contains('xray_check_commit')));
+    });
+    test('the previous version is the one before the last commit', () async {
+      await setup();
+      remote.latest = {
+        'id': 'f' * 32,
+        'phase': 'committed',
+        'current': '26.7.1',
+        'candidate': '26.7.28',
+        'code': 'committed',
+      };
+      await upgrade.inspect();
+      expect(upgrade.previousVersion, '26.7.1');
+      remote.latest = {...remote.latest!, 'phase': 'rolled_back'};
+      await upgrade.inspect();
+      expect(upgrade.previousVersion, isNull);
+    });
+    test('the generic component path refuses Xray', () async {
+      await setup();
+      expect(
+        () => runner.installComponentVersion(asset('26.11.9')),
+        throwsArgumentError,
+      );
+    });
+
+    Future<void> dialog(
+      WidgetTester tester,
+      VersionsRunner versions,
+      XraySource source, {
+      String row = '26.11.9',
+    }) async {
+      final updates = ComponentUpdatesController(source: source);
+      addTearDown(updates.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showComponentVersions(
+                  context,
+                  controller: versions,
+                  updates: updates,
+                  title: '3x-ui / Xray',
+                  installed: const {'xray': '26.7.28'},
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(ValueKey('component-version-xray-$row')),
+          matching: find.byType(OutlinedButton),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('choosing an Xray version starts the checked transaction', (
+      tester,
+    ) async {
+      final versions = VersionsRunner(UpgradeRemote(f.MemoryVpn()));
+      final installs = <Map<String, Object?>>[];
+      versions.xrayVersionChoice = XrayVersionChoice(
+        install: (a) async => installs.add(a),
+        ready: () => true,
+        previous: () => '26.7.1',
+      );
+      final source = XraySource();
+      await dialog(tester, versions, source);
+      expect(
+        find.byKey(const ValueKey('component-version-xray-restore')),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const ValueKey('component-version-confirm')));
+      await tester.pumpAndSettle();
+      expect(source.resolved, ['26.11.9']);
+      expect(installs.single['version'], '26.11.9');
+      expect(versions.generic, isEmpty);
+      await tester.pumpWidget(const SizedBox.shrink());
+      versions.dispose();
+    });
+
+    testWidgets('restoring the previous Xray downloads it again', (
+      tester,
+    ) async {
+      final versions = VersionsRunner(UpgradeRemote(f.MemoryVpn()));
+      final installs = <Map<String, Object?>>[];
+      versions.xrayVersionChoice = XrayVersionChoice(
+        install: (a) async => installs.add(a),
+        ready: () => true,
+        previous: () => '26.7.1',
+      );
+      final source = XraySource();
+      await dialog(tester, versions, source, row: 'restore');
+      await tester.tap(find.byKey(const ValueKey('component-version-confirm')));
+      await tester.pumpAndSettle();
+      expect(source.resolved, ['26.7.1']);
+      expect(installs.single['version'], '26.7.1');
+      expect(versions.generic, isEmpty);
+      await tester.pumpWidget(const SizedBox.shrink());
+      versions.dispose();
+    });
+
+    testWidgets('without the checked transaction Xray is not changed', (
+      tester,
+    ) async {
+      final versions = VersionsRunner(UpgradeRemote(f.MemoryVpn()));
+      final source = XraySource();
+      await dialog(tester, versions, source);
+      expect(
+        find.byKey(const ValueKey('component-version-xray-unavailable')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('component-version-confirm')),
+        findsNothing,
+      );
+      expect(source.resolved, isEmpty);
+      expect(versions.generic, isEmpty);
+      await tester.pumpWidget(const SizedBox.shrink());
+      versions.dispose();
+    });
+  });
   for (final locale in ['ru', 'en']) {
     testWidgets('upgrade controls fit narrow screen with large text $locale', (
       tester,

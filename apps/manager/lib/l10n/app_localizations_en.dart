@@ -3678,6 +3678,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'The server state changed. External edits were preserved; check the server before retrying.';
 
   @override
+  String get xrayUpgradePanelApi =>
+      'After the Xray restart the app could not sign in to 3x-ui or read the same inbounds. The core was not confirmed and the server returns the previous version.';
+
+  @override
   String get xrayUpgradePrerelease => 'Pre-release';
 
   @override
@@ -3980,6 +3984,14 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get versionsSafetyInstaller =>
       'Keys and settings stay as they are. The new version goes into its own folder; if the service does not start or connections stop working after the switch, the server returns to the current version by itself.';
+
+  @override
+  String get versionsXraySafety =>
+      'Xray changes only with a check: real connections are tested before and after the switch, and the app must still sign in to 3x-ui and see the same inbounds. Otherwise, or if this device does not confirm within 5 minutes, the server returns the current version. Inbounds, clients and settings stay as they are.';
+
+  @override
+  String get versionsXrayUnavailable =>
+      'Xray can change only together with the connection check. Open the server\'s Updates page on a device that can test connections and choose the version again.';
 
   @override
   String get versionsHelpInstaller =>
