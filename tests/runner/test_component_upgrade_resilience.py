@@ -80,14 +80,23 @@ class ComponentUpgradeResilienceTests(unittest.TestCase):
             self.assertEqual(ctx.exception.code, 'apt_memory_low')
 
     def test_apt_dpkg_lock_contention_nonblocking_backoff(self):
-        """Modeling dpkg lock held by unattended-upgrades results in clean backoff and error."""
-        with patch('pathlib.Path.exists', return_value=True), \
-             patch('os.open', return_value=999), \
-             patch('fcntl.flock', side_effect=BlockingIOError), \
-             patch('os.close'):
-            with self.assertRaises(AptError) as ctx:
-                acquire_dpkg_locks(timeout=0.2)
+        """A dpkg lock held by another process (POSIX lock) ends in a bounded backoff and a clean error."""
+        lock = Path(self.temp_dir.name) / 'lock'
+        lock.write_bytes(b'')
+        holder = subprocess.Popen([sys.executable, '-c', 'import fcntl,sys,time\n'
+            'f=open(sys.argv[1],"r+"); fcntl.lockf(f, fcntl.LOCK_EX); print("held", flush=True); time.sleep(30)',
+            str(lock)], stdout=subprocess.PIPE)
+        try:
+            self.assertEqual(holder.stdout.readline().strip(), b'held')
+            sleeps = []
+            with patch('apt.is_unit_active', return_value=False):
+                started = time.monotonic()
+                with self.assertRaises(AptError) as ctx:
+                    acquire_dpkg_locks(timeout=0.2, paths=[lock], sleep=sleeps.append)
             self.assertEqual(ctx.exception.code, 'apt_lock_busy')
+            self.assertLess(time.monotonic() - started, 5)
+        finally:
+            holder.kill(); holder.wait(timeout=10); holder.stdout.close()
 
     # ------------------------------------------------------------------------
     # 2. Architecture & Checksum Chaos Tests

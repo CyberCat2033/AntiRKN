@@ -11,6 +11,7 @@ import hashlib
 import hmac
 import ipaddress
 import json
+import os
 from pathlib import Path
 import re
 import socket
@@ -88,24 +89,46 @@ def marker(workspace, resource):
     return 'AntiRKN:' + workspace + ':' + resource
 
 
-def secret(label):
+_KEY_CACHE = {}
+_MATERIAL_CACHE = {}
+
+
+def runner_key():
+    """The private runner key, read once per process (and again only if the
+    file itself is replaced)."""
     safe_file(KEY, 32)
-    key = KEY.read_bytes()
-    if len(key) != 32: raise VlessError('vless_conflict')
-    return hmac.new(key, ('vless-v1/' + label).encode(), hashlib.sha256).digest()
+    meta = os.lstat(str(KEY))
+    identity = (str(KEY), meta.st_dev, meta.st_ino, meta.st_mtime_ns, meta.st_size)
+    key = _KEY_CACHE.get(identity)
+    if key is None:
+        key = KEY.read_bytes()
+        if len(key) != 32: raise VlessError('vless_conflict')
+        _KEY_CACHE.clear()
+        _MATERIAL_CACHE.clear()
+        _KEY_CACHE[identity] = key
+    return identity, key
+
+
+def secret(label):
+    return hmac.new(runner_key()[1], ('vless-v1/' + label).encode(), hashlib.sha256).digest()
 
 
 def material(workspace, resource, seed=None):
     label = workspace + '/' + resource + ('/' + seed if seed is not None else '')
-    private = secret('reality/' + label)
-    # PKCS#8 X25519 private key; OpenSSL does the curve operation. No homemade
-    # crypto and no private key in process arguments.
-    der = bytes.fromhex('302e020100300506032b656e04220420') + private
-    public = command(['/usr/bin/openssl', 'pkey', '-inform', 'DER', '-pubout', '-outform', 'DER'], input_data=der)
-    if len(public) != 44: raise VlessError()
-    b64 = lambda b: base64.urlsafe_b64encode(b).decode().rstrip('=')
-    return dict(privateKey=b64(private), publicKey=b64(public[-32:]), shortId=secret('short/' + label).hex()[:16],
-        shortIds=[secret('short/' + label + '/' + str(n)).hex()[:2*n] for n in range(1, 8)] + [secret('short/' + label).hex()[:16]])
+    cache = (runner_key()[0], label)
+    cached = _MATERIAL_CACHE.get(cache)
+    if cached is None:
+        private = secret('reality/' + label)
+        # PKCS#8 X25519 private key; OpenSSL does the curve operation. No homemade
+        # crypto and no private key in process arguments.
+        der = bytes.fromhex('302e020100300506032b656e04220420') + private
+        public = command(['/usr/bin/openssl', 'pkey', '-inform', 'DER', '-pubout', '-outform', 'DER'], input_data=der)
+        if len(public) != 44: raise VlessError()
+        b64 = lambda b: base64.urlsafe_b64encode(b).decode().rstrip('=')
+        cached = dict(privateKey=b64(private), publicKey=b64(public[-32:]), shortId=secret('short/' + label).hex()[:16],
+            shortIds=[secret('short/' + label + '/' + str(n)).hex()[:2*n] for n in range(1, 8)] + [secret('short/' + label).hex()[:16]])
+        _MATERIAL_CACHE[cache] = cached
+    return copy.deepcopy(cached)
 
 
 def client_id(workspace, resource, user):
@@ -126,19 +149,68 @@ def access_for_panel(store, panel_id):
     return access
 
 
-def panel_for(store, panel_id, _retry=True):
+VERSION_KEYS = ('panelVersion', 'xrayVersion')
+
+
+def accept_versions(panel_id, access, observed, persist):
+    """The panel now reports other versions (its owner updated it). Accept
+    them for a panel this runner knows by identity; only a job records them.
+
+    An external panel is known by its connection record, an installed one by
+    /etc/x-ui still carrying this installation's marker. Anything else is a
+    different panel behind the same address: a conflict."""
+    from panel import DATABASE
+    from panel_discovery import EXTERNAL_ACCESS, external_access
+    external = external_access()
+    if external and external.get('id') == panel_id:
+        access.update(observed)
+        if persist:
+            atomic_file(EXTERNAL_ACCESS, json.dumps({**external, **observed}).encode())
+        return
+    owner = DATABASE / '.antirkn-owner'
+    try:
+        safe_file(owner, 64)
+        owned = owner.read_text().strip() == panel_id
+    except (OSError, PanelError):
+        owned = False
+    if not owned:
+        raise VlessError('vless_conflict')
+    version_file = DATABASE / '.antirkn-versions'
+    recorded = {}
+    if version_file.exists():
+        try:
+            safe_file(version_file, 1024)
+            recorded = json.loads(version_file.read_text())
+        except (OSError, ValueError, PanelError):
+            raise VlessError('vless_conflict') from None
+        if not isinstance(recorded, dict) or recorded.get('id', panel_id) != panel_id:
+            raise VlessError('vless_conflict')
+    access.update(observed)
+    if persist:
+        atomic_file(version_file, json.dumps({**recorded, 'id': panel_id, **observed}).encode())
+
+
+def panel_for(store, panel_id, _retry=True, persist=None):
+    """A logged-in, version-checked session for the panel.
+
+    The session is reused per store. persist=None records a changed panel
+    version only inside a job (store.current is set by the worker): plan and
+    state RPCs are read-only and never write files."""
+    if persist is None:
+        persist = getattr(store, 'current', None) is not None
     access = access_for_panel(store, panel_id)
+    identity = {k: v for k, v in access.items() if k not in VERSION_KEYS}
     sessions = getattr(store, '_panel_sessions', None)
     if sessions is None:
         sessions = store._panel_sessions = {}
     cached = sessions.get(panel_id)
-    api = cached[1] if cached and cached[0] == access else None
+    api = cached[1] if cached and cached[0] == identity else None
     using_cached = api is not None
     if api is None:
         api = PanelApi(access['port'], access.get('basePath', '/'), tls=access.get('tls', False),
             certificate=access.get('certificate'), host=access.get('host', '127.0.0.1'))
         api.login(access['username'], access['password'])
-        sessions[panel_id] = (access, api)
+        sessions[panel_id] = (identity, api)
     # During an API-triggered core restart the status cache briefly omits the
     # Xray version. A missing value is pending, not evidence of another binary.
     deadline = time.monotonic() + 15
@@ -149,45 +221,14 @@ def panel_for(store, panel_id, _retry=True):
             if error.code not in (401, 403, 404) or not using_cached or not _retry:
                 raise
             sessions.pop(panel_id, None)
-            return panel_for(store, panel_id, _retry=False)
+            return panel_for(store, panel_id, _retry=False, persist=persist)
         if isinstance(status, dict) and isinstance(status.get('xray'), dict):
-            panel_version, xray_version = status.get('panelVersion'), status['xray'].get('version')
-            if (panel_version and panel_version != access.get('panelVersion')) or (xray_version and xray_version != access.get('xrayVersion')):
-                from panel_discovery import external_access, EXTERNAL_ACCESS
-                from panel import atomic_file, DATABASE
-                ext = external_access()
-                if ext and ext.get('id') == panel_id:
-                    if panel_version: ext['panelVersion'] = access['panelVersion'] = panel_version
-                    if xray_version: ext['xrayVersion'] = access['xrayVersion'] = xray_version
-                    atomic_file(EXTERNAL_ACCESS, json.dumps(ext).encode())
-                    sessions[panel_id] = (access, api)
-                    return api
-                version_file = DATABASE / '.antirkn-versions'
-                owner_file = DATABASE / '.antirkn-owner'
-                is_owner = False
-                if owner_file.exists():
-                    try:
-                        from panel import safe_file
-                        safe_file(owner_file, 64)
-                        is_owner = (owner_file.read_text().strip() == panel_id)
-                    except Exception:
-                        pass
-                if is_owner or access.get('id') == panel_id:
-                    ver = {}
-                    if version_file.exists():
-                        try:
-                            ver = json.loads(version_file.read_text())
-                        except Exception:
-                            pass
-                    if not ver or ver.get('id') == panel_id:
-                        ver['id'] = panel_id
-                        if panel_version: ver['panelVersion'] = access['panelVersion'] = panel_version
-                        if xray_version: ver['xrayVersion'] = access['xrayVersion'] = xray_version
-                        atomic_file(version_file, json.dumps(ver).encode())
-                        sessions[panel_id] = (access, api)
-                        return api
-                raise VlessError('vless_conflict')
-            if panel_version == access.get('panelVersion') and xray_version == access.get('xrayVersion'):
+            observed = {k: v for k, v in (('panelVersion', status.get('panelVersion')),
+                                          ('xrayVersion', status['xray'].get('version'))) if v}
+            if any(access.get(k) != v for k, v in observed.items()):
+                accept_versions(panel_id, access, observed, persist)
+                return api
+            if len(observed) == 2:
                 return api
         time.sleep(.25)
     raise VlessError('vless_api_failed')
@@ -273,104 +314,129 @@ KNOWN_STREAM_KEYS = {
 }
 
 
+# Every top-level field wanted_inbound() sets; other columns belong to the
+# panel and are carried over from the current row unchanged.
+MANAGED_ROOT_KEYS = ('remark', 'enable', 'listen', 'port', 'protocol', 'expiryTime',
+                     'settings', 'streamSettings', 'sniffing')
+# Lists whose order carries no meaning for Xray.
+SET_KEYS = {'alpn', 'destOverride', 'serverNames', 'shortIds'}
+# 3x-ui 3.11 returns REALITY 'dest' for 'target' and may mask the private key.
+ALIASES = {'target': 'dest', 'dest': 'target'}
+MASKED = (None, '', '***', 'masked')
+
+
+# Every key of these sections comes from the AntiRKN resource spec.
+OWNED_SECTIONS = frozenset(('streamSettings.xhttpSettings', 'streamSettings.xhttpSettings.xmux',
+                            'streamSettings.xhttpSettings.headers'))
+
+
+def _neutral(key, value):
+    """A value that equals leaving the field out (what the panel adds)."""
+    return _is_default(value) or (key in ('minClientVer', 'maxClientVer') and value == '0.0.0')
+
+
+def _wild(value):
+    return '0.0.0.0' if value in (None, '') else value
+
+
+def _covers(desired, actual, path, reasons):
+    """Every value AntiRKN sends is in actual. actual may add keys only with a
+    neutral value, except inside client records, which the panel annotates."""
+    key = path.rsplit('.', 1)[-1]
+    if path == 'settings.clients':
+        if not isinstance(actual, list) or not isinstance(desired, list):
+            reasons.append('mismatch:' + path)
+            return
+        # VLESS/VMess clients carry an id, Trojan/Shadowsocks a password.
+        ident = lambda c: (c.get('id') or c.get('password') or c.get('email')) if isinstance(c, dict) else None
+        want = {ident(c): c for c in desired}
+        have = {ident(c): c for c in actual}
+        if None in want or None in have or len(want) != len(desired) or len(have) != len(actual):
+            # No usable identity: compare in order.
+            if len(desired) != len(actual):
+                reasons.append('mismatch:' + path)
+            else:
+                for want_client, have_client in zip(desired, actual):
+                    _covers(want_client, have_client, path + '[]', reasons)
+            return
+        if set(have) - set(want):
+            reasons.append('rogue_clients_detected')
+        if set(want) - set(have):
+            reasons.append('missing_clients_detected')
+        for client_key, client in want.items():
+            if client_key in have:
+                _covers(client, have[client_key], path + '[]', reasons)
+        return
+    if isinstance(desired, dict):
+        if not isinstance(actual, dict):
+            reasons.append('mismatch:' + path)
+            return
+        for name, value in desired.items():
+            other = name if name in actual or ALIASES.get(name) not in actual else ALIASES[name]
+            if other not in actual:
+                if not _neutral(name, value):
+                    reasons.append('missing:' + path + '.' + name)
+                continue
+            if name == 'privateKey' and actual[other] in MASKED:
+                continue
+            _covers(value, actual[other], path + '.' + name, reasons)
+        for name, value in actual.items():
+            if name in desired or ALIASES.get(name) in desired:
+                continue
+            # Fields the panel adds on its own (encryption, ocspStapling,
+            # allocate, newer defaults...) never undo a value AntiRKN sent.
+            # Sections whose every key AntiRKN owns must not keep a value it
+            # dropped (e.g. sessionIDTable switched off in the app).
+            if path == 'streamSettings' and name not in KNOWN_STREAM_KEYS:
+                reasons.append('unknown_stream_key:' + name)
+            elif path in OWNED_SECTIONS and not _neutral(name, value):
+                reasons.append('unexpected:' + path + '.' + name)
+        return
+    if isinstance(desired, list):
+        if not isinstance(actual, list):
+            reasons.append('mismatch:' + path)
+        elif key in SET_KEYS:
+            if sorted(map(canonical, desired)) != sorted(map(canonical, actual)):
+                reasons.append('mismatch:' + path)
+        elif len(desired) != len(actual):
+            reasons.append('mismatch:' + path)
+        else:
+            for index, (want, have) in enumerate(zip(desired, actual)):
+                _covers(want, have, '%s[%d]' % (path, index), reasons)
+        return
+    # canonical() keeps True and 1, or 1 and '1', apart.
+    if canonical(desired) != canonical(actual):
+        reasons.append('mismatch:' + path)
+
+
 def verify_inbound_spec(desired, actual_raw):
     """
     Pure-функция сверки спецификации.
     Возвращает (True, []) при полном семантическом совпадении
     или (False, ['reason_code_1', ...]) при расхождении.
     ЗАПРЕЩЕНО обращаться к БД внутри этой функции.
+
+    Сравнивается каждое значение, которое отправляет AntiRKN (сертификаты,
+    minVersion, все поля xhttp, fingerprint/spiderX/xver REALITY, sniffing,
+    remark...). Поля, которые панель добавляет сама, не считаются расхождением.
     """
     if not isinstance(desired, dict) or not isinstance(actual_raw, dict):
         return False, ["invalid_input"]
 
-    norm_desired = normalize_3xui_inbound(desired)
-    actual = normalize_3xui_inbound(actual_raw)
+    want = normalize_3xui_inbound(desired)
+    have = normalize_3xui_inbound(actual_raw)
     reasons = []
-
-    # 1. Base inbound fields
-    for field in ('enable', 'port', 'protocol'):
-        if norm_desired.get(field) is not None and actual.get(field) != norm_desired.get(field):
-            reasons.append(f"mismatch_{field}")
-
-    d_listen = norm_desired.get('listen') or ''
-    a_listen = actual.get('listen') or ''
-    if d_listen and d_listen not in ('0.0.0.0', '::') and a_listen and a_listen not in ('0.0.0.0', '::'):
-        if d_listen != a_listen:
-            reasons.append("mismatch_listen")
-
-    # 2. Clients validation
-    d_clients = norm_desired.get('settings', {}).get('clients', []) if isinstance(norm_desired.get('settings'), dict) else []
-    a_clients = actual.get('settings', {}).get('clients', []) if isinstance(actual.get('settings'), dict) else []
-    d_uuids = {c['id'] for c in d_clients if isinstance(c, dict) and 'id' in c}
-    a_uuids = {c['id'] for c in a_clients if isinstance(c, dict) and 'id' in c}
-
-    if a_uuids - d_uuids:
-        reasons.append("rogue_clients_detected")
-    if d_uuids - a_uuids:
-        reasons.append("missing_clients_detected")
-
-    a_client_map = {c['id']: c for c in a_clients if isinstance(c, dict) and 'id' in c}
-    for d_c in d_clients:
-        if not isinstance(d_c, dict) or 'id' not in d_c:
+    for key in MANAGED_ROOT_KEYS:
+        if key not in want:
             continue
-        c_id = d_c['id']
-        if c_id in a_client_map:
-            a_c = a_client_map[c_id]
-            if d_c.get('enable') is not None and a_c.get('enable') is not None:
-                if bool(d_c.get('enable')) != bool(a_c.get('enable')):
-                    reasons.append(f"client_enable_mismatch:{c_id}")
-            if (d_c.get('flow') or '') != (a_c.get('flow') or ''):
-                reasons.append(f"client_flow_mismatch:{c_id}")
-
-    # 3. StreamSettings validation
-    d_stream = norm_desired.get('streamSettings', {}) if isinstance(norm_desired.get('streamSettings'), dict) else {}
-    a_stream = actual.get('streamSettings', {}) if isinstance(actual.get('streamSettings'), dict) else {}
-
-    for k in a_stream:
-        if k not in KNOWN_STREAM_KEYS:
-            reasons.append(f"unknown_stream_key:{k}")
-
-    if d_stream.get('network') and a_stream.get('network') != d_stream.get('network'):
-        reasons.append("mismatch_network")
-    if d_stream.get('security') and a_stream.get('security') != d_stream.get('security'):
-        reasons.append("mismatch_security")
-
-    if d_stream.get('network') == 'xhttp':
-        d_xhttp = d_stream.get('xhttpSettings', {})
-        a_xhttp = a_stream.get('xhttpSettings', {})
-        for field in ('path', 'host', 'mode'):
-            if field in d_xhttp and d_xhttp[field] != a_xhttp.get(field):
-                reasons.append(f"mismatch_xhttp_{field}")
-
-    if d_stream.get('security') == 'reality':
-        d_rs = d_stream.get('realitySettings', {})
-        a_rs = a_stream.get('realitySettings', {})
-        if set(d_rs.get('serverNames') or []) != set(a_rs.get('serverNames') or []):
-            reasons.append("mismatch_reality_serverNames")
-        if set(d_rs.get('shortIds') or []) != set(a_rs.get('shortIds') or []):
-            reasons.append("mismatch_reality_shortIds")
-        d_target = d_rs.get('target') or d_rs.get('dest')
-        a_target = a_rs.get('target') or a_rs.get('dest')
-        if d_target and a_target and d_target != a_target:
-            reasons.append("mismatch_reality_target")
-        d_pub = (d_rs.get('settings') or {}).get('publicKey') or d_rs.get('publicKey')
-        a_pub = (a_rs.get('settings') or {}).get('publicKey') or a_rs.get('publicKey')
-        if d_pub and a_pub and d_pub != a_pub:
-            reasons.append("mismatch_reality_publicKey")
-        d_priv = d_rs.get('privateKey')
-        a_priv = a_rs.get('privateKey')
-        if d_priv and a_priv and a_priv not in ('', '***', 'masked', None):
-            if d_priv != a_priv:
-                reasons.append("mismatch_reality_privateKey")
-
-    if d_stream.get('security') == 'tls':
-        d_tls = d_stream.get('tlsSettings', {})
-        a_tls = a_stream.get('tlsSettings', {})
-        if d_tls.get('serverName') and a_tls.get('serverName') != d_tls.get('serverName'):
-            reasons.append("mismatch_tls_serverName")
-        if set(d_tls.get('alpn') or []) != set(a_tls.get('alpn') or []):
-            reasons.append("mismatch_tls_alpn")
-
+        if key == 'listen':
+            if _wild(want.get('listen')) != _wild(have.get('listen')):
+                reasons.append('mismatch_listen')
+        elif key not in have:
+            if not _neutral(key, want[key]):
+                reasons.append('missing:' + key)
+        else:
+            _covers(want[key], have[key], key, reasons)
     return (len(reasons) == 0, reasons)
 
 
@@ -624,8 +690,9 @@ def plan(store, req):
     return preflight(store, payload, panel_for(store, payload['panelId']))
 
 
-def state(store, panel_id, pending_job=None):
-    api = panel_for(store, panel_id)
+def state(store, panel_id, pending_job=None, api=None):
+    if api is None:
+        api = panel_for(store, panel_id)
     rows = api.call('/panel/api/inbounds/list')
     result = []
     for rid, saved in owned_rows(store).items():
@@ -763,14 +830,8 @@ class VlessApply:
                 self.store.event(job_id,'vless_applying',checkpoint+1,self.req['count'])
             return
         else:
-            api.call('/panel/api/server/restartXrayService', {})
-            deadline = time.monotonic() + 20
-            while time.monotonic() < deadline:
-                status = api.call('/panel/api/server/status')
-                if isinstance(status, dict) and isinstance(status.get('xray'), dict) and status['xray'].get('state') == 'running': break
-                time.sleep(.25)
-            else: raise VlessError('vless_api_failed')
-            for r in state(self.store, p['panelId'], pending_job=job_id):
+            restart(api)
+            for r in state(self.store, p['panelId'], pending_job=job_id, api=api):
                 if r['workspaceId'] == p['workspaceId'] and not r['confirmed']: raise VlessError('vless_conflict')
             code = 'vless_checking'
         with db:
@@ -778,35 +839,32 @@ class VlessApply:
             self.store.event(job_id,code,checkpoint+1,self.req['count'])
 
     def rollback(self):
+        """Cancellation before checkpoint 1 (the only caller): no panel effect
+        exists yet, since step 0 only reads the panel and writes the backup.
+        Restore just the registry rows of this workspace; a panel restore here
+        would overwrite edits made by others since the backup was taken."""
         job_id = self.req['id']
         backup_file = self.store.directory / ('vless-backup-' + job_id + '.json')
         if not backup_file.exists():
             return
-        try:
-            if backup_file.stat().st_size > 16777216:
-                return
-            data = json.loads(backup_file.read_text())
-            with self.store.db:
-                self.store.db.execute("DELETE FROM vless_resources WHERE data LIKE ?", (f'%"workspaceId":"{self.payload["workspaceId"]}"%',))
-                for r_id, r_data in data.get('resources', {}).items():
-                    self.store.db.execute("INSERT OR REPLACE INTO vless_resources VALUES (?,?)", (r_id, canonical(r_data)))
-            try:
-                api = panel_for(self.store, self.payload['panelId'])
-                current_inbounds = api.call('/panel/api/inbounds/list')
-                backup_rows = data.get('rows', [])
-                backup_by_id = {row['id']: row for row in backup_rows}
-                for cur in current_inbounds:
-                    if cur['id'] not in backup_by_id and marker(self.payload['workspaceId'], '') in cur.get('remark', ''):
-                        try: api.call('/panel/api/inbounds/del/%d' % cur['id'], {})
-                        except Exception: pass
-                for old_row in backup_rows:
-                    cur = next((c for c in current_inbounds if c['id'] == old_row['id']), None)
-                    if cur and normal(cur) != normal(old_row):
-                        try: api.call('/panel/api/inbounds/update/%d' % old_row['id'], old_row)
-                        except Exception: pass
-                try: api.call('/panel/api/server/restartXrayService', {})
-                except Exception: pass
-            except Exception:
-                pass
-        finally:
-            backup_file.unlink(missing_ok=True)
+        safe_file(backup_file, 16777216)
+        data = json.loads(backup_file.read_text())
+        workspace = self.payload['workspaceId']
+        with self.store.db:
+            for rid, saved in owned_rows(self.store).items():
+                if isinstance(saved, dict) and saved.get('workspaceId') == workspace:
+                    self.store.db.execute('DELETE FROM vless_resources WHERE id=?', (rid,))
+            for rid, saved in data.get('resources', {}).items():
+                if isinstance(saved, dict) and saved.get('workspaceId') == workspace:
+                    self.store.db.execute('INSERT OR REPLACE INTO vless_resources VALUES (?,?)', (rid, canonical(saved)))
+        # Removed only after the restore committed; a failure keeps it.
+        backup_file.unlink()
+
+
+def restart(api):
+    """Restart the panel's Xray and wait until it runs again."""
+    from panel_api import restart_xray
+    try:
+        restart_xray(api)
+    except ValueError:
+        raise VlessError('vless_api_failed') from None

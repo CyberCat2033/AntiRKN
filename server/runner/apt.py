@@ -11,8 +11,9 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import time
-from panel import atomic_file
+from panel import atomic_file, run as run_command
 
 ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C',
        'DEBIAN_FRONTEND': 'noninteractive', 'NEEDRESTART_MODE': 'l',
@@ -61,64 +62,115 @@ def check_disk_and_memory():
             pass
 
 
-def is_unit_active(unit):
+RUNNING_STATES = ('active', 'activating', 'deactivating', 'reloading')
+# Scheduled apt runs of Ubuntu. unattended-upgrades.service is only the
+# shutdown helper and is active all the time.
+SCHEDULED_UNITS = ('apt-daily.service', 'apt-daily-upgrade.service')
+LOCKS = (Path('/var/lib/dpkg/lock-frontend'), Path('/var/lib/dpkg/lock'),
+         Path('/var/lib/apt/lists/lock'))
+# Longest apt-get run in a transient unit; systemd stops it after that.
+RUNTIME_MAX = 7200
+
+
+def unit_properties(unit):
     try:
-        return subprocess.run(['/usr/bin/systemctl', 'is-active', '--quiet', unit],
-                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+        result = run_command(['/usr/bin/systemctl', 'show', '--property=LoadState,ActiveState,Result,ExecMainStatus',
+                              unit], timeout=20)
     except (OSError, subprocess.SubprocessError):
+        return {}
+    if result.returncode:
+        return {}
+    return dict(line.split('=', 1) for line in result.stdout.decode(errors='replace').splitlines() if '=' in line)
+
+
+def is_unit_active(unit):
+    return unit_properties(unit).get('ActiveState') in RUNNING_STATES
+
+
+def lock_busy(path):
+    """Whether another process holds the dpkg/apt lock. dpkg and apt take
+    POSIX (fcntl) locks, which flock() never sees."""
+    try:
+        fd = os.open(str(path), os.O_RDWR | os.O_NOFOLLOW | getattr(os, 'O_CLOEXEC', 0))
+    except FileNotFoundError:
         return False
+    try:
+        try:
+            fcntl.lockf(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except (BlockingIOError, PermissionError):
+            return True
+        fcntl.lockf(fd, fcntl.LOCK_UN)
+        return False
+    finally:
+        os.close(fd)
 
 
-def acquire_dpkg_locks(timeout=60):
-    lock_paths = [
-        Path('/var/lib/dpkg/lock-frontend'),
-        Path('/var/lib/dpkg/lock'),
-        Path('/var/lib/apt/lists/lock')
-    ]
+def acquire_dpkg_locks(timeout=60, paths=LOCKS, sleep=time.sleep):
+    """Wait (bounded) until dpkg and apt are free. apt itself takes the locks
+    afterwards; a scheduled apt run in progress is reported at once."""
     deadline = time.monotonic() + timeout
-    for lock_path in lock_paths:
-        if not lock_path.exists():
-            continue
-        acquired = False
-        backoff = 0.5
-        while time.monotonic() < deadline:
-            try:
-                fd = os.open(str(lock_path), os.O_RDWR | os.O_CREAT, 0o640)
-                try:
-                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    fcntl.flock(fd, fcntl.LOCK_UN)
-                    acquired = True
-                    break
-                except (BlockingIOError, OSError):
-                    is_unit_active('unattended-upgrades.service')
-                    time.sleep(backoff)
-                    backoff = min(backoff * 1.5, 3.0)
-                finally:
-                    os.close(fd)
-            except OSError:
-                break
-        if not acquired and lock_path.exists():
+    backoff = 0.5
+    while True:
+        busy = [path for path in paths if lock_busy(path)]
+        if not busy:
+            return
+        if any(is_unit_active(unit) for unit in SCHEDULED_UNITS) or time.monotonic() + backoff > deadline:
             raise AptError('apt_lock_busy')
+        sleep(backoff)
+        backoff = min(backoff * 1.5, 3.0)
 
 
-def run(args, *, capture=False, unit=None):
-    # Only simulations/read-only checks have a timeout. Killing apt while dpkg
-    # owns its database would make cancellation unsafe.
-    env = {**ENV, 'DEBIAN_FRONTEND': 'noninteractive'}
-    opts = list(OPTIONS)
-    if not any('Dpkg::Options::=--force-confold' in opt for opt in opts):
-        opts.extend(['-o', 'Dpkg::Options::=--force-confold'])
-    argv = ['/usr/bin/apt-get', *opts, *args]
-    if unit is not None:
+def run(args, *, capture=False, unit=None, record=None, runtime=RUNTIME_MAX):
+    """apt-get with fixed options. A unit run is a transient systemd service
+    bounded by RuntimeMaxSec; record, a root-only path, receives its exit
+    status even if this worker dies meanwhile."""
+    argv = ['/usr/bin/apt-get', *OPTIONS, *args]
+    if unit is None:
+        timeout = 60 if capture else runtime
+    else:
+        if record is not None:
+            argv = [sys.executable, '-I', str(Path(__file__).resolve()), 'record', str(record), *argv]
         argv = ['/usr/bin/systemd-run', '--quiet', '--wait', '--collect', '--pipe', '--unit=' + unit,
                 '--property=StandardOutput=null', '--property=StandardError=null',
-                *['--setenv=' + k + '=' + v for k, v in env.items()], *argv]
-    result = subprocess.run(argv, env=env,
-        stdin=subprocess.DEVNULL, stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL, timeout=60 if capture else None)
+                '--property=RuntimeMaxSec=%d' % runtime,
+                *['--setenv=' + k + '=' + v for k, v in ENV.items()], *argv]
+        timeout = runtime + 120
+    result = run_command(argv, timeout=timeout, env=dict(ENV), capture=capture)
     if result.returncode != 0:
         raise AptError()
     return result.stdout.decode() if capture else ''
+
+
+INTERRUPTED = 'interrupted'
+
+
+def recorded(path):
+    """What a unit run left in its marker: its exit status, INTERRUPTED when
+    apt-get was started but its end is unknown, None when it never started."""
+    try:
+        text = path.read_text().strip()
+    except OSError:
+        return None
+    if text == 'running':
+        return INTERRUPTED
+    match = re.fullmatch(r'exit (-?[0-9]{1,4})', text)
+    return int(match.group(1)) if match else None
+
+
+def record_exit(path, argv):
+    """Inside the transient unit: run apt-get, then record its exit status."""
+    import signal
+    def stopped(number, _frame):
+        atomic_file(path, b'exit %d' % (128 + number))
+        os._exit(128 + number)
+    signal.signal(signal.SIGTERM, stopped)
+    atomic_file(path, b'running')
+    try:
+        status = subprocess.call(argv, stdin=subprocess.DEVNULL, timeout=RUNTIME_MAX)
+    except subprocess.TimeoutExpired:
+        status = 124
+    atomic_file(path, b'exit %d' % status)
+    return status
 
 
 def parse_packages(output):
@@ -165,24 +217,47 @@ class AptJob:
     def __init__(self, store, request):
         self.store, self.request = store, request
         self.marker = store.directory / ('apt-' + request['id'] + '.started')
+        self.unit = 'antirkn-apt-' + request['id'] + '-apply'
+
+    def outcome(self):
+        """Exit status of this job's apply run: recorded by the run itself,
+        else read from a unit systemd still holds; None if it never ran."""
+        status = recorded(self.marker)
+        if status is not None:
+            return status
+        properties = unit_properties(self.unit)
+        if properties.get('LoadState') == 'loaded' and properties.get('Result'):
+            return 0 if (properties['Result'] == 'success' and properties.get('ExecMainStatus') == '0') else 1
+        return None
 
     def abort(self):
-        unit = 'antirkn-apt-' + self.request['id'] + '-apply'
-        if not is_unit_active(unit):
-            self.marker.unlink(missing_ok=True)
-            return 'cancelled'
-        return 'partially_applied'
+        if is_unit_active(self.unit):
+            return 'partially_applied'
+        if self.marker.exists() and self.outcome() is not None:
+            return 'partially_applied'  # apt already ran to its end.
+        self.marker.unlink(missing_ok=True)
+        return 'cancelled'
 
     def step(self, checkpoint):
         prerequisites()
         check_disk_and_memory()
         req = self.request
-        unit = 'antirkn-apt-' + req['id'] + '-apply'
         if checkpoint == 0:
             if self.marker.exists():
-                if is_unit_active(unit):
+                # The worker restarted during the apply run: never start it twice.
+                if is_unit_active(self.unit):
+                    return False
+                status = self.outcome()
+                if status == 0:
+                    self.advance(0)
+                    return True
+                if status == INTERRUPTED:
+                    # apt-get started and its end is unknown (a reboot): an
+                    # administrator decides, nothing is replayed.
                     raise AptError('apt_interrupted')
-                self.marker.unlink(missing_ok=True)
+                if status is not None:
+                    raise AptError('apt_failed')
+                self.marker.unlink(missing_ok=True)  # apt-get never started.
             acquire_dpkg_locks()
             if req['kind'] == 'apt_upgrade':
                 current = plan()
@@ -203,13 +278,25 @@ class AptJob:
             with self.store.db:
                 self.store.event(req['id'], 'apt_upgrading' if req['kind'] == 'apt_upgrade' else 'apt_updating', 0, 2)
             atomic_file(self.marker, b'started')
-            run(args, unit=unit)
+            run(args, unit=self.unit, record=self.marker)
         else:
-            run(['check'], unit='antirkn-apt-' + req['id'] + '-check')
+            run(['check'], unit='antirkn-apt-' + req['id'] + '-check', runtime=600)
             self.marker.unlink(missing_ok=True)
+        self.advance(checkpoint)
+        return True
+
+    def advance(self, checkpoint):
+        req = self.request
         with self.store.db:
             self.store.db.execute('UPDATE jobs SET checkpoint=? WHERE id=?', (checkpoint + 1, req['id']))
             self.store.event(req['id'], 'apt_reboot_required' if checkpoint == 1 and Path('/var/run/reboot-required').exists() else 'apt_checked', checkpoint + 1, 2)
 
     def failure_status(self):
         return 'partially_applied' if self.marker.exists() else 'failed'
+
+
+if __name__ == '__main__':
+    # systemd-run ... apt.py record <marker> /usr/bin/apt-get ...
+    if len(sys.argv) < 4 or sys.argv[1] != 'record' or sys.argv[3] != '/usr/bin/apt-get':
+        sys.exit(2)
+    sys.exit(record_exit(Path(sys.argv[2]), sys.argv[3:]))

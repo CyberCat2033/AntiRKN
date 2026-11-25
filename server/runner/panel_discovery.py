@@ -129,7 +129,7 @@ def connect_existing(raw):
     path, observed = candidates[0]
     cert = None
     if observed['tls']:
-        db = sqlite3.connect(path.resolve().as_uri() + '?mode=ro', uri=True)
+        db = sqlite3.connect(path.resolve().as_uri() + '?mode=ro', uri=True, timeout=3)
         try:
             row = db.execute("SELECT value FROM settings WHERE key='webCertFile'").fetchone()
             cert = row[0] if row and row[0] else None
@@ -141,7 +141,12 @@ def connect_existing(raw):
         api.call('/panel/api/inbounds/list')
         status = api.call('/panel/api/server/status')
     except OSError:
+        # Includes a served certificate other than the panel's own file.
         raise ValueError('panel_unreachable') from None
+    except ValueError as error:
+        if str(error) == 'panel_certificate':  # No protected certificate file to trust.
+            raise ValueError('panel_connect_unsupported') from None
+        raise
     from panel_api import xray_status
     if not isinstance(status, dict) or not xray_status(status).get('version'):
         raise ValueError('panel_unreachable')

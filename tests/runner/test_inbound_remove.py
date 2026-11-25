@@ -141,6 +141,24 @@ class RemoveTests(unittest.TestCase):
         self.assertEqual(self.status(), 'partially_applied')
         self.assertEqual(self.api.effects, [1])
 
+    def test_prepare_lists_inbounds_once_and_cleanup_lists_clients_once(self):
+        def client(email, key): return dict(id=key, email=email, enable=True)
+        self.api.rows[0]['settings'] = json.dumps(dict(clients=[client('one', 'u1'), client('two', 'u2'), client('six', 'u6')]))
+        self.submit()
+        calls = []
+        original = self.api.call
+        def counted(path, data=None):
+            calls.append(path)
+            return original(path, data)
+        with patch.object(self.api, 'call', side_effect=counted):
+            self.store.tick()
+            self.assertEqual(calls.count('/panel/api/inbounds/list'), 1)
+            calls.clear()
+            self.store.tick()
+        # One listing before the deletions and one confirming them, for all three.
+        self.assertEqual(calls.count('/panel/api/clients/list'), 2)
+        self.assertEqual(self.api.clients(), [])
+
     def test_drift_before_execution_is_rejected(self):
         self.submit(); self.api.rows[0]['remark'] = 'Changed'; self.store.tick()
         self.assertEqual(self.status(), 'failed')

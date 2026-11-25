@@ -57,6 +57,14 @@ class PanelApiTests(unittest.TestCase):
                     # Trust is scoped to the discovered certificate, never globally disabled.
                     with self.assertRaises(OSError):
                         PanelApi(server.server_port, 'private', host='127.0.0.2', tls=True).login('panel-admin', 'panel-password')
+                    # Another certificate than the panel's own fails closed.
+                    other = Path(directory) / 'other.pem'
+                    subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes',
+                        '-keyout', str(Path(directory) / 'other.key'), '-out', str(other), '-days', '1',
+                        '-subj', '/CN=panel.example'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    with self.assertRaises(OSError):
+                        PanelApi(server.server_port, 'private', host='127.0.0.2', tls=True,
+                                 certificate=str(other)).login('panel-admin', 'panel-password')
             finally:
                 server.shutdown(); server.server_close(); thread.join()
 
@@ -65,3 +73,32 @@ class PanelApiTests(unittest.TestCase):
 
     def test_panel_https_with_discovered_certificate(self):
         self.exercise(True)
+
+    def test_certificate_pin_reads_only_a_protected_leaf(self):
+        import hashlib
+        from panel_api import certificate_pin
+        with tempfile.TemporaryDirectory() as directory:
+            cert = Path(directory) / 'cert.pem'
+            subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes',
+                '-keyout', str(Path(directory) / 'key.pem'), '-out', str(cert), '-days', '1', '-subj', '/CN=x'],
+                check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            cert.chmod(0o644)
+            der = ssl.PEM_cert_to_DER_cert(cert.read_text())
+            # A chain file: the leaf comes first.
+            chain = Path(directory) / 'chain.pem'
+            chain.write_text(cert.read_text() + cert.read_text().replace('A', 'B', 0))
+            self.assertEqual(certificate_pin(str(chain)), hashlib.sha256(der).hexdigest())
+            cert.chmod(0o666)
+            with self.assertRaises(ValueError):
+                certificate_pin(str(cert))
+            (Path(directory) / 'empty.pem').write_text('no certificate')
+            with self.assertRaises(ValueError):
+                certificate_pin(str(Path(directory) / 'empty.pem'))
+
+    def test_credentials_never_go_to_a_foreign_address(self):
+        # Not an address of this host: refused before any connection.
+        with self.assertRaises(OSError):
+            PanelApi(2053, '/', host='192.0.2.10')
+        # A wildcard listener is reached over loopback.
+        self.assertTrue(PanelApi(2053, '/', host='0.0.0.0').base.startswith('http://127.0.0.1:2053'))
+        self.assertTrue(PanelApi(2053, '/', host='::').base.startswith('http://[::1]:2053'))

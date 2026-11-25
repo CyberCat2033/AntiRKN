@@ -116,9 +116,10 @@ class PanelTests(unittest.TestCase):
         good = dict(xray=dict(state='running', version=panel.RELEASE['xrayVersion']),
                     panelVersion=panel.RELEASE['panelVersion'])
         statuses = iter([None, dict(xray=None), good])
+        logins = []
         class Api:
             def __init__(self, *a, **k): pass
-            def login(self, *a): pass
+            def login(self, *a): logins.append(a)
             def call(self, path, data=None):
                 if path.endswith('setting/all'):
                     return dict(webListen='127.0.0.1', webPort=2053, webBasePath='/x/', subEnable=False)
@@ -134,6 +135,44 @@ class PanelTests(unittest.TestCase):
                 patch('panel.systemctl'), patch('panel.time.sleep'):
             installer.verify()
         self.assertIsNone(next(statuses, None))
+        # One session for the whole wait: 3x-ui limits repeated logins.
+        self.assertEqual(len(logins), 1)
+
+    def test_download_polls_cancel_cheaply_and_never_commits_heartbeats(self):
+        import hashlib, io
+        from unittest.mock import Mock
+        data = bytes(range(256)) * 4096 * 8  # 8 MiB
+        installer = PanelInstaller(self.store, request())
+        installer.directory.mkdir()
+        installer.release = dict(url='https://fixture.invalid/x.tar.gz', bytes=len(data),
+                                 sha256=hashlib.sha256(data).hexdigest())
+        response = io.BytesIO(data); response.geturl = lambda: 'https://fixture.invalid/x.tar.gz'
+        self.store.heartbeat = Mock()
+        polls = []
+        installer.cancelled = lambda: polls.append(1) or False
+        with patch('panel.urllib.request.build_opener') as opener:
+            opener.return_value.open.return_value = response
+            archive = installer.download()
+        self.assertEqual(archive.read_bytes(), data)
+        self.store.heartbeat.assert_not_called()
+        self.assertLessEqual(len(polls), 2)
+        # A verified archive is reused without a request.
+        self.assertEqual(installer.download(), archive)
+        self.assertEqual(opener.return_value.open.call_count, 1)
+
+    def test_cancelled_download_leaves_no_partial_file(self):
+        import io
+        installer = PanelInstaller(self.store, request())
+        installer.directory.mkdir()
+        installer.release = dict(url='https://fixture.invalid/x', bytes=4, sha256='0' * 64)
+        response = io.BytesIO(b'data'); response.geturl = lambda: 'https://fixture.invalid/x'
+        installer.cancelled = lambda: True
+        with patch('panel.urllib.request.build_opener') as opener:
+            opener.return_value.open.return_value = response
+            with self.assertRaises(PanelError) as ctx:
+                installer.download()
+        self.assertEqual(ctx.exception.code, 'cancelled')
+        self.assertEqual(list(installer.directory.iterdir()), [])
 
     def test_xray_status_tolerates_missing_parts(self):
         from panel_api import xray_status

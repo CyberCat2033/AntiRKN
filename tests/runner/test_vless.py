@@ -261,16 +261,55 @@ class VlessTests(unittest.TestCase):
         session = Session()
         ext_saved = dict(access)
         try:
-            with patch('vless.access_for_panel', return_value=access), \
+            with patch('vless.access_for_panel', side_effect=lambda *a: dict(access)), \
                  patch('vless.PanelApi', return_value=session), \
                  patch('panel_discovery.external_access', return_value=ext_saved), \
-                 patch('panel.atomic_file') as mock_atomic:
+                 patch('vless.atomic_file') as mock_atomic:
+                # A read-only RPC (plan/state) accepts it but writes nothing.
+                self.assertIs(panel_for(self.store, panel_id), session)
+                mock_atomic.assert_not_called()
+                self.store.current = ('f' * 32, 1)  # Inside a job.
                 result = panel_for(self.store, panel_id)
                 self.assertIs(result, session)
-                self.assertEqual(access['panelVersion'], '3.11.0')
-                self.assertEqual(access['xrayVersion'], '26.10.21')
+                self.assertEqual(session.logins, 1)
                 self.assertTrue(mock_atomic.called)
+                written = json.loads(mock_atomic.call_args.args[1])
+                self.assertEqual((written['panelVersion'], written['xrayVersion']), ('3.11.0', '26.10.21'))
         finally:
+            self.store.current = None
+            self.patches[0].start()
+
+    def test_installed_panel_version_change_needs_its_own_marker(self):
+        self.patches[0].stop()
+        from vless import panel_for
+        panel_id = 'c' * 32
+        database = Path(self.temp.name) / 'etc-x-ui'
+        database.mkdir()
+        access = dict(id=panel_id, port=12345, username='user', password='secret',
+            panelVersion='3.8.0', xrayVersion='26.7.28')
+        class Session:
+            def login(self, *_): pass
+            def call(self, path):
+                return dict(panelVersion='3.9.0', xray=dict(version='26.7.28'))
+        try:
+            with patch('vless.access_for_panel', side_effect=lambda *a: dict(access)), \
+                 patch('vless.PanelApi', return_value=Session()), \
+                 patch('panel_discovery.external_access', return_value=None), \
+                 patch('panel.DATABASE', database):
+                # The owner marker names another installation: the job id alone
+                # (always equal to panel_id) no longer authorizes the change.
+                (database / '.antirkn-owner').write_text('d' * 32)
+                with self.assertRaises(VlessError):
+                    panel_for(self.store, panel_id)
+                (database / '.antirkn-owner').write_text(panel_id)
+                panel_for(self.store, panel_id)
+                self.assertFalse((database / '.antirkn-versions').exists())
+                self.store.current = ('f' * 32, 1)
+                panel_for(self.store, panel_id)
+                recorded = json.loads((database / '.antirkn-versions').read_text())
+                self.assertEqual((recorded['id'], recorded['panelVersion']), (panel_id, '3.9.0'))
+        finally:
+            self.store.current = None
             self.patches[0].start()
 
     def test_panel_session_evicted_and_retried_on_404_or_auth_failure(self):
@@ -671,6 +710,133 @@ class VlessTests(unittest.TestCase):
         ok, reasons = verify_inbound_spec(desired, actual_with_rogue)
         self.assertFalse(ok)
         self.assertIn('rogue_clients_detected', reasons)
+
+    def test_changed_transport_settings_are_applied_not_assumed(self):
+        """Fields the old comparison ignored: each change must reach the panel."""
+        p = payload()
+        p['resources'][1]['xhttp'] = {'xPaddingBytes': '100-200'}
+        self.assertEqual(self.finish(self.submit(p))['status'], 'succeeded')
+        changes = [
+            (1, 'xhttp', {'xPaddingBytes': '300-600'}, lambda s: s['xhttpSettings']['xPaddingBytes'], '300-600'),
+            (1, 'xhttp', {'xPaddingBytes': '300-600', 'headers': {'X-Fixture': 'yes'}}, lambda s: s['xhttpSettings']['headers'], {'X-Fixture': 'yes'}),
+            (0, 'fingerprint', 'firefox', lambda s: s['realitySettings']['settings']['fingerprint'], 'firefox'),
+        ]
+        for number, (index, key, value, read, expected) in enumerate(changes, 2):
+            with self.subTest(key=key, value=value):
+                p = copy.deepcopy(p)
+                p['resources'][index][key] = value
+                effects = self.api.effects
+                self.assertEqual(self.finish(self.submit(p, number))['status'], 'succeeded')
+                self.assertEqual(self.api.effects, effects + 1)
+                row = next(r for r in self.api.rows if r['remark'] == marker(p['workspaceId'], p['resources'][index]['id']))
+                self.assertEqual(read(row['streamSettings']), expected)
+
+    def test_tls_certificate_path_change_is_applied(self):
+        p = payload()
+        p['resources'] = [p['resources'][1]]
+        p['resources'][0].update(security='tls', certificate='/etc/old.crt', certificateKey='/etc/old.key')
+        with patch('vless.command', return_value=b'Hostname example.com does match certificate\n'):
+            self.assertEqual(self.finish(self.submit(p))['status'], 'succeeded')
+            p['resources'][0].update(certificate='/etc/new.crt', certificateKey='/etc/new.key')
+            effects = self.api.effects
+            self.assertEqual(self.finish(self.submit(p, 2))['status'], 'succeeded')
+        self.assertEqual(self.api.effects, effects + 1)
+        certificate = self.api.rows[0]['streamSettings']['tlsSettings']['certificates'][0]
+        self.assertEqual((certificate['certificateFile'], certificate['keyFile']), ('/etc/new.crt', '/etc/new.key'))
+
+    def test_inbound_spec_compares_every_field_that_is_sent(self):
+        from vless import verify_inbound_spec, wanted_inbound
+        p = payload()
+        tls = dict(p['resources'][1], security='tls', certificate='/etc/a.crt', certificateKey='/etc/a.key',
+                   xhttp={'xPaddingBytes': '100-200', 'xmux': {'maxConnections': '2'}, 'headers': {'X-A': '1'}})
+        for resource in (p['resources'][0], tls):
+            base = normal(wanted_inbound(p, resource))
+            self.assertEqual(verify_inbound_spec(base, copy.deepcopy(base)), (True, []))
+            # A panel may add neutral defaults.
+            added = copy.deepcopy(base)
+            added['streamSettings'].setdefault('tlsSettings' if resource is tls else 'realitySettings', {})['maxTimediff'] = 0
+            added['sniffing']['ipsExcluded'] = []
+            self.assertTrue(verify_inbound_spec(base, added)[0])
+            # ...and fields of its own outside the sections AntiRKN owns.
+            panel = copy.deepcopy(base)
+            panel['settings']['encryption'] = 'none'
+            panel['sniffing']['domainsExcluded'] = ['courier.push.apple.com']
+            if resource is tls:
+                panel['streamSettings']['tlsSettings']['certificates'][0]['ocspStapling'] = 3600
+            self.assertTrue(verify_inbound_spec(base, panel)[0], verify_inbound_spec(base, panel)[1])
+        edits = [
+            lambda r: r['streamSettings']['tlsSettings']['certificates'][0].update(certificateFile='/etc/b.crt'),
+            lambda r: r['streamSettings']['tlsSettings'].update(minVersion='1.3'),
+            lambda r: r['streamSettings']['xhttpSettings'].update(xPaddingBytes='100-900'),
+            lambda r: r['streamSettings']['xhttpSettings']['xmux'].update(maxConnections='4'),
+            lambda r: r['streamSettings']['xhttpSettings'].update(headers={'X-A': '2'}),
+            lambda r: r['streamSettings']['xhttpSettings'].update(sessionIDTable=True),
+            lambda r: r['sniffing'].update(enabled=False),
+            lambda r: r.update(remark='Renamed'),
+            lambda r: r.update(listen='0.0.0.0'),
+        ]
+        base = normal(wanted_inbound(p, tls))
+        for edit in edits:
+            actual = copy.deepcopy(base); edit(actual)
+            self.assertFalse(verify_inbound_spec(base, actual)[0], actual)
+        base = normal(wanted_inbound(p, p['resources'][0]))
+        for edit in (lambda r: r['streamSettings']['realitySettings']['settings'].update(fingerprint='safari'),
+                     lambda r: r['streamSettings']['realitySettings']['settings'].update(spiderX='/x'),
+                     lambda r: r['streamSettings']['realitySettings'].update(xver=1),
+                     lambda r: r['streamSettings']['realitySettings'].update(serverNames=['other.example'])):
+            actual = copy.deepcopy(base); edit(actual)
+            self.assertFalse(verify_inbound_spec(base, actual)[0], actual)
+
+    def test_inbound_spec_matches_clients_without_an_id(self):
+        # Foreign Trojan/Shadowsocks inbounds (observed edits) key clients by password.
+        from vless import verify_inbound_spec
+        base = dict(remark='t', settings=dict(clients=[dict(password='p1', email='a'), dict(password='p2', email='b')]))
+        self.assertTrue(verify_inbound_spec(base, copy.deepcopy(base))[0])
+        rogue = copy.deepcopy(base); rogue['settings']['clients'].append(dict(password='p3', email='c'))
+        self.assertIn('rogue_clients_detected', verify_inbound_spec(base, rogue)[1])
+        changed = copy.deepcopy(base); changed['settings']['clients'][1]['email'] = 'other'
+        self.assertFalse(verify_inbound_spec(base, changed)[0])
+
+    def test_rollback_restores_only_this_workspace_and_keeps_a_failed_backup(self):
+        req = self.submit()
+        self.store.tick()  # Checkpoint 0 writes the backup.
+        job = VlessApply(self.store, req)
+        backup = Path(self.temp.name) / ('vless-backup-' + req['id'] + '.json')
+        self.assertTrue(backup.exists())
+        other = dict(workspaceId='e' * 32, note='"workspaceId":"' + 'a' * 32 + '"')
+        self.store.db.execute('INSERT INTO vless_resources VALUES (?,?)', ('9' * 32, canonical(other)))
+        self.store.db.commit()
+        effects = self.api.effects
+        job.rollback()
+        self.assertFalse(backup.exists())
+        self.assertEqual(self.api.effects, effects)  # Nothing on the panel to undo.
+        kept = self.store.db.execute('SELECT data FROM vless_resources WHERE id=?', ('9' * 32,)).fetchone()
+        self.assertEqual(json.loads(kept[0]), other)
+        backup.write_text('{broken')
+        with self.assertRaises(ValueError):
+            job.rollback()
+        self.assertTrue(backup.exists())
+
+    def test_reality_material_is_derived_once_per_process(self):
+        self.patches[1].stop(); self.patches[2].stop()
+        import vless
+        try:
+            key = Path(self.temp.name) / 'key'; key.write_bytes(bytes(range(32)))
+            calls = []
+            def openssl(argv, input_data=None, **_):
+                calls.append(argv)
+                return b'\x00' * 12 + hashlib.sha256(input_data).digest()
+            with patch('vless.KEY', key), patch('vless.command', side_effect=openssl), \
+                    patch('pathlib.Path.read_bytes', autospec=True, side_effect=Path.read_bytes) as reads:
+                first = vless.material('a' * 32, 'b' * 32)
+                self.assertEqual(vless.material('a' * 32, 'b' * 32), first)
+                vless.client_id('a' * 32, 'b' * 32, 'c' * 32)
+                vless.client_id('a' * 32, 'b' * 32, 'd' * 32)
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(sum(1 for c in reads.call_args_list if c.args[0] == key), 1)
+        finally:
+            self.patches[1].start(); self.patches[2].start()
+
 
 class RealityMaterialTests(unittest.TestCase):
     def test_regenerate_changes_only_reality_material_and_is_stable_on_retry(self):

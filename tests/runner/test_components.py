@@ -186,4 +186,74 @@ class ComponentTests(unittest.TestCase):
         self.assertFalse((directory / 'build_pid.json').exists())
 
 
+    def build_job(self):
+        req = dict(version=1, action='submit', kind='component_install', component='amneziawg', payload='',
+                   id='f'*32, count=6, interval=1, fingerprint='b'*64)
+        self.store.request(req)
+        directory = self.root / ('component-' + req['id'])
+        directory.mkdir()
+        (directory / 'plan.json').write_text(json.dumps(dict(fingerprint='b'*64)))
+        (directory / '.build_prepared').write_bytes(b'ok')
+        (directory / 'output').mkdir()
+        (directory / 'source' / ('amneziawg-go-' + '0' * 40)).mkdir(parents=True)
+        with self.store.db:
+            self.store.db.execute("UPDATE jobs SET status='running', checkpoint=2 WHERE id=?", (req['id'],))
+        return req, directory
+
+    def test_recorded_build_pid_reused_by_another_process_is_never_signalled(self):
+        import os, subprocess
+        req, directory = self.build_job()
+        # After a reboot the recorded PID names some other process.
+        foreign = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])
+        try:
+            stale = dict(pid=foreign.pid, deadline=0, identity=['another-boot', 1])
+            (directory / 'build_pid.json').write_text(json.dumps(stale))
+            (directory / 'output' / 'amneziawg-go').write_bytes(b'unfinished output')
+            started = Mock(); started.pid = 424242; started.poll.return_value = None
+            with patch('os.killpg') as killpg, patch('subprocess.Popen', return_value=started) as popen, \
+                    patch('components.safe_file'), patch('components.safe_directory'):
+                self.assertEqual(self.store.tick(), 0.5)
+            killpg.assert_not_called()
+            popen.assert_called_once()  # Built again from the checkpoint.
+            self.assertFalse((directory / 'output' / 'amneziawg-go').exists())
+            self.assertIsNone(foreign.poll())
+            components.BUILD_PROCESSES.clear()
+            # A cancelled job never signals the unverified PID either.
+            (directory / 'build_pid.json').write_text(json.dumps(stale))
+            self.store.request(dict(version=1, action='cancel', id=req['id']))
+            with patch('os.killpg') as killpg, patch('components.safe_file'), patch('components.safe_directory'):
+                self.store.tick()
+            killpg.assert_not_called()
+            self.assertIsNone(foreign.poll())
+        finally:
+            foreign.kill(); foreign.wait(timeout=10)
+
+    def test_recorded_build_still_running_is_awaited(self):
+        import subprocess
+        req, directory = self.build_job()
+        build = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])
+        try:
+            identity = components.process_identity(build.pid)
+            self.assertIsNotNone(identity)
+            (directory / 'build_pid.json').write_text(json.dumps(dict(pid=build.pid, deadline=9999999999, identity=identity)))
+            with patch('subprocess.Popen') as popen, patch('components.safe_file'), patch('components.safe_directory'):
+                self.assertEqual(self.store.tick(), 0.5)
+            popen.assert_not_called()
+            self.assertTrue(components.same_process(build.pid, identity))
+            self.assertFalse(components.same_process(build.pid, [identity[0], identity[1] + 1]))
+            self.assertFalse(components.same_process(build.pid, None))
+        finally:
+            build.kill(); build.wait(timeout=10)
+
+    def test_abort_removes_private_staging_copy(self):
+        installer = ComponentInstaller(self.store, request())
+        staging = self.root / 'base' / installer.component / 'versions' / ('.' + request()['id'])
+        staging.mkdir(parents=True)
+        (staging / 'trusttunnel_endpoint').write_bytes(b'staged')
+        with patch('components.BASE', self.root / 'base'):
+            installer.root = self.root / 'base' / installer.component
+            self.assertEqual(installer.abort(), 'cancelled')
+        self.assertFalse(staging.exists())
+
+
 if __name__=='__main__': unittest.main()

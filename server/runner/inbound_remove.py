@@ -1,7 +1,6 @@
 """Explicit bulk removal of external inbounds, guarded by their full snapshots."""
 import json
 import re
-import time
 from panel import atomic_file, safe_file
 from vless import VlessError, canonical, digest, normal, panel_for
 from panel_clients import capture, cleanup
@@ -33,9 +32,12 @@ def check(row, entry):
         raise VlessError('vless_conflict')
 
 
-def preflight(store, panel_id, payload):
-    api = panel_for(store, panel_id)
-    rows = {row['id']: row for row in api.call('/panel/api/inbounds/list')}
+def preflight(store, panel_id, payload, api=None, rows=None):
+    if api is None:
+        api = panel_for(store, panel_id)
+    if rows is None:
+        rows = api.call('/panel/api/inbounds/list')
+    rows = {row['id']: row for row in rows}
     for entry in payload['removals']:
         check(rows.get(entry['inboundId']), entry)
     return dict(fingerprint=digest(dict(panelId=panel_id, removals=payload['removals'])),
@@ -58,11 +60,12 @@ class InboundRemove:
         p = self.payload
         api = panel_for(self.store, p['panelId'])
         if checkpoint == 0:
-            if preflight(self.store, p['panelId'], p)['fingerprint'] != self.req['fingerprint']:
+            listing = api.call('/panel/api/inbounds/list')
+            if preflight(self.store, p['panelId'], p, api=api, rows=listing)['fingerprint'] != self.req['fingerprint']:
                 raise VlessError('vless_conflict')
             # Authorize the exact set before the first effect. No credentials in journal.
             if not self.backup.exists():
-                rows = {r['id']: r for r in api.call('/panel/api/inbounds/list')}
+                rows = {r['id']: r for r in listing}
                 listed = api.call('/panel/api/clients/list')
                 clients = {}
                 for entry in p['removals']:
@@ -93,15 +96,8 @@ class InboundRemove:
                 if any(entry['inboundId'] in after_rows for entry in p['removals']):
                     raise VlessError('vless_api_failed')
             else:
-                api.call('/panel/api/server/restartXrayService', {})
-                deadline = time.monotonic() + 20
-                while time.monotonic() < deadline:
-                    from panel_api import xray_status
-                    if xray_status(api.call('/panel/api/server/status')).get('state') == 'running':
-                        break
-                    time.sleep(.25)
-                else:
-                    raise VlessError('vless_api_failed')
+                from vless import restart
+                restart(api)
                 ids = {r['id'] for r in api.call('/panel/api/inbounds/list')}
                 if any(e['inboundId'] in ids for e in p['removals']):
                     raise VlessError('vless_conflict')

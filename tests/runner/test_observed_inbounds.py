@@ -93,6 +93,15 @@ class ObservedTests(unittest.TestCase):
         self.store.tick()  # checkpoint 0
         # Checkpoint 0 should only call /list once
         self.assertEqual(self.api.list_calls, 1)
+    def test_each_step_uses_one_panel_session(self):
+        import observed_inbounds
+        self.submit()
+        for checkpoint in range(3):
+            with patch('observed_inbounds.panel_for', return_value=self.api) as session:
+                self.store.tick()
+            self.assertEqual(session.call_count, 1, checkpoint)
+        self.assertEqual(self.job()['status'], 'succeeded')
+
     def test_read_with_prefetched_rows_makes_zero_api_calls(self):
         from observed_inbounds import read
         self.api.list_calls = 0

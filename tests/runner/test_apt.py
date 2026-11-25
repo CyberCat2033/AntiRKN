@@ -51,19 +51,59 @@ class AptTests(unittest.TestCase):
         self.assertIn('--only-upgrade', actual[0].args[0])
         self.assertEqual(len(actual), 2)
         self.assertEqual(self.store.request(r)['jobs'][0]['status'], 'succeeded')
-    def test_interrupted_command_is_not_replayed_after_worker_recovery(self):
+    def test_running_apply_unit_is_awaited_not_replayed_after_worker_recovery(self):
         r = self.request(); self.store.request(r)
-        (Path(self.temp.name) / ('apt-' + r['id'] + '.started')).write_text('started')
+        marker = Path(self.temp.name) / ('apt-' + r['id'] + '.started')
+        marker.write_text('running')
         self.store.recover()
         with patch('apt.is_unit_active', return_value=True), patch('apt.run') as run:
+            self.assertEqual(self.store.tick(), 1)
+            run.assert_not_called()
+        self.assertEqual(self.result(r)['status'], 'running')
+        self.assertEqual(self.result(r)['checkpoint'], 0)
+
+    def test_finished_apply_after_worker_crash_is_not_reported_failed(self):
+        # The worker died while apt ran; the run recorded its exit status.
+        r = self.request(); self.store.request(r)
+        marker = Path(self.temp.name) / ('apt-' + r['id'] + '.started')
+        marker.write_text('exit 0')
+        self.store.recover()
+        with patch('apt.is_unit_active', return_value=False), patch('apt.unit_properties', return_value={}), \
+                patch('apt.run') as run:
+            self.store.tick()
+            self.assertEqual(self.result(r)['checkpoint'], 1)
+            self.store.tick()
+        self.assertEqual(self.result(r)['status'], 'succeeded')
+        # Only the read-only check ran; the apply was never repeated.
+        self.assertEqual([c.kwargs.get('unit') for c in run.call_args_list], ['antirkn-apt-' + r['id'] + '-check'])
+
+    def test_unit_result_is_read_when_the_marker_has_none(self):
+        r = self.request(); self.store.request(r)
+        (Path(self.temp.name) / ('apt-' + r['id'] + '.started')).write_text('started')
+        failed = dict(LoadState='loaded', ActiveState='failed', Result='exit-code', ExecMainStatus='100')
+        with patch('apt.is_unit_active', return_value=False), patch('apt.unit_properties', return_value=failed), \
+                patch('apt.run') as run:
+            self.store.tick(); run.assert_not_called()
+        self.assertEqual(self.result(r)['status'], 'partially_applied')
+        self.assertEqual(self.result(r)['events'][-1]['code'], 'apt_failed')
+
+    def test_interrupted_command_is_not_replayed_after_worker_recovery(self):
+        # apt-get started, then the server rebooted: its end is unknown.
+        r = self.request(); self.store.request(r)
+        (Path(self.temp.name) / ('apt-' + r['id'] + '.started')).write_text('running')
+        self.store.recover()
+        with patch('apt.is_unit_active', return_value=False), patch('apt.unit_properties', return_value={}), \
+                patch('apt.run') as run:
             self.store.tick(); run.assert_not_called()
         self.assertEqual(self.result(r)['status'], 'partially_applied')
         self.assertEqual(self.result(r)['events'][-1]['code'], 'apt_interrupted')
+
     def test_stale_marker_cleaned_up_if_unit_inactive(self):
         r = self.request(); self.store.request(r)
         marker = Path(self.temp.name) / ('apt-' + r['id'] + '.started')
         marker.write_text('started')
-        with patch('apt.is_unit_active', return_value=False), patch('apt.run') as run:
+        with patch('apt.is_unit_active', return_value=False), patch('apt.unit_properties', return_value={}), \
+                patch('apt.run') as run:
             self.store.tick()
             run.assert_called()
         self.assertTrue(marker.exists())
@@ -82,9 +122,13 @@ class AptTests(unittest.TestCase):
         marker.write_text('started')
         from apt import AptJob
         job = AptJob(self.store, r)
-        with patch('apt.is_unit_active', return_value=False):
+        with patch('apt.is_unit_active', return_value=False), patch('apt.unit_properties', return_value={}):
             self.assertEqual(job.abort(), 'cancelled')
             self.assertFalse(marker.exists())
+        marker.write_text('exit 0')
+        with patch('apt.is_unit_active', return_value=False), patch('apt.unit_properties', return_value={}):
+            self.assertEqual(job.abort(), 'partially_applied')
+            self.assertTrue(marker.exists())
     def test_abort_retains_marker_when_unit_active(self):
         r = self.request()
         marker = Path(self.temp.name) / ('apt-' + r['id'] + '.started')
@@ -100,17 +144,65 @@ class AptTests(unittest.TestCase):
         with patch('apt.plan', return_value=dict(fingerprint='a'*64, packages=parse_packages(OUTPUT))), patch('apt.run', return_value=sim_output):
             self.store.tick()
         self.assertEqual(self.result(r)['events'][-1]['code'], 'apt_checked')
-    def test_acquire_dpkg_locks_checks_unattended_upgrades_and_backoff(self):
-        from apt import acquire_dpkg_locks
-        with patch('pathlib.Path.exists', return_value=True), \
-             patch('os.open', return_value=999), \
-             patch('fcntl.flock', side_effect=BlockingIOError), \
-             patch('os.close'), \
-             patch('apt.is_unit_active', return_value=False) as mock_active:
-            with self.assertRaises(AptError) as ctx:
-                acquire_dpkg_locks(timeout=0.1)
+    def test_dpkg_locks_see_posix_locks_of_other_processes(self):
+        import fcntl, os, subprocess
+        from apt import acquire_dpkg_locks, lock_busy
+        lock = Path(self.temp.name) / 'lock-frontend'
+        lock.write_bytes(b'')
+        self.assertFalse(lock_busy(lock))
+        self.assertFalse(lock_busy(Path(self.temp.name) / 'missing'))
+        # dpkg and apt hold fcntl (POSIX) locks; flock() alone never saw them.
+        holder = subprocess.Popen([sys.executable, '-c', 'import fcntl,sys,time\n'
+            'f=open(sys.argv[1],"r+"); fcntl.lockf(f, fcntl.LOCK_EX); print("held", flush=True); time.sleep(30)',
+            str(lock)], stdout=subprocess.PIPE)
+        try:
+            self.assertEqual(holder.stdout.readline().strip(), b'held')
+            fd = os.open(str(lock), os.O_RDWR)
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)  # The old check: no exclusion.
+            finally:
+                os.close(fd)
+            self.assertTrue(lock_busy(lock))
+            sleeps = []
+            with patch('apt.is_unit_active', return_value=False):
+                with self.assertRaises(AptError) as ctx:
+                    acquire_dpkg_locks(timeout=2, paths=[lock], sleep=sleeps.append)
             self.assertEqual(ctx.exception.code, 'apt_lock_busy')
-            mock_active.assert_called_with('unattended-upgrades.service')
+            self.assertTrue(sleeps)
+            # A scheduled apt run in progress is reported at once, without waiting.
+            sleeps.clear()
+            with patch('apt.is_unit_active', side_effect=lambda unit: unit == 'apt-daily-upgrade.service'):
+                with self.assertRaises(AptError):
+                    acquire_dpkg_locks(timeout=60, paths=[lock], sleep=sleeps.append)
+            self.assertEqual(sleeps, [])
+        finally:
+            holder.kill(); holder.wait(timeout=10); holder.stdout.close()
+        acquire_dpkg_locks(timeout=1, paths=[lock], sleep=sleeps.append)
+
+    def test_unit_runs_are_bounded_and_record_their_exit_status(self):
+        from apt import run as apt_run, RUNTIME_MAX
+        marker = Path(self.temp.name) / 'marker'
+        with patch('subprocess.run') as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = b''
+            apt_run(['update'], unit='test-unit', record=marker)
+        argv = mock_run.call_args.args[0]
+        self.assertIn('--property=RuntimeMaxSec=%d' % RUNTIME_MAX, argv)
+        self.assertGreater(mock_run.call_args.kwargs['timeout'], RUNTIME_MAX)
+        self.assertEqual(argv[argv.index('record') + 1], str(marker))
+        self.assertEqual(argv.count('Dpkg::Options::=--force-confold'), 1)
+
+    def test_recorded_exit_status_survives_the_worker(self):
+        from apt import record_exit, recorded, INTERRUPTED
+        marker = Path(self.temp.name) / 'marker'
+        self.assertIsNone(recorded(marker))
+        marker.write_text('started')
+        self.assertIsNone(recorded(marker))
+        marker.write_text('running')
+        self.assertEqual(recorded(marker), INTERRUPTED)
+        self.assertEqual(record_exit(marker, [sys.executable, '-c', 'raise SystemExit(3)']), 3)
+        self.assertEqual(recorded(marker), 3)
+
     def test_run_guarantees_noninteractive_and_force_confold(self):
         from apt import run as apt_run
         with patch('subprocess.run') as mock_run:

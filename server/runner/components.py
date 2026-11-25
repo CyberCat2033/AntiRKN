@@ -15,11 +15,11 @@ import stat
 import subprocess
 import tarfile
 import time
-import urllib.request
 import zipfile
 
 from component_releases import RELEASES
-from panel import atomic_file, digest, safe_file, PanelError
+from panel import (DownloadError, PanelError, atomic_copy, atomic_file, digest, fetch_pinned, run,
+                   safe_file, sync_directory)
 
 BASE = Path('/usr/local/lib/antirkn-components')
 BIN = Path('/usr/local/bin')
@@ -36,6 +36,24 @@ class ComponentError(Exception):
 
 def encode(value):
     return json.dumps(value, sort_keys=True, separators=(',', ':')).encode()
+
+
+def process_identity(pid):
+    """[boot id, start time] of a live process, or None. A PID alone may name
+    another process after a restart or a reboot."""
+    try:
+        boot = Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+        raw = Path('/proc/%d/stat' % pid).read_text()
+        # Field 22 (starttime); the fields after the parenthesised name start at 3.
+        return [boot, int(raw[raw.rindex(')') + 2:].split()[19])]
+    except (OSError, ValueError, IndexError, TypeError):
+        return None
+
+
+def same_process(pid, identity):
+    """Only a process proven to be the recorded one is ever signalled."""
+    return (type(pid) is int and pid > 1 and isinstance(identity, list)
+            and process_identity(pid) == identity)
 
 
 def release_hash(component, release=None):
@@ -104,14 +122,6 @@ def release_for(component, payload=None):
     return release
 
 
-def sync_directory(path):
-    fd = os.open(str(path), os.O_RDONLY | os.O_DIRECTORY)
-    try:
-        os.fsync(fd)
-    finally:
-        os.close(fd)
-
-
 def names(component):
     return ('trusttunnel_endpoint', 'setup_wizard') if component == 'trusttunnel' else ('amneziawg-go', 'awg', 'awg-quick')
 
@@ -138,8 +148,8 @@ def unit_source(component):
 
 def active_units(component):
     patterns = ['antirkn-trusttunnel.service', 'antirkn-tt@*.service'] if component == 'trusttunnel' else ['antirkn-awg@*.service']
-    result = subprocess.run(['/usr/bin/systemctl', 'list-units', '--state=active,activating',
-        '--type=service', '--no-legend', '--plain', *patterns], capture_output=True, timeout=20)
+    result = run(['/usr/bin/systemctl', 'list-units', '--state=active,activating',
+        '--type=service', '--no-legend', '--plain', *patterns], timeout=20)
     if result.returncode:
         raise ComponentError('component_prerequisites')
     units = [line.split()[0] for line in result.stdout.decode().splitlines() if line.strip()]
@@ -344,42 +354,17 @@ class ComponentInstaller:
         return bool(self.store.db.execute('SELECT cancel FROM jobs WHERE id=?', (self.request['id'],)).fetchone()[0])
 
     def download(self, name, artifact):
-        target = self.directory / (name + '.archive')
-        if target.exists() and digest(target) == artifact['sha256']:
-            return target
-        temp = self.directory / (name + '.download')
-        deadline, total = time.monotonic() + 900, 0
-        client = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         try:
-            with client.open(artifact['url'], timeout=30) as response, temp.open('wb') as output:
-                if not response.geturl().startswith('https://'):
-                    raise ComponentError('component_download_failed')
-                while True:
-                    if self.cancelled():
-                        raise ComponentError('cancelled')
-                    chunk = response.read(1024 * 1024)
-                    if not chunk:
-                        break
-                    total += len(chunk)
-                    if total > artifact['bytes'] or time.monotonic() > deadline:
-                        raise ComponentError('component_download_failed')
-                    output.write(chunk)
-                output.flush()
-                os.fsync(output.fileno())
-            if total != artifact['bytes'] or digest(temp) != artifact['sha256']:
-                raise ComponentError('component_checksum_failed')
-            os.replace(temp, target)
-            sync_directory(self.directory)
-            return target
-        except ComponentError:
-            raise
-        except (OSError, ValueError):
-            raise ComponentError('component_download_failed')
+            return fetch_pinned(artifact['url'], self.directory / (name + '.archive'),
+                                artifact['bytes'], artifact['sha256'], self.cancelled)
+        except DownloadError as error:
+            raise ComponentError({'cancelled': 'cancelled', 'checksum': 'component_checksum_failed'}.get(
+                error.reason, 'component_download_failed')) from None
 
     def verify(self, directory):
         for name, expected in (('trusttunnel_endpoint', self.release['version']),) if self.component == 'trusttunnel' else (
                 ('amneziawg-go', self.release['version']), ('awg', self.release['toolsVersion'])):
-            result = subprocess.run([str(directory / name), '--version'], capture_output=True, timeout=20)
+            result = run([str(directory / name), '--version'], timeout=20)
             if result.returncode or expected not in result.stdout.decode(errors='replace'):
                 raise ComponentError('component_check_failed')
 
@@ -416,30 +401,23 @@ class ComponentInstaller:
                 if state_file.exists():
                     try:
                         info = json.loads(state_file.read_text())
-                        pid = info.get('pid')
-                        deadline = info.get('deadline', 0)
-                    except Exception:
-                        pid, deadline = None, 0
-                    if pid:
-                        alive = False
-                        try:
-                            os.kill(pid, 0)
-                            alive = True
-                        except OSError:
-                            alive = False
-                        if alive:
-                            if self.cancelled() or time.time() > deadline:
-                                try:
-                                    os.killpg(pid, signal.SIGTERM)
-                                except OSError:
-                                    pass
-                                state_file.unlink(missing_ok=True)
-                                raise ComponentError('cancelled' if self.cancelled() else 'component_build_failed')
-                            return False
-                        else:
+                    except (OSError, ValueError):
+                        info = {}
+                    pid = info.get('pid') if isinstance(info, dict) else None
+                    if same_process(pid, info.get('identity') if isinstance(info, dict) else None):
+                        if self.cancelled() or time.time() > info.get('deadline', 0):
+                            try:
+                                os.killpg(pid, signal.SIGTERM)
+                            except OSError:
+                                pass
                             state_file.unlink(missing_ok=True)
-                            if not target_bin.is_file():
-                                raise ComponentError('component_build_failed')
+                            raise ComponentError('cancelled' if self.cancelled() else 'component_build_failed')
+                        return False
+                    # The build ended while no worker watched it (restart or
+                    # reboot), or the PID now names another process. Its exit
+                    # status is unknown: discard its output, build again.
+                    state_file.unlink(missing_ok=True)
+                    target_bin.unlink(missing_ok=True)
                 if not target_bin.is_file():
                     env = dict(PATH='/usr/bin:/bin', HOME=str(self.directory), CGO_ENABLED='0', GOOS='linux', GOARCH='amd64',
                         GOTOOLCHAIN='local', GOPROXY='https://proxy.golang.org', GOSUMDB='sum.golang.org',
@@ -450,7 +428,8 @@ class ComponentInstaller:
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
                     deadline = time.time() + 1200
                     BUILD_PROCESSES[job_id] = (process, deadline)
-                    atomic_file(state_file, json.dumps(dict(pid=process.pid, deadline=deadline)).encode())
+                    atomic_file(state_file, json.dumps(dict(pid=process.pid, deadline=deadline,
+                        identity=process_identity(process.pid))).encode())
                     return False
             else:
                 process, deadline = BUILD_PROCESSES[job_id]
@@ -461,8 +440,8 @@ class ComponentInstaller:
                             process.wait(timeout=2)
                         except subprocess.TimeoutExpired:
                             os.killpg(process.pid, signal.SIGKILL)
-                            process.wait()
-                    except OSError:
+                            process.wait(timeout=10)
+                    except (OSError, subprocess.SubprocessError):
                         pass
                     BUILD_PROCESSES.pop(job_id, None)
                     state_file.unlink(missing_ok=True)
@@ -523,7 +502,7 @@ class ComponentInstaller:
                 if entry[0] == 'file':
                     dest = backup / name
                     dest.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-                    atomic_file(dest, (CONFIG / self.component / name).read_bytes())
+                    atomic_copy(CONFIG / self.component / name, dest)
             for directory in (BASE, self.root, self.root / 'versions'):
                 directory.mkdir(mode=0o755, exist_ok=True)
                 safe_directory(directory)
@@ -533,7 +512,7 @@ class ComponentInstaller:
             hashes = {}
             for file in (self.directory / 'output').iterdir():
                 safe_file(file, 100 * 1024 * 1024)
-                atomic_file(staging / file.name, file.read_bytes(), 0o755 if file.name in names(self.component) else 0o644)
+                atomic_copy(file, staging / file.name, 0o755 if file.name in names(self.component) else 0o644)
                 hashes[file.name] = digest(file)
             record = dict(component=self.component, version=self.release['version'],
                 toolsVersion=self.release.get('toolsVersion'), release=release_hash(self.component, self.release), files=hashes)
@@ -544,6 +523,9 @@ class ComponentInstaller:
             if not target.exists():
                 os.rename(staging, target)
                 sync_directory(target.parent)
+            elif staging.exists():
+                # The same immutable release is already published.
+                shutil.rmtree(str(staging))
             if (target / 'manifest.json').read_bytes() != encode(record):
                 raise ComponentError()
             self.checkpoint(4, 'component_staged')
@@ -671,17 +653,21 @@ class ComponentInstaller:
                     process.wait(timeout=2)
                 except subprocess.TimeoutExpired:
                     os.killpg(process.pid, signal.SIGKILL)
-                    process.wait()
-            except OSError:
+                    process.wait(timeout=10)
+            except (OSError, subprocess.SubprocessError):
                 pass
         state_file = self.directory / 'build_pid.json'
         if state_file.exists():
             try:
-                pid = json.loads(state_file.read_text()).get('pid')
-                if pid:
-                    os.killpg(pid, signal.SIGTERM)
-            except OSError:
+                info = json.loads(state_file.read_text())
+                if isinstance(info, dict) and same_process(info.get('pid'), info.get('identity')):
+                    os.killpg(info['pid'], signal.SIGTERM)
+            except (OSError, ValueError):
                 pass
             state_file.unlink(missing_ok=True)
+        # A private, unpublished staging copy never outlives its job.
+        staging = self.root / 'versions' / ('.' + job_id)
+        if staging.is_dir() and not staging.is_symlink():
+            shutil.rmtree(str(staging), ignore_errors=True)
         # Staging/pointer change may have completed without its checkpoint.
         return 'partially_applied' if (self.directory / 'target.json').exists() else 'cancelled'

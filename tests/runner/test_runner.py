@@ -579,6 +579,20 @@ class RunnerCoreTests(unittest.TestCase):
             res = self.store.request(dict(version=1, action='clear_managed_clients'))
         self.assertEqual(res['code'], 'clear_managed_clients_failed')
 
+    def test_startup_sweep_removes_finished_panel_update_backups(self):
+        from runner import slim_finished_jobs
+        done = self._job(1, kind='panel_update')
+        failed = self._job(2, status='failed', kind='panel_update')
+        for job_id in (done, failed):
+            work = self.directory / ('panel-update-' + job_id) / 'backup'
+            work.mkdir(parents=True)
+            (work / 'x-ui.db').write_bytes(b'db')
+            (work.parent / 'snapshot.json').write_text('{}')
+        slim_finished_jobs(self.store)
+        self.assertFalse((self.directory / ('panel-update-' + done)).exists())
+        # A failed update may be resumed from its backup.
+        self.assertTrue((self.directory / ('panel-update-' + failed) / 'backup' / 'x-ui.db').exists())
+
     def test_concurrent_atomic_writes_do_not_collide(self):
         from panel import atomic_file
         target = self.directory / 'record.json'

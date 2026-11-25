@@ -3,7 +3,6 @@ import copy
 import json
 from pathlib import Path
 import socket
-import time
 from panel import PANEL, atomic_file, command, safe_file
 from vless import VlessError, canonical, digest, normal, panel_for, subset
 
@@ -19,8 +18,9 @@ def decode(raw):
     return p
 
 
-def read(store, panel_id, inbound_id, rows=None):
-    api = panel_for(store, panel_id)
+def read(store, panel_id, inbound_id, rows=None, api=None):
+    if api is None:
+        api = panel_for(store, panel_id)
     if rows is None:
         rows = api.call('/panel/api/inbounds/list')
     row = next((r for r in rows if r['id'] == inbound_id), None)
@@ -81,11 +81,12 @@ def wanted(row, patch):
     return result
 
 
-def preflight(store, panel_id, p, rows=None):
-    api = panel_for(store, panel_id)
+def preflight(store, panel_id, p, rows=None, api=None):
+    if api is None:
+        api = panel_for(store, panel_id)
     if rows is None:
         rows = api.call('/panel/api/inbounds/list')
-    _, current = read(store, panel_id, p['inboundId'], rows=rows)
+    _, current = read(store, panel_id, p['inboundId'], rows=rows, api=api)
     if p.get('observedHash') != digest(normal(current)):
         raise VlessError('vless_conflict')
     desired = wanted(current, p.get('patch'))
@@ -139,15 +140,17 @@ class ObservedInboundEdit:
 
     def step(self, checkpoint):
         p, req = self.payload, self.req
+        # One session (and status check) per step.
+        api = panel_for(self.store, p['panelId'])
         if checkpoint == 0:
-            rows = panel_for(self.store, p['panelId']).call('/panel/api/inbounds/list')
-            api, current = read(self.store, p['panelId'], p['inboundId'], rows=rows)
-            if preflight(self.store, p['panelId'], p, rows=rows)['fingerprint'] != req['fingerprint']:
+            rows = api.call('/panel/api/inbounds/list')
+            _, current = read(self.store, p['panelId'], p['inboundId'], rows=rows, api=api)
+            if preflight(self.store, p['panelId'], p, rows=rows, api=api)['fingerprint'] != req['fingerprint']:
                 raise VlessError('vless_conflict')
             if not self.backup.exists(): atomic_file(self.backup, canonical(current).encode())
             code = 'vless_preparing'
         elif checkpoint == 1:
-            api, current = read(self.store, p['panelId'], p['inboundId'])
+            _, current = read(self.store, p['panelId'], p['inboundId'], api=api)
             safe_file(self.backup, 262144)
             original = json.loads(self.backup.read_text())
             desired = wanted(original, p['patch'])
@@ -156,18 +159,13 @@ class ObservedInboundEdit:
                 api.call('/panel/api/inbounds/update/%d' % current['id'], wanted(current, p['patch']))
             elif not subset(normal(desired), normal(current)):
                 raise VlessError('vless_conflict')
-            _, observed = read(self.store, p['panelId'], p['inboundId'])
+            _, observed = read(self.store, p['panelId'], p['inboundId'], api=api)
             if not subset(normal(desired), normal(observed)): raise VlessError('vless_api_failed')
             code = 'vless_applying'
         else:
-            api, current = read(self.store, p['panelId'], p['inboundId'])
-            api.call('/panel/api/server/restartXrayService', {})
-            deadline = time.monotonic() + 20
-            while time.monotonic() < deadline:
-                from panel_api import xray_status
-                if xray_status(api.call('/panel/api/server/status')).get('state') == 'running': break
-                time.sleep(.25)
-            else: raise VlessError('vless_api_failed')
+            _, current = read(self.store, p['panelId'], p['inboundId'], api=api)
+            from vless import restart
+            restart(api)
             original = json.loads(self.backup.read_text())
             if not subset(normal(wanted(original, p['patch'])), normal(current)): raise VlessError('vless_conflict')
             code = 'vless_checking'

@@ -40,10 +40,15 @@ def cleanup(api, refs):
     """A changed/reused or shared client is never removed by this operation."""
     if not refs:
         return
+    # One listing for all references; each candidate is re-read point-wise
+    # before its deletion, and one listing afterwards confirms the result.
+    rows = api.call('/panel/api/clients/list')
+    if not isinstance(rows, list):
+        raise VlessError('vless_api_failed')
+    removed = []
     for ref in refs:
         email = ref['email']
         encoded = quote(email, safe='')
-        rows = api.call('/panel/api/clients/list')
         record = next((c for c in rows if isinstance(c, dict) and c.get('email') == email), None)
         if record is None or record.get('id') != ref['id'] or identity(record) != ref['identity']:
             continue
@@ -58,6 +63,9 @@ def cleanup(api, refs):
         if detail['inboundIds']:
             continue
         api.call('/panel/api/clients/del/' + encoded, {})
+        removed.append(ref['id'])
+    if removed:
         after = api.call('/panel/api/clients/list')
-        if any(c.get('id') == ref['id'] for c in after if isinstance(c, dict)):
+        if not isinstance(after, list) or any(
+                isinstance(c, dict) and c.get('id') in removed for c in after):
             raise VlessError('vless_api_failed')

@@ -380,9 +380,19 @@ def slim_finished_job(directory, job_id):
 
 def slim_finished_jobs(store):
     for work in list(Path(store.directory).glob('component-*')) + list(Path(store.directory).glob('panel-*')):
-        job_id = work.name.split('-', 1)[1]
+        if work.is_symlink() or not work.is_dir():
+            continue
+        update = work.name.startswith('panel-update-')
+        job_id = work.name[len('panel-update-'):] if update else work.name.split('-', 1)[1]
         row = store.db.execute('SELECT status FROM jobs WHERE id=?', (job_id,)).fetchone()
-        if row is not None and row[0] == 'succeeded':
+        if row is None:
+            continue
+        if update:
+            # Older releases kept a finished update's DB copy, Xray config
+            # and settings snapshot (keys included) forever.
+            if row[0] in ('succeeded', 'cancelled'):
+                shutil.rmtree(str(work), ignore_errors=True)
+        elif row[0] == 'succeeded':
             slim_finished_job(store.directory, job_id)
 
 
@@ -876,7 +886,8 @@ class Store:
                     status = task.abort() if hasattr(task, 'abort') and row['checkpoint'] == 0 else ('cancelled' if row['checkpoint'] == 0 and not task.marker.exists() else 'partially_applied')
                     code = 'cancelled' if status == 'cancelled' else 'apt_interrupted'
                 else:
-                    task.step(row['checkpoint'])
+                    if task.step(row['checkpoint']) is False:
+                        return 1  # The transient apt unit is still running.
                     if row['checkpoint'] + 1 < req['count']:
                         return 0.1
                     status, code = 'succeeded', 'succeeded'
@@ -1009,9 +1020,15 @@ class Store:
                     status = 'failed'
                 if code == 'cancelled' and status == 'partially_applied':
                     code = 'panel_cancelled_partial'
+            # A panel update restores the old panel after a failed switch.
+            rolled_back = getattr(installer, 'rolled_back', None)
+            if rolled_back is not None:
+                code = 'upgrade_rolled_back' if rolled_back else 'upgrade_rollback_failed'
             self.finish(job_id, status, code, req['count'])
             if status == 'succeeded':
                 slim_finished_job(self.directory, job_id)
+            if req['kind'] == 'panel_update' and status in ('succeeded', 'cancelled'):
+                installer.finished()  # Its backups hold a full DB copy and keys.
             return 0.1
         # Real, bounded probes. No configs, environment, logins or keys are read.
         try:

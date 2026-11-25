@@ -70,22 +70,116 @@ def atomic_file(path, data, mode=0o600):
         except OSError:
             pass
         raise
-    fd = os.open(str(path.parent), os.O_RDONLY | os.O_DIRECTORY)
+    sync_directory(path.parent)
+
+
+def sync_directory(path):
+    fd = os.open(str(path), os.O_RDONLY | os.O_DIRECTORY)
     try:
         os.fsync(fd)
     finally:
         os.close(fd)
 
 
+def atomic_copy(source, path, mode=0o600, owner=None):
+    """atomic_file for large files: streamed, never read whole into memory.
+    owner=(uid, gid) restores the original ownership of a replaced file."""
+    temp = path.with_name('.' + path.name + '.' + secrets.token_hex(8) + '.antirkn-tmp')
+    fd = os.open(str(temp), os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, mode)
+    try:
+        with os.fdopen(fd, 'wb') as stream, open(str(source), 'rb') as origin:
+            shutil.copyfileobj(origin, stream, 1048576)
+            stream.flush()
+            if owner is not None:
+                os.fchown(stream.fileno(), owner[0], owner[1])
+            os.fchmod(stream.fileno(), mode)
+            os.fsync(stream.fileno())
+        os.replace(str(temp), str(path))
+    except BaseException:
+        try:
+            os.unlink(str(temp))
+        except OSError:
+            pass
+        raise
+    sync_directory(path.parent)
+
+
+SAFE_ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'}
+
+
+def run(argv, timeout=30, input_data=None, env=None, cwd=None, capture=True):
+    """The one subprocess call of the panel/component/apt modules: no shell,
+    always bounded, a fixed environment, stderr discarded (it may quote
+    configuration or upstream text)."""
+    return subprocess.run(argv, input=input_data,
+        stdin=subprocess.DEVNULL if input_data is None else None,
+        stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL, timeout=timeout, cwd=cwd,
+        env=dict(SAFE_ENV) if env is None else env)
+
+
 def command(argv, timeout=30, input_data=None):
-    result = subprocess.run(argv, input=input_data, stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL, timeout=timeout, env={
-            'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8',
-            'XUI_DB_FOLDER': str(DATABASE), 'XUI_BIN_FOLDER': str(PANEL / 'bin'),
-            'XUI_LOG_FOLDER': str(DATABASE / 'logs'), 'XUI_ENABLE_FAIL2BAN': 'false'})
+    result = run(argv, timeout, input_data, env={**SAFE_ENV,
+        'XUI_DB_FOLDER': str(DATABASE), 'XUI_BIN_FOLDER': str(PANEL / 'bin'),
+        'XUI_LOG_FOLDER': str(DATABASE / 'logs'), 'XUI_ENABLE_FAIL2BAN': 'false'})
     if result.returncode != 0:
         raise PanelError('panel_api_failed')
     return result.stdout
+
+
+class DownloadError(Exception):
+    """reason: 'failed', 'checksum' or 'cancelled'; callers map it to their code."""
+    def __init__(self, reason):
+        self.reason = reason
+
+
+def fetch_pinned(url, target, size, sha256, cancelled=None, limit=900):
+    """Fetch an HTTPS artifact of a pinned size and SHA-256 to target.
+
+    A verified target is reused. cancelled() is polled about once a second;
+    the daemon's heartbeat thread keeps the worker alive meanwhile."""
+    if target.is_file() and digest(target) == sha256:
+        return target
+    if not url.startswith('https://'):
+        raise DownloadError('failed')
+    import http.client
+    temp = target.with_name(target.name + '.download')
+    client = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    total, value = 0, hashlib.sha256()
+    deadline = time.monotonic() + limit
+    polled = None
+    try:
+        with client.open(url, timeout=30) as response, temp.open('wb') as output:
+            if not response.geturl().startswith('https://'):
+                raise DownloadError('failed')
+            while True:
+                now = time.monotonic()
+                if cancelled is not None and (polled is None or now - polled >= 1):
+                    polled = now
+                    if cancelled():
+                        raise DownloadError('cancelled')
+                data = response.read(1048576)
+                if not data:
+                    break
+                total += len(data)
+                if total > size or now > deadline:
+                    raise DownloadError('failed')
+                value.update(data)
+                output.write(data)
+            output.flush()
+            os.fsync(output.fileno())
+    except (OSError, ValueError, http.client.HTTPException):
+        temp.unlink(missing_ok=True)
+        raise DownloadError('failed') from None
+    except DownloadError:
+        temp.unlink(missing_ok=True)
+        raise
+    if total != size or value.hexdigest() != sha256:
+        temp.unlink(missing_ok=True)
+        raise DownloadError('checksum')
+    os.replace(str(temp), str(target))
+    sync_directory(target.parent)
+    return target
 
 
 def systemctl(*args):
@@ -193,6 +287,15 @@ def access_for(job_id, port):
 
 
 
+def relogin_needed(error):
+    """A lost or rejected session needs a new login; a refused connection
+    (the panel is still starting) does not."""
+    from urllib.error import HTTPError
+    code = getattr(error, 'code', None)
+    return (isinstance(error, HTTPError) and code in (401, 403, 404)) or (
+        isinstance(error, ValueError) and str(error) in ('panel_auth_failed', 'panel_login_limited'))
+
+
 def install_cli():
     """Install the unmodified, pinned upstream menu without running install.sh."""
     if CLI.exists() or CLI.is_symlink():
@@ -248,9 +351,6 @@ class PanelInstaller:
         self.directory = store.directory / ('panel-' + request['id'])
         self.ownership = self.directory / 'ownership.json'
 
-    def pulse(self):
-        self.store.heartbeat()
-
     def cancelled(self):
         return bool(self.store.db.execute('SELECT cancel FROM jobs WHERE id=?',
             (self.request['id'],)).fetchone()[0])
@@ -288,36 +388,12 @@ class PanelInstaller:
 
     def download(self):
         release = self.release
-        archive = self.directory / 'release.tar.gz'
-        if archive.is_file() and digest(archive) == release['sha256']:
-            return archive
-        temp = self.directory / 'download.tmp'
-        client = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-        total = 0
-        deadline = time.monotonic() + 900
         try:
-            with client.open(release['url'], timeout=30) as response, temp.open('wb') as output:
-                if not response.geturl().startswith('https://'):
-                    raise PanelError('panel_download_failed')
-                while True:
-                    self.pulse()
-                    if self.cancelled():
-                        raise PanelError('cancelled')
-                    data = response.read(262144)
-                    if not data:
-                        break
-                    total += len(data)
-                    if total > release['bytes'] or time.monotonic() > deadline:
-                        raise PanelError('panel_download_failed')
-                    output.write(data)
-                output.flush()
-                os.fsync(output.fileno())
-        except (OSError, ValueError) as error:
-            raise PanelError('panel_download_failed') from error
-        if total != release['bytes'] or digest(temp) != release['sha256']:
-            raise PanelError('panel_checksum_failed')
-        os.replace(str(temp), str(archive))
-        return archive
+            return fetch_pinned(release['url'], self.directory / 'release.tar.gz',
+                                release['bytes'], release['sha256'], self.cancelled)
+        except DownloadError as error:
+            raise PanelError({'cancelled': 'cancelled', 'checksum': 'panel_checksum_failed'}.get(
+                error.reason, 'panel_download_failed')) from None
 
     def unpack(self, archive):
         release = self.release
@@ -348,7 +424,6 @@ class PanelInstaller:
                 if digest(path) != release['files'][relative]:
                     raise PanelError('panel_checksum_failed')
                 path.chmod(0o755 if relative in ('x-ui', 'x-ui.sh', 'bin/xray-linux-amd64') else 0o644)
-                self.pulse()
             if seen != set(release['files']):
                 raise PanelError('panel_checksum_failed')
         return target
@@ -407,7 +482,6 @@ class PanelInstaller:
         helper = Path(__file__).with_name('panel_api.py')
         deadline = time.monotonic() + 120
         while time.monotonic() < deadline:
-            self.pulse()
             pid = systemctl('show', '-p', 'MainPID', '--value', BOOT_UNIT.name).decode().strip()
             if pid.isdecimal() and int(pid) > 1:
                 try:
@@ -437,11 +511,15 @@ class PanelInstaller:
         self.assert_owned()
         access = access_for(self.request['id'], self.request['port'])
         deadline = time.monotonic() + 90
+        api = None
         while time.monotonic() < deadline:
-            self.pulse()
             try:
-                api = PanelApi(access['port'], access.get('basePath', '/'))
-                api.login(access['username'], access['password'])
+                # One session for the whole wait: a login per second could
+                # trip 3x-ui's login limiter.
+                if api is None:
+                    session = PanelApi(access['port'], access.get('basePath', '/'))
+                    session.login(access['username'], access['password'])
+                    api = session
                 settings = api.call('/panel/api/setting/all', {})
                 inbounds = api.call('/panel/api/inbounds/list')
                 status = api.call('/panel/api/server/status')
@@ -469,7 +547,9 @@ class PanelInstaller:
                     raise PanelError('panel_conflict')
                 systemctl('is-active', '--quiet', UNIT.name)
                 return
-            except (OSError, ValueError, subprocess.SubprocessError):
+            except (OSError, ValueError, subprocess.SubprocessError) as error:
+                if relogin_needed(error):
+                    api = None
                 time.sleep(1)
         raise PanelError('panel_api_failed')
 
