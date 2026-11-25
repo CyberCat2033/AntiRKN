@@ -260,8 +260,14 @@ final class GithubComponentReleaseSource implements ComponentReleaseSource {
               (item['name'] as String).replaceFirst(RegExp(r'^v'), ''),
             ),
       ];
+      // Newest first; equal or incomparable tags compare as equal, so the
+      // comparator stays consistent.
       out.sort(
-        (a, b) => componentIsNewer(a.version, b.version) == true ? -1 : 1,
+        (a, b) => componentIsNewer(a.version, b.version) == true
+            ? -1
+            : componentIsNewer(b.version, a.version) == true
+            ? 1
+            : 0,
       );
       return out;
     } finally {
