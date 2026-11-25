@@ -59,6 +59,7 @@ class HardeningTests(unittest.TestCase):
         self.run = self.stack.enter_context(patch.object(h, 'run', return_value=subprocess.CompletedProcess([], 0, '', '')))
         self.reload = self.stack.enter_context(patch.object(h, 'reload_ssh_service'))
         self.policy = self.stack.enter_context(patch.object(h, 'verify_policy'))
+        self.original_verify_listeners = h.verify_listeners
         self.listeners = self.stack.enter_context(patch.object(h, 'verify_listeners'))
         self.user = SimpleNamespace(pw_uid=1001, pw_gid=1001, pw_gecos=self.info['user_marker'],
                                     pw_dir=str(h.HOME_DIRECTORY / 'fixture'))
@@ -280,6 +281,74 @@ class HardeningTests(unittest.TestCase):
         self.user.pw_gecos = 'someone else'
         self.assertEqual(self.rpc('abort')['code'], 'ssh_harden_failed')
         self.assertFalse(any(c.args[0][0].endswith('userdel') for c in self.run.call_args_list))
+
+
+    def test_failed_rollback_backs_off_and_stops_reloading_after_the_cap(self):
+        self.reload.side_effect = OSError('fixture recovery failure')
+        self.set_info(deadline_at=0)
+        info = h.load_info(JOB)
+        self.assertFalse(h._rollback(JOB, info))
+        self.assertEqual(self.reload.call_count, 1)
+        # Immediately again (watchdog second, worker tick, status poll): no reload.
+        for _ in range(5):
+            self.assertFalse(h._rollback(JOB, h.load_info(JOB)))
+        self.assertEqual(self.reload.call_count, 1)
+        info = h.load_info(JOB)
+        self.assertEqual((info['phase'], info['attempts']), ('rollback_failed', 1))
+        self.assertGreaterEqual(info['retry_at'] - time.time(), h.RETRY_BASE - 1)
+        for attempt in range(2, h.MAX_ATTEMPTS + 2):
+            info = h.load_info(JOB)
+            info['retry_at'] = 0  # The backoff has elapsed.
+            h.save_info(JOB, info)
+            h._rollback(JOB, h.load_info(JOB))
+        self.assertEqual(self.reload.call_count, h.MAX_ATTEMPTS)
+        self.assertTrue(h.exhausted(h.load_info(JOB)))
+        # The watchdog exits cleanly (no restart loop) and stays armed.
+        with patch.object(h, 'retire_watchdog') as retire:
+            h.watchdog_loop(JOB, sleep=lambda seconds: None)
+        retire.assert_not_called()
+        self.assertEqual(self.reload.call_count, h.MAX_ATTEMPTS)
+        # An explicit abort still tries; a new boot gets a fresh series.
+        self.reload.side_effect = None
+        h.BOOT_ID.write_text('next-boot')
+        self.assertFalse(h.exhausted(h.load_info(JOB)))
+        self.assertTrue(self.rpc('abort')['sshHardenResult']['aborted'])
+
+    def test_watchdog_gives_up_on_an_unreadable_journal(self):
+        (h.backup_path(JOB) / 'info.json').write_text('{broken')
+        sleeps = []
+        h.watchdog_loop(JOB, sleep=sleeps.append)
+        self.assertEqual(len(sleeps), h.LOAD_FAILURES - 1)
+        h.arm_watchdog(JOB)
+        unit = (h.UNIT_DIRECTORY / h.unit_name(JOB)).read_text()
+        self.assertNotIn('StartLimitIntervalSec=0', unit)
+        self.assertIn('StartLimitBurst=', unit)
+
+    def test_listeners_of_a_second_sshd_instance_are_ignored(self):
+        output = ('LISTEN 0 128 0.0.0.0:2222 0.0.0.0:* users:(("sshd",pid=700,fd=3))\n'
+                  'LISTEN 0 128 [::]:2222 [::]:* users:(("sshd",pid=700,fd=4))\n'
+                  'LISTEN 0 128 0.0.0.0:2022 0.0.0.0:* users:(("sshd",pid=7000,fd=3))\n')
+        def run(command, **kwargs):
+            value = '700\n' if 'MainPID' in command else output
+            return subprocess.CompletedProcess(command, 0, value, '')
+        with patch.object(h, 'verify_listeners', self.original_verify_listeners), patch.object(h, 'run', side_effect=run):
+            h.verify_listeners([2222], False)
+            with self.assertRaises(h.SshHardenError):
+                h.verify_listeners([22], False)
+        def stopped(command, **kwargs):
+            return subprocess.CompletedProcess(command, 0, '0\n' if 'MainPID' in command else output, '')
+        with patch.object(h, 'verify_listeners', self.original_verify_listeners), patch.object(h, 'run', side_effect=stopped):
+            with self.assertRaises(h.SshHardenError):
+                h.verify_listeners([2222], False)  # No main daemon: nothing listens.
+
+    def test_lock_file_must_not_be_a_link(self):
+        lock = h.BACKUP_DIR / 'lock'
+        lock.unlink(missing_ok=True)
+        (h.BACKUP_DIR / 'elsewhere').write_text('x')
+        lock.symlink_to(h.BACKUP_DIR / 'elsewhere')
+        with self.assertRaises(OSError):
+            with h.harden_lock():
+                pass
 
 
 if __name__ == '__main__':

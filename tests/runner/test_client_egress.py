@@ -184,6 +184,43 @@ class NetworkTests(unittest.TestCase):
         self.assertTrue(any('TPROXY' in part for call in calls for part in call))
         with self.assertRaises(c.EgressError): n.validate_interfaces(['eth0; anything'])
 
+    def test_server_addresses_and_private_ranges_bypass_tproxy(self):
+        restores = []
+        def run(args, check=True):
+            return type('Result', (), dict(returncode=1 if '-C' in args or '-S' in args else 0, stdout=b'[]'))()
+        def restore(args, **kwargs):
+            restores.append((args[0], kwargs['input'].decode().splitlines()))
+            return type('Result', (), dict(returncode=0))()
+        with patch.object(n, 'run', run), patch.object(n.subprocess, 'run', restore):
+            n.configure(['awg0'], 1081)
+            n.configure(['awg0'], 1081)  # Idempotent: the chain is rebuilt.
+        self.assertEqual(len(restores), 4)
+        for binary, lines in restores:
+            self.assertEqual(lines.count('-F ' + n.CHAIN), 1)
+            body = [line for line in lines if line.startswith('-A ')]
+            first = next(i for i, line in enumerate(body) if 'TPROXY' in line)
+            bypass = body[:first]
+            self.assertIn('-A %s -m addrtype --dst-type LOCAL -j RETURN' % n.CHAIN, bypass)
+            ranges = ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', '127.0.0.0/8', '169.254.0.0/16', '100.64.0.0/10') \
+                if binary.endswith('/iptables-restore') else ('fc00::/7', 'fe80::/10', '::1/128')
+            for network in ranges:
+                self.assertIn('-A %s -d %s -j RETURN' % (n.CHAIN, network), bypass)
+            self.assertEqual(body[-1], '-A %s -j DROP' % n.CHAIN)
+
+    def test_intact_requires_the_bypass_rules(self):
+        missing = '-A %s -m addrtype --dst-type LOCAL -j RETURN' % n.CHAIN
+        def run(args, check=True):
+            line = ' '.join(['-A', *args[args.index('-C') + 1:]]) if '-C' in args else ''
+            if line == missing:
+                return type('Result', (), dict(returncode=1, stdout=b''))()
+            if 'rule' in args:
+                return type('Result', (), dict(returncode=0, stdout=json.dumps([dict(priority=int(n.PRIORITY), table=n.TABLE, fwmark=n.MARK)]).encode()))()
+            if 'route' in args:
+                return type('Result', (), dict(returncode=0, stdout=json.dumps([dict(type='local', dst='default', dev='lo')]).encode()))()
+            return type('Result', (), dict(returncode=0, stdout=b''))()
+        with patch.object(n, 'run', run), self.assertRaises(c.EgressError):
+            n.intact(dict(interfaces=['awg0'], transparentPort=1081))
+
 
 class ServiceAccessTests(unittest.TestCase):
     def test_service_clients_require_both_registered_uuid_and_email(self):

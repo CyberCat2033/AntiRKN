@@ -4,6 +4,7 @@ from pathlib import Path
 import sys
 import socket
 import tempfile
+import time
 import types
 import unittest
 from unittest.mock import call, patch
@@ -302,6 +303,314 @@ class TrustTunnelTests(unittest.TestCase):
                 verify.assert_called_once()
                 self.assertFalse((base/'activation.json').exists())
                 run.reset_mock();cert.activate(p);run.assert_not_called()
+
+
+class NativeTtHost:
+    def __init__(self):
+        self.active = False
+        self.calls = []
+        self.fail = {}
+
+    def run(self, argv, data=None, timeout=30, check=True):
+        self.calls.append(argv)
+        for needle, error in list(self.fail.items()):
+            if needle in ' '.join(argv):
+                del self.fail[needle]
+                raise error
+        if argv[1:2] == ['stop']:
+            self.active = False
+        elif argv[1:2] == ['restart']:
+            self.active = True
+        return types.SimpleNamespace(returncode=0, stdout=b'')
+
+    def ran(self, verb):
+        return [c for c in self.calls if c[1:2] == [verb]]
+
+
+class NativeTtApplyTests(unittest.TestCase):
+    """Restart only after a change, never a busy-port stop, undo on failure."""
+
+    def setUp(self):
+        from contextlib import ExitStack
+        import hashlib
+        self.stack = ExitStack()
+        self.addCleanup(self.stack.close)
+        root = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
+        (root / 'tt').mkdir()
+        (root / 'units').mkdir()
+        self.store = Store(root)
+        self.addCleanup(self.store.close)
+        self.host = NativeTtHost()
+        self.free = True
+        def confirmed(saved, probe=True):
+            r = saved['spec']
+            return tt.intact(saved) and self.host.active == (r['enabled'] and not r['deleted'])
+        info = dict(id='e' * 32, domain='vpn.example.com', fingerprint='f' * 64, pairHash='p')
+        values = dict(ROOT=root / 'tt', KEY=root / 'tt/master.key', UNITS=root / 'units',
+                      prerequisites=lambda: 'release', active=lambda unit: self.host.active, run=self.host.run,
+                      available=lambda *a, **k: self.free, confirmed=confirmed, read=lambda p: Path(p).read_bytes(),
+                      hash_file=lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest() if Path(p).exists() else None,
+                      safe_path=lambda p, **k: Path(p))
+        for name, value in values.items():
+            self.stack.enter_context(patch.object(tt, name, value))
+        for name, value in dict(certificate_paths=lambda cid: ('/cert', '/key', info), inspect_pair=lambda *a: info,
+                                record=lambda cid: info, bind=lambda *a: None, unbind=lambda *a: None,
+                                public=lambda r: {}).items():
+            self.stack.enter_context(patch.object(cert, name, value))
+        self.stack.enter_context(patch.object(common, 'STATE', root))
+
+    def submit(self, p, number):
+        preview = tt.plan(self.store, dict(id=p['workspaceId'], payload=json.dumps(p)))
+        req = dict(version=1, action='submit', kind='tt_apply', id=f'{number:032x}', count=len(p['resources']) + 2,
+                   interval=1, payload=json.dumps(p), fingerprint=preview['fingerprint'])
+        self.assertEqual(self.store.request(req)['code'], 'ok')
+        for _ in range(8):
+            self.store.tick()
+            row = self.store.request(dict(version=1, action='status', id=req['id'], cursor=0))['jobs'][0]
+            if row['status'] not in ('planned', 'running'):
+                return row['status'], req
+        self.fail('job did not finish')
+
+    def installed(self):
+        p = payload()
+        p['users'] = p['users'][:1]
+        self.assertEqual(self.submit(p, 1)[0], 'succeeded')
+        self.host.calls.clear()
+        return p, [f.read_bytes() for f in tt.paths(p['resources'][0]['id'])[:3]]
+
+    def test_credentials_change_restarts_once_without_stop_and_not_on_replay(self):
+        p, _ = self.installed()
+        p['users'] = payload()['users']
+        status, req = self.submit(p, 2)
+        self.assertEqual(status, 'succeeded')
+        self.assertEqual((len(self.host.ran('restart')), self.host.ran('stop')), (1, []))
+        # A worker crash after the restart, before the checkpoint: no restart.
+        with self.store.db:
+            self.store.db.execute("UPDATE jobs SET status='running', checkpoint=1 WHERE id=?", (req['id'],))
+        self.host.calls.clear()
+        tt.TtApply(self.store, req).step(1)
+        self.assertEqual(self.host.ran('restart'), [])
+
+    def test_busy_new_port_never_stops_the_working_endpoint(self):
+        p, files = self.installed()
+        p['resources'][0].update(port=8443, externalPort=8443)
+        preview = tt.plan(self.store, dict(id=p['workspaceId'], payload=json.dumps(p)))
+        self.free = False
+        req = dict(version=1, action='submit', kind='tt_apply', id='2' * 32, count=3, interval=1,
+                   payload=json.dumps(p), fingerprint=preview['fingerprint'])
+        self.store.request(req)
+        with patch.object(tt, 'preflight', return_value=dict(fingerprint=preview['fingerprint'])):
+            for _ in range(4):
+                self.store.tick()
+        self.assertEqual(self.store.db.execute('SELECT status FROM jobs WHERE id=?', (req['id'],)).fetchone()[0], 'failed')
+        self.assertEqual((self.host.ran('stop'), self.host.active), ([], True))
+        self.assertEqual([f.read_bytes() for f in tt.paths(p['resources'][0]['id'])[:3]], files)
+
+    def test_failed_restart_restores_files_and_old_service(self):
+        p, files = self.installed()
+        p['users'] = payload()['users']
+        self.host.fail['restart'] = tt.TtError('tt_failed')
+        self.assertEqual(self.submit(p, 2)[0], 'failed')
+        self.assertEqual([f.read_bytes() for f in tt.paths(p['resources'][0]['id'])[:3]], files)
+        self.assertEqual((len(self.host.ran('restart')), self.host.active), (2, True))
+        self.assertFalse(list(self.store.directory.glob('tt-intent-*')))
+
+    def test_watcher_lock_during_undo_finishes_the_undo_later_without_repeating_the_step(self):
+        p, files = self.installed()
+        p['users'] = payload()['users']
+        self.host.fail['restart'] = tt.TtError('tt_failed')
+        busy = [tt.TtError('tt_busy')]
+        original = tt.TtApply.recover
+        def recover(task, checkpoint):
+            if busy:
+                raise busy.pop()
+            return original(task, checkpoint)
+        steps = []
+        original_step = tt.TtApply.step
+        def step(task, checkpoint):
+            steps.append(checkpoint)
+            return original_step(task, checkpoint)
+        with patch.object(tt.TtApply, 'recover', recover), patch.object(tt.TtApply, 'step', step):
+            self.assertEqual(self.submit(p, 2)[0], 'failed')
+        self.assertEqual(steps, [0, 1])  # Prepare and the failed step only.
+        self.assertEqual([f.read_bytes() for f in tt.paths(p['resources'][0]['id'])[:3]], files)
+        self.assertFalse(list(self.store.directory.glob('recover-*')))
+
+
+class TtLockTests(unittest.TestCase):
+    def test_locks_fail_closed_instead_of_running_unlocked(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            with patch.object(common, 'STATE', root / 'missing'):
+                with self.assertRaises(common.TtError):
+                    with common.lock():
+                        pass
+            target = root / 'credentials.toml'
+            target.write_text('x')
+            (root / 'elsewhere').write_text('root file')
+            (root / 'credentials.toml.lock').symlink_to(root / 'elsewhere')
+            with self.assertRaises(common.TtError):
+                with common.file_lock(target):
+                    pass
+            with patch.object(common, 'STATE', root):
+                with common.lock():
+                    with common.lock():
+                        pass
+
+
+class TtVersionTests(unittest.TestCase):
+    def test_external_service_accepts_supported_newer_releases(self):
+        for output, ok in (('trusttunnel_endpoint 1.1.0', True), ('trusttunnel_endpoint 1.4.2\n', True),
+                           ('trusttunnel_endpoint v1.10.0', True), ('trusttunnel_endpoint 1.0.9', False),
+                           ('trusttunnel_endpoint 2.0.0', False), ('unknown', False)):
+            with self.subTest(output=output):
+                self.assertEqual(external.supported_version(output), ok)
+
+    def test_discovery_walks_services_once_and_runs_version_once_per_binary(self):
+        calls = []
+        unit = 'trusttunnel.service'
+        def run(argv, data=None, timeout=30, check=True):
+            calls.append(argv)
+            if argv[1] == 'show':
+                return types.SimpleNamespace(returncode=0, stdout=('ExecStart={ path=/opt/tt/trusttunnel_endpoint ; argv[]=/opt/tt/trusttunnel_endpoint vpn.toml hosts.toml ; }\n'
+                                                                   'WorkingDirectory=/opt/tt\nFragmentPath=/etc/systemd/system/' + unit + '\nActiveState=active\n').encode())
+            return types.SimpleNamespace(returncode=0, stdout=b'trusttunnel_endpoint 1.2.0')
+        files = {'/opt/tt/vpn.toml': b'listen_address="127.0.0.1:8443"\n', '/opt/tt/hosts.toml':
+                 b'[[main_hosts]]\nhostname="vpn.example.com"\ncert_chain_path="/c"\nprivate_key_path="/k"\n',
+                 '/etc/systemd/system/' + unit: b'[Service]\n'}
+        stat = types.SimpleNamespace(st_uid=0, st_dev=1, st_ino=2, st_mtime_ns=3, st_size=4)
+        with patch.object(external, 'run', side_effect=run), patch.object(external, 'candidates', return_value=[unit, 'other-trusttunnel.service']), \
+                patch.object(external, 'safe_path', side_effect=lambda p, **k: Path(p)), patch.object(external.os, 'stat', return_value=stat), \
+                patch.object(external.Path, 'stat', return_value=stat), patch.object(external.Path, 'resolve', lambda self, strict=False: self), \
+                patch.object(external, 'read', side_effect=lambda p, owner=0: files[str(p)]):
+            result = external.discovery()
+        self.assertEqual(len(result['resources']), 2)
+        self.assertEqual(len([c for c in calls if c[-1] == '--version']), 1)
+        self.assertEqual(len([c for c in calls if c[1] == 'show']), 2)
+
+    def test_absent_requires_missing_configs_and_unknown_unit(self):
+        with tempfile.TemporaryDirectory() as d:
+            source = dict(unit='trusttunnel.service', settings=str(Path(d) / 'vpn.toml'), hosts=str(Path(d) / 'hosts.toml'))
+            gone = types.SimpleNamespace(returncode=0, stdout=b'not-found\n')
+            loaded = types.SimpleNamespace(returncode=0, stdout=b'loaded\n')
+            with patch.object(external, 'run', return_value=gone):
+                self.assertTrue(external.absent(source))
+                Path(source['hosts']).write_text('kept')
+                self.assertFalse(external.absent(source))
+                Path(source['hosts']).unlink()
+            with patch.object(external, 'run', return_value=loaded):
+                self.assertFalse(external.absent(source))
+            self.assertFalse(external.absent(None))
+
+
+class CertificateWatchTests(unittest.TestCase):
+    def setUp(self):
+        from contextlib import ExitStack
+        self.stack = ExitStack()
+        self.addCleanup(self.stack.close)
+        self.root = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
+        for name, value in dict(CERT_ROOT=self.root, mkdir=lambda p: p.mkdir(parents=True, exist_ok=True),
+                                read=lambda p: Path(p).read_bytes(), source_path=lambda p: Path(p)).items():
+            self.stack.enter_context(patch.object(cert, name, value))
+        self.cid = 'e' * 32
+        (self.root / self.cid).mkdir()
+        self.source = self.root / 'source'
+        self.source.mkdir()
+        (self.source / 'fullchain.pem').write_text('chain')
+        (self.source / 'privkey.pem').write_text('key')
+        self.spec = dict(id=self.cid, mode='files', domain='vpn.example.com', listen='0.0.0.0', expectedIps=[], email='',
+                         certificate=str(self.source / 'fullchain.pem'), privateKey=str(self.source / 'privkey.pem'))
+        self.info = dict(domain='vpn.example.com', expiresAt=time.time() + 86400 * 30, notBefore=1, fingerprint='f' * 64, pairHash='hash')
+
+    def test_unchanged_pair_skips_openssl_and_record_writes(self):
+        with patch.object(cert, 'inspect_pair', return_value=self.info) as inspect, patch.object(cert, 'links', return_value=[]):
+            saved = cert.activate(self.spec)
+            self.assertTrue(inspect.called)
+            self.assertEqual(saved['sourceStat'], cert.source_signature(self.source / 'fullchain.pem', self.source / 'privkey.pem'))
+            inspect.reset_mock()
+            before = cert.record_path(self.cid).stat().st_mtime_ns
+            for _ in range(3):
+                cert.check(cert.record(self.cid))
+            inspect.assert_not_called()
+            self.assertEqual(cert.record_path(self.cid).stat().st_mtime_ns, before)
+            # A replaced source file is validated again.
+            (self.source / 'fullchain.pem').write_text('renewed chain')
+            cert.check(cert.record(self.cid))
+            self.assertTrue(inspect.called)
+
+    def test_successful_renewal_is_recorded_even_without_a_new_pair(self):
+        spec = dict(self.spec, mode='acme')
+        live = self.root / self.cid / 'acme/live/endpoint'
+        live.mkdir(parents=True)
+        (live / 'fullchain.pem').write_text('chain')
+        (live / 'privkey.pem').write_text('key')
+        with patch.object(cert, 'inspect_pair', return_value=self.info), patch.object(cert, 'links', return_value=[]):
+            cert.activate(spec)
+        now = time.time()
+        with patch.object(cert, 'issue') as issue, patch.object(cert, 'inspect_pair') as inspect:
+            cert.check(cert.record(self.cid), now)
+            cert.check(cert.record(self.cid), now + 60)
+        self.assertEqual(issue.call_count, 1)  # certbot runs twice a day, not each minute.
+        inspect.assert_not_called()
+        self.assertEqual(cert.record(self.cid)['lastRenewal'], now)
+
+    def test_acme_failure_backs_off_instead_of_retrying_each_minute(self):
+        spec = dict(self.spec, mode='acme')
+        record = dict(id=self.cid, mode='acme', spec=spec, domain='vpn.example.com')
+        now = 1000000.0
+        with patch.object(cert, 'issue', side_effect=cert.TtError('tt_acme_failed')) as issue, \
+                patch.object(cert, 'activate', side_effect=cert.TtError('tt_certificate_invalid')):
+            cert.check(record, now)
+            self.assertEqual(issue.call_count, 1)
+            self.assertEqual(record['renewRetryAt'], now + 3600)
+            self.assertEqual(record['error'], 'tt_certificate_invalid')
+            for minute in range(1, 60):
+                cert.check(record, now + 60 * minute)
+            self.assertEqual(issue.call_count, 1)
+            cert.check(record, now + 3600)
+            self.assertEqual((issue.call_count, record['renewRetryAt']), (2, now + 3600 + 7200))
+            record['renewFailures'] = 12
+            cert.check(record, record['renewRetryAt'])
+            self.assertEqual(record['renewRetryAt'] - record['lastCheck'], 86400)
+
+
+class ExternalEditRecoveryTests(unittest.TestCase):
+    def test_failed_external_edit_restores_files_links_and_service(self):
+        changes = dict(listen='127.0.0.1', port=8443, quic=False, ipv6=False, allowPrivate=False, outbound='direct',
+                       socksAddress='127.0.0.1:1080', hostIndex=0, domain='vpn.example.com', certificateId='')
+        req = dict(id='1' * 32, payload=json.dumps(dict(resourceId='b' * 32, observedHash='a' * 64, changes=changes)))
+        resource = dict(id='b' * 32, unit='trusttunnel.service', settings='/fixture/vpn.toml', hosts='/fixture/hosts.toml',
+                        base='/fixture', ownerUid=0, active=True)
+        before, after = ['listen_address="127.0.0.1:443"\n', 'h=1\n'], ['listen_address="127.0.0.1:8443"\n', 'h=2\n']
+        links = [dict(cid='e' * 32, name='f' * 32 + '.json', data=dict(unit='trusttunnel.service', host='127.0.0.1', port=443))]
+        for current, expected in ((after, 'failed'), (['foreign="edit"\n', 'h=2\n'], None)):
+            with self.subTest(current=current), tempfile.TemporaryDirectory() as d:
+                files = dict(zip((resource['settings'], resource['hosts']), current))
+                calls = []
+                def snapshot(rid, found=None):
+                    return dict(resource, active=False), files[resource['settings']].encode(), files[resource['hosts']].encode(), {}, {}, 'x'
+                def write(path, data, owner):
+                    files[str(path)] = data.decode(); calls.append(('write', str(path)))
+                store = Store(Path(d))
+                try:
+                    task = external.ExternalTtEdit(store, req)
+                    task.backup.write_text(json.dumps(dict(resource=resource, before=before, after=after, certificate={},
+                                                           source=None, links=links)))
+                    with patch.object(common, 'STATE', Path(d)), patch.object(external, 'snapshot', side_effect=snapshot), \
+                            patch.object(external, 'write_existing', side_effect=write), \
+                            patch.object(external, 'read', side_effect=lambda p, owner=0: files[str(p)].encode() if str(p) in files else Path(p).read_bytes()), \
+                            patch.object(external, 'run', side_effect=lambda argv, **k: calls.append(tuple(argv))), \
+                            patch.object(external, 'active', return_value=True), \
+                            patch.object(cert, 'restore_links', side_effect=lambda *a: calls.append(('links',) + a[:2])):
+                        self.assertEqual(task.recover(1), expected)
+                finally:
+                    store.close()
+                if expected:
+                    self.assertEqual([files[resource['settings']], files[resource['hosts']]], before)
+                    self.assertIn(('/usr/bin/systemctl', 'restart', 'trusttunnel.service'), calls)
+                    self.assertIn(('links', 'trusttunnel.service', external.link_for(resource, changes)), calls)
+                else:
+                    self.assertEqual(calls, [])  # A foreign edit is never overwritten.
 
 
 if __name__=='__main__':unittest.main()

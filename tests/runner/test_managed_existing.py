@@ -54,7 +54,12 @@ class AdoptionTests(unittest.TestCase):
             patch('awg.prerequisites', side_effect=AssertionError('must not install')),
             patch('tt.prerequisites', side_effect=AssertionError('must not install')),
             patch('tt.lock', side_effect=contextlib.nullcontext),
+            # The TT locks fail closed without their root-owned state directory.
+            patch('tt_common.STATE', Path(self.temp.name)),
+            patch('managed_tt.file_lock', side_effect=lambda path: contextlib.nullcontext()),  # /fixture paths
             patch('managed_awg.external.read_resource', side_effect=self.awg_snapshot),
+            patch('managed_awg.external.discover_resources', return_value=[]),
+            patch('managed_tt.external.definitions', return_value=[]),
             patch('managed_awg.external.write_file', side_effect=self.awg_write),
             patch('managed_awg.external.exec_resource', side_effect=self.awg_exec),
             patch('managed_tt.external.snapshot', side_effect=self.tt_snapshot),
@@ -70,7 +75,7 @@ class AdoptionTests(unittest.TestCase):
         self.store.close()
         self.temp.cleanup()
 
-    def awg_snapshot(self, source):
+    def awg_snapshot(self, source, found=None):
         values, peers = managed_awg.external.parse(self.raw.encode())
         fp = vless.digest(dict(resource=self.resource, file=self.raw, runtime=awg.runtime_config(self.runtime.encode())))
         return copy.deepcopy(self.resource), self.raw.encode(), values, peers, fp
@@ -85,7 +90,7 @@ class AdoptionTests(unittest.TestCase):
         if 'syncconf' in args: self.runtime = data.decode()
         return types.SimpleNamespace(stdout=self.runtime.encode(), returncode=0)
 
-    def tt_snapshot(self, source):
+    def tt_snapshot(self, source, found=None):
         resource = dict(id=source, unit='trusttunnel.service', settings='/fixture/vpn.toml', hosts='/fixture/hosts.toml',
             credentials='/fixture/users.toml', base='/fixture', ownerUid=0, active=self.tt_active,
             credentialsHash=vless.digest(self.credentials), rulesHash=vless.digest('rules'), unitHash='unit', execHash='exec')
@@ -230,9 +235,22 @@ class AdoptionTests(unittest.TestCase):
         self.assertEqual(self.writes, 0)
 
     def test_awg_partial_file_write_resumes_syncconf(self):
+        original=self.raw
         request=self.submit(self.payload('awg'),'awg');self.store.tick();self.lose_reply=True
-        self.assertEqual(self.finish(request)['status'],'partially_applied')
+        # The failed step is undone on the server: file and live peers.
+        self.assertEqual(self.finish(request)['status'],'failed')
+        self.assertEqual((self.raw,self.writes),(original,2))
+        self.assertTrue(awg.runtime_matches(original.encode(),self.runtime.encode()))
         self.store.request(dict(version=1,action='resume',id=request['id']))
+        self.assertEqual(self.finish(request)['status'],'succeeded')
+        self.assertEqual(self.writes,3);self.assertTrue(awg.state(self.store,'a'*32)[0]['confirmed'])
+
+    def test_awg_crash_after_file_write_resumes_without_second_write(self):
+        request=self.submit(self.payload('awg'),'awg');self.store.tick()
+        original=managed_awg.apply
+        def crash(*args,**kwargs):
+            original(*args,**kwargs);raise SystemExit('worker killed after the write')
+        with patch('managed_awg.apply',side_effect=crash),self.assertRaises(SystemExit):self.store.tick()
         self.assertEqual(self.finish(request)['status'],'succeeded')
         self.assertEqual(self.writes,1);self.assertTrue(awg.state(self.store,'a'*32)[0]['confirmed'])
 
@@ -251,11 +269,46 @@ class AdoptionTests(unittest.TestCase):
         self.assertEqual(tt.state(self.store,'a'*32)[0]['clients'][0]['password'],password)
 
     def test_tt_partial_write_resumes_with_original_identity(self):
+        original=self.credentials
         request=self.submit(self.payload('tt'),'tt');self.store.tick();self.lose_reply=True
-        self.assertEqual(self.finish(request)['status'],'partially_applied')
+        self.assertEqual(self.finish(request)['status'],'failed')
+        self.assertEqual((self.credentials,self.writes),(original,2))
         self.store.request(dict(version=1,action='resume',id=request['id']))
         self.assertEqual(self.finish(request)['status'],'succeeded')
-        self.assertEqual(self.writes,1)
+        self.assertEqual(self.writes,3)
+
+    def test_tt_restarts_once_after_a_write_and_not_on_retry(self):
+        restarts=[]
+        def run(args,**kwargs):
+            restarts.append(args[-1]);return types.SimpleNamespace(stdout=b'')
+        payload=self.payload('tt')
+        request=self.submit(payload,'tt');self.store.tick()
+        original=managed_tt.apply
+        def crash(*args,**kwargs):
+            original(*args,**kwargs);raise SystemExit('worker killed before the checkpoint')
+        with patch('managed_tt.run',side_effect=run):
+            with patch('managed_tt.apply',side_effect=crash),self.assertRaises(SystemExit):self.store.tick()
+            self.assertEqual(restarts,['trusttunnel.service'])
+            self.assertEqual(self.finish(request)['status'],'succeeded')
+            self.assertEqual((restarts,self.writes),(['trusttunnel.service'],1))
+            # Unchanged credentials (a repeated plan) never restart the service.
+            self.assertEqual(self.finish(self.submit(payload,'tt',2))['status'],'succeeded')
+            self.assertEqual((restarts,self.writes),(['trusttunnel.service'],1))
+
+    def test_tt_restart_failure_restores_credentials_and_service(self):
+        original=self.credentials
+        restarts=[]
+        def run(args,**kwargs):
+            restarts.append(args[-1])
+            if len(restarts)==1: raise managed_tt.external.TtError('tt_failed')
+            return types.SimpleNamespace(stdout=b'')
+        request=self.submit(self.payload('tt'),'tt')
+        with patch('managed_tt.run',side_effect=run):
+            self.assertEqual(self.finish(request)['status'],'failed')
+        # The old credentials are back and the service restarted with them.
+        self.assertEqual(self.credentials,original)
+        self.assertEqual(restarts,['trusttunnel.service']*2)
+        self.assertEqual(existing.records(self.store,'tt'),{})
 
     def test_tt_login_collision_preserves_foreign_account_and_uses_stable_personal_name(self):
         p=self.payload('tt');p['users'][0]['login']='FOREIGN'
@@ -570,9 +623,9 @@ class AdoptionTests(unittest.TestCase):
         req = self.submit(p2, 'tt', 2)
 
         orig_apply = managed_tt.apply
-        def hook_apply(store, p, r, plan):
+        def hook_apply(store, p, r, plan, **kwargs):
             self.credentials += '[[client]]\nusername="charlie"\npassword="secret-charlie"\n'
-            return orig_apply(store, p, r, plan)
+            return orig_apply(store, p, r, plan, **kwargs)
 
         with patch('managed_tt.apply', side_effect=hook_apply):
             res = self.finish(req)
@@ -600,6 +653,62 @@ class AdoptionTests(unittest.TestCase):
         with self.assertRaises(VlessError) as ctx:
             managed_tt.apply(self.store, p, r, intent)
         self.assertEqual(ctx.exception.code, 'tt_login_conflict')
+
+    def test_unreadable_adopted_source_stays_until_it_is_positively_gone(self):
+        for protocol, module, target in (('awg', awg, 'managed_awg.external.read_resource'),
+                                         ('tt', tt, 'managed_tt.external.snapshot')):
+            with self.subTest(protocol=protocol):
+                p = self.payload(protocol)
+                self.assertEqual(self.finish(self.submit(p, protocol, 1 if protocol == 'awg' else 2))['status'], 'succeeded')
+                rid = p['resources'][0]['id']
+                code = 'awg_conflict' if protocol == 'awg' else 'tt_conflict'
+                # A stopped container, a restarting service or an updated
+                # TrustTunnel binary hide the source from discovery.
+                with patch(target, side_effect=VlessError(code)), \
+                        patch('managed_%s.external.absent' % protocol, return_value=False) as absent:
+                    observed = module.state(self.store, 'a'*32)[0]
+                self.assertEqual((observed['confirmed'], observed['deleted'], observed['exists']), (False, False, True))
+                self.assertFalse(existing.records(self.store, protocol)[rid].get('deleted'))
+                self.assertTrue(absent.call_args.args[0])  # The recorded location is checked.
+                with patch(target, side_effect=VlessError(code)), patch('managed_%s.external.absent' % protocol, return_value=True):
+                    observed = module.state(self.store, 'a'*32)[0]
+                self.assertEqual((observed['deleted'], observed['exists']), (True, False))
+                self.assertTrue(existing.records(self.store, protocol)[rid]['deleted'])
+
+    def test_legacy_record_without_location_uses_its_job_intent(self):
+        p = self.payload('awg')
+        self.assertEqual(self.finish(self.submit(p, 'awg'))['status'], 'succeeded')
+        rid = p['resources'][0]['id']
+        record = existing.records(self.store, 'awg')[rid]
+        source = record.pop('source')
+        with self.store.db:
+            self.store.db.execute('UPDATE awg_resources SET data=? WHERE id=?', (vless.canonical(record), rid))
+        self.assertEqual(existing.source_of(self.store, record, 'awg'), source)
+        record['jobId'] = 'f' * 32
+        self.assertIsNone(existing.source_of(self.store, record, 'awg'))
+
+    def test_clear_managed_clients_keeps_adopted_awg_and_tt_confirmed(self):
+        for protocol, module in (('awg', awg), ('tt', tt)):
+            p = self.payload(protocol)
+            self.assertEqual(self.finish(self.submit(p, protocol, 1 if protocol == 'awg' else 2))['status'], 'succeeded')
+        reply = self.store.request(dict(version=1, action='clear_managed_clients'))
+        self.assertEqual(reply['code'], 'ok')
+        self.assertEqual(reply['clearedClients'], {'cleared': 2})  # One foreign peer, one foreign login.
+        self.assertNotIn('AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=', self.raw)
+        self.assertNotIn('foreign', self.credentials)
+        for module in (awg, tt):
+            self.assertTrue(module.state(self.store, 'a'*32)[0]['confirmed'])
+
+    def test_adoption_key_is_atomic_and_truncated_key_fails_closed_once_used(self):
+        path = self.store.directory / 'adopted-resources.key'
+        path.write_bytes(b'')  # Crash residue of the earlier non-atomic create.
+        self.assertEqual(len(existing.key(self.store)), 32)
+        self.assertEqual(self.finish(self.submit(self.payload('awg'), 'awg'))['status'], 'succeeded')
+        path.write_bytes(b'\x01' * 5)
+        with self.assertRaises(VlessError):
+            existing.key(self.store)
+        with self.assertRaises(VlessError):
+            existing.key(self.store, preview=True)
 
     def test_tt_common_lock_and_file_lock_reentrancy(self):
         import tt_common

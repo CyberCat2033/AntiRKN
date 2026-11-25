@@ -4,18 +4,17 @@ from client_revocations import check as check_revocations
 import copy
 import hashlib
 import hmac
-import ipaddress
 import json
-import os
 from pathlib import Path
 import secrets
 import socket
 
+from awg_network import create_key, key_valid
 from components import installed, usable
 from panel import atomic_file
 from tt_common import (ROOT, TtError, active, address, available, canonical, digest,
-    domain, hash_file, identifier, ip, lock, mkdir, read, run, split_address,
-    toml_bytes, toml_read)
+    domain, file_lock, hash_file, identifier, ip, lock, mkdir, read, run, safe_path, split_address,
+    toml_bytes, toml_loads)
 from tt_contract import SCHEMA
 from vless_contract import validate_schema
 import tt_certificates as certificates
@@ -109,7 +108,9 @@ def check_socks(value):
 
 
 def desired(p, spec, old, preview=False):
-    key = read(KEY) if KEY.exists() else bytes(32) if preview else None
+    # A preview before bootstrap (or over a crash-truncated key, which the
+    # first job step recreates or refuses) validates with a zero key.
+    key = read(KEY) if key_valid(KEY) else bytes(32) if preview else None
     if key is None or len(key) != 32: raise TtError('tt_conflict')
     key_id = hashlib.sha256(key).hexdigest()
     if old and old['keyId'] != key_id: raise TtError('tt_conflict')
@@ -220,11 +221,15 @@ def plan(store, req):
 
 def state(store, workspace, pending_job=None):
     result = []
+    found = None
     for rid, saved in owned(store).items():
         if saved['workspaceId'] != workspace: continue
         if saved.get('adopted'):
             import managed_existing
-            result.append(managed_existing.state(store, saved, 'tt', pending_job))
+            import tt_external
+            if found is None:
+                found = tt_external.definitions()  # Once per poll.
+            result.append(managed_existing.state(store, saved, 'tt', pending_job, found=found))
             continue
         cr = certificates.record(saved['spec']['certificateId'])
         result.append(dict(id=rid,workspaceId=workspace,confirmed=confirmed(saved),
@@ -249,12 +254,10 @@ class TtApply:
                 backup = self.store.directory / ('tt-backup-'+req['id']+'.json')
                 if not backup.exists():
                     atomic_file(backup,canonical(dict(records=owned(self.store),files={r['id']:[base64.b64encode(read(f)).decode() if f.exists() else None for f in paths(r['id'])] for r in native})).encode())
-                if native: mkdir(ROOT)
-                if native and not KEY.exists():
-                    if any(not r.get('adopted') for r in owned(self.store).values()): raise TtError('tt_conflict')
-                    fd=os.open(str(KEY),os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
-                    with os.fdopen(fd,'wb') as stream:
-                        stream.write(secrets.token_bytes(32));stream.flush();os.fsync(stream.fileno())
+                if native:
+                    mkdir(ROOT)
+                    try: create_key(KEY,in_use=any(not r.get('adopted') for r in owned(self.store).values()))
+                    except (OSError,ValueError): raise TtError('tt_conflict')
                 code='tt_preparing'
             elif checkpoint <= len(p['resources']):
                 r=p['resources'][checkpoint-1]
@@ -278,19 +281,34 @@ class TtApply:
                     raise TtError('tt_conflict')
                 if not (before == after and confirmed(wanted)):
                     unit=unit_for(r['id'])
-                    if active(unit): run(['/usr/bin/systemctl','stop',unit],timeout=60)
+                    running=active(unit)
+                    enabled=r['enabled'] and not r['deleted']
+                    # Our own running service holds its port: probe a port it
+                    # does not hold before anything changes, so a busy port
+                    # never stops a working endpoint; a moved listener on the
+                    # held port is probed once that service is stopped.
+                    holds=bool(old and running and old['spec']['port']==r['port'])
+                    if enabled and not holds and not available(r['listen'],r['port'],r['quic']): raise TtError('tt_port_busy')
+                    if enabled and holds and old['spec']['listen']==r['listen'] and r['quic'] and not old['spec']['quic'] and not available(r['listen'],r['port'],udp_only=True):
+                        raise TtError('tt_port_busy')
+                    if r['deleted'] or not enabled or holds and old['spec']['listen']!=r['listen']:
+                        if running: run(['/usr/bin/systemctl','stop',unit],timeout=60)
+                        running=False
                     if r['deleted']:
                         run(['/usr/bin/systemctl','disable',unit],check=False)
                         for f in paths(r['id']): f.unlink(missing_ok=True)
                         certificates.unbind(r['id'])
                     else:
+                        if enabled and holds and not running and not available(r['listen'],r['port'],r['quic']):
+                            raise TtError('tt_port_busy')  # recover() restarts the old endpoint.
                         mkdir(ROOT/r['id'])
                         for f,b in zip(paths(r['id']),data): atomic_file(f,b,0o644 if f.suffix=='.service' else 0o600)
                         run(['/usr/bin/systemctl','daemon-reload'])
                         certificates.unbind(r['id'])
                         certificates.bind(r['certificateId'],r['id'],unit,r['listen'],r['port'])
-                        if r['enabled']:
-                            if not available(r['listen'],r['port'],r['quic']): raise TtError('tt_port_busy')
+                        if enabled:
+                            # One restart after the write; no stop first, so
+                            # clients are cut off for the restart only.
                             run(['/usr/bin/systemctl','enable',unit])
                             run(['/usr/bin/systemctl','restart',unit],timeout=60)
                         else: run(['/usr/bin/systemctl','disable',unit])
@@ -306,6 +324,58 @@ class TtApply:
             with db:
                 db.execute('UPDATE jobs SET checkpoint=? WHERE id=?',(checkpoint+1,req['id']))
                 self.store.event(req['id'],code,checkpoint+1,req['count'])
+
+    def recover(self, checkpoint):
+        """After a failed resource step, put that endpoint back as recorded
+        before the step (files, unit, certificate link, service state).
+        Returns the job status, None for files that are not ours to touch,
+        and raises when restoring failed."""
+        with lock():
+            p = self.p
+            if not 1 <= checkpoint <= len(p['resources']):
+                return None
+            status = 'failed' if checkpoint == 1 else 'partially_applied'
+            r = p['resources'][checkpoint - 1]
+            old = owned(self.store).get(r['id'])
+            if 'adoption' in r:
+                import managed_existing
+                return status if managed_existing.restore(self.store, self.req, p, r, old, 'tt') else None
+            rid, unit = r['id'], unit_for(r['id'])
+            intent = self.store.directory / ('tt-intent-' + self.req['id'] + '-' + rid + '.json')
+            if not intent.exists():
+                return status  # The intent precedes every effect: nothing changed.
+            allowed = json.loads(read(intent))
+            current = current_hashes(rid)
+            if any(v not in (allowed['before'][i], allowed['after'][i]) for i, v in enumerate(current)):
+                return None
+            if old and confirmed(old) or not old and current == [None] * 4 and not active(unit):
+                intent.unlink()
+                return status
+            backup = self.store.directory / ('tt-backup-' + self.req['id'] + '.json')
+            files = json.loads(safe_path(backup, max_bytes=16777216).read_text())['files'].get(rid) or [None] * 4
+            if active(unit):
+                run(['/usr/bin/systemctl', 'stop', unit], timeout=60)
+            for f, data in zip(paths(rid), files):
+                if data is None:
+                    f.unlink(missing_ok=True)
+                else:
+                    if f.suffix != '.service':
+                        mkdir(f.parent)
+                    atomic_file(f, base64.b64decode(data), 0o644 if f.suffix == '.service' else 0o600)
+            run(['/usr/bin/systemctl', 'daemon-reload'])
+            certificates.unbind(rid)
+            if old and not old['spec']['deleted']:
+                spec = old['spec']
+                certificates.bind(spec['certificateId'], rid, unit, spec['listen'], spec['port'])
+            if old and old['spec']['enabled'] and not old['spec']['deleted']:
+                run(['/usr/bin/systemctl', 'enable', unit])
+                run(['/usr/bin/systemctl', 'restart', unit], timeout=60)
+            else:
+                run(['/usr/bin/systemctl', 'disable', unit], check=False)
+            if not (confirmed(old) if old else current_hashes(rid) == [None] * 4 and not active(unit)):
+                raise TtError('tt_failed')
+            intent.unlink()
+            return status
 
     def rollback(self):
         req_id = self.req['id']
@@ -346,3 +416,38 @@ class TtApply:
                 (self.store.directory / ('tt-intent-' + req_id + '-' + res_id + '.json')).unlink(missing_ok=True)
         finally:
             backup_file.unlink(missing_ok=True)
+
+
+def drop_foreign(store, rid, record, save):
+    """Remove credentials AntiRKN did not issue from one managed endpoint and
+    restart it. The record's hash follows the file right after the write."""
+    if record.get('adopted'):
+        import managed_tt
+        return managed_tt.drop_foreign(store, record, save)
+    names = ({c['username'] for c in record.get('clients', []) if c.get('username')} |
+             {c['id'] for c in record.get('clients', []) if c.get('id')})
+    spec_id = record.get('spec', {}).get('id') or rid
+    cred_path = ROOT / spec_id / 'credentials.toml'
+    if not cred_path.exists():
+        return 0
+    # The certificate watcher also rewrites and restarts these services.
+    with lock():
+        clients = toml_loads(read(cred_path).decode()).get('client', [])
+        foreign = [c for c in clients if c.get('username') not in names and c.get('username') != '_antirkn_no_clients']
+        if not foreign:
+            return 0
+        kept = [c for c in clients if c.get('username') in names]
+        if not kept:
+            key = read(KEY) if key_valid(KEY) else secrets.token_bytes(32)
+            sentinel = hmac.new(key, ('tt-deny-all/' + record['workspaceId'] + '/' + spec_id).encode(), hashlib.sha256).hexdigest()
+            kept = [dict(username='_antirkn_no_clients', password=sentinel)]
+        raw = toml_bytes(dict(client=kept))
+        with file_lock(cred_path):
+            atomic_file(cred_path, raw)
+        if len(record.get('hashes', [])) >= 3:
+            record['hashes'][2] = hashlib.sha256(raw).hexdigest()
+        save(record)
+        unit = 'antirkn-tt@' + spec_id + '.service'
+        if active(unit):
+            run(['/usr/bin/systemctl', 'restart', unit], timeout=60)
+        return len(foreign)

@@ -9,8 +9,6 @@ import vless
 from managed_existing import b64, derive, intent, user_enabled
 from vless import VlessError, digest
 
-QUICK = {b'Address', b'MTU', b'DNS', b'Table', b'PreUp', b'PostUp', b'PreDown', b'PostDown', b'SaveConfig'}
-
 
 def public_key(private):
     raw = base64.b64decode(private, validate=True)
@@ -23,8 +21,11 @@ def public_key(private):
     return b64(public[-32:])
 
 
-def snapshot(store, p, r):
-    resource, raw, values, peers, fingerprint = external.read_resource(r['adoption']['sourceId'])
+def snapshot(store, p, r, found=None):
+    """``found``: the discovery of the same poll, shared by its resources."""
+    source = r['adoption']['sourceId']
+    resource, raw, values, peers, fingerprint = (external.read_resource(source) if found is None
+                                                 else external.read_resource(source, found))
     runtime = None
     if resource['active']:
         runtime = external.exec_resource(resource, [resource['binary'], 'showconf', resource['name']]).stdout.decode()
@@ -144,17 +145,14 @@ def build(store, p, r, old, current, preview=False):
 
 
 def matches(raw, runtime):
-    wanted_i, wanted_p = awg.runtime_config(raw.encode())
-    actual_i, actual_p = awg.runtime_config(runtime.encode())
-    return (all(actual_i.get(k) == v for k, v in wanted_i.items()) and wanted_p.keys() == actual_p.keys() and
-            all(all(actual_p[pub].get(k) == v for k, v in peer.items()) for pub, peer in wanted_p.items()))
+    return awg.runtime_matches(raw.encode(), runtime.encode())
 
 
 def healthy(current):
     return current['runtime'] is None or matches(current['raw'], current['runtime'])
 
 
-def apply(store, p, r, plan):
+def apply(store, p, r, plan, marker=None):
     current = snapshot(store, p, r)
     before = plan['before']
     if (current['resource'] != before['resource'] or current['raw'] not in (before['raw'], plan['after']) or
@@ -164,9 +162,67 @@ def apply(store, p, r, plan):
     if current['raw'] != plan['after']:
         external.write_file(resource, plan['after'].encode())
     if resource['active'] and not matches(plan['after'], current['runtime']):
-        core = b''.join(line for line in plan['after'].encode().splitlines(keepends=True)
-                        if line.split(b'=', 1)[0].strip() not in QUICK)
-        external.exec_resource(resource, [resource['binary'], 'syncconf', resource['name'], '/dev/stdin'], core)
+        external.exec_resource(resource, [resource['binary'], 'syncconf', resource['name'], '/dev/stdin'],
+                               awg.core(plan['after'].encode()))
+
+
+def restore(store, p, r, plan, marker=None):
+    """Undo this job's write: the config file and live peers return to the
+    inspected ``before``. A file that is neither ours nor the original is
+    left alone (None). Raises when the restored state cannot be verified."""
+    current = snapshot(store, p, r)
+    before = plan['before']
+    if current['resource'] != before['resource']:
+        return None
+    resource = current['resource']
+    if current['raw'] == before['raw']:
+        if current['runtime'] is None or matches(before['raw'], current['runtime']):
+            return True
+    elif current['raw'] == plan['after']:
+        external.write_file(resource, before['raw'].encode())
+    else:
+        return None
+    if resource['active']:
+        external.exec_resource(resource, [resource['binary'], 'syncconf', resource['name'], '/dev/stdin'],
+                               awg.core(before['raw'].encode()))
+    again = snapshot(store, p, r)
+    if again['raw'] != before['raw'] or not healthy(again):
+        raise VlessError('vpn_adoption_failed')
+    return True
+
+
+def locator(current):
+    """Where the adopted interface lives, to tell "gone" from "unreadable"."""
+    resource = current['resource']
+    return dict(path=resource['path'], container=resource.get('container'), name=resource['name'])
+
+
+def absent(source):
+    return external.absent(source)
+
+
+def drop_foreign(store, record, save):
+    """Remove the peers AntiRKN did not issue from an adopted interface."""
+    spec = record['spec']
+    current = snapshot(store, {}, spec)
+    ours = {c['publicKey'] for c in record.get('clients', []) if c.get('publicKey')}
+    header, blocks = peer_blocks(current['raw'])
+    kept = [block for pub, _, block in blocks if pub in ours]
+    if len(kept) == len(blocks):
+        return 0
+    if not header.endswith('\n'):
+        header += '\n'
+    raw = (header + ''.join(kept)).encode()
+    resource = current['resource']
+    external.write_file(resource, raw)
+    record['observedHash'] = snapshot(store, {}, spec)['fingerprint']
+    save(record)
+    if resource['active']:
+        external.exec_resource(resource, [resource['binary'], 'syncconf', resource['name'], '/dev/stdin'], awg.core(raw))
+        # The fingerprint also binds the live peers.
+        record['observedHash'] = snapshot(store, {}, spec)['fingerprint']
+        save(record)
+    return len(blocks) - len(kept)
 
 
 def verify(current, plan):

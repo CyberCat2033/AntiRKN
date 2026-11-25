@@ -163,7 +163,7 @@ def build(store, p, r, old, current, preview=False):
     return intent(old, current, desired, clients, proxy)
 
 
-def apply(store, p, r, plan):
+def apply(store, p, r, plan, marker=None):
     current = snapshot(store, p, r, expected_hash=plan['before']['fingerprint'])
     if current['fingerprint'] != plan['before']['fingerprint'] and not verify(current, plan):
         raise VlessError('vpn_adoption_conflict')

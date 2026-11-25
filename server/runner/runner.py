@@ -151,11 +151,8 @@ class ClearIncomplete(Exception):
     """Some resources could not be cleaned; the others were."""
 
 
-AWG_QUICK_FIELDS = {b'Address', b'MTU', b'DNS', b'Table', b'PreUp', b'PostUp', b'PreDown', b'PostDown', b'SaveConfig'}
-
-
-def _awg_core(raw):
-    return b''.join(line for line in raw.splitlines(keepends=True) if line.split(b'=', 1)[0].strip() not in AWG_QUICK_FIELDS)
+# Kinds whose failed resource step is undone on the server by task.recover().
+RECOVERABLE_KINDS = ('awg_apply', 'awg_external_edit', 'tt_apply', 'tt_external_edit')
 
 
 def clear_managed_clients(store):
@@ -166,7 +163,6 @@ def clear_managed_clients(store):
     file as soon as it is written, so a failed reload cannot leave the
     resource in a permanent adoption conflict."""
     import vless
-    import hashlib
     cleared, failed = 0, False
 
     def records(table):
@@ -236,98 +232,17 @@ def clear_managed_clients(store):
             except Exception:
                 failed = True
 
-    # 2. AmneziaWG resources
+    # 2. AmneziaWG and 3. TrustTunnel: the protocol modules own their files
+    # and adopted sources (awg.drop_foreign, tt.drop_foreign). Each saves the
+    # record's hash right after its write, before the live reload.
     import awg
-    import managed_awg
-    import awg_external
-    from panel import atomic_file
-    for res_id, r in records('awg_resources').items():
-        try:
-            ours = {c['publicKey'] for c in r.get('clients', []) if c.get('publicKey')}
-            if r.get('adopted'):
-                source_id = r['spec']['adoption']['sourceId']
-                resource, raw, _, _, _ = awg_external.read_resource(source_id)
-                header, blocks = managed_awg.peer_blocks(raw.decode())
-            else:
-                conf_path, _ = awg.paths(res_id)
-                if not conf_path.exists():
-                    continue
-                header, blocks = managed_awg.peer_blocks(conf_path.read_text())
-            kept = [block for pub, _, block in blocks if pub in ours]
-            if len(kept) == len(blocks):
-                continue
-            if not header.endswith('\n'):
-                header += '\n'
-            new_raw = (header + ''.join(kept)).encode()
-            if r.get('adopted'):
-                awg_external.write_file(resource, new_raw)
-                r['observedHash'] = awg_external.read_resource(source_id)[4]
-                save('awg_resources', res_id, r)
-                cleared += len(blocks) - len(kept)
-                if resource.get('active'):
-                    awg_external.exec_resource(resource, [resource['binary'], 'syncconf', resource['name'], '/dev/stdin'], _awg_core(new_raw))
-            else:
-                atomic_file(conf_path, new_raw)
-                r['configHash'] = hashlib.sha256(new_raw).hexdigest()
-                save('awg_resources', res_id, r)
-                cleared += len(blocks) - len(kept)
-                if awg.active(res_id):
-                    vless.command([awg.AWG, 'syncconf', awg.name_for(res_id), '/dev/stdin'], input_data=_awg_core(new_raw))
-        except Exception:
-            failed = True
-
-    # 3. TrustTunnel resources
     import tt
-    import tt_common
-    import secrets
-    import hmac
-    for res_id, r in records('tt_resources').items():
-        try:
-            names = {c['username'] for c in r.get('clients', []) if c.get('username')} | {c['id'] for c in r.get('clients', []) if c.get('id')}
-            # The certificate watcher also rewrites and restarts these services.
-            with tt_common.lock():
-                if r.get('adopted'):
-                    import managed_tt
-                    import tt_external
-                    current = managed_tt.snapshot(store, {}, r)
-                    resource = current['resource']
-                    credentials = tt_common.toml_loads(current['credentials'])
-                    clients = credentials.get('client', [])
-                else:
-                    rid = r.get('spec', {}).get('id') or res_id
-                    cred_path = tt_common.ROOT / rid / 'credentials.toml'
-                    if not cred_path.exists():
-                        continue
-                    clients = tt_common.toml_loads(cred_path.read_text()).get('client', [])
-                foreign = [c for c in clients if c.get('username') not in names and c.get('username') != '_antirkn_no_clients']
-                if not foreign:
-                    continue
-                kept = [c for c in clients if c.get('username') in names]
-                if r.get('adopted'):
-                    credentials['client'] = kept or [dict(username='_antirkn_no_clients', password=secrets.token_hex(32))]
-                    tt_external.write_existing(Path(resource['credentials']), tt_common.toml_bytes(credentials), resource['ownerUid'])
-                    r['observedHash'] = managed_tt.snapshot(store, {}, r)['fingerprint']
-                    save('tt_resources', res_id, r)
-                    cleared += len(foreign)
-                    if resource.get('active'):
-                        tt_common.run(['/usr/bin/systemctl', 'restart', resource['unit']], timeout=60)
-                else:
-                    if not kept:
-                        key = Path(tt.KEY).read_bytes() if Path(tt.KEY).exists() else secrets.token_bytes(32)
-                        sentinel = hmac.new(key, ('tt-deny-all/' + r['workspaceId'] + '/' + rid).encode(), hashlib.sha256).hexdigest()
-                        kept = [dict(username='_antirkn_no_clients', password=sentinel)]
-                    new_bytes = tt_common.toml_bytes(dict(client=kept))
-                    with tt_common.file_lock(cred_path):
-                        atomic_file(cred_path, new_bytes)
-                    if 'hashes' in r and len(r['hashes']) >= 3:
-                        r['hashes'][2] = hashlib.sha256(new_bytes).hexdigest()
-                    save('tt_resources', res_id, r)
-                    cleared += len(foreign)
-                    unit = 'antirkn-tt@' + rid + '.service'
-                    if tt_common.active(unit):
-                        tt_common.run(['/usr/bin/systemctl', 'restart', unit], timeout=60)
-        except Exception:
-            failed = True
+    for table, module in (('awg_resources', awg), ('tt_resources', tt)):
+        for res_id, r in records(table).items():
+            try:
+                cleared += module.drop_foreign(store, res_id, r, lambda record, t=table, i=res_id: save(t, i, record))
+            except Exception:
+                failed = True
 
     if failed:
         raise ClearIncomplete(cleared)
@@ -335,6 +250,9 @@ def clear_managed_clients(store):
 
 
 def cleanup_job_transients(directory, job_id):
+    """Per-job files that are useless once the job succeeded (or was cancelled
+    before any step). Failed and partially applied jobs keep theirs: resume
+    reads them. Adoption intents are pruned by prune_adoption_intents."""
     if not job_id or not isinstance(job_id, str):
         return
     directory = Path(directory)
@@ -344,7 +262,12 @@ def cleanup_job_transients(directory, job_id):
                     f'inbound-request-{job_id}.json', f'inbound-removal-{job_id}.json',
                     f'apt-{job_id}.started', f'reboot-{job_id}.json',
                     f'reboot-{job_id}.lock', f'awg-intent-{job_id}-*.json',
-                    f'tt-intent-{job_id}-*.json', f'upgrade-{job_id}*'):
+                    f'tt-intent-{job_id}-*.json', f'upgrade-{job_id}*',
+                    # Edit backups hold whole configs (server keys, PSKs,
+                    # credentials); the egress intent holds the exit link.
+                    f'awg-external-{job_id}.json', f'tt-external-{job_id}.json',
+                    f'client-egress-{job_id}.json', f'tt-certificate-{job_id}.json',
+                    f'recover-{job_id}.json'):
         for p in directory.glob(pattern):
             try:
                 if p.is_dir():
@@ -357,6 +280,31 @@ def cleanup_job_transients(directory, job_id):
         (directory / f'apt-{job_id}.started').unlink(missing_ok=True)
     except Exception:
         pass
+
+
+def prune_adoption_intents(store):
+    """Remove ``adopt-<job>-<resource>.*`` files no record still references.
+
+    A record's own job intent stays: VLESS readback recovery and the AWG/TT
+    "positively gone" check of older records read it. Intents of failed,
+    partially applied or unsettled jobs stay for resume."""
+    referenced = set()
+    for table in ('vless_resources', 'awg_resources', 'tt_resources'):
+        for (data,) in store.db.execute('SELECT data FROM ' + table):
+            try:
+                referenced.add(json.loads(data).get('jobId'))
+            except (ValueError, AttributeError):
+                continue
+    for path in Path(store.directory).glob('adopt-*'):
+        parts = path.name.split('-')
+        if len(parts) < 3 or len(parts[1]) != 32 or parts[1] in referenced:
+            continue
+        row = store.db.execute('SELECT status FROM jobs WHERE id=?', (parts[1],)).fetchone()
+        if row is None or row['status'] in ('succeeded', 'cancelled'):
+            try:
+                path.unlink()
+            except OSError:
+                pass
 
 
 def slim_finished_job(directory, job_id):
@@ -820,6 +768,30 @@ class Store:
             self.event(job_id, code, progress, total)
             self.db.execute('DELETE FROM step_crashes WHERE id=?', (job_id,))
 
+    def recover_step(self, task, req, row, code, marker):
+        """Undo a failed resource step on the server (task.recover). Restored:
+        'failed', or 'partially_applied' when earlier steps of the job stay
+        applied; untouched foreign state keeps the old statuses; a failed
+        undo needs a person."""
+        try:
+            status = task.recover(row['checkpoint'])
+        except TtError as error:
+            if error.code == 'tt_busy':
+                return 0.5  # The certificate watcher holds the lock; retry the undo.
+            status = 'needs_attention'
+        except Exception:
+            # Codes and types only: upstream output may contain secrets.
+            sys.stderr.write('[runner] %s recovery failed: %s\n' % (req['kind'], type(sys.exc_info()[1]).__name__))
+            status = 'needs_attention'
+        if status is None:
+            status = 'partially_applied' if row['checkpoint'] > 0 else 'failed'
+        self.finish(row['id'], status, code, req['count'])
+        try:
+            marker.unlink()
+        except FileNotFoundError:
+            pass
+        return 0.1
+
     def recover(self):
         # Every admitted task defines recovery. Effectful steps verify owned
         # state before repeating a possibly completed API operation.
@@ -866,6 +838,10 @@ class Store:
                     except Exception:
                         status, code = 'needs_attention', 'egress_rollback_failed'
             self.finish(job_id, status, code, req['count'])
+            if req['kind'] == 'egress_apply' and status in ('succeeded', 'cancelled', 'failed'):
+                # Applied or rolled back (egress jobs are not resumable): the
+                # intent with the exit link is no longer needed.
+                cleanup_job_transients(self.directory, job_id)
             return .1
         if req['kind']=='server_reboot':
             import server_reboot as reboot
@@ -900,13 +876,22 @@ class Store:
             return 0.1
         if req['kind'] in ('vless_apply', 'awg_apply', 'awg_external_edit', 'inbound_update', 'inbound_remove', 'tt_apply', 'tt_external_edit', 'tt_certificate'):
             task = (InboundRemove(self, req) if req['kind'] == 'inbound_remove' else TtApply(self, req) if req['kind'] == 'tt_apply' else ExternalTtEdit(self, req) if req['kind'] == 'tt_external_edit' else CertificateJob(self, req) if req['kind'] == 'tt_certificate' else ObservedInboundEdit(self, req) if req['kind'] == 'inbound_update' else ExternalAwgEdit(self, req) if req['kind'] == 'awg_external_edit' else AwgApply(self, req) if req['kind'] == 'awg_apply' else VlessApply(self, req))
+            marker = self.directory / ('recover-' + job_id + '.json')
+            if req['kind'] in RECOVERABLE_KINDS and marker.exists():
+                # A step failed and its undo had not finished (lock busy or a
+                # worker restart): finish the undo, never repeat the step.
+                return self.recover_step(task, req, row, json.loads(marker.read_text())['code'], marker)
             try:
                 if row['cancel']:
                     status = 'partially_applied' if row['checkpoint'] > 0 else 'cancelled'
                     code = 'vless_partial' if status == 'partially_applied' else 'cancelled'
                     if status == 'cancelled' and hasattr(task, 'rollback'):
-                        try: task.rollback()
-                        except Exception: pass
+                        try:
+                            task.rollback()
+                        except Exception as error:
+                            # Keep the backup (cleaned only for a clean cancel).
+                            sys.stderr.write('[runner] %s cancel rollback failed: %s\n' % (req['kind'], type(error).__name__))
+                            status, code = 'needs_attention', 'failed'
                 else:
                     task.step(row['checkpoint'])
                     if row['checkpoint'] + 1 < req['count']:
@@ -919,9 +904,15 @@ class Store:
                     return 0.5  # The independent certificate watcher owns the lock.
                 code = error.code if isinstance(error, VlessError) else 'tt_failed' if req['kind'].startswith('tt_') else 'awg_failed' if req['kind'] in ('awg_apply', 'awg_external_edit') else 'vless_api_failed'
                 status = 'partially_applied' if row['checkpoint'] > 0 else 'failed'
+                if req['kind'] in RECOVERABLE_KINDS and row['checkpoint'] > 0:
+                    from panel import atomic_file
+                    atomic_file(marker, json.dumps(dict(code=code)).encode())
+                    return self.recover_step(task, req, row, code, marker)
             self.finish(job_id, status, code, req['count'])
             if status == 'succeeded' or (status == 'cancelled' and row['checkpoint'] == 0):
                 cleanup_job_transients(self.directory, job_id)
+                if req['kind'] in ('vless_apply', 'awg_apply', 'tt_apply'):
+                    prune_adoption_intents(self)
             return 0.1
         if req['kind'] == 'protocol_remove':
             try:

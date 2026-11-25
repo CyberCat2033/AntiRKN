@@ -4,13 +4,15 @@ Resource selectors are discovered on the server. RPC never accepts paths,
 container names, executable names or secret-bearing complete configurations.
 """
 import json
+import os
 from pathlib import Path
 import re
 import shutil
 import subprocess
 
-from awg import AwgError, runtime_config, free_port
-from panel import atomic_file, command, safe_file
+from awg import AwgError, core, free_port, runtime_config, runtime_matches
+from awg_network import replace_preserving
+from panel import atomic_file, safe_file
 from vless import canonical, digest
 
 DOCKER_PATHS = ('/opt/amnezia/awg/awg0.conf', '/opt/amnezia/awg/wg0.conf')
@@ -50,10 +52,19 @@ def read_file(r):
 
 
 def write_file(r, data):
+    """Replace the selected config only, keeping its owner, group and mode."""
     if not r.get('container'):
-        atomic_file(Path(r['path']), data)
+        path = Path(r['path'])
+        safe_file(path)
+        for parent in path.parents:
+            # A directory another account can write would let it swap the file.
+            meta = os.lstat(str(parent))
+            if meta.st_uid != 0 or meta.st_mode & 0o022:
+                raise AwgError('awg_conflict')
+        replace_preserving(path, data)
         return
-    script = 'set -eu; test -f "$1"; test ! -L "$1"; umask 077; t=$(mktemp "$1.antirkn.XXXXXX"); trap \'rm -f "$t"\' EXIT; cat > "$t"; chmod 600 "$t"; mv -f "$t" "$1"'
+    script = ('set -eu; test -f "$1"; test ! -L "$1"; umask 077; m=$(stat -c %a "$1"); '
+              't=$(mktemp "$1.antirkn.XXXXXX"); trap \'rm -f "$t"\' EXIT; cat > "$t"; chmod "$m" "$t"; mv -f "$t" "$1"')
     exec_resource(r, ['/bin/sh', '-c', script, 'antirkn', r['path']], data)
 
 
@@ -102,11 +113,21 @@ def discover_resources():
         ps = run([docker, 'ps', '--no-trunc', '--format', '{{.ID}}'], check=False)
         if ps.returncode:
             raise AwgError('awg_prerequisites')
-        for cid in ps.stdout.decode().splitlines()[:64]:
-            if not re.fullmatch('[a-f0-9]{64}', cid):
-                continue
-            meta = json.loads(run([docker, 'inspect', cid]).stdout)[0]
-            if not any(x in (meta['Name'] + ' ' + meta['Config']['Image']).lower() for x in ('amnezia', 'awg')):
+        ids = [cid for cid in ps.stdout.decode().splitlines()[:64] if re.fullmatch('[a-f0-9]{64}', cid)]
+        # One inspect for all containers. One that exits meanwhile is
+        # reported as missing while the others are still listed.
+        metas = []
+        if ids:
+            inspected = run([docker, 'inspect', *ids], check=False)
+            try:
+                metas = json.loads(inspected.stdout or b'[]')
+            except ValueError:
+                raise AwgError('awg_prerequisites')
+            if not metas and inspected.returncode:
+                raise AwgError('awg_prerequisites')
+        for meta in metas:
+            cid = meta['Id']
+            if cid not in ids or not any(x in (meta['Name'] + ' ' + meta['Config']['Image']).lower() for x in ('amnezia', 'awg')):
                 continue
             for path in DOCKER_PATHS:
                 record = dict(path=path, name=Path(path).stem, binary='awg', source='docker',
@@ -123,8 +144,10 @@ def discover_resources():
     return result
 
 
-def read_resource(rid):
-    r = next((r for r in discover_resources() if r['id'] == rid), None)
+def read_resource(rid, resources=None):
+    """One discovered resource. ``resources`` reuses a discovery made by the
+    same RPC or step instead of scanning every container again."""
+    r = next((r for r in (discover_resources() if resources is None else resources) if r['id'] == rid), None)
     if not r:
         raise AwgError('awg_conflict')
     raw = read_file(r)
@@ -136,8 +159,32 @@ def read_resource(rid):
     return r, raw, values, peers, fingerprint
 
 
-def public_snapshot(rid):
-    r, raw, values, peers, fingerprint = read_resource(rid)
+def absent(source):
+    """The resource is positively gone: a native config and its interface are
+    both missing, or its container no longer exists (stopped ones still
+    exist). Any doubt answers False, so a read-only poll never forgets an
+    adopted resource whose peers may still be served."""
+    if not source:
+        return False
+    try:
+        if not source.get('container'):
+            try:
+                os.lstat(source['path'])
+                return False
+            except FileNotFoundError:
+                pass
+            return not os.path.lexists(os.path.join('/sys/class/net', source['name']))
+        docker = shutil.which('docker')
+        if not docker:
+            return False
+        listed = run([docker, 'ps', '-a', '--no-trunc', '--format', '{{.ID}}'], check=False)
+        return listed.returncode == 0 and source['container'] not in listed.stdout.decode().split()
+    except (AwgError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
+        return False
+
+
+def public_snapshot(rid, resources=None):
+    r, raw, values, peers, fingerprint = read_resource(rid, resources)
     import ipaddress
     addresses = [ipaddress.ip_interface(v.strip()) for v in values.get('Address', '').split(',') if v.strip()]
     pool = next((str(a.network) for a in addresses if a.version == 4), '')
@@ -155,7 +202,8 @@ def public_snapshot(rid):
 
 
 def discovery():
-    return dict(resources=[public_snapshot(r['id']) for r in discover_resources()])
+    resources = discover_resources()
+    return dict(resources=[public_snapshot(r['id'], resources) for r in resources])
 
 
 def patched(raw, changes, r):
@@ -228,14 +276,19 @@ def decode(req):
     return p
 
 
-def plan(req):
+def prepare(req):
     p = decode(req)
     r, raw, _, peers, fingerprint = read_resource(p['resourceId'])
     if fingerprint != p['observedHash']:
         raise AwgError('awg_conflict')
     target = patched(raw, p['changes'], r)
-    return dict(fingerprint=digest(dict(payload=p, desired=target.decode())), peers=peers,
-                source=r['source'], active=r['active'])
+    preview = dict(fingerprint=digest(dict(payload=p, desired=target.decode())), peers=peers,
+                   source=r['source'], active=r['active'])
+    return r, raw, target, preview
+
+
+def plan(req):
+    return prepare(req)[3]
 
 
 class ExternalAwgEdit:
@@ -246,11 +299,17 @@ class ExternalAwgEdit:
     def step(self, checkpoint):
         req, p, db = self.req, self.payload, self.store.db
         if checkpoint == 0:
-            if plan(req)['fingerprint'] != req['fingerprint']:
+            r, raw, target, preview = prepare(req)
+            if preview['fingerprint'] != req['fingerprint']:
                 raise AwgError('awg_conflict')
-            r, raw, _, _, _ = read_resource(p['resourceId'])
             if not self.backup.exists():
-                atomic_file(self.backup, canonical(dict(resource=r, before=raw.decode(), after=patched(raw, p['changes'], r).decode())).encode())
+                backup = dict(resource=r, before=raw.decode(), after=target.decode())
+                if 'MTU' in p['changes'] and r['active']:
+                    # The live MTU, restored if this edit fails.
+                    mtu = '/sys/class/net/' + r['name'] + '/mtu'
+                    backup['mtu'] = (exec_resource(r, ['cat', mtu]).stdout.decode() if r.get('container')
+                                     else Path(mtu).read_text()).strip()
+                atomic_file(self.backup, canonical(backup).encode())
             code = 'awg_preparing'
         else:
             safe_file(self.backup)
@@ -263,23 +322,42 @@ class ExternalAwgEdit:
                 if raw != wanted:
                     write_file(r, wanted)
                 if r['active']:
-                    # Strip only awg-quick metadata; unknown core fields and
-                    # every peer/PSK remain verbatim for the native validator.
-                    core = b''.join(line for line in wanted.splitlines(keepends=True) if line.split(b'=', 1)[0].strip() not in
-                        (b'Address', b'MTU', b'DNS', b'Table', b'PreUp', b'PostUp', b'PreDown', b'PostDown', b'SaveConfig'))
-                    exec_resource(r, [r['binary'], 'syncconf', r['name'], '/dev/stdin'], core)
+                    exec_resource(r, [r['binary'], 'syncconf', r['name'], '/dev/stdin'], core(wanted))
                     if 'MTU' in p['changes']:
                         exec_resource(r, ['ip', 'link', 'set', 'dev', r['name'], 'mtu', p['changes']['MTU']])
                 code = 'awg_applying'
             else:
                 if read_file(r) != wanted:
                     raise AwgError('awg_conflict')
-                if r['active']:
-                    ei, ep = runtime_config(wanted)
-                    ai, ap = runtime_config(exec_resource(r, [r['binary'], 'showconf', r['name']]).stdout)
-                    if any(ai.get(k) != v for k, v in ei.items()) or ep.keys() != ap.keys() or any(any(ap[pub].get(k) != v for k, v in peer.items()) for pub, peer in ep.items()):
-                        raise AwgError('awg_failed')
+                if r['active'] and not runtime_matches(wanted, exec_resource(r, [r['binary'], 'showconf', r['name']]).stdout):
+                    raise AwgError('awg_failed')
                 code = 'awg_checking'
         with db:
             db.execute('UPDATE jobs SET checkpoint=? WHERE id=?', (checkpoint + 1, req['id']))
             self.store.event(req['id'], code, checkpoint + 1, req['count'])
+
+    def recover(self, checkpoint):
+        """Put the inspected config and live interface back after a failed
+        write or verification. None leaves a foreign edit untouched."""
+        if checkpoint < 1 or not self.backup.exists():
+            return None
+        safe_file(self.backup)
+        backup = json.loads(self.backup.read_text())
+        r, raw, _, _, _ = read_resource(self.payload['resourceId'])
+        if r != backup['resource']:
+            return None
+        before = backup['before'].encode()
+        if raw == backup['after'].encode() and raw != before:
+            write_file(r, before)
+        elif raw != before:
+            return None
+        if r['active']:
+            if not runtime_matches(before, exec_resource(r, [r['binary'], 'showconf', r['name']]).stdout):
+                exec_resource(r, [r['binary'], 'syncconf', r['name'], '/dev/stdin'], core(before))
+            if backup.get('mtu', '').isdigit():
+                exec_resource(r, ['ip', 'link', 'set', 'dev', r['name'], 'mtu', backup['mtu']])
+            if not runtime_matches(before, exec_resource(r, [r['binary'], 'showconf', r['name']]).stdout):
+                raise AwgError('awg_failed')
+        if read_file(r) != before:
+            raise AwgError('awg_failed')
+        return 'failed'

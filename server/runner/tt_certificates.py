@@ -25,6 +25,10 @@ from panel import atomic_file
 
 SCRIPT = str(Path(__file__).resolve())
 UNITS = Path('/etc/systemd/system')
+REFRESH = 3600  # An unchanged record is rewritten at most this often.
+RENEW_RETRY = (3600, 86400)  # ACME failure backoff: 1 h doubling to 24 h.
+CHECK_RETRY = (60, 3600)  # Invalid source pair: 1 min doubling to 1 h.
+TIMES = ('lastCheck', 'lastSuccess', 'nextCheck')
 
 
 def path_for(cid):
@@ -264,6 +268,32 @@ def unbind(rid):
         (path_for(r['id']) / 'links' / (identifier(rid) + '.json')).unlink(missing_ok=True)
 
 
+def links_of(unit, link):
+    """Link records a TT edit may change: the unit's and the edited host's."""
+    result = []
+    for certificate in records():
+        for path in sorted((path_for(certificate['id']) / 'links').glob('*.json')):
+            r = json.loads(read(path))
+            if r['unit'] == unit or path.stem == link:
+                result.append(dict(cid=certificate['id'], name=path.name, data=r))
+    return result
+
+
+def restore_links(unit, link, saved):
+    for entry in saved:
+        identifier(entry['cid'])
+        if not re.fullmatch(r'[a-f0-9]{32}\.json', entry['name']):
+            raise TtError('tt_conflict')
+    for certificate in records():
+        for path in (path_for(certificate['id']) / 'links').glob('*.json'):
+            r = json.loads(read(path))
+            if r['unit'] == unit or path.stem == link:
+                path.unlink()
+    for entry in saved:
+        mkdir(path_for(entry['cid']) / 'links')
+        atomic_file(path_for(entry['cid']) / 'links' / entry['name'], canonical(entry['data']).encode())
+
+
 def move_listener(unit, host, port):
     # A native service may serve several certificates on the same listener.
     for certificate in records():
@@ -300,8 +330,46 @@ def set_current(base, target):
     finally: os.close(fd)
 
 
-def activate(spec, old=None):
+def source_signature(cert, key):
+    """Identity of the source pair as the issuer left it (links followed)."""
+    try:
+        return [[st.st_dev, st.st_ino, st.st_mtime_ns, st.st_size] for st in (os.stat(str(cert)), os.stat(str(key)))]
+    except OSError:
+        return None
+
+
+def public_spec(spec):
+    return {k: v for k, v in spec.items() if k not in ('certificatePem', 'privateKeyPem')}
+
+
+def unchanged(spec, old, signature, now):
+    """The active pair is the one already validated: same source files, same
+    pointer, no pending activation, still within its validity period."""
+    if not old or signature is None or old.get('sourceStat') != signature or old.get('failures'):
+        return False
+    if old.get('spec') != public_spec(spec) or old.get('mode') != spec['mode']:
+        return False
+    base = path_for(spec['id'])
+    current = base / 'current'
+    if (base / 'activation.json').exists() or not current.is_symlink():
+        return False
+    return (os.readlink(current) == 'pair-' + str(old.get('pairHash')) and
+            old.get('notBefore', now + 1) <= now < old.get('expiresAt', 0))
+
+
+def activate(spec, old=None, cached=False):
+    """Validate and switch to the source pair, restarting linked services
+    after an actual change. ``cached`` (the minute timer) skips the openssl
+    checks and the record write while nothing changed."""
     cert, key = source_pair(spec)
+    now = time.time()
+    signature = source_signature(cert, key)
+    if cached and unchanged(spec, old, signature, now):
+        if now - old.get('lastCheck', 0) < REFRESH:
+            return old
+        saved = dict(old, lastCheck=now, lastSuccess=now, nextCheck=now + 60)
+        atomic_file(record_path(spec['id']), canonical(saved).encode())
+        return saved
     info = inspect_pair(cert, key, spec['domain'])
     base = path_for(spec['id'])
     mkdir(base)
@@ -322,9 +390,9 @@ def activate(spec, old=None):
     if recovery and recovery['after'] != generation.name:
         raise TtError('tt_conflict')
     changed = previous != generation.name or recovery is not None
-    restarting = [r for r in links(spec['id']) if active(r['unit'])]
     if changed:
         if recovery is None:
+            restarting = [r for r in links(spec['id']) if active(r['unit'])]
             recovery = dict(before=previous, after=generation.name, services=restarting)
             atomic_file(pending, canonical(recovery).encode())
         restarting = recovery['services']
@@ -339,11 +407,17 @@ def activate(spec, old=None):
                 for r in restarting:
                     run(['/usr/bin/systemctl', 'restart', r['unit']], timeout=60, check=False)
             raise
-    now = time.time()
-    saved = dict(old or {}, **info, id=spec['id'], mode=spec['mode'], spec={k:v for k,v in spec.items() if k not in ('certificatePem', 'privateKeyPem')},
-        sourceCertificate=str(cert), sourceKey=str(key), lastCheck=now, lastSuccess=now,
-        nextCheck=now+60, error=None)
-    atomic_file(record_path(spec['id']), canonical(saved).encode())
+    saved = dict(old or {}, **info, id=spec['id'], mode=spec['mode'], spec=public_spec(spec),
+        sourceCertificate=str(cert), sourceKey=str(key), sourceStat=signature, lastCheck=now, lastSuccess=now,
+        nextCheck=now+60)
+    saved.pop('failures', None)
+    # A failing ACME renewal stays visible while the current pair is valid.
+    saved['error'] = saved.get('renewError')
+    stale = {k: v for k, v in (old or {}).items() if k not in TIMES}
+    if changed or {k: v for k, v in saved.items() if k not in TIMES} != stale or now - (old or {}).get('lastCheck', 0) >= REFRESH:
+        atomic_file(record_path(spec['id']), canonical(saved).encode())
+    else:
+        saved = old
     pending.unlink(missing_ok=True)
     return saved
 
@@ -436,6 +510,10 @@ class CertificateJob:
                     code = 'tt_certificate_ready'
                 elif checkpoint == 2:
                     old = record(p['id']) if record_path(p['id']).exists() else None
+                    if old and p['mode'] == 'acme':
+                        # Checkpoint 1 has just issued: earlier renewal failures are over.
+                        old = {k: v for k, v in old.items() if k not in ('renewFailures', 'renewRetryAt', 'renewError')}
+                        old['lastRenewal'] = time.time()
                     activate(p, old)
                     install_timer()
                     code = 'tt_restarting'
@@ -461,16 +539,49 @@ def watch():
             finally:
                 db.close()
         for r in records():
+            check(r)
+
+
+def backoff(failures, limits):
+    return min(limits[0] * 2 ** min(failures - 1, 16), limits[1])
+
+
+def check(r, now=None):
+    """One timer pass for one certificate. Failures back off and are written
+    once per attempt; an unchanged valid pair costs a few stat() calls."""
+    now = time.time() if now is None else now
+    try:
+        if r['mode'] == 'acme' and now - r.get('lastRenewal', 0) >= 43200 and now >= r.get('renewRetryAt', 0):
             try:
-                now = time.time()
-                if r['mode'] == 'acme' and now - r.get('lastRenewal', 0) >= 43200:
-                    issue(r['spec'], renew=True)
-                    r['lastRenewal'] = now
-                activate(r['spec'], r)
+                issue(r['spec'], renew=True)
             except Exception as e:
-                r.update(lastCheck=time.time(), nextCheck=time.time()+60,
-                    error=e.code if isinstance(e, TtError) else 'tt_certificate_invalid')
+                # Let's Encrypt limits failed validations: never retry each minute.
+                failures = r.get('renewFailures', 0) + 1
+                r.update(renewFailures=failures, renewRetryAt=now + backoff(failures, RENEW_RETRY),
+                         renewError=e.code if isinstance(e, TtError) else 'tt_acme_failed', lastCheck=now)
+                r['error'] = r['renewError']
                 atomic_file(record_path(r['id']), canonical(r).encode())
+            else:
+                # Persisted at once: an unchanged pair (certbot renews only
+                # near expiry) skips the record write below.
+                if r.get('error') is not None and r.get('error') == r.pop('renewError', None):
+                    r['error'] = None
+                for k in ('renewFailures', 'renewRetryAt', 'renewError'):
+                    r.pop(k, None)
+                r['lastRenewal'] = now
+                atomic_file(record_path(r['id']), canonical(r).encode())
+        if r.get('failures') and now < r.get('nextCheck', 0) and r.get('sourceStat') == source_signature(*source_pair(r['spec'])):
+            return
+        activate(r['spec'], r, cached=True)
+    except Exception as e:
+        failures = r.get('failures', 0) + 1
+        try:
+            signature = source_signature(*source_pair(r['spec']))
+        except Exception:
+            signature = None
+        r.update(lastCheck=now, nextCheck=now + backoff(failures, CHECK_RETRY), failures=failures,
+                 sourceStat=signature, error=e.code if isinstance(e, TtError) else 'tt_certificate_invalid')
+        atomic_file(record_path(r['id']), canonical(r).encode())
 
 
 if __name__ == '__main__':

@@ -432,6 +432,37 @@ class RunnerTests(unittest.TestCase):
         cleanup_job_transients(self.directory, job_id)
         self.assertFalse(marker.exists())
 
+    def test_cleanup_removes_secret_bearing_edit_and_egress_files(self):
+        from runner import cleanup_job_transients
+        job_id = '7' * 32
+        names = [f'awg-external-{job_id}.json', f'tt-external-{job_id}.json', f'client-egress-{job_id}.json',
+                 f'tt-certificate-{job_id}.json', f'recover-{job_id}.json']
+        kept = [f'egress-access-{job_id}.json', f'adopt-{job_id}-' + 'b' * 32 + '.json', 'awg-external-' + '6' * 32 + '.json']
+        for name in names + kept:
+            (self.directory / name).write_text('secret')
+        cleanup_job_transients(self.directory, job_id)
+        self.assertEqual(sorted(p.name for p in self.directory.glob('*.json')), sorted(kept))
+
+    def test_adoption_intents_are_pruned_only_when_unreferenced_and_settled(self):
+        from runner import prune_adoption_intents
+        def job(number, status):
+            req = dict(version=1, action='submit', id=f'{number:032x}', kind='awg_apply', count=3, interval=1)
+            with self.store.db:
+                self.store.db.execute('INSERT INTO jobs VALUES (?,?,?,0,0,0,?)', (req['id'], json.dumps(req), status, time.time()))
+            return req['id']
+        current, older, failed = job(1, 'succeeded'), job(2, 'succeeded'), job(3, 'failed')
+        with self.store.db:
+            self.store.db.execute('INSERT INTO awg_resources VALUES (?,?)', ('b' * 32, json.dumps(dict(jobId=current))))
+        files = {name: self.directory / ('adopt-%s-%s.%s' % (name, 'b' * 32, suffix))
+                 for name, suffix in ((current, 'json'), (older, 'json'), (failed, 'json'), ('9' * 32, 'restart'))}
+        for path in files.values():
+            path.write_text('{}')
+        prune_adoption_intents(self.store)
+        self.assertTrue(files[current].exists())  # Read back by the record.
+        self.assertTrue(files[failed].exists())   # Needed by resume.
+        self.assertFalse(files[older].exists())
+        self.assertFalse(files['9' * 32].exists())  # Its job row is long gone.
+
 
 class RunnerCoreTests(unittest.TestCase):
     """Idle cost, liveness, retention and crash parking of the job core."""
@@ -592,6 +623,18 @@ class RunnerCoreTests(unittest.TestCase):
         self.assertFalse((self.directory / ('panel-update-' + done)).exists())
         # A failed update may be resumed from its backup.
         self.assertTrue((self.directory / ('panel-update-' + failed) / 'backup' / 'x-ui.db').exists())
+
+    def test_failed_cancel_rollback_keeps_the_backup(self):
+        job_id = self._job(1, status='running', checkpoint=0, kind='vless_apply', cancel=1)
+        backup = self.directory / ('vless-backup-' + job_id + '.json')
+        backup.write_text('{}')
+        class Task:
+            def rollback(self):
+                raise OSError()
+        with patch('runner.validate_request', side_effect=lambda r: r), patch('runner.VlessApply', return_value=Task()):
+            self.store.tick()
+        self.assertEqual(self.store.db.execute('SELECT status FROM jobs WHERE id=?', (job_id,)).fetchone()[0], 'needs_attention')
+        self.assertTrue(backup.exists())
 
     def test_concurrent_atomic_writes_do_not_collide(self):
         from panel import atomic_file

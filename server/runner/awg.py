@@ -5,14 +5,13 @@ import hashlib
 import hmac
 import ipaddress
 import json
-import os
 from pathlib import Path
 import secrets
-import socket
 import subprocess
 
 from awg_contract import SCHEMA
-from awg_network import configure as network_configure, rules as network_rules
+from awg_network import (configure as network_configure, create_key, key_valid, port_available,
+    rules as network_rules)
 from components import CONFIG, installed, unit_source, UNITS, ComponentError, safe_directory, usable
 from panel import atomic_file, command, safe_file, PanelError
 from vless import canonical, digest, VlessError
@@ -123,20 +122,8 @@ def routes():
 
 
 def free_port(port):
-    sockets = []
-    try:
-        for family, host in ((socket.AF_INET, '0.0.0.0'), (socket.AF_INET6, '::')):
-            s = socket.socket(family, socket.SOCK_DGRAM)
-            sockets.append(s)
-            if family == socket.AF_INET6:
-                s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
-            s.bind((host, port))
-        return True
-    except OSError:
-        return False
-    finally:
-        for s in sockets:
-            s.close()
+    """The wildcard UDP socket AWG binds (both families)."""
+    return port_available('::', port, tcp=False, udp=True)
 
 
 def defaults(store):
@@ -165,8 +152,10 @@ def defaults(store):
 
 
 def derive(label, preview=False):
-    if preview and not KEY.exists():
-        key = bytes(32)  # Read-only capacity/config validation before bootstrap.
+    if preview and not key_valid(KEY):
+        # Read-only capacity/config validation before bootstrap. A short key
+        # left by a crash is recreated (or refused) by the first job step.
+        key = bytes(32)
     else:
         safe_file(KEY, 32)
         key = KEY.read_bytes()
@@ -302,6 +291,38 @@ def current_hashes(rid):
     return file_hash(conf), file_hash(net)
 
 
+QUICK_FIELDS = frozenset({b'Address', b'MTU', b'DNS', b'Table', b'PreUp', b'PostUp', b'PreDown',
+                          b'PostDown', b'SaveConfig'})
+
+
+def core(raw):
+    """A config for ``awg syncconf``: only awg-quick metadata is stripped;
+    unknown core fields and every peer/PSK stay verbatim."""
+    return b''.join(line for line in raw.splitlines(keepends=True)
+                    if line.split(b'=', 1)[0].strip() not in QUICK_FIELDS)
+
+
+def interface_section(raw):
+    """Everything before the first [Peer]: keys, address, port, hooks, obfuscation."""
+    lines = []
+    for line in raw.splitlines():
+        if line.strip() == b'[Peer]':
+            break
+        lines.append(line)
+    while lines and not lines[-1].strip():
+        lines.pop()
+    return b'\n'.join(lines)
+
+
+def runtime_matches(wanted, actual):
+    """The interface and peers of ``wanted`` (a config) are what ``actual``
+    (``awg showconf`` output) runs. Extra runtime peers do not match."""
+    wanted_i, wanted_p = runtime_config(wanted)
+    actual_i, actual_p = runtime_config(actual)
+    return (all(actual_i.get(k) == v for k, v in wanted_i.items()) and wanted_p.keys() == actual_p.keys() and
+            all(all(actual_p[pub].get(k) == v for k, v in peer.items()) for pub, peer in wanted_p.items()))
+
+
 def runtime_config(raw):
     interface, peers, entry = {}, {}, None
     for line in raw.decode().splitlines():
@@ -332,7 +353,48 @@ def active(rid):
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15).returncode == 0
 
 
-def confirmed(saved):
+def rule_groups(rule):
+    """Option groups of one rule: ['-s', pool], ['!', '-o', name], ..."""
+    groups = []
+    for token in rule:
+        if token.startswith('-') and not (groups and groups[-1] == ['!']):
+            groups.append([token])
+        elif token == '!':
+            groups.append(['!'])
+        else:
+            groups[-1].append(token)
+    return groups
+
+
+def rule_present(binary, table, chain, rule, cache):
+    """One listing per table and poll answers every resource's rules; a rule
+    the listing does not show is checked with -C, which stays authoritative."""
+    key = ('rules', binary, table)
+    if key not in cache:
+        result = subprocess.run([binary, '-w', '10', '-t', table, '-S'], stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL, timeout=15)
+        cache[key] = [line.split() for line in result.stdout.decode(errors='replace').splitlines()] if result.returncode == 0 else []
+    for line in cache[key]:
+        if line[:2] != ['-A', chain]:
+            continue
+        if all(any(line[i:i + len(group)] == group for i in range(2, len(line) - len(group) + 1))
+               for group in rule_groups(rule)):
+            return True
+    return subprocess.run([binary, '-w', '10', '-t', table, '-C', chain, *rule], stdout=subprocess.DEVNULL,
+                          stderr=subprocess.DEVNULL, timeout=15).returncode == 0
+
+
+def addresses(name, cache):
+    if 'addresses' not in cache:
+        cache['addresses'] = {row.get('ifname'): row for row in json.loads(command(['/usr/sbin/ip', '-j', 'address', 'show']))}
+    return cache['addresses'].get(name)
+
+
+def confirmed(saved, cache=None):
+    """Files, unit, runtime peers, addresses and firewall match the record.
+    ``cache`` shares the address and firewall listings between the resources
+    of one read-only poll; a job step after a change never passes one."""
+    cache = {} if cache is None else cache
     r = saved['spec']
     expected = (None, None) if r['deleted'] else (saved['configHash'], saved['networkHash'])
     if current_hashes(r['id']) != expected:
@@ -343,25 +405,23 @@ def confirmed(saved):
     if not enabled:
         return not Path('/sys/class/net', name_for(r['id'])).exists()
     try:
-        expected_i, expected_p = runtime_config(paths(r['id'])[0].read_bytes())
-        actual_i, actual_p = runtime_config(command([AWG, 'showconf', name_for(r['id'])]))
-        if any(actual_i.get(k) != v for k, v in expected_i.items()) or expected_p.keys() != actual_p.keys():
+        if not runtime_matches(paths(r['id'])[0].read_bytes(), command([AWG, 'showconf', name_for(r['id'])])):
             return False
-        if any(any(actual_p[pub].get(k) != v for k, v in p.items()) for pub, p in expected_p.items()):
+        link = addresses(name_for(r['id']), cache)
+        if link is None:
             return False
-        links = json.loads(command(['/usr/sbin/ip', '-j', 'address', 'show', 'dev', name_for(r['id'])]))
         pool = ipaddress.ip_network(r['pool'])
         expected_addresses = {(str(pool.network_address + 1), pool.prefixlen)}
         if r['pool6']:
             expected_addresses.add((str(ipaddress.ip_network(r['pool6']).network_address + 1), 64))
-        actual_addresses = {(a['local'], a['prefixlen']) for a in links[0]['addr_info'] if a['scope'] == 'global'}
-        if expected_addresses != actual_addresses or links[0]['mtu'] != r['mtu']:
+        actual_addresses = {(a['local'], a['prefixlen']) for a in link['addr_info'] if a['scope'] == 'global'}
+        if expected_addresses != actual_addresses or link['mtu'] != r['mtu']:
             return False
         for binary, table, chain, rule in network_rules(dict(pool=r['pool'], pool6=r['pool6'], port=r['port']), name_for(r['id'])):
-            if subprocess.run([binary, '-w', '10', '-t', table, '-C', chain, *rule], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15).returncode:
+            if not rule_present(binary, table, chain, rule, cache):
                 return False
         return Path('/proc/sys/net/ipv4/ip_forward').read_text().strip() == '1' and (not r['pool6'] or Path('/proc/sys/net/ipv6/conf/all/forwarding').read_text().strip() == '1')
-    except (PanelError, OSError, ValueError):
+    except (PanelError, OSError, ValueError, KeyError, IndexError, subprocess.SubprocessError):
         return False
 
 
@@ -381,6 +441,7 @@ def preflight(store, p):
     pools = [ipaddress.ip_network(pool)
              for rid, record in saved.items() if rid not in ids and not record['spec']['deleted']
              for pool in (record['spec']['pool'], record['spec']['pool6']) if pool]
+    cache = {}
     for r in p['resources']:
         if 'adoption' in r:
             import managed_existing
@@ -392,7 +453,7 @@ def preflight(store, p):
             raise AwgError('awg_conflict')
         all_names[name] = rid
         if previous:
-            if previous['workspaceId'] != p['workspaceId'] or not confirmed(previous):
+            if previous['workspaceId'] != p['workspaceId'] or not confirmed(previous, cache):
                 raise AwgError('awg_conflict')
         elif current_hashes(rid) != (None, None) or Path('/sys/class/net', name).exists():
             raise AwgError('awg_conflict')
@@ -427,14 +488,19 @@ def plan(store, req):
 
 def state(store, workspace, pending_job=None):
     result = []
+    cache = {}
+    found = None
     for rid, saved in owned(store).items():
         if saved['workspaceId'] != workspace:
             continue
         if saved.get('adopted'):
+            import awg_external
             import managed_existing
-            result.append(managed_existing.state(store, saved, 'awg', pending_job))
+            if found is None:
+                found = awg_external.discover_resources()  # Once per poll.
+            result.append(managed_existing.state(store, saved, 'awg', pending_job, found=found))
             continue
-        valid = confirmed(saved)
+        valid = confirmed(saved, cache)
         clients = [dict(c) for c in saved['clients']]
         if valid and saved['spec']['enabled'] and not saved['spec']['deleted']:
             handshakes = dict(line.split() for line in command([AWG, 'show', name_for(rid), 'latest-handshakes']).decode().splitlines())
@@ -468,12 +534,11 @@ class AwgApply:
             if not backup.exists():
                 content = {r['id']: [base64.b64encode(path.read_bytes()).decode() if path.exists() else None for path in paths(r['id'])] for r in native}
                 atomic_file(backup, canonical(dict(resources=owned(self.store), files=content)).encode())
-            if native and not KEY.exists():
-                if any(not r.get('adopted') for r in owned(self.store).values()):
+            if native:
+                try:
+                    create_key(KEY, in_use=any(not r.get('adopted') for r in owned(self.store).values()))
+                except (OSError, ValueError):
                     raise AwgError('awg_conflict')
-                fd = os.open(str(KEY), os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-                with os.fdopen(fd, 'wb') as stream:
-                    stream.write(secrets.token_bytes(32)); stream.flush(); os.fsync(stream.fileno())
             code = 'awg_preparing'
         elif checkpoint <= len(p['resources']):
             r = p['resources'][checkpoint - 1]
@@ -499,27 +564,44 @@ class AwgApply:
             # overwrite an unrelated edit merely because a job is resumed.
             if not (before == after and confirmed(wanted)):
                 unit = 'antirkn-awg@' + name_for(r['id']) + '.service'
-                if active(r['id']):
-                    command(['/usr/bin/systemctl', 'stop', unit])
-                if net_path.exists():
-                    network_configure('down', name_for(r['id']))
-                if Path('/sys/class/net', name_for(r['id'])).exists():
-                    command(['/usr/sbin/ip', 'link', 'delete', name_for(r['id'])])
-                if r['deleted']:
-                    command(['/usr/bin/systemctl', 'disable', unit])
-                    for path in (conf_path, net_path):
-                        path.unlink(missing_ok=True)
-                else:
-                    atomic_file(net_path, network)
+                running = active(r['id'])
+                enabled = r['enabled'] and not r['deleted']
+                # Preconditions first: a busy port must not take the working
+                # interface (and every client on it) down.
+                if enabled and not (previous and running and previous['spec']['port'] == r['port']) and not free_port(r['port']):
+                    raise AwgError('awg_port_busy')
+                if enabled and running and self.peers_only(previous, conf_path, config, before, after):
+                    # Only [Peer] sections differ: update the live interface;
+                    # existing clients keep their sessions.
                     atomic_file(conf_path, config)
-                    if r['enabled']:
-                        if not free_port(r['port']):
-                            raise AwgError('awg_port_busy')
-                        command(['/usr/bin/systemctl', 'enable', '--now', unit], timeout=60)
-                    else:
+                    command([AWG, 'syncconf', name_for(r['id']), '/dev/stdin'], input_data=core(config))
+                    if not confirmed(wanted):
+                        raise AwgError('awg_failed')
+                    running = None
+                if running:
+                    command(['/usr/bin/systemctl', 'stop', unit])
+                if running is not None:
+                    if net_path.exists():
+                        network_configure('down', name_for(r['id']))
+                    if Path('/sys/class/net', name_for(r['id'])).exists():
+                        command(['/usr/sbin/ip', 'link', 'delete', name_for(r['id'])])
+                    if r['deleted']:
                         command(['/usr/bin/systemctl', 'disable', unit])
-                if not confirmed(wanted):
-                    raise AwgError('awg_failed')
+                        for path in (conf_path, net_path):
+                            path.unlink(missing_ok=True)
+                    else:
+                        atomic_file(net_path, network)
+                        atomic_file(conf_path, config)
+                        if r['enabled']:
+                            # Another process may have taken the port while it
+                            # was released; recover() restores the old interface.
+                            if not free_port(r['port']):
+                                raise AwgError('awg_port_busy')
+                            command(['/usr/bin/systemctl', 'enable', '--now', unit], timeout=60)
+                        else:
+                            command(['/usr/bin/systemctl', 'disable', unit])
+                    if not confirmed(wanted):
+                        raise AwgError('awg_failed')
             with db:
                 db.execute('INSERT INTO awg_resources VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data', (r['id'], canonical(wanted)))
                 db.execute('UPDATE jobs SET checkpoint=? WHERE id=?', (checkpoint + 1, req['id']))
@@ -532,6 +614,72 @@ class AwgApply:
         with db:
             db.execute('UPDATE jobs SET checkpoint=? WHERE id=?', (checkpoint + 1, req['id']))
             self.store.event(req['id'], code, checkpoint + 1, req['count'])
+
+    @staticmethod
+    def peers_only(previous, conf_path, config, before, after):
+        """The change touches [Peer] sections only: same interface section,
+        firewall/network record and a file that is ours (old or new)."""
+        if not previous or previous['spec']['deleted'] or not previous['spec']['enabled']:
+            return False
+        if before[1] != after[1] or before[0] not in (previous['configHash'], after[0]):
+            return False
+        try:
+            safe_file(conf_path)
+            return interface_section(conf_path.read_bytes()) == interface_section(config)
+        except (PanelError, OSError):
+            return False
+
+    def recover(self, checkpoint):
+        """After a failed resource step, put that resource back as recorded
+        before the step. Returns the job status, None when the files are not
+        ours to touch (a foreign edit), and raises when restoring failed."""
+        p = self.payload
+        if not 1 <= checkpoint <= len(p['resources']):
+            return None
+        status = 'failed' if checkpoint == 1 else 'partially_applied'
+        r = p['resources'][checkpoint - 1]
+        previous = owned(self.store).get(r['id'])
+        if 'adoption' in r:
+            import managed_existing
+            return status if managed_existing.restore(self.store, self.req, p, r, previous, 'awg') else None
+        rid, name = r['id'], name_for(r['id'])
+        unit = 'antirkn-awg@' + name + '.service'
+        conf_path, net_path = paths(rid)
+        intent_path = self.store.directory / ('awg-intent-' + self.req['id'] + '-' + rid + '.json')
+        if not intent_path.exists():
+            return status  # The intent precedes every effect: nothing changed.
+        safe_file(intent_path)
+        intent = json.loads(intent_path.read_text())
+        current = current_hashes(rid)
+        if any(v not in (intent['before'][i], intent['after'][i]) for i, v in enumerate(current)):
+            return None
+        link = Path('/sys/class/net', name)
+        if previous and confirmed(previous) or not previous and current == (None, None) and not link.exists() and not active(rid):
+            intent_path.unlink()
+            return status
+        backup_file = self.store.directory / ('awg-backup-' + self.req['id'] + '.json')
+        safe_file(backup_file, 16777216)
+        files = json.loads(backup_file.read_text())['files'].get(rid) or [None, None]
+        if active(rid):
+            command(['/usr/bin/systemctl', 'stop', unit])
+        if net_path.exists():
+            network_configure('down', name)
+        if link.exists():
+            command(['/usr/sbin/ip', 'link', 'delete', name])
+        # The network record first: the restored config's PostUp reads it.
+        for path, data in ((net_path, files[1]), (conf_path, files[0])):
+            if data is None:
+                path.unlink(missing_ok=True)
+            else:
+                atomic_file(path, base64.b64decode(data))
+        if previous and previous['spec']['enabled'] and not previous['spec']['deleted']:
+            command(['/usr/bin/systemctl', 'enable', '--now', unit], timeout=60)
+        else:
+            command(['/usr/bin/systemctl', 'disable', unit])
+        if not (confirmed(previous) if previous else current_hashes(rid) == (None, None) and not link.exists()):
+            raise AwgError('awg_failed')
+        intent_path.unlink()
+        return status
 
     def rollback(self):
         req_id = self.req['id']
@@ -581,3 +729,31 @@ class AwgApply:
                 (self.store.directory / ('awg-intent-' + req_id + '-' + res_id + '.json')).unlink(missing_ok=True)
         finally:
             backup_file.unlink(missing_ok=True)
+
+
+def drop_foreign(store, rid, record, save):
+    """Remove peers AntiRKN did not issue from one managed interface.
+
+    The record's hash follows the file right after the write, then the live
+    interface is updated in place. Returns the number of removed peers."""
+    import managed_awg
+    if record.get('adopted'):
+        return managed_awg.drop_foreign(store, record, save)
+    ours = {c['publicKey'] for c in record.get('clients', []) if c.get('publicKey')}
+    conf_path, _ = paths(rid)
+    if not conf_path.exists():
+        return 0
+    safe_file(conf_path)
+    header, blocks = managed_awg.peer_blocks(conf_path.read_text())
+    kept = [block for pub, _, block in blocks if pub in ours]
+    if len(kept) == len(blocks):
+        return 0
+    if not header.endswith('\n'):
+        header += '\n'
+    raw = (header + ''.join(kept)).encode()
+    atomic_file(conf_path, raw)
+    record['configHash'] = hashlib.sha256(raw).hexdigest()
+    save(record)
+    if active(rid):
+        command([AWG, 'syncconf', name_for(rid), '/dev/stdin'], input_data=core(raw))
+    return len(blocks) - len(kept)

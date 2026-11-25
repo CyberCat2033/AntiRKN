@@ -10,9 +10,9 @@ from pathlib import Path
 import re
 import shlex
 import pwd
-import secrets
-import stat
+import time
 
+from awg_network import replace_preserving
 from panel import atomic_file
 from tt_common import (ROOT, TtError, active, address, available, canonical, digest,
     domain, file_lock, identifier, ip, lock, read, run, safe_path, split_address, toml_bytes,
@@ -40,7 +40,20 @@ def candidates():
     return sorted(n for n in names if re.fullmatch(r'[A-Za-z0-9_.@:-]+\.service', n))[:64]
 
 
-def definition(unit):
+def supported_version(output):
+    """The runner configures the pinned TrustTunnel generation: the same major
+    version, the pinned release or newer (as the checked component update
+    installs). Requiring exactly 1.1.0 lost every resource after an update."""
+    from component_releases import RELEASES
+    pinned = tuple(int(x) for x in RELEASES['trusttunnel']['version'].split('.'))
+    match = re.search(r'(?<![0-9.])([0-9]{1,4})\.([0-9]{1,4})\.([0-9]{1,6})(?![0-9])', output)
+    if match is None:
+        return False
+    have = tuple(int(x) for x in match.groups())
+    return have[0] == pinned[0] and have >= pinned
+
+
+def definition(unit, versions=None):
     raw = run(['/usr/bin/systemctl','show',unit,'--property=ExecStart,WorkingDirectory,FragmentPath,MainPID,ActiveState']).stdout.decode()
     props = dict(line.split('=',1) for line in raw.splitlines() if '=' in line)
     fragment = props.get('FragmentPath','')
@@ -61,22 +74,27 @@ def definition(unit):
         if not any(Path(root) in Path(p).resolve().parents for root in ('/etc','/opt','/usr/local')):
             raise TtError('tt_unsupported')
     if any(ROOT == Path(p) or ROOT in Path(p).parents for p in paths): raise TtError('tt_unsupported')
-    command=[argv[0],'--version']
-    if owner and os.geteuid()==0:
-        command=['/usr/bin/setpriv','--reuid='+str(owner),'--regid='+str(pwd.getpwuid(owner).pw_gid),
-            '--clear-groups','--no-new-privs',*command]
-    version = run(command).stdout.decode()
-    if re.search(r'\b1\.1\.0\b',version) is None: raise TtError('tt_unsupported')
+    meta=os.stat(argv[0])
+    key=(argv[0],owner,meta.st_dev,meta.st_ino,meta.st_mtime_ns,meta.st_size)
+    if versions is None or key not in versions:
+        command=[argv[0],'--version']
+        if owner and os.geteuid()==0:
+            command=['/usr/bin/setpriv','--reuid='+str(owner),'--regid='+str(pwd.getpwuid(owner).pw_gid),
+                '--clear-groups','--no-new-privs',*command]
+        version=run(command).stdout.decode()
+        if versions is not None: versions[key]=version
+    else: version=versions[key]
+    if not supported_version(version): raise TtError('tt_unsupported')
     return dict(unit=unit, settings=paths[0], hosts=paths[1], base=str(base),
         binary=argv[0], ownerUid=owner, fragment=fragment, unitHash=digest(read(fragment).decode()),
         execHash=digest(argv), active=props.get('ActiveState')=='active')
 
 
 def definitions(issues=None):
-    result=[]
+    result=[];versions={}
     for name in candidates():
         try:
-            r=definition(name)
+            r=definition(name,versions)
             r['id']=digest({k:r[k] for k in ('unit','settings','hosts')})[:32]
             result.append(r)
         except (TtError,OSError,ValueError) as e:
@@ -85,8 +103,9 @@ def definitions(issues=None):
     return result
 
 
-def snapshot(rid):
-    r=next((r for r in definitions() if r['id']==identifier(rid)),None)
+def snapshot(rid, found=None):
+    """``found`` reuses the definitions one RPC or step already discovered."""
+    r=next((dict(r) for r in (definitions() if found is None else found) if r['id']==identifier(rid)),None)
     if r is None: raise TtError('tt_conflict')
     vpnraw,hostsraw=read(r['settings'],r['ownerUid']),read(r['hosts'],r['ownerUid'])
     vpn,hosts=toml_loads(vpnraw.decode()),toml_loads(hostsraw.decode())
@@ -103,8 +122,27 @@ def snapshot(rid):
     return r,vpnraw,hostsraw,vpn,hosts,fingerprint
 
 
-def public_snapshot(rid):
-    r,_,_,vpn,hosts,fingerprint=snapshot(rid)
+def absent(source):
+    """Positively gone: both configs are missing and systemd no longer knows
+    the unit. A stopped service, an unsupported binary or any read doubt
+    answers False, so a read-only poll never forgets the resource."""
+    if not source:
+        return False
+    try:
+        for path in (source['settings'], source['hosts']):
+            try:
+                os.lstat(path)
+                return False
+            except FileNotFoundError:
+                pass
+        load=run(['/usr/bin/systemctl','show',source['unit'],'--property=LoadState','--value'],check=False)
+        return load.returncode==0 and load.stdout.decode().strip()=='not-found'
+    except (TtError,OSError,ValueError,KeyError,TypeError):
+        return False
+
+
+def public_snapshot(rid, found=None):
+    r,_,_,vpn,hosts,fingerprint=snapshot(rid,found)
     if not hosts.get('main_hosts'): raise TtError('tt_unsupported')
     listen,port=split_address(vpn['listen_address'])
     forward=vpn.get('forward_protocol',{'direct':{}})
@@ -123,8 +161,9 @@ def public_snapshot(rid):
 
 def discovery():
     result=[];issues=[]
-    for r in definitions(issues):
-        try: result.append(public_snapshot(r['id']))
+    found=definitions(issues)
+    for r in found:
+        try: result.append(public_snapshot(r['id'],found))
         except (TtError,OSError,ValueError,KeyError) as e:
             issues.append(dict(name=r['unit'],code=e.code if isinstance(e,TtError) else 'tt_invalid'))
     return dict(resources=result,issues=issues)
@@ -133,22 +172,7 @@ def discovery():
 def write_existing(path, data, owner):
     """Replace only the selected file, retaining its owner, group and mode."""
     with file_lock(path):
-        path=safe_path(path,owner_uid=owner);before=path.stat()
-        directory=os.open(str(path.parent),os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
-        temporary='.antirkn-tt-'+secrets.token_hex(16)
-        try:
-            fd=os.open(temporary,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600,dir_fd=directory)
-            with os.fdopen(fd,'wb') as stream:
-                stream.write(data);stream.flush()
-                os.fchown(stream.fileno(),before.st_uid,before.st_gid)
-                os.fchmod(stream.fileno(),stat.S_IMODE(before.st_mode))
-                os.fsync(stream.fileno())
-            os.rename(temporary,path.name,src_dir_fd=directory,dst_dir_fd=directory)
-            os.fsync(directory)
-        finally:
-            try:os.unlink(temporary,dir_fd=directory)
-            except FileNotFoundError:pass
-            os.close(directory)
+        replace_preserving(safe_path(path,owner_uid=owner),data)
 
 
 def decode(req):
@@ -205,13 +229,22 @@ def patched(p,r,vpn,hosts):
     return toml_bytes(v),toml_bytes(h),info
 
 
-def plan(req):
+def prepare(req):
     p=decode(req)
-    r,_,_,v,h,fingerprint=snapshot(p['resourceId'])
+    r,a,b,v,h,fingerprint=snapshot(p['resourceId'])
     if fingerprint!=p['observedHash']: raise TtError('tt_conflict')
-    a,b,info=patched(p,r,v,h)
-    return dict(fingerprint=digest(dict(payload=p,settings=a.decode(),hosts=b.decode(),certificate=info)),
+    x,y,info=patched(p,r,v,h)
+    preview=dict(fingerprint=digest(dict(payload=p,settings=x.decode(),hosts=y.decode(),certificate=info)),
         active=r['active'],restart=r['active'],preserveUsers=True,certificate=info)
+    return r,a,b,h,x,y,info,preview
+
+
+def plan(req):
+    return prepare(req)[-1]
+
+
+def link_for(r,c):
+    return digest([r['id'],c['hostIndex']])[:32]
 
 
 class ExternalTtEdit:
@@ -223,9 +256,8 @@ class ExternalTtEdit:
         with lock():
             p,req,db=self.p,self.req,self.store.db
             if checkpoint==0:
-                if plan(req)['fingerprint']!=req['fingerprint']: raise TtError('tt_conflict')
-                r,a,b,v,h,_=snapshot(p['resourceId'])
-                x,y,info=patched(p,r,v,h)
+                r,a,b,h,x,y,info,preview=prepare(req)
+                if preview['fingerprint']!=req['fingerprint']: raise TtError('tt_conflict')
                 source=None
                 c=p['changes']
                 if not c['certificateId']:
@@ -238,7 +270,9 @@ class ExternalTtEdit:
                     else:
                         source=dict(id=cid,domain=c['domain'],mode='files',listen=c['listen'],expectedIps=[],email='',certificate=cert,privateKey=key)
                 if not self.backup.exists():
-                    atomic_file(self.backup,canonical(dict(resource=r,before=[a.decode(),b.decode()],after=[x.decode(),y.decode()],certificate=info,source=source)).encode())
+                    # Link records too: a failed edit restores the old bindings.
+                    links=certificates.links_of(r['unit'],link_for(r,c))
+                    atomic_file(self.backup,canonical(dict(resource=r,before=[a.decode(),b.decode()],after=[x.decode(),y.decode()],certificate=info,source=source,links=links)).encode())
                 code='tt_preparing'
             else:
                 backup=json.loads(read(self.backup))
@@ -257,7 +291,7 @@ class ExternalTtEdit:
                     remember_tt_forward(r['settings'], toml_loads(backup['before'][0]).get('forward_protocol'))
                     c=p['changes']
                     cid=c['certificateId'] or source['id']
-                    link=digest([r['id'],c['hostIndex']])[:32]
+                    link=link_for(r,c)
                     certificates.unbind(link)
                     certificates.bind(cid,link,r['unit'],c['listen'],c['port'])
                     certificates.move_listener(r['unit'],c['listen'],c['port'])
@@ -271,3 +305,30 @@ class ExternalTtEdit:
             with db:
                 db.execute('UPDATE jobs SET checkpoint=? WHERE id=?',(checkpoint+1,req['id']))
                 self.store.event(req['id'],code,checkpoint+1,req['count'])
+
+    def recover(self,checkpoint):
+        """Put the inspected configuration, certificate links and service state
+        back after a failed write, restart or verification. A file that is
+        neither ours nor the original is left alone (None)."""
+        if checkpoint<1 or not self.backup.exists(): return None
+        with lock():
+            backup=json.loads(read(self.backup))
+            r,a,b,_,_,_=snapshot(self.p['resourceId'])
+            if {k:v for k,v in r.items() if k!='active'}!={k:v for k,v in backup['resource'].items() if k!='active'}:
+                return None
+            current=[a.decode(),b.decode()]
+            if any(raw not in (backup['before'][i],backup['after'][i]) for i,raw in enumerate(current)):
+                return None
+            for file,now,old in zip((r['settings'],r['hosts']),current,backup['before']):
+                if now!=old: write_existing(Path(file),old.encode(),r['ownerUid'])
+            if 'links' in backup:
+                certificates.restore_links(r['unit'],link_for(r,self.p['changes']),backup['links'])
+            if backup['resource']['active']:
+                run(['/usr/bin/systemctl','restart',r['unit']],timeout=60)
+                deadline=time.monotonic()+5
+                while not active(r['unit']):
+                    if time.monotonic()>=deadline: raise TtError('tt_restart_failed')
+                    time.sleep(.2)
+            if [read(r['settings'],r['ownerUid']).decode(),read(r['hosts'],r['ownerUid']).decode()]!=backup['before']:
+                raise TtError('tt_failed')
+            return 'failed'

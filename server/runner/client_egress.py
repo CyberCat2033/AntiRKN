@@ -10,6 +10,7 @@ from pathlib import Path
 import socket
 import time
 
+from awg_network import port_available
 from panel import atomic_file, safe_file
 from vless import canonical, digest, panel_for
 from egress_config import EgressError, parse_link, configure, remove_owned, TAG
@@ -129,12 +130,8 @@ def inventory(store):
 def choose_port(preferred, occupied=()):
     candidates = [preferred] if preferred else [1080, *range(1081, 1181)]
     for port in candidates:
-        if port in occupied: continue
-        try:
-            with socket.socket() as tcp, socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp:
-                tcp.bind(('127.0.0.1', port)); udp.bind(('127.0.0.1', port))
-                return port
-        except OSError: pass
+        if port not in occupied and port_available('127.0.0.1', port, tcp=True, udp=True):
+            return port
     raise EgressError('egress_port_busy')
 
 

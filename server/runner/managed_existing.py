@@ -9,10 +9,9 @@ import hashlib
 import hmac
 import ipaddress
 import json
-import os
 import re
-import secrets
 
+from awg_network import create_key, key_valid
 from panel import PanelError, atomic_file, safe_file
 from vless import VlessError, canonical, digest
 
@@ -58,21 +57,16 @@ def records(store, protocol):
 
 def key(store, preview=False):
     path = store.directory / 'adopted-resources.key'
-    if not path.exists():
-        if any(r.get('adopted') for protocol in TABLES for r in records(store, protocol).values()):
+    # Only a missing or crash-truncated key needs the (registry-wide) check.
+    in_use = key_valid(path) or any(r.get('adopted') for protocol in TABLES for r in records(store, protocol).values())
+    if preview and not key_valid(path):
+        if in_use:
             raise VlessError('vpn_adoption_conflict')
-        if preview:
-            return bytes(32)
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-        with os.fdopen(fd, 'wb') as stream:
-            stream.write(secrets.token_bytes(32))
-            stream.flush()
-            os.fsync(stream.fileno())
-    safe_file(path, 32)
-    result = path.read_bytes()
-    if len(result) != 32:
+        return bytes(32)
+    try:
+        return create_key(path, in_use)
+    except (OSError, ValueError):
         raise VlessError('vpn_adoption_conflict')
-    return result
 
 
 def derive(store, p, r, label, preview=False):
@@ -170,7 +164,7 @@ def apply(store, req, p, r, old, protocol, checkpoint):
     # own committed revision. A stale resumed job cannot overtake another job.
     if digest(old) != intent['oldHash']:
         raise VlessError('vpn_adoption_conflict')
-    a.apply(store, p, r, intent)
+    a.apply(store, p, r, intent, marker=path.with_name(path.stem + '.restart'))
     observed = (a.snapshot(store, p, r, prefer_detail=True) if protocol == 'vless'
                 else a.snapshot(store, p, r))
     if not a.verify(observed, intent):
@@ -183,6 +177,8 @@ def apply(store, req, p, r, old, protocol, checkpoint):
                 panelId=p['panelId'], spec=r, revision=digest(p),
                 keyId=intent['keyId'], jobId=req['id'],
                 observedHash=observed['fingerprint'])
+    if protocol != 'vless':
+        data['source'] = a.locator(observed)
     with store.db:
         store.db.execute('INSERT INTO ' + TABLES[protocol] + ' VALUES (?,?) '
                          'ON CONFLICT(id) DO UPDATE SET data=excluded.data', (r['id'], canonical(data)))
@@ -190,21 +186,61 @@ def apply(store, req, p, r, old, protocol, checkpoint):
         store.event(req['id'], protocol + '_applying', checkpoint + 1, req['count'])
 
 
-def state(store, saved, protocol, pending_job=None, inbounds=None):
+def restore(store, req, p, r, old, protocol):
+    """Undo a failed adoption step on the server (see the adapters'
+    ``restore``). True: the resource is as inspected before the step; None:
+    it holds a foreign change and was left alone. Raises if restoring failed."""
+    if r.get('deleted') and (not old or old.get('deleted')):
+        return True
+    path = store.directory / ('adopt-' + req['id'] + '-' + r['id'] + '.json')
+    if not path.exists():
+        return True  # The intent precedes every write.
+    safe_file(path)
+    intent = json.loads(path.read_text())
+    if intent['requestHash'] != digest(dict(payload=p, protocol=protocol, resource=r['id'])):
+        return None
+    return adapter(protocol).restore(store, p, r, intent, marker=path.with_name(path.stem + '.restart'))
+
+
+def source_of(store, saved, protocol):
+    """Where an adopted AWG/TT resource lives: recorded since this release,
+    or read from the intent of the job the record references."""
+    if saved.get('source'):
+        return saved['source']
+    if not saved.get('jobId'):
+        return None
+    path = store.directory / ('adopt-' + saved['jobId'] + '-' + saved['spec']['id'] + '.json')
+    try:
+        safe_file(path)
+        return adapter(protocol).locator(json.loads(path.read_text())['before'])
+    except (OSError, ValueError, KeyError, TypeError, PanelError):
+        return None
+
+
+def state(store, saved, protocol, pending_job=None, inbounds=None, found=None):
+    """``inbounds`` (VLESS) and ``found`` (AWG/TT discovery) are shared by all
+    resources of one poll instead of being read again for each of them."""
     p = {'workspaceId': saved['workspaceId'], 'panelId': saved.get('panelId')}
     row = None
+    gone = False
     try:
         a = adapter(protocol)
-        observed = (a.snapshot(store, p, saved['spec'], inbounds=inbounds,
-                               expected_hash=saved.get('observedHash'))
-                    if protocol == 'vless' else a.snapshot(store, p, saved['spec']))
+        if protocol == 'vless':
+            observed = a.snapshot(store, p, saved['spec'], inbounds=inbounds, expected_hash=saved.get('observedHash'))
+        elif found is None:
+            observed = a.snapshot(store, p, saved['spec'])
+        else:
+            observed = a.snapshot(store, p, saved['spec'], found=found)
         row = observed.get('row') if protocol == 'vless' else observed.get('resource')
     except VlessError as error:
-        if getattr(error, 'code', None) in ('vpn_adoption_conflict', 'awg_conflict', 'tt_conflict'):
-            row = None
-        else:
+        if getattr(error, 'code', None) not in ('vpn_adoption_conflict', 'awg_conflict', 'tt_conflict'):
             raise
-    if row is None and not saved.get('deleted'):
+        # The panel list is authoritative for VLESS. AWG/TT discovery also
+        # misses a stopped container or an unsupported binary: only a resource
+        # positively gone is forgotten, otherwise it is merely unconfirmed.
+        gone = (protocol == 'vless' or bool(saved.get('deleted')) or
+                adapter(protocol).absent(source_of(store, saved, protocol)))
+    if row is None and gone and not saved.get('deleted'):
         saved['deleted'] = True
         saved['observedHash'] = None
         with store.db:
@@ -217,6 +253,8 @@ def state(store, saved, protocol, pending_job=None, inbounds=None):
             job = store.db.execute('SELECT status FROM jobs WHERE id=?', (saved['jobId'],)).fetchone()
             confirmed = job is not None and (
                 job['status'] == 'succeeded' or saved['jobId'] == pending_job)
+    elif row is None:
+        confirmed = False  # Not readable now, not known to be gone.
     else:
         try:
             if protocol == 'vless' and observed['fingerprint'] != saved['observedHash']:
@@ -232,7 +270,7 @@ def state(store, saved, protocol, pending_job=None, inbounds=None):
             confirmed = False
     return dict(id=saved['spec']['id'], workspaceId=saved['workspaceId'],
                 spec=saved['spec'], confirmed=confirmed,
-                deleted=bool(saved.get('deleted')), exists=(row is not None),
+                deleted=bool(saved.get('deleted')), exists=(row is not None or not gone and not saved.get('deleted')),
                 clients=saved.get('clients', []),
                 proxy=saved.get('proxy', {}), revision=saved.get('revision', ''))
 

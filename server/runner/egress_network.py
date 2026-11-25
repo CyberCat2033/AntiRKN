@@ -13,6 +13,20 @@ MARK = '0x4152'
 TABLE = '16722'
 PRIORITY = '16722'
 STATE = Path('/var/lib/antirkn-runner/client-egress.json')
+# Destinations that never go to the exit: this server's own addresses (tunnel
+# DNS, SSH over the VPN) and non-Internet ranges. They keep normal routing.
+BYPASS = {
+    '-4': ('127.0.0.0/8', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', '169.254.0.0/16', '100.64.0.0/10',
+           '224.0.0.0/4', '255.255.255.255/32'),
+    '-6': ('::1/128', 'fc00::/7', 'fe80::/10', 'ff00::/8'),
+}
+
+
+def bypass_rules(family):
+    """The RETURN rules ahead of TPROXY, as ``-A`` arguments without the chain."""
+    rules = [['-m', 'addrtype', '--dst-type', 'LOCAL', '-j', 'RETURN']]
+    rules += [['-d', network, '-j', 'RETURN'] for network in BYPASS[family]]
+    return rules
 
 
 def run(args, check=True):
@@ -78,6 +92,7 @@ def configure(names, port, enabled=True, previous=()):
                 run(['/usr/sbin/ip', family, 'rule', 'add', 'priority', PRIORITY, 'fwmark', MARK, 'lookup', TABLE])
             # Restore is atomic per address family; it changes only our named chain.
             lines = ['*mangle', '-F ' + CHAIN]
+            lines.extend('-A %s %s' % (CHAIN, ' '.join(args)) for args in bypass_rules(family))
             if family == '-6':
                 # Link neighbour discovery terminates on this host; it must not
                 # be treated as client Internet traffic or sent to VLESS.
@@ -115,6 +130,9 @@ def intact(info):
                     raise EgressError('egress_network')
             if run([binary, '-w', '10', '-t', 'filter', '-C', 'INPUT', '-i', name,
                     '-m', 'mark', '--mark', MARK + '/0xffffffff', '-m', 'comment', '--comment', CHAIN, '-j', 'ACCEPT'], False).returncode:
+                raise EgressError('egress_network')
+        for args in bypass_rules(family):
+            if run([binary, '-w', '10', '-t', 'mangle', '-C', CHAIN, *args], False).returncode:
                 raise EgressError('egress_network')
         for protocol in ('tcp', 'udp'):
             if run([binary, '-w', '10', '-t', 'mangle', '-C', CHAIN, '-p', protocol,

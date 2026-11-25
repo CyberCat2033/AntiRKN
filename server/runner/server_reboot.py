@@ -7,6 +7,7 @@ import re
 import sys
 import time
 sys.path.insert(0,str(Path(__file__).resolve().parent))
+from awg_network import open_lock
 from panel import atomic_file,command,safe_file
 BOOT=Path('/proc/sys/kernel/random/boot_id')
 
@@ -47,7 +48,8 @@ def poll(store,req):
 
 def execute(store,key):
     path=record_path(store,key)
-    with path.with_suffix('.lock').open('a') as lock:
+    lock=open_lock(path.with_suffix('.lock'))  # No link/FIFO/foreign file.
+    try:
         fcntl.flock(lock,fcntl.LOCK_EX)
         value=load(path)
         if value['issued'] or value['boot']!=BOOT.read_text().strip():return
@@ -56,6 +58,7 @@ def execute(store,key):
         try:command(['/usr/bin/systemctl','reboot'])
         except Exception:
             value['failed']=True;save(path,value);raise RebootError() from None
+    finally:os.close(lock)
 
 if __name__=='__main__':
     try:

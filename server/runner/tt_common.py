@@ -9,10 +9,10 @@ import math
 import os
 from pathlib import Path
 import re
-import socket
 import stat
 import subprocess
 
+from awg_network import open_lock, port_available
 from panel import atomic_file
 from vless import VlessError, canonical, digest
 from tt_tomli_parser import loads as toml_loads
@@ -78,16 +78,12 @@ def lock():
             _LOCK_DEPTH -= 1
         return
 
+    # Without the lock the certificate watcher could restart a service
+    # mid-change: an unusable lock file fails the operation instead.
     try:
-        STATE.mkdir(parents=True, exist_ok=True)
+        fd = open_lock(STATE / 'tt.lock')
     except OSError:
-        pass
-    lock_file = STATE / 'tt.lock'
-    try:
-        fd = os.open(str(lock_file), os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
-    except OSError:
-        yield
-        return
+        raise TtError('tt_failed')
 
     try:
         try:
@@ -121,12 +117,13 @@ def file_lock(path):
                 del _FILE_LOCKS[resolved]
         return
 
+    # The directory may belong to the service account: the lock file must be
+    # a root-owned regular file, never a link, FIFO or that account's file.
     lock_path = Path(path).parent / (Path(path).name + '.lock')
     try:
-        fd = os.open(str(lock_path), os.O_RDWR | os.O_CREAT, 0o600)
+        fd = open_lock(lock_path)
     except OSError:
-        yield
-        return
+        raise TtError('tt_failed')
 
     try:
         fcntl.flock(fd, fcntl.LOCK_EX)
@@ -190,29 +187,9 @@ def split_address(value):
 
 
 def available(host, port, quic=False, udp_only=False):
-    sockets = []
-    try:
-        targets = [(socket.AF_INET6 if ':' in host else socket.AF_INET, host)]
-        # IPv6 wildcard may also receive IPv4, depending on endpoint defaults.
-        if host == '::':
-            targets.append((socket.AF_INET, '0.0.0.0'))
-        for family, bind in targets:
-            for kind in ([socket.SOCK_DGRAM] if udp_only else [socket.SOCK_STREAM, socket.SOCK_DGRAM] if quic else [socket.SOCK_STREAM]):
-                s = socket.socket(family, kind)
-                sockets.append(s)
-                if kind == socket.SOCK_STREAM:
-                    # Ignore TIME_WAIT left by a previous HTTP-01 challenge;
-                    # an active listening socket still makes bind fail.
-                    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                if family == socket.AF_INET6:
-                    s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
-                s.bind((bind, port))
-        return True
-    except OSError:
-        return False
-    finally:
-        for s in sockets:
-            s.close()
+    # TIME_WAIT left by a previous HTTP-01 challenge is ignored; an active
+    # listening socket still makes the probe fail.
+    return port_available(host, port, tcp=not udp_only, udp=quic or udp_only)
 
 
 def active(unit):

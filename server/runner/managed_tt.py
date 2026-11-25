@@ -1,16 +1,21 @@
 import base64
 import contextlib
+import json
 from pathlib import Path
 
 import tt_external as external
 import tt_certificates as certificates
 from tt_common import file_lock, lock, read, run, split_address, toml_bytes, toml_loads
 from managed_existing import derive, intent, user_enabled
-from vless import VlessError, digest
+from panel import atomic_file, safe_file
+from vless import VlessError, canonical, digest
 
 
-def snapshot(store, p, r):
-    resource, settings, hosts, vpn, host_config, fingerprint = external.snapshot(r['adoption']['sourceId'])
+def snapshot(store, p, r, found=None):
+    """``found``: the service definitions of the same poll."""
+    source = r['adoption']['sourceId']
+    resource, settings, hosts, vpn, host_config, fingerprint = (external.snapshot(source) if found is None
+                                                                else external.snapshot(source, found))
     if not resource['credentials']:
         raise VlessError('vpn_adoption_unsupported')
     credentials = read(resource['credentials'], resource['ownerUid']).decode()
@@ -95,10 +100,26 @@ def reconcile_credentials(current_raw, plan_before_raw, plan_after_raw, record_c
     return toml_bytes(merged_creds).decode()
 
 
-def apply(store, p, r, plan):
-    cred_path = Path(plan['before']['resource']['credentials']) if 'resource' in plan.get('before', {}) and plan['before']['resource'].get('credentials') else None
-    lock_ctx = file_lock(cred_path) if cred_path else contextlib.nullcontext()
-    with lock(), lock_ctx:
+def locks(plan):
+    before = plan.get('before', {}).get('resource', {})
+    cred_path = Path(before['credentials']) if before.get('credentials') else None
+    return lock(), (file_lock(cred_path) if cred_path else contextlib.nullcontext())
+
+
+def written(marker):
+    """What this job last wrote and whether that write still awaits a restart."""
+    if marker is None or not marker.exists():
+        return None
+    safe_file(marker)
+    return json.loads(marker.read_text())
+
+
+def apply(store, p, r, plan, marker=None):
+    """Write the merged credentials; restart the service only after an actual
+    write. ``marker`` survives a crash between write and restart, so a
+    retried step restarts once instead of on every retry or never."""
+    service, credentials = locks(plan)
+    with service, credentials:
         current = snapshot(store, p, r)
         if not unchanged(current, plan['before']):
             raise VlessError('vpn_adoption_conflict')
@@ -106,13 +127,80 @@ def apply(store, p, r, plan):
         target_creds = reconcile_credentials(current['credentials'], plan['before']['credentials'], plan['after'],
                                              plan.get('record', {}).get('clients', []), store, p, r)
         plan['after'] = target_creds
-        if current['credentials'] != target_creds:
-            if resource['active'] != plan['before']['resource']['active']:
+        running = plan['before']['resource']['active']
+        changed = current['credentials'] != target_creds
+        if changed:
+            if resource['active'] != running:
                 raise VlessError('vpn_adoption_conflict')
+            if marker is not None:
+                atomic_file(marker, canonical(dict(written=digest(target_creds), restart=running)).encode())
             external.write_existing(Path(resource['credentials']), target_creds.encode(), resource['ownerUid'])
-        if plan['before']['resource']['active']:
-            run(['/usr/bin/systemctl', 'restart', resource['unit']], timeout=60)
+        pending = written(marker)
+        if running:
+            if changed or pending and pending.get('restart') or not resource['active']:
+                run(['/usr/bin/systemctl', 'restart', resource['unit']], timeout=60)
             certificates.verify_service(resource['unit'], r['listen'], r['port'], r['domain'], plan['certificate']['fingerprint'])
+            if pending and pending.get('restart'):
+                atomic_file(marker, canonical(dict(pending, restart=False)).encode())
+
+
+def restore(store, p, r, plan, marker=None):
+    """Put back the inspected credentials after a failed step, keeping the
+    service state it had. Only this job's own write is reverted."""
+    service, credentials = locks(plan)
+    with service, credentials:
+        current = snapshot(store, p, r)
+        if not unchanged(current, plan['before']):
+            return None
+        resource = current['resource']
+        before = plan['before']['credentials']
+        pending = written(marker)
+        wrote = False
+        if current['credentials'] != before:
+            if not pending or digest(current['credentials']) != pending['written']:
+                return None
+            external.write_existing(Path(resource['credentials']), before.encode(), resource['ownerUid'])
+            wrote = True
+        if plan['before']['resource']['active']:
+            if wrote or pending and pending.get('restart') or not resource['active']:
+                run(['/usr/bin/systemctl', 'restart', resource['unit']], timeout=60)
+            certificates.verify_service(resource['unit'], r['listen'], r['port'], r['domain'], plan['certificate']['fingerprint'])
+        if marker is not None:
+            marker.unlink(missing_ok=True)
+        return True
+
+
+def locator(current):
+    resource = current['resource']
+    return dict(unit=resource['unit'], settings=resource['settings'], hosts=resource['hosts'])
+
+
+def absent(source):
+    return external.absent(source)
+
+
+def drop_foreign(store, record, save):
+    """Remove the credentials AntiRKN did not issue from an adopted service."""
+    spec = record['spec']
+    names = ({c['username'] for c in record.get('clients', []) if c.get('username')} |
+             {c['id'] for c in record.get('clients', []) if c.get('id')})
+    with lock():
+        current = snapshot(store, {}, spec)
+        resource = current['resource']
+        credentials = toml_loads(current['credentials'])
+        clients = credentials.get('client', [])
+        foreign = [c for c in clients if c.get('username') not in names and c.get('username') != '_antirkn_no_clients']
+        if not foreign:
+            return 0
+        kept = [c for c in clients if c.get('username') in names]
+        credentials['client'] = kept or [dict(username='_antirkn_no_clients', password=derive(
+            store, dict(workspaceId=record['workspaceId']), spec, 'tt-deny-all').hex())]
+        external.write_existing(Path(resource['credentials']), toml_bytes(credentials), resource['ownerUid'])
+        record['observedHash'] = snapshot(store, {}, spec)['fingerprint']
+        save(record)
+        if resource['active']:
+            run(['/usr/bin/systemctl', 'restart', resource['unit']], timeout=60)
+        return len(foreign)
 
 
 def healthy(current):

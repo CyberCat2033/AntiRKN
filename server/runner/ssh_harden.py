@@ -36,6 +36,12 @@ HOME_DIRECTORY = Path('/home')
 ROOT_AUTH = Path('/root/.ssh/authorized_keys')
 TERMINAL = ('committed', 'rolled_back')
 ERRORS = (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError)
+# Automatic rollback retries back off (5 s doubling to 10 min). With socket
+# activation every attempt restarts ssh.socket, so a failing rollback must not
+# retry each second; after MAX_ATTEMPTS per boot only an explicit abort (or a
+# reboot) tries to reload SSH again.
+RETRY_BASE, RETRY_CAP, MAX_ATTEMPTS = 5, 600, 8
+LOAD_FAILURES = 30  # Unreadable journal: the watchdog gives up for this boot.
 
 
 class SshHardenError(Exception):
@@ -77,9 +83,17 @@ def atomic_file(path, data, mode=0o600, uid=None, gid=None):
 @contextmanager
 def harden_lock():
     BACKUP_DIR.mkdir(parents=True, mode=0o700, exist_ok=True)
-    with (BACKUP_DIR / 'lock').open('a') as lock:
-        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+    # Never a link, FIFO or another account's file (this module runs alone,
+    # as the watchdog, so it keeps its own copy of the lock-file checks).
+    fd = os.open(str(BACKUP_DIR / 'lock'), os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK, 0o600)
+    try:
+        meta = os.fstat(fd)
+        if not stat.S_ISREG(meta.st_mode) or meta.st_uid != os.geteuid() or meta.st_nlink != 1:
+            raise SshHardenError('ssh_harden_conflict')
+        fcntl.flock(fd, fcntl.LOCK_EX)
         yield
+    finally:
+        os.close(fd)
 
 
 def backup_path(job_id):
@@ -354,10 +368,11 @@ def arm_watchdog(job_id):
     source = str(Path(__file__).resolve())
     if not re.fullmatch(r'/[A-Za-z0-9_./-]+', source):
         raise SshHardenError()
+    # The loop itself survives errors; restarts after a crash stay bounded.
     atomic_file(UNIT_DIRECTORY / name,
         '[Unit]\nDescription=AntiRKN SSH access recovery\nAfter=local-fs.target\n'
-        'StartLimitIntervalSec=0\n'
-        '[Service]\nType=simple\nUMask=0077\nRestart=on-failure\nRestartSec=2\n'
+        'StartLimitIntervalSec=600\nStartLimitBurst=10\n'
+        '[Service]\nType=simple\nUMask=0077\nRestart=on-failure\nRestartSec=5\n'
         f'ExecStart=/usr/bin/python3 -I {source} watchdog {job_id}\n'
         '[Install]\nWantedBy=multi-user.target\n', 0o644)
     run(['/usr/bin/systemctl', 'daemon-reload'])
@@ -404,12 +419,16 @@ def reload_ssh_service(socket_active=False):
 
 
 def verify_listeners(ports, socket_active):
-    output = run(['/usr/bin/ss', '-H', '-ltnp']).stdout
+    """ssh.service (and ssh.socket) listen on exactly ``ports``. Only the main
+    unit counts: a second sshd (SFTP jail, another unit) has its own ports."""
+    main = run(['/usr/bin/systemctl', 'show', 'ssh.service', '-p', 'MainPID', '--value']).stdout.strip()
     actual = set()
-    for line in output.splitlines():
-        fields = line.split()
-        if len(fields) >= 5 and ('"sshd"' in line or '"sshd-session"' in line):
-            actual.add(split_address(fields[3])[1])
+    if main.isdigit() and int(main) > 0:
+        owner = re.compile(r'\bpid=' + main + r'\b')
+        for line in run(['/usr/bin/ss', '-H', '-ltnp']).stdout.splitlines():
+            fields = line.split()
+            if len(fields) >= 5 and owner.search(line):
+                actual.add(split_address(fields[3])[1])
     if socket_active:
         actual.update(split_address(v)[1] for v in socket_listeners())
     if actual != set(ports):
@@ -447,11 +466,22 @@ def apply_policy(job_id, info, final):
     verify_listeners(ports, info['socket_activation'])
 
 
-def _rollback(job_id, info):
+def exhausted(info):
+    """No automatic SSH reload is left for this boot."""
+    return (not info.get('access_restored') and info.get('attempts_boot') == BOOT_ID.read_text().strip()
+            and info.get('attempts', 0) >= MAX_ATTEMPTS)
+
+
+def _rollback(job_id, info, force=False):
+    """Restore the old access. Automatic callers (watchdog, worker, status
+    polls) honour the retry backoff and the per-boot attempt cap; an explicit
+    abort (``force``) always tries."""
     if info['phase'] == 'committed':
         raise SshHardenError('ssh_harden_conflict')
     if info['phase'] == 'rolled_back':
         return True
+    if not force and (time.time() < info.get('retry_at', 0) or exhausted(info)):
+        return False
     info['phase'] = 'rolling_back'
     save_info(job_id, info)
     try:
@@ -502,6 +532,10 @@ def _rollback(job_id, info):
         pending_user = (isinstance(error, subprocess.CalledProcessError) and
                         error.cmd[:1] == ['/usr/sbin/userdel'] and error.returncode == 8)
         info['phase'] = 'rolling_back' if pending_user else 'rollback_failed'
+        boot = BOOT_ID.read_text().strip()
+        attempts = (info.get('attempts', 0) if info.get('attempts_boot') == boot else 0) + 1
+        info.update(attempts=attempts, attempts_boot=boot,
+                    retry_at=time.time() + min(RETRY_BASE * 2 ** min(attempts - 1, 16), RETRY_CAP))
         save_info(job_id, info)
         return False
 
@@ -715,7 +749,7 @@ class SshHardenJob:
                     save_info(req['id'], info)
                 return result(info)
             except (SshHardenError, *ERRORS):
-                _rollback(req['id'], info)
+                _rollback(req['id'], info, force=True)
                 record_terminal(store, req['id'], info)
                 raise SshHardenError()
 
@@ -755,24 +789,41 @@ class SshHardenJob:
             info = load_info(req['id'])
             if info['phase'] == 'committed':
                 raise SshHardenError('ssh_harden_conflict')
-            _rollback(req['id'], info)
+            _rollback(req['id'], info, force=True)
             record_terminal(store, req['id'], info)
             if info['phase'] not in ('rolled_back', 'rolling_back'):
                 raise SshHardenError()
             return result(info)
 
 
-def watchdog_loop(job_id):
+def watchdog_loop(job_id, sleep=time.sleep):
+    """Roll back an expired or failed transition; exit when it is terminal.
+
+    Retries follow the journal's backoff. Once the attempts of this boot are
+    used up, or the journal stays unreadable, the watchdog exits cleanly and
+    stays armed for the next boot instead of looping under systemd."""
+    unreadable = 0
     while True:
-        with harden_lock():
-            info = load_info(job_id)
-            if info['phase'] not in TERMINAL and (expired(info) or info['phase'] in ('rolling_back', 'rollback_failed')):
-                _rollback(job_id, info)
-            terminal = info['phase'] in TERMINAL
+        try:
+            with harden_lock():
+                info = load_info(job_id)
+                if info['phase'] not in TERMINAL and (expired(info) or info['phase'] in ('rolling_back', 'rollback_failed')):
+                    _rollback(job_id, info)
+                terminal = info['phase'] in TERMINAL
+                stuck = info['phase'] == 'rollback_failed' and exhausted(info)
+            unreadable = 0
+        except (SshHardenError, *ERRORS):
+            unreadable += 1
+            if unreadable >= LOAD_FAILURES:
+                return
+            sleep(2)
+            continue
         if terminal:
             retire_watchdog(job_id)
             return
-        time.sleep(1)
+        if stuck:
+            return
+        sleep(1)
 
 
 if __name__ == '__main__':
