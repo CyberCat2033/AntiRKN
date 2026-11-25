@@ -13,7 +13,11 @@ import shutil
 import subprocess
 import sys
 import time
-from panel import atomic_file, run as run_command
+
+# Also run directly as `python3 -I apt.py record ...` by systemd-run, where
+# the script directory is not on sys.path.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from panel import atomic_file, run as run_command  # noqa: E402
 
 ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C',
        'DEBIAN_FRONTEND': 'noninteractive', 'NEEDRESTART_MODE': 'l',

@@ -11,7 +11,7 @@ import ipaddress
 import json
 import re
 
-from awg_network import create_key, key_valid
+from sysutil import create_key, key_valid
 from panel import PanelError, atomic_file, safe_file
 from vless import VlessError, canonical, digest
 

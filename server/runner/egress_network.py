@@ -7,6 +7,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from egress_config import EgressError
+from sysutil import run as sysutil_run
 
 CHAIN = 'ANTIRKN_EGRESS'
 MARK = '0x4152'
@@ -30,9 +31,7 @@ def bypass_rules(family):
 
 
 def run(args, check=True):
-    result = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=20)
-    if check and result.returncode: raise EgressError('egress_network')
-    return result
+    return sysutil_run(args, timeout=20, check=check, error=EgressError('egress_network'))
 
 
 def rule(binary, chain, args, present=True, table='mangle'):
@@ -102,8 +101,7 @@ def configure(names, port, enabled=True, previous=()):
                 lines.append('-A %s -p %s -j TPROXY --on-ip %s --on-port %d --tproxy-mark %s/0xffffffff' %
                              (CHAIN, protocol, loopback, port, MARK))
             lines.extend(['-A ' + CHAIN + ' -j DROP', 'COMMIT', ''])
-            result = subprocess.run([binary + '-restore', '--noflush', '--wait', '10'],
-                input='\n'.join(lines).encode(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=20)
+            result = sysutil_run([binary + '-restore', '--noflush', '--wait', '10'], input='\n'.join(lines).encode(), timeout=20)
             if result.returncode: raise EgressError('egress_network')
             for name in selected:
                 rule(binary, 'PREROUTING', ['-i', name, '-m', 'comment', '--comment', CHAIN, '-j', CHAIN])

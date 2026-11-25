@@ -111,11 +111,9 @@ def run(argv, timeout=30, input_data=None, env=None, cwd=None, capture=True):
     """The one subprocess call of the panel/component/apt modules: no shell,
     always bounded, a fixed environment, stderr discarded (it may quote
     configuration or upstream text)."""
-    return subprocess.run(argv, input=input_data,
-        stdin=subprocess.DEVNULL if input_data is None else None,
-        stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL, timeout=timeout, cwd=cwd,
-        env=dict(SAFE_ENV) if env is None else env)
+    from sysutil import run as sysutil_run
+    return sysutil_run(argv, input=input_data, timeout=timeout, cwd=cwd, capture=capture,
+                       stderr=False, env=dict(SAFE_ENV) if env is None else env)
 
 
 def command(argv, timeout=30, input_data=None):

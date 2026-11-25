@@ -34,7 +34,8 @@ V45_PROGRAMS = V25_PROGRAMS + ('panel_clients.py',)
 V49_PROGRAMS = V45_PROGRAMS + ('client_egress.py', 'egress_config.py', 'egress_network.py', 'egress_probe.py', 'egress_access.py')
 V50_PROGRAMS = V49_PROGRAMS + ('component_upgrade.py',)
 V64_PROGRAMS = V50_PROGRAMS + ('upgrade_probe.py',)
-PROGRAMS = V64_PROGRAMS
+V67_PROGRAMS = V64_PROGRAMS + ('sysutil.py',)
+PROGRAMS = V67_PROGRAMS
 
 def inspect_runner():
     hashes, unsafe = {}, False

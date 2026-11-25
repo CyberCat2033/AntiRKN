@@ -177,6 +177,28 @@ def apply(store, p, r, plan, marker=None):
         api.call('/panel/api/inbounds/update/%d' % source, plan['after'])
 
 
+def restore(store, p, r, plan, marker=None):
+    """Undo this job's write to an adopted inbound after a failed step: the
+    row returns to the inspected ``before`` and Xray is restarted. True: as
+    before the step; None: deleted by this job (re-adding would change the
+    panel id the record follows) or holding a foreign change, left alone.
+    Raises when the restored row cannot be verified."""
+    before = plan['before']
+    current = snapshot(store, p, r, expected_hash=before['fingerprint'])
+    if current['fingerprint'] == before['fingerprint']:
+        return True
+    if plan['after'] is None or current['row'] is None or not verify(current, plan):
+        return None
+    api = vless.panel_for(store, p['panelId'])
+    api.call('/panel/api/inbounds/update/%d' % int(r['adoption']['sourceId']), before['row'])
+    vless.restart(api)
+    again = snapshot(store, p, r, expected_hash=before['fingerprint'])
+    if again['fingerprint'] != before['fingerprint'] and not (
+            again['row'] is not None and subset(normal(before['row']), normal(again['row']))):
+        raise VlessError('vpn_adoption_failed')
+    return True
+
+
 def healthy(current):
     return True  # The enclosing VLESS job verifies Xray after its final restart.
 

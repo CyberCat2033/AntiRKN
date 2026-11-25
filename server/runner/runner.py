@@ -152,7 +152,7 @@ class ClearIncomplete(Exception):
 
 
 # Kinds whose failed resource step is undone on the server by task.recover().
-RECOVERABLE_KINDS = ('awg_apply', 'awg_external_edit', 'tt_apply', 'tt_external_edit')
+RECOVERABLE_KINDS = ('awg_apply', 'awg_external_edit', 'tt_apply', 'tt_external_edit', 'vless_apply')
 
 
 def clear_managed_clients(store):

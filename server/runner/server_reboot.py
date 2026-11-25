@@ -7,7 +7,7 @@ import re
 import sys
 import time
 sys.path.insert(0,str(Path(__file__).resolve().parent))
-from awg_network import open_lock
+from sysutil import open_lock
 from panel import atomic_file,command,safe_file
 BOOT=Path('/proc/sys/kernel/random/boot_id')
 

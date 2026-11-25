@@ -346,7 +346,7 @@ class HardeningTests(unittest.TestCase):
         lock.unlink(missing_ok=True)
         (h.BACKUP_DIR / 'elsewhere').write_text('x')
         lock.symlink_to(h.BACKUP_DIR / 'elsewhere')
-        with self.assertRaises(OSError):
+        with self.assertRaises(h.SshHardenError):  # ssh_harden_conflict, never followed
             with h.harden_lock():
                 pass
 

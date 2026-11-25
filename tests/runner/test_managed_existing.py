@@ -161,12 +161,29 @@ class AdoptionTests(unittest.TestCase):
         self.assertEqual(vless.state(self.store,'a'*32)[0]['clients'][0]['uuid'],uuid)
 
     def test_vless_crash_after_api_write_recovers_without_duplicate(self):
+        original=copy.deepcopy(self.api.rows[0]['settings']['clients'])
         p=self.payload('vless');request=self.submit(p,'vless');self.store.tick();self.api.crash=True
-        self.assertEqual(self.finish(request)['status'],'partially_applied')
+        # The failed step is undone on the panel: the adopted row is as inspected.
+        self.assertEqual(self.finish(request)['status'],'failed')
+        self.assertEqual(self.api.rows[0]['settings']['clients'],original)
+        self.assertEqual(self.api.effects,2)
         self.store.request(dict(version=1,action='resume',id=request['id']))
         self.assertEqual(self.finish(request)['status'],'succeeded')
-        self.assertEqual(self.api.effects,1);self.assertEqual(len(self.api.rows),1)
+        self.assertEqual(self.api.effects,3);self.assertEqual(len(self.api.rows),1)
         self.assertEqual(len(self.api.rows[0]['settings']['clients']),2)
+
+    def test_vless_restore_leaves_a_foreign_change_alone(self):
+        p=self.payload('vless');request=self.submit(p,'vless');self.store.tick();self.api.crash=True
+        original=managed_vless.apply
+        def apply_then_foreign_edit(*args,**kwargs):
+            try:
+                return original(*args,**kwargs)
+            finally:
+                self.api.rows[0]['remark']='Edited by someone else'
+        with patch('managed_vless.apply',side_effect=apply_then_foreign_edit):
+            self.assertEqual(self.finish(request)['status'],'partially_applied')
+        self.assertEqual(self.api.rows[0]['remark'],'Edited by someone else')
+        self.assertEqual(self.api.effects,1)
 
     def test_vless_point_readback_confirms_adoption_with_list_only_annotations(self):
         self.api.extra_list_field = True
@@ -375,7 +392,8 @@ class AdoptionTests(unittest.TestCase):
     def test_cancelled_job_cannot_claim_and_changed_consent_cannot_overwrite(self):
         request=self.submit(self.payload('vless'),'vless');self.store.tick()
         self.api.rows[0]['settings']['clients'].append(dict(id='new-foreign',email='foreign2',enable=True))
-        self.assertEqual(self.finish(request)['status'],'partially_applied')
+        # Refused before any write: nothing is applied, nothing to undo.
+        self.assertEqual(self.finish(request)['status'],'failed')
         self.assertEqual(self.api.effects,0);self.assertFalse(existing.records(self.store,'vless'))
 
     def test_secret_loss_or_replacement_blocks_subsequent_changes(self):

@@ -56,6 +56,54 @@ class Base(unittest.TestCase):
             upgrader.backup()
 
 
+class PanelLayoutTests(Base):
+    """The panel switch writes only into an existing layout, and a rollback
+    removes what it added (an adopted /usr/bin/x-ui got /usr/local/x-ui/*
+    and /usr/bin/bin/xray-* written with no backup)."""
+
+    def stage(self, upgrader):
+        staging = upgrader.staging_dir / 'x-ui'
+        (staging / 'bin').mkdir(parents=True)
+        (staging / 'x-ui').write_bytes(b'new-panel')
+        (staging / 'x-ui.sh').write_bytes(b'new-script')
+        (staging / 'bin' / 'xray-linux-amd64').write_bytes(b'new-core')
+        return staging / 'x-ui'
+
+    def test_adopted_binary_outside_the_layout_gets_no_companions(self):
+        usr_bin = self.root / 'usr/bin'; usr_bin.mkdir(parents=True)
+        binary = usr_bin / 'x-ui'; binary.write_bytes(b'old-panel'); binary.chmod(0o755)
+        base = self.root / 'usr/local/x-ui'  # Absent on this server.
+        with patch('component_upgrade.PANEL_BASE', base):
+            upgrader = self.upgrader(binary, component='panel')
+            self.backup(upgrader)
+            staged = self.stage(upgrader)
+            with patch('component_upgrade.subprocess.run'):
+                upgrader.apply_switch(staged)
+        self.assertEqual(binary.read_bytes(), b'new-panel')
+        self.assertFalse(base.exists())
+        self.assertEqual(sorted(p.name for p in usr_bin.iterdir()), ['x-ui'])
+
+    def test_rollback_removes_files_the_switch_added(self):
+        base = self.root / 'usr/local/x-ui'; (base / 'bin').mkdir(parents=True)
+        binary = base / 'x-ui'; binary.write_bytes(b'old-panel'); binary.chmod(0o755)
+        script = base / 'x-ui.sh'; script.write_bytes(b'old-script'); script.chmod(0o700)
+        with patch('component_upgrade.PANEL_BASE', base):
+            upgrader = self.upgrader(binary, component='panel')
+            self.backup(upgrader)
+            self.assertEqual(upgrader.backup_metadata['createdFiles'],
+                             [str(base / 'bin/xray-linux-amd64'), str(base / 'bin/xray-linux-arm64')])
+            staged = self.stage(upgrader)
+            with patch('component_upgrade.subprocess.run'):
+                upgrader.apply_switch(staged)
+                self.assertEqual((base / 'bin/xray-linux-amd64').read_bytes(), b'new-core')
+                self.assertEqual(script.read_bytes(), b'new-script')
+                upgrader.rollback()
+        self.assertEqual(binary.read_bytes(), b'old-panel')
+        self.assertEqual(script.read_bytes(), b'old-script')
+        self.assertEqual(script.stat().st_mode & 0o777, 0o700)
+        self.assertEqual(list((base / 'bin').iterdir()), [])
+
+
 class RollbackSourceTests(Base):
     """Findings 1, 7, 8: the step-2 backup is the only source, restored once, with owners kept."""
 

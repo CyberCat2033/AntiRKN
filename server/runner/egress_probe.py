@@ -10,6 +10,7 @@ import tempfile
 import time
 
 from egress_config import EgressError
+from sysutil import run as sysutil_run
 
 BINARY = Path('/usr/local/x-ui/bin/xray-linux-amd64')
 
@@ -76,8 +77,7 @@ def check(port):
 def validate(config):
     from panel import safe_file
     safe_file(BINARY, 200 * 1024 * 1024)
-    result = subprocess.run([str(BINARY), 'run', '-test', '-config', 'stdin:'],
-        input=json.dumps(config).encode(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=20)
+    result = sysutil_run([str(BINARY), 'run', '-test', '-config', 'stdin:'], input=json.dumps(config).encode(), timeout=20)
     if result.returncode: raise EgressError('egress_config_failed')
 
 

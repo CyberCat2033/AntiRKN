@@ -216,3 +216,15 @@ class AptTests(unittest.TestCase):
             self.assertIn('--setenv=DEBIAN_FRONTEND=noninteractive', argv)
             self.assertIn('-o', argv)
             self.assertIn('Dpkg::Options::=--force-confold', argv)
+
+
+class StandaloneEntryTests(unittest.TestCase):
+    def test_record_wrapper_starts_under_isolated_python(self):
+        # systemd-run starts `python3 -I apt.py record ...`: no script dir on
+        # sys.path. Wrong arguments must reach the usage check (exit 2), not
+        # die on an import (exit 1), which would fail every apt job.
+        import subprocess
+        source = Path(__file__).resolve().parents[2] / 'server/runner/apt.py'
+        result = subprocess.run([sys.executable, '-I', str(source), 'record'], capture_output=True, timeout=60,
+                                cwd=tempfile.gettempdir())
+        self.assertEqual(result.returncode, 2, result.stderr)

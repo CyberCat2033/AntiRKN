@@ -12,7 +12,7 @@ import re
 import stat
 import subprocess
 
-from awg_network import open_lock, port_available
+from sysutil import open_lock, port_available, run as sysutil_run, MAX_OUTPUT
 from panel import atomic_file
 from vless import VlessError, canonical, digest
 from tt_tomli_parser import loads as toml_loads
@@ -28,10 +28,9 @@ class TtError(VlessError):
 
 
 def run(argv, data=None, timeout=30, check=True):
-    r = subprocess.run(argv, input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
-    if len(r.stdout) > 1048576 or check and r.returncode:
-        raise TtError('tt_failed')
-    return r
+    # stderr is kept: a failed certbot run records it for the owner.
+    return sysutil_run(argv, input=data, timeout=timeout, check=check,
+                       error=TtError('tt_failed'), max_output=MAX_OUTPUT)
 
 
 def safe_path(value, exists=True, max_bytes=1048576, owner_uid=0):

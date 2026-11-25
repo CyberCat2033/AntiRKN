@@ -34,6 +34,7 @@ except ImportError:
 
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from sysutil import run as sysutil_run
 from panel import atomic_file, digest, safe_file
 
 @dataclass(frozen=True)
@@ -49,6 +50,9 @@ class UnitHealthTarget:
     initial_restarts: int
     config_path: str | None
     expected_bindings: list[SocketBinding]
+
+# The official 3x-ui layout; a module constant so tests can point it elsewhere.
+PANEL_BASE = Path('/usr/local/x-ui')
 
 SEMVER_REGEX = re.compile(
     r"v?(?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)"
@@ -135,10 +139,7 @@ def discover_trusttunnel_targets() -> list[UnitHealthTarget]:
     targets = []
     patterns = ['antirkn-tt@*.service', 'trusttunnel*.service', 'antirkn-trusttunnel.service']
     try:
-        out = subprocess.run(
-            ['/usr/bin/systemctl', 'list-units', '--all', '--plain', '--no-legend', *patterns],
-            capture_output=True, text=True, timeout=10
-        )
+        out = sysutil_run(['/usr/bin/systemctl', 'list-units', '--all', '--plain', '--no-legend', *patterns], text=True, timeout=10)
         if out.returncode == 0:
             found_names = set()
             for line in out.stdout.splitlines():
@@ -150,11 +151,8 @@ def discover_trusttunnel_targets() -> list[UnitHealthTarget]:
                     continue
                 found_names.add(unit)
 
-                show_out = subprocess.run(
-                    ['/usr/bin/systemctl', 'show', unit,
-                     '-p', 'ActiveState', '-p', 'NRestarts', '-p', 'WorkingDirectory'],
-                    capture_output=True, text=True, timeout=5
-                )
+                show_out = sysutil_run(['/usr/bin/systemctl', 'show', unit,
+                     '-p', 'ActiveState', '-p', 'NRestarts', '-p', 'WorkingDirectory'], text=True, timeout=5)
                 props = {}
                 if show_out.returncode == 0:
                     for s_line in show_out.stdout.splitlines():
@@ -211,7 +209,7 @@ def verify_socket_bindings(
     while time.monotonic() < deadline:
         ss_out = None
         try:
-            res = subprocess.run(['/usr/bin/ss', '-tulnp'], capture_output=True, text=True, timeout=3)
+            res = sysutil_run(['/usr/bin/ss', '-tulnp'], text=True, timeout=3)
             if res.returncode == 0:
                 ss_out = res.stdout
         except Exception:
@@ -285,6 +283,17 @@ def install_bytes(target, data, mode, uid=None, gid=None):
         os.fsync(fd)
     finally:
         os.close(fd)
+
+
+def extra_saved_name(extra):
+    """Name of a companion's copy in backup/extra: keyed by its full path, so
+    x-ui.sh in two panel directories never share a copy (older backups used
+    the bare file name)."""
+    return extra.get('saved') or Path(extra['path']).name
+
+
+def companion_key(path):
+    return hashlib.sha256(str(path).encode()).hexdigest()[:12] + '-' + Path(path).name
 
 
 def atomic_binary_replace(staged_path: Path, target_path: Path) -> Path:
@@ -474,14 +483,7 @@ def probe_staged_binary(
     check_elf_architecture(p)
 
     try:
-        res = subprocess.run(
-            [str(p), *probe_args],
-            capture_output=True,
-            text=True,
-            timeout=timeout_sec,
-            env=SAFE_PROBE_ENV,
-            check=False,
-        )
+        res = sysutil_run([str(p), *probe_args], text=True, timeout=timeout_sec, env=SAFE_PROBE_ENV, check=False)
     except subprocess.TimeoutExpired as exc:
         raise ComponentUpgradeError(
             UpgradeEventCode.SYNTAX_FAILED,
@@ -661,7 +663,7 @@ def check_system_resources(target_path='/usr/local', min_disk_bytes=200 * 1024 *
 
 def is_unit_active(unit_name: str) -> bool:
     try:
-        res = subprocess.run(['/usr/bin/systemctl', 'is-active', '--quiet', unit_name], capture_output=True, timeout=5)
+        res = sysutil_run(['/usr/bin/systemctl', 'is-active', '--quiet', unit_name], timeout=5)
         return res.returncode == 0
     except Exception:
         return False
@@ -705,7 +707,7 @@ def detect_component(component):
             if config.exists():
                 result['configPath'] = str(config)
             try:
-                out = subprocess.run([str(panel_bin), '-v'], capture_output=True, text=True, timeout=5)
+                out = sysutil_run([str(panel_bin), '-v'], text=True, timeout=5)
                 v = out.stdout.strip() or out.stderr.strip()
                 result['version'] = extract_semver(v)
             except Exception:
@@ -732,7 +734,7 @@ def detect_component(component):
                 else:
                     result['units'] = ['xray.service'] if is_unit_active('xray.service') else []
                 try:
-                    out = subprocess.run([str(c), 'version'], capture_output=True, text=True, timeout=5)
+                    out = sysutil_run([str(c), 'version'], text=True, timeout=5)
                     result['version'] = extract_semver(out.stdout)
                 except Exception:
                     pass
@@ -751,15 +753,15 @@ def detect_component(component):
                 result['binaryPath'] = str(c)
                 result['source'] = src
                 try:
-                    out = subprocess.run([str(c), '--version'], capture_output=True, text=True, timeout=5)
+                    out = sysutil_run([str(c), '--version'], text=True, timeout=5)
                     result['version'] = extract_semver(out.stdout or out.stderr)
                 except Exception:
                     pass
                 break
         # Find active awg units
         try:
-            out = subprocess.run(['/usr/bin/systemctl', 'list-units', '--state=active', '--type=service', '--no-legend',
-                                  'antirkn-awg@*.service', 'awg-quick@*.service'], capture_output=True, text=True, timeout=10)
+            out = sysutil_run(['/usr/bin/systemctl', 'list-units', '--state=active', '--type=service', '--no-legend',
+                                  'antirkn-awg@*.service', 'awg-quick@*.service'], text=True, timeout=10)
             if out.returncode == 0:
                 result['units'] = [line.split()[0] for line in out.stdout.splitlines() if line.strip()]
         except Exception:
@@ -799,7 +801,7 @@ def detect_component(component):
                 result['units'] = [t.unit_name for t in targets]
                 result['ports'] = [b.port for t in targets for b in t.expected_bindings if b.protocol == 'tcp']
                 try:
-                    out = subprocess.run([str(c), '--version'], capture_output=True, text=True, timeout=5)
+                    out = sysutil_run([str(c), '--version'], text=True, timeout=5)
                     result['version'] = extract_semver(out.stdout or out.stderr)
                 except Exception:
                     pass
@@ -821,7 +823,7 @@ def detect_component(component):
                     result['configPath'] = str(cfg)
                 result['units'] = ['mihomo.service']
                 try:
-                    out = subprocess.run([str(c), '-v'], capture_output=True, text=True, timeout=5)
+                    out = sysutil_run([str(c), '-v'], text=True, timeout=5)
                     result['version'] = extract_semver(out.stdout or out.stderr)
                 except Exception:
                     pass
@@ -1048,16 +1050,22 @@ class ComponentUpgrader:
 
         # 4. Companion files the switch replaces too. A 3x-ui archive carries
         # its own Xray; rolling back only x-ui would leave the new core behind.
-        extras = []
+        # A file the switch adds where there was none is recorded too, so a
+        # rollback removes it instead of leaving the new version behind.
+        extras, created = [], []
         for extra in self._companion_files(binary_path):
             target = real_target(extra)
             if target.is_file():
-                saved = self.backup_dir / 'extra' / extra.name
+                name = companion_key(target)
+                saved = self.backup_dir / 'extra' / name
                 saved.parent.mkdir(parents=True, exist_ok=True)
                 owner = _ownership(target)
                 atomic_file(saved, target.read_bytes(), owner['mode'])
-                extras.append(dict(path=str(extra), realPath=str(target), **owner))
+                extras.append(dict(path=str(extra), realPath=str(target), saved=name, **owner))
+            elif not os.path.lexists(str(target)) and target.parent.is_dir():
+                created.append(str(target))
         self.backup_metadata['extraFiles'] = extras
+        self.backup_metadata['createdFiles'] = created
 
         # 5. Real connectivity before the switch, compared after it.
         try:
@@ -1068,12 +1076,43 @@ class ComponentUpgrader:
         atomic_file(self.backup_dir / 'meta.json', json.dumps(self.backup_metadata).encode())
 
     def _companion_files(self, binary_path):
+        """Every file the switch may write besides the main binary.
+
+        Only an existing panel layout is touched: no directory is created
+        (an adopted /usr/bin/x-ui used to get /usr/local/x-ui/* and even
+        /usr/bin/bin/xray-* written next to it, with no backup). A new file
+        is allowed only inside an existing bin/ directory."""
+        binary_path = Path(binary_path)
         if self.component == 'panel':
-            base = Path('/usr/local/x-ui')
-            return [base / 'bin/xray-linux-amd64', base / 'bin/xray-linux-arm64', base / 'x-ui.sh']
+            files = []
+            dirs = []
+            for directory in (PANEL_BASE, binary_path.parent):
+                if directory.is_dir() and not directory.is_symlink() and directory not in dirs:
+                    dirs.append(directory)
+            for directory in dirs:
+                if directory / 'x-ui' != binary_path and (directory / 'x-ui').is_file():
+                    files.append(directory / 'x-ui')
+                if (directory / 'x-ui.sh').is_file():
+                    files.append(directory / 'x-ui.sh')
+                if (directory / 'bin').is_dir() and not (directory / 'bin').is_symlink():
+                    files += [directory / 'bin/xray-linux-amd64', directory / 'bin/xray-linux-arm64']
+            return files
         if self.component == 'xray':
-            return [binary_path.parent / 'geoip.dat', binary_path.parent / 'geosite.dat']
+            # Xray reads geo data next to the core; a file added there is
+            # recorded by backup() and removed by a rollback.
+            return [binary_path.parent / name for name in ('geoip.dat', 'geosite.dat')]
         return []
+
+    def _write_companion(self, staged, target):
+        """Replace a companion recorded by backup(); anything else is skipped."""
+        meta = self.backup_metadata or {}
+        live = real_target(target)
+        allowed = {extra.get('realPath') or str(real_target(extra['path'])) for extra in meta.get('extraFiles', [])}
+        allowed.update(meta.get('createdFiles', []))
+        if str(live) not in allowed:
+            return False
+        atomic_binary_replace(staged, live)
+        return True
 
     def _previous_core(self):
         """The Xray that ran before the switch (from this upgrade's backup)."""
@@ -1081,7 +1120,10 @@ class ComponentUpgrader:
         if self.component == 'xray' and meta.get('binaryPath'):
             core = self.backup_dir / Path(meta['binaryPath']).name
         elif self.component == 'panel':
-            core = self.backup_dir / 'extra' / 'xray-linux-amd64'
+            core = next((self.backup_dir / 'extra' / extra_saved_name(extra) for extra in meta.get('extraFiles', [])
+                         if Path(extra['path']).name == 'xray-linux-' + ('arm64' if normalize_arch() == 'aarch64' else 'amd64')), None)
+            if core is None:
+                return None
         else:
             return None
         return core if core.is_file() and os.access(core, os.X_OK) else None
@@ -1219,7 +1261,7 @@ class ComponentUpgrader:
                 elif (self.staging_dir / 'geoip.dat').exists():
                     env['XRAY_LOCATION_ASSET'] = str(self.staging_dir)
                 try:
-                    res = subprocess.run(cmd, env=env, cwd=str(parent_dir), capture_output=True, timeout=15)
+                    res = sysutil_run(cmd, env=env, cwd=str(parent_dir), timeout=15)
                     if res.returncode != 0:
                         stderr_snippet = (res.stderr or "").strip()[:512]
                         raise ComponentUpgradeError(
@@ -1262,7 +1304,7 @@ class ComponentUpgrader:
                 home = str(Path(config_path).parent)
                 cmd = [str(staged_binary), '-t', '-d', home, '-f', str(config_path)]
                 try:
-                    res = subprocess.run(cmd, env=SAFE_PROBE_ENV, cwd=home, capture_output=True, timeout=15)
+                    res = sysutil_run(cmd, env=SAFE_PROBE_ENV, cwd=home, timeout=15)
                 except (OSError, subprocess.SubprocessError):
                     raise ComponentUpgradeError(UpgradeEventCode.SYNTAX_FAILED, detail='mihomo -t did not run') from None
                 if res.returncode != 0:
@@ -1277,7 +1319,7 @@ class ComponentUpgrader:
         # Stop units if required
         units = meta.get('units', [])
         for unit in units:
-            subprocess.run(['/usr/bin/systemctl', 'stop', unit], capture_output=True, timeout=30)
+            sysutil_run(['/usr/bin/systemctl', 'stop', unit], timeout=30)
 
         if self.component == 'panel':
             # Staged composite files in staging directory
@@ -1294,39 +1336,16 @@ class ComponentUpgrader:
             # Primary panel binary update
             atomic_binary_replace(staged_binary, binary_path)
 
-            panel_base = Path('/usr/local/x-ui')
-            target_dirs = []
-            try:
-                panel_base.mkdir(parents=True, exist_ok=True)
-                target_dirs.append(panel_base)
-            except OSError:
-                pass
-
-            if binary_path.parent not in target_dirs and binary_path.parent.exists():
-                target_dirs.append(binary_path.parent)
-
-            for p_dir in target_dirs:
-                xui_target = p_dir / 'x-ui'
-                if xui_target != binary_path:
-                    try:
-                        atomic_binary_replace(staged_binary, xui_target)
-                    except OSError:
-                        pass
-
-                if staged_sh:
-                    try:
-                        atomic_binary_replace(staged_sh, p_dir / 'x-ui.sh')
-                    except OSError:
-                        pass
-
-                if staged_xray:
-                    try:
-                        bin_dir = p_dir / 'bin'
-                        bin_dir.mkdir(parents=True, exist_ok=True)
-                        xray_target_name = 'xray-linux-amd64' if ('xray-linux-amd64' in staged_xray.name or staged_xray.name == 'xray') else staged_xray.name
-                        atomic_binary_replace(staged_xray, bin_dir / xray_target_name)
-                    except OSError:
-                        pass
+            # Companions only where backup() recorded them (existing layout).
+            for extra in self._companion_files(binary_path):
+                name = extra.name
+                if name == 'x-ui':
+                    self._write_companion(staged_binary, extra)
+                elif name == 'x-ui.sh':
+                    if staged_sh:
+                        self._write_companion(staged_sh, extra)
+                elif staged_xray and name == ('xray-linux-amd64' if ('xray-linux-amd64' in staged_xray.name or staged_xray.name == 'xray') else staged_xray.name):
+                    self._write_companion(staged_xray, extra)
 
             # NEVER overwrite or delete /etc/x-ui/x-ui.db
             etc_db = Path('/etc/x-ui/x-ui.db')
@@ -1347,15 +1366,12 @@ class ComponentUpgrader:
                 for data_name in ('geoip.dat', 'geosite.dat'):
                     for data_file in self.staging_dir.rglob(data_name):
                         if data_file.is_file() and not data_file.name.endswith('.antirkn-tmp'):
-                            try:
-                                target_data = binary_path.parent / data_name
-                                atomic_binary_replace(data_file, target_data)
-                            except OSError:
-                                pass
+                            self._write_companion(data_file, binary_path.parent / data_name)
+                            break
 
         # Restart units
         for unit in units:
-            subprocess.run(['/usr/bin/systemctl', 'start', unit], capture_output=True, timeout=30)
+            sysutil_run(['/usr/bin/systemctl', 'start', unit], timeout=30)
 
     def verify_health(self, timeout=15):
         """Canary Watchdog: verify systemd ActiveState, restart count, and socket listening."""
@@ -1369,7 +1385,7 @@ class ComponentUpgrader:
             if binary_path.exists():
                 flag = '--version' if self.component in ('trusttunnel', 'amneziawg') else ('-v' if self.component in ('panel', 'mihomo') else 'version')
                 try:
-                    res = subprocess.run([str(binary_path), flag], capture_output=True, timeout=5)
+                    res = sysutil_run([str(binary_path), flag], timeout=5)
                 except (OSError, subprocess.SubprocessError):
                     res = None
                 if res is None or res.returncode != 0:
@@ -1382,7 +1398,7 @@ class ComponentUpgrader:
             all_healthy = True
             for unit in units:
                 try:
-                    res = subprocess.run(['/usr/bin/systemctl', 'is-active', '--quiet', unit], capture_output=True, timeout=5)
+                    res = sysutil_run(['/usr/bin/systemctl', 'is-active', '--quiet', unit], timeout=5)
                 except subprocess.SubprocessError:
                     res = None
                 if res is None or res.returncode != 0:
@@ -1392,10 +1408,7 @@ class ComponentUpgrader:
             if all_healthy and targets:
                 for t in targets:
                     try:
-                        show_out = subprocess.run(
-                            ['/usr/bin/systemctl', 'show', t['unit_name'], '-p', 'NRestarts', '-p', 'ActiveState'],
-                            capture_output=True, text=True, timeout=3
-                        )
+                        show_out = sysutil_run(['/usr/bin/systemctl', 'show', t['unit_name'], '-p', 'NRestarts', '-p', 'ActiveState'], text=True, timeout=3)
                     except subprocess.SubprocessError:
                         all_healthy = False
                         break
@@ -1455,7 +1468,7 @@ class ComponentUpgrader:
             items.append((wizard, real_target(target.parent / 'setup_wizard'), meta.get('wizard') or dict(mode=0o755)))
         for extra in meta.get('extraFiles', []):
             live = Path(extra['realPath']) if extra.get('realPath') else real_target(extra['path'])
-            items.append((self.backup_dir / 'extra' / Path(extra['path']).name, live,
+            items.append((self.backup_dir / 'extra' / extra_saved_name(extra), live,
                           dict(mode=extra.get('mode', 0o755), uid=extra.get('uid'), gid=extra.get('gid'))))
         for saved, _live, _owner in items:
             if saved.is_symlink() or not saved.is_file():
@@ -1464,6 +1477,8 @@ class ComponentUpgrader:
 
     def _switched(self, meta, items):
         """Whether any file of the new version is in place (or a live file is gone)."""
+        if any(os.path.lexists(path) for path in meta.get('createdFiles', [])):
+            return True
         for index, (saved, live, _owner) in enumerate(items):
             if not live.is_file():
                 return True
@@ -1509,6 +1524,13 @@ class ComponentUpgrader:
 
         for saved, live, owner in items:
             install_bytes(live, saved.read_bytes(), owner.get('mode', 0o755), owner.get('uid'), owner.get('gid'))
+        for path in meta.get('createdFiles', []):
+            # Added by the switch where nothing was before.
+            try:
+                if not os.path.isdir(path) or os.path.islink(path):
+                    os.unlink(path)
+            except FileNotFoundError:
+                pass
 
         if restore_data and meta.get('dbPath'):
             db_backup = self.backup_dir / 'db_backup.sqlite'
@@ -1546,7 +1568,7 @@ def _owner_or_default(path):
 def _systemctl(action, unit, timeout=30):
     """Best effort: a unit that does not stop/start in time must not block restoring files."""
     try:
-        return subprocess.run(['/usr/bin/systemctl', action, unit], capture_output=True, timeout=timeout).returncode == 0
+        return sysutil_run(['/usr/bin/systemctl', action, unit], timeout=timeout).returncode == 0
     except (OSError, subprocess.SubprocessError):
         return False
 
@@ -1780,16 +1802,16 @@ def _deadman_path(directory, job_id):
 
 
 def _start_deadman_timer(job_id, seconds):
-    subprocess.run(['/usr/bin/systemctl', 'stop', _deadman_unit(job_id) + '.timer'], capture_output=True, timeout=30)
-    subprocess.run(['/usr/bin/systemctl', 'reset-failed', _deadman_unit(job_id) + '.service'], capture_output=True, timeout=30)
-    subprocess.run(['/usr/bin/systemd-run', '--unit=' + _deadman_unit(job_id), '--on-active=%d' % max(1, int(seconds)),
+    sysutil_run(['/usr/bin/systemctl', 'stop', _deadman_unit(job_id) + '.timer'], timeout=30)
+    sysutil_run(['/usr/bin/systemctl', 'reset-failed', _deadman_unit(job_id) + '.service'], timeout=30)
+    sysutil_run(['/usr/bin/systemd-run', '--unit=' + _deadman_unit(job_id), '--on-active=%d' % max(1, int(seconds)),
                     '--timer-property=AccuracySec=1s', '--collect', '/usr/bin/python3', '-I', str(Path(__file__).resolve()),
-                    'deadman', job_id], capture_output=True, timeout=30, check=True)
+                    'deadman', job_id], timeout=30, check=True)
 
 
 def _stop_deadman_timer(job_id):
     try:
-        subprocess.run(['/usr/bin/systemctl', 'stop', _deadman_unit(job_id) + '.timer'], capture_output=True, timeout=30)
+        sysutil_run(['/usr/bin/systemctl', 'stop', _deadman_unit(job_id) + '.timer'], timeout=30)
     except (OSError, subprocess.SubprocessError):
         pass
 
@@ -1915,10 +1937,13 @@ def snapshot_archive(directory, component, version, target):
         tar.add(str(binary), arcname=binary.name)
         if (snap / 'setup_wizard').is_file():
             tar.add(str(snap / 'setup_wizard'), arcname='setup_wizard')
+        names = set()
         for extra in meta.get('extraFiles', []):
-            saved = snap / 'extra' / Path(extra['path']).name
-            if saved.is_file():
-                tar.add(str(saved), arcname=('bin/' + saved.name) if saved.name.startswith('xray-linux') else saved.name)
+            saved = snap / 'extra' / extra_saved_name(extra)
+            name = Path(extra['path']).name
+            if saved.is_file() and name not in names and name != Path(meta['binaryPath']).name:
+                names.add(name)
+                tar.add(str(saved), arcname=('bin/' + name) if name.startswith('xray-linux') else name)
 
 
 def confirm_upgrade(store, job_id, timeout=10):
@@ -1958,7 +1983,7 @@ def _units_settled(units, settle=8):
     time.sleep(settle)
     def active(unit):
         try:
-            return subprocess.run(['/usr/bin/systemctl', 'is-active', '--quiet', unit], capture_output=True, timeout=10).returncode == 0
+            return sysutil_run(['/usr/bin/systemctl', 'is-active', '--quiet', unit], timeout=10).returncode == 0
         except (OSError, subprocess.SubprocessError):
             return False
     return all(active(unit) for unit in units)
@@ -2068,7 +2093,7 @@ def fire_deadman(store, job_id, wait=True):
 def _backup_version(binary, component):
     flag = '-v' if component == 'panel' else 'version' if component == 'xray' else '--version'
     try:
-        out = subprocess.run([str(binary), flag], capture_output=True, text=True, timeout=10)
+        out = sysutil_run([str(binary), flag], text=True, timeout=10)
         return extract_semver(out.stdout or out.stderr)
     except (OSError, subprocess.SubprocessError):
         return None
@@ -2087,8 +2112,10 @@ def _adopt_legacy_backup(directory, job_id, component):
         return False
     if not meta.get('version'):
         meta['version'] = _backup_version(backup / Path(meta['binaryPath']).name, component)
-        if component == 'panel' and (backup / 'extra' / 'xray-linux-amd64').is_file():
-            meta['xrayVersion'] = _backup_version(backup / 'extra' / 'xray-linux-amd64', 'xray')
+        core = next((backup / 'extra' / extra_saved_name(extra) for extra in meta.get('extraFiles', [])
+                     if Path(extra['path']).name.startswith('xray-linux-')), backup / 'extra' / 'xray-linux-amd64')
+        if component == 'panel' and core is not None and core.is_file():
+            meta['xrayVersion'] = _backup_version(core, 'xray')
         if not meta['version']:
             return False
         atomic_file(backup / 'meta.json', json.dumps(meta).encode())

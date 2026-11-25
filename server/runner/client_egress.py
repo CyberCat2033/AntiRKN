@@ -10,7 +10,7 @@ from pathlib import Path
 import socket
 import time
 
-from awg_network import port_available
+from sysutil import port_available
 from panel import atomic_file, safe_file
 from vless import canonical, digest, panel_for
 from egress_config import EgressError, parse_link, configure, remove_owned, TAG

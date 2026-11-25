@@ -12,7 +12,7 @@ import shlex
 import pwd
 import time
 
-from awg_network import replace_preserving
+from sysutil import replace_preserving
 from panel import atomic_file
 from tt_common import (ROOT, TtError, active, address, available, canonical, digest,
     domain, file_lock, identifier, ip, lock, read, run, safe_path, split_address, toml_bytes,

@@ -15,6 +15,7 @@ import stat
 import subprocess
 
 from panel import atomic_file
+from sysutil import run as sysutil_run, MAX_OUTPUT
 from vless import VlessError
 
 
@@ -24,10 +25,8 @@ class RemovalError(VlessError):
 
 
 def run(args, check=True):
-    result = subprocess.run(args, capture_output=True, timeout=90)
-    if len(result.stdout) > 4 * 1024 * 1024 or check and result.returncode:
-        raise RemovalError('protocol_remove_failed')
-    return result
+    return sysutil_run(args, timeout=90, check=check, error=RemovalError('protocol_remove_failed'),
+                       max_output=4 * MAX_OUTPUT)
 
 
 def digest(value):

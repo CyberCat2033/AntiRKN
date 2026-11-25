@@ -23,6 +23,10 @@ import sys
 import tempfile
 import time
 
+# The watchdog runs this file directly under python3 -I (no script dir on sys.path).
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from sysutil import open_lock, run as sysutil_run  # noqa: E402 -- stdlib only, no other runner import
+
 RUNNER_DIR = Path('/var/lib/antirkn-runner')
 BACKUP_DIR = RUNNER_DIR / 'ssh_backups'
 SSH_CONFIG = Path('/etc/ssh/sshd_config')
@@ -50,11 +54,9 @@ class SshHardenError(Exception):
         super().__init__(code)  # Upstream output may contain secrets.
 
 
-def run(command, **kwargs):
-    options = dict(capture_output=True, text=True, timeout=20,
-                   check=True, env={**os.environ, 'LC_ALL': 'C'})
-    options.update(kwargs)
-    return subprocess.run(command, **options)
+def run(command, check=True, input=None, timeout=20):
+    return sysutil_run(command, input=input, timeout=timeout, check=check, text=True,
+                       env={**os.environ, 'LC_ALL': 'C'})
 
 
 def atomic_file(path, data, mode=0o600, uid=None, gid=None):
@@ -83,13 +85,12 @@ def atomic_file(path, data, mode=0o600, uid=None, gid=None):
 @contextmanager
 def harden_lock():
     BACKUP_DIR.mkdir(parents=True, mode=0o700, exist_ok=True)
-    # Never a link, FIFO or another account's file (this module runs alone,
-    # as the watchdog, so it keeps its own copy of the lock-file checks).
-    fd = os.open(str(BACKUP_DIR / 'lock'), os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK, 0o600)
+    # Never a link, FIFO or another account's file.
     try:
-        meta = os.fstat(fd)
-        if not stat.S_ISREG(meta.st_mode) or meta.st_uid != os.geteuid() or meta.st_nlink != 1:
-            raise SshHardenError('ssh_harden_conflict')
+        fd = open_lock(BACKUP_DIR / 'lock', owner_uid=os.geteuid())
+    except OSError:
+        raise SshHardenError('ssh_harden_conflict') from None
+    try:
         fcntl.flock(fd, fcntl.LOCK_EX)
         yield
     finally:

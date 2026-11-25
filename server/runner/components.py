@@ -20,6 +20,7 @@ import zipfile
 from component_releases import RELEASES
 from panel import (DownloadError, PanelError, atomic_copy, atomic_file, digest, fetch_pinned, run,
                    safe_file, sync_directory)
+from sysutil import run as sysutil_run
 
 BASE = Path('/usr/local/lib/antirkn-components')
 BIN = Path('/usr/local/bin')
@@ -263,8 +264,7 @@ def component_plan(component, payload=None):
             conflict = True
     containers = []
     if shutil.which('docker'):
-        result = subprocess.run(['docker', 'ps', '-a', '--format', '{{.Image}} {{.Names}}'],
-            capture_output=True, timeout=20)
+        result = sysutil_run(['docker', 'ps', '-a', '--format', '{{.Image}} {{.Names}}'], timeout=20)
         if result.returncode:
             conflict = True
         else:
@@ -574,8 +574,7 @@ class ComponentInstaller:
             safe_directory(CONFIG)
             (CONFIG / self.component).mkdir(mode=0o700, exist_ok=True)
             atomic_file(unit, unit_source(self.component), 0o644)
-            subprocess.run(['/usr/bin/systemctl', 'daemon-reload'], check=True, timeout=30,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            sysutil_run(['/usr/bin/systemctl', 'daemon-reload'], check=True, timeout=30, capture=False, stderr=False)
             self.checkpoint(5, 'component_switched')
             return True
         elif number == 5:
@@ -585,9 +584,8 @@ class ComponentInstaller:
             try:
                 self.verify(self.root / 'current')
                 for unit in plan['activeUnits']:
-                    subprocess.run(['/usr/bin/systemctl', 'restart', unit], check=True, timeout=90,
-                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    subprocess.run(['/usr/bin/systemctl', 'is-active', '--quiet', unit], check=True, timeout=20)
+                    sysutil_run(['/usr/bin/systemctl', 'restart', unit], check=True, timeout=90, capture=False, stderr=False)
+                    sysutil_run(['/usr/bin/systemctl', 'is-active', '--quiet', unit], check=True, timeout=20)
                 self.connections_kept()
             except (ComponentError, OSError, subprocess.SubprocessError) as error:
                 cause = error.code if isinstance(error, ComponentError) and error.code == 'upgrade_connectivity_failed' else 'component_check_failed'
@@ -636,8 +634,7 @@ class ComponentInstaller:
         os.replace(temp, self.root / 'current')
         sync_directory(self.root)
         for unit in plan['activeUnits']:
-            subprocess.run(['/usr/bin/systemctl', 'restart', unit], timeout=90,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            sysutil_run(['/usr/bin/systemctl', 'restart', unit], timeout=90, capture=False, stderr=False)
         # Nothing of this operation remains public: the job ends as failed.
         (self.directory / 'target.json').unlink(missing_ok=True)
         return True

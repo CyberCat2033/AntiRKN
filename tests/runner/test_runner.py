@@ -636,6 +636,20 @@ class RunnerCoreTests(unittest.TestCase):
         self.assertEqual(self.store.db.execute('SELECT status FROM jobs WHERE id=?', (job_id,)).fetchone()[0], 'needs_attention')
         self.assertTrue(backup.exists())
 
+    def test_standalone_entry_points_import_under_isolated_python(self):
+        # systemd starts these files directly with python3 -I, which keeps the
+        # script directory off sys.path. Without arguments each one must stop
+        # at its own usage check, never on an import of a sibling module.
+        import subprocess
+        source = Path(__file__).resolve().parents[2] / 'server/runner'
+        for name in ('apt', 'awg_network', 'connectivity_probe', 'ssh_harden', 'server_reboot',
+                     'tt_certificates', 'xray_transaction', 'component_upgrade'):
+            with self.subTest(module=name):
+                result = subprocess.run([sys.executable, '-I', str(source / (name + '.py'))], capture_output=True,
+                                        stdin=subprocess.DEVNULL, timeout=60, cwd=tempfile.gettempdir())
+                self.assertNotIn(b'ModuleNotFoundError', result.stderr)
+                self.assertNotIn(b'ImportError', result.stderr)
+
     def test_concurrent_atomic_writes_do_not_collide(self):
         from panel import atomic_file
         target = self.directory / 'record.json'

@@ -20,6 +20,10 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parent))
+from sysutil import run as sysutil_run
 
 XRAY_CONFIG = Path('/usr/local/x-ui/bin/config.json')
 XRAY_BINARY = Path('/usr/local/x-ui/bin/xray-linux-amd64')
@@ -39,8 +43,7 @@ def _public_key(reality):
     private = reality.get('privateKey') or ''
     raw = base64.urlsafe_b64decode(private + '=' * (-len(private) % 4))
     der = bytes.fromhex('302e020100300506032b656e04220420') + raw
-    public = subprocess.run(['/usr/bin/openssl', 'pkey', '-inform', 'DER', '-pubout', '-outform', 'DER'],
-                            input=der, capture_output=True, timeout=10, check=True).stdout[-32:]
+    public = sysutil_run(['/usr/bin/openssl', 'pkey', '-inform', 'DER', '-pubout', '-outform', 'DER'], input=der, timeout=10, check=True).stdout[-32:]
     return base64.urlsafe_b64encode(public).decode().rstrip('=')
 
 
@@ -187,7 +190,7 @@ def probe_awg(deadline=None):
     if budget <= 0:
         return results
     try:
-        names = subprocess.run(['/usr/local/bin/awg', 'show', 'interfaces'], capture_output=True, text=True, timeout=budget).stdout.split()
+        names = sysutil_run(['/usr/local/bin/awg', 'show', 'interfaces'], text=True, timeout=budget).stdout.split()
     except (OSError, subprocess.SubprocessError):
         return results
     for name in names:
@@ -196,7 +199,7 @@ def probe_awg(deadline=None):
             results[f'awg:{name}'] = False
             continue
         try:
-            port = subprocess.run(['/usr/local/bin/awg', 'show', name, 'listen-port'], capture_output=True, text=True, timeout=budget).stdout.strip()
+            port = sysutil_run(['/usr/local/bin/awg', 'show', name, 'listen-port'], text=True, timeout=budget).stdout.strip()
             results[f'awg:{name}'] = port.isdigit() and int(port) > 0
         except (OSError, subprocess.SubprocessError):
             results[f'awg:{name}'] = False

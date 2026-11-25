@@ -10,8 +10,8 @@ import secrets
 import subprocess
 
 from awg_contract import SCHEMA
-from awg_network import (configure as network_configure, create_key, key_valid, port_available,
-    rules as network_rules)
+from awg_network import configure as network_configure, rules as network_rules
+from sysutil import create_key, key_valid, port_available, run as sysutil_run
 from components import CONFIG, installed, unit_source, UNITS, ComponentError, safe_directory, usable
 from panel import atomic_file, command, safe_file, PanelError
 from vless import canonical, digest, VlessError
@@ -349,8 +349,7 @@ def runtime_config(raw):
 
 
 def active(rid):
-    return subprocess.run(['/usr/bin/systemctl', 'is-active', '--quiet', 'antirkn-awg@' + name_for(rid)],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15).returncode == 0
+    return sysutil_run(['/usr/bin/systemctl', 'is-active', '--quiet', 'antirkn-awg@' + name_for(rid)], capture=False, stderr=False, timeout=15).returncode == 0
 
 
 def rule_groups(rule):
@@ -371,8 +370,7 @@ def rule_present(binary, table, chain, rule, cache):
     the listing does not show is checked with -C, which stays authoritative."""
     key = ('rules', binary, table)
     if key not in cache:
-        result = subprocess.run([binary, '-w', '10', '-t', table, '-S'], stdout=subprocess.PIPE,
-                                stderr=subprocess.DEVNULL, timeout=15)
+        result = sysutil_run([binary, '-w', '10', '-t', table, '-S'], stderr=False, timeout=15)
         cache[key] = [line.split() for line in result.stdout.decode(errors='replace').splitlines()] if result.returncode == 0 else []
     for line in cache[key]:
         if line[:2] != ['-A', chain]:
@@ -380,8 +378,7 @@ def rule_present(binary, table, chain, rule, cache):
         if all(any(line[i:i + len(group)] == group for i in range(2, len(line) - len(group) + 1))
                for group in rule_groups(rule)):
             return True
-    return subprocess.run([binary, '-w', '10', '-t', table, '-C', chain, *rule], stdout=subprocess.DEVNULL,
-                          stderr=subprocess.DEVNULL, timeout=15).returncode == 0
+    return sysutil_run([binary, '-w', '10', '-t', table, '-C', chain, *rule], capture=False, stderr=False, timeout=15).returncode == 0
 
 
 def addresses(name, cache):

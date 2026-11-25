@@ -14,6 +14,7 @@ import urllib.request
 import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from sysutil import run as sysutil_run
 import connectivity_probe as probes
 import panel_update as panel
 import vless
@@ -260,7 +261,7 @@ def download(path):
 
 def config_test(binary):
     safe_file(CONFIG,16*1024*1024)
-    result=subprocess.run([str(binary),'run','-test','-config',str(CONFIG)],cwd=CONFIG.parent,env={**os.environ,'XRAY_LOCATION_ASSET':str(CONFIG.parent)},stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=20)
+    result=sysutil_run([str(binary),'run','-test','-config',str(CONFIG)], cwd=CONFIG.parent, env={**os.environ,'XRAY_LOCATION_ASSET':str(CONFIG.parent)}, capture=False, stderr=False, timeout=20)
     if result.returncode:raise UpdateError('xray_check_config')
 
 def restart(store,info,version):

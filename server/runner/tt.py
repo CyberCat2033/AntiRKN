@@ -9,7 +9,7 @@ from pathlib import Path
 import secrets
 import socket
 
-from awg_network import create_key, key_valid
+from sysutil import create_key, key_valid
 from components import installed, usable
 from panel import atomic_file
 from tt_common import (ROOT, TtError, active, address, available, canonical, digest,

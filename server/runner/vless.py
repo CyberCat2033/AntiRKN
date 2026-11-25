@@ -838,6 +838,22 @@ class VlessApply:
             db.execute('UPDATE jobs SET checkpoint=? WHERE id=?',(checkpoint+1,job_id))
             self.store.event(job_id,code,checkpoint+1,self.req['count'])
 
+    def recover(self, checkpoint):
+        """After a failed resource step, put an adopted inbound back as it was
+        inspected before the step. Returns the job status, or None when there
+        is nothing this job may undo (own inbounds keep the resumable
+        partially applied state; the final restart/verification step is not
+        a single resource). Raises when restoring failed."""
+        p = self.payload
+        if not 1 <= checkpoint <= len(p['resources']):
+            return None
+        r = p['resources'][self.order[checkpoint - 1]]
+        if 'adoption' not in r:
+            return None
+        import managed_existing
+        status = 'failed' if checkpoint == 1 else 'partially_applied'
+        return status if managed_existing.restore(self.store, self.req, p, r, owned_rows(self.store).get(r['id']), 'vless') else None
+
     def rollback(self):
         """Cancellation before checkpoint 1 (the only caller): no panel effect
         exists yet, since step 0 only reads the panel and writes the backup.

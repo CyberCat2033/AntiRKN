@@ -11,7 +11,7 @@ import shutil
 import subprocess
 
 from awg import AwgError, core, free_port, runtime_config, runtime_matches
-from awg_network import replace_preserving
+from sysutil import replace_preserving, run as sysutil_run, MAX_OUTPUT
 from panel import atomic_file, safe_file
 from vless import canonical, digest
 
@@ -28,12 +28,8 @@ ALLOWED = set(NUMBERS) | set(RANGES) | BOOLEANS | CPS
 
 
 def run(argv, data=None, check=True):
-    result = subprocess.run(argv, input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
-    if check and result.returncode:
-        raise AwgError('awg_failed')
-    if len(result.stdout) > 1048576:
-        raise AwgError('awg_invalid')
-    return result
+    return sysutil_run(argv, input=data, check=check, error=AwgError('awg_failed'),
+                       oversize=AwgError('awg_invalid'), max_output=MAX_OUTPUT)
 
 
 def exec_resource(r, args, data=None, check=True):
