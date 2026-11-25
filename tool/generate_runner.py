@@ -146,10 +146,10 @@ if all((ROOT / 'server/runner' / p).exists() for p in paths):
     rpc_command = command.removesuffix(' daemon') + ' rpc'
     bundle = json.dumps({'release': release, 'files': payload, 'hashes': hashes}, sort_keys=True)
     installer = (ROOT / 'server/runner/install.py').read_text()
-    probe = (ROOT / 'server/runner/inspect.py').read_text()
+    probe = (ROOT / 'server/runner/runner_inspect.py').read_text()
     import zlib
     predecessors_map = {}
-    for i in range(1, 66):
+    for i in range(1, 67):
         suffix = f'-v{i}' if i > 1 else ''
         schema_file = ROOT / f'schemas/runner-predecessor{suffix}.json'
         predecessors_map[f'v{i}'] = json.loads(schema_file.read_text())

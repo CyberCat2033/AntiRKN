@@ -3,6 +3,8 @@
 Provides dynamic upstream discovery, pre-flight safety checks, syntax validation,
 atomic binary replacement, canary healthcheck, and self-healing auto-rollback.
 """
+from __future__ import annotations
+
 import hashlib
 import json
 import os
@@ -1509,7 +1511,7 @@ class ComponentUpgradeJob:
                 if self.payload.get('source') == 'snapshot':
                     snapshot_archive(self.store.directory, self.upgrader.component, self.payload.get('version'), self.archive_path)
                 elif archive_url and archive_url.startswith('file://'):
-                    local_file = Path(archive_url.removeprefix('file://'))
+                    local_file = Path(archive_url[len('file://'):] if archive_url.startswith('file://') else archive_url)
                     if local_file.exists():
                         atomic_file(self.archive_path, local_file.read_bytes())
                 elif archive_url and (archive_url.startswith('https://') or archive_url.startswith('http://')):

@@ -51,15 +51,25 @@ def safe_file(path, max_size=1048576):
 
 
 def atomic_file(path, data, mode=0o600):
-    temp = path.with_name('.' + path.name + '.antirkn-tmp')
+    # A unique, exclusively created name: the RPC process and the daemon may
+    # write the same record at once, and a fixed name let them interleave.
+    # The suffix stays, staging scans skip files ending with it.
+    temp = path.with_name('.' + path.name + '.' + secrets.token_hex(8) + '.antirkn-tmp')
     # All parents are root-owned and never supplied by the RPC caller.
-    fd = os.open(str(temp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, mode)
-    with os.fdopen(fd, 'wb') as stream:
-        stream.write(data)
-        stream.flush()
-        os.fsync(stream.fileno())
-    temp.chmod(mode)
-    os.replace(str(temp), str(path))
+    fd = os.open(str(temp), os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, mode)
+    try:
+        with os.fdopen(fd, 'wb') as stream:
+            stream.write(data)
+            stream.flush()
+            os.fchmod(stream.fileno(), mode)
+            os.fsync(stream.fileno())
+        os.replace(str(temp), str(path))
+    except BaseException:
+        try:
+            os.unlink(str(temp))
+        except OSError:
+            pass
+        raise
     fd = os.open(str(path.parent), os.O_RDONLY | os.O_DIRECTORY)
     try:
         os.fsync(fd)

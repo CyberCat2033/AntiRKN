@@ -13,26 +13,126 @@ import threading
 import subprocess
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from panel_discovery import discover as discover_panel, connect_existing, external_access
-from components import ComponentInstaller, ComponentError
-from protocol_remove import ProtocolRemoval, RemovalError, plan as protocol_removal_plan
-from ssh_harden import SshHardenJob, SshHardenError, plan as ssh_harden_plan
-from inbound_remove import InboundRemove, plan as inbound_removal_plan
-from observed_inbounds import ObservedInboundEdit, snapshot as inbound_snapshot, plan as inbound_plan, stage_payload
-from apt import AptJob, AptError, plan as apt_plan
 from contract import SCHEMA, validate_request
-from panel import PanelInstaller, PanelError, access_for, install_cli
-from panel_update import PanelUpdate, plan as panel_update_plan
-from awg_external import ExternalAwgEdit, discovery as awg_discovery, public_snapshot as awg_snapshot, plan as awg_external_plan
-from tt import TtApply, plan as tt_plan, state as tt_state, defaults as tt_defaults
-from tt_external import ExternalTtEdit, discovery as tt_discovery, public_snapshot as tt_snapshot, plan as tt_external_plan
-from tt_certificates import CertificateJob, inventory as tt_certificates, plan as tt_certificate_plan
-from tt_common import TtError
-from awg import AwgApply, AwgError, plan as awg_plan, state as awg_state, defaults as awg_defaults
-from vless import VlessApply, VlessError, parse_payload, plan as vless_plan, state as vless_state, panel_for
-from component_upgrade import ComponentUpgradeJob, ComponentUpgradeError, plan as component_upgrade_plan
+
+
+class _Lazy:
+    """A module attribute imported on first use.
+
+    Every RPC is a fresh process; importing all protocol modules (ssl, urllib,
+    tarfile, ...) cost more than a status poll itself. Tests can still patch
+    ``runner.<name>``.
+    """
+    __slots__ = ('module', 'name')
+
+    def __init__(self, module, name):
+        self.module, self.name = module, name
+
+    def resolve(self):
+        import importlib
+        return getattr(importlib.import_module(self.module), self.name)
+
+    def __call__(self, *args, **kwargs):
+        return self.resolve()(*args, **kwargs)
+
+    def __getattr__(self, attr):
+        return getattr(self.resolve(), attr)
+
+    # Class attributes patched through the proxy land on the real class.
+    def __setattr__(self, attr, value):
+        if attr in _Lazy.__slots__:
+            object.__setattr__(self, attr, value)
+        else:
+            setattr(self.resolve(), attr, value)
+
+    def __delattr__(self, attr):
+        delattr(self.resolve(), attr)
+
+
+discover_panel = _Lazy('panel_discovery', 'discover')
+connect_existing = _Lazy('panel_discovery', 'connect_existing')
+external_access = _Lazy('panel_discovery', 'external_access')
+ComponentInstaller = _Lazy('components', 'ComponentInstaller')
+ProtocolRemoval = _Lazy('protocol_remove', 'ProtocolRemoval')
+protocol_removal_plan = _Lazy('protocol_remove', 'plan')
+SshHardenJob = _Lazy('ssh_harden', 'SshHardenJob')
+ssh_harden_plan = _Lazy('ssh_harden', 'plan')
+InboundRemove = _Lazy('inbound_remove', 'InboundRemove')
+inbound_removal_plan = _Lazy('inbound_remove', 'plan')
+ObservedInboundEdit = _Lazy('observed_inbounds', 'ObservedInboundEdit')
+inbound_snapshot = _Lazy('observed_inbounds', 'snapshot')
+inbound_plan = _Lazy('observed_inbounds', 'plan')
+stage_payload = _Lazy('observed_inbounds', 'stage_payload')
+AptJob = _Lazy('apt', 'AptJob')
+apt_plan = _Lazy('apt', 'plan')
+PanelInstaller = _Lazy('panel', 'PanelInstaller')
+access_for = _Lazy('panel', 'access_for')
+install_cli = _Lazy('panel', 'install_cli')
+PanelUpdate = _Lazy('panel_update', 'PanelUpdate')
+panel_update_plan = _Lazy('panel_update', 'plan')
+ExternalAwgEdit = _Lazy('awg_external', 'ExternalAwgEdit')
+awg_discovery = _Lazy('awg_external', 'discovery')
+awg_snapshot = _Lazy('awg_external', 'public_snapshot')
+awg_external_plan = _Lazy('awg_external', 'plan')
+TtApply = _Lazy('tt', 'TtApply')
+tt_plan = _Lazy('tt', 'plan')
+tt_state = _Lazy('tt', 'state')
+tt_defaults = _Lazy('tt', 'defaults')
+ExternalTtEdit = _Lazy('tt_external', 'ExternalTtEdit')
+tt_discovery = _Lazy('tt_external', 'discovery')
+tt_snapshot = _Lazy('tt_external', 'public_snapshot')
+tt_external_plan = _Lazy('tt_external', 'plan')
+CertificateJob = _Lazy('tt_certificates', 'CertificateJob')
+tt_certificates = _Lazy('tt_certificates', 'inventory')
+tt_certificate_plan = _Lazy('tt_certificates', 'plan')
+AwgApply = _Lazy('awg', 'AwgApply')
+awg_plan = _Lazy('awg', 'plan')
+awg_state = _Lazy('awg', 'state')
+awg_defaults = _Lazy('awg', 'defaults')
+VlessApply = _Lazy('vless', 'VlessApply')
+parse_payload = _Lazy('vless', 'parse_payload')
+vless_plan = _Lazy('vless', 'plan')
+vless_state = _Lazy('vless', 'state')
+panel_for = _Lazy('vless', 'panel_for')
+ComponentUpgradeJob = _Lazy('component_upgrade', 'ComponentUpgradeJob')
+component_upgrade_plan = _Lazy('component_upgrade', 'plan')
+
+
+def _load_errors():
+    """Bind the protocol exception classes for handlers that catch them."""
+    global VlessError, PanelError, AptError, ComponentError, ComponentUpgradeError
+    global RemovalError, SshHardenError, TtError, AwgError
+    from vless import VlessError
+    from panel import PanelError
+    from apt import AptError
+    from components import ComponentError
+    from component_upgrade import ComponentUpgradeError
+    from protocol_remove import RemovalError
+    from ssh_harden import SshHardenError
+    from tt_common import TtError
+    from awg import AwgError
 
 STATE = Path('/var/lib/antirkn-runner')
+HEARTBEAT_INTERVAL = 3
+ALIVE_WITHIN = 15  # The app's "runner alive" indicator.
+STALE_AFTER = 30  # A worker silent this long has stopped, if it holds no lock.
+BOOT_GRACE = 120  # After boot the unit may start after the first SSH call.
+MAX_STEP_CRASHES = 3  # Then the job is parked, not retried until StartLimit.
+RETAIN_SECONDS = 30 * 86400
+# Rows that later code reads back by id as ownership or result records.
+RETAINED_KINDS = ('panel_install', 'component_install', 'panel_update', 'ssh_harden',
+                  'component_upgrade_apply', 'egress_access', 'egress_apply')
+TABLES = (
+    'CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, request TEXT NOT NULL, status TEXT NOT NULL, checkpoint INTEGER NOT NULL, sequence INTEGER NOT NULL, cancel INTEGER NOT NULL, created REAL NOT NULL)',
+    'CREATE TABLE IF NOT EXISTS events (id TEXT NOT NULL, sequence INTEGER NOT NULL, event TEXT NOT NULL, PRIMARY KEY(id,sequence))',
+    'CREATE TABLE IF NOT EXISTS health (id INTEGER PRIMARY KEY, heartbeat REAL NOT NULL)',
+    'CREATE TABLE IF NOT EXISTS vless_resources (id TEXT PRIMARY KEY, data TEXT NOT NULL)',
+    'CREATE TABLE IF NOT EXISTS tt_resources (id TEXT PRIMARY KEY, data TEXT NOT NULL)',
+    'CREATE TABLE IF NOT EXISTS awg_resources (id TEXT PRIMARY KEY, data TEXT NOT NULL)',
+    'CREATE TABLE IF NOT EXISTS revoked_clients (workspace TEXT NOT NULL, user TEXT NOT NULL, PRIMARY KEY(workspace,user))',
+    'CREATE TABLE IF NOT EXISTS step_crashes (id TEXT PRIMARY KEY, checkpoint INTEGER NOT NULL, attempts INTEGER NOT NULL)',
+)
+TABLE_NAMES = frozenset(statement.split()[5] for statement in TABLES)
 INPUT_PROMPT = '__ANTIRKN_RUNNER_INPUT__'
 
 
@@ -47,191 +147,190 @@ def strict_json(raw):
     return json.loads(raw, object_pairs_hook=pairs)
 
 
+class ClearIncomplete(Exception):
+    """Some resources could not be cleaned; the others were."""
+
+
+AWG_QUICK_FIELDS = {b'Address', b'MTU', b'DNS', b'Table', b'PreUp', b'PostUp', b'PreDown', b'PostDown', b'SaveConfig'}
+
+
+def _awg_core(raw):
+    return b''.join(line for line in raw.splitlines(keepends=True) if line.split(b'=', 1)[0].strip() not in AWG_QUICK_FIELDS)
+
+
 def clear_managed_clients(store):
-    cleared = 0
-    # 1. VLESS resources
+    """Drop clients and peers that AntiRKN does not own from managed resources.
+
+    Each resource is handled on its own: a failure no longer hides behind
+    ``ok`` nor stops the remaining resources, and a record's hash follows the
+    file as soon as it is written, so a failed reload cannot leave the
+    resource in a permanent adoption conflict."""
     import vless
-    try:
-        owned_vless = {r['id']: json.loads(r['data']) for r in store.db.execute('SELECT * FROM vless_resources')}
-    except Exception:
-        owned_vless = {}
+    import hashlib
+    cleared, failed = 0, False
+
+    def records(table):
+        nonlocal failed
+        try:
+            return {r['id']: json.loads(r['data']) for r in store.db.execute('SELECT * FROM ' + table)}
+        except (sqlite3.Error, ValueError):
+            failed = True
+            return {}
+
+    def save(table, res_id, record):
+        with store.db:
+            store.db.execute('UPDATE ' + table + ' SET data=? WHERE id=?', (vless.canonical(record), res_id))
+
+    # 1. VLESS resources
+    from egress_access import clients_for
     panels = {}
-    for res_id, r in owned_vless.items():
+    for res_id, r in records('vless_resources').items():
         panels.setdefault(r.get('panelId'), []).append((res_id, r))
     for panel_id, items in panels.items():
         try:
             api = panel_for(store, panel_id)
             inbounds = api.call('/panel/api/inbounds/list')
         except Exception:
+            failed = True
             continue
-        restarted = False
+        restart = False
         for res_id, r in items:
-            row = None
-            if r.get('adopted'):
-                try:
+            try:
+                if r.get('adopted'):
                     source_id = int(r['spec']['adoption']['sourceId'])
                     row = next((x for x in inbounds if x['id'] == source_id), None)
-                except Exception:
-                    row = None
-            else:
-                row = vless.locate(inbounds, r['workspaceId'], res_id)
-            if row is not None:
+                else:
+                    row = vless.locate(inbounds, r['workspaceId'], res_id)
+                if row is None:
+                    continue
                 settings = vless.object_field(row.get('settings') or '{}')
                 clients_list = settings.get('clients') or []
-                our_uuids = {c['uuid'] for c in r.get('clients', []) if c.get('uuid')} | {c['id'] for c in r.get('clients', []) if c.get('id')}
-                from egress_access import clients_for
-                our_uuids.update(c['id'] for c in clients_for(row))
-                kept = [c for c in clients_list if (c.get('id') in our_uuids or c.get('uuid') in our_uuids)]
-                num_foreign = len(clients_list) - len(kept)
-                if num_foreign > 0:
-                    cleared += num_foreign
-                    settings['clients'] = kept
-                    wanted = dict(row)
-                    wanted['settings'] = vless.canonical(settings)
-                    api.call('/panel/api/inbounds/update/%d' % row['id'], wanted)
-                    restarted = True
-                    r['observedHash'] = vless.digest(vless.normal(wanted))
-                    with store.db:
-                        store.db.execute('UPDATE vless_resources SET data=? WHERE id=?', (vless.canonical(r), res_id))
-        if restarted:
+                ours = {c['uuid'] for c in r.get('clients', []) if c.get('uuid')} | {c['id'] for c in r.get('clients', []) if c.get('id')}
+                ours.update(c['id'] for c in clients_for(row))
+                kept = [c for c in clients_list if (c.get('id') in ours or c.get('uuid') in ours)]
+                if len(kept) == len(clients_list):
+                    continue
+                settings['clients'] = kept
+                wanted = dict(row)
+                wanted['settings'] = vless.canonical(settings)
+                api.call('/panel/api/inbounds/update/%d' % row['id'], wanted)
+                restart = True
+                cleared += len(clients_list) - len(kept)
+                # Hash the panel's own readback, as VlessApply does.
+                detail = api.call('/panel/api/inbounds/get/%d' % row['id'])
+                r['observedHash'] = vless.digest(vless.normal(detail if isinstance(detail, dict) and detail.get('id') == row['id'] else wanted))
+                save('vless_resources', res_id, r)
+            except Exception:
+                failed = True
+        if restart:
             try:
                 api.call('/panel/api/server/restartXrayService', {})
                 deadline = time.monotonic() + 20
-                while time.monotonic() < deadline:
+                while True:
                     st = api.call('/panel/api/server/status')
                     if isinstance(st, dict) and isinstance(st.get('xray'), dict) and st['xray'].get('state') == 'running':
                         break
+                    if time.monotonic() >= deadline:
+                        raise ValueError('xray')
                     time.sleep(0.25)
             except Exception:
-                pass
+                failed = True
 
     # 2. AmneziaWG resources
     import awg
-    import hashlib
-    try:
-        owned_awg = {r['id']: json.loads(r['data']) for r in store.db.execute('SELECT * FROM awg_resources')}
-    except Exception:
-        owned_awg = {}
-    for res_id, r in owned_awg.items():
+    import managed_awg
+    import awg_external
+    from panel import atomic_file
+    for res_id, r in records('awg_resources').items():
         try:
-            import managed_awg
-            import awg_external
-            QUICK = {b'Address', b'MTU', b'DNS', b'Table', b'PreUp', b'PostUp', b'PreDown', b'PostDown', b'SaveConfig'}
-            our_keys = {c['publicKey'] for c in r.get('clients', []) if c.get('publicKey')}
+            ours = {c['publicKey'] for c in r.get('clients', []) if c.get('publicKey')}
             if r.get('adopted'):
                 source_id = r['spec']['adoption']['sourceId']
-                resource, raw, values, peers, fingerprint = awg_external.read_resource(source_id)
+                resource, raw, _, _, _ = awg_external.read_resource(source_id)
                 header, blocks = managed_awg.peer_blocks(raw.decode())
-                foreign = [block for pub, _, block in blocks if pub not in our_keys]
-                kept = [block for pub, _, block in blocks if pub in our_keys]
-                if foreign:
-                    cleared += len(foreign)
-                    if not header.endswith('\n'):
-                        header += '\n'
-                    new_raw = header + ''.join(kept)
-                    awg_external.write_file(resource, new_raw.encode())
-                    if resource.get('active'):
-                        core = b''.join(line for line in new_raw.encode().splitlines(keepends=True) if line.split(b'=', 1)[0].strip() not in QUICK)
-                        awg_external.exec_resource(resource, [resource['binary'], 'syncconf', resource['name'], '/dev/stdin'], core)
-                    try:
-                        _, _, _, _, new_fp = awg_external.read_resource(source_id)
-                        r['observedHash'] = new_fp
-                    except Exception:
-                        pass
-                    with store.db:
-                        store.db.execute('UPDATE awg_resources SET data=? WHERE id=?', (vless.canonical(r), res_id))
             else:
-                conf_path, net_path = awg.paths(res_id)
-                if conf_path.exists():
-                    header, blocks = managed_awg.peer_blocks(conf_path.read_text())
-                    foreign = [block for pub, _, block in blocks if pub not in our_keys]
-                    kept = [block for pub, _, block in blocks if pub in our_keys]
-                    if foreign:
-                        cleared += len(foreign)
-                        if not header.endswith('\n'):
-                            header += '\n'
-                        new_raw = header + ''.join(kept)
-                        from panel import atomic_file
-                        atomic_file(conf_path, new_raw.encode())
-                        if awg.active(res_id):
-                            name = awg.name_for(res_id)
-                            core = b''.join(line for line in new_raw.encode().splitlines(keepends=True) if line.split(b'=', 1)[0].strip() not in QUICK)
-                            vless.command([awg.AWG, 'syncconf', name, '/dev/stdin'], input_data=core)
-                        r['configHash'] = hashlib.sha256(new_raw.encode()).hexdigest()
-                        with store.db:
-                            store.db.execute('UPDATE awg_resources SET data=? WHERE id=?', (vless.canonical(r), res_id))
+                conf_path, _ = awg.paths(res_id)
+                if not conf_path.exists():
+                    continue
+                header, blocks = managed_awg.peer_blocks(conf_path.read_text())
+            kept = [block for pub, _, block in blocks if pub in ours]
+            if len(kept) == len(blocks):
+                continue
+            if not header.endswith('\n'):
+                header += '\n'
+            new_raw = (header + ''.join(kept)).encode()
+            if r.get('adopted'):
+                awg_external.write_file(resource, new_raw)
+                r['observedHash'] = awg_external.read_resource(source_id)[4]
+                save('awg_resources', res_id, r)
+                cleared += len(blocks) - len(kept)
+                if resource.get('active'):
+                    awg_external.exec_resource(resource, [resource['binary'], 'syncconf', resource['name'], '/dev/stdin'], _awg_core(new_raw))
+            else:
+                atomic_file(conf_path, new_raw)
+                r['configHash'] = hashlib.sha256(new_raw).hexdigest()
+                save('awg_resources', res_id, r)
+                cleared += len(blocks) - len(kept)
+                if awg.active(res_id):
+                    vless.command([awg.AWG, 'syncconf', awg.name_for(res_id), '/dev/stdin'], input_data=_awg_core(new_raw))
         except Exception:
-            pass
+            failed = True
 
     # 3. TrustTunnel resources
     import tt
+    import tt_common
     import secrets
     import hmac
-    try:
-        owned_tt = {r['id']: json.loads(r['data']) for r in store.db.execute('SELECT * FROM tt_resources')}
-    except Exception:
-        owned_tt = {}
-    for res_id, r in owned_tt.items():
+    for res_id, r in records('tt_resources').items():
         try:
-            import tt_common
-            our_names = {c['username'] for c in r.get('clients', []) if c.get('username')} | {c['id'] for c in r.get('clients', []) if c.get('id')}
-            if r.get('adopted'):
-                import managed_tt
-                import tt_external
-                current = managed_tt.snapshot(store, {}, r)
-                resource = current['resource']
-                credentials = tt_common.toml_loads(current['credentials'])
-                foreign = [c for c in credentials.get('client', []) if c.get('username') not in our_names and c.get('username') != '_antirkn_no_clients']
-                kept = [c for c in credentials.get('client', []) if c.get('username') in our_names]
-                if foreign:
+            names = {c['username'] for c in r.get('clients', []) if c.get('username')} | {c['id'] for c in r.get('clients', []) if c.get('id')}
+            # The certificate watcher also rewrites and restarts these services.
+            with tt_common.lock():
+                if r.get('adopted'):
+                    import managed_tt
+                    import tt_external
+                    current = managed_tt.snapshot(store, {}, r)
+                    resource = current['resource']
+                    credentials = tt_common.toml_loads(current['credentials'])
+                    clients = credentials.get('client', [])
+                else:
+                    rid = r.get('spec', {}).get('id') or res_id
+                    cred_path = tt_common.ROOT / rid / 'credentials.toml'
+                    if not cred_path.exists():
+                        continue
+                    clients = tt_common.toml_loads(cred_path.read_text()).get('client', [])
+                foreign = [c for c in clients if c.get('username') not in names and c.get('username') != '_antirkn_no_clients']
+                if not foreign:
+                    continue
+                kept = [c for c in clients if c.get('username') in names]
+                if r.get('adopted'):
+                    credentials['client'] = kept or [dict(username='_antirkn_no_clients', password=secrets.token_hex(32))]
+                    tt_external.write_existing(Path(resource['credentials']), tt_common.toml_bytes(credentials), resource['ownerUid'])
+                    r['observedHash'] = managed_tt.snapshot(store, {}, r)['fingerprint']
+                    save('tt_resources', res_id, r)
                     cleared += len(foreign)
-                    if not kept:
-                        sentinel = secrets.token_hex(32)
-                        credentials['client'] = [dict(username='_antirkn_no_clients', password=sentinel)]
-                    else:
-                        credentials['client'] = kept
-                    new_creds = tt_common.toml_bytes(credentials)
-                    tt_external.write_existing(Path(resource['credentials']), new_creds, resource['ownerUid'])
                     if resource.get('active'):
                         tt_common.run(['/usr/bin/systemctl', 'restart', resource['unit']], timeout=60)
-                    try:
-                        cur = managed_tt.snapshot(store, {}, r)
-                        r['observedHash'] = cur['fingerprint']
-                    except Exception:
-                        pass
-                    with store.db:
-                        store.db.execute('UPDATE tt_resources SET data=? WHERE id=?', (vless.canonical(r), res_id))
-            else:
-                from panel import atomic_file
-                rid = r.get('spec', {}).get('id') or res_id
-                base = tt_common.ROOT / rid
-                cred_path = base / 'credentials.toml'
-                if cred_path.exists():
-                    current_creds = tt_common.toml_loads(cred_path.read_text())
-                    foreign = [c for c in current_creds.get('client', []) if c.get('username') not in our_names and c.get('username') != '_antirkn_no_clients']
-                    kept = [c for c in current_creds.get('client', []) if c.get('username') in our_names]
-                    if foreign:
-                        cleared += len(foreign)
-                        if not kept:
-                            key = Path(tt.KEY).read_bytes() if Path(tt.KEY).exists() else secrets.token_bytes(32)
-                            sentinel = hmac.new(key, ('tt-deny-all/' + r['workspaceId'] + '/' + rid).encode(), hashlib.sha256).hexdigest()
-                            new_client_list = [dict(username='_antirkn_no_clients', password=sentinel)]
-                        else:
-                            new_client_list = kept
-                        creds = dict(client=new_client_list)
-                        new_bytes = tt_common.toml_bytes(creds)
-                        with tt_common.file_lock(cred_path):
-                            atomic_file(cred_path, new_bytes)
-                        unit = 'antirkn-tt@' + rid + '.service'
-                        if tt_common.active(unit):
-                            tt_common.run(['/usr/bin/systemctl', 'restart', unit], timeout=60)
-                        if 'hashes' in r and len(r['hashes']) >= 3:
-                            r['hashes'][2] = hashlib.sha256(new_bytes).hexdigest()
-                        with store.db:
-                            store.db.execute('UPDATE tt_resources SET data=? WHERE id=?', (vless.canonical(r), res_id))
+                else:
+                    if not kept:
+                        key = Path(tt.KEY).read_bytes() if Path(tt.KEY).exists() else secrets.token_bytes(32)
+                        sentinel = hmac.new(key, ('tt-deny-all/' + r['workspaceId'] + '/' + rid).encode(), hashlib.sha256).hexdigest()
+                        kept = [dict(username='_antirkn_no_clients', password=sentinel)]
+                    new_bytes = tt_common.toml_bytes(dict(client=kept))
+                    with tt_common.file_lock(cred_path):
+                        atomic_file(cred_path, new_bytes)
+                    if 'hashes' in r and len(r['hashes']) >= 3:
+                        r['hashes'][2] = hashlib.sha256(new_bytes).hexdigest()
+                    save('tt_resources', res_id, r)
+                    cleared += len(foreign)
+                    unit = 'antirkn-tt@' + rid + '.service'
+                    if tt_common.active(unit):
+                        tt_common.run(['/usr/bin/systemctl', 'restart', unit], timeout=60)
         except Exception:
-            pass
+            failed = True
 
+    if failed:
+        raise ClearIncomplete(cleared)
     return dict(cleared=cleared)
 
 
@@ -241,6 +340,8 @@ def cleanup_job_transients(directory, job_id):
     directory = Path(directory)
     for pattern in (f'vless-backup-{job_id}.json', f'awg-backup-{job_id}.json',
                     f'tt-backup-{job_id}.json', f'inbound-backup-{job_id}.json',
+                    # Staged payloads may hold transport secrets.
+                    f'inbound-request-{job_id}.json', f'inbound-removal-{job_id}.json',
                     f'apt-{job_id}.started', f'reboot-{job_id}.json',
                     f'reboot-{job_id}.lock', f'awg-intent-{job_id}-*.json',
                     f'tt-intent-{job_id}-*.json', f'upgrade-{job_id}*'):
@@ -285,6 +386,30 @@ def slim_finished_jobs(store):
             slim_finished_job(store.directory, job_id)
 
 
+def worker_running(directory):
+    """Whether some process holds the worker flock, read from /proc/locks.
+
+    Probing with flock() itself could make a daemon that starts at that very
+    moment fail its non-blocking lock and exit."""
+    try:
+        inode = os.stat(str(Path(directory) / 'worker.lock')).st_ino
+    except FileNotFoundError:
+        return False
+    try:
+        with open('/proc/locks') as stream:
+            for line in stream:
+                fields = line.split()
+                if 'FLOCK' not in fields or '->' in fields:
+                    continue
+                for field in fields:
+                    parts = field.split(':')
+                    if len(parts) == 3 and parts[2].isdigit() and int(parts[2]) == inode:
+                        return True
+    except OSError:
+        return True  # Unknown: never settle jobs a live worker may own.
+    return False
+
+
 class Store:
     def __init__(self, directory):
         self.directory = Path(directory)
@@ -298,15 +423,14 @@ class Store:
         if version not in (0, SCHEMA['version']):
             self.db.close()
             raise ValueError('incompatible')
-        with self.db:
-            self.db.execute('CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, request TEXT NOT NULL, status TEXT NOT NULL, checkpoint INTEGER NOT NULL, sequence INTEGER NOT NULL, cancel INTEGER NOT NULL, created REAL NOT NULL)')
-            self.db.execute('CREATE TABLE IF NOT EXISTS events (id TEXT NOT NULL, sequence INTEGER NOT NULL, event TEXT NOT NULL, PRIMARY KEY(id,sequence))')
-            self.db.execute('CREATE TABLE IF NOT EXISTS health (id INTEGER PRIMARY KEY, heartbeat REAL NOT NULL)')
-            self.db.execute('CREATE TABLE IF NOT EXISTS vless_resources (id TEXT PRIMARY KEY, data TEXT NOT NULL)')
-            self.db.execute('CREATE TABLE IF NOT EXISTS tt_resources (id TEXT PRIMARY KEY, data TEXT NOT NULL)')
-            self.db.execute('CREATE TABLE IF NOT EXISTS awg_resources (id TEXT PRIMARY KEY, data TEXT NOT NULL)')
-            self.db.execute('CREATE TABLE IF NOT EXISTS revoked_clients (workspace TEXT NOT NULL, user TEXT NOT NULL, PRIMARY KEY(workspace,user))')
-            self.db.execute('PRAGMA user_version=1')
+        # Tables were added over releases under the same user_version, so check
+        # them; a read keeps every RPC (status polls included) off the write lock.
+        present = {r[0] for r in self.db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if version == 0 or not TABLE_NAMES <= present:
+            with self.db:
+                for statement in TABLES:
+                    self.db.execute(statement)
+                self.db.execute('PRAGMA user_version=1')
 
     def close(self):
         self.db.close()
@@ -327,17 +451,17 @@ class Store:
 
     def response(self, code, jobs=None):
         row = self.db.execute('SELECT heartbeat FROM health WHERE id=1').fetchone()
-        alive = row is not None and 0 <= time.time() - row[0] < 15
+        alive = row is not None and 0 <= time.time() - row[0] < ALIVE_WITHIN
         return dict(version=SCHEMA['version'], code=code, alive=alive, jobs=jobs or [])
 
     def request(self, request):
-        import connectivity_probe as probes
-        import xray_transaction as upgrade
         # Job observation and cancellation only touch jobs.sqlite. They must
         # remain available while a probe or Xray watchdog owns the filesystem
         # lease during a slow panel call or service restart.
         if request.get('action') in ('status', 'list', 'cancel'):
             return self._request(request)
+        import connectivity_probe as probes
+        import xray_transaction as upgrade
         try:
             with probes.operation_lock(self):
                 action=request.get('action')
@@ -354,6 +478,8 @@ class Store:
     def _request(self, request):
         req = validate_request(request)
         action = req['action']
+        if action not in ('status', 'list', 'cancel'):
+            _load_errors()
         if action in ('egress_state', 'egress_plan', 'egress_check', 'egress_access_plan', 'egress_access_read'):
             import client_egress as egress
             if action == 'egress_check' and self.db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running')").fetchone():
@@ -523,18 +649,24 @@ class Store:
         if action in ('panel_plan', 'panel_verify', 'component_plan'):
             raise ValueError('invalid')  # Device-side operations, never arbitrary worker commands.
         if action == 'clear_managed_clients':
+            # It rewrites the files and services that jobs own; never beside one.
+            if self.db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running')").fetchone():
+                return self.response('busy')
             try:
                 result = clear_managed_clients(self)
                 return {**self.response('ok'), 'clearedClients': result}
             except Exception:
                 return self.response('clear_managed_clients_failed')
         if action == 'list':
-            self.reap_stale_jobs()
+            if self.daemon_stopped():
+                with self.db:
+                    self.reap_stale_jobs()
             rows = self.db.execute('SELECT * FROM jobs ORDER BY created DESC LIMIT ?', (SCHEMA['pageSize'],)).fetchall()
             return self.response('ok', [self.job(row, row['sequence']) for row in rows])
         self.db.execute('BEGIN IMMEDIATE')
         try:
-            if action != 'cancel':
+            stopped = self.daemon_stopped()
+            if action != 'cancel' and stopped:
                 self.reap_stale_jobs()
             row = self.db.execute('SELECT * FROM jobs WHERE id=?', (req['id'],)).fetchone()
             if action == 'submit':
@@ -545,7 +677,7 @@ class Store:
                     code = 'ok' if row['request'] == encoded else 'conflict'
                 elif self.db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running')").fetchone():
                     code = 'busy'
-                elif self.db.execute('SELECT COUNT(*) FROM jobs').fetchone()[0] >= SCHEMA['maxJobs']:
+                elif self.db.execute('SELECT COUNT(*) FROM jobs').fetchone()[0] >= SCHEMA['maxJobs'] and not self.prune_jobs():
                     code = 'capacity'
                 else:
                     self.db.execute('INSERT INTO jobs VALUES (?,?,?,0,0,0,?)', (req['id'], encoded, 'planned', time.time()))
@@ -566,10 +698,11 @@ class Store:
                     row = self.db.execute('SELECT * FROM jobs WHERE id=?', (req['id'],)).fetchone()
                     code = 'ok'
             elif action == 'cancel' and row['status'] not in SCHEMA['terminal']:
-                health_row = self.db.execute("SELECT heartbeat FROM health WHERE id=1").fetchone()
-                daemon_dead = health_row is not None and (time.time() - health_row[0]) > 30
-                if daemon_dead:
-                    self.db.execute("UPDATE jobs SET status='cancelled', cancel=1 WHERE id=?", (req['id'],))
+                if stopped:
+                    # No worker will reach a step boundary: settle it here, and
+                    # say so when earlier steps already changed the server.
+                    status = 'cancelled' if row['checkpoint'] == 0 or json.loads(row['request'])['kind'] == 'diagnostic' else 'partially_applied'
+                    self.db.execute('UPDATE jobs SET status=?, cancel=1 WHERE id=?', (status, req['id']))
                     self.event(req['id'], 'cancelled', row['checkpoint'], json.loads(row['request'])['count'])
                 elif not row['cancel']:
                     self.db.execute('UPDATE jobs SET cancel=1 WHERE id=?', (req['id'],))
@@ -585,27 +718,97 @@ class Store:
             self.db.rollback()
             raise
 
-    def is_daemon_alive(self):
-        row = self.db.execute("SELECT heartbeat FROM health WHERE id=1").fetchone()
-        return row is not None and 0 <= (time.time() - row[0]) < 30
+    def daemon_stopped(self):
+        """True only when no worker runs: a stale heartbeat alone misreads a
+        unit that is still starting after a reboot or restarting after a crash."""
+        row = self.db.execute('SELECT heartbeat FROM health WHERE id=1').fetchone()
+        if row is None or time.time() - row[0] <= STALE_AFTER:
+            return False
+        try:
+            if float(Path('/proc/uptime').read_text().split()[0]) < BOOT_GRACE:
+                return False
+        except (OSError, ValueError, IndexError):
+            pass
+        return not worker_running(self.directory)
 
-    def reap_stale_jobs(self, timeout=30):
-        row = self.db.execute("SELECT heartbeat FROM health WHERE id=1").fetchone()
-        if row is not None and (time.time() - row[0]) > timeout:
-            with self.db:
-                cutoff = time.time() - timeout
-                rows = self.db.execute(
-                    "SELECT * FROM jobs WHERE status IN ('planned','running') AND (created < ? OR cancel=1)",
-                    (cutoff,)
-                ).fetchall()
-                for r in rows:
-                    status = 'cancelled' if r['cancel'] else 'failed'
-                    self.db.execute("UPDATE jobs SET status=? WHERE id=?", (status, r['id']))
-                    self.event(r['id'], status, r['checkpoint'], json.loads(r['request'])['count'])
+    def reap_stale_jobs(self):
+        """Settle jobs of a stopped worker. Callers own the transaction."""
+        cutoff = time.time() - STALE_AFTER
+        rows = self.db.execute(
+            "SELECT * FROM jobs WHERE status IN ('planned','running') AND (created < ? OR cancel=1)",
+            (cutoff,)).fetchall()
+        for r in rows:
+            request = json.loads(r['request'])
+            if r['checkpoint'] > 0 and request['kind'] != 'diagnostic':
+                status = 'partially_applied'  # Earlier steps changed the server.
+            else:
+                status = 'cancelled' if r['cancel'] else 'failed'
+            self.db.execute('UPDATE jobs SET status=? WHERE id=?', (status, r['id']))
+            self.event(r['id'], 'cancelled' if r['cancel'] else 'failed', r['checkpoint'], request['count'])
+
+    def prune_jobs(self):
+        """Free room for new jobs by forgetting old finished history.
+
+        Only terminal jobs older than RETAIN_SECONDS go, never a kind whose row
+        is an ownership/result record, nor the last job of a resource (its
+        readback is confirmed through that row). Runs inside the caller's
+        transaction. Returns whether a slot is free."""
+        referenced = set()
+        for table in ('vless_resources', 'awg_resources', 'tt_resources'):
+            for (data,) in self.db.execute('SELECT data FROM ' + table):
+                try:
+                    referenced.add(json.loads(data).get('jobId'))
+                except (ValueError, AttributeError):
+                    continue
+        keep = SCHEMA['maxJobs'] - SCHEMA['pageSize']
+        total = self.db.execute('SELECT COUNT(*) FROM jobs').fetchone()[0]
+        marks = ','.join('?' * len(SCHEMA['terminal']))
+        removed = []
+        for row in self.db.execute('SELECT id, request FROM jobs WHERE status IN (' + marks + ') AND created < ? ORDER BY created',
+                                   (*SCHEMA['terminal'], time.time() - RETAIN_SECONDS)).fetchall():
+            if total - len(removed) <= keep:
+                break
+            if row['id'] in referenced or json.loads(row['request']).get('kind') in RETAINED_KINDS:
+                continue
+            removed.append(row['id'])
+        for job_id in removed:
+            self.db.execute('DELETE FROM jobs WHERE id=?', (job_id,))
+            self.db.execute('DELETE FROM events WHERE id=?', (job_id,))
+            self.db.execute('DELETE FROM step_crashes WHERE id=?', (job_id,))
+        for job_id in removed:
+            cleanup_job_transients(self.directory, job_id)
+        return total - len(removed) < SCHEMA['maxJobs']
+
+    def record_crash(self, job_id, checkpoint):
+        """Count unexpected step crashes; return the attempts at this checkpoint."""
+        with self.db:
+            row = self.db.execute('SELECT checkpoint, attempts FROM step_crashes WHERE id=?', (job_id,)).fetchone()
+            attempts = row['attempts'] + 1 if row is not None and row['checkpoint'] == checkpoint else 1
+            self.db.execute('INSERT OR REPLACE INTO step_crashes VALUES (?,?,?)', (job_id, checkpoint, attempts))
+        return attempts
+
+    def park(self, job_id):
+        """A step that keeps crashing needs a person, not a restart loop that
+        ends with systemd giving up on the whole runner."""
+        with self.db:
+            row = self.db.execute('SELECT * FROM jobs WHERE id=?', (job_id,)).fetchone()
+            if row is None or row['status'] in SCHEMA['terminal']:
+                return
+            self.db.execute("UPDATE jobs SET status='needs_attention' WHERE id=?", (job_id,))
+            self.event(job_id, 'failed', row['checkpoint'], json.loads(row['request'])['count'])
+            self.db.execute('DELETE FROM step_crashes WHERE id=?', (job_id,))
 
     def heartbeat(self):
         with self.db:
             self.db.execute('INSERT OR REPLACE INTO health VALUES (1,?)', (time.time(),))
+
+    def finish(self, job_id, status, code, total):
+        """Terminal status and its event, at the checkpoint the steps reached."""
+        with self.db:
+            progress = self.db.execute('SELECT checkpoint FROM jobs WHERE id=?', (job_id,)).fetchone()[0]
+            self.db.execute('UPDATE jobs SET status=? WHERE id=?', (status, job_id))
+            self.event(job_id, code, progress, total)
+            self.db.execute('DELETE FROM step_crashes WHERE id=?', (job_id,))
 
     def recover(self):
         # Every admitted task defines recovery. Effectful steps verify owned
@@ -615,12 +818,16 @@ class Store:
                 self.event(row['id'], 'recovered', row['checkpoint'], json.loads(row['request'])['count'])
 
     def tick(self):
-        self.heartbeat()
+        # The heartbeat thread beats every HEARTBEAT_INTERVAL; an idle tick is
+        # a read only (it used to commit a heartbeat four times a second).
+        self.current = None
         row = self.db.execute("SELECT * FROM jobs WHERE status IN ('planned','running') ORDER BY created LIMIT 1").fetchone()
         if row is None:
             return 0.25
+        _load_errors()
         req = validate_request(json.loads(row['request']))
         job_id = row['id']
+        self.current = (job_id, row['checkpoint'])
         with self.db:
             if row['cancel'] and req['kind'] == 'diagnostic':
                 self.db.execute("UPDATE jobs SET status='cancelled' WHERE id=?", (job_id,))
@@ -648,10 +855,7 @@ class Store:
                     try: task.rollback()
                     except Exception:
                         status, code = 'needs_attention', 'egress_rollback_failed'
-            with self.db:
-                progress = self.db.execute('SELECT checkpoint FROM jobs WHERE id=?', (job_id,)).fetchone()[0]
-                self.db.execute('UPDATE jobs SET status=? WHERE id=?', (status, job_id))
-                self.event(job_id, code, progress, req['count'])
+            self.finish(job_id, status, code, req['count'])
             return .1
         if req['kind']=='server_reboot':
             import server_reboot as reboot
@@ -679,10 +883,7 @@ class Store:
             except (AptError, OSError, ValueError, subprocess.SubprocessError) as error:
                 code = error.code if isinstance(error, AptError) else 'apt_failed'
                 status = task.failure_status()
-            with self.db:
-                progress = self.db.execute('SELECT checkpoint FROM jobs WHERE id=?', (job_id,)).fetchone()[0]
-                self.db.execute('UPDATE jobs SET status=? WHERE id=?', (status, job_id))
-                self.event(job_id, code, progress, req['count'])
+            self.finish(job_id, status, code, req['count'])
             if status == 'succeeded' or (status == 'cancelled' and row['checkpoint'] == 0):
                 cleanup_job_transients(self.directory, job_id)
             return 0.1
@@ -707,10 +908,7 @@ class Store:
                     return 0.5  # The independent certificate watcher owns the lock.
                 code = error.code if isinstance(error, VlessError) else 'tt_failed' if req['kind'].startswith('tt_') else 'awg_failed' if req['kind'] in ('awg_apply', 'awg_external_edit') else 'vless_api_failed'
                 status = 'partially_applied' if row['checkpoint'] > 0 else 'failed'
-            with self.db:
-                progress = self.db.execute('SELECT checkpoint FROM jobs WHERE id=?', (job_id,)).fetchone()[0]
-                self.db.execute('UPDATE jobs SET status=? WHERE id=?', (status, job_id))
-                self.event(job_id, code, progress, req['count'])
+            self.finish(job_id, status, code, req['count'])
             if status == 'succeeded' or (status == 'cancelled' and row['checkpoint'] == 0):
                 cleanup_job_transients(self.directory, job_id)
             return 0.1
@@ -727,10 +925,7 @@ class Store:
             except (RemovalError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
                 code = error.code if isinstance(error, RemovalError) else 'protocol_remove_failed'
                 status = 'partially_applied' if row['checkpoint'] > 0 else 'failed'
-            with self.db:
-                progress = self.db.execute('SELECT checkpoint FROM jobs WHERE id=?', (job_id,)).fetchone()[0]
-                self.db.execute('UPDATE jobs SET status=? WHERE id=?', (status, job_id))
-                self.event(job_id, code, progress, req['count'])
+            self.finish(job_id, status, code, req['count'])
             return 0.1
         if req['kind'] == 'ssh_harden':
             SshHardenJob(self, req).tick()
@@ -748,8 +943,8 @@ class Store:
                     status, code = 'succeeded', 'succeeded'
             except (ComponentUpgradeError, OSError, ValueError, subprocess.SubprocessError) as error:
                 code = error.code if isinstance(error, ComponentUpgradeError) else 'upgrade_failed'
-                detail = getattr(error, 'detail', '') or str(error)
-                sys.stderr.write(f"[runner] component_upgrade failed ({code}): {detail}\n")
+                # Code and type only: error text may quote upstream output.
+                sys.stderr.write(f"[runner] component_upgrade failed ({code}): {type(error).__name__}\n")
                 status = 'failed'
                 try:
                     task.rollback()
@@ -757,10 +952,7 @@ class Store:
                         code = 'upgrade_rolled_back'
                 except Exception:
                     status, code = 'needs_attention', 'upgrade_rollback_failed'
-            with self.db:
-                progress = self.db.execute('SELECT checkpoint FROM jobs WHERE id=?', (job_id,)).fetchone()[0]
-                self.db.execute('UPDATE jobs SET status=? WHERE id=?', (status, job_id))
-                self.event(job_id, code, progress, req['count'])
+            self.finish(job_id, status, code, req['count'])
             if status == 'succeeded':
                 # The backup stays until the app confirms or the window expires.
                 from component_upgrade import window_open
@@ -795,10 +987,7 @@ class Store:
                 status = installer.abort()
                 if status == 'cancelled' and code != 'cancelled':
                     status = 'failed'
-            with self.db:
-                progress = self.db.execute('SELECT checkpoint FROM jobs WHERE id=?', (job_id,)).fetchone()[0]
-                self.db.execute('UPDATE jobs SET status=? WHERE id=?', (status, job_id))
-                self.event(job_id, code, progress, req['count'])
+            self.finish(job_id, status, code, req['count'])
             if status == 'succeeded':
                 slim_finished_job(self.directory, job_id)
             return 0.1
@@ -820,10 +1009,7 @@ class Store:
                     status = 'failed'
                 if code == 'cancelled' and status == 'partially_applied':
                     code = 'panel_cancelled_partial'
-            with self.db:
-                progress = self.db.execute('SELECT checkpoint FROM jobs WHERE id=?', (job_id,)).fetchone()[0]
-                self.db.execute('UPDATE jobs SET status=? WHERE id=?', (status, job_id))
-                self.event(job_id, code, progress, req['count'])
+            self.finish(job_id, status, code, req['count'])
             if status == 'succeeded':
                 slim_finished_job(self.directory, job_id)
             return 0.1
@@ -856,10 +1042,11 @@ def daemon(directory=STATE):
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         store = Store(directory)
         heartbeat_stop = threading.Event()
+        store.heartbeat()  # Before recovery, which may take a while.
         def heartbeat_loop():
             health_store = Store(directory)
             try:
-                while not heartbeat_stop.wait(3):
+                while not heartbeat_stop.wait(HEARTBEAT_INTERVAL):
                     health_store.heartbeat()
             finally:
                 health_store.close()
@@ -886,15 +1073,25 @@ def daemon(directory=STATE):
                 try:
                     delay = store.tick()
                 except BaseException as error:
-                    # The unit restarts the daemon and the job resumes from its
-                    # checkpoint; say where it broke without the message, which
-                    # may carry panel responses or credentials.
+                    # Say where it broke without the message, which may carry
+                    # panel responses or credentials.
                     import traceback
                     frames = traceback.extract_tb(error.__traceback__)[-3:]
                     where = ' <- '.join(f'{Path(f.filename).name}:{f.lineno}' for f in reversed(frames))
                     sys.stderr.write(f'[runner] job step failed: {type(error).__name__} at {where}\n')
                     sys.stderr.flush()
-                    raise
+                    current = getattr(store, 'current', None)
+                    if current is None or not isinstance(error, Exception):
+                        raise
+                    try:
+                        store.db.rollback()
+                        if store.record_crash(*current) < MAX_STEP_CRASHES:
+                            raise error  # A fresh process resumes from the checkpoint.
+                        store.park(current[0])
+                        sys.stderr.write('[runner] job parked as needs_attention after repeated crashes\n')
+                    except sqlite3.Error:
+                        raise error
+                    delay = 1
                 deadline = time.monotonic() + delay
                 while not stopping and time.monotonic() < deadline:
                     time.sleep(min(0.1, max(0, deadline - time.monotonic())))
@@ -946,7 +1143,7 @@ if __name__ == '__main__':
         code = 'busy' if 'lock' in str(error).lower() or 'busy' in str(error).lower() else 'failed'
         write_rpc_response(dict(version=SCHEMA['version'], code=code, alive=False, jobs=[]))
         sys.exit(1)
-    except (ValueError, TypeError, KeyError, AttributeError, OSError, sqlite3.Error, VlessError, PanelError, AptError, ComponentUpgradeError, subprocess.SubprocessError) as error:
+    except Exception as error:  # Upstream text may carry credentials; answer with a code only.
         code = getattr(error, 'code', str(error))
         if code not in SCHEMA['codes']:
             code = 'failed'

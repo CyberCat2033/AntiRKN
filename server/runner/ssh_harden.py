@@ -604,7 +604,7 @@ class SshHardenJob:
             if previous.get('phase') in TERMINAL:
                 continue
             if previous.get('version') != 2:
-                previous_id = path.parent.name.removeprefix('ssh_')
+                previous_id = path.parent.name[len('ssh_'):] if path.parent.name.startswith('ssh_') else path.parent.name
                 row = self.store.db.execute('SELECT status FROM jobs WHERE id=?', (previous_id,)).fetchone()
                 if row and ((row['status'] == 'succeeded' and
                              (RUNNER_DIR / 'ssh_confirmed' / ('confirmed_' + previous_id)).is_file()) or

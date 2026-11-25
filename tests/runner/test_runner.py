@@ -38,7 +38,7 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(self.store.db.execute('SELECT COUNT(*) FROM jobs').fetchone()[0], 0)
 
     def test_any_verified_predecessor_is_upgradeable(self):
-        path = Path(__file__).resolve().parents[2] / 'server/runner/inspect.py'
+        path = Path(__file__).resolve().parents[2] / 'server/runner/runner_inspect.py'
         spec = importlib.util.spec_from_file_location('runner_inspector_fixture', path)
         inspector = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(inspector)
@@ -431,6 +431,161 @@ class RunnerTests(unittest.TestCase):
 
         cleanup_job_transients(self.directory, job_id)
         self.assertFalse(marker.exists())
+
+
+class RunnerCoreTests(unittest.TestCase):
+    """Idle cost, liveness, retention and crash parking of the job core."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.directory = Path(self.temp.name)
+        self.store = Store(self.directory)
+
+    def tearDown(self):
+        self.store.close()
+        self.temp.cleanup()
+
+    def _job(self, number, status='succeeded', checkpoint=0, created=None, kind='diagnostic', cancel=0):
+        req = submit(number) if kind == 'diagnostic' else dict(
+            version=1, action='submit', id=f'{number:032x}', kind=kind, count=2, interval=1)
+        encoded = json.dumps(req, sort_keys=True, separators=(',', ':'))
+        with self.store.db:
+            self.store.db.execute('INSERT INTO jobs VALUES (?,?,?,?,0,?,?)', (
+                req['id'], encoded, status, checkpoint, cancel, time.time() if created is None else created))
+            self.store.event(req['id'], 'planned', 0, req['count'])
+        return req['id']
+
+    def test_idle_tick_writes_nothing(self):
+        before = self.store.db.total_changes
+        for _ in range(5):
+            self.assertEqual(self.store.tick(), 0.25)
+        self.assertEqual(self.store.db.total_changes, before)
+
+    def test_reopening_a_current_database_does_not_write(self):
+        again = Store(self.directory)
+        try:
+            self.assertEqual(again.db.total_changes, 0)
+        finally:
+            again.close()
+
+    def test_tables_added_by_later_releases_are_created(self):
+        with self.store.db:
+            self.store.db.execute('DROP TABLE step_crashes')
+        Store(self.directory).close()
+        names = {r[0] for r in self.store.db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        self.assertIn('step_crashes', names)
+
+    def test_runner_import_keeps_protocol_modules_unloaded(self):
+        import subprocess
+        source = Path(__file__).resolve().parents[2] / 'server/runner'
+        probe = ('import sys; sys.path.insert(0, %r); import runner; '
+                 'print(",".join(m for m in ("panel", "vless", "component_upgrade", "ssl") if m in sys.modules))') % str(source)
+        result = subprocess.run([sys.executable, '-I', '-c', probe], capture_output=True, text=True, timeout=60)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), '')
+
+    def test_worker_lock_is_detected_without_taking_it(self):
+        import fcntl
+        from runner import worker_running
+        self.assertFalse(worker_running(self.directory))
+        with (self.directory / 'worker.lock').open('a') as lock:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            self.assertTrue(worker_running(self.directory))
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+        self.assertFalse(worker_running(self.directory))
+
+    def _stale(self):
+        with self.store.db:
+            self.store.db.execute('INSERT OR REPLACE INTO health VALUES (1, ?)', (time.time() - 600,))
+
+    def test_running_worker_keeps_its_jobs_despite_a_stale_heartbeat(self):
+        job_id = self._job(1, status='running', checkpoint=1, created=time.time() - 600, kind='apt_update')
+        self._stale()
+        with patch('runner.worker_running', return_value=True):
+            self.store.request(dict(version=1, action='list'))
+        self.assertEqual(self.store.db.execute('SELECT status FROM jobs WHERE id=?', (job_id,)).fetchone()[0], 'running')
+
+    def test_no_reaping_right_after_boot(self):
+        job_id = self._job(1, status='running', created=time.time() - 600, kind='apt_update')
+        self._stale()
+        with patch('runner.worker_running', return_value=False), \
+             patch('runner.Path.read_text', return_value='30.0 10.0'):
+            self.assertFalse(self.store.daemon_stopped())
+        self.assertEqual(self.store.db.execute('SELECT status FROM jobs WHERE id=?', (job_id,)).fetchone()[0], 'running')
+
+    def test_reaped_job_with_applied_steps_is_partially_applied(self):
+        applied = self._job(1, status='running', checkpoint=1, created=time.time() - 600, kind='apt_update')
+        untouched = self._job(2, status='planned', checkpoint=0, created=time.time() - 600, kind='apt_update')
+        self._stale()
+        with patch('runner.worker_running', return_value=False):
+            self.store.request(dict(version=1, action='list'))
+        status = lambda i: self.store.db.execute('SELECT status FROM jobs WHERE id=?', (i,)).fetchone()[0]
+        self.assertEqual(status(applied), 'partially_applied')
+        self.assertEqual(status(untouched), 'failed')
+
+    def test_cancel_of_a_stopped_worker_job_reports_applied_steps(self):
+        job_id = self._job(1, status='running', checkpoint=1, kind='apt_update')
+        self._stale()
+        with patch('runner.worker_running', return_value=False):
+            res = self.store.request(dict(version=1, action='cancel', id=job_id))
+        self.assertEqual(res['jobs'][0]['status'], 'partially_applied')
+
+    def test_full_history_is_pruned_instead_of_refusing_jobs(self):
+        old = time.time() - 40 * 86400
+        with self.store.db:
+            for n in range(SCHEMA['maxJobs']):
+                req = submit(n + 10)
+                self.store.db.execute('INSERT INTO jobs VALUES (?,?,?,1,0,0,?)', (
+                    req['id'], json.dumps(req, sort_keys=True, separators=(',', ':')), 'succeeded', old + n))
+        res = self.store.request(submit(5))
+        self.assertEqual(res['code'], 'ok')
+        count = self.store.db.execute('SELECT COUNT(*) FROM jobs').fetchone()[0]
+        self.assertLessEqual(count, SCHEMA['maxJobs'] - SCHEMA['pageSize'] + 1)
+
+    def test_pruning_keeps_ownership_records_and_resource_jobs(self):
+        old = time.time() - 40 * 86400
+        panel = self._job(1, kind='panel_install', created=old)
+        referenced = self._job(2, created=old)
+        recent = self._job(3)
+        with self.store.db:
+            self.store.db.execute('INSERT INTO vless_resources VALUES (?,?)', ('r', json.dumps(dict(jobId=referenced))))
+            for n in range(SCHEMA['maxJobs']):
+                req = submit(n + 10)
+                self.store.db.execute('INSERT INTO jobs VALUES (?,?,?,1,0,0,?)', (
+                    req['id'], json.dumps(req, sort_keys=True, separators=(',', ':')), 'failed', old + n))
+        self.assertTrue(self.store.prune_jobs())
+        left = {r[0] for r in self.store.db.execute('SELECT id FROM jobs')}
+        self.assertTrue({panel, referenced, recent} <= left)
+
+    def test_a_step_that_keeps_crashing_is_parked(self):
+        job_id = self._job(1, status='running', checkpoint=1, kind='apt_update')
+        from runner import MAX_STEP_CRASHES
+        attempts = [self.store.record_crash(job_id, 1) for _ in range(MAX_STEP_CRASHES)]
+        self.assertEqual(attempts, list(range(1, MAX_STEP_CRASHES + 1)))
+        self.assertEqual(self.store.record_crash(job_id, 2), 1)  # Progress resets the count.
+        self.store.park(job_id)
+        self.assertEqual(self.store.db.execute('SELECT status FROM jobs WHERE id=?', (job_id,)).fetchone()[0], 'needs_attention')
+        self.assertIsNone(self.store.db.execute('SELECT 1 FROM step_crashes WHERE id=?', (job_id,)).fetchone())
+
+    def test_clear_managed_clients_waits_for_running_jobs(self):
+        self._job(1, status='running', kind='apt_update')
+        res = self.store.request(dict(version=1, action='clear_managed_clients'))
+        self.assertEqual(res['code'], 'busy')
+
+    def test_clear_managed_clients_reports_an_unreachable_panel(self):
+        with self.store.db:
+            self.store.db.execute('INSERT INTO vless_resources VALUES (?,?)', ('r', json.dumps(dict(panelId='p' * 32))))
+        with patch('runner.panel_for', side_effect=OSError()):
+            res = self.store.request(dict(version=1, action='clear_managed_clients'))
+        self.assertEqual(res['code'], 'clear_managed_clients_failed')
+
+    def test_concurrent_atomic_writes_do_not_collide(self):
+        from panel import atomic_file
+        target = self.directory / 'record.json'
+        with concurrent.futures.ThreadPoolExecutor(8) as pool:
+            list(pool.map(lambda n: atomic_file(target, json.dumps(dict(n=n)).encode()), range(64)))
+        self.assertIn('n', json.loads(target.read_text()))
+        self.assertEqual([p.name for p in self.directory.iterdir() if p.name.endswith('.antirkn-tmp')], [])
 
 
 if __name__ == '__main__':
