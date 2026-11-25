@@ -85,7 +85,12 @@ def rule(tag):
 def configure(template, remove=None, add=None, last=False):
     """Our rule for ``remove`` leaves, one for ``add`` goes right before the
     egress rule (or last). Earlier panel rules keep their priority; foreign
-    edits stay. The outbound leaves with the panel's last relay rule."""
+    edits stay. The outbound leaves with the panel's last relay rule.
+
+    ``remove`` is one tag or several: 3x-ui rewrites routing rules when it
+    recomputes an inbound tag, so our rule may carry the recorded tag or the
+    inbound's current one."""
+    if isinstance(remove, str): remove = [remove]
     result = copy.deepcopy(template)
     outbounds = result.setdefault('outbounds', [])
     rules = result.setdefault('routing', {}).setdefault('rules', [])
@@ -93,10 +98,10 @@ def configure(template, remove=None, add=None, last=False):
     if found not in ([], [OUTBOUND]): raise RelayError('relay_conflict')
     ours = lambda tag: [x for x in rules if x.get('outboundTag') == TAG and
                         isinstance(x.get('inboundTag'), list) and tag in x['inboundTag']]
-    if remove is not None:
-        matches = ours(remove)
+    for tag in dict.fromkeys(remove or ()):
+        matches = ours(tag)
         # An absent rule is already removed; a changed one is a foreign edit.
-        if matches not in ([], [rule(remove)]): raise RelayError('relay_conflict')
+        if matches not in ([], [rule(tag)]): raise RelayError('relay_conflict')
         for item in matches: rules.remove(item)
     if add is not None:
         if ours(add): raise RelayError('relay_conflict')
@@ -172,7 +177,7 @@ def prepare(store, req):
                 access.link(row, client, CHECK_HOST, row['port'])
             except (EgressError, VlessError, KeyError, TypeError, ValueError, AttributeError):
                 raise RelayError('relay_unsupported') from None
-            desired = configure(template, entry['tag'] if entry else None, row['tag'])
+            desired = configure(template, [entry['tag'], row['tag']] if entry else None, row['tag'])
             probe.validate(desired)
             others.append(dict(panelId=p['panelId'], inboundId=p['inboundId'], tag=row['tag'], key=key))
         else:
@@ -182,7 +187,8 @@ def prepare(store, req):
             client = saved['client'] if saved else next((c for c in listed if c.get('email') == PREFIX + key[:40]), None)
             after = access.revoke(row, client) if row is not None and client else row
             if row is not None and vless.normal(after) == vless.normal(row): after = row
-            desired = configure(template, entry['tag'], last=not any(e['panelId'] == p['panelId'] for e in others))
+            tags = [entry['tag']] + ([row['tag']] if row is not None and isinstance(row.get('tag'), str) else [])
+            desired = configure(template, tags, last=not any(e['panelId'] == p['panelId'] for e in others))
     new = dict(inbounds=sorted(others, key=lambda e: (e['panelId'], e['inboundId']))) if others else None
     value = dict(panelId=p['panelId'], inboundId=p['inboundId'], enabled=p['enabled'], key=key, client=client,
                  previous=saved, before=row, after=after, templateBefore=template, templateAfter=desired,
@@ -198,7 +204,9 @@ def plan(store, req):
 
 
 def public(store):
-    """Relay inbounds; ``stale`` once the panel's tag or our rule drifted."""
+    """Relay inbounds; ``stale`` once our rule no longer routes the inbound's
+    current tag (the inbound is gone, its tag changed without the panel
+    following in routing, or the rule was removed)."""
     import client_egress as egress
     info = load()
     panels, result = {}, []
@@ -212,8 +220,9 @@ def public(store):
             panels[e['panelId']] = ({r.get('id'): r for r in rows}, template.get('routing', {}).get('rules', []))
         rows, rules = panels[e['panelId']]
         row = rows.get(e['inboundId'])
-        stale = row is None or row.get('tag') != e['tag'] or rule(e['tag']) not in rules
-        result.append(dict(panelId=e['panelId'], inboundId=e['inboundId'], tag=e['tag'], stale=stale))
+        tag = row.get('tag') if row is not None and isinstance(row.get('tag'), str) and row.get('tag') else e['tag']
+        stale = row is None or rule(tag) not in rules
+        result.append(dict(panelId=e['panelId'], inboundId=e['inboundId'], tag=tag, stale=stale))
     return dict(inbounds=result, observedHash=digest(info))
 
 

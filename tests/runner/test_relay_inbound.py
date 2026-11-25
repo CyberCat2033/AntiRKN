@@ -217,6 +217,44 @@ class RelayTransactionTests(unittest.TestCase):
         self.assertNotIn(relay.rule('inbound-443'), rules)
         self.assertFalse(self.store.request(dict(version=1, action='relay_state'))['relay']['inbounds'][0]['stale'])
 
+    def panel_retags(self, inbound_id, tag):
+        """What 3x-ui 3.7 does on an inbound edit: a new tag, and routing rules follow it."""
+        old = self.api.rows[inbound_id]['tag']
+        self.api.rows[inbound_id]['tag'] = tag
+        for item in self.template['routing']['rules']:
+            if old in item.get('inboundTag', []):
+                item['inboundTag'] = [tag if t == old else t for t in item['inboundTag']]
+
+    def test_panel_that_rewrites_routing_on_tag_change(self):
+        self.finish(self.submit('b'))
+        uid = self.service()[0]['id']
+        self.panel_retags(3, 'inbound-0.0.0.0:443')
+        # Routing still covers the inbound: not stale, the current tag is reported.
+        state = self.store.request(dict(version=1, action='relay_state'))['relay']['inbounds']
+        self.assertEqual(state, [dict(panelId=PANEL, inboundId=3, tag='inbound-0.0.0.0:443', stale=False)])
+        # Applying again refreshes the record instead of reporting a conflict.
+        self.assertEqual(self.finish(self.submit('c'))['status'], 'succeeded')
+        rules = self.template['routing']['rules']
+        self.assertEqual(rules.count(relay.rule('inbound-0.0.0.0:443')), 1)
+        self.assertNotIn(relay.rule('inbound-443'), rules)
+        self.assertEqual([c['id'] for c in self.service()], [uid])
+        self.assertEqual(relay.load()['inbounds'][0]['tag'], 'inbound-0.0.0.0:443')
+        self.panel_retags(3, 'inbound-444')
+        self.assertEqual(self.finish(self.submit('d', enabled=False))['status'], 'succeeded')
+        self.assertEqual(self.template, TEMPLATE)
+        self.assertEqual(self.service(), [])
+
+    def test_disable_after_panel_rewrote_the_rule(self):
+        self.finish(self.submit('b', 3))
+        self.finish(self.submit('c', 4))
+        self.panel_retags(3, 'inbound-0.0.0.0:443')
+        self.assertEqual(self.finish(self.submit('d', 3, False))['status'], 'succeeded')
+        self.assertEqual([r for r in self.template['routing']['rules'] if r.get('outboundTag') == relay.TAG],
+                         [relay.rule('inbound-8443')])
+        self.assertIn(relay.OUTBOUND, self.template['outbounds'])
+        self.assertEqual(self.finish(self.submit('e', 4, False))['status'], 'succeeded')
+        self.assertEqual(self.template, TEMPLATE)
+
     def test_second_inbound_shares_the_outbound_until_the_last_is_disabled(self):
         self.finish(self.submit('b', 3))
         self.finish(self.submit('c', 4))
