@@ -52,7 +52,7 @@ def enter_private_network():
     an isolated 127.0.0.1 that host loopback policies do not affect; the VM has no
     outside network, so components must come from the pinned local cache.
     """
-    if os.environ.get('ANTIRKN_VM_NETNS') == '1' or '--host-network' in sys.argv:
+    if os.environ.get('ANTIRKN_VM_NETNS') == '1' or '--host-network' in sys.argv or '--fetch' in sys.argv:
         return
     env = {k: v for k, v in os.environ.items() if k not in PROXY_VARIABLES}
     env['ANTIRKN_VM_NETNS'] = '1'
@@ -64,22 +64,31 @@ def enter_private_network():
 def main():
     enter_private_network()
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--fetch', action='store_true', help='download and verify all pinned offline fixtures (uses host network)')
     parser.add_argument('--only', help='comma separated scenario names: ' + ','.join(scenarios.ORDER))
     parser.add_argument('--keep-vm', action='store_true', help='leave the last VM running')
     parser.add_argument('--rebuild-golden', action='store_true')
     parser.add_argument('--mutation', action='store_true', help='prove each scenario can fail')
     parser.add_argument('--host-network', action='store_true', help='do not enter a private network namespace')
     parser.add_argument('--reuse-protocols', action='store_true', help='developer: reuse a built protocols overlay')
+    parser.add_argument('--previous', help='git commit for the previous runner release used by runner_upgrade')
     args = parser.parse_args()
+    if args.fetch:
+        lib.fetch_all()
+        return 0
     names = args.only.split(',') if args.only else list(scenarios.ORDER)
     unknown = [n for n in names if n not in scenarios.SCENARIOS]
     if unknown:
         parser.error('unknown scenario: ' + ','.join(unknown))
+    lib.verify_cache()
     run_dir = lib.RUNS / datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
     run_dir.mkdir(mode=0o700, parents=True)
     bundle = lib.current_bundle()
+    if args.previous or 'runner_upgrade' in names:
+        lib.previous_bundle(bundle, args.previous)
     vm = lib.Vm()
     scenarios.OPTIONS['reuse_protocols'] = args.reuse_protocols
+    scenarios.OPTIONS['previous_commit'] = args.previous
     started = time.monotonic()
     entries, golden_seconds = [], None
     try:
