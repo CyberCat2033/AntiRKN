@@ -250,6 +250,31 @@ class PublicationController extends ChangeNotifier {
         : null;
   }
 
+  /// The public link of the profile already published on Drive, checked
+  /// read-only: the authenticated file and the public link serve the same
+  /// bytes. For a device that cannot build the profile without its servers.
+  /// Null when no file was published by link.
+  Future<String?> publishedLinkFromDrive(String userId) async {
+    final user = vpn.workspace.userById(userId);
+    if (!authorized ||
+        settings?.access != PublicationAccess.link ||
+        user == null ||
+        user.deleted ||
+        !user.enabled) {
+      return null;
+    }
+    final namespace = vpn.workspace.profiles[userId]?['publicationWorkspaceId'];
+    final store = remote();
+    final file = await PublicationCoordinator(
+      repository: repository,
+      remote: store,
+    ).findPublished(userId, namespace is String ? namespace : vpn.workspace.id);
+    final url = file?.downloadUrl;
+    if (file == null || url == null) return null;
+    await store.verifyPublicLink(url, await store.download(file.id));
+    return url;
+  }
+
   bool get authorized =>
       account is GooglePublicationAuthorization &&
       (account as GooglePublicationAuthorization).publicationAuthorized;

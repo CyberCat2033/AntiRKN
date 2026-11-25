@@ -4502,6 +4502,54 @@ abstract class AppLocalizations {
   /// **'The data in Google Drive was saved by a newer version of AntiRKN. Update the app on this device. Until then nothing is downloaded from or sent to Google Drive; the data on this device is unchanged.'**
   String get autoSyncUpdateRequired;
 
+  /// No description provided for @restoredCacheRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Server data is being read again in the background after sync. Data saved on this device is shown meanwhile.'**
+  String get restoredCacheRunning;
+
+  /// No description provided for @restoredCacheStale.
+  ///
+  /// In en, this message translates to:
+  /// **'Servers not answering: {count}. Showing data from {date}. Profiles already published can be opened from Google Drive.'**
+  String restoredCacheStale(int count, String date);
+
+  /// No description provided for @restoredCacheMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Servers not answering: {count}. This device has no saved data about them. Profiles already published can be opened from Google Drive.'**
+  String restoredCacheMissing(int count);
+
+  /// No description provided for @profilePublishedDriveHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'This device has not built the profile yet: it needs data from the servers. You can open the file already published in Google Drive.'**
+  String get profilePublishedDriveHelp;
+
+  /// No description provided for @profileOpenPublished.
+  ///
+  /// In en, this message translates to:
+  /// **'Open published file'**
+  String get profileOpenPublished;
+
+  /// No description provided for @profilePublishedMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Google Drive has no file of this client published by link.'**
+  String get profilePublishedMissing;
+
+  /// No description provided for @profilePublishedFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open the published file. Check the connection to Google Drive and try again.'**
+  String get profilePublishedFailed;
+
+  /// No description provided for @profilePublishedFromDrive.
+  ///
+  /// In en, this message translates to:
+  /// **'Published file from Google Drive. It was not rebuilt on this device.'**
+  String get profilePublishedFromDrive;
+
   /// No description provided for @autoSyncNow.
   ///
   /// In en, this message translates to:

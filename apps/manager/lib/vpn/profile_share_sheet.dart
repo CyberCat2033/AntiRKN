@@ -28,7 +28,34 @@ class ProfileShareSheet extends StatefulWidget {
 class _ProfileShareSheetState extends State<ProfileShareSheet> {
   bool saving = false;
   bool regenerating = false;
+  bool openingPublished = false;
   String? message;
+
+  /// The already published link read from Google Drive, when this device
+  /// cannot build the profile itself.
+  String? publishedLink;
+  String? publishedMessage;
+
+  Future<void> _openPublished() async {
+    final l = AppLocalizations.of(context);
+    setState(() {
+      openingPublished = true;
+      publishedMessage = null;
+    });
+    String? url, issue;
+    try {
+      url = await widget.publications?.publishedLinkFromDrive(widget.user.id);
+      if (url == null) issue = l.profilePublishedMissing;
+    } catch (_) {
+      issue = l.profilePublishedFailed;
+    }
+    if (!mounted) return;
+    setState(() {
+      openingPublished = false;
+      publishedLink = url;
+      publishedMessage = issue;
+    });
+  }
   @override
   void initState() {
     super.initState();
@@ -197,6 +224,36 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                 Text(
                   c.template().isEmpty ? l.vpnEmptyTemplate : l.vpnLastProfile,
                 ),
+              if (!usable && link == null && publication != null) ...[
+                const SizedBox(height: AppLayout.gap),
+                if (publishedLink case final url?) ...[
+                  AppNotice(
+                    key: const ValueKey('profile-published-drive'),
+                    icon: Icons.cloud_done_outlined,
+                    message: l.profilePublishedFromDrive,
+                  ),
+                  ProfileLinkQr(
+                    url: url,
+                    profileName: user?.name ?? widget.user.name,
+                    beforeCopy: () async {
+                      if (c.workspace.userById(widget.user.id)?.enabled !=
+                          true) {
+                        throw StateError('publication_changed');
+                      }
+                    },
+                  ),
+                ] else
+                  AppNotice(
+                    key: const ValueKey('profile-open-published'),
+                    icon: Icons.cloud_outlined,
+                    message: publishedMessage ?? l.profilePublishedDriveHelp,
+                    action: TextButton(
+                      key: const ValueKey('profile-open-published-action'),
+                      onPressed: openingPublished ? null : _openPublished,
+                      child: Text(l.profileOpenPublished),
+                    ),
+                  ),
+              ],
               if (result != null)
                 for (final d in result.diagnostics)
                   Card.filled(

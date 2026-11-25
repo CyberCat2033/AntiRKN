@@ -421,8 +421,7 @@ class VpnController extends ChangeNotifier {
   bool get busy => _busy || connections.busy || _upgradeBusy;
   bool get workspaceBusy => _busy || _upgradeBusy;
   bool get foregroundBusy =>
-      (_busy && _backgroundReconcile == null) ||
-      _upgradeBusy;
+      (_busy && _backgroundReconcile == null) || _upgradeBusy;
 
   Future<void> waitForBackgroundReconcile() async {
     await _backgroundReconcile?.future;
@@ -2118,6 +2117,53 @@ class VpnController extends ChangeNotifier {
         : workspace.inbounds
               .where((r) => r.serverId == target && r.deleted == deleted)
               .map((r) => r.id);
+  }
+
+  Iterable<MapEntry<String, Map<String, dynamic>>> _physicalRecords(
+    String serverId,
+  ) => workspace.servers.entries.where(
+    (entry) => vpnServerId(entry.key) == serverId,
+  );
+
+  /// Whether every saved target of [serverId] was read from the server at or
+  /// after [since]. A server without targets has nothing to read.
+  bool serverObservedSince(String serverId, DateTime since) =>
+      _physicalRecords(serverId).every((entry) {
+        final at = DateTime.tryParse(
+          entry.value['verifiedAt'] as String? ?? '',
+        );
+        return at != null && !at.isBefore(since);
+      });
+
+  /// The oldest saved read of [serverId]: the date its cached state shows.
+  /// Null when some target of it was never read on this device.
+  DateTime? serverObservedAt(String serverId) {
+    DateTime? oldest;
+    for (final entry in _physicalRecords(serverId)) {
+      final at = DateTime.tryParse(entry.value['verifiedAt'] as String? ?? '');
+      if (at == null) return null;
+      if (oldest == null || at.isBefore(oldest)) oldest = at;
+    }
+    return oldest;
+  }
+
+  /// Reads the state of connected [serverIds] again with the read-only state
+  /// request and rebuilds profiles, in the background like reconciliation:
+  /// the interface is not marked busy and nothing is submitted.
+  Future<void> refreshConnectedInBackground(Iterable<String> serverIds) {
+    final ids = serverIds.toSet();
+    return _run((token) async {
+      final targets = [
+        for (final entry in workspace.servers.entries)
+          if (ids.contains(vpnServerId(entry.key)) &&
+              remote(entry.key) != null &&
+              !observesOperation(entry.key))
+            entry.key,
+      ]..sort();
+      // A target that did not answer keeps its dated cache; the caller
+      // learns it from serverObservedSince, not from a global issue.
+      if (targets.isNotEmpty) await _refreshTargets(targets, token);
+    }, background: true);
   }
 
   Future<void> refreshServer(String id) => _run((token) async {

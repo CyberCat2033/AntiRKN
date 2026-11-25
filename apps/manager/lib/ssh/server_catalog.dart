@@ -19,6 +19,7 @@ import '../vpn/tt_panel.dart';
 import '../vpn/awg_existing_panel.dart';
 import '../vpn/adopt_resource.dart';
 import '../vpn/vpn_plan_view.dart';
+import '../sync/restored_cache_refresh.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 
 class ServerCatalog extends StatefulWidget {
@@ -28,6 +29,7 @@ class ServerCatalog extends StatefulWidget {
     this.vpn,
     this.selection,
     this.diagnostics,
+    this.cacheRefresh,
     super.key,
   });
   final ServerCatalogController controller;
@@ -35,6 +37,7 @@ class ServerCatalog extends StatefulWidget {
   final VpnController? vpn;
   final CatalogSelection? selection;
   final IpDiagnosticsController? diagnostics;
+  final RestoredCacheRefresh? cacheRefresh;
 
   static Future<void> deleteSelected(
     BuildContext context,
@@ -398,6 +401,8 @@ class _ServerCatalogState extends State<ServerCatalog> {
               ),
             ),
             AppSectionHeading(title: l.uiMyServers, count: c.servers.length),
+            if (widget.cacheRefresh case final refresh?)
+              RestoredCacheNotice(refresh: refresh),
             if (c.loading) const LinearProgressIndicator(),
             if (c.error case final issue?) ...[
               Text(vaultIssueLabel(l, issue)),

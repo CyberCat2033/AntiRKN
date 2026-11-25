@@ -2535,6 +2535,39 @@ class AppLocalizationsEn extends AppLocalizations {
       'The data in Google Drive was saved by a newer version of AntiRKN. Update the app on this device. Until then nothing is downloaded from or sent to Google Drive; the data on this device is unchanged.';
 
   @override
+  String get restoredCacheRunning =>
+      'Server data is being read again in the background after sync. Data saved on this device is shown meanwhile.';
+
+  @override
+  String restoredCacheStale(int count, String date) {
+    return 'Servers not answering: $count. Showing data from $date. Profiles already published can be opened from Google Drive.';
+  }
+
+  @override
+  String restoredCacheMissing(int count) {
+    return 'Servers not answering: $count. This device has no saved data about them. Profiles already published can be opened from Google Drive.';
+  }
+
+  @override
+  String get profilePublishedDriveHelp =>
+      'This device has not built the profile yet: it needs data from the servers. You can open the file already published in Google Drive.';
+
+  @override
+  String get profileOpenPublished => 'Open published file';
+
+  @override
+  String get profilePublishedMissing =>
+      'Google Drive has no file of this client published by link.';
+
+  @override
+  String get profilePublishedFailed =>
+      'Could not open the published file. Check the connection to Google Drive and try again.';
+
+  @override
+  String get profilePublishedFromDrive =>
+      'Published file from Google Drive. It was not rebuilt on this device.';
+
+  @override
   String get autoSyncNow => 'Sync now';
 
   @override

@@ -16,6 +16,7 @@ import 'publication/publication_controller.dart';
 import 'publication/publication_panel.dart';
 import 'sync/auto_sync_controller.dart';
 import 'sync/google_account_panel.dart';
+import 'sync/restored_cache_refresh.dart';
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_storage/antirkn_storage.dart';
@@ -450,6 +451,7 @@ class _ManagerShellState extends State<ManagerShell>
   ServerCatalogController? _catalog;
   VpnController? _vpn;
   PublicationController? _publications;
+  RestoredCacheRefresh? _cacheRefresh;
   bool _applyingSync = false;
   bool _diagnosing = false;
   ComponentUpdatesController? _diagnosticUpdates;
@@ -578,6 +580,17 @@ class _ManagerShellState extends State<ManagerShell>
           );
         },
       );
+      if (widget.settings case final settings? when _catalog != null) {
+        final catalog = _catalog!, vpn = _vpn!;
+        _cacheRefresh = RestoredCacheRefresh(
+          settings: settings,
+          connect: catalog.connectForAction,
+          refresh: vpn.refreshConnectedInBackground,
+          observedSince: vpn.serverObservedSince,
+          observedAt: vpn.serverObservedAt,
+          known: (id) => catalog.servers.any((server) => server.id == id),
+        );
+      }
       unawaited(_loadVpnAfterCatalog(catalogReady));
       if (widget.servers is PublicationRepository &&
           widget.googleAccount is GoogleSyncAccountService) {
@@ -606,6 +619,8 @@ class _ManagerShellState extends State<ManagerShell>
     await _vpn?.load();
     await _repairOrphanedVpnState();
     await _vpn?.recoverHiddenPendingAccessChanges();
+    // After a cloud pull, servers without cache here are read in background.
+    if (mounted) unawaited(_cacheRefresh?.start());
   }
 
   void _catalogChanged() {
@@ -721,6 +736,7 @@ class _ManagerShellState extends State<ManagerShell>
     _catalog?.removeListener(_catalogChanged);
     _catalog?.dispose();
     _publications?.dispose();
+    _cacheRefresh?.dispose();
     _vpn?.dispose();
     _sshController?.dispose();
     _controller.dispose();
@@ -990,6 +1006,7 @@ class _ManagerShellState extends State<ManagerShell>
                                 selection: _serverSelection,
                                 motion: widget.motion,
                                 vpn: _vpn,
+                                cacheRefresh: _cacheRefresh,
                               )
                             else if (_sshController != null)
                               NetworkWorkbench(

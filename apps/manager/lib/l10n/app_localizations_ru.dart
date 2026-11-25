@@ -2540,6 +2540,39 @@ class AppLocalizationsRu extends AppLocalizations {
       'Данные в Google Drive сохранены более новой версией AntiRKN. Обновите приложение на этом устройстве. До обновления с Google Drive ничего не загружается и туда ничего не отправляется; данные на этом устройстве не изменены.';
 
   @override
+  String get restoredCacheRunning =>
+      'Данные серверов перечитываются в фоне после синхронизации. Пока показаны данные, сохранённые на этом устройстве.';
+
+  @override
+  String restoredCacheStale(int count, String date) {
+    return 'Не ответили серверы: $count. Показаны данные от $date. Уже опубликованные профили можно открыть из Google Drive.';
+  }
+
+  @override
+  String restoredCacheMissing(int count) {
+    return 'Не ответили серверы: $count. Сохранённых данных о них на этом устройстве нет. Уже опубликованные профили можно открыть из Google Drive.';
+  }
+
+  @override
+  String get profilePublishedDriveHelp =>
+      'На этом устройстве профиль ещё не собран: нужны данные с серверов. Можно открыть файл, уже опубликованный в Google Drive.';
+
+  @override
+  String get profileOpenPublished => 'Открыть опубликованный файл';
+
+  @override
+  String get profilePublishedMissing =>
+      'В Google Drive нет опубликованного по ссылке файла этого клиента.';
+
+  @override
+  String get profilePublishedFailed =>
+      'Не удалось открыть опубликованный файл. Проверьте связь с Google Drive и повторите попытку.';
+
+  @override
+  String get profilePublishedFromDrive =>
+      'Опубликованный файл из Google Drive. Он не пересобирался на этом устройстве.';
+
+  @override
   String get autoSyncNow => 'Синхронизировать сейчас';
 
   @override
