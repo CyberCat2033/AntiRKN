@@ -8,7 +8,7 @@ import 'vpn_controller_test.dart' as f;
 import 'awg_test.dart' as awg;
 import 'tt_test.dart' as tt;
 
-class DeviceStore extends f.MemoryVpn implements ChangeJournalStore {
+class DeviceStore extends f.MemoryVpn implements WorkspaceIdentityStore {
   DeviceStore(this.device);
   final String device;
   @override

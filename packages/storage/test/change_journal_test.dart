@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'fixtures/journal_data.dart';
 
+typedef _Head = ({int revision, String changeId, bool deleted});
+
 void main() {
   late Directory directory;
   late String path;
@@ -17,17 +19,45 @@ void main() {
     return db;
   }
 
-  void sql(String statement) {
+  T raw<T>(T Function(Database db) read) {
     final db = sqlite3.open(path);
     try {
-      db.execute(statement);
+      return read(db);
     } finally {
       db.dispose();
     }
   }
 
-  List<String> ids(List<LocalChange> changes) =>
-      changes.map((e) => e.header.changeId).toList();
+  void sql(String statement) => raw((db) => db.execute(statement));
+
+  /// Current head of every entity: `kind:id` to its version.
+  Map<String, _Head> heads() => raw(
+    (db) => {
+      for (final row in db.select('SELECT * FROM sync_heads'))
+        '${row['entity_kind']}:${row['entity_id']}': (
+          revision: row['revision'] as int,
+          changeId: row['change_id'] as String,
+          deleted: row['deleted'] == 1,
+        ),
+    },
+  );
+  int sequence() => raw(
+    (db) =>
+        db.select('SELECT sequence FROM sync_identity').single['sequence']
+            as int,
+  );
+  List<String> parents(String changeId) => raw(
+    (db) => List<String>.from(
+      jsonDecode(
+            db.select('SELECT parents FROM sync_history WHERE change_id=?', [
+                  changeId,
+                ]).single['parents']
+                as String,
+          )
+          as List,
+    ),
+  );
+
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('antirkn-journal-test-');
     path = '${directory.path}/workspace.sqlite';
@@ -45,10 +75,10 @@ void main() {
       'migrates VPN v$version without rewriting old ciphertext or identities',
       () async {
         await createV1(path, vpnVersion: version);
-        final raw = sqlite3.open(path);
-        final oldServer = raw.select('SELECT * FROM servers').single;
-        final oldDocuments = raw.select('SELECT * FROM documents ORDER BY id');
-        raw.dispose();
+        final oldServer = raw((db) => db.select('SELECT * FROM servers'));
+        final oldDocuments = raw(
+          (db) => db.select('SELECT * FROM documents ORDER BY id'),
+        );
         final db = open();
         final identity = await db.readWorkspaceIdentity();
         expect(identity.workspaceId, fixtureWorkspaceId);
@@ -64,52 +94,39 @@ void main() {
         expect(vpn.profiles, fixtureVpn().profiles);
         expect(await db.readSetting('language'), 'ru');
         expect(await db.readSetting('theme'), 'dark');
-        final changes = await db.readChanges();
+        final initial = heads();
         expect(
-          changes.map((e) => e.header.entityKind),
+          initial.keys.map((key) => key.split(':').first).toSet(),
           containsAll([
-            ChangeEntityKind.workspace,
-            ChangeEntityKind.server,
-            ChangeEntityKind.template,
-            ChangeEntityKind.vpnUser,
-            ChangeEntityKind.vlessInbound,
-            ChangeEntityKind.vpnServerState,
-            ChangeEntityKind.profile,
-            ChangeEntityKind.runnerState,
-            if (version >= 2) ChangeEntityKind.awgInterface,
-            if (version >= 3) ChangeEntityKind.ttEndpoint,
+            'workspace',
+            'server',
+            'template',
+            'vpnUser',
+            'vlessInbound',
+            'vpnServerState',
+            'profile',
+            'runnerState',
+            if (version >= 2) 'awgInterface',
+            if (version >= 3) 'ttEndpoint',
           ]),
         );
-        expect(
-          changes.every(
-            (e) => e.header.revision == 1 && e.header.baseChangeId == null,
-          ),
-          isTrue,
-        );
-        expect(changes.map((e) => e.header.transactionId).toSet().length, 1);
-        expect(
-          changes.map((e) => e.header.transactionIndex),
-          List.generate(changes.length, (i) => i),
-        );
-        expect(
-          changes.every((e) => e.header.transactionSize == changes.length),
-          isTrue,
-        );
+        expect(initial.values.every((h) => h.revision == 1), isTrue);
+        expect(sequence(), initial.length);
         await db.close();
-        final after = sqlite3.open(path);
-        expect(after.userVersion, 6);
-        expect(after.select('SELECT * FROM servers').single, oldServer);
-        expect(
-          after.select('SELECT * FROM documents ORDER BY id'),
-          oldDocuments,
-        );
-        after.dispose();
+        raw((after) {
+          expect(after.userVersion, 7);
+          expect(after.select('SELECT * FROM servers'), oldServer);
+          expect(
+            after.select('SELECT * FROM documents ORDER BY id'),
+            oldDocuments,
+          );
+        });
         final reopened = open();
         expect(
           (await reopened.readWorkspaceIdentity()).deviceId,
           identity.deviceId,
         );
-        expect(ids(await reopened.readPendingChanges()), ids(changes));
+        expect(heads(), initial);
         await reopened.writeVpn(
           vpn
               .copy(
@@ -120,22 +137,15 @@ void main() {
               .encode(),
           expectedRevision: 9,
         );
-        final delta = await reopened.readChanges(
-          afterSequence: changes.last.header.sequence,
-        );
+        final user = heads()['vpnUser:$fixtureUserId']!;
+        expect(user.revision, 2);
+        expect(parents(user.changeId), [
+          initial['vpnUser:$fixtureUserId']!.changeId,
+        ]);
+        // The full write repairs namespaces of every server record.
         expect(
-          delta
-              .where((e) => e.header.entityKind == ChangeEntityKind.vpnUser)
-              .single
-              .header
-              .revision,
-          2,
-        );
-        expect(
-          delta.any(
-            (e) => e.header.entityKind == ChangeEntityKind.vpnServerState,
-          ),
-          isTrue,
+          heads()['vpnServerState:$fixtureServerId']!.revision,
+          greaterThan(1),
         );
         final latest = VpnWorkspace.decode((await reopened.readVpn()).source!);
         for (final entry in vpn.servers.entries) {
@@ -157,7 +167,7 @@ void main() {
       ]);
       expect(identity[0].workspaceId, identity[1].workspaceId);
       expect(identity[0].deviceId, identity[1].deviceId);
-      expect((await first.readChanges()).length, 1);
+      expect(heads().keys, ['workspace:${identity[0].workspaceId}']);
       final other = WorkspaceDatabase.open(
         '${directory.path}/other.sqlite',
         key: fixtureKey(),
@@ -186,120 +196,27 @@ void main() {
   );
 
   test(
-    'shipped v2 schema upgrades with the same identity, ciphertext and events; wrong key cannot migrate it',
-    () async {
-      await createV1(path);
-      final original = open();
-      final identity = await original.readWorkspaceIdentity();
-      final events = ids(await original.readPendingChanges());
-      await original.close();
-      final raw = sqlite3.open(path);
-      final ciphertext = raw.select('SELECT * FROM servers').single;
-      try {
-        // Reconstruct the shipped v2 schema; record encryption and headers are
-        // unchanged across v2/v3 and come from the independent v1 fixture.
-        for (final table in ['servers', 'documents']) {
-          for (final action in ['insert', 'update', 'delete']) {
-            raw.execute('DROP TRIGGER journal_guard_${table}_$action');
-            raw.execute(
-              "CREATE TRIGGER journal_guard_${table}_$action BEFORE $action ON $table WHEN (SELECT write_guard FROM sync_identity WHERE singleton=1) != 1 BEGIN SELECT RAISE(ABORT, 'journal_writer_required'); END",
-            );
-          }
-        }
-        for (final table in [
-          'vpn_overlay_state',
-          'vpn_user_overlay',
-          'vpn_profile_overlay',
-        ]) {
-          raw.execute('DROP TABLE $table');
-        }
-        raw.execute('ALTER TABLE sync_identity DROP COLUMN writer_device');
-        raw.execute('ALTER TABLE sync_identity DROP COLUMN writer_version');
-        raw.execute('DROP TABLE sync_packets');
-        raw.execute('DROP TABLE sync_keys');
-        for (final table in [
-          'sync_incoming',
-          'sync_branches',
-          'sync_conflicts',
-          'sync_merge_meta',
-        ]) {
-          raw.execute('DROP TABLE $table');
-        }
-        raw.userVersion = 2;
-        final wrong = WorkspaceDatabase.open(
-          path,
-          key: SecretKeyData(List.filled(32, 8)),
-        );
-        stores.add(wrong);
-        await expectLater(
-          wrong.readWorkspaceIdentity(),
-          throwsA(isA<VaultFailure>()),
-        );
-        expect(raw.userVersion, 2);
-        final migrated = open();
-        expect(
-          (await migrated.readWorkspaceIdentity()).deviceId,
-          identity.deviceId,
-        );
-        expect(raw.userVersion, 6);
-        expect(raw.select('SELECT * FROM servers').single, ciphertext);
-        expect(ids(await migrated.readPendingChanges()), events);
-        expect(
-          (await migrated.listServers()).single.profile.secrets,
-          fixtureServer().secrets,
-        );
-      } finally {
-        raw.dispose();
-      }
-    },
-  );
-
-  test(
-    'event chains, immutable history, exact acknowledgements and pending cursor survive restart',
+    'heads advance per changed entity; settings and equal writes change nothing',
     () async {
       final db = open();
       await db.writeDraft('first');
-      final first = (await db.readChanges()).last;
+      final first = heads()['template:default']!;
+      final counter = sequence();
       await db.writeDraft('second');
       await db.writeDraft('second');
       await db.writeRunnerJournal(fixtureServerId, 'runner-fixture');
-      final changes = await db.readChanges();
-      final second = changes[2];
-      expect(second.header.baseChangeId, first.header.changeId);
-      expect(second.header.baseRevision, first.header.revision);
-      expect(changes.map((e) => e.header.sequence), [1, 2, 3, 4]);
-      final page = await db.readPendingChanges(limit: 2);
-      expect(ids(page), ids(changes.take(2).toList()));
-      expect(
-        ids(await db.readPendingChanges(afterSequence: 2)),
-        ids(changes.skip(2).toList()),
-      );
-      await db.acknowledgeChanges([first.header.changeId]);
-      await db.acknowledgeChanges([first.header.changeId]);
-      await expectLater(
-        db.acknowledgeChanges([second.header.changeId, 'unknown-id']),
-        throwsA(isA<VaultFailure>()),
-      );
-      expect(
-        ids(await db.readPendingChanges()),
-        contains(second.header.changeId),
-      );
-      expect(() => sql('DELETE FROM sync_changes'), throwsA(anything));
+      final second = heads()['template:default']!;
+      expect(second.revision, first.revision + 1);
+      expect(parents(second.changeId), [first.changeId]);
+      expect(heads()['runnerState:$fixtureServerId']!.revision, 1);
+      expect(sequence(), counter + 2);
+      await db.writeLanguage(AppLanguage.ru);
+      await db.writeSetting('theme', 'dark');
+      expect(sequence(), counter + 2);
       await db.close();
       final reopened = open();
-      expect(ids(await reopened.readChanges()), ids(changes));
-      expect(
-        ids(await reopened.readPendingChanges()),
-        ids(
-          changes
-              .where((e) => e.header.changeId != first.header.changeId)
-              .toList(),
-        ),
-      );
       expect(await reopened.readDraft(), 'second');
-      await reopened.writeLanguage(AppLanguage.ru);
-      await reopened.writeSetting('theme', 'dark');
-      expect(ids(await reopened.readChanges()), ids(changes));
+      expect(heads()['template:default'], second);
     },
   );
 
@@ -309,13 +226,13 @@ void main() {
       final db = open();
       final one = await db.openServer(fixtureServerId);
       await one.saveProfile(fixtureServer());
+      final created = heads()['server:$fixtureServerId']!;
       final old = await open().openServer(fixtureServerId);
       await one.saveProfile(null);
       await one.saveProfile(null);
-      final changes = await db.readChanges();
-      expect(changes.last.header.deleted, isTrue);
-      expect(changes.last.source, isNull);
-      expect(changes.last.header.baseChangeId, changes[1].header.changeId);
+      final deleted = heads()['server:$fixtureServerId']!;
+      expect(deleted.deleted, isTrue);
+      expect(parents(deleted.changeId), [created.changeId]);
       await expectLater(
         old.saveProfile(fixtureServer('old.example')),
         throwsA(isA<VaultFailure>()),
@@ -325,19 +242,32 @@ void main() {
         throwsA(isA<VaultFailure>()),
       );
       await db.close();
-      expect((await open().readChanges()).last.header.deleted, isTrue);
+      expect(heads()['server:$fixtureServerId']!.deleted, isTrue);
       expect(await open().listServers(), isEmpty);
     },
   );
 
+  test('batch server deletion leaves a tombstone for every server', () async {
+    final db = open();
+    final id = await db.readWorkspaceIdentity();
+    await db.writeVpnWorkspace(
+      VpnWorkspace(id: id.workspaceId),
+      expectedRevision: 0,
+    );
+    final sid = db.newServerId();
+    await (await db.openServer(sid)).saveProfile(fixtureServer('a.example'));
+    await db.deleteServers(await db.listServers());
+    expect(await db.listServers(), isEmpty);
+    expect(heads()['server:$sid']!.deleted, isTrue);
+  });
+
   test(
-    'VPN removal and soft resource deletion keep causal revisions and credentials',
+    'VPN removal and soft resource deletion keep revisions and credentials',
     () async {
       final db = open();
       final initial = await db.readVpn();
       final vpn = fixtureVpn(initial.workspaceId!);
       await db.writeVpn(vpn.encode(), expectedRevision: 0);
-      final old = await db.readChanges();
       final deleted = VlessInbound(
         serverId: fixtureServerId,
         spec: {...vpn.inbounds.single.spec, 'enabled': false, 'deleted': true},
@@ -346,19 +276,11 @@ void main() {
         vpn.copy(users: [], inbounds: [deleted]).encode(),
         expectedRevision: 1,
       );
-      final delta = await db.readChanges(
-        afterSequence: old.last.header.sequence,
-      );
-      final user = delta.singleWhere(
-        (e) => e.header.entityKind == ChangeEntityKind.vpnUser,
-      );
-      final resource = delta.singleWhere(
-        (e) => e.header.entityKind == ChangeEntityKind.vlessInbound,
-      );
-      expect(user.header.deleted, isTrue);
-      expect(user.source, isNull);
-      expect(resource.header.deleted, isTrue);
-      expect(jsonDecode(resource.source!)['spec']['deleted'], isTrue);
+      final user = heads()['vpnUser:$fixtureUserId']!;
+      final resource = heads()['vlessInbound:${'c' * 32}']!;
+      expect(user.deleted, isTrue);
+      expect(user.revision, 2);
+      expect(resource.deleted, isTrue);
       final savedServers = VpnWorkspace.decode(
         (await db.readVpn()).source!,
       ).servers;
@@ -371,17 +293,25 @@ void main() {
         db.writeVpn(vpn.encode(), expectedRevision: 1),
         throwsA(isA<VaultFailure>()),
       );
+      // A removed client never returns under the same id.
+      await expectLater(
+        db.writeVpn(
+          vpn.copy(inbounds: [deleted]).encode(),
+          expectedRevision: 2,
+        ),
+        throwsA(isA<VaultFailure>()),
+      );
     },
   );
 
   test(
-    'outbox failure rolls back data, all events, heads and sequence together',
+    'a failing head write rolls back data, all heads and the counter together',
     () async {
       final db = open();
       final initial = await db.readVpn();
-      final before = await db.readChanges();
+      final before = heads(), counter = sequence();
       sql(
-        "CREATE TRIGGER reject_outbox BEFORE INSERT ON sync_outbox WHEN (SELECT count(*) FROM sync_changes)>2 BEGIN SELECT RAISE(ABORT, 'fixture_failure'); END",
+        "CREATE TRIGGER reject_head BEFORE INSERT ON sync_history WHEN (SELECT count(*) FROM sync_history)>2 BEGIN SELECT RAISE(ABORT, 'fixture_failure'); END",
       );
       await expectLater(
         db.writeVpn(
@@ -391,35 +321,31 @@ void main() {
         throwsA(anything),
       );
       expect((await db.readVpn()).source, isNull);
-      expect(ids(await db.readChanges()), ids(before));
+      expect(heads(), before);
+      expect(sequence(), counter);
       await db.close();
-      sql('DROP TRIGGER reject_outbox');
+      sql('DROP TRIGGER reject_head');
       final reopened = open();
-      expect(ids(await reopened.readPendingChanges()), ids(before));
       await reopened.writeVpn(
         fixtureVpn(initial.workspaceId!).encode(),
         expectedRevision: 0,
       );
-      final changes = await reopened.readChanges();
-      expect(
-        changes.map((e) => e.header.sequence),
-        List.generate(changes.length, (i) => i + 1),
-      );
+      expect(sequence(), heads().length);
       expect((await reopened.readVpn()).revision, 1);
     },
   );
 
   test(
-    'each server, template and runner write/delete rolls back when enqueue fails',
+    'each server, template and runner write/delete rolls back when the journal fails',
     () async {
       final db = open();
       final server = await db.openServer(fixtureServerId);
       await server.saveProfile(fixtureServer());
       await db.writeDraft('saved');
       await db.writeRunnerJournal(fixtureServerId, 'saved');
-      final old = ids(await db.readChanges());
+      final old = heads();
       sql(
-        "CREATE TRIGGER reject_outbox BEFORE INSERT ON sync_outbox BEGIN SELECT RAISE(ABORT, 'fixture'); END",
+        "CREATE TRIGGER reject_head BEFORE INSERT ON sync_history BEGIN SELECT RAISE(ABORT, 'fixture'); END",
       );
       for (final action in [
         () => server.saveProfile(fixtureServer('changed.example')),
@@ -432,7 +358,7 @@ void main() {
       expect((await db.listServers()).single.profile.host, 'fixture.example');
       expect(await db.readDraft(), 'saved');
       expect(await db.readRunnerJournal(fixtureServerId), 'saved');
-      expect(ids(await db.readChanges()), old);
+      expect(heads(), old);
     },
   );
 
@@ -440,24 +366,27 @@ void main() {
     'interrupted migration leaves v1 intact and retry seeds exactly once',
     () async {
       await createV1(path);
-      sql('CREATE TABLE sync_outbox (fixture INTEGER)');
+      sql('CREATE TABLE sync_history (fixture INTEGER)');
       final db = open();
       await expectLater(db.readWorkspaceIdentity(), throwsA(anything));
-      final raw = sqlite3.open(path);
-      expect(raw.userVersion, 1);
-      expect(
-        raw.select("SELECT name FROM sqlite_master WHERE name='sync_identity'"),
-        isEmpty,
-      );
-      expect(raw.select('SELECT revision FROM servers').single['revision'], 7);
-      raw.dispose();
-      sql('DROP TABLE sync_outbox');
+      raw((db) {
+        expect(db.userVersion, 1);
+        expect(
+          db.select(
+            "SELECT name FROM sqlite_master WHERE name='sync_identity'",
+          ),
+          isEmpty,
+        );
+        expect(db.select('SELECT revision FROM servers').single['revision'], 7);
+      });
+      sql('DROP TABLE sync_history');
       expect(
         (await db.readWorkspaceIdentity()).workspaceId,
         fixtureWorkspaceId,
       );
-      final before = ids(await db.readChanges());
-      expect(ids(await open().readChanges()), before);
+      final before = heads();
+      await open().readWorkspaceIdentity();
+      expect(heads(), before);
     },
   );
 
@@ -474,9 +403,7 @@ void main() {
         wrong.writeDraft('wrong'),
         throwsA(isA<VaultFailure>()),
       );
-      var raw = sqlite3.open(path);
-      expect(raw.userVersion, 1);
-      raw.dispose();
+      expect(raw((db) => db.userVersion), 1);
       final db = open();
       await db.readWorkspaceIdentity();
       final other = WorkspaceDatabase.open(
@@ -489,14 +416,12 @@ void main() {
         throwsA(isA<VaultFailure>()),
       );
       expect(await db.readDraft(), 'private-template-fixture');
-      raw = sqlite3.open(path);
-      expect(raw.userVersion, 6);
-      raw.dispose();
+      expect(raw((db) => db.userVersion), 7);
     },
   );
 
   test(
-    'concurrent writers cannot lose events; retry retains gap-free sequence',
+    'concurrent writers cannot lose heads; a retry keeps the counter exact',
     () async {
       final first = open(), second = open();
       await Future.wait([
@@ -522,20 +447,19 @@ void main() {
         if (!outcomes[i]) await handles[i].saveProfile(fixtureServer());
       }
       expect((await first.listServers()).length, 2);
-      final changes = await first.readChanges();
-      expect(changes.map((e) => e.header.sequence), [1, 2, 3]);
-      expect(ids(changes).toSet().length, 3);
+      expect(heads().keys, containsAll(['server:one', 'server:two']));
+      expect(sequence(), 3);
     },
   );
 
   test(
-    'journal authenticates header/payload and never stores secret plaintext in DB or WAL',
+    'the journal stores no secret, neither plain nor encrypted, in DB or WAL',
     () async {
       await createV1(path);
       final db = open();
-      final changes = await db.readChanges();
+      await db.readWorkspaceIdentity();
       for (final file in directory.listSync().whereType<File>()) {
-        final raw = latin1.decode(await file.readAsBytes());
+        final content = latin1.decode(await file.readAsBytes());
         for (final secret in [
           fixtureSecret,
           'private-ssh-fixture',
@@ -545,15 +469,19 @@ void main() {
           'private-tt-password-fixture',
           'private-runner-fixture',
         ]) {
-          expect(raw, isNot(contains(secret)), reason: file.path);
+          expect(content, isNot(contains(secret)), reason: file.path);
         }
       }
-      expect(changes.toString(), isNot(contains(fixtureSecret)));
-      sql('DROP TRIGGER sync_changes_immutable_update');
-      sql(
-        'UPDATE sync_changes SET payload=(SELECT payload FROM sync_changes WHERE sequence=1) WHERE sequence=2',
-      );
-      await expectLater(db.readChanges(), throwsA(isA<VaultFailure>()));
+      raw((db) {
+        for (final table in ['sync_heads', 'sync_history']) {
+          expect(
+            db
+                .select('PRAGMA table_info($table)')
+                .map((r) => (r['type'] as String).toUpperCase()),
+            everyElement(isNot('BLOB')),
+          );
+        }
+      });
       expect(
         (await db.listServers()).single.profile.secrets[ServerSecret
             .sshPassword],
@@ -563,7 +491,7 @@ void main() {
   );
 
   test(
-    'process exit without close recovers committed WAL and the same pending event IDs',
+    'process exit without close recovers committed WAL and the same heads',
     () async {
       final worker = await Process.run(
         'flutter',
@@ -577,10 +505,11 @@ void main() {
       );
       final db = open();
       expect(await db.readDraft(), 'private-crash-fixture');
-      final changes = await db.readPendingChanges();
-      expect(changes.map((e) => e.header.sequence), [1, 2]);
+      final before = heads();
+      expect(before.keys, contains('template:default'));
+      expect(sequence(), 2);
       await db.writeDraft('private-crash-fixture');
-      expect(ids(await db.readPendingChanges()), ids(changes));
+      expect(heads(), before);
     },
     timeout: const Timeout(Duration(minutes: 2)),
   );
@@ -592,13 +521,41 @@ void main() {
       final old = sqlite3.open(path);
       addTearDown(old.dispose);
       final db = open();
-      final changes = await db.readChanges();
+      await db.readWorkspaceIdentity();
+      final before = heads();
       expect(() => old.execute('DELETE FROM servers'), throwsA(anything));
       expect(() => old.execute('DELETE FROM documents'), throwsA(anything));
       expect((await db.listServers()).single.id, fixtureServerId);
-      expect(ids(await db.readChanges()), ids(changes));
+      expect(heads(), before);
       await db.writeDraft('updated by current application');
-      expect((await db.readChanges()).length, changes.length + 1);
+      expect(heads()['template:default']!.revision, 2);
+    },
+  );
+
+  test(
+    'direct writes outside a journal transaction are refused by the guards',
+    () async {
+      final db = open();
+      await db.writeDraft('initial-draft');
+      final sid = db.newServerId();
+      await (await db.openServer(sid)).saveProfile(fixtureServer());
+      final direct = sqlite3.open(path);
+      addTearDown(direct.dispose);
+      final refused = throwsA(
+        isA<SqliteException>().having(
+          (e) => e.message,
+          'message',
+          contains('journal_writer_required'),
+        ),
+      );
+      for (final statement in [
+        "INSERT INTO servers VALUES ('rogue-server', X'010203', 1, 123456789)",
+        "UPDATE documents SET payload=X'ffff' WHERE id='template-draft'",
+        "DELETE FROM servers WHERE id='$sid'",
+        "INSERT INTO vpn_user_overlay VALUES ('rogue', X'00', 1)",
+      ]) {
+        expect(() => direct.execute(statement), refused);
+      }
     },
   );
 }

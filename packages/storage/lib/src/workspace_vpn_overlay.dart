@@ -13,60 +13,26 @@ final class _VpnProjection {
 }
 
 /// Keeps single-client edits durable without replacing the encrypted VPN blob.
-/// The blob is materialized at snapshot, merge, and full-document boundaries.
+/// The blob is materialized at snapshot and full-document boundaries.
 final class _VpnOverlay {
   _VpnOverlay(this.store);
   final WorkspaceDatabase store;
   Database get db => store._db;
 
-  static void installGuards(Database db) {
-    for (final table in [
-      'servers',
-      'documents',
-      'vpn_overlay_state',
-      'vpn_user_overlay',
-      'vpn_profile_overlay',
-    ]) {
-      for (final action in ['insert', 'update', 'delete']) {
-        db.execute('DROP TRIGGER IF EXISTS journal_guard_${table}_$action');
-        db.execute(
-          "CREATE TRIGGER journal_guard_${table}_$action BEFORE $action ON $table WHEN (SELECT write_guard != 1 OR writer_device IS NOT device_id OR writer_version != 6 FROM sync_identity WHERE singleton=1) BEGIN SELECT RAISE(ABORT, 'journal_writer_required'); END",
-        );
-      }
-    }
-  }
+  static const ddl = [
+    'CREATE TABLE vpn_overlay_state (singleton INTEGER PRIMARY KEY CHECK(singleton=1), base_revision INTEGER NOT NULL CHECK(base_revision>0), revision INTEGER NOT NULL CHECK(revision>base_revision))',
+    'CREATE TABLE vpn_user_overlay (user_id TEXT PRIMARY KEY, payload BLOB NOT NULL, revision INTEGER NOT NULL CHECK(revision>0))',
+    'CREATE TABLE vpn_profile_overlay (user_id TEXT PRIMARY KEY, payload BLOB NOT NULL, revision INTEGER NOT NULL CHECK(revision>0))',
+  ];
 
-  Future<void> initialize() async {
-    if (db.userVersion == 5) {
-      db.execute('BEGIN IMMEDIATE');
-      try {
-        store._journal.checkIdentity();
-        if (db.userVersion == 5) {
-          db.execute(
-            'CREATE TABLE vpn_overlay_state (singleton INTEGER PRIMARY KEY CHECK(singleton=1), base_revision INTEGER NOT NULL CHECK(base_revision>0), revision INTEGER NOT NULL CHECK(revision>base_revision))',
-          );
-          db.execute(
-            'CREATE TABLE vpn_user_overlay (user_id TEXT PRIMARY KEY, payload BLOB NOT NULL, revision INTEGER NOT NULL CHECK(revision>0))',
-          );
-          db.execute(
-            'CREATE TABLE vpn_profile_overlay (user_id TEXT PRIMARY KEY, payload BLOB NOT NULL, revision INTEGER NOT NULL CHECK(revision>0))',
-          );
-          installGuards(db);
-          db.userVersion = 6;
-        }
-        db.execute('COMMIT');
-      } catch (_) {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    }
-    if (db.userVersion != 6 ||
-        db
-                .select(
-                  "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('vpn_overlay_state','vpn_user_overlay','vpn_profile_overlay')",
-                )
-                .length !=
-            3) {
+  /// The schema is created by the journal migration; this only checks it.
+  void initialize() {
+    if (db
+            .select(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('vpn_overlay_state','vpn_user_overlay','vpn_profile_overlay')",
+            )
+            .length !=
+        3) {
       throw const VaultFailure(VaultIssue.corrupt);
     }
   }
@@ -246,8 +212,7 @@ final class _VpnOverlay {
       before.remove((ChangeEntityKind.vpnWorkspace, current.id));
       after.remove((ChangeEntityKind.vpnWorkspace, current.id));
     }
-    final changes = await store._journal.prepare(before, after);
-    if (changes.changes.isEmpty) {
+    if (_changedEntities(before, after).isEmpty) {
       return store._transaction(() {
         _checkRevision(projection.baseRevision, expectedRevision);
         return expectedRevision;
@@ -275,7 +240,7 @@ final class _VpnOverlay {
         'INSERT INTO vpn_user_overlay VALUES (?,?,?) ON CONFLICT(user_id) DO UPDATE SET payload=excluded.payload,revision=excluded.revision',
         [user.id, payload, revision],
       );
-      store._journal.commit(changes);
+      store._journal.record(before, after);
       store._documentCache.remove('vpn-workspace-v1');
       store._cachedWorkspaceRevision = null;
       store._cachedWorkspace = null;
@@ -326,8 +291,7 @@ final class _VpnOverlay {
       before.remove(root);
       after.remove(root);
     }
-    final changes = await store._journal.prepare(before, after);
-    if (changes.changes.isEmpty) {
+    if (_changedEntities(before, after).isEmpty) {
       return store._transaction(() {
         _checkRevision(projection.baseRevision, expectedRevision);
         return expectedRevision;
@@ -349,7 +313,7 @@ final class _VpnOverlay {
         'INSERT INTO vpn_profile_overlay VALUES (?,?,?) ON CONFLICT(user_id) DO UPDATE SET payload=excluded.payload,revision=excluded.revision',
         [userId, payload, revision],
       );
-      store._journal.commit(changes);
+      store._journal.record(before, after);
       store._documentCache.remove('vpn-workspace-v1');
       store._cachedWorkspaceRevision = null;
       store._cachedWorkspace = null;

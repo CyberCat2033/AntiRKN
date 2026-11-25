@@ -1,6 +1,7 @@
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../l10n/app_localizations.dart';
 import 'auto_sync_controller.dart';
 
@@ -187,11 +188,7 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
               subtitle: Text(account.email),
             ),
             const Divider(indent: 17, endIndent: 17),
-            if ((sync.result?.otherWorkspaces ?? 0) > 0)
-              AppNotice(
-                key: const ValueKey('google-other-workspaces'),
-                message: l.autoSyncOtherWorkspaces,
-              ),
+            if (sync.divergence != null) SyncDivergenceNotice(sync: sync),
           ],
           ListTile(
             leading: const Icon(Icons.cloud_outlined),
@@ -263,6 +260,83 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
   }
 }
 
+/// The paused exchange and the way out: choosing one of the two versions.
+class SyncDivergenceNotice extends StatelessWidget {
+  const SyncDivergenceNotice({required this.sync, super.key});
+  final AutoSyncController sync;
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final busy = sync.phase == AutoSyncPhase.syncing || sync.applying;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppNotice(
+          key: const ValueKey('google-sync-divergence'),
+          icon: Icons.call_split,
+          message: l.autoSyncDiverged,
+          action: Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: FilledButton.tonal(
+                key: const ValueKey('google-sync-choose-version'),
+                onPressed: busy ? null : () => chooseSyncVersion(context, sync),
+                child: Text(l.autoSyncChooseVersion),
+              ),
+            ),
+          ),
+        ),
+        if (sync.choiceBlocked)
+          AppNotice(
+            key: const ValueKey('google-sync-choice-blocked'),
+            message: l.autoSyncChoiceBlocked,
+            error: true,
+          ),
+      ],
+    );
+  }
+}
+
+/// Asks which version to keep, with the date and device of both. The answer
+/// is an explicit action; dismissing the sheet changes nothing.
+Future<void> chooseSyncVersion(
+  BuildContext context,
+  AutoSyncController sync,
+) async {
+  final divergence = sync.divergence;
+  if (divergence == null) return;
+  final l = AppLocalizations.of(context);
+  String saved(SyncVersionInfo version, String fallbackDevice) =>
+      l.autoSyncVersionSaved(
+        version.savedAt == null
+            ? l.autoSyncVersionUnknownTime
+            : DateFormat.yMd(
+                l.localeName,
+              ).add_Hm().format(version.savedAt!.toLocal()),
+        version.deviceName ?? fallbackDevice,
+      );
+  final choice = await showAppChoice<SyncDivergenceChoice?>(
+    context,
+    title: l.autoSyncChooseTitle,
+    message: l.autoSyncChooseHelp,
+    value: null,
+    options: [
+      (SyncDivergenceChoice.keepLocal, l.autoSyncKeepLocal),
+      (SyncDivergenceChoice.takeCloud, l.autoSyncTakeCloud),
+    ],
+    descriptions: {
+      SyncDivergenceChoice.keepLocal:
+          '${saved(divergence.local, l.autoSyncThisDevice)}\n'
+          '${l.autoSyncKeepLocalEffect}',
+      SyncDivergenceChoice.takeCloud:
+          '${saved(divergence.cloud, l.autoSyncVersionUnknownDevice)}\n'
+          '${l.autoSyncTakeCloudEffect}',
+    },
+  );
+  if (choice != null) await sync.resolve(choice);
+}
+
 String syncStatusLabel(AppLocalizations l, AutoSyncController sync) {
   if (sync.accountError == GoogleAccountIssue.reauthorize ||
       sync.transportError == SyncTransportIssue.unauthorized) {
@@ -272,6 +346,9 @@ String syncStatusLabel(AppLocalizations l, AutoSyncController sync) {
       sync.transportError == SyncTransportIssue.forbidden) {
     return l.googleDenied;
   }
+  if (sync.transportError == SyncTransportIssue.unsupportedVersion) {
+    return l.autoSyncUpdateRequired;
+  }
   return switch (sync.phase) {
     AutoSyncPhase.disconnected => l.googleAccountHelp,
     AutoSyncPhase.disabled => l.autoSyncDisabled,
@@ -280,7 +357,9 @@ String syncStatusLabel(AppLocalizations l, AutoSyncController sync) {
     AutoSyncPhase.synced => l.autoSyncDone,
     AutoSyncPhase.editing => l.autoSyncEditing,
     AutoSyncPhase.conflict => l.autoSyncConflict,
-    AutoSyncPhase.incomplete => l.autoSyncIncomplete,
+    AutoSyncPhase.remoteNewer => l.autoSyncRemoteNewer,
+    AutoSyncPhase.retrying => l.autoSyncRetrying,
+    AutoSyncPhase.diverged => l.autoSyncDivergedShort,
     AutoSyncPhase.error => l.autoSyncError,
   };
 }

@@ -57,7 +57,9 @@ class GoogleAuthorizationBridge(private val activity: Activity, messenger: Binar
                 }
                 pending = result
                 deadline = Runnable { finish(error = "google_network") }
-                handler.postDelayed(deadline!!, 60_000)
+                // A silent renewal is bounded tighter than the Dart side (25 s), so
+                // its pending slot is free again before Dart gives up on it.
+                handler.postDelayed(deadline!!, if (interactive) 60_000 else 20_000)
                 try {
                     client.authorize(request.build()).addOnSuccessListener { authorization ->
                         if (pending !== result || disposed) return@addOnSuccessListener

@@ -1451,11 +1451,14 @@ Future<void> showAppDetails(
   ),
 );
 
+/// [message] explains the choice; [descriptions] add a line under options.
 Future<T?> showAppChoice<T>(
   BuildContext context, {
   required String title,
   required T value,
   required List<(T, String)> options,
+  String? message,
+  Map<T, String> descriptions = const {},
   MotionPreference motion = MotionPreference.system,
 }) {
   return showModalBottomSheet<T>(
@@ -1481,6 +1484,16 @@ Future<T?> showAppChoice<T>(
                 ),
               ),
             ),
+            if (message != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 0, 22, 12),
+                child: Text(
+                  message,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
             for (final option in options)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -1490,6 +1503,9 @@ Future<T?> showAppChoice<T>(
                     borderRadius: BorderRadius.circular(16),
                   ),
                   title: Text(option.$2),
+                  subtitle: descriptions[option.$1] == null
+                      ? null
+                      : Text(descriptions[option.$1]!),
                   selected: value == option.$1,
                   trailing: value == option.$1 ? const Icon(Icons.check) : null,
                   onTap: () {

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 import 'package:antirkn_domain/antirkn_domain.dart';
 
@@ -22,10 +23,21 @@ abstract interface class DriveHttp {
 
 /// No redirects, TLS bypasses, logging or unbounded response buffering.
 final class NativeDriveHttp implements DriveHttp {
-  NativeDriveHttp({this.timeout = const Duration(seconds: 20), HttpClient? client})
-      : _client = client;
+  NativeDriveHttp({
+    this.timeout = const Duration(seconds: 20),
+    this.maxDuration = const Duration(minutes: 10),
+    HttpClient? client,
+  }) : _client = client;
+
+  /// Longest wait without progress: connecting, sending one body chunk,
+  /// waiting for the response or receiving one response chunk. A large body
+  /// on a slow link keeps going while it moves.
   final Duration timeout;
+
+  /// Upper bound for one request even while it keeps progressing.
+  final Duration maxDuration;
   final HttpClient? _client;
+  static const _chunk = 64 * 1024;
 
   static HttpClient? _defaultClient;
   static HttpClient _getOrCreateDefault(Duration timeout) =>
@@ -33,8 +45,11 @@ final class NativeDriveHttp implements DriveHttp {
         ..connectionTimeout = timeout
         ..idleTimeout = const Duration(seconds: 15);
 
+  /// A broken connection may leave stale pooled sockets (e.g. after a network
+  /// change), so new requests get a fresh client. The old one is closed
+  /// without force: requests still running on it finish normally.
   static void resetDefaultClient() {
-    _defaultClient?.close(force: true);
+    _defaultClient?.close();
     _defaultClient = null;
   }
 
@@ -49,21 +64,33 @@ final class NativeDriveHttp implements DriveHttp {
     required int responseLimit,
   }) async {
     final client = _httpClient;
+    HttpClientRequest? request;
     try {
       return await (() async {
-        final request = await client.openUrl(method, uri);
-        request.followRedirects = false;
-        headers.forEach(request.headers.set);
+        final opened = request = await client
+            .openUrl(method, uri)
+            .timeout(timeout);
+        opened.followRedirects = false;
+        headers.forEach(opened.headers.set);
         if (body != null) {
-          request.contentLength = body.length;
-          request.add(body);
+          opened.contentLength = body.length;
+          for (var offset = 0; offset < body.length; offset += _chunk) {
+            opened.add(
+              Uint8List.sublistView(
+                body,
+                offset,
+                min(offset + _chunk, body.length),
+              ),
+            );
+            await opened.flush().timeout(timeout);
+          }
         }
-        final response = await request.close();
+        final response = await opened.close().timeout(timeout);
         if (response.contentLength > responseLimit) {
           throw const SyncTransportFailure(SyncTransportIssue.limit);
         }
         final builder = BytesBuilder(copy: false);
-        await for (final chunk in response) {
+        await for (final chunk in response.timeout(timeout)) {
           if (builder.length + chunk.length > responseLimit) {
             throw const SyncTransportFailure(SyncTransportIssue.limit);
           }
@@ -79,13 +106,13 @@ final class NativeDriveHttp implements DriveHttp {
           responseHeaders,
           builder.takeBytes(),
         );
-      })().timeout(timeout);
+      })().timeout(maxDuration);
     } on SyncTransportFailure {
+      request?.abort();
       rethrow;
     } catch (_) {
-      if (_client == null) {
-        resetDefaultClient();
-      }
+      request?.abort();
+      if (_client == null) resetDefaultClient();
       throw const SyncTransportFailure(SyncTransportIssue.network);
     }
   }

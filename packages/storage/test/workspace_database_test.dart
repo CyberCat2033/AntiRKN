@@ -5,6 +5,7 @@ import 'package:antirkn_storage/antirkn_storage.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart';
+import 'fixtures/journal_data.dart';
 
 class _Files implements VaultFileStore {
   String? value;
@@ -145,7 +146,7 @@ void main() {
           a,
         );
         before = await db.listServers();
-        final sequence = (await db.readChanges()).last.header.sequence;
+        final heads = journalHeads(path);
         await db.deleteServers(
           before.where((s) => s.id == a).toList(),
           detachJumpReferences: true,
@@ -159,19 +160,23 @@ void main() {
           original.profile.hostKey?.fingerprint,
         );
         expect(saved.revision, original.revision + 1);
-        final changes = await db.readChanges(afterSequence: sequence);
-        expect(
-          changes.where((c) => c.header.deleted).single.header.entityId,
-          a,
-        );
-        expect(
-          changes.where((c) => !c.header.deleted).single.header.entityId,
-          b,
-        );
-        expect(
-          changes.map((c) => c.header.transactionId).toSet(),
-          hasLength(1),
-        );
+        expect(movedHeads(heads, journalHeads(path)), {
+          'server:$a',
+          'server:$b',
+        });
+        final raw = sqlite3.open(path);
+        try {
+          expect(
+            raw
+                .select(
+                  "SELECT entity_id FROM sync_heads WHERE entity_kind='server' AND deleted=1",
+                )
+                .map((r) => r['entity_id']),
+            [a],
+          );
+        } finally {
+          raw.dispose();
+        }
         await expectLater(
           stale.saveProfile(profile('stale.test', jump: a)),
           throwsA(isA<VaultFailure>()),
@@ -424,7 +429,7 @@ void main() {
       // Deliberate tampering bypasses the guard against old application writers.
       raw.execute('BEGIN IMMEDIATE');
       raw.execute(
-        'UPDATE sync_identity SET write_guard=1, writer_device=device_id, writer_version=6',
+        'UPDATE sync_identity SET write_guard=1, writer_device=device_id, writer_version=7',
       );
       raw.execute(
         'UPDATE servers SET payload = (SELECT payload FROM servers WHERE id = ?) WHERE id = ?',

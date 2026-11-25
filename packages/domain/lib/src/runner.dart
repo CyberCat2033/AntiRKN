@@ -335,6 +335,10 @@ final class RunnerEvent {
   };
 }
 
+/// Whether a job with [status] has finished on the runner.
+bool runnerStatusTerminal(Object? status) =>
+    (runnerSchema['terminal'] as List).contains(status);
+
 final class RunnerJob {
   RunnerJob.fromJson(Map<String, dynamic> json)
     : id = json['id'] as String,
@@ -401,7 +405,7 @@ final class RunnerJob {
   final int sequence;
   final bool cancelRequested;
   final List<RunnerEvent> events;
-  bool get terminal => (runnerSchema['terminal'] as List).contains(status);
+  bool get terminal => runnerStatusTerminal(status);
   Map<String, Object?> toJson() => {
     'id': id,
     'kind': kind,

@@ -2,18 +2,31 @@ part of 'workspace_database.dart';
 
 // The archive is a single materialized workspace. Event history never enters it.
 final class _BackupSnapshot {
-  _BackupSnapshot(this.data, this.summary);
+  _BackupSnapshot(this.data, this.summary, this.intent);
   final Map<String, dynamic> data;
   final BackupSummary summary;
+
+  /// [_intentDigest] of [data]: equal for the same intent on any device.
+  final String intent;
+  int get version => data['version'] as int;
   List<dynamic> get documents => data['documents'] as List;
   @override
   String toString() => 'BackupSnapshot(<redacted>)';
 }
 
+/// A validated capture: its source goes on without being checked again.
 final class _CapturedSnapshot {
-  const _CapturedSnapshot(this.source, this.sequence);
+  const _CapturedSnapshot(
+    this.source,
+    this.sequence,
+    this.workspaceId,
+    this.intent,
+    this.createdAt,
+  );
   final String source;
   final int sequence;
+  final String workspaceId, intent;
+  final DateTime createdAt;
 }
 
 final class _RestorePlan implements WorkspaceRestorePlan {
@@ -24,7 +37,11 @@ final class _RestorePlan implements WorkspaceRestorePlan {
   final String stamp;
   _BackupSnapshot? _snapshot;
   bool cloudBound = false;
-  String? remoteFileId, remoteVersion;
+  String? remoteFileId, remoteVersion, remoteEtag;
+
+  /// The cloud's intent when the restored data differs from it: the device
+  /// is bound to the cloud version and still has something to upload.
+  String? boundIntent;
   @override
   final BackupSummary summary;
   @override
@@ -33,25 +50,23 @@ final class _RestorePlan implements WorkspaceRestorePlan {
   String toString() => 'WorkspaceRestorePlan(<redacted>)';
 }
 
-String _backupStamp(WorkspaceDatabase store) => jsonEncode([
-  ...store._db.select(
-    'SELECT workspace_id,device_id,sequence FROM sync_identity',
-  ),
-  ...store._db.select('SELECT epoch FROM sync_merge_meta'),
-]);
+String _backupStamp(WorkspaceDatabase store) => jsonEncode(
+  store._db.select('SELECT workspace_id,device_id,sequence FROM sync_identity'),
+);
 
+/// The file backup keeps format 4 with everything this device knows; with
+/// [cloud] the automatic sync snapshot v5 carries intent only.
 Future<_CapturedSnapshot> _currentSnapshot(
-  WorkspaceDatabase store,
-) => store._serial(() async {
+  WorkspaceDatabase store, {
+  bool cloud = false,
+}) => store._serial(() async {
   await store._vpnOverlay.materialize();
   final captured = <String, List<Row>>{};
   late final int sequence;
   store._db.execute('BEGIN');
   try {
     store._journal.checkIdentity();
-    // Backup v4 contains the current materialized workspace. Legacy merge
-    // conflicts and waiting packets are deliberately absent from this format;
-    // they cannot make an export of the visible state stale.
+    // Backup v4 contains the current materialized workspace.
     for (final (name, sql) in [
       ('servers', 'SELECT * FROM servers ORDER BY id'),
       ('documents', 'SELECT * FROM documents ORDER BY id'),
@@ -69,9 +84,14 @@ Future<_CapturedSnapshot> _currentSnapshot(
     rethrow;
   }
   final data = <String, dynamic>{
-    'version': 4,
+    'version': cloud ? cloudSnapshotVersion : 4,
     'createdAt': DateTime.now().toUtc().toIso8601String(),
     'workspaceId': store._journal.identity.workspaceId,
+    if (cloud)
+      'author': {
+        'deviceId': store._journal.identity.deviceId,
+        'deviceName': ?_localDeviceName(),
+      },
     'servers': <Object?>[],
     'documents': <Object?>[],
   };
@@ -101,6 +121,11 @@ Future<_CapturedSnapshot> _currentSnapshot(
         }
         source = jsonEncode(journal);
       }
+      if (cloud) {
+        final intent = _cloudSource(table, id, source);
+        if (intent == null) continue;
+        source = intent;
+      }
       sourceBytes += utf8.encode(source).length;
       if (sourceBytes > maxWorkspaceBackupBytes) {
         throw const BackupFailure(BackupIssue.tooLarge);
@@ -114,8 +139,14 @@ Future<_CapturedSnapshot> _currentSnapshot(
     }
   }
   final source = jsonEncode(data);
-  await _validateBackupInBackground(source);
-  return _CapturedSnapshot(source, sequence);
+  final validated = await _validateBackupInBackground(source, cloud: cloud);
+  return _CapturedSnapshot(
+    source,
+    sequence,
+    validated.summary.workspaceId,
+    validated.intent,
+    validated.summary.createdAt,
+  );
 });
 
 Future<Uint8List> _createBackup(
@@ -134,40 +165,9 @@ Future<Uint8List> _createBackup(
   }
 }
 
-Future<void> _compactCurrentHistory(
-  WorkspaceDatabase store,
-) => store._serial(() {
-  store._transaction(() {
-    if (store._db.select('SELECT 1 FROM sync_conflicts LIMIT 1').isNotEmpty ||
-        store._db
-            .select('SELECT 1 FROM sync_incoming WHERE state IN (0,2) LIMIT 1')
-            .isNotEmpty ||
-        store._db
-            .select(
-              'SELECT 1 FROM sync_branches GROUP BY entity_kind,entity_id HAVING COUNT(*)>1 LIMIT 1',
-            )
-            .isNotEmpty) {
-      throw const BackupFailure(BackupIssue.changed);
-    }
-    store._db.execute('DELETE FROM sync_packets');
-    store._db.execute('DELETE FROM sync_outbox');
-    store._db.execute('DROP TRIGGER sync_changes_immutable_delete');
-    store._db.execute('''
-          DELETE FROM sync_changes
-          WHERE change_id NOT IN (SELECT change_id FROM sync_heads)
-        ''');
-    store._db.execute(
-      "CREATE TRIGGER sync_changes_immutable_delete BEFORE DELETE ON sync_changes BEGIN SELECT RAISE(ABORT, 'immutable_change'); END",
-    );
-    store._db.execute('''
-          DELETE FROM sync_incoming
-          WHERE change_id NOT IN (SELECT change_id FROM sync_heads)
-        ''');
-    store._merge.advance();
-  });
-  store._merge._decryptedEventCache.clear();
-  return Future<void>.value();
-});
+/// After a confirmed upload only the current heads are kept.
+Future<void> _compactCurrentHistory(WorkspaceDatabase store) =>
+    store._serial(() => store._transaction(store._journal.compact));
 
 Future<WorkspaceRestorePlan> _prepareRestore(
   WorkspaceDatabase store,
@@ -194,8 +194,26 @@ Future<void> _restoreBackup(
       if (_backupStamp(store) != plan.stamp) {
         throw const BackupFailure(BackupIssue.changed);
       }
-      final deviceId = newVpnId();
+      // A cloud v5 snapshot replaces intent; this device's cache of the same
+      // workspace and server stays. Format 4 already carries its own cache.
+      final (
+        data,
+        staleServers,
+      ) = plan.cloudBound && snapshot.version == cloudSnapshotVersion
+          ? await _withLocalCache(store, snapshot.data)
+          : (snapshot.data, const <String>[]);
       final workspaceId = snapshot.summary.workspaceId;
+      // A cloud pull replaces data, not the installation: operations this
+      // device executes keep their executor. A backup file may come from
+      // another installation, so restoring one starts a new device identity.
+      final local = store._db
+          .select(
+            'SELECT workspace_id,device_id FROM sync_identity WHERE singleton=1',
+          )
+          .single;
+      final deviceId = plan.cloudBound
+          ? local['device_id'] as String
+          : newVpnId();
       final owner = WorkspaceIdentity(
         workspaceId: workspaceId,
         deviceId: deviceId,
@@ -209,11 +227,6 @@ Future<void> _restoreBackup(
           'deviceId': deviceId,
         }),
       );
-      final syncKeyPayload = await store._encrypt(
-        _WorkspaceSync.keyScope(workspaceId),
-        1,
-        canonicalJson(await _newSyncKey()),
-      );
       final records = <String, List<List<Object?>>>{
         'servers': [],
         'documents': [],
@@ -224,7 +237,7 @@ Future<void> _restoreBackup(
         ),
       };
       for (final table in ['servers', 'documents']) {
-        for (final dynamic row in snapshot.data[table] as List) {
+        for (final dynamic row in data[table] as List) {
           final id = row['id'] as String;
           final revision = row['revision'] as int;
           final source = row['source'] as String;
@@ -245,58 +258,16 @@ Future<void> _restoreBackup(
           );
         }
       }
-      // The current implementation still needs heads for local publication
-      // guards. Recreate them from state; old changes and packets are discarded.
-      final bootstrap = await store._journal._prepare(
-        {},
-        entities,
-        owner,
-        0,
-        bootstrap: true,
-      );
       store._transaction(() {
         if (_backupStamp(store) != plan.stamp || plan._snapshot == null) {
           throw const BackupFailure(BackupIssue.changed);
         }
-        for (final table in ['servers', 'documents']) {
-          for (final action in ['insert', 'update', 'delete']) {
-            store._db.execute('DROP TRIGGER journal_guard_${table}_$action');
-          }
-        }
+        _LocalChangeJournal.dropGuards(store._db);
         store._db.execute('DELETE FROM vpn_user_overlay');
         store._db.execute('DELETE FROM vpn_profile_overlay');
         store._db.execute('DELETE FROM vpn_overlay_state');
         store._db.execute('DELETE FROM servers');
         store._db.execute('DELETE FROM documents');
-        for (final table in [
-          'sync_incoming',
-          'sync_branches',
-          'sync_conflicts',
-          'sync_merge_meta',
-          'sync_packets',
-          'sync_keys',
-          'sync_outbox',
-          'sync_heads',
-          'sync_changes',
-          'sync_identity',
-        ]) {
-          store._db.execute('DROP TABLE $table');
-        }
-        for (final sql in _LocalChangeJournal._ddl) {
-          store._db.execute(sql);
-        }
-        store._db.execute(
-          'ALTER TABLE sync_identity ADD COLUMN writer_device TEXT',
-        );
-        _WorkspaceSync.installSchema(store._db);
-        _WorkspaceMerge.installSchema(store._db);
-        store._db.execute('INSERT INTO sync_keys VALUES (1,?)', [
-          syncKeyPayload,
-        ]);
-        store._db.execute(
-          'INSERT INTO sync_identity VALUES (1, ?, ?, 0, ?, 1, ?, 5)',
-          [workspaceId, deviceId, proof, deviceId],
-        );
         for (final table in ['servers', 'documents']) {
           for (final row in records[table]!) {
             store._db.execute(
@@ -305,7 +276,8 @@ Future<void> _restoreBackup(
             );
           }
         }
-        store._journal.commit(bootstrap);
+        // Publication guards need heads: one per entity of the restored state.
+        final heads = store._journal.restart(owner, proof, entities);
         store._db.execute(
           "INSERT OR IGNORE INTO migrations VALUES ('legacy-vault-v1')",
         );
@@ -315,9 +287,16 @@ Future<void> _restoreBackup(
             [workspaceId],
           );
           for (final (key, value) in [
-            ('syncSnapshotLocalSequence', '${bootstrap.changes.length}'),
+            (
+              'syncSnapshotLocalSequence',
+              plan.boundIntent == null ? '$heads' : '',
+            ),
             ('syncSnapshotRemoteFileId', plan.remoteFileId!),
             ('syncSnapshotRemoteVersion', plan.remoteVersion!),
+            ('syncSnapshotRemoteEtag', plan.remoteEtag ?? ''),
+            ('syncSnapshotIntent', plan.boundIntent ?? snapshot.intent),
+            ('syncSnapshotUnsupported', ''),
+            ('syncCacheRefresh', jsonEncode(staleServers)),
           ]) {
             store._db.execute(
               'INSERT INTO settings VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
@@ -325,12 +304,25 @@ Future<void> _restoreBackup(
             );
           }
         }
+        // Whatever divergence was waiting is answered by this restore.
+        store._db.execute(
+          "INSERT INTO settings VALUES ('syncSnapshotDivergence','') ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        );
+        // This installation's own work, received back from the cloud, is
+        // not foreign: it continues without a review. A backup file always
+        // starts a new device, so all its work is reviewed.
         store._db.execute(
           "INSERT INTO settings VALUES ('backupRestoredTargets',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-          [jsonEncode(_restoredTargets(snapshot.documents).toList()..sort())],
+          [
+            jsonEncode(
+              _restoredTargets(
+                data['documents'] as List,
+                own: plan.cloudBound ? deviceId : null,
+              ).toList()..sort(),
+            ),
+          ],
         );
-        _VpnOverlay.installGuards(store._db);
-        store._db.userVersion = 6;
+        _LocalChangeJournal.installGuards(store._db);
       });
       store._restored = true;
       store.needsLegacyPassword = false;
@@ -348,13 +340,18 @@ Future<void> _restoreBackup(
   }
 }
 
-Set<String> _restoredTargets(List<dynamic> documents) {
+/// Targets with unfinished work to review after a restore; work whose
+/// executor is [own] is this device's and is left out.
+Set<String> _restoredTargets(List<dynamic> documents, {String? own}) {
   final targets = <String>{};
   for (final dynamic row in documents) {
     if (row['id'] != 'vpn-workspace-v1') continue;
     final vpn = VpnWorkspace.decode(row['source'] as String);
     for (final user in vpn.users.where(
-      (u) => u.deleted && !u.deletionComplete,
+      (u) =>
+          u.deleted &&
+          !u.deletionComplete &&
+          (own == null || u.deletion!['executor'] != own),
     )) {
       targets.addAll(
         (user.deletion!['targets'] as Map).entries
@@ -364,6 +361,12 @@ Set<String> _restoredTargets(List<dynamic> documents) {
     }
     for (final entry in vpn.servers.entries) {
       final record = entry.value;
+      final operation = record['operation'];
+      if (own != null &&
+          operation is Map &&
+          operation['executorDeviceId'] == own) {
+        continue;
+      }
       if (record['pending'] != null ||
           record['cancelRequested'] == true ||
           record['observingCancel'] == true ||
@@ -376,8 +379,11 @@ Set<String> _restoredTargets(List<dynamic> documents) {
   return targets;
 }
 
-Future<_BackupSnapshot> _validateBackupInBackground(String source) =>
-    Isolate.run(() => _validateBackup(source));
+/// A file backup is always format 4; a [cloud] snapshot may also be v5.
+Future<_BackupSnapshot> _validateBackupInBackground(
+  String source, {
+  bool cloud = false,
+}) => Isolate.run(() => _validateBackup(source, cloud: cloud));
 
 // Limit nesting before jsonDecode, including JSON strings embedded in records.
 Object? _backupJson(String source) {
@@ -402,25 +408,27 @@ Object? _backupJson(String source) {
   return jsonDecode(source);
 }
 
-_BackupSnapshot _validateBackup(String source) {
+_BackupSnapshot _validateBackup(String source, {bool cloud = false}) {
   try {
     if (utf8.encode(source).length > maxWorkspaceBackupBytes - 53) {
       throw const BackupFailure(BackupIssue.tooLarge);
     }
     final data = _backupJson(source) as Map<String, dynamic>;
-    if (data['version'] != 4) {
+    final version = data['version'];
+    if (version != 4 &&
+        !(cloud &&
+            version is int &&
+            cloudSnapshotReadableVersions.contains(version))) {
       throw const BackupFailure(BackupIssue.version);
     }
-    if (data.length != 5 ||
-        !data.keys.toSet().containsAll({
-          'version',
-          'createdAt',
-          'workspaceId',
-          'servers',
-          'documents',
-        })) {
+    final v5 = version == cloudSnapshotVersion;
+    final keys = v5
+        ? cloudSnapshotKeys
+        : const {'version', 'createdAt', 'workspaceId', 'servers', 'documents'};
+    if (data.length != keys.length || !data.keys.toSet().containsAll(keys)) {
       throw const FormatException();
     }
+    if (v5) _checkCloudAuthor(data['author']);
     final workspaceId = data['workspaceId'] as String;
     if (!RegExp(r'^[a-f0-9]{32}$').hasMatch(workspaceId)) {
       throw const FormatException();
@@ -430,7 +438,9 @@ _BackupSnapshot _validateBackup(String source) {
     for (final table in ['servers', 'documents']) {
       final ids = <String>{};
       final records = data[table] as List;
-      if (records.length > 100000) throw const FormatException();
+      if (records.length > cloudSnapshotMaxRecords) {
+        throw const FormatException();
+      }
       for (final dynamic row in records) {
         final record = row as Map<String, dynamic>;
         if (record.length != (table == 'servers' ? 4 : 3)) {
@@ -447,6 +457,7 @@ _BackupSnapshot _validateBackup(String source) {
             revision > 9007199254740991) {
           throw const FormatException();
         }
+        if (v5) _checkCloudRecord(table, id, source);
         if (table == 'servers') {
           if (record['updatedAt'] is! int ||
               utf8.encode(source).length > 256 * 1024) {
@@ -500,6 +511,7 @@ _BackupSnapshot _validateBackup(String source) {
         servers: (data['servers'] as List).length,
         users: users,
       ),
+      _intentDigest(data),
     );
   } on BackupFailure {
     rethrow;

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:antirkn_domain/antirkn_domain.dart';
@@ -5,6 +6,7 @@ import 'package:antirkn_integrations/antirkn_integrations.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter/services.dart';
 import 'secret_vault.dart';
+import 'shared_access_token.dart';
 
 abstract interface class GoogleAuthorizationBridge {
   Future<String?> authorize({required bool interactive, String? email});
@@ -81,14 +83,29 @@ final class AndroidGoogleAccountService
     GoogleAuthorizationBridge bridge = const MethodChannelGoogleAuthorization(),
     DriveHttp? http,
     bool? supported,
+    this.authorizationTimeout = const Duration(seconds: 25),
+    this.tokenLifetime = const Duration(minutes: 5),
+    DateTime Function()? now,
   }) : _keys = keys,
        _bridge = bridge,
        _http = http,
+       _now = now ?? DateTime.now,
        supported = supported ?? Platform.isAndroid;
   final String projectId;
   final VaultKeyStore _keys;
   final GoogleAuthorizationBridge _bridge;
   final DriveHttp? _http;
+  final DateTime Function() _now;
+
+  /// A silent renewal that Play services never answers fails as a temporary
+  /// network issue instead of stalling startup or sync.
+  final Duration authorizationTimeout;
+
+  /// Play services renews tokens but does not report their expiry. A token
+  /// is reused this long (minus the cache margin), far below Google's hour,
+  /// so bursts of requests share one renewal.
+  final Duration tokenLifetime;
+  late final _token = SharedAccessToken(now: _now);
   @override
   final bool supported;
   static const _storageId = 'google-drive-account-v1';
@@ -133,6 +150,7 @@ final class AndroidGoogleAccountService
   }
 
   Future<void> _remember(GoogleDriveAccount? account) async {
+    _token.clear();
     _account = account;
     _accountKey = account == null
         ? null
@@ -199,28 +217,45 @@ final class AndroidGoogleAccountService
         return account;
       });
 
+  /// Concurrent callers share one silent renewal and one identity check.
   @override
-  Future<String> accessToken() => _operation(() async {
-    _checkConfiguration();
-    final account = _account;
-    if (account == null) {
-      throw const GoogleAccountFailure(GoogleAccountIssue.reauthorize);
-    }
-    final token = publicationAuthorized
-        ? await (_bridge as PublicationGoogleAuthorizationBridge)
-              .authorizePublications(interactive: false, email: account.email)
-        : await _bridge.authorize(interactive: false, email: account.email);
-    if (token == null) {
-      throw const GoogleAccountFailure(GoogleAccountIssue.reauthorize);
-    }
-    if ((await _identity(token)).permissionId != account.permissionId) {
-      throw const GoogleAccountFailure(GoogleAccountIssue.reauthorize);
-    }
-    return token;
-  });
+  Future<String> accessToken() => _token.get(
+    () => _operation(() async {
+      _checkConfiguration();
+      final account = _account;
+      if (account == null) {
+        throw const GoogleAccountFailure(GoogleAccountIssue.reauthorize);
+      }
+      final started = _now();
+      final token =
+          await (publicationAuthorized
+                  ? (_bridge as PublicationGoogleAuthorizationBridge)
+                        .authorizePublications(
+                          interactive: false,
+                          email: account.email,
+                        )
+                  : _bridge.authorize(interactive: false, email: account.email))
+              .timeout(
+                authorizationTimeout,
+                onTimeout: () => throw const GoogleAccountFailure(
+                  GoogleAccountIssue.network,
+                ),
+              );
+      if (token == null) {
+        throw const GoogleAccountFailure(GoogleAccountIssue.reauthorize);
+      }
+      if ((await _identity(token)).permissionId != account.permissionId) {
+        throw const GoogleAccountFailure(GoogleAccountIssue.reauthorize);
+      }
+      return (token, started.add(tokenLifetime));
+    }),
+  );
 
   @override
-  Future<void> invalidateAccessToken(String rejected) => _bridge.clearToken();
+  Future<void> invalidateAccessToken(String rejected) {
+    _token.invalidate(rejected);
+    return _bridge.clearToken();
+  }
 
   @override
   Future<void> signOut() => _operation(() async {

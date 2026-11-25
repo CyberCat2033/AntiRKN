@@ -4,6 +4,7 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_storage/antirkn_storage.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'fixtures/journal_data.dart';
 
 const settings =
     '{"version":1,"accountKey":"fixture-account","folderId":"private-folder-fixture","folderName":"Fixture","access":"link","enabled":true,"folderReady":true}';
@@ -91,11 +92,11 @@ void main() {
     'encrypted queue survives reopen without journal events; stale writer rejected',
     () async {
       final draft = (await db.readPublicationDraft(user))!;
-      final count = (await db.readChanges()).length;
+      final heads = journalHeads('${dir.path}/a.sqlite');
       const queue =
           '{"status":"waiting","fileId":"private-file-fixture","retryAt":12345}';
       await db.writePublicationQueue(user, queue, expectedSource: null);
-      expect((await db.readChanges()).length, count);
+      expect(journalHeads('${dir.path}/a.sqlite'), heads);
       await db.checkPublicationDraft(draft);
       final encrypted = await File(
         '${dir.path}/a.sqlite.publication-$user.json',

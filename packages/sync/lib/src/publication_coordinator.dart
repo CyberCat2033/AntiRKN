@@ -256,18 +256,21 @@ final class PublicationCoordinator {
             file = snapshot.$1;
             hash = await _hash(snapshot.$2);
           }
-          if (forceUpload || hash != draft.hash || head != draft.headId) {
+          // Drive decides what is current: the content hash the publisher
+          // wrote. A file whose content already matches is not written again,
+          // even under another journal head (a device that pulled the
+          // snapshot has new heads and no local result).
+          if (forceUpload || hash != draft.hash) {
             await guard();
-            final props = {
-              'antirknHead': draft.headId,
-              'antirknExecutor': draft.deviceId,
-              'antirknHash': draft.hash,
-            };
-            if (!forceUpload && hash == draft.hash) {
-              file = await remote.updateProperties(file, props);
-            } else {
-              file = await remote.updateFile(file, draft.bytes, properties: props);
-            }
+            file = await remote.updateFile(
+              file,
+              draft.bytes,
+              properties: {
+                'antirknHead': draft.headId,
+                'antirknExecutor': draft.deviceId,
+                'antirknHash': draft.hash,
+              },
+            );
           }
           break;
         } on PublicationFailure catch (e) {
@@ -371,6 +374,62 @@ final class PublicationCoordinator {
       } catch (_) {}
       return nextQueue;
     }
+  }
+
+  /// The file already published for [userId] under the publication
+  /// namespace [workspaceId], found read-only: the file bound by the user or
+  /// the registry entry. Null when nothing usable was published. A device
+  /// without server access shows it instead of compiling a new profile.
+  Future<PublicationFile?> findPublished(
+    String userId,
+    String workspaceId,
+  ) async {
+    final settingsSource = await repository.readPublicationDocument('settings');
+    if (settingsSource == null) return null;
+    final settings = PublicationSettings.fromJson(
+      jsonDecode(settingsSource) as Map<String, dynamic>,
+    );
+    if (!settings.folderReady) return null;
+    if (settings.accountKey != remote.accountKey) {
+      throw const PublicationFailure(PublicationIssue.accountChanged);
+    }
+    String? fileId, owner;
+    final binding = await repository.readPublicationDocument('binding/$userId');
+    if (binding != null) {
+      final value = jsonDecode(binding) as Map<String, dynamic>;
+      validatePublicationBinding(value);
+      fileId = value['fileId'] as String;
+      if (remote case final PublicationResourceKeys keys) {
+        keys.useResourceKey(
+          PublicationTarget(
+            fileId,
+            resourceKey: value['resourceKey'] as String?,
+          ),
+        );
+      }
+    } else {
+      final folder = await remote.getFile(settings.folderId);
+      final pointer = folder.properties['antirknRegistry.$workspaceId'];
+      if (pointer == null || !pointer.startsWith('ready:')) return null;
+      final (_, registry) = await _fetchRegistry(
+        pointer.substring('ready:'.length),
+        workspaceId,
+      );
+      final entry = (registry['users'] as Map)[userId];
+      if (entry is! Map || entry['created'] != true) return null;
+      fileId = entry['fileId'] as String;
+      owner = entry['owner'] as String?;
+    }
+    final file = await remote.getFile(fileId);
+    if (file.trashed ||
+        !file.binary ||
+        file.properties['antirknDeleted'] != null ||
+        binding == null &&
+            (file.properties['antirknWorkspace'] != workspaceId ||
+                file.properties['antirknUser'] != (owner ?? userId))) {
+      return null;
+    }
+    return file;
   }
 
   Future<String> _registry(

@@ -112,7 +112,8 @@ class Remote implements PublicationRemoteStore {
       verifyPublicLinkCalls = 0,
       downloadCalls = 0,
       registryDownloadCalls = 0,
-      profileDownloadCalls = 0;
+      profileDownloadCalls = 0,
+      profilePropertyWrites = 0;
   bool loseCreate = false, loseUpdate = false, linkBroken = false;
   String? pauseContent;
   final paused = Completer<void>(), release = Completer<void>();
@@ -220,6 +221,9 @@ class Remote implements PublicationRemoteStore {
     final b = _check(expected);
     b.properties = {...b.properties, ...properties};
     b.version++;
+    if (!b.folder && b.properties['antirknUser'] != 'registry') {
+      profilePropertyWrites++;
+    }
     return getFile(expected.id);
   }
 
@@ -303,6 +307,68 @@ Future<Map<String, dynamic>> publish(
 }) async => (await coordinator(repo, remote).publish(user, force: force))!;
 
 void main() {
+  test(
+    'a device without a local result finds the published file read-only',
+    () async {
+      final first = Repository(await draft('head-1')), remote = Remote();
+      expect((await publish(first, remote))['status'], 'published');
+      final versions = {
+        for (final entry in remote.blobs.entries) entry.key: entry.value.version,
+      };
+      final fresh = Repository(null);
+      final file = await coordinator(
+        fresh,
+        remote,
+      ).findPublished(user, workspace);
+      expect(file?.id, remote.profileId);
+      expect(file?.downloadUrl, contains(remote.profileId));
+      expect({
+        for (final entry in remote.blobs.entries) entry.key: entry.value.version,
+      }, versions);
+      expect(fresh.documents.keys, ['settings']);
+      expect(fresh.queues, isEmpty);
+      expect(
+        await coordinator(
+          fresh,
+          remote,
+        ).findPublished('cccccccccccccccccccccccccccccccc', workspace),
+        isNull,
+      );
+    },
+  );
+  test(
+    'a device that pulled the snapshot publishes an unchanged profile without writing to Drive',
+    () async {
+      const content = 'proxies: []\n# unchanged\n';
+      final first = Repository(await draft('head-1', content: content)),
+          remote = Remote();
+      expect((await publish(first, remote))['status'], 'published');
+      final versions = {
+        for (final entry in remote.blobs.entries) entry.key: entry.value.version,
+      };
+      final created = remote.createdProfiles;
+      // After a pull: the same profile under a new journal head, with no
+      // local result or queue, on another device.
+      final pulled = Repository(
+        await draft(
+          'head-after-pull',
+          content: content,
+          device: 'dddddddddddddddddddddddddddddddd',
+        ),
+      );
+      expect((await publish(pulled, remote))['status'], 'published');
+      expect(remote.createdProfiles, created);
+      expect(remote.updatedProfiles, 0);
+      expect(remote.profilePropertyWrites, 0);
+      expect({
+        for (final entry in remote.blobs.entries) entry.key: entry.value.version,
+      }, versions);
+      expect(
+        jsonDecode(pulled.documents['result/$user']!)['fileId'],
+        jsonDecode(first.documents['result/$user']!)['fileId'],
+      );
+    },
+  );
   test(
     'first publication with two devices reserves one ID; receiver verifies without duplicate upload',
     () async {

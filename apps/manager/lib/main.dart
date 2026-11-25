@@ -16,6 +16,7 @@ import 'publication/publication_controller.dart';
 import 'publication/publication_panel.dart';
 import 'sync/auto_sync_controller.dart';
 import 'sync/google_account_panel.dart';
+import 'sync/restored_cache_refresh.dart';
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_storage/antirkn_storage.dart';
@@ -44,6 +45,9 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const WorkspaceLauncher());
 }
+
+/// The launch waits at most this long for the cloud before opening local data.
+const startupPullDeadline = Duration(seconds: 4);
 
 class WorkspaceLauncher extends StatefulWidget {
   const WorkspaceLauncher({
@@ -109,8 +113,14 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher>
       if (google.supported &&
           await database.readSetting('googleAutoSync') != 'false') {
         try {
-          if (await google.restore() != null &&
-              await database.pullCurrentSnapshot(google)) {
+          // Unreachable Google or a slow link must not hold the launch: past
+          // the deadline local data opens and the next launch pulls again.
+          final waited = Stopwatch()..start();
+          if (await google.restore().timeout(startupPullDeadline) != null &&
+              await database.pullCurrentSnapshot(
+                google,
+                deadline: startupPullDeadline - waited.elapsed,
+              )) {
             if (google case final CancelableGoogleSignIn lifecycle) {
               await lifecycle.close();
             }
@@ -441,6 +451,7 @@ class _ManagerShellState extends State<ManagerShell>
   ServerCatalogController? _catalog;
   VpnController? _vpn;
   PublicationController? _publications;
+  RestoredCacheRefresh? _cacheRefresh;
   bool _applyingSync = false;
   bool _diagnosing = false;
   ComponentUpdatesController? _diagnosticUpdates;
@@ -469,6 +480,7 @@ class _ManagerShellState extends State<ManagerShell>
     WidgetsBinding.instance.addObserver(this);
     widget.autoSync?.apply = _applyReceived;
     widget.autoSync?.addListener(_syncChanged);
+    widget.autoSync?.addListener(_divergenceChanged);
     if (widget.ssh case final ssh?) {
       if (widget.servers case final repository?) {
         _catalog = ServerCatalogController(
@@ -490,9 +502,8 @@ class _ManagerShellState extends State<ManagerShell>
           agentAvailable: ssh.agentAvailable,
           network: _networkController,
         )..initialise();
-        _sshController!.onServerReplaced = (identity) => unawaited(
-          _vpn?.rebindServer(SshProfile.serverId, identity),
-        );
+        _sshController!.onServerReplaced = (identity) =>
+            unawaited(_vpn?.rebindServer(SshProfile.serverId, identity));
       }
     }
     _controller = TemplateController(
@@ -570,6 +581,17 @@ class _ManagerShellState extends State<ManagerShell>
           );
         },
       );
+      if (widget.settings case final settings? when _catalog != null) {
+        final catalog = _catalog!, vpn = _vpn!;
+        _cacheRefresh = RestoredCacheRefresh(
+          settings: settings,
+          connect: catalog.connectForAction,
+          refresh: vpn.refreshConnectedInBackground,
+          observedSince: vpn.serverObservedSince,
+          observedAt: vpn.serverObservedAt,
+          known: (id) => catalog.servers.any((server) => server.id == id),
+        );
+      }
       unawaited(_loadVpnAfterCatalog(catalogReady));
       if (widget.servers is PublicationRepository &&
           widget.googleAccount is GoogleSyncAccountService) {
@@ -598,6 +620,8 @@ class _ManagerShellState extends State<ManagerShell>
     await _vpn?.load();
     await _repairOrphanedVpnState();
     await _vpn?.recoverHiddenPendingAccessChanges();
+    // After a cloud pull, servers without cache here are read in background.
+    if (mounted) unawaited(_cacheRefresh?.start());
   }
 
   void _catalogChanged() {
@@ -709,10 +733,12 @@ class _ManagerShellState extends State<ManagerShell>
     _clientSelection.dispose();
     WidgetsBinding.instance.removeObserver(this);
     widget.autoSync?.removeListener(_syncChanged);
+    widget.autoSync?.removeListener(_divergenceChanged);
     widget.autoSync?.apply = (_) async => false;
     _catalog?.removeListener(_catalogChanged);
     _catalog?.dispose();
     _publications?.dispose();
+    _cacheRefresh?.dispose();
     _vpn?.dispose();
     _sshController?.dispose();
     _controller.dispose();
@@ -744,10 +770,12 @@ class _ManagerShellState extends State<ManagerShell>
     final inForeground =
         state == AppLifecycleState.resumed ||
         (isDesktop && state != AppLifecycleState.detached);
-    final syncForeground =
-        state == AppLifecycleState.resumed ||
-        (isDesktop && state == AppLifecycleState.inactive);
-    widget.autoSync?.foreground(syncForeground);
+    final syncForeground = AutoSyncController.lifecycleForeground(
+      state,
+      desktop: isDesktop,
+    );
+    if (syncForeground != null) widget.autoSync?.foreground(syncForeground);
+    if (state == AppLifecycleState.resumed) widget.autoSync?.resumed();
     _publications?.foreground(inForeground);
     if (state == AppLifecycleState.resumed) {
       _networkController.tick();
@@ -757,6 +785,33 @@ class _ManagerShellState extends State<ManagerShell>
 
   void _syncChanged() {
     if (mounted) setState(() {});
+  }
+
+  String? _announcedDivergence;
+
+  /// A divergence is announced once, unobtrusively; the choice itself stays
+  /// in the synchronization settings.
+  void _divergenceChanged() {
+    final sync = widget.autoSync;
+    final divergence = sync?.divergence;
+    final key = divergence == null
+        ? null
+        : '${divergence.cloud.savedAt}|${divergence.cloud.deviceName}';
+    if (key == _announcedDivergence || !mounted) return;
+    _announcedDivergence = key;
+    if (key == null) return;
+    final l = AppLocalizations.of(context);
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(
+        key: const ValueKey('sync-divergence-snackbar'),
+        behavior: SnackBarBehavior.floating,
+        content: Text(l.autoSyncDivergedShort),
+        action: SnackBarAction(
+          label: l.autoSyncChooseVersion,
+          onPressed: () => chooseSyncVersion(context, sync!),
+        ),
+      ),
+    );
   }
 
   Future<bool> _applyReceived(Future<void> Function() receive) async {
@@ -778,29 +833,25 @@ class _ManagerShellState extends State<ManagerShell>
       return false;
     }
     setState(() => _applyingSync = true);
+    var replacing = false;
     try {
       // Fence user input before any asynchronous repository mutation.
       await WidgetsBinding.instance.endOfFrame;
       if (!mounted) return false;
       await _publications?.suspend();
+      replacing = true;
       await receive();
-      await _catalog?.reloadAfterSync();
-      final source = await widget.drafts?.readDraft();
-      if (source != null && source != _controller.source) {
-        _controller.source = source;
-        await _controller.refresh();
-      }
-      await _vpn?.load();
-      await _repairOrphanedVpnState();
-      await _publications?.reload();
       return true;
-    } catch (_) {
-      // If refreshing a projection fails, reopen before exposing stale forms.
-      unawaited(widget.onRestored?.call());
-      rethrow;
     } finally {
-      if (mounted) _publications?.resume();
-      if (mounted) setState(() => _applyingSync = false);
+      if (replacing) {
+        // The workspace was replaced (or a failed restore may have touched
+        // it): reopen everything, as after restoring a backup. Input stays
+        // fenced until the new shell replaces this one.
+        unawaited(widget.onRestored?.call());
+      } else if (mounted) {
+        _publications?.resume();
+        setState(() => _applyingSync = false);
+      }
     }
   }
 
@@ -981,6 +1032,7 @@ class _ManagerShellState extends State<ManagerShell>
                                 selection: _serverSelection,
                                 motion: widget.motion,
                                 vpn: _vpn,
+                                cacheRefresh: _cacheRefresh,
                               )
                             else if (_sshController != null)
                               NetworkWorkbench(

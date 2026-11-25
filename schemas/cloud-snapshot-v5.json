@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "antirkn:schemas/cloud-snapshot-v5.json",
+  "title": "AntiRKN cloud snapshot v5",
+  "description": "Plain JSON inside the encrypted Google Drive appDataFolder snapshot used by automatic sync only. It carries intent: what the user decided and what cannot be read back from a server or Drive. Observations, compiled profiles, runner answers and publication results stay in the local cache of each device. The file backup (.antirkn) keeps format 4 and is not described here. Record sources are JSON documents encoded as strings, except template-draft (YAML text).",
+  "version": 5,
+  "readableVersions": [4, 5],
+  "maxRecords": 100000,
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "createdAt", "workspaceId", "author", "servers", "documents"],
+  "properties": {
+    "version": {"const": 5},
+    "createdAt": {"type": "string", "format": "date-time"},
+    "workspaceId": {"$ref": "#/$defs/id"},
+    "author": {
+      "description": "The device that captured the snapshot, for choosing between versions.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["deviceId"],
+      "properties": {
+        "deviceId": {"$ref": "#/$defs/id"},
+        "deviceName": {"type": "string", "minLength": 1, "maxLength": 80, "pattern": "^[^\\x00-\\x1f\\x7f]+$"}
+      }
+    },
+    "servers": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "revision", "source", "updatedAt"],
+        "properties": {
+          "id": {"$ref": "#/$defs/recordId"},
+          "revision": {"$ref": "#/$defs/revision"},
+          "updatedAt": {"type": "integer"},
+          "source": {
+            "type": "string",
+            "contentMediaType": "application/json",
+            "contentSchema": {"$ref": "#/$defs/serverProfile"}
+          }
+        }
+      }
+    },
+    "documents": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "revision", "source"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^(template-draft|vpn-workspace-v1|runner/[^\\x00-\\x1f\\x7f]{1,249}|publication/(settings|binding/[a-f0-9]{32}))$"
+          },
+          "revision": {"$ref": "#/$defs/revision"},
+          "source": {"type": "string"}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[a-f0-9]{32}$"},
+    "recordId": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[^\\x00-\\x1f\\x7f]+$"},
+    "revision": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+    "serverProfile": {
+      "description": "SSH access: address, port, login, key or password, pinned host key, sudo mode, name. The last observed server facts are cache.",
+      "type": "object",
+      "x-localCache": ["lastInfo"],
+      "not": {"required": ["lastInfo"]}
+    },
+    "vpnWorkspace": {
+      "description": "Document vpn-workspace-v1: workspace id, clients, deleted clients until fully revoked, resource specifications set by the user, per-target server bindings and unfinished operations.",
+      "type": "object",
+      "properties": {
+        "servers": {
+          "type": "object",
+          "additionalProperties": {"$ref": "#/$defs/vpnServerRecord"}
+        },
+        "profiles": {
+          "type": "object",
+          "additionalProperties": {"$ref": "#/$defs/vpnProfile"}
+        }
+      }
+    },
+    "vpnServerRecord": {
+      "description": "Intent and operation state of one target: identity, resourceWorkspaceId, operation, pending, flags. authorizedPayload is kept only while it differs from the last applied payload; job only while it is not terminal. An empty record is omitted.",
+      "type": "object",
+      "x-localCache": ["observed", "verifiedAt", "appliedPayload"],
+      "x-localCacheWhenSettled": ["authorizedPayload"],
+      "x-localCacheWhenTerminal": ["job"],
+      "not": {"anyOf": [{"required": ["observed"]}, {"required": ["verifiedAt"]}, {"required": ["appliedPayload"]}]}
+    },
+    "vpnProfile": {
+      "description": "Only the publication namespace of a client survives; compiled YAML and its hash are rebuilt locally.",
+      "type": "object",
+      "additionalProperties": false,
+      "x-keep": ["publicationWorkspaceId"],
+      "properties": {"publicationWorkspaceId": {"$ref": "#/$defs/id"}}
+    },
+    "runnerJournal": {
+      "description": "Document runner/<server>: present only while an operation is unfinished (pending request, operation metadata or a job that is not terminal). Panel access, discovery, egress and finished jobs are read back from the runner.",
+      "type": "object",
+      "additionalProperties": false,
+      "x-keep": ["version", "identity", "operation", "pending", "selected", "cursor", "activeComponent"],
+      "x-unfinished": ["pending", "operation"]
+    },
+    "localDocuments": {
+      "description": "Document ids that never enter the cloud snapshot: verified publication results are confirmed against Drive.",
+      "x-patterns": ["^publication/result/[a-f0-9]{32}$"]
+    }
+  }
+}

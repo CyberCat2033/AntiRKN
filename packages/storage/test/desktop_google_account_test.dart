@@ -293,7 +293,7 @@ void main() {
       http.reject = true;
       final remote = GoogleDriveSyncStore(tokens: auth, http: http);
       await expectLater(
-        remote.getStartPageToken(),
+        remote.findSnapshot(),
         throwsA(
           isA<SyncTransportFailure>().having(
             (e) => e.issue,
@@ -314,7 +314,7 @@ void main() {
       expect(store.value, previous);
       oauth.error = GoogleAccountIssue.reauthorize;
       await expectLater(
-        remote.getStartPageToken(),
+        remote.findSnapshot(),
         throwsA(issue(GoogleAccountIssue.reauthorize)),
       );
       final requests = oauth.refreshes;
@@ -543,10 +543,13 @@ void main() {
       expect(oauth.refreshes, 1);
 
       var android = database('android', 42);
-      expect(await android.pullCurrentSnapshot(
-        phone,
-        remote: GoogleDriveSyncStore(tokens: phone, http: http),
-      ), isTrue);
+      expect(
+        await android.pullCurrentSnapshot(
+          phone,
+          remote: GoogleDriveSyncStore(tokens: phone, http: http),
+        ),
+        isTrue,
+      );
       await android.close();
       android = database('android', 42);
       expect(await android.readDraft(), 'initial template');
@@ -557,10 +560,13 @@ void main() {
       await expectLater(upload(b), throwsA(anything));
       http.offline = false;
       await upload(b, retry: true);
-      expect(await linux.pullCurrentSnapshot(
-        desktop,
-        remote: GoogleDriveSyncStore(tokens: desktop, http: http),
-      ), isTrue);
+      expect(
+        await linux.pullCurrentSnapshot(
+          desktop,
+          remote: GoogleDriveSyncStore(tokens: desktop, http: http),
+        ),
+        isTrue,
+      );
       expect(await linux.googleSessionStore().read(), isNotNull);
       await linux.close();
       final refreshed = database('linux', 41);

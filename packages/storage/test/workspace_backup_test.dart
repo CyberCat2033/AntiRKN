@@ -12,15 +12,26 @@ import 'fixtures/journal_data.dart';
 const password = 'portable-backup-test-password';
 Matcher failure(BackupIssue value) =>
     isA<BackupFailure>().having((e) => e.issue, 'issue', value);
-List<Object?> history(List<LocalChange> changes) => [
-  for (final change in changes) [change.header.toJson(), change.source],
-];
+
+/// The whole local journal at [path]: identity, heads and history.
+String journal(String path) {
+  final db = sqlite3.open(path);
+  try {
+    return [
+      db.select('SELECT * FROM sync_identity'),
+      db.select('SELECT * FROM sync_heads ORDER BY 1,2'),
+      db.select('SELECT * FROM sync_history ORDER BY 1'),
+    ].toString();
+  } finally {
+    db.dispose();
+  }
+}
 
 void main() {
   late Directory sourceDirectory, directory;
   late Uint8List backup;
   late WorkspaceIdentity sourceIdentity;
-  late List<LocalChange> changes;
+  late int sourceHeads;
   late String source;
   final stores = <WorkspaceDatabase>[];
   WorkspaceDatabase open([String name = 'destination']) {
@@ -45,8 +56,7 @@ void main() {
       final removed = await db.openServer('deleted-fixture');
       await removed.saveProfile(fixtureServer());
       await removed.saveProfile(null);
-      changes = await db.readChanges();
-      await db.acknowledgeChanges([changes.first.header.changeId]);
+      sourceHeads = journalHeads(path).length;
       backup = await db.createBackup(password);
       source = await BackupEnvelope.open(backup, password);
     } finally {
@@ -104,7 +114,10 @@ void main() {
         await restored.readRunnerJournal(fixtureServerId),
         contains('private-runner-fixture'),
       );
-      expect((await restored.readChanges()).length, lessThan(changes.length));
+      expect(
+        journalHeads('${directory.path}/destination.sqlite').length,
+        lessThan(sourceHeads),
+      );
       expect(source, isNot(contains('"changes"')));
       expect(source, isNot(contains('"outbox"')));
       expect(source, isNot(contains('"incoming"')));
@@ -118,15 +131,15 @@ void main() {
       await (await restored.openServer(
         'deleted-fixture',
       )).saveProfile(fixtureServer());
-      final beforeEdit = await restored.readChanges();
+      final beforeEdit = journalHeads('${directory.path}/destination.sqlite');
       await restored.writeDraft('edited after restore');
-      final last = (await restored.readChanges()).last;
-      expect(last.header.deviceId, identity.deviceId);
-      expect(last.header.sequence, beforeEdit.length + 1);
-      final old = beforeEdit.singleWhere(
-        (e) => e.header.entityKind == ChangeEntityKind.template,
+      expect(
+        movedHeads(
+          beforeEdit,
+          journalHeads('${directory.path}/destination.sqlite'),
+        ),
+        {'template:default'},
       );
-      expect(last.header.baseChangeId, old.header.changeId);
       // A restored copy can itself be backed up and read without either old key.
       final next = await restored.createBackup(password);
       final second = open('second');
@@ -141,7 +154,7 @@ void main() {
     () async {
       final db = open();
       await db.writeDraft('keep this');
-      final before = history(await db.readChanges());
+      final before = journal('${directory.path}/destination.sqlite');
       await expectLater(
         db.prepareRestore(backup, 'incorrect-password'),
         throwsA(failure(BackupIssue.invalid)),
@@ -166,7 +179,7 @@ void main() {
         throwsA(failure(BackupIssue.version)),
       );
       expect(await db.readDraft(), 'keep this');
-      expect(history(await db.readChanges()), before);
+      expect(journal('${directory.path}/destination.sqlite'), before);
     },
   );
 
@@ -216,33 +229,30 @@ void main() {
     },
   );
 
-  test(
-    'write failure rolls back data, schema, journal, outbox and identity together',
-    () async {
-      final db = open();
-      await db.writeDraft('keep');
-      final identity = await db.readWorkspaceIdentity();
-      final before = history(await db.readChanges());
-      final raw = sqlite3.open('${directory.path}/destination.sqlite');
-      addTearDown(raw.dispose);
-      raw.execute(
-        "CREATE TRIGGER fail_restore BEFORE INSERT ON servers BEGIN SELECT RAISE(ABORT, 'fixture'); END",
-      );
-      await expectLater(
-        db.restoreBackup(await db.prepareRestore(backup, password)),
-        throwsA(failure(BackupIssue.storage)),
-      );
-      expect(await db.readDraft(), 'keep');
-      expect((await db.readWorkspaceIdentity()).deviceId, identity.deviceId);
-      expect(history(await db.readPendingChanges()), before);
-      expect(raw.userVersion, 6);
-      expect(raw.select('PRAGMA foreign_key_check'), isEmpty);
-      raw.execute('DROP TRIGGER fail_restore');
-      await db.restoreBackup(await db.prepareRestore(backup, password));
-      await db.close();
-      expect(await open().readDraft(), 'private-template-fixture');
-    },
-  );
+  test('write failure rolls back data, journal and identity together', () async {
+    final db = open();
+    await db.writeDraft('keep');
+    final identity = await db.readWorkspaceIdentity();
+    final before = journal('${directory.path}/destination.sqlite');
+    final raw = sqlite3.open('${directory.path}/destination.sqlite');
+    addTearDown(raw.dispose);
+    raw.execute(
+      "CREATE TRIGGER fail_restore BEFORE INSERT ON servers BEGIN SELECT RAISE(ABORT, 'fixture'); END",
+    );
+    await expectLater(
+      db.restoreBackup(await db.prepareRestore(backup, password)),
+      throwsA(failure(BackupIssue.storage)),
+    );
+    expect(await db.readDraft(), 'keep');
+    expect((await db.readWorkspaceIdentity()).deviceId, identity.deviceId);
+    expect(journal('${directory.path}/destination.sqlite'), before);
+    expect(raw.userVersion, 7);
+    expect(raw.select('PRAGMA foreign_key_check'), isEmpty);
+    raw.execute('DROP TRIGGER fail_restore');
+    await db.restoreBackup(await db.prepareRestore(backup, password));
+    await db.close();
+    expect(await open().readDraft(), 'private-template-fixture');
+  });
 
   test(
     'other open editors and a shipped v2 writer cannot write after restore',
@@ -433,7 +443,10 @@ void main() {
       expect(worker.stdout, contains('backup_fixture_committed_without_close'));
       final restored = open();
       expect(await restored.readDraft(), 'private-template-fixture');
-      expect((await restored.readChanges()).length, lessThan(changes.length));
+      expect(
+        journalHeads('${directory.path}/destination.sqlite').length,
+        lessThan(sourceHeads),
+      );
       expect(
         (await restored.listServers()).single.profile.secrets,
         fixtureServer().secrets,

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -6,65 +7,30 @@ import 'package:antirkn_storage/antirkn_storage.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart';
+import 'fixtures/fake_snapshot_remote.dart';
 import 'fixtures/journal_data.dart';
 
-final class _Tokens implements SyncAccessTokenProvider {
-  @override
-  String get accountKey => 'snapshot-test-account';
-  @override
-  Future<String> accessToken() async => 'fixture';
-}
+typedef _Remote = FakeSnapshotRemote;
+typedef _Tokens = FakeSnapshotTokens;
 
-final class _Remote implements SyncRemoteStore, SyncSnapshotStore {
-  @override
-  String get accountKey => 'snapshot-test-account';
-  Uint8List? snapshot, key;
-  int version = 0, writes = 0;
-  bool unavailable = false, loseResponse = false;
-
-  @override
-  Future<SyncRemoteFile?> findSnapshot() async => snapshot == null
-      ? null
-      : SyncRemoteFile(
-          id: 'snapshot-id',
-          name: syncSnapshotName,
-          size: snapshot!.length,
-          version: '$version',
-          packet: false,
-        );
-
-  @override
-  Future<Uint8List> readSnapshot(String fileId) async =>
-      Uint8List.fromList(snapshot!);
-
-  @override
-  Future<void> writeSnapshot(String? fileId, Uint8List bytes) async {
-    if (unavailable) {
-      throw const SyncTransportFailure(SyncTransportIssue.network);
-    }
-    snapshot = Uint8List.fromList(bytes);
-    version++;
-    writes++;
-    if (loseResponse) {
-      loseResponse = false;
-      throw const SyncTransportFailure(SyncTransportIssue.network);
-    }
-  }
-
-  @override
-  Future<Uint8List?> readSnapshotKey() async =>
-      key == null ? null : Uint8List.fromList(key!);
-
-  @override
-  Future<void> createSnapshotKey(Uint8List bytes) async {
-    if (key != null) {
-      throw const SyncTransportFailure(SyncTransportIssue.conflict);
-    }
-    key = Uint8List.fromList(bytes);
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+/// What the cloud snapshot v5 carries of a VPN document: no observations or
+/// compiled profiles (schemas/cloud-snapshot-v5.json). Compared canonically.
+String _vpnIntent(String source) {
+  final vpn = jsonDecode(source) as Map<String, dynamic>;
+  Map<String, dynamic> record(Object? value) =>
+      Map<String, dynamic>.of(value as Map<String, dynamic>)..removeWhere(
+        (key, _) =>
+            const {'observed', 'verifiedAt', 'appliedPayload'}.contains(key),
+      );
+  return canonicalJson({
+    ...vpn,
+    'servers': {
+      for (final entry in (vpn['servers'] as Map).entries)
+        if (record(entry.value).isNotEmpty)
+          entry.key as String: record(entry.value),
+    },
+    'profiles': <String, Object?>{},
+  });
 }
 
 Future<AutoSyncResult> _upload(AutoSyncSession session, {bool retry = false}) =>
@@ -190,7 +156,7 @@ void main() {
       int count() {
         final db = sqlite3.open(path);
         try {
-          return db.select('SELECT count(*) AS n FROM sync_changes').single['n']
+          return db.select('SELECT count(*) AS n FROM sync_history').single['n']
               as int;
         } finally {
           db.dispose();
@@ -200,10 +166,8 @@ void main() {
       expect(count(), greaterThan(50));
       await _upload(await session(first));
       expect(count(), lessThan(5));
-      expect((await first.readSyncMergeStatus()).conflicts, isEmpty);
       await first.writeDraft('draft after compaction');
       expect(await first.readDraft(), 'draft after compaction');
-      expect((await first.readSyncMergeStatus()).conflicts, isEmpty);
       await _upload(await session(first));
       expect(count(), lessThan(5));
     },
@@ -252,7 +216,6 @@ void main() {
         (await first.readPublicationDraft(userId))!.bytes,
         utf8.encode('third current profile'),
       );
-      expect((await first.readSyncMergeStatus()).conflicts, isEmpty);
     },
   );
 
@@ -316,7 +279,11 @@ void main() {
         (await restored.listServers()).single.profile.secrets,
         fixtureServer().secrets,
       );
-      expect((await restored.readVpn()).source, fixtureCurrentVpnSource());
+      // A new device has the intent; its cache is read from the servers.
+      expect(
+        canonicalJson(jsonDecode((await restored.readVpn()).source!)),
+        _vpnIntent(fixtureCurrentVpnSource()),
+      );
       await restored.writeDraft('new state from second');
       await _upload(await session(restored));
       expect(await first.pullCurrentSnapshot(tokens, remote: remote), isTrue);
@@ -331,7 +298,12 @@ void main() {
         (await refreshed.listServers()).single.profile.secrets,
         fixtureServer().secrets,
       );
-      expect((await refreshed.readVpn()).source, fixtureCurrentVpnSource());
+      // These fixture records name no server identity: nothing proves the
+      // cache belongs to the same machine, so only the intent remains.
+      expect(
+        canonicalJson(jsonDecode((await refreshed.readVpn()).source!)),
+        _vpnIntent(fixtureCurrentVpnSource()),
+      );
     },
   );
 
@@ -356,6 +328,330 @@ void main() {
       );
       expect(await second.readDraft(), 'independent local data');
       expect(remote.writes, 1);
+    },
+  );
+
+  test(
+    'clean device after another device upload receives the new version',
+    () async {
+      final first = open('first', 11);
+      await first.writeDraft('version one');
+      await _upload(await session(first));
+      final second = open('second', 22);
+      expect(await second.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+      await second.close();
+      final restored = open('second', 22);
+      await restored.writeDraft('version two');
+      await _upload(await session(restored));
+      final writes = remote.writes;
+      remote.calls.clear();
+      // First device has no edits; leaving the app must not report a conflict
+      // and must not overwrite or race the newer cloud state. It has nothing
+      // to send, so it does not even ask Drive; the next pull receives.
+      final result = await _upload(await session(first));
+      expect(result.remoteNewer, isFalse);
+      expect(remote.calls, isEmpty);
+      expect(remote.writes, writes);
+      await _upload(await session(first), retry: true);
+      expect(remote.writes, writes);
+      expect(await first.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+      await first.close();
+      final refreshed = open('first', 11);
+      expect(await refreshed.readDraft(), 'version two');
+    },
+  );
+
+  test(
+    'unconfirmed snapshot of a clean device does not block a later pull',
+    () async {
+      final first = open('first', 11);
+      await first.writeDraft('version one');
+      await _upload(await session(first));
+      // An older version captured again without edits and never confirmed
+      // the upload. Clean devices no longer capture, but such files remain.
+      await first.writeSetting('syncSnapshotUploaded', 'never-confirmed');
+      final local = File('${directory.path}/first.sqlite.current-snapshot');
+      expect(await local.exists(), isTrue);
+      final second = open('second', 22);
+      expect(await second.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+      await second.close();
+      final restored = open('second', 22);
+      await restored.writeDraft('version two');
+      await _upload(await session(restored));
+      final writes = remote.writes;
+      // Startup recovery finds nothing to send and does not conflict.
+      await _upload(await session(first), retry: true);
+      expect(remote.writes, writes);
+      expect(await first.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+      await first.close();
+      final refreshed = open('first', 11);
+      expect(await refreshed.readDraft(), 'version two');
+      expect(await local.exists(), isFalse);
+      // The refreshed device is clean and bound to the received version.
+      await refreshed.writeDraft('version three');
+      await _upload(await session(refreshed));
+      expect(remote.writes, writes + 1);
+    },
+  );
+
+  test(
+    'empty unbound device never uploads over an existing cloud snapshot',
+    () async {
+      final first = open('first', 11);
+      await first.writeDraft('cloud data');
+      await _upload(await session(first));
+      final second = open('second', 22);
+      final result = await _upload(await session(second));
+      expect(result.remoteNewer, isTrue);
+      expect(remote.writes, 1);
+      expect(await second.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+      await second.close();
+      expect(await open('second', 22).readDraft(), 'cloud data');
+    },
+  );
+
+  test('device id stays stable across cloud pulls of one workspace', () async {
+    final first = open('first', 11);
+    await first.writeDraft('version one');
+    await _upload(await session(first));
+    final second = open('second', 22);
+    final ownDevice = (await second.readWorkspaceIdentity()).deviceId;
+    expect(await second.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+    await second.close();
+    var restored = open('second', 22);
+    final identity = await restored.readWorkspaceIdentity();
+    expect(identity.deviceId, ownDevice);
+    final operation = ServerOperation(
+      operationId: 'e' * 32,
+      executorDeviceId: identity.deviceId,
+    );
+    final vpn = await restored.readVpn();
+    await restored.writeVpn(
+      VpnWorkspace(
+        id: identity.workspaceId,
+        servers: {
+          fixtureServerId: {'operation': operation.toJson()},
+        },
+      ).encode(),
+      expectedRevision: vpn.revision,
+    );
+    await _upload(await session(restored));
+    await first.close();
+    final firstAgain = open('first', 11);
+    expect(
+      await firstAgain.pullCurrentSnapshot(tokens, remote: remote),
+      isTrue,
+    );
+    await firstAgain.close();
+    final edited = open('first', 11);
+    await edited.writeDraft('version two');
+    await _upload(await session(edited));
+    expect(await restored.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+    await restored.close();
+    restored = open('second', 22);
+    final after = await restored.readWorkspaceIdentity();
+    expect(after.deviceId, ownDevice);
+    expect(after.workspaceId, identity.workspaceId);
+    expect(await restored.readDraft(), 'version two');
+    final record = VpnWorkspace.decode(
+      (await restored.readVpn()).source!,
+    ).servers[fixtureServerId]!;
+    expect(
+      ServerOperation.fromJson(record['operation'] as Map).executorDeviceId,
+      after.deviceId,
+    );
+  });
+
+  test(
+    'a database with legacy merge conflicts uploads and edits after migration',
+    () async {
+      final path = '${directory.path}/legacy.sqlite';
+      createV6Legacy(path);
+      final store = open('legacy', 19);
+      await _upload(await session(store));
+      expect(remote.writes, 1);
+      final db = sqlite3.open(path);
+      try {
+        expect(
+          db.select(
+            "SELECT name FROM sqlite_master WHERE name IN ('sync_conflicts','sync_incoming','sync_branches')",
+          ),
+          isEmpty,
+        );
+      } finally {
+        db.dispose();
+      }
+      await store.writeDraft('edited after cleanup');
+      expect(await store.readDraft(), 'edited after cleanup');
+      await _upload(await session(store));
+      expect(remote.writes, 2);
+    },
+  );
+
+  test('leaving repeatedly without edits makes no Drive requests', () async {
+    final first = open('first', 11);
+    await first.writeDraft('version one');
+    final sync = await session(first);
+    await _upload(sync);
+    expect(remote.writes, 1);
+    remote.calls.clear();
+    for (var index = 0; index < 5; index++) {
+      await _upload(sync);
+    }
+    expect(remote.writes, 1);
+    expect(remote.calls, isEmpty);
+    // A device that only received the cloud snapshot is just as clean.
+    final second = open('second', 22);
+    expect(await second.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+    await second.close();
+    final restored = open('second', 22);
+    final follower = await session(restored);
+    remote.calls.clear();
+    for (var index = 0; index < 5; index++) {
+      await _upload(follower);
+    }
+    expect(remote.writes, 1);
+    expect(remote.calls, isEmpty);
+  });
+
+  test(
+    'an ordinary exchange after an edit costs at most two requests',
+    () async {
+      final first = open('first', 11);
+      await first.writeDraft('version one');
+      final sync = await session(first);
+      await _upload(sync);
+      for (var index = 0; index < 3; index++) {
+        await first.writeDraft('edit $index');
+        remote.calls.clear();
+        await _upload(sync);
+        expect(remote.writes, index + 2);
+        expect(
+          remote.requests,
+          lessThanOrEqualTo(2),
+          reason: '${remote.calls}',
+        );
+      }
+    },
+  );
+
+  test(
+    'a cloud version written meanwhile is never overwritten by a stale device',
+    () async {
+      final first = open('first', 11);
+      await first.writeDraft('version one');
+      final sync = await session(first);
+      await _upload(sync);
+      final second = open('second', 22);
+      expect(await second.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+      await second.close();
+      final other = open('second', 22);
+      await other.writeDraft('newer from second');
+      final otherSync = await session(other);
+      await first.writeDraft('stale edit from first');
+      // The second device uploads between the first device's check and write.
+      remote.beforeWrite = () async {
+        await _upload(otherSync);
+      };
+      // Stage 4: the same workspace diverged; the user chooses a version.
+      expect((await _upload(sync)).divergence, isNotNull);
+      final third = open('third', 33);
+      expect(await third.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+      await third.close();
+      expect(await open('third', 33).readDraft(), 'newer from second');
+      expect(await first.readDraft(), 'stale edit from first');
+    },
+  );
+
+  test(
+    'a key created by another device at the same time is used by both',
+    () async {
+      remote.racingKey = Uint8List.fromList(List.filled(32, 9));
+      final first = open('first', 11);
+      await first.writeDraft('written with the winning key');
+      await _upload(await session(first));
+      expect(remote.key, remote.racingKey);
+      final second = open('second', 22);
+      expect(await second.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+      await second.close();
+      final restored = open('second', 22);
+      expect(await restored.readDraft(), 'written with the winning key');
+      await restored.writeDraft('second continues');
+      await _upload(await session(restored));
+      expect(await first.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+      await first.close();
+      expect(await open('first', 11).readDraft(), 'second continues');
+    },
+  );
+
+  test(
+    'a cached snapshot key that no longer opens the cloud is read again',
+    () async {
+      final first = open('first', 11);
+      await first.writeDraft('version one');
+      await _upload(await session(first));
+      final second = open('second', 22);
+      expect(await second.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+      await second.close();
+      final other = open('second', 22);
+      // The account's app data was reset; the other device starts afresh
+      // with a new key, its cached one is not used for a new snapshot.
+      remote
+        ..snapshot = null
+        ..key = null;
+      await other.writeDraft('after reset');
+      remote.calls.clear();
+      await _upload(await session(other));
+      expect(remote.calls, contains('createSnapshotKey'));
+      remote.calls.clear();
+      expect(await first.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+      expect(remote.calls, contains('readSnapshotKey'));
+      await first.close();
+      final refreshed = open('first', 11);
+      expect(await refreshed.readDraft(), 'after reset');
+      // The refreshed key is cached again: an edit costs one request.
+      await refreshed.writeDraft('edited after reset');
+      remote.calls.clear();
+      await _upload(await session(refreshed));
+      expect(remote.calls, ['writeSnapshot']);
+    },
+  );
+
+  test(
+    'startup pull gives up at its deadline and never applies late',
+    () async {
+      final first = open('first', 11);
+      await first.writeDraft('cloud data');
+      await _upload(await session(first));
+      final second = open('second', 22);
+      final workspace = (await second.readWorkspaceIdentity()).workspaceId;
+      remote.holdRead = Completer<void>();
+      final watch = Stopwatch()..start();
+      expect(
+        await second.pullCurrentSnapshot(
+          tokens,
+          remote: remote,
+          deadline: const Duration(milliseconds: 200),
+        ),
+        isFalse,
+      );
+      expect(watch.elapsed, lessThan(const Duration(seconds: 2)));
+      // The app opened local data and is being edited when Drive answers.
+      await second.writeDraft('local while offline');
+      remote.holdRead!.complete();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(await second.readDraft(), 'local while offline');
+      expect((await second.readWorkspaceIdentity()).workspaceId, workspace);
+      remote.holdRead = null;
+      final third = open('third', 33);
+      expect(
+        await third.pullCurrentSnapshot(
+          tokens,
+          remote: remote,
+          deadline: const Duration(seconds: 30),
+        ),
+        isTrue,
+      );
     },
   );
 }

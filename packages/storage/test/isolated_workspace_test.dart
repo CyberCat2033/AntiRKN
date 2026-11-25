@@ -71,7 +71,7 @@ void main() {
     expect(draft?.bytes, utf8.encode(yaml));
     await db.checkPublicationDraft(draft!);
     expect((await db.readVpn()).revision, 3);
-    expect((await db.readChanges()).length, greaterThan(2));
+    expect(journalHeads(path).length, greaterThan(2));
     final bytes = await db.createBackup('isolated-backup-password');
     final plan = await db.prepareRestore(bytes, 'isolated-backup-password');
     expect(plan.summary.users, 1);
@@ -144,31 +144,16 @@ void main() {
   });
 
   test(
-    'backup exports current state with legacy merge conflict metadata',
+    'backup of a database with legacy merge conflicts exports its current state',
     () async {
       final temp = await Directory.systemTemp.createTemp(
         'isolated-backup-conflict-',
       );
       addTearDown(() => temp.delete(recursive: true));
       final path = '${temp.path}/workspace.sqlite';
-      final db = await WorkspaceDatabase.openIsolated(
-        path,
-        key: SecretKeyData(List.filled(32, 76)),
-      );
+      createV6Legacy(path);
+      final db = await WorkspaceDatabase.openIsolated(path, key: fixtureKey());
       addTearDown(db.close);
-      await db.writeDraft('visible current template');
-      final raw = sqlite3.open(path);
-      try {
-        raw.execute("INSERT INTO sync_conflicts VALUES ('template','base')");
-        raw.execute(
-          "INSERT INTO sync_branches VALUES ('template','base','old-1')",
-        );
-        raw.execute(
-          "INSERT INTO sync_branches VALUES ('template','base','old-2')",
-        );
-      } finally {
-        raw.dispose();
-      }
       final bytes = await db.createBackup('isolated-backup-password');
       final content =
           jsonDecode(
@@ -179,13 +164,10 @@ void main() {
         (content['documents'] as List).cast<Map>().singleWhere(
           (row) => row['id'] == 'template-draft',
         )['source'],
-        'visible current template',
+        'private-template-fixture',
       );
       final plan = await db.prepareRestore(bytes, 'isolated-backup-password');
-      expect(
-        plan.summary.workspaceId,
-        (await db.readWorkspaceIdentity()).workspaceId,
-      );
+      expect(plan.summary.workspaceId, legacyWorkspaceId);
       plan.dispose();
     },
   );

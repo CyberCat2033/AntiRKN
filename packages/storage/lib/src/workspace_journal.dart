@@ -5,6 +5,9 @@ typedef _Entities = Map<_EntityKey, _EntitySnapshot>;
 typedef _Crypt = Future<String> Function(String, int, List<int>);
 typedef _Encrypt = Future<Uint8List> Function(String, int, String);
 
+/// Schema written by this build. Every older version opens as this one.
+const _schemaVersion = 7;
+
 final class _EntitySnapshot {
   const _EntitySnapshot(this.source, {this.deleted = false});
   final String source;
@@ -76,21 +79,29 @@ _Entities _documentEntities(String id, String? source, {_EntityKey? only}) {
   return entities;
 }
 
-final class _PreparedChange {
-  const _PreparedChange(this.header, this.payload);
-  final ChangeHeader header;
-  final Uint8List payload;
-}
+/// Entities whose source or deletion differs, in a stable order.
+List<_EntityKey> _changedEntities(_Entities before, _Entities after) =>
+    {...before.keys, ...after.keys}
+        .where(
+          (key) =>
+              before[key]?.source != after[key]?.source ||
+              before[key]?.deleted != after[key]?.deleted,
+        )
+        .toList()
+      ..sort(
+        (a, b) => '${a.$1.name}:${a.$2}'.compareTo('${b.$1.name}:${b.$2}'),
+      );
 
-final class _ChangeBatch {
-  const _ChangeBatch(this.expectedSequence, this.changes, [this.expectedEpoch]);
-  final int? expectedEpoch;
-  final int expectedSequence;
-  final List<_PreparedChange> changes;
-}
-
-/// All encryption happens before BEGIN IMMEDIATE. A transaction then checks
-/// both the source revision and journal sequence before committing either.
+/// The local journal keeps no entity content: the rows in servers and
+/// documents are the data, and the cloud snapshot carries them whole. Left
+/// are the installation identity, a change counter (`sequence`, which tells
+/// whether anything changed since the last upload) and, per entity, its head:
+/// the id of its current version, its revision and whether it is deleted.
+/// A deleted entity is never written again under the same id, and
+/// publication fences a profile by its head and accepts a Drive file written
+/// at one of the head's ancestors (`sync_history`: change id and the ids it
+/// replaced). Recording happens inside the data transaction; a missing or
+/// resurrected head fails the whole write.
 final class _LocalChangeJournal {
   _LocalChangeJournal(this.db, this.encrypt, this.decrypt);
   final Database db;
@@ -99,24 +110,84 @@ final class _LocalChangeJournal {
   WorkspaceIdentity? _identity;
   WorkspaceIdentity get identity => _identity!;
 
+  static const _headsTable =
+      'sync_heads (entity_kind TEXT NOT NULL, entity_id TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision>0), change_id TEXT NOT NULL, deleted INTEGER NOT NULL CHECK(deleted IN (0,1)), PRIMARY KEY(entity_kind,entity_id))';
+  static const _historyTable =
+      'CREATE TABLE sync_history (change_id TEXT PRIMARY KEY, parents TEXT NOT NULL)';
   static final _ddl = [
-    'CREATE TABLE sync_identity (singleton INTEGER PRIMARY KEY CHECK(singleton=1), workspace_id TEXT NOT NULL, device_id TEXT NOT NULL, sequence INTEGER NOT NULL CHECK(sequence>=0), proof BLOB NOT NULL, write_guard INTEGER NOT NULL DEFAULT 0 CHECK(write_guard IN (0,1)))',
-    'CREATE TABLE sync_changes (change_id TEXT PRIMARY KEY, sequence INTEGER NOT NULL UNIQUE CHECK(sequence>0), header TEXT NOT NULL, payload BLOB NOT NULL)',
-    'CREATE TABLE sync_heads (entity_kind TEXT NOT NULL, entity_id TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision>0), change_id TEXT NOT NULL REFERENCES sync_changes(change_id), deleted INTEGER NOT NULL CHECK(deleted IN (0,1)), PRIMARY KEY(entity_kind,entity_id))',
-    'CREATE TABLE sync_outbox (change_id TEXT PRIMARY KEY REFERENCES sync_changes(change_id))',
-    "CREATE TRIGGER sync_changes_immutable_update BEFORE UPDATE ON sync_changes BEGIN SELECT RAISE(ABORT, 'immutable_change'); END",
-    "CREATE TRIGGER sync_changes_immutable_delete BEFORE DELETE ON sync_changes BEGIN SELECT RAISE(ABORT, 'immutable_change'); END",
-    for (final table in ['servers', 'documents'])
-      for (final action in ['insert', 'update', 'delete'])
-        "CREATE TRIGGER journal_guard_${table}_$action BEFORE $action ON $table WHEN (SELECT write_guard FROM sync_identity WHERE singleton=1) != 1 BEGIN SELECT RAISE(ABORT, 'journal_writer_required'); END",
+    'CREATE TABLE sync_identity (singleton INTEGER PRIMARY KEY CHECK(singleton=1), workspace_id TEXT NOT NULL, device_id TEXT NOT NULL, sequence INTEGER NOT NULL CHECK(sequence>=0), proof BLOB NOT NULL, write_guard INTEGER NOT NULL DEFAULT 0 CHECK(write_guard IN (0,1)), writer_device TEXT, writer_version INTEGER NOT NULL DEFAULT 0)',
+    'CREATE TABLE $_headsTable',
+    _historyTable,
   ];
+
+  /// Journals of schema 2–6: events with encrypted sources, outbox, packets,
+  /// the packet key and the causal merge removed on 2026-09-24. Children
+  /// first: some reference sync_changes.
+  static const _legacyTables = [
+    'sync_outbox',
+    'sync_packets',
+    'sync_keys',
+    'sync_incoming',
+    'sync_branches',
+    'sync_conflicts',
+    'sync_merge_meta',
+  ];
+
+  static const _guardedTables = [
+    'servers',
+    'documents',
+    'vpn_overlay_state',
+    'vpn_user_overlay',
+    'vpn_profile_overlay',
+  ];
+
+  /// Data is written only inside [WorkspaceDatabase._transaction] of this
+  /// schema. A process of an older build, still open during the migration,
+  /// marks its transactions with its own version and is refused.
+  static void installGuards(Database db) {
+    for (final table in _guardedTables) {
+      for (final action in ['insert', 'update', 'delete']) {
+        db.execute('DROP TRIGGER IF EXISTS journal_guard_${table}_$action');
+        db.execute(
+          "CREATE TRIGGER journal_guard_${table}_$action BEFORE $action ON $table WHEN (SELECT write_guard != 1 OR writer_device IS NOT device_id OR writer_version != $_schemaVersion FROM sync_identity WHERE singleton=1) BEGIN SELECT RAISE(ABORT, 'journal_writer_required'); END",
+        );
+      }
+    }
+  }
+
+  static void dropGuards(Database db) {
+    for (final row in db.select(
+      "SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'journal_guard_%'",
+    )) {
+      db.execute('DROP TRIGGER "${row['name']}"');
+    }
+  }
 
   Future<void> initialize() async {
     if (_identity != null) {
       checkIdentity();
       return;
     }
-    if (db.userVersion == 1) await _migrate();
+    final version = db.userVersion;
+    if (version == 1) {
+      await _bootstrap();
+    } else if (version > 1 && version < _schemaVersion) {
+      await _verifyProof();
+      _upgrade();
+    }
+    if (db.userVersion != _schemaVersion) {
+      throw const VaultFailure(VaultIssue.corrupt);
+    }
+    final row = await _verifyProof();
+    _identity = WorkspaceIdentity(
+      workspaceId: row['workspace_id'] as String,
+      deviceId: row['device_id'] as String,
+    );
+    checkIdentity();
+  }
+
+  /// The identity is bound to the device key: a wrong key changes nothing.
+  Future<Row> _verifyProof() async {
     final row = db.select('SELECT * FROM sync_identity').single;
     final proof = jsonDecode(
       await decrypt('journal-identity', 1, row['proof'] as Uint8List),
@@ -127,34 +198,96 @@ final class _LocalChangeJournal {
         proof['deviceId'] != row['device_id']) {
       throw const VaultFailure(VaultIssue.corrupt);
     }
-    if (db.userVersion == 2) {
-      db.execute('BEGIN IMMEDIATE');
-      try {
-        if (db.userVersion == 2) {
-          db.execute('ALTER TABLE sync_identity ADD COLUMN writer_device TEXT');
-          for (final table in ['servers', 'documents']) {
-            for (final action in ['insert', 'update', 'delete']) {
-              db.execute('DROP TRIGGER journal_guard_${table}_$action');
-              db.execute(_guard(table, action));
-            }
-          }
-          db.userVersion = 3;
-        }
-        db.execute('COMMIT');
-      } catch (_) {
-        db.execute('ROLLBACK');
-        rethrow;
-      }
-    }
-    _identity = WorkspaceIdentity(
-      workspaceId: row['workspace_id'] as String,
-      deviceId: row['device_id'] as String,
-    );
-    checkIdentity();
+    return row;
   }
 
-  static String _guard(String table, String action) =>
-      "CREATE TRIGGER journal_guard_${table}_$action BEFORE $action ON $table WHEN (SELECT write_guard != 1 OR writer_device IS NOT device_id FROM sync_identity WHERE singleton=1) BEGIN SELECT RAISE(ABORT, 'journal_writer_required'); END";
+  /// Schema 2–6 to 7 in one transaction: data rows, identity and heads stay
+  /// as they are; event sources, packets and merge state are dropped. A
+  /// failure rolls everything back and the next launch starts again.
+  void _upgrade() {
+    db.execute('BEGIN IMMEDIATE');
+    try {
+      // Another process may have finished exactly this migration.
+      final version = db.userVersion;
+      if (version > 1 && version < _schemaVersion) {
+        final tables = db
+            .select("SELECT name FROM sqlite_master WHERE type='table'")
+            .map((r) => r['name'] as String)
+            .toSet();
+        // Ancestors of heads: own events and accepted received ones.
+        final history = <String, String>{};
+        for (final (table, accepted) in [
+          ('sync_changes', ''),
+          ('sync_incoming', ' WHERE state=1'),
+        ]) {
+          if (!tables.contains(table)) continue;
+          for (final row in db.select(
+            'SELECT change_id,header FROM $table$accepted',
+          )) {
+            final header = ChangeHeader.fromJson(
+              jsonDecode(row['header'] as String) as Map<String, dynamic>,
+            );
+            if (header.changeId != row['change_id']) {
+              throw const VaultFailure(VaultIssue.corrupt);
+            }
+            history[header.changeId] = jsonEncode(header.parents);
+          }
+        }
+        dropGuards(db);
+        for (final table in _legacyTables) {
+          db.execute('DROP TABLE IF EXISTS $table');
+        }
+        // Heads of schema 2–4 reference sync_changes: rebuild without it.
+        db.execute(
+          'CREATE TABLE ${_headsTable.replaceFirst('sync_heads', 'sync_heads_v7')}',
+        );
+        db.execute(
+          'INSERT INTO sync_heads_v7 SELECT entity_kind,entity_id,revision,change_id,deleted FROM sync_heads',
+        );
+        db.execute('DROP TABLE sync_heads');
+        db.execute('ALTER TABLE sync_heads_v7 RENAME TO sync_heads');
+        db.execute('DROP TABLE sync_changes');
+        db.execute(_historyTable);
+        for (final head in db.select('SELECT change_id FROM sync_heads')) {
+          history.putIfAbsent(head['change_id'] as String, () => '[]');
+        }
+        for (final entry in history.entries) {
+          db.execute('INSERT INTO sync_history VALUES (?,?)', [
+            entry.key,
+            entry.value,
+          ]);
+        }
+        final columns = db
+            .select('PRAGMA table_info(sync_identity)')
+            .map((r) => r['name'] as String)
+            .toSet();
+        if (!columns.contains('writer_device')) {
+          db.execute('ALTER TABLE sync_identity ADD COLUMN writer_device TEXT');
+        }
+        if (!columns.contains('writer_version')) {
+          db.execute(
+            'ALTER TABLE sync_identity ADD COLUMN writer_version INTEGER NOT NULL DEFAULT 0',
+          );
+        }
+        db.execute(
+          'UPDATE sync_identity SET write_guard=0, writer_device=NULL, writer_version=0',
+        );
+        if (!tables.contains('vpn_overlay_state')) {
+          for (final sql in _VpnOverlay.ddl) {
+            db.execute(sql);
+          }
+        }
+        installGuards(db);
+        db.userVersion = _schemaVersion;
+      } else if (version != _schemaVersion) {
+        throw const VaultFailure(VaultIssue.corrupt);
+      }
+      db.execute('COMMIT');
+    } catch (_) {
+      db.execute('ROLLBACK');
+      rethrow;
+    }
+  }
 
   /// A restore invalidates cached editors and other already-open processes.
   void checkIdentity() {
@@ -182,7 +315,8 @@ final class _LocalChangeJournal {
       ],
   ]);
 
-  Future<void> _migrate() async {
+  /// Schema 1 to 7: one identity, and a head for every existing entity.
+  Future<void> _bootstrap() async {
     final servers = _servers(), documents = _documents();
     final snapshot = _snapshot(servers, documents);
     final entities = <_EntityKey, _EntitySnapshot>{};
@@ -225,7 +359,6 @@ final class _LocalChangeJournal {
         'deviceId': initial.deviceId,
       }),
     );
-    final batch = await _prepare({}, entities, initial, 0, bootstrap: true);
     db.execute('BEGIN IMMEDIATE');
     try {
       // A second process may have finished exactly the same migration.
@@ -233,20 +366,17 @@ final class _LocalChangeJournal {
         if (_snapshot(_servers(), _documents()) != snapshot) {
           throw const VaultFailure(VaultIssue.busy);
         }
-        for (final sql in _ddl) {
+        for (final sql in [..._ddl, ..._VpnOverlay.ddl]) {
           db.execute(sql);
         }
         db.execute(
           'INSERT INTO sync_identity (singleton,workspace_id,device_id,sequence,proof) VALUES (1, ?, ?, 0, ?)',
           [initial.workspaceId, initial.deviceId, proof],
         );
-        commit(batch);
-        db.userVersion = 2;
-      } else if (db.userVersion != 2 &&
-          db.userVersion != 3 &&
-          db.userVersion != 4 &&
-          db.userVersion != 5 &&
-          db.userVersion != 6) {
+        record({}, entities, bootstrap: true);
+        installGuards(db);
+        db.userVersion = _schemaVersion;
+      } else if (db.userVersion != _schemaVersion) {
         throw const VaultFailure(VaultIssue.corrupt);
       }
       db.execute('COMMIT');
@@ -256,188 +386,46 @@ final class _LocalChangeJournal {
     }
   }
 
-  Future<_ChangeBatch> prepare(_Entities before, _Entities after) => _prepare(
-    before,
-    after,
-    identity,
-    db
-            .select('SELECT sequence FROM sync_identity WHERE singleton=1')
-            .single['sequence']
-        as int,
-  );
-
-  Future<_ChangeBatch> _prepare(
-    _Entities before,
-    _Entities after,
-    WorkspaceIdentity owner,
-    int sequence, {
-    bool bootstrap = false,
-  }) async {
-    final keys =
-        {...before.keys, ...after.keys}
-            .where(
-              (key) =>
-                  before[key]?.source != after[key]?.source ||
-                  before[key]?.deleted != after[key]?.deleted,
-            )
-            .toList()
-          ..sort(
-            (a, b) => '${a.$1.name}:${a.$2}'.compareTo('${b.$1.name}:${b.$2}'),
-          );
-    final epoch = !bootstrap && db.userVersion >= 5
-        ? db.select('SELECT epoch FROM sync_merge_meta').single['epoch'] as int
-        : null;
-    final transactionId = newVpnId();
-    final changes = <_PreparedChange>[];
-    // Capture all heads before the first await. The sequence CAS in commit
-    // rejects any other writer changing them during encryption.
-    final heads = {
-      for (final key in keys)
-        key: bootstrap
-            ? <Row>[]
-            : db.select(
-                'SELECT * FROM sync_heads WHERE entity_kind=? AND entity_id=?',
-                [key.$1.name, key.$2],
-              ),
-    };
+  /// Caller MUST hold the transaction that writes the data. Moves the head
+  /// of every changed entity and the change counter; returns how many
+  /// entities changed. With [bootstrap] (an empty journal) no head may exist.
+  int record(_Entities before, _Entities after, {bool bootstrap = false}) {
+    final keys = _changedEntities(before, after);
+    if (keys.isEmpty) return 0;
     for (final key in keys) {
-      final head = heads[key]!.firstOrNull;
+      final head = db.select(
+        'SELECT revision,change_id,deleted FROM sync_heads WHERE entity_kind=? AND entity_id=?',
+        [key.$1.name, key.$2],
+      ).firstOrNull;
       if (!bootstrap && before.containsKey(key) && head == null) {
         throw const VaultFailure(VaultIssue.corrupt);
       }
-      if (!bootstrap &&
-          db.userVersion >= 5 &&
-          db.select(
-            'SELECT 1 FROM sync_conflicts WHERE entity_kind=? AND entity_id=?',
-            [key.$1.name, key.$2],
-          ).isNotEmpty) {
-        throw const VaultFailure(VaultIssue.busy);
-      }
-      if (head?['deleted'] == 1 && after[key] != null && !after[key]!.deleted) {
-        throw const VaultFailure(VaultIssue.busy);
-      }
-      final branches = !bootstrap && db.userVersion >= 5
-          ? db
-                .select(
-                  'SELECT change_id FROM sync_branches WHERE entity_kind=? AND entity_id=? ORDER BY change_id',
-                  [key.$1.name, key.$2],
-                )
-                .map((r) => r['change_id'] as String)
-                .toList()
-          : <String>[];
-      // Equivalent/automatically merged branches are all acknowledged by edits.
-      // The base must carry the highest parent revision.
-      if (branches.length > 1) {
-        final revisions = {
-          for (final id in branches)
-            id: ChangeHeader.fromJson(
-              jsonDecode(
-                    db.select(
-                          'SELECT header FROM sync_changes WHERE change_id=? UNION ALL SELECT header FROM sync_incoming WHERE change_id=?',
-                          [id, id],
-                        ).single['header']
-                        as String,
-                  )
-                  as Map<String, dynamic>,
-            ).revision,
-        };
-        branches.sort(
-          (a, b) => revisions[b] == revisions[a]
-              ? a.compareTo(b)
-              : revisions[b]!.compareTo(revisions[a]!),
-        );
-      }
-      final base = branches.isNotEmpty
-          ? ChangeHeader.fromJson(
-              jsonDecode(
-                    db.select(
-                          'SELECT header FROM sync_changes WHERE change_id=? UNION ALL SELECT header FROM sync_incoming WHERE change_id=?',
-                          [branches.first, branches.first],
-                        ).single['header']
-                        as String,
-                  )
-                  as Map<String, dynamic>,
-            ).revision
-          : head?['revision'] as int? ?? 0;
       final next = after[key];
-      final header = ChangeHeader(
-        workspaceId: owner.workspaceId,
-        deviceId: owner.deviceId,
-        changeId: newVpnId(),
-        sequence: sequence + changes.length + 1,
-        transactionId: transactionId,
-        transactionIndex: changes.length,
-        transactionSize: keys.length,
-        entityKind: key.$1,
-        entityId: key.$2,
-        baseChangeId: branches.isNotEmpty
-            ? branches.first
-            : head?['change_id'] as String?,
-        schemaVersion: bootstrap ? 1 : 2,
-        mergeParents: branches.skip(1).toList(),
-        baseRevision: base,
-        revision: base + 1,
-        deleted: next == null || next.deleted,
-      );
-      final payload = await encrypt(
-        _scope(header),
-        1,
-        jsonEncode({'source': next?.source}),
-      );
-      changes.add(_PreparedChange(header, payload));
-    }
-    return _ChangeBatch(sequence, changes, epoch);
-  }
-
-  static String _scope(ChangeHeader header) =>
-      'local-change:${canonicalJson(header.toJson())}';
-
-  /// Caller MUST hold the same transaction as the application data update.
-  void commit(_ChangeBatch batch) {
-    if (batch.changes.isEmpty) return;
-    final current = db
-        .select('SELECT sequence FROM sync_identity WHERE singleton=1')
-        .single['sequence'];
-    if (current != batch.expectedSequence ||
-        (batch.expectedEpoch != null &&
-            db.select('SELECT epoch FROM sync_merge_meta').single['epoch'] !=
-                batch.expectedEpoch)) {
-      throw const VaultFailure(VaultIssue.busy);
-    }
-    for (final change in batch.changes) {
-      final h = change.header;
-      db.execute('INSERT INTO sync_changes VALUES (?, ?, ?, ?)', [
-        h.changeId,
-        h.sequence,
-        canonicalJson(h.toJson()),
-        change.payload,
+      // A deleted entity never comes back under the same id.
+      if (head?['deleted'] == 1 && next != null && !next.deleted) {
+        throw const VaultFailure(VaultIssue.busy);
+      }
+      final changeId = newVpnId();
+      db.execute('INSERT INTO sync_history VALUES (?,?)', [
+        changeId,
+        jsonEncode([?head?['change_id'] as String?]),
       ]);
       db.execute(
         'INSERT INTO sync_heads VALUES (?, ?, ?, ?, ?) ON CONFLICT(entity_kind,entity_id) DO UPDATE SET revision=excluded.revision,change_id=excluded.change_id,deleted=excluded.deleted',
         [
-          h.entityKind.name,
-          h.entityId,
-          h.revision,
-          h.changeId,
-          h.deleted ? 1 : 0,
+          key.$1.name,
+          key.$2,
+          (head?['revision'] as int? ?? 0) + 1,
+          changeId,
+          next == null || next.deleted ? 1 : 0,
         ],
       );
-      db.execute('INSERT INTO sync_outbox VALUES (?)', [h.changeId]);
-      if (db.userVersion >= 5) {
-        db.execute(
-          'DELETE FROM sync_branches WHERE entity_kind=? AND entity_id=?',
-          [h.entityKind.name, h.entityId],
-        );
-        db.execute('INSERT INTO sync_branches VALUES (?,?,?)', [
-          h.entityKind.name,
-          h.entityId,
-          h.changeId,
-        ]);
-      }
     }
-    db.execute('UPDATE sync_identity SET sequence=? WHERE singleton=1', [
-      batch.changes.last.header.sequence,
-    ]);
+    db.execute(
+      'UPDATE sync_identity SET sequence=sequence+? WHERE singleton=1',
+      [keys.length],
+    );
+    return keys.length;
   }
 
   bool serverWasDeleted(String id) => db.select(
@@ -445,58 +433,56 @@ final class _LocalChangeJournal {
     [id],
   ).isNotEmpty;
 
-  Future<List<LocalChange>> read({
-    required bool pending,
-    required int afterSequence,
-    required int limit,
-  }) async {
-    if (afterSequence < 0 || limit < 1 || limit > 1000) {
-      throw ArgumentError('change_page');
-    }
-    final rows = db.select(
-      'SELECT c.* FROM sync_changes c ${pending ? 'JOIN sync_outbox o ON o.change_id=c.change_id' : ''} WHERE c.sequence>? ORDER BY c.sequence LIMIT ?',
-      [afterSequence, limit],
-    );
-    final changes = <LocalChange>[];
-    try {
-      for (final row in rows) {
-        final header = ChangeHeader.fromJson(
-          jsonDecode(row['header'] as String) as Map<String, dynamic>,
-        );
-        if (header.changeId != row['change_id'] ||
-            header.sequence != row['sequence'] ||
-            header.workspaceId != identity.workspaceId) {
-          throw const VaultFailure(VaultIssue.corrupt);
-        }
-        final body =
-            jsonDecode(
-                  await decrypt(_scope(header), 1, row['payload'] as Uint8List),
-                )
-                as Map;
-        if (body.length != 1 ||
-            !body.containsKey('source') ||
-            (body['source'] == null && !header.deleted)) {
-          throw const VaultFailure(VaultIssue.corrupt);
-        }
-        changes.add(
-          LocalChange(header: header, source: body['source'] as String?),
-        );
+  String? head(ChangeEntityKind kind, String entityId) =>
+      db.select(
+            'SELECT change_id FROM sync_heads WHERE entity_kind=? AND entity_id=?',
+            [kind.name, entityId],
+          ).firstOrNull?['change_id']
+          as String?;
+
+  /// [headId] and the versions it replaced that are still recorded. Older
+  /// ones are dropped by [compact] after an upload.
+  Set<String> ancestors(String headId) {
+    final ancestors = <String>{};
+    final waiting = <String>[headId];
+    while (waiting.isNotEmpty) {
+      final id = waiting.removeLast();
+      if (!ancestors.add(id)) continue;
+      final row = db.select(
+        'SELECT parents FROM sync_history WHERE change_id=?',
+        [id],
+      ).firstOrNull;
+      if (row == null) {
+        if (id == headId) throw const SyncMergeFailure(SyncMergeIssue.changed);
+        continue;
       }
-    } catch (_) {
-      throw const VaultFailure(VaultIssue.corrupt);
+      waiting.addAll(
+        (jsonDecode(row['parents'] as String) as List).cast<String>(),
+      );
     }
-    return List.unmodifiable(changes);
+    return ancestors;
   }
 
-  void acknowledge(List<String> ids) {
-    if (ids.length > 1000) throw ArgumentError('change_acknowledgements');
-    for (final id in ids.toSet()) {
-      if (db.select('SELECT 1 FROM sync_changes WHERE change_id=?', [
-        id,
-      ]).isEmpty) {
-        throw const VaultFailure(VaultIssue.corrupt);
-      }
-      db.execute('DELETE FROM sync_outbox WHERE change_id=?', [id]);
-    }
+  /// Keeps the history of current heads only. Caller holds a transaction.
+  void compact() => db.execute(
+    'DELETE FROM sync_history WHERE change_id NOT IN (SELECT change_id FROM sync_heads)',
+  );
+
+  /// The journal of a restored workspace: [owner], and a head per entity.
+  /// Caller holds the restore transaction with the guards dropped.
+  int restart(WorkspaceIdentity owner, Uint8List proof, _Entities entities) {
+    db.execute('DELETE FROM sync_heads');
+    db.execute('DELETE FROM sync_history');
+    db.execute(
+      'UPDATE sync_identity SET workspace_id=?, device_id=?, sequence=0, proof=?, write_guard=1, writer_device=?, writer_version=? WHERE singleton=1',
+      [
+        owner.workspaceId,
+        owner.deviceId,
+        proof,
+        owner.deviceId,
+        _schemaVersion,
+      ],
+    );
+    return record({}, entities, bootstrap: true);
   }
 }

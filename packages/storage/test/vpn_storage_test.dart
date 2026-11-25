@@ -5,6 +5,7 @@ import 'package:antirkn_storage/antirkn_storage.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart';
+import 'fixtures/journal_data.dart';
 
 void main() {
   for (final offload in [false, true]) {
@@ -64,8 +65,7 @@ void main() {
           stored.profiles['b' * 32]?['publicationWorkspaceId'],
           workspace.id,
         );
-        final previousSequence =
-            (await first.readChanges()).last.header.sequence;
+        final previous = journalHeads(path);
         await first.upsertVpnUser(
           VpnUser(
             id: 'b' * 32,
@@ -77,12 +77,9 @@ void main() {
           ),
           expectedRevision: 1,
         );
-        final userChanges = await first.readChanges(
-          afterSequence: previousSequence,
-        );
-        expect(userChanges.map((change) => change.header.entityKind), [
-          ChangeEntityKind.vpnUser,
-        ]);
+        expect(movedHeads(previous, journalHeads(path)), {
+          'vpnUser:${'b' * 32}',
+        });
         await expectLater(
           second.writeVpn(workspace.encode(), expectedRevision: 1),
           throwsA(isA<VaultFailure>()),
@@ -111,7 +108,7 @@ void main() {
         final db = sqlite3.open(path);
         db.execute('BEGIN IMMEDIATE');
         db.execute(
-          'UPDATE sync_identity SET write_guard=1, writer_device=device_id, writer_version=6',
+          'UPDATE sync_identity SET write_guard=1, writer_device=device_id, writer_version=7',
         );
         db.execute(
           "UPDATE documents SET payload=zeroblob(length(payload)) WHERE id='vpn-workspace-v1'",
@@ -156,7 +153,10 @@ void main() {
     expect(await write, 1);
     await change;
     expect((await db.readVpn()).revision, 1);
-    expect((await db.readChanges(limit: 1000)).length, greaterThan(600));
+    expect(
+      journalHeads('${temp.path}/workspace.sqlite').length,
+      greaterThan(600),
+    );
   });
 
   test('user patch preserves order and journals only that user', () async {
@@ -181,7 +181,7 @@ void main() {
       ),
       expectedRevision: 0,
     );
-    final sequence = (await db.readChanges()).last.header.sequence;
+    final heads = journalHeads('${temp.path}/workspace.sqlite');
     expect(
       await db.upsertVpnUser(
         VpnUser(id: firstId, login: 'first', name: 'Renamed'),
@@ -192,12 +192,9 @@ void main() {
     final saved = VpnWorkspace.decode((await db.readVpn()).source!);
     expect(saved.users.map((user) => user.id), [firstId, secondId]);
     expect(saved.users.first.name, 'Renamed');
-    expect(
-      (await db.readChanges(
-        afterSequence: sequence,
-      )).map((change) => change.header.entityKind),
-      [ChangeEntityKind.vpnUser],
-    );
+    expect(movedHeads(heads, journalHeads('${temp.path}/workspace.sqlite')), {
+      'vpnUser:$firstId',
+    });
     await expectLater(
       db.upsertVpnUser(
         VpnUser(id: firstId, login: 'second', name: 'Duplicate login'),
@@ -395,7 +392,7 @@ void main() {
     final raw = sqlite3.open(path);
     addTearDown(raw.dispose);
     raw.execute(
-      "CREATE TRIGGER reject_overlay_event BEFORE INSERT ON sync_outbox BEGIN SELECT RAISE(ABORT, 'fixture'); END",
+      "CREATE TRIGGER reject_overlay_event BEFORE INSERT ON sync_history BEGIN SELECT RAISE(ABORT, 'fixture'); END",
     );
     await expectLater(
       db.upsertVpnUser(
@@ -415,7 +412,7 @@ void main() {
     );
   });
 
-  test('sync merge boundary materializes pending user edits', () async {
+  test('a snapshot boundary materializes pending user edits', () async {
     final temp = await Directory.systemTemp.createTemp('vpn-sync-fold-');
     addTearDown(() => temp.delete(recursive: true));
     final path = '${temp.path}/workspace.sqlite';
@@ -431,7 +428,7 @@ void main() {
       VpnUser(id: 'd' * 32, login: 'synced', name: 'Synced'),
       expectedRevision: 1,
     );
-    await db.receiveSyncPackets([]);
+    await db.createBackup('vpn-sync-fold-password');
     final raw = sqlite3.open(path);
     addTearDown(raw.dispose);
     expect(

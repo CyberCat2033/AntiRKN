@@ -2346,109 +2346,8 @@ class AppLocalizationsRu extends AppLocalizations {
   String get backupReviewServer => 'Проверить состояние сервера';
 
   @override
-  String get syncConflictsTitle => 'Конфликты изменений';
-
-  @override
-  String get syncLocalHelp =>
-      'Здесь можно разрешить сохранённые конфликты. Обмен через Google Drive ещё не подключён.';
-
-  @override
-  String syncConflictCount(int count) {
-    return 'Конфликтов: $count';
-  }
-
-  @override
-  String syncWaitingCount(int groups, int missing) {
-    return 'Ожидающих групп: $groups. Недостающих предыдущих изменений: $missing.';
-  }
-
-  @override
-  String syncBlockedCount(int count) {
-    return 'Групп с несовместимыми данными: $count. Исправьте локальные данные, затем повторите применение.';
-  }
-
-  @override
-  String get syncChanged =>
-      'Состав конфликта изменился. Откройте его заново и повторите выбор.';
-
-  @override
-  String get syncStorageError =>
-      'Не удалось применить выбранную версию. Обновите список и проверьте совместимость данных.';
-
-  @override
   String get syncEffectsBlocked =>
       'Сначала разрешите конфликты изменений в настройках. Серверные действия и выдача профилей приостановлены.';
-
-  @override
-  String get syncRefresh => 'Обновить список';
-
-  @override
-  String get syncRetry => 'Повторить применение';
-
-  @override
-  String get syncChooseHelp =>
-      'Просмотрите версии и выберите одну. Содержимое может включать пароли и ключи. Решение сохранится как новое изменение; серверные операции требуют отдельного действия.';
-
-  @override
-  String syncVariant(int number) {
-    return 'Версия $number';
-  }
-
-  @override
-  String get syncDeleted => 'Удаление ресурса';
-
-  @override
-  String get syncReveal => 'Показать содержимое и секреты';
-
-  @override
-  String get syncHide => 'Скрыть содержимое';
-
-  @override
-  String get syncSelect => 'Выбрать эту версию';
-
-  @override
-  String get syncDeviceThis => 'Это устройство';
-
-  @override
-  String get syncDeviceOther => 'Другое устройство';
-
-  @override
-  String get syncResolve => 'Сохранить решение';
-
-  @override
-  String get syncKindServer => 'Сервер';
-
-  @override
-  String get syncKindTemplate => 'Базовый шаблон';
-
-  @override
-  String get syncKindUser => 'VPN-клиент';
-
-  @override
-  String get syncKindVless => 'VLESS inbound';
-
-  @override
-  String get syncKindAwg => 'Интерфейс AmneziaWG';
-
-  @override
-  String get syncKindTt => 'TrustTunnel endpoint';
-
-  @override
-  String get syncKindOperation => 'Состояние сервера и операций';
-
-  @override
-  String get syncKindProfile => 'История профиля';
-
-  @override
-  String get syncKindWorkspace => 'Рабочее пространство';
-
-  @override
-  String syncRejectedCount(int count) {
-    return 'Отклонённых групп с нарушенной историей изменений: $count. Рабочие данные сохранены.';
-  }
-
-  @override
-  String get googleAccountTitle => 'Аккаунт Google';
 
   @override
   String get googleAccountHelp =>
@@ -2462,9 +2361,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get googleSignOut => 'Выйти';
-
-  @override
-  String get googleConnected => 'Google Drive подключён.';
 
   @override
   String get googleWorking => 'Подключение к Google…';
@@ -2496,10 +2392,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get autoSyncTitle => 'Автосинхронизация';
 
   @override
-  String get autoSyncHelp =>
-      'Текущий снимок отправляется при уходе приложения в фон или закрытии. Незавершённая отправка повторяется при следующем запуске.';
-
-  @override
   String get autoSyncDisabled => 'Автосинхронизация выключена.';
 
   @override
@@ -2513,31 +2405,112 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get autoSyncEditing =>
-      'Данные получены. Закройте редактор сервера и перейдите в настройки или список серверов для применения. Текущие операции должны завершиться.';
+      'Новая версия из Google Drive загружена. Она применится, как только вы закроете редакторы и диалоги и завершатся текущие операции.';
 
   @override
   String get autoSyncConflict =>
-      'Получены разные версии. Выберите нужную в разделе конфликтов ниже.';
-
-  @override
-  String get autoSyncIncomplete =>
-      'Часть данных ожидает связанных изменений или не прошла проверку. Проверьте раздел конфликтов.';
+      'На этом устройстве есть неотправленные изменения, а в Google Drive — другая версия. Ничего не перезаписано: изменения остаются на устройстве и автоматически не отправляются.';
 
   @override
   String get autoSyncError =>
-      'Не удалось завершить обмен. Данные сохранены; приложение повторит попытку автоматически.';
+      'Не удалось завершить обмен. Данные сохранены на этом устройстве. Следующая попытка — после следующей правки, при уходе приложения в фон или возвращении в него.';
 
   @override
-  String get autoSyncNow => 'Синхронизировать сейчас';
+  String get autoSyncRetrying =>
+      'Нет связи с Google Drive. Данные сохранены на этом устройстве; приложение повторит попытку автоматически.';
 
   @override
-  String autoSyncLast(String time) {
-    return 'Последний обмен: $time';
+  String get autoSyncRemoteNewer =>
+      'В Google Drive есть более новая версия. Она загрузится при возвращении в приложение; с этого устройства ничего не отправлялось.';
+
+  @override
+  String get autoSyncDiverged =>
+      'На этом устройстве есть неотправленные изменения, а в Google Drive сохранена другая версия. Автоматический обмен приостановлен, ничего не перезаписано. Выберите, какие данные оставить.';
+
+  @override
+  String get autoSyncDivergedShort => 'Нужно выбрать версию данных';
+
+  @override
+  String get autoSyncChooseVersion => 'Выбрать версию';
+
+  @override
+  String get autoSyncChooseTitle => 'Какие данные оставить?';
+
+  @override
+  String get autoSyncChooseHelp =>
+      'Объединения нет: остаётся одна из версий. Незавершённые операции на серверах и удаления клиентов сохраняются в любом случае.';
+
+  @override
+  String get autoSyncKeepLocal => 'Оставить данные этого устройства';
+
+  @override
+  String get autoSyncTakeCloud => 'Взять из облака';
+
+  @override
+  String get autoSyncKeepLocalEffect => 'Версия в Google Drive будет заменена.';
+
+  @override
+  String get autoSyncTakeCloudEffect =>
+      'Неотправленные изменения этого устройства будут заменены.';
+
+  @override
+  String autoSyncVersionSaved(String time, String device) {
+    return 'Сохранено $time · $device';
   }
 
   @override
+  String get autoSyncVersionUnknownTime => 'время неизвестно';
+
+  @override
+  String get autoSyncVersionUnknownDevice => 'устройство не указано';
+
+  @override
+  String get autoSyncThisDevice => 'это устройство';
+
+  @override
+  String get autoSyncChoiceBlocked =>
+      'Сначала закройте редакторы и диалоги и дождитесь окончания операций, затем выберите версию снова.';
+
+  @override
+  String get autoSyncUpdateRequired =>
+      'Данные в Google Drive сохранены более новой версией AntiRKN. Обновите приложение на этом устройстве. До обновления с Google Drive ничего не загружается и туда ничего не отправляется; данные на этом устройстве не изменены.';
+
+  @override
+  String get restoredCacheRunning =>
+      'Данные серверов перечитываются в фоне после синхронизации. Пока показаны данные, сохранённые на этом устройстве.';
+
+  @override
+  String restoredCacheStale(int count, String date) {
+    return 'Не ответили серверы: $count. Показаны данные от $date. Уже опубликованные профили можно открыть из Google Drive.';
+  }
+
+  @override
+  String restoredCacheMissing(int count) {
+    return 'Не ответили серверы: $count. Сохранённых данных о них на этом устройстве нет. Уже опубликованные профили можно открыть из Google Drive.';
+  }
+
+  @override
+  String get profilePublishedDriveHelp =>
+      'На этом устройстве профиль ещё не собран: нужны данные с серверов. Можно открыть файл, уже опубликованный в Google Drive.';
+
+  @override
+  String get profileOpenPublished => 'Открыть опубликованный файл';
+
+  @override
+  String get profilePublishedMissing =>
+      'В Google Drive нет опубликованного по ссылке файла этого клиента.';
+
+  @override
+  String get profilePublishedFailed =>
+      'Не удалось открыть опубликованный файл. Проверьте связь с Google Drive и повторите попытку.';
+
+  @override
+  String get profilePublishedFromDrive =>
+      'Опубликованный файл из Google Drive. Он не пересобирался на этом устройстве.';
+
+  @override
   String get autoSyncPairing =>
-      'Войдите в один Google-аккаунт на своих устройствах. Снимок загружается при запуске на пустом устройстве и отправляется при уходе приложения в фон или закрытии. Не редактируйте данные на двух устройствах одновременно.';
+      'Войдите в один Google-аккаунт на своих устройствах и работайте на них по очереди. Изменения отправляются через 30 секунд после правки и при уходе приложения в фон или закрытии; устройство без неотправленных изменений получает более новую версию при запуске и возвращении в приложение.';
 
   @override
   String get googleDesktopConfigurationError =>
@@ -2553,10 +2526,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get googleCancelSignIn => 'Отменить вход';
-
-  @override
-  String get autoSyncOtherWorkspaces =>
-      'Часть данных сохранена старой версией приложения. Обновите и откройте AntiRKN на устройстве с этими данными — они появятся здесь автоматически.';
 
   @override
   String get publicationTitle => 'Публикация профилей';
@@ -3026,7 +2995,8 @@ class AppLocalizationsRu extends AppLocalizations {
   String get uiUpdatesSuggestionsHelp => 'Сообщать о доступных обновлениях';
 
   @override
-  String get uiSyncAutomaticHelp => 'Отправка при закрытии или уходе в фон';
+  String get uiSyncAutomaticHelp =>
+      'Отправка после правок и при уходе, загрузка при входе';
 
   @override
   String get uiPairDeviceHelp => 'Войти в тот же Google-аккаунт';

@@ -4172,185 +4172,11 @@ abstract class AppLocalizations {
   /// **'Check server state'**
   String get backupReviewServer;
 
-  /// No description provided for @syncConflictsTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Change conflicts'**
-  String get syncConflictsTitle;
-
-  /// No description provided for @syncLocalHelp.
-  ///
-  /// In en, this message translates to:
-  /// **'Resolve stored conflicts here. Google Drive exchange is not connected yet.'**
-  String get syncLocalHelp;
-
-  /// No description provided for @syncConflictCount.
-  ///
-  /// In en, this message translates to:
-  /// **'Conflicts: {count}'**
-  String syncConflictCount(int count);
-
-  /// No description provided for @syncWaitingCount.
-  ///
-  /// In en, this message translates to:
-  /// **'Waiting groups: {groups}. Missing earlier changes: {missing}.'**
-  String syncWaitingCount(int groups, int missing);
-
-  /// No description provided for @syncBlockedCount.
-  ///
-  /// In en, this message translates to:
-  /// **'Groups with incompatible data: {count}. Correct the local data, then retry applying changes.'**
-  String syncBlockedCount(int count);
-
-  /// No description provided for @syncChanged.
-  ///
-  /// In en, this message translates to:
-  /// **'The conflict has changed. Open it again and review the versions.'**
-  String get syncChanged;
-
-  /// No description provided for @syncStorageError.
-  ///
-  /// In en, this message translates to:
-  /// **'Could not apply the selected version. Refresh the list and check data compatibility.'**
-  String get syncStorageError;
-
   /// No description provided for @syncEffectsBlocked.
   ///
   /// In en, this message translates to:
   /// **'Resolve change conflicts in Settings first. Server actions and profile export are paused.'**
   String get syncEffectsBlocked;
-
-  /// No description provided for @syncRefresh.
-  ///
-  /// In en, this message translates to:
-  /// **'Refresh list'**
-  String get syncRefresh;
-
-  /// No description provided for @syncRetry.
-  ///
-  /// In en, this message translates to:
-  /// **'Retry applying changes'**
-  String get syncRetry;
-
-  /// No description provided for @syncChooseHelp.
-  ///
-  /// In en, this message translates to:
-  /// **'Review the versions and choose one. Contents may include passwords and keys. Your decision is saved as a new change; server operations require a separate action.'**
-  String get syncChooseHelp;
-
-  /// No description provided for @syncVariant.
-  ///
-  /// In en, this message translates to:
-  /// **'Version {number}'**
-  String syncVariant(int number);
-
-  /// No description provided for @syncDeleted.
-  ///
-  /// In en, this message translates to:
-  /// **'Resource deletion'**
-  String get syncDeleted;
-
-  /// No description provided for @syncReveal.
-  ///
-  /// In en, this message translates to:
-  /// **'Show contents and secrets'**
-  String get syncReveal;
-
-  /// No description provided for @syncHide.
-  ///
-  /// In en, this message translates to:
-  /// **'Hide contents'**
-  String get syncHide;
-
-  /// No description provided for @syncSelect.
-  ///
-  /// In en, this message translates to:
-  /// **'Choose this version'**
-  String get syncSelect;
-
-  /// No description provided for @syncDeviceThis.
-  ///
-  /// In en, this message translates to:
-  /// **'This device'**
-  String get syncDeviceThis;
-
-  /// No description provided for @syncDeviceOther.
-  ///
-  /// In en, this message translates to:
-  /// **'Other device'**
-  String get syncDeviceOther;
-
-  /// No description provided for @syncResolve.
-  ///
-  /// In en, this message translates to:
-  /// **'Save decision'**
-  String get syncResolve;
-
-  /// No description provided for @syncKindServer.
-  ///
-  /// In en, this message translates to:
-  /// **'Server'**
-  String get syncKindServer;
-
-  /// No description provided for @syncKindTemplate.
-  ///
-  /// In en, this message translates to:
-  /// **'Base template'**
-  String get syncKindTemplate;
-
-  /// No description provided for @syncKindUser.
-  ///
-  /// In en, this message translates to:
-  /// **'VPN client'**
-  String get syncKindUser;
-
-  /// No description provided for @syncKindVless.
-  ///
-  /// In en, this message translates to:
-  /// **'VLESS inbound'**
-  String get syncKindVless;
-
-  /// No description provided for @syncKindAwg.
-  ///
-  /// In en, this message translates to:
-  /// **'AmneziaWG interface'**
-  String get syncKindAwg;
-
-  /// No description provided for @syncKindTt.
-  ///
-  /// In en, this message translates to:
-  /// **'TrustTunnel endpoint'**
-  String get syncKindTt;
-
-  /// No description provided for @syncKindOperation.
-  ///
-  /// In en, this message translates to:
-  /// **'Server and operation state'**
-  String get syncKindOperation;
-
-  /// No description provided for @syncKindProfile.
-  ///
-  /// In en, this message translates to:
-  /// **'Profile history'**
-  String get syncKindProfile;
-
-  /// No description provided for @syncKindWorkspace.
-  ///
-  /// In en, this message translates to:
-  /// **'Workspace'**
-  String get syncKindWorkspace;
-
-  /// No description provided for @syncRejectedCount.
-  ///
-  /// In en, this message translates to:
-  /// **'Rejected groups with inconsistent change history: {count}. Working data is preserved.'**
-  String syncRejectedCount(int count);
-
-  /// No description provided for @googleAccountTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Google account'**
-  String get googleAccountTitle;
 
   /// No description provided for @googleAccountHelp.
   ///
@@ -4375,12 +4201,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sign out'**
   String get googleSignOut;
-
-  /// No description provided for @googleConnected.
-  ///
-  /// In en, this message translates to:
-  /// **'Google Drive connected.'**
-  String get googleConnected;
 
   /// No description provided for @googleWorking.
   ///
@@ -4430,12 +4250,6 @@ abstract class AppLocalizations {
   /// **'Automatic sync'**
   String get autoSyncTitle;
 
-  /// No description provided for @autoSyncHelp.
-  ///
-  /// In en, this message translates to:
-  /// **'The current snapshot uploads when the app closes or enters the background. A failed upload is retried on the next launch.'**
-  String get autoSyncHelp;
-
   /// No description provided for @autoSyncDisabled.
   ///
   /// In en, this message translates to:
@@ -4463,43 +4277,175 @@ abstract class AppLocalizations {
   /// No description provided for @autoSyncEditing.
   ///
   /// In en, this message translates to:
-  /// **'Data received. Close the server editor and open settings or the server list to apply it. Current operations must finish first.'**
+  /// **'A newer version from Google Drive is downloaded. It is applied as soon as editors and dialogs are closed and current operations finish.'**
   String get autoSyncEditing;
 
   /// No description provided for @autoSyncConflict.
   ///
   /// In en, this message translates to:
-  /// **'Different versions received. Choose a version in the conflicts section below.'**
+  /// **'This device has unsent changes, and Google Drive holds a different version. Nothing was overwritten: the changes stay on this device and are not uploaded automatically.'**
   String get autoSyncConflict;
-
-  /// No description provided for @autoSyncIncomplete.
-  ///
-  /// In en, this message translates to:
-  /// **'Some data is waiting for related changes or failed validation. Check the conflicts section.'**
-  String get autoSyncIncomplete;
 
   /// No description provided for @autoSyncError.
   ///
   /// In en, this message translates to:
-  /// **'The exchange did not finish. Your data is saved; the app will retry automatically.'**
+  /// **'The exchange did not finish. Your data is saved on this device. The next attempt happens after the next edit, or when the app enters the background or you return to it.'**
   String get autoSyncError;
 
-  /// No description provided for @autoSyncNow.
+  /// No description provided for @autoSyncRetrying.
   ///
   /// In en, this message translates to:
-  /// **'Sync now'**
-  String get autoSyncNow;
+  /// **'No connection to Google Drive. Your data is saved on this device; the app will retry automatically.'**
+  String get autoSyncRetrying;
 
-  /// No description provided for @autoSyncLast.
+  /// No description provided for @autoSyncRemoteNewer.
   ///
   /// In en, this message translates to:
-  /// **'Last exchange: {time}'**
-  String autoSyncLast(String time);
+  /// **'Google Drive has a newer version. It loads when you return to the app; nothing was uploaded from this device.'**
+  String get autoSyncRemoteNewer;
+
+  /// No description provided for @autoSyncDiverged.
+  ///
+  /// In en, this message translates to:
+  /// **'This device has unsent changes, and Google Drive holds another version. Automatic exchange is paused and nothing was overwritten. Choose which data to keep.'**
+  String get autoSyncDiverged;
+
+  /// No description provided for @autoSyncDivergedShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a version of your data'**
+  String get autoSyncDivergedShort;
+
+  /// No description provided for @autoSyncChooseVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose version'**
+  String get autoSyncChooseVersion;
+
+  /// No description provided for @autoSyncChooseTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Which data to keep?'**
+  String get autoSyncChooseTitle;
+
+  /// No description provided for @autoSyncChooseHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing is merged: one of the versions remains. Unfinished server operations and client deletions are kept either way.'**
+  String get autoSyncChooseHelp;
+
+  /// No description provided for @autoSyncKeepLocal.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep this device\'s data'**
+  String get autoSyncKeepLocal;
+
+  /// No description provided for @autoSyncTakeCloud.
+  ///
+  /// In en, this message translates to:
+  /// **'Take from the cloud'**
+  String get autoSyncTakeCloud;
+
+  /// No description provided for @autoSyncKeepLocalEffect.
+  ///
+  /// In en, this message translates to:
+  /// **'The version in Google Drive will be replaced.'**
+  String get autoSyncKeepLocalEffect;
+
+  /// No description provided for @autoSyncTakeCloudEffect.
+  ///
+  /// In en, this message translates to:
+  /// **'Unsent changes on this device will be replaced.'**
+  String get autoSyncTakeCloudEffect;
+
+  /// No description provided for @autoSyncVersionSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved {time} · {device}'**
+  String autoSyncVersionSaved(String time, String device);
+
+  /// No description provided for @autoSyncVersionUnknownTime.
+  ///
+  /// In en, this message translates to:
+  /// **'time unknown'**
+  String get autoSyncVersionUnknownTime;
+
+  /// No description provided for @autoSyncVersionUnknownDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'device not named'**
+  String get autoSyncVersionUnknownDevice;
+
+  /// No description provided for @autoSyncThisDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'this device'**
+  String get autoSyncThisDevice;
+
+  /// No description provided for @autoSyncChoiceBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Close editors and dialogs first and wait for operations to finish, then choose the version again.'**
+  String get autoSyncChoiceBlocked;
+
+  /// No description provided for @autoSyncUpdateRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'The data in Google Drive was saved by a newer version of AntiRKN. Update the app on this device. Until then nothing is downloaded from or sent to Google Drive; the data on this device is unchanged.'**
+  String get autoSyncUpdateRequired;
+
+  /// No description provided for @restoredCacheRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Server data is being read again in the background after sync. Data saved on this device is shown meanwhile.'**
+  String get restoredCacheRunning;
+
+  /// No description provided for @restoredCacheStale.
+  ///
+  /// In en, this message translates to:
+  /// **'Servers not answering: {count}. Showing data from {date}. Profiles already published can be opened from Google Drive.'**
+  String restoredCacheStale(int count, String date);
+
+  /// No description provided for @restoredCacheMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Servers not answering: {count}. This device has no saved data about them. Profiles already published can be opened from Google Drive.'**
+  String restoredCacheMissing(int count);
+
+  /// No description provided for @profilePublishedDriveHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'This device has not built the profile yet: it needs data from the servers. You can open the file already published in Google Drive.'**
+  String get profilePublishedDriveHelp;
+
+  /// No description provided for @profileOpenPublished.
+  ///
+  /// In en, this message translates to:
+  /// **'Open published file'**
+  String get profileOpenPublished;
+
+  /// No description provided for @profilePublishedMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Google Drive has no file of this client published by link.'**
+  String get profilePublishedMissing;
+
+  /// No description provided for @profilePublishedFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open the published file. Check the connection to Google Drive and try again.'**
+  String get profilePublishedFailed;
+
+  /// No description provided for @profilePublishedFromDrive.
+  ///
+  /// In en, this message translates to:
+  /// **'Published file from Google Drive. It was not rebuilt on this device.'**
+  String get profilePublishedFromDrive;
 
   /// No description provided for @autoSyncPairing.
   ///
   /// In en, this message translates to:
-  /// **'Sign in to the same Google account on your devices. An empty device loads the snapshot at launch; changes upload when the app closes or enters the background. Do not edit on two devices at once.'**
+  /// **'Sign in to the same Google account on your devices and use them in turn. Changes upload 30 seconds after an edit and when the app closes or enters the background; a device without unsent changes loads the newer version at launch and when you return to the app.'**
   String get autoSyncPairing;
 
   /// No description provided for @googleDesktopConfigurationError.
@@ -4525,12 +4471,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Cancel sign-in'**
   String get googleCancelSignIn;
-
-  /// No description provided for @autoSyncOtherWorkspaces.
-  ///
-  /// In en, this message translates to:
-  /// **'Some data was saved by an older app version. Update and open AntiRKN on the device that has it; it will become available here automatically.'**
-  String get autoSyncOtherWorkspaces;
 
   /// No description provided for @publicationTitle.
   ///
@@ -5381,7 +5321,7 @@ abstract class AppLocalizations {
   /// No description provided for @uiSyncAutomaticHelp.
   ///
   /// In en, this message translates to:
-  /// **'Upload on background or exit'**
+  /// **'Upload after edits and on leaving, load on return'**
   String get uiSyncAutomaticHelp;
 
   /// No description provided for @uiPairDeviceHelp.

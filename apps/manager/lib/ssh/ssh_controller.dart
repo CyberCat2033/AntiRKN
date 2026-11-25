@@ -1,4 +1,3 @@
-import '../sync/guarded_runner_transport.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
@@ -52,7 +51,7 @@ class SshController extends ChangeNotifier {
               !settingsExpanded &&
               !vaultBusy &&
               !needsPrivilegeInput
-          ? _guardRunner(_connection?.runner)
+          ? _connection?.runner
           : null,
       identity: () => unlocked && _vault!.profile?.hostKey != null
           ? '${_vault!.profile!.host}|${_vault!.profile!.hostKey!.fingerprint}'
@@ -76,10 +75,6 @@ class SshController extends ChangeNotifier {
     });
     _clock = Timer.periodic(const Duration(seconds: 10), (_) => network.tick());
   }
-  RunnerTransport? _guardRunner(RunnerTransport? transport) =>
-      transport != null && repository is SyncEffectGuard
-      ? GuardedRunnerTransport(transport, repository as SyncEffectGuard)
-      : transport;
   final Future<SecretVault> Function() openVault;
   final SshConnector connector;
   final PrivateKeyFilePicker picker;
@@ -624,7 +619,7 @@ class SshController extends ChangeNotifier {
     SshConnection? connection,
     String? password,
   }) async {
-    final remote = _guardRunner((connection ?? _connection)?.runner);
+    final remote = (connection ?? _connection)?.runner;
     if (remote == null) throw const RunnerFailure(RunnerIssue.unavailable);
     return remote.request(
       request,
@@ -1215,9 +1210,7 @@ class SshController extends ChangeNotifier {
     final current = profile.lastInfo;
     final nextPublic = List<IpAddress>.unmodifiable(
       next.network.addresses
-          .where(
-            (address) => address.addressClass == AddressClass.external,
-          )
+          .where((address) => address.addressClass == AddressClass.external)
           .map((address) => address.address),
     );
     if (current != null &&
