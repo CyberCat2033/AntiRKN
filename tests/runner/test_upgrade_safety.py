@@ -22,6 +22,10 @@ import upgrade_probe
 from runner import Store
 
 
+# A systemctl that succeeds: rollbacks check that units stop and come back.
+SYSTEMCTL_OK = MagicMock(returncode=0)
+
+
 def calls(recorder):
     return [c.args[0] for c in recorder.call_args_list]
 
@@ -93,7 +97,7 @@ class PanelLayoutTests(Base):
             self.assertEqual(upgrader.backup_metadata['createdFiles'],
                              [str(base / 'bin/xray-linux-amd64'), str(base / 'bin/xray-linux-arm64')])
             staged = self.stage(upgrader)
-            with patch('component_upgrade.subprocess.run'):
+            with patch('component_upgrade.subprocess.run', return_value=SYSTEMCTL_OK):
                 upgrader.apply_switch(staged)
                 self.assertEqual((base / 'bin/xray-linux-amd64').read_bytes(), b'new-core')
                 self.assertEqual(script.read_bytes(), b'new-script')
@@ -113,7 +117,7 @@ class RollbackSourceTests(Base):
         upgrader = self.upgrader(binary)
         self.backup(upgrader)
         staged = self.root / 'staged'; staged.write_bytes(b'new')
-        with patch('component_upgrade.subprocess.run'):
+        with patch('component_upgrade.subprocess.run', return_value=SYSTEMCTL_OK):
             upgrader.apply_switch(staged)
             upgrader.apply_switch(staged)  # Crash after the replace, before the checkpoint commit.
             upgrader.rollback()
@@ -130,7 +134,7 @@ class RollbackSourceTests(Base):
         upgrader.staging_dir.mkdir(parents=True, exist_ok=True)
         (upgrader.staging_dir / 'setup_wizard').write_bytes(b'new-wizard')
         staged = self.root / 'staged'; staged.write_bytes(b'new-endpoint')
-        with patch('component_upgrade.subprocess.run'):
+        with patch('component_upgrade.subprocess.run', return_value=SYSTEMCTL_OK):
             upgrader.apply_switch(staged)
             upgrader.apply_switch(staged)
             upgrader.rollback()
@@ -142,7 +146,7 @@ class RollbackSourceTests(Base):
         upgrader = self.upgrader(binary)
         self.backup(upgrader)
         staged = self.root / 'staged'; staged.write_bytes(b'new')
-        with patch('component_upgrade.subprocess.run') as run:
+        with patch('component_upgrade.subprocess.run', return_value=SYSTEMCTL_OK) as run:
             upgrader.apply_switch(staged)
             upgrader.rollback()
             run.reset_mock()
@@ -171,7 +175,7 @@ class RollbackSourceTests(Base):
         upgrader = self.upgrader(binary, configPath=str(config), dbPath=str(db))
         self.backup(upgrader)
         staged = self.root / 'staged'; staged.write_bytes(b'new')
-        with patch('component_upgrade.subprocess.run'):
+        with patch('component_upgrade.subprocess.run', return_value=SYSTEMCTL_OK):
             upgrader.apply_switch(staged)
             config.write_text('{"v": 2}')
             Path(str(db) + '-wal').write_bytes(b'journal of the new version')
@@ -190,7 +194,7 @@ class RollbackSourceTests(Base):
         upgrader = self.upgrader(link)
         self.backup(upgrader)
         staged = self.root / 'staged'; staged.write_bytes(b'new')
-        with patch('component_upgrade.subprocess.run'):
+        with patch('component_upgrade.subprocess.run', return_value=SYSTEMCTL_OK):
             upgrader.apply_switch(staged)
             self.assertTrue(link.is_symlink())
             self.assertEqual(real.read_bytes(), b'new')
@@ -257,7 +261,7 @@ class JobRollbackTests(Base):
         self.backup(upgrader)
         request = self.request()
         self.insert(request, checkpoint=5)
-        with patch('component_upgrade.subprocess.run'):
+        with patch('component_upgrade.subprocess.run', return_value=SYSTEMCTL_OK):
             cu.arm_deadman(self.store, request)
             binary.write_bytes(b'new')
             self.assertTrue(ComponentUpgradeJob(self.store, request).rollback(5))

@@ -296,6 +296,8 @@ class ComponentUpgradeResilienceTests(unittest.TestCase):
             self.assertEqual(ctx.exception.code, 'upgrade_healthcheck_failed')
             # The check only reports; the job rolls back exactly once.
             self.assertEqual(active_bin.read_bytes(), b'crashed_new_version')
+        # The restored version comes up again (verified after the restart).
+        with patch('subprocess.run', return_value=MagicMock(returncode=0)):
             upgrader.rollback()
 
         # 4. Verify SELF-HEALING ROLLBACK has succeeded!
@@ -444,8 +446,16 @@ class ComponentUpgradeResilienceTests(unittest.TestCase):
             self.assertEqual(job['checkpoint'], 5)
             self.assertEqual(job['events'][-1]['code'], 'upgrade_switched')
 
-            # Step 5: canary failure in step 5 -> automatic rollback and report
-            with patch('subprocess.run', side_effect=lambda cmd, **kw: MagicMock(returncode=3 if 'is-active' in cmd else 0)), \
+            # Step 5: canary failure in step 5 -> automatic rollback and report.
+            # The new version never becomes active; the restored one does.
+            stopped = []
+
+            def systemctl(cmd, **kw):
+                if 'stop' in cmd:
+                    stopped.append(cmd)
+                return MagicMock(returncode=3 if 'is-active' in cmd and not stopped else 0)
+
+            with patch('subprocess.run', side_effect=systemctl), \
                  patch('time.sleep'), \
                  patch('time.monotonic', side_effect=[0, 20, 21, 22]):
                 self.store.tick()
@@ -1231,7 +1241,9 @@ class InstallerChosenReleaseTests(unittest.TestCase):
                 self.assertTrue(installer.restore_previous(plan))
             self.assertEqual(os.readlink(root / 'current'), 'versions/' + 'a' * 64)
             self.assertFalse((installer.directory / 'target.json').exists())
-            self.assertEqual(run.call_args.args[0], ['/usr/bin/systemctl', 'restart', 'antirkn-awg@awg0.service'])
+            self.assertEqual([c.args[0] for c in run.call_args_list],
+                             [['/usr/bin/systemctl', 'restart', 'antirkn-awg@awg0.service'],
+                              ['/usr/bin/systemctl', 'is-active', '--quiet', 'antirkn-awg@awg0.service']])
 
 
 class PanelClientRouteTests(unittest.TestCase):

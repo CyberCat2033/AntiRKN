@@ -13,6 +13,7 @@ import shutil
 import signal
 import stat
 import subprocess
+import sys
 import tarfile
 import time
 import zipfile
@@ -622,8 +623,12 @@ class ComponentInstaller:
                 raise ComponentError('upgrade_connectivity_failed')
             time.sleep(3)
 
-    def restore_previous(self, plan):
-        """Point back to the previous immutable version and restart its units."""
+    def restore_previous(self, plan, restart=True):
+        """Point back to the previous immutable version and restart its units.
+
+        False when there is no previous version to go back to. A unit that
+        does not restart and become active again is not a clean rollback:
+        ComponentError('upgrade_rollback_failed'), and target.json stays."""
         previous = self.root / 'versions' / plan['previous']['release']
         if not (previous / 'manifest.json').is_file():
             return False
@@ -633,8 +638,15 @@ class ComponentInstaller:
         os.symlink('versions/' + plan['previous']['release'], temp)
         os.replace(temp, self.root / 'current')
         sync_directory(self.root)
-        for unit in plan['activeUnits']:
-            sysutil_run(['/usr/bin/systemctl', 'restart', unit], timeout=90, capture=False, stderr=False)
+        running = True
+        for unit in plan['activeUnits'] if restart else ():
+            try:
+                sysutil_run(['/usr/bin/systemctl', 'restart', unit], check=True, timeout=90, capture=False, stderr=False)
+                sysutil_run(['/usr/bin/systemctl', 'is-active', '--quiet', unit], check=True, timeout=20)
+            except (OSError, subprocess.SubprocessError):
+                running = False
+        if not running:
+            raise ComponentError('upgrade_rollback_failed')
         # Nothing of this operation remains public: the job ends as failed.
         (self.directory / 'target.json').unlink(missing_ok=True)
         return True
@@ -666,5 +678,25 @@ class ComponentInstaller:
         staging = self.root / 'versions' / ('.' + job_id)
         if staging.is_dir() and not staging.is_symlink():
             shutil.rmtree(str(staging), ignore_errors=True)
+        if (self.directory / 'target.json').exists():
+            self.switch_back()
         # Staging/pointer change may have completed without its checkpoint.
         return 'partially_applied' if (self.directory / 'target.json').exists() else 'cancelled'
+
+    def switch_back(self):
+        """Undo this job's pointer switch after a failure or cancel from step 4 on.
+
+        Only when the pointer is exactly this job's target and the previous
+        version is still complete; its units restart only from step 5 on (the
+        new binary may have been started). Any doubt keeps target.json, so the
+        job ends partially applied; a repeated call changes nothing."""
+        try:
+            plan = json.loads((self.directory / 'plan.json').read_text())
+            target = json.loads((self.directory / 'target.json').read_text())
+            pointer = self.root / 'current'
+            if not plan.get('previous') or not pointer.is_symlink() or os.readlink(pointer) != 'versions/' + target['release']:
+                return
+            row = self.store.db.execute('SELECT checkpoint FROM jobs WHERE id=?', (self.request['id'],)).fetchone()
+            self.restore_previous(plan, restart=row is not None and row[0] >= 5)
+        except (ComponentError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
+            sys.stderr.write(f'[runner] component switch back failed: {type(error).__name__}\n')

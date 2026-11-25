@@ -167,5 +167,147 @@ class DeadmanOutcomeTests(Base):
         self.assertEqual(self.job(job_id)['status'], 'cancelled')
 
 
+class UpgradeRollbackTruthTests(Base):
+    def switched(self):
+        binary = self.root / 'xray'
+        binary.write_bytes(b'old')
+        db = self.root / 'x-ui.db'
+        self.set_db(db, 1)
+        request = upgrade_request('b' * 32)
+        upgrader = ComponentUpgrader(self.store, request, json.loads(request['payload']))
+        upgrader.detection = dict(installed=True, binaryPath=str(binary), units=['x.service'], arch='x86_64', dbPath=str(db))
+        with patch('component_upgrade.probe_component', return_value={}):
+            upgrader.backup()
+        staged = self.root / 'staged'
+        staged.write_bytes(b'new')
+        with patch('component_upgrade.subprocess.run', return_value=OK):
+            upgrader.apply_switch(staged)
+        self.set_db(db, 2)
+        return upgrader, binary, db
+
+    @staticmethod
+    def set_db(path, value):
+        con = sqlite3.connect(str(path))
+        con.execute('CREATE TABLE IF NOT EXISTS t (v INT)')
+        con.execute('DELETE FROM t')
+        con.execute('INSERT INTO t VALUES (?)', (value,))
+        con.commit()
+        con.close()
+
+    @staticmethod
+    def db_value(path):
+        con = sqlite3.connect(str(path))
+        try:
+            return con.execute('SELECT v FROM t').fetchone()[0]
+        finally:
+            con.close()
+
+    def test_unit_that_does_not_stop_replaces_nothing(self):
+        upgrader, binary, db = self.switched()
+        failing = lambda cmd, **kw: MagicMock(returncode=1 if 'stop' in cmd else 0)
+        with patch('component_upgrade.subprocess.run', side_effect=failing), \
+             self.assertRaises(ComponentUpgradeError) as ctx:
+            upgrader.rollback()
+        self.assertEqual(ctx.exception.code, 'upgrade_rollback_failed')
+        self.assertEqual(binary.read_bytes(), b'new')
+        self.assertEqual(self.db_value(db), 2)
+        self.assertTrue((upgrader.backup_dir / 'db_backup.sqlite').exists())
+        self.assertFalse(json.loads((upgrader.work_dir / 'rollback.json').read_text())['done'])
+
+    def test_unit_that_does_not_come_back_is_not_a_rollback(self):
+        upgrader, binary, _db = self.switched()
+        inactive = lambda cmd, **kw: MagicMock(returncode=3 if 'is-active' in cmd else 0)
+        with patch('component_upgrade.subprocess.run', side_effect=inactive), \
+             patch('component_upgrade.time.sleep'), \
+             self.assertRaises(ComponentUpgradeError) as ctx:
+            cu_monotonic = iter(range(0, 100, 5))
+            with patch('component_upgrade.time.monotonic', side_effect=lambda: next(cu_monotonic)):
+                upgrader.rollback()
+        self.assertEqual(ctx.exception.code, 'upgrade_rollback_failed')
+        self.assertEqual(binary.read_bytes(), b'old')  # Restored, but not reported as done.
+        self.assertFalse(json.loads((upgrader.work_dir / 'rollback.json').read_text())['done'])
+
+    def test_clean_rollback_restores_and_is_done(self):
+        upgrader, binary, db = self.switched()
+        with patch('component_upgrade.subprocess.run', return_value=OK):
+            self.assertTrue(upgrader.rollback())
+        self.assertEqual(binary.read_bytes(), b'old')
+        self.assertEqual(self.db_value(db), 1)
+        self.assertTrue(json.loads((upgrader.work_dir / 'rollback.json').read_text())['done'])
+
+
+class ComponentSwitchBackTests(Base):
+    PREVIOUS, TARGET = 'a' * 64, 'b' * 64
+
+    def installer(self, checkpoint, previous=True):
+        base = self.root / 'lib'
+        root = base / 'amneziawg'
+        for release in (self.PREVIOUS, self.TARGET):
+            (root / 'versions' / release).mkdir(parents=True)
+            (root / 'versions' / release / 'manifest.json').write_text('{}')
+        os.symlink('versions/' + self.TARGET, root / 'current')
+        request = dict(version=1, action='submit', kind='component_install', component='amneziawg', payload='',
+                       id='c' * 32, count=6, interval=1, fingerprint='a' * 64)
+        self.insert(request, checkpoint=checkpoint)
+        patcher = patch.object(components, 'BASE', base)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        installer = ComponentInstaller(self.store, request)
+        installer.directory.mkdir(parents=True)
+        plan = dict(previous={'release': self.PREVIOUS} if previous else None, activeUnits=['antirkn-awg@awg0.service'])
+        (installer.directory / 'plan.json').write_text(json.dumps(plan))
+        (installer.directory / 'target.json').write_text(json.dumps({'release': self.TARGET}))
+        return installer, root
+
+    def test_failure_after_the_pointer_switch_points_back(self):
+        installer, root = self.installer(checkpoint=4)
+        with patch('components.subprocess.run') as run:
+            self.assertEqual(installer.abort(), 'cancelled')
+            self.assertEqual(installer.abort(), 'cancelled')  # Repeated: no change.
+        self.assertEqual(os.readlink(root / 'current'), 'versions/' + self.PREVIOUS)
+        self.assertEqual(run.call_count, 0)  # Step 4 restarted nothing.
+
+    def test_from_step_five_the_units_restart_on_the_previous_version(self):
+        installer, root = self.installer(checkpoint=5)
+        with patch('components.subprocess.run', return_value=OK) as run:
+            self.assertEqual(installer.abort(), 'cancelled')
+        self.assertEqual(os.readlink(root / 'current'), 'versions/' + self.PREVIOUS)
+        self.assertEqual([c.args[0][1] for c in run.call_args_list], ['restart', 'is-active'])
+
+    def test_without_a_previous_version_it_stays_partial(self):
+        installer, root = self.installer(checkpoint=4, previous=False)
+        self.assertEqual(installer.abort(), 'partially_applied')
+        self.assertEqual(os.readlink(root / 'current'), 'versions/' + self.TARGET)
+
+    def test_previous_version_that_does_not_start_is_not_rolled_back(self):
+        installer, root = self.installer(checkpoint=5)
+        plan = json.loads((installer.directory / 'plan.json').read_text())
+        failing = MagicMock(side_effect=subprocess.CalledProcessError(1, 'systemctl'))
+        with patch('components.subprocess.run', failing), self.assertRaises(ComponentError) as ctx:
+            installer.restore_previous(plan)
+        self.assertEqual(ctx.exception.code, 'upgrade_rollback_failed')
+        self.assertTrue((installer.directory / 'target.json').exists())
+        with patch('components.subprocess.run', failing):
+            self.assertEqual(installer.abort(), 'partially_applied')
+
+
+class RawBinaryNameTests(unittest.TestCase):
+    def test_binary_name_must_be_a_plain_file_name(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            archive = root / 'release_archive'
+            archive.write_bytes(b'\x7fELF raw binary')
+            for name in ('../escape', '/etc/passwd', 'a/b', '..', '.', '', 'x' * 65, 'nul\x00', 7):
+                with self.subTest(name=name):
+                    dest = root / 'staging'
+                    with self.assertRaises(ComponentUpgradeError) as ctx:
+                        cu.extract_archive_safe(archive, dest, binary_name=name)
+                    self.assertEqual(ctx.exception.code, 'upgrade_syntax_failed')
+                    self.assertFalse(dest.exists())
+                    self.assertFalse((root / 'escape').exists())
+            cu.extract_archive_safe(archive, root / 'staging', binary_name='xray-linux-amd64')
+            self.assertEqual((root / 'staging' / 'xray-linux-amd64').read_bytes(), archive.read_bytes())
+
+
 if __name__ == '__main__':
     unittest.main()
