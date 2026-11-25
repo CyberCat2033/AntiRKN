@@ -24,8 +24,13 @@ class ServerProtocolSection {
     this.selection,
     this.selectionEnabled = true,
     this.selectionActions,
+    this.plans,
   });
   final String name, mark;
+
+  /// The plan and error view of this tab; replaces [ServerDetailView.plans]
+  /// so its progress yields to the tab's own job view (UI-40).
+  final Widget? plans;
   final int count;
   final bool detected;
   final Widget child;
@@ -68,6 +73,36 @@ class _ServerDetailViewState extends State<ServerDetailView> {
   final visited = <int>{0};
   final workingProtocols = <int>{};
   final protocolJobs = <int, String>{};
+
+  @override
+  void initState() {
+    super.initState();
+    widget.session.addListener(_keepAccessPage);
+    _keepAccessPage();
+  }
+
+  @override
+  void didUpdateWidget(ServerDetailView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.session != widget.session) {
+      oldWidget.session.removeListener(_keepAccessPage);
+      widget.session.addListener(_keepAccessPage);
+      _keepAccessPage();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.session.removeListener(_keepAccessPage);
+    super.dispose();
+  }
+
+  /// A server that needs a connection shows the access page; keep it built
+  /// afterwards so its drafts survive (outside build, which stays pure).
+  void _keepAccessPage() {
+    final c = widget.session;
+    if (!c.hasSavedProfile || c.challenge != null) visited.add(1);
+  }
 
   bool protocolBusy(int index) =>
       workingProtocols.contains(index) ||
@@ -116,14 +151,17 @@ class _ServerDetailViewState extends State<ServerDetailView> {
     final c = widget.session;
     c.closeSettings();
     setState(() => workingProtocols.add(index));
-    await c.runner.installOrUpdate(protocolComponent(section.name));
-    if (mounted) {
-      setState(() {
-        workingProtocols.remove(index);
-        if (c.runner.selected != null && !c.runner.selected!.terminal) {
-          protocolJobs[index] = c.runner.selected!.id;
-        }
-      });
+    try {
+      await c.runner.installOrUpdate(protocolComponent(section.name));
+    } finally {
+      if (mounted) {
+        setState(() {
+          workingProtocols.remove(index);
+          if (c.runner.selected != null && !c.runner.selected!.terminal) {
+            protocolJobs[index] = c.runner.selected!.id;
+          }
+        });
+      }
     }
     final componentPlan = c.runner.componentPlan;
     final panelPlan = c.runner.panelPlan;
@@ -159,11 +197,17 @@ class _ServerDetailViewState extends State<ServerDetailView> {
     }
   }
 
+  /// Back during IP diagnostics is their explicit cancel (the page stays so
+  /// the cancelled result is visible). Returns whether it was consumed.
+  bool _cancelDiagnostics() {
+    if (!(widget.diagnostics?.busy ?? false)) return false;
+    widget.diagnostics!.stop();
+    return true;
+  }
+
+  /// IP diagnostics keep running in the background: switching section never
+  /// silently stops them (the About page shows their progress again).
   void open(int index) {
-    if (widget.diagnostics?.busy ?? false) {
-      widget.diagnostics!.stop();
-      return;
-    }
     if (index == 1) {
       widget.session.editSettings();
     } else {
@@ -217,13 +261,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
         }
       }
     }
-    return versions.entries
-        .where(
-          (entry) =>
-              updates.latest[entry.key] != null &&
-              updates.latest[entry.key] != entry.value,
-        )
-        .length;
+    return availableUpdates(updates, versions).length;
   }
 
   Widget overview(BuildContext context) {
@@ -260,7 +298,12 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                           const SizedBox(height: 4),
                           SelectableText(
                             c.host.text,
-                            style: Theme.of(context).textTheme.bodyMedium,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
                           ),
                           const SizedBox(height: 6),
                           Text(
@@ -351,43 +394,15 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                 widget.session.profile?.hardenRecovery != null) &&
             widget.session.stage == SshStage.connected) ...[
           const SizedBox(height: 16),
-          Card(
-            color: Theme.of(context).colorScheme.errorContainer.withAlpha(80),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.security_outlined,
-                    color: Theme.of(context).colorScheme.error,
-                    size: 32,
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l.sshHardenBannerTitle,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          l.sshHardenBannerSubtitle,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  FilledButton.tonal(
-                    onPressed: () =>
-                        showSshHardenWizard(context, widget.session),
-                    child: Text(l.sshHardenBannerAction),
-                  ),
-                ],
-              ),
+          // The shared notice instead of a card tinted by alpha (UI-57).
+          AppNotice(
+            icon: Icons.security_outlined,
+            title: l.sshHardenBannerTitle,
+            message: l.sshHardenBannerSubtitle,
+            margin: EdgeInsets.zero,
+            action: FilledButton.tonal(
+              onPressed: () => showSshHardenWizard(context, widget.session),
+              child: Text(l.sshHardenBannerAction),
             ),
           ),
         ],
@@ -423,7 +438,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                                   protocolComponent(widget.sections[i].name),
                                 ),
                             onTap: () => openProtocol(i),
-                            onLongPress:
+                            onRemove:
                                 widget.sections[i].onRemove == null ||
                                     !widget.sections[i].detected
                                 ? null
@@ -529,19 +544,64 @@ class _ServerDetailViewState extends State<ServerDetailView> {
     listenable: Listenable.merge([
       widget.session,
       widget.session.runner,
+      // The header shows the typed host and, for a new server, its name.
+      widget.session.host,
       ...widget.sections.map((s) => s.selection),
     ]),
     builder: (context, _) {
       final c = widget.session, l = AppLocalizations.of(context);
       final active = AppPageVisibility.of(context);
       if (!c.initialised) {
-        return const Center(child: CircularProgressIndicator());
+        final issue = c.vaultError;
+        if (c.vaultBusy || issue == null) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        // Opening the vault failed: never leave an endless spinner without a
+        // way back or a retry.
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+              child: Row(
+                children: [
+                  IconButton(
+                    key: const ValueKey('server-list-back'),
+                    tooltip: l.uiBack,
+                    onPressed: widget.onBack,
+                    icon: const Icon(Icons.arrow_back),
+                  ),
+                  Expanded(child: AppPageTitle(c.displayName)),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(AppLayout.gap),
+              child: Semantics(
+                liveRegion: true,
+                child: AppNotice(
+                  key: const ValueKey('server-vault-error'),
+                  message: vaultIssueLabel(l, issue),
+                  error: true,
+                  action: TextButton.icon(
+                    key: const ValueKey('server-vault-retry'),
+                    onPressed: c.initialise,
+                    icon: const Icon(Icons.refresh),
+                    label: Text(l.runnerRetry),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
       }
       final requiresConnection = !c.hasSavedProfile || c.challenge != null;
       final index = requiresConnection ? 1 : selected;
       final section = index >= 5 ? widget.sections[index - 5] : null;
       final selecting = section?.selection?.active == true;
-      visited.add(index);
+      // Pages built so far plus the shown one; build itself never mutates
+      // [visited].
+      final built = {...visited, index};
       final titles = [
         c.displayName,
         l.uiSshAccess,
@@ -553,7 +613,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
       return PopScope(
         canPop: !active,
         onPopInvokedWithResult: (didPop, _) {
-          if (didPop || !active || c.vaultBusy || c.picking) return;
+          if (didPop || !active || c.vaultSaving || c.picking) return;
           final selection = index >= 5
               ? widget.sections[index - 5].selection
               : null;
@@ -561,6 +621,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
             selection!.exit();
             return;
           }
+          if (_cancelDiagnostics()) return;
           if (index == 0 || (index == 1 && requiresConnection)) {
             widget.onBack?.call();
           } else {
@@ -591,11 +652,12 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                     IconButton(
                       key: const ValueKey('server-list-back'),
                       tooltip: l.uiBack,
-                      onPressed: c.vaultBusy || c.picking
+                      onPressed: c.vaultSaving || c.picking
                           ? null
                           : index == 0 || (index == 1 && requiresConnection)
                           ? widget.onBack
                           : () {
+                              if (_cancelDiagnostics()) return;
                               final selection = index >= 5
                                   ? widget.sections[index - 5].selection
                                   : null;
@@ -607,7 +669,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                             },
                       icon: const Icon(Icons.arrow_back),
                     ),
-                    Expanded(child: AppAnimatedTitle(titles[index])),
+                    Expanded(child: AppPageTitle(titles[index])),
                     if (index >= 5 &&
                         widget.sections[index - 5].selection != null &&
                         !widget.sections[index - 5].selection!.active)
@@ -622,13 +684,18 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                   ],
                 ),
               ),
-            if (c.error != null)
+            // A banner leads to the page that shows the issue; on that page
+            // it would repeat it (UI-44).
+            if (c.error != null && index != 1)
               ListTile(
-                leading: const Icon(Icons.error_outline),
+                leading: Icon(
+                  Icons.error_outline,
+                  color: Theme.of(context).colorScheme.error,
+                ),
                 title: Text(sshIssueLabel(l, c.error!)),
                 onTap: () => open(1),
               ),
-            if (c.showPrivilegePrompt)
+            if (c.showPrivilegePrompt && index != 1)
               ListTile(
                 leading: const Icon(Icons.lock_outline),
                 title: Text(
@@ -639,13 +706,14 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => open(1),
               ),
-            if (c.runner.error != null ||
-                c.runner.selected != null &&
-                    [
-                      'failed',
-                      'partially_applied',
-                      'needs_attention',
-                    ].contains(c.runner.selected!.status))
+            if (index != 2 &&
+                (c.runner.error != null ||
+                    c.runner.selected != null &&
+                        [
+                          'failed',
+                          'partially_applied',
+                          'needs_attention',
+                        ].contains(c.runner.selected!.status)))
               ListTile(
                 leading: const Icon(Icons.error_outline),
                 title: Text(l.runnerAttention),
@@ -659,7 +727,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                 motion: widget.motion,
                 children: [
                   page('overview', [overview(context)]),
-                  visited.contains(1)
+                  built.contains(1)
                       ? page('ssh', [
                           SshPanel(
                             controller: c,
@@ -671,7 +739,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                           ),
                         ])
                       : const SizedBox.shrink(),
-                  visited.contains(2)
+                  built.contains(2)
                       ? page('updates', [
                           ?widget.coreUpgrade,
                           RunnerPanel(
@@ -680,10 +748,10 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                           ),
                         ])
                       : const SizedBox.shrink(),
-                  visited.contains(3)
+                  built.contains(3)
                       ? page('activity', [history(context)])
                       : const SizedBox.shrink(),
-                  visited.contains(4)
+                  built.contains(4)
                       ? page('about', [
                           ServerAboutView(
                             controller: c,
@@ -695,10 +763,10 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                         ])
                       : const SizedBox.shrink(),
                   for (var i = 0; i < widget.sections.length; i++)
-                    visited.contains(5 + i)
+                    built.contains(5 + i)
                         ? page('protocol-$i', [
                             widget.sections[i].child,
-                            if (widget.plans != null) widget.plans!,
+                            ?(widget.sections[i].plans ?? widget.plans),
                           ])
                         : const SizedBox.shrink(),
                 ],
@@ -742,15 +810,42 @@ class _ProtocolTile extends StatelessWidget {
     required this.section,
     required this.motion,
     required this.onTap,
-    this.onLongPress,
+    this.onRemove,
     this.busy = false,
     this.queued = false,
   });
   final ServerProtocolSection section;
   final MotionPreference motion;
   final VoidCallback onTap;
-  final VoidCallback? onLongPress;
+
+  /// Offered from the "more" menu (mouse, keyboard, screen readers) and,
+  /// as a shortcut on touch, by long press (UI-60).
+  final VoidCallback? onRemove;
   final bool busy, queued;
+
+  /// An empty slot is outlined, a used one filled. The card theme sets a
+  /// shape without a side, which would erase the outline of
+  /// [Card.outlined]; the side and surface are therefore given here.
+  Widget _card(
+    BuildContext context, {
+    required Key key,
+    required Widget child,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    if (section.count == 0 && !section.detected) {
+      return Card.outlined(
+        key: key,
+        color: colors.surfaceContainerLowest,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppLayout.radius),
+          side: BorderSide(color: colors.outlineVariant),
+        ),
+        child: child,
+      );
+    }
+    return Card.filled(key: key, child: child);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context),
@@ -766,25 +861,15 @@ class _ProtocolTile extends StatelessWidget {
           child: child,
         ),
       ),
-      child: Card.filled(
+      child: _card(
+        context,
         key: ValueKey('${section.detected}-$busy'),
-        color: section.count == 0 && !section.detected
-            ? Theme.of(context).scaffoldBackgroundColor
-            : null,
-        clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppLayout.radius),
-          side: section.count == 0 && !section.detected
-              ? BorderSide(color: colors.outlineVariant)
-              : BorderSide.none,
-        ),
         child: InkWell(
-          borderRadius: BorderRadius.circular(AppLayout.radius),
           onTap: busy ? null : onTap,
-          onLongPress: busy ? null : onLongPress,
+          onLongPress: busy ? null : onRemove,
           enableFeedback: false,
           child: Padding(
-            padding: const EdgeInsets.all(17),
+            padding: const EdgeInsets.all(AppLayout.gap),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -792,27 +877,43 @@ class _ProtocolTile extends StatelessWidget {
                   children: [
                     Text(
                       section.mark,
-                      style: TextStyle(
-                        color: colors.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelLarge?.copyWith(color: colors.primary),
                     ),
                     const Spacer(),
                     if (busy)
                       const SizedBox.square(
-                        dimension: 19,
+                        dimension: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    else if (onRemove != null)
+                      AppMoreMenu(
+                        buttonKey: ValueKey('protocol-menu-${section.name}'),
+                        tooltip: l.uiProtocolActions,
+                        children: [
+                          MenuItemButton(
+                            key: ValueKey('protocol-remove-${section.name}'),
+                            style: MenuItemButton.styleFrom(
+                              foregroundColor: colors.error,
+                              iconColor: colors.error,
+                            ),
+                            leadingIcon: const Icon(Icons.delete_outline),
+                            onPressed: onRemove,
+                            child: Text(l.uiRemoveProtocol),
+                          ),
+                        ],
                       )
                     else
                       Icon(
                         section.count == 0 && !section.detected
                             ? Icons.add
                             : Icons.arrow_forward,
-                        size: 19,
+                        size: 20,
                       ),
                   ],
                 ),
-                const SizedBox(height: 22),
+                const SizedBox(height: AppLayout.gap),
                 Text(
                   section.name,
                   style: Theme.of(context).textTheme.titleMedium,

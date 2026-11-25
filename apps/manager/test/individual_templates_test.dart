@@ -188,8 +188,25 @@ void main() {
         }
 
         Future<void> save() async {
-          await tester.tap(find.byKey(const ValueKey('vpn-user-save')));
-          await tester.pumpAndSettle();
+          // The form stores the client before it closes (UI-01), so the save
+          // itself needs real async time, like opening the form does.
+          await tester.runAsync(
+            () => tester.tap(find.byKey(const ValueKey('vpn-user-save'))),
+          );
+          for (
+            var i = 0;
+            i < 300 &&
+                find
+                    .byKey(const ValueKey('vpn-user-save'))
+                    .evaluate()
+                    .isNotEmpty;
+            i++
+          ) {
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 10)),
+            );
+            await tester.pump();
+          }
           await tester.runAsync(() => editing!);
           await tester.pumpAndSettle();
         }

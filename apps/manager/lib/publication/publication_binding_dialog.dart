@@ -29,9 +29,8 @@ class _PublicationBindingDialogState extends State<PublicationBindingDialog> {
     super.initState();
     final pending = widget.controller.bindings[widget.user.id];
     final result = widget.controller.results[widget.user.id];
-    final current = (widget.controller.bindingPending(widget.user.id)
-            ? pending
-            : null) ??
+    final current =
+        (widget.controller.bindingPending(widget.user.id) ? pending : null) ??
         pending ??
         result;
     if (current != null && current['fileId'] is String) {
@@ -62,6 +61,8 @@ class _PublicationBindingDialogState extends State<PublicationBindingDialog> {
           ? await widget.controller.pickFile()
           : PublicationTarget.parse(link.text);
       if (target == null || !mounted) return null;
+      // The picker is closed: Cancel and Back now stop the inspection.
+      setState(() => picking = false);
       link.text = targetText(target);
       final value = await widget.controller.inspectFile(widget.user.id, target);
       if (mounted) setState(() => preview = value);
@@ -134,7 +135,16 @@ class _PublicationBindingDialogState extends State<PublicationBindingDialog> {
         c = widget.controller,
         value = preview;
     return PopScope(
-      canPop: !busy,
+      // Closing never traps the person: it stops waiting for the inspection,
+      // the picker or the upload that follows a stored binding.
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop || !busy) return;
+        if (picking) {
+          c.picker?.cancel();
+        } else {
+          c.cancelBinding();
+        }
+      },
       child: AppFormDialog(
         title: Text(l.publicationBindTitle),
         content: SizedBox(
@@ -239,10 +249,11 @@ class _PublicationBindingDialogState extends State<PublicationBindingDialog> {
         ),
         actions: [
           TextButton(
-            onPressed: busy
-                ? (picking ? () => c.picker?.cancel() : null)
+            key: const ValueKey('publication-bind-cancel'),
+            onPressed: picking
+                ? () => c.picker?.cancel()
                 : () => Navigator.pop(context),
-            child: Text(l.runnerNotNow),
+            child: Text(l.sshCancel),
           ),
           FilledButton(
             key: const ValueKey('publication-bind-confirm'),

@@ -105,7 +105,10 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([widget.controller, widget.publications]),
+    listenable: Listenable.merge([
+      widget.controller,
+      widget.publications?.changes,
+    ]),
     builder: (context, _) {
       final c = widget.controller, l = AppLocalizations.of(context);
       final user = c.workspace.users
@@ -141,10 +144,12 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                   IconButton(
                     key: const ValueKey('profile-regenerate'),
                     tooltip: l.vpnRegenerateProfile,
-                    onPressed: regenerating || saving || c.busy
+                    onPressed: regenerating || saving || !c.canMutate
                         ? null
                         : _regenerate,
-                    icon: regenerating
+                    // The generating card is the indicator while there is
+                    // no profile yet (UI-47).
+                    icon: regenerating && result != null
                         ? const SizedBox.square(
                             dimension: 24,
                             child: CircularProgressIndicator(strokeWidth: 2),
@@ -277,10 +282,12 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                   alignment: AlignmentDirectional.centerStart,
                   child: FilledButton.icon(
                     key: const ValueKey('profile-apply-servers'),
-                    onPressed: (c.busy || c.hasRunning || c.hasObservedRunning)
+                    onPressed: (!c.canMutate || c.hasRunning || c.hasObservedRunning)
                         ? null
                         : () => c.prepareAndApply(),
-                    icon: (c.busy || c.hasRunning || c.hasObservedRunning)
+                    // Spins for the person's apply, not for background
+                    // checks (UI-47).
+                    icon: (c.foregroundBusy || c.hasRunning || c.hasObservedRunning)
                         ? const SizedBox.square(
                             dimension: 18,
                             child: CircularProgressIndicator(strokeWidth: 2),
@@ -330,7 +337,7 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                   ),
                 ),
               const SizedBox(height: 12),
-              if (message != null)
+              if (message != null && !(regenerating && result == null))
                 Semantics(liveRegion: true, child: Text(message!)),
               if (usable)
                 Align(

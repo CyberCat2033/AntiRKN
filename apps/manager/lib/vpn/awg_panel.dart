@@ -2,6 +2,7 @@ import 'connection_check_view.dart';
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
+import '../busy_reason.dart';
 import '../l10n/app_localizations.dart';
 import '../network/network_controller.dart';
 import '../network/server_address_field.dart';
@@ -9,6 +10,8 @@ import 'vpn_controller.dart';
 import 'missing_on_server_notice.dart';
 import 'adopt_resource.dart';
 import 'vpn_plan_view.dart';
+import 'awg_existing_panel.dart';
+import '../runner/runner_controller.dart';
 
 class AwgPanel extends StatelessWidget {
   const AwgPanel({
@@ -16,12 +19,19 @@ class AwgPanel extends StatelessWidget {
     required this.serverId,
     required this.network,
     required this.motion,
+    this.runner,
+    this.serverHost = '',
     super.key,
   });
   final VpnController controller;
   final String serverId;
   final NetworkController network;
   final MotionPreference motion;
+
+  /// Reads the interfaces AntiRKN does not manage, for the one "check all"
+  /// and refresh of the section (UI-49).
+  final RunnerController? runner;
+  final String serverHost;
 
   Future<void> edit(BuildContext context, [AwgInterface? current]) async {
     if (!await controller.ensureConnected(awgTarget(serverId)) ||
@@ -31,11 +41,12 @@ class AwgPanel extends StatelessWidget {
     if (current?.spec.containsKey('adoption') == true) {
       final spec = await editAdoptedResource(context, current!.spec);
       if (spec == null) return;
-      await controller.saveAwg(AwgInterface(serverId: serverId, spec: spec));
-      if (controller.error == null) {
-        await controller.prepareAndApply(serverIds: {awgTarget(serverId)});
-      }
-      return;
+      return saveAndApply(
+        controller,
+        target: awgTarget(serverId),
+        save: () =>
+            controller.saveAwg(AwgInterface(serverId: serverId, spec: spec)),
+      );
     }
     final spec = current?.spec ?? await controller.awgDefaults(serverId);
     if (spec == null || !context.mounted) return;
@@ -53,25 +64,24 @@ class AwgPanel extends StatelessWidget {
       ),
     );
     if (result == null) return;
-    await controller.saveAwg(result);
-    if (controller.error == null) {
-      if (result.deleted && current != null && !current.deleted) {
-        AppHaptics.deleted();
-      } else if (current == null && !result.deleted) {
-        AppHaptics.added();
-      }
-    }
-    if (controller.error == null) {
-      await controller.prepareAndApply(serverIds: {awgTarget(serverId)});
-    }
+    await saveAndApply(
+      controller,
+      target: awgTarget(serverId),
+      save: () => controller.saveAwg(result),
+      added: current == null && !result.deleted,
+      deleted: result.deleted && current != null && !current.deleted,
+    );
   }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: controller,
+    listenable: Listenable.merge([controller, ?runner]),
     builder: (context, _) {
-      final l = AppLocalizations.of(context), c = controller;
+      final l = AppLocalizations.of(context), c = controller, r = runner;
       final target = awgTarget(serverId);
+      final external = r == null
+          ? const <Map>[]
+          : awgExternalResources(r, c, serverId);
       final interfaces = c.workspace.awgInterfaces.where(
         (r) => r.serverId == serverId && !r.deleted,
       );
@@ -81,17 +91,30 @@ class AwgPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           AppPageIntro(l.uiAwgIntro),
-          FilledButton.icon(
-            key: const ValueKey('awg-add'),
-            onPressed: c.busy || !c.loaded ? null : () => edit(context),
-            icon: const Icon(Icons.add),
-            label: Text(l.awgAdd),
+          AppDisabledReason(
+            reason: busyReason(l, vpn: c),
+            child: FilledButton.icon(
+              key: const ValueKey('awg-add'),
+              onPressed: !c.canMutate ? null : () => edit(context),
+              icon: const Icon(Icons.add),
+              label: Text(l.awgAdd),
+            ),
           ),
           ConnectionCheckAll(
             controller: c,
             targets: [
               for (final r in interfaces) (target: target, resource: r.id),
             ],
+            readOthers: r == null || external.isEmpty
+                ? null
+                : () => readAwgExternal(
+                    context,
+                    controller: c,
+                    runner: r,
+                    serverId: serverId,
+                    host: serverHost,
+                    external: external,
+                  ),
           ),
           const SizedBox(height: 20),
           MissingOnServerNotice(controller: c, target: target),
@@ -100,7 +123,15 @@ class AwgPanel extends StatelessWidget {
             count: interfaces.length,
             action: IconButton(
               tooltip: l.awgRefresh,
-              onPressed: c.busy ? null : () => c.refreshServer(target),
+              onPressed:
+                  !c.canMutate || r != null && (r.busy || r.actionPending)
+                  ? null
+                  : () async {
+                      await c.refreshServer(target);
+                      await r?.requestAction(() async {
+                        await r.awgRequest('awg_discover');
+                      });
+                    },
               icon: const Icon(Icons.refresh),
             ),
           ),
@@ -131,13 +162,11 @@ class AwgPanel extends StatelessWidget {
                           )
                         ? l.vpnConflict
                         : null,
-                    detailsLabel: l.componentsDetails,
                     actions: IconButton(
-                      tooltip: l.vpnEdit,
-                      onPressed: c.busy ? null : () => edit(context, r),
+                      tooltip: busyReason(l, vpn: c) ?? l.vpnEdit,
+                      onPressed: !c.canMutate ? null : () => edit(context, r),
                       icon: const Icon(Icons.edit_outlined),
                     ),
-                    details: const [],
                   ),
                 ),
               VpnJobView(showSnapshot: false, controller: c, serverId: target),
@@ -282,34 +311,47 @@ class _AwgFormState extends State<AwgForm> {
               SwitchListTile(
                 title: Text(l.vpnEnabled),
                 value: spec['enabled'] as bool,
-                onChanged: (v) => setState(() {
-                  spec['enabled'] = v;
-                  if (v) spec['deleted'] = false;
-                }),
+                onChanged: (v) => setState(() => spec['enabled'] = v),
               ),
-              if (widget.existing)
-                CheckboxListTile(
-                  title: Text(l.vpnDeleteHelp),
-                  value: spec['deleted'] as bool,
-                  onChanged: (v) => setState(() {
-                    spec['deleted'] = v!;
-                    if (v) spec['enabled'] = false;
-                  }),
-                ),
               Text(l.connectionAfterSave),
               if (invalid)
-                Text(
-                  l.vpnInvalid,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                AppNotice(
+                  message: l.vpnInvalid,
+                  error: true,
+                  margin: const EdgeInsets.only(top: 12),
                 ),
             ],
           ),
         ),
       ),
       actions: [
+        // Deleting is its own confirmed action, not a form field (UI-54).
+        if (widget.existing)
+          AppDangerButton.text(
+            key: const ValueKey('awg-delete'),
+            onPressed: () async {
+              final confirmed = await confirmAppDanger(
+                context,
+                title: l.awgDelete,
+                message: l.awgDeleteHelp,
+                confirmLabel: l.vpnDelete,
+                cancelLabel: l.sshCancel,
+                confirmKey: const ValueKey('awg-delete-confirm'),
+              );
+              if (!confirmed || !context.mounted) return;
+              Navigator.pop(
+                context,
+                AwgInterface(
+                  serverId: widget.serverId,
+                  spec: {...widget.spec, 'deleted': true, 'enabled': false},
+                ),
+              );
+            },
+            child: Text(l.vpnDelete),
+          ),
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text(l.runnerNotNow),
+          child: Text(l.sshCancel),
         ),
         FilledButton(
           key: const ValueKey('awg-save'),

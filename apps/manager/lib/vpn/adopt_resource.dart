@@ -133,7 +133,35 @@ Future<void> adoptExistingResource(
         context,
       ).showSnackBar(SnackBar(content: Text(vpnMessage(l, error.message))));
     }
+  } on TypeError catch (error) {
+    // A resource read from the server had an unexpected shape.
+    debugPrint('adopt_resource_invalid type=${error.runtimeType}');
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(vpnMessage(l, 'vpn_adoption_invalid'))),
+      );
+    }
   }
+}
+
+/// The save step shared by the VLESS, AmneziaWG and TrustTunnel panels
+/// (UI-52): haptics follow a successful save, and only then is [target]
+/// planned and applied.
+Future<void> saveAndApply(
+  VpnController controller, {
+  required String target,
+  required Future<void> Function() save,
+  bool added = false,
+  bool deleted = false,
+}) async {
+  await save();
+  if (controller.error != null) return;
+  if (deleted) {
+    AppHaptics.deleted();
+  } else if (added) {
+    AppHaptics.added();
+  }
+  await controller.prepareAndApply(serverIds: {target});
 }
 
 Future<Map<String, Object?>?> editAdoptedResource(
@@ -222,7 +250,12 @@ class _AdoptedResourceDialogState extends State<AdoptedResourceDialog> {
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(labelText: l.vpnExternalPort),
               ),
-              if (invalid) Text(l.vpnInvalid),
+              if (invalid)
+                AppNotice(
+                  message: l.vpnInvalid,
+                  error: true,
+                  margin: const EdgeInsets.only(top: 12),
+                ),
             ],
           ),
         ),

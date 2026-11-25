@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../l10n/app_localizations.dart';
+import '../runner/component_installation_view.dart' show vpnComponentName;
 
 class ServerInventoryPanel extends StatelessWidget {
   const ServerInventoryPanel({
@@ -42,7 +43,7 @@ class ServerInventoryPanel extends StatelessWidget {
               expansionAnimationStyle: animation,
               key: PageStorageKey('component-${component.component.name}'),
               tilePadding: EdgeInsets.zero,
-              title: Text(componentName(component.component)),
+              title: Text(vpnComponentName(component.component)),
               subtitle: Text(switch (component.presence) {
                 ComponentPresence.detected => l.inventoryDetected,
                 ComponentPresence.absent => l.inventoryAbsent,
@@ -53,7 +54,11 @@ class ServerInventoryPanel extends StatelessWidget {
                   Align(
                     alignment: AlignmentDirectional.centerStart,
                     child: Text(
-                      '${l.inventoryPartial}: ${component.issues.map((s) => inventoryStatusLabel(l, s)).join(', ')}',
+                      l.inventoryPartialList(
+                        component.issues
+                            .map((s) => inventoryStatusLabel(l, s))
+                            .join(', '),
+                      ),
                     ),
                   ),
                 for (final installation in component.installations)
@@ -93,7 +98,12 @@ class ServerInventoryPanel extends StatelessWidget {
                                   )
                                 : installation.version == null
                                 ? l.inventoryVersionUnknown
-                                : '${l.inventoryVersionUnknown}: ${inventoryStatusLabel(l, installation.version!.status)}',
+                                : l.inventoryVersionUnknownReason(
+                                    inventoryStatusLabel(
+                                      l,
+                                      installation.version!.status,
+                                    ),
+                                  ),
                           ),
                       ],
                     ),
@@ -142,12 +152,6 @@ class ServerInventoryPanel extends StatelessWidget {
   }
 }
 
-String componentName(VpnComponent c) => switch (c) {
-  VpnComponent.panel => '3x-ui',
-  VpnComponent.xray => 'Xray',
-  VpnComponent.trustTunnel => 'TrustTunnel',
-  VpnComponent.amneziaWg => 'AmneziaWG',
-};
 String inventoryStatusLabel(AppLocalizations l, InventoryStatus s) =>
     switch (s) {
       InventoryStatus.ok => l.inventoryOk,
@@ -185,8 +189,11 @@ String factValue(
     ServerFact.availableMemoryKiB,
     ServerFact.freeDiskKiB,
   }.contains(f)) {
+    // The value comes from the server: never trust it to be a number.
+    final kib = int.tryParse(value.trim());
+    if (kib == null) return l.inventoryInvalid;
     return l.inventoryMiB(
-      NumberFormat.decimalPattern(l.localeName).format(int.parse(value) / 1024),
+      NumberFormat.decimalPattern(l.localeName).format(kib / 1024),
     );
   }
   return value;

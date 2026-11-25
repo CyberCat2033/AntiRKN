@@ -1,4 +1,3 @@
-import 'connection_check_view.dart';
 import 'external_connection_check.dart';
 import 'dart:async';
 import 'package:antirkn_design_system/antirkn_design_system.dart';
@@ -8,6 +7,52 @@ import '../runner/runner_controller.dart';
 import 'vpn_strings.dart';
 import 'vpn_controller.dart';
 import 'adopt_resource.dart';
+
+/// AmneziaWG interfaces on the server that AntiRKN does not manage yet.
+List<Map> awgExternalResources(
+  RunnerController runner,
+  VpnController controller,
+  String serverId,
+) => (runner.awgDiscovery?['resources'] as List? ?? [])
+    .whereType<Map>()
+    .where(
+      (item) => !hasAdoptedSource(
+        controller.workspace.awgInterfaces
+            .where((r) => r.serverId == serverId)
+            .map((r) => r.spec),
+        item['id'] as String,
+      ),
+    )
+    .toList();
+
+/// Connection targets of [external] for the section's one "check all".
+Future<List<({String target, String resource})>> readAwgExternal(
+  BuildContext context, {
+  required VpnController controller,
+  required RunnerController runner,
+  required String serverId,
+  required String host,
+  required List<Map> external,
+}) async {
+  final keys = <({String target, String resource})>[];
+  for (final item in external) {
+    if (!context.mounted) break;
+    final key = await prepareExternalConnection(
+      context,
+      controller: controller,
+      runner: runner,
+      serverId: serverId,
+      protocol: 'awg',
+      source: item['id'] as String,
+      host: host,
+    );
+    keys.add(
+      key ??
+          externalConnectionTarget(serverId, 'awg', item['id'] as String, null),
+    );
+  }
+  return keys;
+}
 
 class AwgExistingPanel extends StatefulWidget {
   const AwgExistingPanel({
@@ -71,16 +116,11 @@ class _AwgExistingPanelState extends State<AwgExistingPanel> {
     listenable: Listenable.merge([widget.runner, widget.controller]),
     builder: (context, _) {
       final r = widget.runner, l = AppLocalizations.of(context);
-      final external = (r.awgDiscovery?['resources'] as List? ?? [])
-          .whereType<Map>()
-          .where(
-            (item) => !hasAdoptedSource(
-              widget.controller.workspace.awgInterfaces
-                  .where((r) => r.serverId == widget.serverId)
-                  .map((r) => r.spec),
-              item['id'] as String,
-            ),
-          );
+      final external = awgExternalResources(
+        r,
+        widget.controller,
+        widget.serverId,
+      );
       if (external.isEmpty) {
         return const SizedBox.shrink();
       }
@@ -91,35 +131,7 @@ class _AwgExistingPanelState extends State<AwgExistingPanel> {
             title: l.awgObserved,
             count: external.length,
           ),
-          ConnectionCheckAll(
-            controller: widget.controller,
-            targets: const [],
-            readOthers: () async {
-              final keys = <({String target, String resource})>[];
-              for (final item in external) {
-                if (!context.mounted) break;
-                final key = await prepareExternalConnection(
-                  context,
-                  controller: widget.controller,
-                  runner: r,
-                  serverId: widget.serverId,
-                  protocol: 'awg',
-                  source: item['id'] as String,
-                  host: widget.serverHost,
-                );
-                keys.add(
-                  key ??
-                      externalConnectionTarget(
-                        widget.serverId,
-                        'awg',
-                        item['id'] as String,
-                        null,
-                      ),
-                );
-              }
-              return keys;
-            },
-          ),
+          // "Check all" and refresh are AwgPanel's, one each (UI-49).
           for (final item in external)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
@@ -136,8 +148,6 @@ class _AwgExistingPanelState extends State<AwgExistingPanel> {
                 title: '${item['name']}',
                 subtitle: l.uiPeerCount(item['peers'] as int),
                 badge: item['active'] == true ? l.vpnEnabled : l.vpnDisabled,
-                detailsLabel: l.componentsDetails,
-                details: const [],
                 actions: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -192,17 +202,6 @@ class _AwgExistingPanelState extends State<AwgExistingPanel> {
                 ),
               ),
             ),
-          Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: TextButton(
-              onPressed: r.busy || r.actionPending
-                  ? null
-                  : () => r.requestAction(() async {
-                      await r.awgRequest('awg_discover');
-                    }),
-              child: Text(l.awgRefresh),
-            ),
-          ),
         ],
       );
     },
@@ -251,7 +250,11 @@ class _EditExistingAwgState extends State<_EditExistingAwg> {
             children: [
               Text(l.awgPeersPreserved),
               Text(
-                '${snapshot['source']} · ${snapshot['path']} · ${snapshot['peers']} peers',
+                [
+                  '${snapshot['source']}',
+                  '${snapshot['path']}',
+                  l.uiPeerCount((snapshot['peers'] as num?)?.toInt() ?? 0),
+                ].join(' · '),
               ),
               if (snapshot['portLocked'] == true) Text(l.awgDockerPortHelp),
               for (final e in fields.entries)
@@ -276,7 +279,8 @@ class _EditExistingAwgState extends State<_EditExistingAwg> {
                   ),
                 ),
               if (busy) const LinearProgressIndicator(),
-              if (error != null) Text(vpnMessage(l, error!)),
+              if (error != null)
+                AppNotice(message: vpnMessage(l, error!), error: true),
               if (preview != null) ...[
                 const Divider(),
                 Text(l.vpnPlan, style: Theme.of(context).textTheme.titleMedium),
@@ -291,7 +295,7 @@ class _EditExistingAwgState extends State<_EditExistingAwg> {
       actions: [
         TextButton(
           onPressed: busy ? null : () => Navigator.pop(context),
-          child: Text(l.runnerNotNow),
+          child: Text(l.sshCancel),
         ),
         FilledButton(
           onPressed: busy
@@ -326,6 +330,7 @@ class _EditExistingAwgState extends State<_EditExistingAwg> {
                         payload: p,
                       );
                       if (!mounted) return;
+                      // Two steps: the plan waits for "Apply" (UI-61).
                       setState(() {
                         preview = response;
                         payload = p;
@@ -333,8 +338,7 @@ class _EditExistingAwgState extends State<_EditExistingAwg> {
                           error = widget.runner.responseCode ?? 'awg_failed';
                         }
                       });
-                    }
-                    if (preview != null) {
+                    } else {
                       final success = await widget.runner.applyExternalAwg(
                         payload!,
                         preview!['fingerprint'] as String,
@@ -353,7 +357,7 @@ class _EditExistingAwgState extends State<_EditExistingAwg> {
                     if (mounted) setState(() => busy = false);
                   }
                 },
-          child: Text(l.vpnSave),
+          child: Text(preview == null ? l.uiCheck : l.uiApply),
         ),
       ],
     );

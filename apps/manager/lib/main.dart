@@ -69,6 +69,17 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher>
   GoogleSyncAccountService? _google;
   LanguageController? _languages;
   int _generation = 0;
+  bool _retrying = false;
+
+  /// Reopens the workspace after an open error. One attempt at a time: a
+  /// parallel attempt would open a second database and sync controller.
+  void _retryLoad() {
+    if (_retrying) return;
+    _retrying = true;
+    setState(() {
+      _app = _load().whenComplete(() => _retrying = false);
+    });
+  }
 
   @override
   void initState() {
@@ -207,24 +218,40 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher>
     future: _app,
     builder: (context, snapshot) =>
         snapshot.data ??
+        // Themed like the app: an unthemed MaterialApp flashed a light
+        // default scheme on dark systems while storage opened (UI-64).
         MaterialApp(
+          theme: AppTheme.create(Brightness.light),
+          darkTheme: AppTheme.create(Brightness.dark),
           supportedLocales: AppLocalizations.supportedLocales,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           home: Builder(
             builder: (context) => Scaffold(
               body: Center(
-                child: snapshot.hasError
-                    ? Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(AppLocalizations.of(context).databaseOpenError),
-                          FilledButton(
-                            onPressed: () => setState(() => _app = _load()),
-                            child: Text(
-                              AppLocalizations.of(context).vaultRetry,
+                // A retry keeps the previous error in the snapshot while it
+                // runs; show progress instead of a second Retry button.
+                child:
+                    snapshot.hasError &&
+                        snapshot.connectionState == ConnectionState.done
+                    ? Padding(
+                        padding: const EdgeInsets.all(AppLayout.gap),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 560),
+                          child: AppNotice(
+                            message: AppLocalizations.of(
+                              context,
+                            ).databaseOpenError,
+                            error: true,
+                            margin: EdgeInsets.zero,
+                            action: FilledButton(
+                              key: const ValueKey('database-open-retry'),
+                              onPressed: _retryLoad,
+                              child: Text(
+                                AppLocalizations.of(context).vaultRetry,
+                              ),
                             ),
                           ),
-                        ],
+                        ),
                       )
                     : const CircularProgressIndicator(),
               ),
@@ -356,7 +383,14 @@ class _AntiRknAppState extends State<AntiRknApp> {
             ? Builder(
                 builder: (context) => Scaffold(
                   body: Center(
-                    child: Text(AppLocalizations.of(context).loadError),
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppLayout.gap),
+                      child: AppNotice(
+                        message: AppLocalizations.of(context).loadError,
+                        error: true,
+                        margin: EdgeInsets.zero,
+                      ),
+                    ),
                   ),
                 ),
               )
@@ -459,6 +493,9 @@ class _ManagerShellState extends State<ManagerShell>
   String _serverNameSnapshot = '';
   static const _icons = [Icons.dns_outlined, Icons.people_outline, Icons.tune];
 
+  /// Filled variants for the selected destination, as M3 expects (UI-68).
+  static const _selectedIcons = [Icons.dns, Icons.people, Icons.tune];
+
   @override
   void initState() {
     super.initState();
@@ -473,13 +510,12 @@ class _ManagerShellState extends State<ManagerShell>
       store: widget.settings,
       enter: _enterDiagnostics,
       leave: _leaveDiagnostics,
-    )..addListener(_syncChanged);
-    _serverSelection.addListener(_syncChanged);
-    _clientSelection.addListener(_syncChanged);
+    )..addListener(_shellChanged);
+    _serverSelection.addListener(_shellChanged);
+    _clientSelection.addListener(_shellChanged);
     _networkController = NetworkController(reader: widget.networkReader);
     WidgetsBinding.instance.addObserver(this);
     widget.autoSync?.apply = _applyReceived;
-    widget.autoSync?.addListener(_syncChanged);
     widget.autoSync?.addListener(_divergenceChanged);
     if (widget.ssh case final ssh?) {
       if (widget.servers case final repository?) {
@@ -492,7 +528,9 @@ class _ManagerShellState extends State<ManagerShell>
         );
         _catalog!.onServerReplaced = (id, identity) =>
             unawaited(_vpn?.rebindServer(id, identity));
-        _catalog!.addListener(_catalogChanged);
+        _catalog!
+          ..addListener(_catalogChanged)
+          ..addListener(_shellChanged);
         catalogReady = _catalog!.load();
       } else {
         _sshController = SshController(
@@ -727,15 +765,15 @@ class _ManagerShellState extends State<ManagerShell>
 
   @override
   void dispose() {
-    _diagnostics.removeListener(_syncChanged);
+    _diagnostics.removeListener(_shellChanged);
     _diagnostics.dispose();
     _serverSelection.dispose();
     _clientSelection.dispose();
     WidgetsBinding.instance.removeObserver(this);
-    widget.autoSync?.removeListener(_syncChanged);
     widget.autoSync?.removeListener(_divergenceChanged);
     widget.autoSync?.apply = (_) async => false;
     _catalog?.removeListener(_catalogChanged);
+    _catalog?.removeListener(_shellChanged);
     _catalog?.dispose();
     _publications?.dispose();
     _cacheRefresh?.dispose();
@@ -755,10 +793,10 @@ class _ManagerShellState extends State<ManagerShell>
             defaultTargetPlatform == TargetPlatform.android) {
       _diagnostics.stop();
       _vpn?.cancelCoreValidation();
-      _vpn?.connections.setForeground(false);
+      _vpn?.setForeground(false);
     }
     if (state == AppLifecycleState.resumed) {
-      _vpn?.connections.setForeground(true);
+      _vpn?.setForeground(true);
     }
     // An unfocused desktop window is still visible (e.g. beside a browser).
     // Android retains its existing foreground-only scheduling policy.
@@ -783,8 +821,25 @@ class _ManagerShellState extends State<ManagerShell>
     }
   }
 
-  void _syncChanged() {
-    if (mounted) setState(() {});
+  /// What [build] reads from the controllers it listens to. Rebuilding the
+  /// shell recreates every page (users, settings, the catalogue), so only a
+  /// change of these values does it — not a keystroke, a runner poll, an IP
+  /// probe or a selection toggle (those widgets listen themselves).
+  Object _shellState() => (
+    _catalog?.selectedId,
+    _catalog?.servers,
+    _catalog?.loading,
+    _serverSelection.active,
+    _clientSelection.active,
+    _diagnostics.busy,
+  );
+  late Object _builtShellState = _shellState();
+
+  void _shellChanged() {
+    if (!mounted) return;
+    final next = _shellState();
+    if (next == _builtShellState) return;
+    setState(() => _builtShellState = next);
   }
 
   String? _announcedDivergence;
@@ -887,13 +942,9 @@ class _ManagerShellState extends State<ManagerShell>
       final rail =
           constraints.maxWidth >= AppLayout.compact &&
           constraints.maxHeight >= 400;
-      return ListenableBuilder(
-        listenable: Listenable.merge([
-          _catalog,
-          _serverSelection,
-          _clientSelection,
-        ]),
-        builder: (context, _) => AbsorbPointer(
+      _builtShellState = _shellState();
+      return Builder(
+        builder: (context) => AbsorbPointer(
           absorbing: _applyingSync,
           child: PopScope(
             canPop:
@@ -985,6 +1036,7 @@ class _ManagerShellState extends State<ManagerShell>
                         for (var i = 0; i < labels.length; i++)
                           NavigationDestination(
                             icon: Icon(_icons[i]),
+                            selectedIcon: Icon(_selectedIcons[i]),
                             label: labels[i],
                           ),
                       ],
@@ -998,6 +1050,7 @@ class _ManagerShellState extends State<ManagerShell>
                             (_settingsKey.currentState?.canGoBack ?? false) ||
                         _index < 2 && _selection.active),
                 onBack: () => Navigator.of(context).maybePop(),
+                motion: widget.motion,
                 child: SafeArea(
                   child: Row(
                     children: [
@@ -1015,6 +1068,7 @@ class _ManagerShellState extends State<ManagerShell>
                             for (var i = 0; i < labels.length; i++)
                               NavigationRailDestination(
                                 icon: Icon(_icons[i]),
+                                selectedIcon: Icon(_selectedIcons[i]),
                                 label: Text(labels[i]),
                               ),
                           ],
@@ -1049,12 +1103,7 @@ class _ManagerShellState extends State<ManagerShell>
                                 selection: _clientSelection,
                                 publications: _publications,
                                 serverName: (id) =>
-                                    _catalog?.servers
-                                        .where((s) => s.id == id)
-                                        .firstOrNull
-                                        ?.profile
-                                        .displayName ??
-                                    id,
+                                    _catalog?.serverDisplayName(id) ?? id,
                                 exporter: SystemProfileExporter(),
                                 motion: widget.motion,
                               )
@@ -1064,8 +1113,12 @@ class _ManagerShellState extends State<ManagerShell>
                               key: _settingsKey,
                               motion: widget.motion,
                               error: widget.settingsError
-                                  ? Text(l.settingsSaveError)
+                                  ? AppNotice(
+                                      message: l.settingsSaveError,
+                                      error: true,
+                                    )
                                   : null,
+                              statusDestinationId: 'sync',
                               status: widget.autoSync == null
                                   ? null
                                   : ListenableBuilder(
@@ -1085,6 +1138,7 @@ class _ManagerShellState extends State<ManagerShell>
                                     ),
                               destinations: [
                                 SettingsDestination(
+                                  id: 'interface',
                                   title: l.uiInterface,
                                   subtitle:
                                       '${switch (widget.theme) {
@@ -1107,40 +1161,45 @@ class _ManagerShellState extends State<ManagerShell>
                                 ),
                                 if (widget.googleAccount?.supported == true)
                                   SettingsDestination(
+                                    id: 'sync',
                                     title: l.uiSynchronization,
                                     subtitle: l.uiSyncHelp,
                                     icon: Icons.sync,
-                                    content: Column(
-                                      children: [
-                                        GoogleAccountPanel(
-                                          service: widget.googleAccount!,
-                                          sync: widget.autoSync,
-                                          beforeAccountChange:
-                                              _publications?.suspend,
-                                          afterAccountChange: (signedIn) {
-                                            _publications?.resume();
-                                            if (signedIn) {
-                                              _publications
-                                                  ?.accountAuthorizationChanged();
-                                            }
-                                          },
-                                        ),
-                                      ],
+                                    // The page title names the section
+                                    // (UI-50).
+                                    content: AppSettingsSection(
+                                      child: Column(
+                                        children: [
+                                          GoogleAccountPanel(
+                                            showTitle: false,
+                                            service: widget.googleAccount!,
+                                            sync: widget.autoSync,
+                                            beforeAccountChange:
+                                                _publications?.suspend,
+                                            afterAccountChange: (signedIn) {
+                                              _publications?.resume();
+                                              if (signedIn) {
+                                                _publications
+                                                    ?.accountAuthorizationChanged();
+                                              }
+                                            },
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 SettingsDestination(
+                                  id: 'profiles',
                                   title: l.uiClientProfiles,
                                   subtitle: l.uiClientProfilesHelp,
                                   icon: Icons.description_outlined,
                                   content: AppSettingsSection(
-                                    title: l.uiClientProfiles,
                                     child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.stretch,
                                       children: [
                                         TemplateSettings(
                                           controller: _controller,
-                                          showTitle: false,
                                         ),
                                         if (_publications != null) ...[
                                           const Divider(
@@ -1160,6 +1219,7 @@ class _ManagerShellState extends State<ManagerShell>
                                     widget.backupFiles != null &&
                                     widget.onRestored != null)
                                   SettingsDestination(
+                                    id: 'backup',
                                     title: l.backupTitle,
                                     subtitle: l.uiBackupHelp,
                                     icon: Icons.history,
@@ -1171,6 +1231,7 @@ class _ManagerShellState extends State<ManagerShell>
                                     ),
                                   ),
                                 SettingsDestination(
+                                  id: 'updates',
                                   title: l.uiUpdatesShort,
                                   subtitle: l.uiUpdatesHelp,
                                   icon: Icons.system_update_alt,

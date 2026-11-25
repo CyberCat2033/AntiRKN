@@ -18,7 +18,7 @@ class ComponentInstallationView extends StatelessWidget {
       children: [
         if (plan != null) ...[
           Text(
-            '${plan.component == 'trusttunnel' ? 'TrustTunnel' : 'AmneziaWG'} · ${plan.installedVersion ?? '—'} → ${plan.version}',
+            '${componentName(plan.component)} · ${plan.installedVersion ?? '—'} → ${plan.version}',
           ),
           if (plan.toolsVersion != null)
             Text('amneziawg-tools · ${plan.toolsVersion}'),
@@ -130,8 +130,8 @@ class ComponentUpdateSettings extends StatelessWidget {
     final c = ComponentUpdatesScope.of(context),
         l = AppLocalizations.of(context);
     if (c == null) return const SizedBox.shrink();
+    // Shown under the page titled uiUpdatesShort (UI-50).
     return AppSettingsSection(
-      title: l.uiUpdatesShort,
       child: Column(
         children: [
           SwitchListTile(
@@ -151,13 +151,48 @@ class ComponentUpdateSettings extends StatelessWidget {
             },
           ),
           if (c.busy) const LinearProgressIndicator(),
-          if (c.failed) Text(l.updatesFailed),
-          if (c.storageFailed) Text(l.settingsSaveError),
+          if (c.failed) AppNotice(message: l.updatesFailed, error: true),
+          if (c.storageFailed)
+            AppNotice(message: l.settingsSaveError, error: true),
         ],
       ),
     );
   }
 }
+
+/// Installed components with a newer upstream release: key → latest.
+///
+/// The one rule for the update counter and the software cards (UI-46).
+Map<String, String> availableUpdates(
+  ComponentUpdatesController updates,
+  Map<String, String> installed,
+) => {
+  if (updates.suggestions || updates.manualResults)
+    for (final v in installed.entries)
+      if (updates.latest[v.key] case final latest?)
+        if (componentIsNewer(latest, v.value) == true ||
+            componentIsNewer(latest, v.value, allowPreview: true) == true)
+          v.key: latest,
+};
+
+/// Software cards that can host [ComponentInstallationView].
+const softwareComponentKeys = ['panel', 'trusttunnel', 'amneziawg'];
+
+/// Whether the card [key] hosts [ComponentInstallationView]: the one place
+/// for the step, progress and cancel of a component install (UI-39).
+bool hostsComponentInstallation(RunnerController c, String key) =>
+    c.componentPlan?.component == key ||
+    (c.activeComponent == key &&
+        const {
+          'component_install',
+          'component_upgrade',
+          'component_upgrade_apply',
+        }.contains(c.selected?.kind) &&
+        (c.selected?.terminal == false ||
+            const {
+              'failed',
+              'partially_applied',
+            }.contains(c.selected?.status)));
 
 String releaseKey(VpnComponent component, String identity) =>
     switch (component) {
@@ -169,6 +204,13 @@ String releaseKey(VpnComponent component, String identity) =>
             ? 'amneziawgTools'
             : 'amneziawg',
     };
+/// Product name of [component] for software cards and the inventory: one
+/// name table with [componentName] (UI-53).
+String vpnComponentName(VpnComponent component) => switch (component) {
+  VpnComponent.amneziaWg => 'AmneziaWG',
+  _ => componentName(releaseKey(component, '')),
+};
+
 String componentName(String key) => switch (key) {
   'panel' => '3x-ui',
   'xray' => 'Xray',

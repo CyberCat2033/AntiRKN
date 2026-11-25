@@ -89,8 +89,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(renderedUserNames(), equals(['Alice', 'Charlie', 'Bob']));
 
-      // 4. Tap "Name" chip again -> Sort by name descending (Charlie, Alice, Bob at end)
-      await tester.tap(find.byKey(const ValueKey('vpn-sort-name')));
+      // 4. Direction button -> Sort by name descending (Charlie, Alice, Bob at end)
+      await tester.tap(find.byKey(const ValueKey('vpn-sort-direction')));
       await tester.pumpAndSettle();
       expect(renderedUserNames(), equals(['Charlie', 'Alice', 'Bob']));
 
@@ -100,8 +100,8 @@ void main() {
       // Date ascending: Charlie, Alice, Bob at end
       expect(renderedUserNames(), equals(['Charlie', 'Alice', 'Bob']));
 
-      // 6. Tap "Date created" again -> Date descending (Alice, Charlie, Bob at end)
-      await tester.tap(find.byKey(const ValueKey('vpn-sort-date')));
+      // 6. Direction button -> Date descending (Alice, Charlie, Bob at end)
+      await tester.tap(find.byKey(const ValueKey('vpn-sort-direction')));
       await tester.pumpAndSettle();
       expect(renderedUserNames(), equals(['Alice', 'Charlie', 'Bob']));
 

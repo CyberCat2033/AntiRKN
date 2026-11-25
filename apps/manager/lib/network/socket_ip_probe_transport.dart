@@ -1,7 +1,25 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'package:antirkn_domain/antirkn_domain.dart';
+import 'package:flutter/foundation.dart';
+
+/// The route and rule tables without fields that change on every read.
+/// `ip -j … table all` prints hundreds of KiB on a busy host; this runs for
+/// every network check of a diagnostic run, so it is done off the UI isolate.
+@visibleForTesting
+String normalizeRouteTables(List<String> tables) => tables
+    .map(
+      (table) => canonicalJson([
+        for (final value in jsonDecode(table) as List)
+          (Map<String, dynamic>.from(value as Map)
+            ..remove('expires')
+            ..remove('cache')
+            ..remove('used')),
+      ]),
+    )
+    .join('|');
 
 /// Desktop sockets use the current OS route; route changes invalidate a run.
 class SocketIpProbeTransport implements IpProbeTransport {
@@ -47,17 +65,8 @@ class SocketIpProbeTransport implements IpProbeTransport {
       if (tables.any((t) => t.exitCode != 0)) {
         throw const FormatException('network_unknown');
       }
-      routes = tables
-          .map(
-            (t) => canonicalJson([
-              for (final value in jsonDecode(t.stdout as String) as List)
-                (Map<String, dynamic>.from(value as Map)
-                  ..remove('expires')
-                  ..remove('cache')
-                  ..remove('used')),
-            ]),
-          )
-          .join('|');
+      final outputs = [for (final t in tables) t.stdout as String];
+      routes = await Isolate.run(() => normalizeRouteTables(outputs));
     } else if (Platform.isWindows) {
       final table = await Process.run('route', [
         'PRINT',
@@ -68,7 +77,13 @@ class SocketIpProbeTransport implements IpProbeTransport {
     // Names alone miss common clients: Mihomo/Clash create "Meta", sing-box
     // and Hiddify use their own names. A VPN in the path makes a failed probe
     // look like broken server settings, so detect TUN/TAP devices by kind.
-    final vpn = interfaces.any((i) => _tunnel(i.name));
+    var vpn = false;
+    for (final i in interfaces) {
+      if (await _tunnel(i.name)) {
+        vpn = true;
+        break;
+      }
+    }
     final direct = vpn && Platform.isLinux
         ? await _directRoute()
         : (interface: '', source: '');
@@ -81,12 +96,15 @@ class SocketIpProbeTransport implements IpProbeTransport {
     );
   }
 
-  static bool _tunnel(String name) =>
-      RegExp(
-        r'^(tun|tap|wg|utun|meta|mihomo|clash|sing-?box|hiddify|wintun|nekoray|throne)|vpn|wireguard|tunnel',
-        caseSensitive: false,
-      ).hasMatch(name) ||
-      (Platform.isLinux && File('/sys/class/net/$name/tun_flags').existsSync());
+  static final _tunnelName = RegExp(
+    r'^(tun|tap|wg|utun|meta|mihomo|clash|sing-?box|hiddify|wintun|nekoray|throne)|vpn|wireguard|tunnel',
+    caseSensitive: false,
+  );
+
+  static Future<bool> _tunnel(String name) async =>
+      _tunnelName.hasMatch(name) ||
+      (Platform.isLinux &&
+          await File('/sys/class/net/$name/tun_flags').exists());
 
   /// Policy-routing VPNs (Mihomo/sing-box TUN) keep the physical default route
   /// in the main table. A socket bound to that interface's address leaves the
@@ -117,7 +135,7 @@ class SocketIpProbeTransport implements IpProbeTransport {
             ]))
               if (route is Map &&
                   route['dev'] is String &&
-                  !_tunnel(route['dev'] as String))
+                  !await _tunnel(route['dev'] as String))
                 route,
           ]..sort(
             (a, b) =>

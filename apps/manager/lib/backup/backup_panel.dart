@@ -2,6 +2,7 @@ import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
+import '../app_strings.dart';
 import 'backup_controller.dart';
 
 class BackupPanel extends StatelessWidget {
@@ -148,71 +149,101 @@ class _BackupDialogState extends State<_BackupDialog> {
         canPop: !c.busy,
         child: AppFormDialog(
           title: Text(widget.importing ? l.backupImport : l.backupExport),
+          // AppFormDialog scrolls its content; a second scroll view here
+          // nested two scrollables (UI-65).
           content: SizedBox(
             width: 440,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (c.busy) ...[
-                    const LinearProgressIndicator(),
-                    const SizedBox(height: AppLayout.smallGap),
-                    Text(l.backupWorking),
-                  ],
-                  if (c.completed)
-                    Text(l.backupSaved)
-                  else if (summary != null) ...[
-                    Text(
-                      l.backupSummary(
-                        summary.createdAt.toLocal().toString(),
-                        summary.servers,
-                        summary.users,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Fixed height: the bar appearing must not move the form.
+                SizedBox(
+                  height: 4,
+                  child: c.busy ? const LinearProgressIndicator() : null,
+                ),
+                const SizedBox(height: AppLayout.smallGap),
+                if (c.busy) Text(l.backupWorking),
+                if (c.completed)
+                  Text(l.backupSaved)
+                else if (summary != null) ...[
+                  Text(
+                    l.backupSummary(
+                      l.formatDateTime(summary.createdAt),
+                      summary.servers,
+                      summary.users,
+                    ),
+                  ),
+                  const SizedBox(height: AppLayout.gap),
+                  Text(l.backupReplaceHelp),
+                ] else ...[
+                  if (c.error == BackupIssue.password)
+                    AppNotice(message: l.backupPasswordHelp, error: true)
+                  else
+                    Text(l.backupPasswordHelp),
+                  const SizedBox(height: AppLayout.gap),
+                  TextField(
+                    key: const ValueKey('backup-password'),
+                    controller: _password,
+                    enabled: !c.busy,
+                    obscureText: !_visible,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    textInputAction: widget.importing
+                        ? TextInputAction.done
+                        : TextInputAction.next,
+                    onSubmitted: widget.importing && !c.busy
+                        ? (_) => _start()
+                        : null,
+                    decoration: InputDecoration(
+                      labelText: l.backupPassword,
+                      suffixIcon: IconButton(
+                        onPressed: c.busy
+                            ? null
+                            : () => setState(() => _visible = !_visible),
+                        tooltip: _visible
+                            ? l.backupHidePassword
+                            : l.backupShowPassword,
+                        icon: Icon(
+                          _visible ? Icons.visibility_off : Icons.visibility,
+                        ),
                       ),
                     ),
+                  ),
+                  if (!widget.importing) ...[
                     const SizedBox(height: AppLayout.gap),
-                    Text(l.backupReplaceHelp),
-                  ] else ...[
-                    Text(l.backupPasswordHelp),
                     TextField(
-                      key: const ValueKey('backup-password'),
-                      controller: _password,
+                      key: const ValueKey('backup-repeat'),
+                      controller: _repeat,
                       enabled: !c.busy,
                       obscureText: !_visible,
                       autocorrect: false,
                       enableSuggestions: false,
-                      decoration: InputDecoration(
-                        labelText: l.backupPassword,
-                        suffixIcon: IconButton(
-                          onPressed: c.busy
-                              ? null
-                              : () => setState(() => _visible = !_visible),
-                          tooltip: _visible
-                              ? l.backupHidePassword
-                              : l.backupShowPassword,
-                          icon: Icon(
-                            _visible ? Icons.visibility_off : Icons.visibility,
-                          ),
-                        ),
-                      ),
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: c.busy ? null : (_) => _start(),
+                      decoration: InputDecoration(labelText: l.backupRepeat),
                     ),
-                    if (!widget.importing)
-                      TextField(
-                        key: const ValueKey('backup-repeat'),
-                        controller: _repeat,
-                        enabled: !c.busy,
-                        obscureText: !_visible,
-                        autocorrect: false,
-                        enableSuggestions: false,
-                        decoration: InputDecoration(labelText: l.backupRepeat),
-                      ),
-                    if (_invalid) Text(l.backupPasswordMismatch),
                   ],
-                  if (_activeWork) Text(l.backupActiveWork),
-                  if (error != null)
-                    Semantics(liveRegion: true, child: Text(error)),
+                  if (_invalid)
+                    AppNotice(
+                      message: l.backupPasswordMismatch,
+                      error: true,
+                      margin: const EdgeInsets.only(top: AppLayout.gap),
+                    ),
                 ],
-              ),
+                if (_activeWork) Text(l.backupActiveWork),
+                // The password help above the field is that error's text;
+                // it is shown once (UI-51).
+                if (error != null &&
+                    !(c.error == BackupIssue.password &&
+                        !c.completed &&
+                        summary == null))
+                  AppNotice(
+                    message: error,
+                    error: true,
+                    margin: const EdgeInsets.only(top: AppLayout.gap),
+                  ),
+              ],
             ),
           ),
           actions: [
@@ -220,21 +251,19 @@ class _BackupDialogState extends State<_BackupDialog> {
               onPressed: c.busy ? null : () => Navigator.of(context).pop(false),
               child: Text(c.completed ? l.backupClose : l.backupCancel),
             ),
-            if (!c.completed)
+            if (!c.completed && summary != null)
+              // Replacing the workspace cannot be undone: the confirming
+              // action carries the error colours (UI-55).
+              AppDangerButton(
+                key: const ValueKey('backup-proceed'),
+                onPressed: c.busy ? null : _restore,
+                child: Text(l.backupReplace),
+              )
+            else if (!c.completed)
               FilledButton(
                 key: const ValueKey('backup-proceed'),
-                onPressed: c.busy
-                    ? null
-                    : summary != null
-                    ? _restore
-                    : _start,
-                child: Text(
-                  summary != null
-                      ? l.backupReplace
-                      : widget.importing
-                      ? l.backupSelect
-                      : l.backupExport,
-                ),
+                onPressed: c.busy ? null : _start,
+                child: Text(widget.importing ? l.backupSelect : l.backupExport),
               ),
           ],
         ),

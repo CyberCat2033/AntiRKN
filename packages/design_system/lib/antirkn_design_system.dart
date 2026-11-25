@@ -154,10 +154,30 @@ class _AppPageSwitchState extends State<AppPageSwitch>
     with TickerProviderStateMixin {
   final primaryAnimations = <AnimationController>[];
   final secondaryAnimations = <AnimationController>[];
+
+  /// The transition wrapping a page changes type (shared axis or fade
+  /// through) with the kind of navigation and with reduced motion. A global
+  /// key moves the page subtree into the new wrapper instead of remounting
+  /// it, so drafts, scroll positions and focus survive every transition.
+  /// A child with its own key keeps its page even when its position changes.
+  final pageKeys = <GlobalKey>[];
+  final keyedPages = <Key, GlobalKey>{};
+  GlobalKey pageKey(int i) {
+    final key = widget.children[i].key;
+    if (key == null) return pageKeys[i];
+    return keyedPages.putIfAbsent(
+      key,
+      () => GlobalKey(debugLabel: 'AppPageSwitch page $key'),
+    );
+  }
+
   void ensureAnimations() {
     while (primaryAnimations.length < widget.children.length) {
       primaryAnimations.add(AnimationController(vsync: this, value: 1));
       secondaryAnimations.add(AnimationController(vsync: this));
+    }
+    while (pageKeys.length < widget.children.length) {
+      pageKeys.add(GlobalKey(debugLabel: 'AppPageSwitch page'));
     }
   }
 
@@ -198,7 +218,19 @@ class _AppPageSwitchState extends State<AppPageSwitch>
   void didUpdateWidget(AppPageSwitch oldWidget) {
     super.didUpdateWidget(oldWidget);
     updateDuration();
+    // Pages can disappear (a settings destination turned off): never animate
+    // from or keep painting a page that no longer exists.
+    if (previous != null && previous! >= widget.children.length) {
+      previous = null;
+    }
     if (oldWidget.index == widget.index) return;
+    if (oldWidget.index >= widget.children.length) {
+      previous = null;
+      primaryAnimations[widget.index].value = 1;
+      secondaryAnimations[widget.index].value = 0;
+      animation.value = 1;
+      return;
+    }
     hierarchical = widget.depth != null && widget.depth != oldWidget.depth;
     opening = (widget.depth ?? 0) > (oldWidget.depth ?? 0);
     // A quick Back reverses the current reveal at exactly the same position.
@@ -254,8 +286,10 @@ class _AppPageSwitchState extends State<AppPageSwitch>
         hierarchical &&
         AppMotion.duration(context, widget.motion) == AppMotion.standard;
     final foreground = opening ? widget.index : previous;
-    // Stable keys retain drafts when paint order changes. Each transition
-    // caches its expensive page subtree instead of rebuilding it per frame.
+    final fill = Theme.of(context).scaffoldBackgroundColor;
+    Widget page(int i) =>
+        RepaintBoundary(key: pageKey(i), child: widget.children[i]);
+    // Stable keys retain drafts when paint order changes.
     final layers = <Widget>[
       for (var i = 0; i < widget.children.length; i++)
         Offstage(
@@ -271,31 +305,22 @@ class _AppPageSwitchState extends State<AppPageSwitch>
                   ignoring: !active || i != widget.index,
                   child: TickerMode(
                     enabled: active && i == widget.index,
-                    child: AnimatedBuilder(
-                      animation: animation,
-                      child: RepaintBoundary(child: widget.children[i]),
-                      builder: (context, child) {
-                        final primary = primaryAnimations[i];
-                        final secondary = secondaryAnimations[i];
-                        if (spatial) {
-                          return SharedAxisTransition(
-                            animation: primary,
-                            secondaryAnimation: secondary,
+                    // The transitions listen to their own animations; the
+                    // page subtree itself is not rebuilt per frame.
+                    child: spatial
+                        ? SharedAxisTransition(
+                            animation: primaryAnimations[i],
+                            secondaryAnimation: secondaryAnimations[i],
                             transitionType: SharedAxisTransitionType.scaled,
-                            fillColor: Theme.of(
-                              context,
-                            ).scaffoldBackgroundColor,
-                            child: child!,
-                          );
-                        }
-                        return FadeThroughTransition(
-                          animation: primary,
-                          secondaryAnimation: secondary,
-                          fillColor: Theme.of(context).scaffoldBackgroundColor,
-                          child: child!,
-                        );
-                      },
-                    ),
+                            fillColor: fill,
+                            child: page(i),
+                          )
+                        : FadeThroughTransition(
+                            animation: primaryAnimations[i],
+                            secondaryAnimation: secondaryAnimations[i],
+                            fillColor: fill,
+                            child: page(i),
+                          ),
                   ),
                 ),
               ),
@@ -318,12 +343,16 @@ class _AppPageSwitchState extends State<AppPageSwitch>
 }
 
 /// Titles stay still so a second animation never competes with the page.
-class AppAnimatedTitle extends StatelessWidget {
-  const AppAnimatedTitle(this.title, {super.key});
+/// A page's own title row text: a heading for screen readers. It does not
+/// animate apart from its page (UI-73, UI-74).
+class AppPageTitle extends StatelessWidget {
+  const AppPageTitle(this.title, {super.key});
   final String title;
   @override
-  Widget build(BuildContext context) =>
-      Text(title, style: Theme.of(context).textTheme.headlineSmall);
+  Widget build(BuildContext context) => Semantics(
+    header: true,
+    child: Text(title, style: Theme.of(context).textTheme.headlineSmall),
+  );
 }
 
 /// Stable catalogue rows animate insertion and removal without losing gestures.
@@ -332,9 +361,19 @@ class AppAnimatedCollection extends StatefulWidget {
     required this.items,
     this.motion = MotionPreference.system,
     super.key,
-  });
+  }) : sliver = false;
+
+  /// The lazy form for long lists inside a [CustomScrollView]: a sliver on a
+  /// filled card surface whose rows are built only as they scroll into view,
+  /// with the same insertion and removal motion (UI-31).
+  const AppAnimatedCollection.sliver({
+    required this.items,
+    this.motion = MotionPreference.system,
+    super.key,
+  }) : sliver = true;
   final Map<String, Widget> items;
   final MotionPreference motion;
+  final bool sliver;
   @override
   State<AppAnimatedCollection> createState() => _AppAnimatedCollectionState();
 }
@@ -401,61 +440,80 @@ class _AppAnimatedCollectionState extends State<AppAnimatedCollection>
         order.insert(i < order.length ? i : order.length, previous[i]);
       }
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final id in order)
-          SizeTransition(
-            key: ValueKey(id),
-            sizeFactor: animations[id]!.drive(
-              CurveTween(curve: AppMotion.curve),
-            ),
-            axisAlignment: -1,
-            child: FadeTransition(
-              opacity: animations[id]!,
-              child: IgnorePointer(
-                ignoring: !widget.items.containsKey(id),
-                child: ExcludeSemantics(
-                  excluding: !widget.items.containsKey(id),
-                  child: RepaintBoundary(child: rows[id]!),
-                ),
-              ),
-            ),
+    Widget row(String id, {Key? key}) => SizeTransition(
+      key: key,
+      sizeFactor: animations[id]!.drive(CurveTween(curve: AppMotion.curve)),
+      axisAlignment: -1,
+      child: FadeTransition(
+        opacity: animations[id]!,
+        child: IgnorePointer(
+          ignoring: !widget.items.containsKey(id),
+          child: ExcludeSemantics(
+            excluding: !widget.items.containsKey(id),
+            child: RepaintBoundary(child: rows[id]!),
           ),
-      ],
+        ),
+      ),
+    );
+    if (!widget.sliver) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [for (final id in order) row(id, key: ValueKey(id))],
+      );
+    }
+    final card = Theme.of(context).cardTheme;
+    final shape =
+        card.shape ??
+        const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(AppLayout.radius)),
+        );
+    // The rows' clip follows the card's own corners.
+    final radius = shape is RoundedRectangleBorder
+        ? shape.borderRadius.resolve(Directionality.of(context)).topLeft
+        : const Radius.circular(AppLayout.radius);
+    final index = {for (var i = 0; i < order.length; i++) order[i]: i};
+    return DecoratedSliver(
+      decoration: ShapeDecoration(
+        color: card.color ?? Theme.of(context).colorScheme.surfaceContainerLow,
+        shape: shape,
+      ),
+      sliver: SliverList.builder(
+        itemCount: order.length,
+        findChildIndexCallback: (key) =>
+            key is ValueKey<String> ? index[key.value] : null,
+        // A sliver is not clipped by its card: the first and last rows follow
+        // its corners so ink and selection stay inside (one widget type for
+        // every row keeps their state when the ends change).
+        itemBuilder: (context, i) => ClipRRect(
+          key: ValueKey(order[i]),
+          borderRadius: BorderRadius.vertical(
+            top: i == 0 ? radius : Radius.zero,
+            bottom: i == order.length - 1 ? radius : Radius.zero,
+          ),
+          clipBehavior: i == 0 || i == order.length - 1
+              ? Clip.antiAlias
+              : Clip.none,
+          child: row(order[i]),
+        ),
+      ),
     );
   }
 }
 
 /// Named settings groups with a visible boundary, without nested disclosures.
 class AppSettingsSection extends StatelessWidget {
-  const AppSettingsSection({
-    required this.title,
-    required this.child,
-    super.key,
-  });
-  final String title;
+  const AppSettingsSection({this.title, required this.child, super.key});
+
+  /// Null when the section is the page's only one: the page title already
+  /// names it.
+  final String? title;
   final Widget child;
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 24),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(6, 8, 6, 12),
-          child: Text(
-            title.toUpperCase(),
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: Theme.of(context).colorScheme.primary,
-              letterSpacing: 1,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        Card.filled(clipBehavior: Clip.antiAlias, child: child),
-      ],
-    ),
+  Widget build(BuildContext context) => _CardSection(
+    heading: title == null
+        ? null
+        : AppSectionHeading(title: title!, subheader: true),
+    child: child,
   );
 }
 
@@ -503,7 +561,25 @@ abstract final class AppTheme {
     );
   }
 
+  /// Themes already built, by brightness and dynamic scheme. ThemeData holds
+  /// closures without value equality: a new instance on every app rebuild
+  /// (language, settings error, dynamic color) made MaterialApp animate the
+  /// whole theme each time.
+  static final _themes = <(Brightness, ColorScheme?), ThemeData>{};
+
   static ThemeData create(Brightness brightness, {ColorScheme? dynamicScheme}) {
+    final key = (brightness, dynamicScheme);
+    final cached = _themes[key];
+    if (cached != null) return cached;
+    // Dynamic color changes rarely; keep the cache from growing without end.
+    if (_themes.length >= 8) _themes.clear();
+    return _themes[key] = _create(brightness, dynamicScheme: dynamicScheme);
+  }
+
+  static ThemeData _create(
+    Brightness brightness, {
+    ColorScheme? dynamicScheme,
+  }) {
     final dark = brightness == Brightness.dark;
     final colors =
         (dynamicScheme == null
@@ -527,45 +603,21 @@ abstract final class AppTheme {
           outline: Color(dark ? 0xffa48b8f : 0xff8c7377),
           outlineVariant: Color(dark ? 0xff493638 : 0xffddc8ca),
         );
-    final typography = ThemeData(brightness: brightness).textTheme
-        .apply(bodyColor: colors.onSurface, displayColor: colors.onSurface)
-        .copyWith(
-          headlineSmall: TextStyle(
-            fontSize: 25,
-            height: 1.25,
-            fontWeight: FontWeight.w500,
-            letterSpacing: -.6,
-            color: colors.onSurface,
-          ),
-          titleLarge: TextStyle(
-            fontSize: 19,
-            height: 1.3,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -.3,
-            color: colors.onSurface,
-          ),
-          titleMedium: TextStyle(
-            fontSize: 16,
-            height: 1.35,
-            fontWeight: FontWeight.w500,
-            color: colors.onSurface,
-          ),
-          bodyMedium: TextStyle(
-            fontSize: 13,
-            height: 1.5,
-            color: colors.onSurfaceVariant,
-          ),
-          bodySmall: TextStyle(
-            fontSize: 12,
-            height: 1.4,
-            color: colors.onSurfaceVariant,
-          ),
-          labelLarge: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: colors.onSurface,
-          ),
-        );
+    // The M3 type scale: sizes, line heights and tracking stay the
+    // baseline's; only a few weights change. Body text is onSurface; a
+    // secondary colour is set where text is secondary (UI-56).
+    // ThemeData.textTheme carries no sizes until Theme.of localizes it; the
+    // component themes below read [typography] directly, so it is merged
+    // with the M3 (2021) geometry here.
+    final base = Typography.englishLike2021
+        .merge(ThemeData(brightness: brightness).textTheme)
+        .apply(bodyColor: colors.onSurface, displayColor: colors.onSurface);
+    final typography = base.copyWith(
+      headlineSmall: base.headlineSmall?.copyWith(fontWeight: FontWeight.w500),
+      titleLarge: base.titleLarge?.copyWith(fontWeight: FontWeight.w500),
+      bodySmall: base.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+      labelLarge: base.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+    );
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(AppLayout.radius),
     );
@@ -586,7 +638,6 @@ abstract final class AppTheme {
           horizontal: 16,
           vertical: 16,
         ),
-        labelStyle: typography.bodyMedium,
       ),
       appBarTheme: AppBarTheme(
         backgroundColor: colors.surfaceContainerLowest,
@@ -607,7 +658,9 @@ abstract final class AppTheme {
       listTileTheme: ListTileThemeData(
         enableFeedback: false,
         titleTextStyle: typography.titleMedium,
-        subtitleTextStyle: typography.bodyMedium,
+        subtitleTextStyle: typography.bodyMedium?.copyWith(
+          color: colors.onSurfaceVariant,
+        ),
         iconColor: colors.onSurfaceVariant,
         minVerticalPadding: 14,
         contentPadding: const EdgeInsets.symmetric(horizontal: 17, vertical: 2),
@@ -643,8 +696,7 @@ abstract final class AppTheme {
         surfaceTintColor: Colors.transparent,
         indicatorColor: colors.secondaryContainer,
         labelTextStyle: WidgetStateProperty.resolveWith(
-          (states) => TextStyle(
-            fontSize: 12,
+          (states) => typography.labelMedium?.copyWith(
             fontWeight: states.contains(WidgetState.selected)
                 ? FontWeight.w600
                 : FontWeight.w400,
@@ -680,6 +732,7 @@ abstract final class AppTheme {
   }
 }
 
+/// A status with its icon; the same pill as [AppBadge] (UI-53).
 class StatusChip extends StatelessWidget {
   const StatusChip({
     required this.label,
@@ -692,61 +745,49 @@ class StatusChip extends StatelessWidget {
   final bool error;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: error ? colors.errorContainer : colors.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(30),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            size: 15,
-            color: error ? colors.onErrorContainer : colors.primary,
-          ),
-          const SizedBox(width: 5),
-          Flexible(
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: error
-                    ? colors.onErrorContainer
-                    : colors.onSurfaceVariant,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      AppBadge(label: label, icon: icon, error: error);
 }
 
+/// A titled card with padded content. Shares its layout with
+/// [AppSettingsSection], which holds edge-to-edge rows (UI-53).
 class SectionCard extends StatelessWidget {
   const SectionCard({
     required this.title,
     required this.child,
     this.trailing,
-    this.uppercase = false,
+    this.subheader = false,
     super.key,
   });
   final String title;
   final Widget child;
   final Widget? trailing;
-  final bool uppercase;
+
+  /// A list-style subheader instead of a page-level section title.
+  final bool subheader;
+  @override
+  Widget build(BuildContext context) => _CardSection(
+    heading: AppSectionHeading(
+      title: title,
+      action: trailing,
+      subheader: subheader,
+    ),
+    child: Padding(padding: const EdgeInsets.all(18), child: child),
+  );
+}
+
+class _CardSection extends StatelessWidget {
+  const _CardSection({required this.heading, required this.child});
+  final Widget? heading;
+  final Widget child;
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 24),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AppSectionHeading(title: title, action: trailing, uppercase: uppercase),
-        Card.filled(
-          child: Padding(padding: const EdgeInsets.all(18), child: child),
-        ),
+        ?heading,
+        Card.filled(clipBehavior: Clip.antiAlias, child: child),
       ],
     ),
   );
@@ -761,6 +802,7 @@ class SummaryCard extends StatelessWidget {
     this.action,
     this.onTap,
     this.selected = false,
+    this.embedded = false,
     super.key,
   });
   final String title;
@@ -768,109 +810,80 @@ class SummaryCard extends StatelessWidget {
   final Widget? leading, action;
   final VoidCallback? onTap;
   final bool selected;
-  @override
-  Widget build(BuildContext context) => Card.filled(
-    color: selected ? Theme.of(context).colorScheme.secondaryContainer : null,
-    clipBehavior: Clip.antiAlias,
-    child: InkWell(
-      borderRadius: BorderRadius.circular(AppLayout.radius),
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.all(AppLayout.gap),
-        child: LayoutBuilder(
-          builder: (context, size) {
-            final stacked =
-                size.maxWidth < 480 ||
-                MediaQuery.textScalerOf(context).scale(14) > 21;
-            final summary = Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                DefaultTextStyle.merge(
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                  child: subtitle,
-                ),
-              ],
-            );
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    if (leading != null) ...[
-                      leading!,
-                      const SizedBox(width: AppLayout.gap),
-                    ],
-                    Expanded(child: summary),
-                    if (!stacked && action != null) ...[
-                      const SizedBox(width: AppLayout.gap),
-                      action!,
-                    ],
-                  ],
-                ),
-                if (stacked && action != null)
-                  Align(
-                    alignment: AlignmentDirectional.centerEnd,
-                    child: action!,
-                  ),
-              ],
-            );
-          },
-        ),
-      ),
-    ),
-  );
-}
 
-/// A section heading whose actions move below the title on narrow layouts.
-class ContentSection extends StatelessWidget {
-  const ContentSection({
-    required this.title,
-    required this.child,
-    this.actions,
-    super.key,
-  });
-  final String title;
-  final Widget child;
-  final Widget? actions;
-
+  /// A row inside a section card: no card of its own, so there is no card
+  /// in a card (UI-58).
+  final bool embedded;
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      LayoutBuilder(
-        builder: (context, constraints) {
-          final titleWidget = Text(
-            title,
-            style: Theme.of(context).textTheme.titleLarge,
-          );
-          if (constraints.maxWidth < 280 ||
-              MediaQuery.textScalerOf(context).scale(14) > 21) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [titleWidget, ?actions],
-            );
-          }
-          return Row(
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    if (embedded) {
+      return Material(
+        color: selected ? colors.secondaryContainer : Colors.transparent,
+        child: _content(context),
+      );
+    }
+    return Card.filled(
+      color: selected ? colors.secondaryContainer : null,
+      clipBehavior: Clip.antiAlias,
+      child: _content(context),
+    );
+  }
+
+  Widget _content(BuildContext context) => InkWell(
+    onTap: onTap,
+    child: Padding(
+      padding: const EdgeInsets.all(AppLayout.gap),
+      child: LayoutBuilder(
+        builder: (context, size) {
+          final stacked =
+              size.maxWidth < 480 ||
+              MediaQuery.textScalerOf(context).scale(14) > 21;
+          final summary = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(child: titleWidget),
-              ?actions,
+              Text(
+                title,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 4),
+              DefaultTextStyle.merge(
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+                child: subtitle,
+              ),
+            ],
+          );
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  if (leading != null) ...[
+                    leading!,
+                    const SizedBox(width: AppLayout.gap),
+                  ],
+                  Expanded(child: summary),
+                  if (!stacked && action != null) ...[
+                    const SizedBox(width: AppLayout.gap),
+                    action!,
+                  ],
+                ],
+              ),
+              if (stacked && action != null)
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: action!,
+                ),
             ],
           );
         },
       ),
-      const SizedBox(height: AppLayout.smallGap),
-      child,
-    ],
+    ),
   );
 }
 
@@ -879,8 +892,8 @@ class ResourceTile extends StatelessWidget {
   const ResourceTile({
     required this.title,
     required this.subtitle,
-    required this.details,
     required this.storageId,
+    this.details = const [],
     this.actions,
     this.footer,
     this.badge,
@@ -888,6 +901,10 @@ class ResourceTile extends StatelessWidget {
     this.detailsLabel,
     this.onBadgeTap,
     this.badgeBusy = false,
+    this.switchValue,
+    this.selected = false,
+    this.selecting = false,
+    this.onTap,
     super.key,
   });
   final String title, subtitle, storageId;
@@ -896,80 +913,124 @@ class ResourceTile extends StatelessWidget {
   final String? badge, note, detailsLabel;
   final VoidCallback? onBadgeTap;
   final bool badgeBusy;
+
+  /// When set, [badge] labels a switch with this value and [onBadgeTap]
+  /// flips it: a state is shown as a switch, not as a button that reads
+  /// like its state (UI-59).
+  final bool? switchValue;
+
+  /// Selection is drawn by the card itself, with its ripple on top: a
+  /// highlight under the opaque card was invisible (UI-58).
+  final bool selected;
+
+  /// In selection mode the whole card toggles; its own controls do not
+  /// take the tap.
+  final bool selecting;
+  final VoidCallback? onTap;
   @override
   Widget build(BuildContext context) => Card.filled(
-    child: Padding(
-      padding: const EdgeInsets.all(17),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    if (subtitle.isNotEmpty) ...[
-                      const SizedBox(height: 5),
-                      Text(subtitle),
-                    ],
-                  ],
-                ),
-              ),
-              ?actions,
-            ],
-          ),
-          if (details.isNotEmpty || badge != null || note != null) ...[
-            const SizedBox(height: 12),
-            const Divider(),
-            const SizedBox(height: 8),
-            Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                if (note != null)
-                  Text(note!, style: Theme.of(context).textTheme.bodySmall),
-                if (badge != null)
-                  onBadgeTap == null && !badgeBusy
-                      ? AppBadge(label: badge!)
-                      : FilledButton.tonal(
-                          onPressed: badgeBusy ? null : onBadgeTap,
-                          child: badgeBusy
-                              ? const SizedBox.square(
-                                  dimension: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : Text(badge!),
-                        ),
-                if (details.isNotEmpty)
-                  TextButton.icon(
-                    key: ValueKey('resource-details-$storageId'),
-                    onPressed: () {
-                      showAppDetails(context, title: title, children: details);
-                    },
-                    icon: const Icon(Icons.chevron_right, size: 18),
-                    label: Text(
-                      detailsLabel ??
-                          MaterialLocalizations.of(context).moreButtonTooltip,
+    color: selected ? Theme.of(context).colorScheme.secondaryContainer : null,
+    child: InkWell(
+      onTap: onTap,
+      child: AbsorbPointer(absorbing: selecting, child: _body(context)),
+    ),
+  );
+
+  Widget _body(BuildContext context) => Padding(
+    padding: const EdgeInsets.all(AppLayout.gap),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-              ],
+                  if (subtitle.isNotEmpty) ...[
+                    const SizedBox(height: 5),
+                    Text(subtitle),
+                  ],
+                ],
+              ),
             ),
+            ?actions,
           ],
-          ?footer,
+        ),
+        if (details.isNotEmpty || badge != null || note != null) ...[
+          const SizedBox(height: 12),
+          const Divider(),
+          const SizedBox(height: 8),
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              if (note != null)
+                Text(note!, style: Theme.of(context).textTheme.bodySmall),
+              if (badge != null)
+                switchValue != null
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            badge!,
+                            style: Theme.of(context).textTheme.labelLarge,
+                          ),
+                          const SizedBox(width: AppLayout.smallGap),
+                          if (badgeBusy)
+                            const SizedBox.square(
+                              dimension: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          else
+                            Switch(
+                              key: ValueKey('resource-switch-$storageId'),
+                              value: switchValue!,
+                              onChanged: onBadgeTap == null
+                                  ? null
+                                  : (_) => onBadgeTap!(),
+                            ),
+                        ],
+                      )
+                    : onBadgeTap == null && !badgeBusy
+                    ? AppBadge(label: badge!)
+                    : FilledButton.tonal(
+                        onPressed: badgeBusy ? null : onBadgeTap,
+                        child: badgeBusy
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(badge!),
+                      ),
+              if (details.isNotEmpty)
+                TextButton.icon(
+                  key: ValueKey('resource-details-$storageId'),
+                  onPressed: () {
+                    showAppDetails(context, title: title, children: details);
+                  },
+                  icon: const Icon(Icons.chevron_right, size: 18),
+                  label: Text(
+                    detailsLabel ??
+                        MaterialLocalizations.of(context).moreButtonTooltip,
+                  ),
+                ),
+            ],
+          ),
         ],
-      ),
+        ?footer,
+      ],
     ),
   );
 }
@@ -1147,13 +1208,16 @@ class AppSectionHeading extends StatelessWidget {
     required this.title,
     this.count,
     this.action,
-    this.uppercase = false,
+    this.subheader = false,
     super.key,
   });
   final String title;
   final int? count;
   final Widget? action;
-  final bool uppercase;
+
+  /// The M3 list subheader (titleSmall in primary, sentence case) instead of
+  /// a section title. One style for every subheader; no upper case (UI-53).
+  final bool subheader;
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.fromLTRB(4, 8, 4, 12),
@@ -1161,12 +1225,10 @@ class AppSectionHeading extends StatelessWidget {
       children: [
         Expanded(
           child: Text(
-            uppercase ? title.toUpperCase() : title,
-            style: uppercase
-                ? Theme.of(context).textTheme.labelSmall?.copyWith(
+            title,
+            style: subheader
+                ? Theme.of(context).textTheme.titleSmall?.copyWith(
                     color: Theme.of(context).colorScheme.primary,
-                    letterSpacing: 1.2,
-                    fontWeight: FontWeight.w700,
                   )
                 : Theme.of(context).textTheme.titleLarge,
           ),
@@ -1178,27 +1240,52 @@ class AppSectionHeading extends StatelessWidget {
   );
 }
 
+/// A small non-interactive label: a count, a state, a status with icon.
 class AppBadge extends StatelessWidget {
-  const AppBadge({required this.label, this.icon, super.key});
+  const AppBadge({
+    required this.label,
+    this.icon,
+    this.error = false,
+    super.key,
+  });
   final String label;
   final IconData? icon;
+  final bool error;
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surfaceContainerHigh,
-      borderRadius: BorderRadius.circular(9),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (icon != null) ...[Icon(icon, size: 14), const SizedBox(width: 5)],
-        Flexible(
-          child: Text(label, style: Theme.of(context).textTheme.bodySmall),
-        ),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final foreground = error
+        ? colors.onErrorContainer
+        : colors.onSurfaceVariant;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: error ? colors.errorContainer : colors.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(
+              icon,
+              size: 16,
+              color: error ? colors.onErrorContainer : colors.primary,
+            ),
+            const SizedBox(width: 4),
+          ],
+          Flexible(
+            child: Text(
+              label,
+              style: Theme.of(
+                context,
+              ).textTheme.labelMedium?.copyWith(color: foreground),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class AppIconTile extends StatelessWidget {
@@ -1241,7 +1328,13 @@ class AppPageIntro extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.fromLTRB(4, 0, 4, 20),
-    child: Text(text, style: Theme.of(context).textTheme.bodyMedium),
+    // Introductory, supporting text: the secondary role (UI-56).
+    child: Text(
+      text,
+      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+    ),
   );
 }
 
@@ -1272,7 +1365,13 @@ class AppEmptyState extends StatelessWidget {
           ),
           if (message != null) ...[
             const SizedBox(height: 8),
-            Text(message!, textAlign: TextAlign.center),
+            Text(
+              message!,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
           ],
           if (action != null) ...[const SizedBox(height: 20), action!],
         ],
@@ -1284,53 +1383,87 @@ class AppEmptyState extends StatelessWidget {
 class AppNotice extends StatelessWidget {
   const AppNotice({
     required this.message,
+    this.title,
     this.error = false,
     this.icon = Icons.info_outline,
     this.action,
+    this.margin = const EdgeInsets.only(bottom: 12),
+    bool? liveRegion,
     super.key,
-  });
+  }) : liveRegion = liveRegion ?? error;
   final String message;
+
+  /// Optional heading above [message], for notices that recommend an action.
+  final String? title;
   final bool error;
   final IconData icon;
   final Widget? action;
+
+  /// Space around the notice; inline notices in rows and dialogs pass zero.
+  final EdgeInsetsGeometry margin;
+
+  /// Announces the message when it appears. On by default for errors, so a
+  /// failure is not only a colour change.
+  final bool liveRegion;
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: error ? colors.errorContainer : colors.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                error ? Icons.error_outline : icon,
-                size: 21,
-                color: error ? colors.onErrorContainer : colors.primary,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      message,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: error
-                            ? colors.onErrorContainer
-                            : colors.onSurface,
-                      ),
-                    ),
-                    ?action,
-                  ],
+      padding: margin,
+      child: Semantics(
+        container: true,
+        liveRegion: liveRegion,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: error ? colors.errorContainer : colors.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  error ? Icons.error_outline : icon,
+                  size: 21,
+                  color: error ? colors.onErrorContainer : colors.primary,
                 ),
-              ),
-            ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (title case final title?)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Text(
+                            title,
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(
+                                  color: error
+                                      ? colors.onErrorContainer
+                                      : colors.onSurface,
+                                ),
+                          ),
+                        ),
+                      Text(
+                        message,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: error
+                              ? colors.onErrorContainer
+                              : colors.onSurface,
+                        ),
+                      ),
+                      if (action case final action?)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: action,
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1366,9 +1499,16 @@ class AppFormDialog extends StatelessWidget {
             if (title != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
-                child: DefaultTextStyle(
-                  style: Theme.of(context).textTheme.headlineSmall!,
-                  child: title!,
+                // The title names the dialog route for screen readers, as in
+                // AlertDialog (UI-73).
+                child: Semantics(
+                  container: true,
+                  header: true,
+                  namesRoute: true,
+                  child: DefaultTextStyle(
+                    style: Theme.of(context).textTheme.headlineSmall!,
+                    child: title!,
+                  ),
                 ),
               ),
             if (content != null)
@@ -1402,6 +1542,157 @@ class AppFormDialog extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A "more" (⋮) button with a menu of actions, reachable by mouse, touch
+/// and keyboard: the button owns the focus node the menu needs to move focus
+/// into its items with the arrow keys.
+class AppMoreMenu extends StatefulWidget {
+  const AppMoreMenu({
+    required this.tooltip,
+    required this.children,
+    this.buttonKey,
+    super.key,
+  });
+  final String tooltip;
+  final List<Widget> children;
+  final Key? buttonKey;
+  @override
+  State<AppMoreMenu> createState() => _AppMoreMenuState();
+}
+
+class _AppMoreMenuState extends State<AppMoreMenu> {
+  final _focus = FocusNode(debugLabel: 'AppMoreMenu');
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => MenuAnchor(
+    childFocusNode: _focus,
+    menuChildren: widget.children,
+    builder: (context, menu, _) => IconButton(
+      key: widget.buttonKey,
+      focusNode: _focus,
+      tooltip: widget.tooltip,
+      onPressed: () => menu.isOpen ? menu.close() : menu.open(),
+      icon: const Icon(Icons.more_vert),
+    ),
+  );
+}
+
+/// Says why a control is unavailable: a tooltip present only while [reason]
+/// is set, so an enabled control keeps its own tooltip and semantics. The
+/// control keeps its state (e.g. a switch mid-animation) when the reason
+/// comes and goes.
+class AppDisabledReason extends StatefulWidget {
+  const AppDisabledReason({
+    required this.reason,
+    required this.child,
+    super.key,
+  });
+  final String? reason;
+  final Widget child;
+  @override
+  State<AppDisabledReason> createState() => _AppDisabledReasonState();
+}
+
+class _AppDisabledReasonState extends State<AppDisabledReason> {
+  final _child = GlobalKey();
+  @override
+  Widget build(BuildContext context) {
+    final child = KeyedSubtree(key: _child, child: widget.child);
+    return switch (widget.reason) {
+      final reason? => Tooltip(message: reason, child: child),
+      null => child,
+    };
+  }
+}
+
+/// The confirming action of a destructive choice (reset, delete, remove):
+/// a filled button in the error colours of the scheme.
+class AppDangerButton extends StatelessWidget {
+  const AppDangerButton({
+    required this.onPressed,
+    required this.child,
+    this.icon,
+    super.key,
+  }) : _text = false;
+
+  /// The low-emphasis entry to a destructive action, e.g. "Delete" beside
+  /// "Save" in a form: error-coloured text that opens [confirmAppDanger].
+  const AppDangerButton.text({
+    required this.onPressed,
+    required this.child,
+    this.icon,
+    super.key,
+  }) : _text = true;
+  final VoidCallback? onPressed;
+  final Widget child;
+  final Widget? icon;
+  final bool _text;
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    if (_text) {
+      final style = TextButton.styleFrom(foregroundColor: colors.error);
+      return icon == null
+          ? TextButton(onPressed: onPressed, style: style, child: child)
+          : TextButton.icon(
+              onPressed: onPressed,
+              style: style,
+              icon: icon!,
+              label: child,
+            );
+    }
+    final style = FilledButton.styleFrom(
+      backgroundColor: colors.error,
+      foregroundColor: colors.onError,
+    );
+    return icon == null
+        ? FilledButton(onPressed: onPressed, style: style, child: child)
+        : FilledButton.icon(
+            onPressed: onPressed,
+            style: style,
+            icon: icon!,
+            label: child,
+          );
+  }
+}
+
+/// Asks before a destructive action. Resolves to true only when the person
+/// chose [confirmLabel]; dismissing the dialog counts as "no".
+Future<bool> confirmAppDanger(
+  BuildContext context, {
+  required String title,
+  String? message,
+  Widget? content,
+  required String confirmLabel,
+  required String cancelLabel,
+  Key? confirmKey,
+}) async {
+  assert((message == null) != (content == null), 'message or content');
+  return await showDialog<bool>(
+        context: context,
+        builder: (context) => AppFormDialog(
+          title: Text(title),
+          content: content ?? Text(message!),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(cancelLabel),
+            ),
+            AppDangerButton(
+              key: confirmKey,
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(confirmLabel),
+            ),
+          ],
+        ),
+      ) ??
+      false;
 }
 
 Future<void> showAppDetails(
@@ -1580,7 +1871,10 @@ class AppSelectField<T> extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodyLarge?.copyWith(
-                color: onChanged == null ? theme.disabledColor : null,
+                // The M3 disabled role: onSurface at 38 % (UI-68).
+                color: onChanged == null
+                    ? theme.colorScheme.onSurface.withValues(alpha: .38)
+                    : null,
               ),
             ),
           ),

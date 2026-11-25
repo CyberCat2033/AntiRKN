@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
+import '../busy_reason.dart';
 import '../l10n/app_localizations.dart';
 import '../network/network_controller.dart';
 import '../network/server_address_field.dart';
@@ -82,15 +83,13 @@ class _TtPanelState extends State<TtPanel> {
     if (current?.spec.containsKey('adoption') == true) {
       final spec = await editAdoptedResource(context, current!.spec);
       if (spec == null) return;
-      await widget.controller.saveTt(
-        TrustTunnelEndpoint(serverId: widget.serverId, spec: spec),
+      return saveAndApply(
+        widget.controller,
+        target: ttTarget(widget.serverId),
+        save: () => widget.controller.saveTt(
+          TrustTunnelEndpoint(serverId: widget.serverId, spec: spec),
+        ),
       );
-      if (widget.controller.error == null) {
-        await widget.controller.prepareAndApply(
-          serverIds: {ttTarget(widget.serverId)},
-        );
-      }
-      return;
     }
     final spec =
         current?.spec ?? await widget.controller.ttDefaults(widget.serverId);
@@ -111,19 +110,13 @@ class _TtPanelState extends State<TtPanel> {
       ),
     );
     if (value == null) return;
-    await widget.controller.saveTt(value);
-    if (widget.controller.error == null) {
-      if (value.deleted && current != null && !current.deleted) {
-        AppHaptics.deleted();
-      } else if (current == null && !value.deleted) {
-        AppHaptics.added();
-      }
-    }
-    if (widget.controller.error == null) {
-      await widget.controller.prepareAndApply(
-        serverIds: {ttTarget(widget.serverId)},
-      );
-    }
+    await saveAndApply(
+      widget.controller,
+      target: ttTarget(widget.serverId),
+      save: () => widget.controller.saveTt(value),
+      added: current == null && !value.deleted,
+      deleted: value.deleted && current != null && !current.deleted,
+    );
   }
 
   @override
@@ -149,10 +142,13 @@ class _TtPanelState extends State<TtPanel> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           AppPageIntro(l.uiTtIntro),
-          FilledButton.icon(
-            onPressed: c.busy || !c.loaded || r.busy ? null : () => edit(),
-            icon: const Icon(Icons.add),
-            label: Text(l.ttAdd),
+          AppDisabledReason(
+            reason: busyReason(l, vpn: c, runner: r),
+            child: FilledButton.icon(
+              onPressed: !c.canMutate || r.busy ? null : () => edit(),
+              icon: const Icon(Icons.add),
+              label: Text(l.ttAdd),
+            ),
           ),
           ConnectionCheckAll(
             controller: c,
@@ -192,8 +188,8 @@ class _TtPanelState extends State<TtPanel> {
             title: l.uiConnections,
             count: endpoints.length,
             action: IconButton(
-              tooltip: l.awgRefresh,
-              onPressed: c.busy || r.busy
+              tooltip: busyReason(l, vpn: c, runner: r) ?? l.awgRefresh,
+              onPressed: !c.canMutate || r.busy
                   ? null
                   : () async {
                       await c.refreshServer(target);
@@ -229,25 +225,16 @@ class _TtPanelState extends State<TtPanel> {
                               : l.vpnAdopting
                         : null,
                     badge: e.enabled ? l.vpnEnabled : l.vpnDisabled,
-                    detailsLabel: l.componentsDetails,
                     actions: IconButton(
-                      onPressed: c.busy || r.busy ? null : () => edit(e),
+                      onPressed: !c.canMutate || r.busy ? null : () => edit(e),
                       icon: const Icon(Icons.edit_outlined),
-                      tooltip: l.vpnEdit,
+                      tooltip: busyReason(l, vpn: c, runner: r) ?? l.vpnEdit,
                     ),
-                    details: const [],
                   ),
                 ),
+              // Certificate errors and expiry are shown once, in
+              // TtCertificates below (UI-48).
               VpnJobView(showSnapshot: false, controller: c, serverId: target),
-              for (final cert
-                  in (r.ttCertificates?['certificates'] as List? ?? [])
-                      .whereType<Map>()) ...[
-                if (cert['error'] case final String issue)
-                  Text('${cert['domain']}: ${vpnMessage(l, issue)}'),
-                if ((cert['expiresAt'] as num) <
-                    DateTime.now().millisecondsSinceEpoch / 1000 + 21 * 86400)
-                  Text('${cert['domain']}: ${l.ttExpirySoon}'),
-              ],
               const SizedBox(height: 20),
               AppSettingsSection(
                 title: l.ttCertificates,
@@ -295,8 +282,6 @@ class _TtPanelState extends State<TtPanel> {
                         .map((h) => (h as Map)['domain'])
                         .join(', '),
                     note: l.uiPeerCount((item['users'] as List).length),
-                    detailsLabel: l.componentsDetails,
-                    details: const [],
                     actions: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -305,7 +290,7 @@ class _TtPanelState extends State<TtPanel> {
                           tooltip: l.vpnAdopt,
                           icon: const Icon(Icons.people_outline),
                           onPressed:
-                              c.busy ||
+                              !c.canMutate ||
                                   c.hasRunning ||
                                   r.busy ||
                                   r.actionPending
@@ -362,6 +347,26 @@ class _TtPanelState extends State<TtPanel> {
   );
 }
 
+/// Selects the first certificate for a managed endpoint whose certificate is
+/// missing, and fills an empty domain from it. Returns whether [spec] changed.
+/// Call from state changes (initState, a new certificate list), never build.
+bool applyDefaultTtCertificate(
+  Map<String, Object?> spec,
+  Map<String, TextEditingController> fields,
+  List<Map> certificates,
+) {
+  final id = spec['certificateId'] as String? ?? '';
+  if (certificates.isEmpty || certificates.any((c) => c['id'] == id)) {
+    return false;
+  }
+  final first = certificates.first;
+  spec['certificateId'] = first['id'] as String;
+  if (fields['domain']!.text.trim().isEmpty && first['domain'] is String) {
+    fields['domain']!.text = first['domain'] as String;
+  }
+  return true;
+}
+
 /// The listener, outbound and TLS controls are shared by both endpoint editors.
 class TtSettingsEditor extends StatelessWidget {
   const TtSettingsEditor({
@@ -412,13 +417,8 @@ class TtSettingsEditor extends StatelessWidget {
         : (certificates.isNotEmpty && !external
               ? (certificates.first['id'] as String)
               : '');
-    if (effectiveId != id && effectiveId.isNotEmpty) {
-      spec['certificateId'] = effectiveId;
-      final c = certificates.where((c) => c['id'] == effectiveId).firstOrNull;
-      if (c != null && fields['domain']!.text.trim().isEmpty) {
-        fields['domain']!.text = c['domain'] as String;
-      }
-    }
+    // The owner stores this default with [applyDefaultTtCertificate]; build
+    // only displays it.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -579,17 +579,27 @@ class _ManagedTtState extends State<ManagedTtDialog> {
   bool invalid = false, rotate = false;
   String? pendingCertificateId;
   bool certificateDialogOpen = false;
+  String? _certificatesSignature;
+  List<Map> get _certificates =>
+      (widget.runner.ttCertificates?['certificates'] as List? ?? [])
+          .whereType<Map>()
+          .toList();
+
   @override
   void initState() {
     super.initState();
+    _certificatesSignature = canonicalJson(_certificates);
+    applyDefaultTtCertificate(spec, fields, _certificates);
     widget.runner.addListener(certificateChanged);
   }
 
+  /// The dialog shows runner state (busy, job progress), so it rebuilds on
+  /// every runner event; the certificate default is reconsidered only when
+  /// the certificate list itself changed.
   void certificateChanged() {
     if (!mounted) return;
-    final certificates =
-        (widget.runner.ttCertificates?['certificates'] as List? ?? [])
-            .whereType<Map>();
+    final certificates = _certificates;
+    final signature = canonicalJson(certificates);
     final certificate = certificates
         .where((c) => c['id'] == pendingCertificateId)
         .firstOrNull;
@@ -600,6 +610,10 @@ class _ManagedTtState extends State<ManagedTtDialog> {
           spec['certificateId'] = certificate['id'];
         }
         pendingCertificateId = null;
+      }
+      if (signature != _certificatesSignature) {
+        _certificatesSignature = signature;
+        applyDefaultTtCertificate(spec, fields, certificates);
       }
     });
   }
@@ -700,21 +714,8 @@ class _ManagedTtState extends State<ManagedTtDialog> {
               SwitchListTile(
                 title: Text(l.vpnEnabled),
                 value: spec['enabled'] as bool,
-                onChanged: (v) => setState(() {
-                  spec['enabled'] = v;
-                  if (v) spec['deleted'] = false;
-                }),
+                onChanged: (v) => setState(() => spec['enabled'] = v),
               ),
-              if (widget.existing)
-                CheckboxListTile(
-                  key: const ValueKey('tt-delete'),
-                  title: Text(l.vpnDeleteHelp),
-                  value: spec['deleted'] == true,
-                  onChanged: (v) => setState(() {
-                    spec['deleted'] = v!;
-                    if (v) spec['enabled'] = false;
-                  }),
-                ),
               OutlinedButton.icon(
                 key: const ValueKey('tt-regenerate-passwords'),
                 onPressed: () => setState(() => rotate = true),
@@ -722,15 +723,50 @@ class _ManagedTtState extends State<ManagedTtDialog> {
                 label: Text(l.ttRegeneratePasswords),
               ),
               Text(rotate ? l.ttPasswordsRegenerated : l.ttPasswordsAutomatic),
-              if (invalid) Text(l.vpnInvalid),
+              if (invalid)
+                AppNotice(
+                  message: l.vpnInvalid,
+                  error: true,
+                  margin: const EdgeInsets.only(top: 12),
+                ),
             ],
           ),
         ),
       ),
       actions: [
+        // Deleting is its own confirmed action, not a form field (UI-54).
+        if (widget.existing)
+          AppDangerButton.text(
+            key: const ValueKey('tt-delete'),
+            onPressed: certificateDialogOpen
+                ? null
+                : () async {
+                    final confirmed = await confirmAppDanger(
+                      context,
+                      title: l.ttDelete,
+                      message: l.ttDeleteHelp,
+                      confirmLabel: l.vpnDelete,
+                      cancelLabel: l.sshCancel,
+                      confirmKey: const ValueKey('tt-delete-confirm'),
+                    );
+                    if (!confirmed || !context.mounted) return;
+                    Navigator.pop(
+                      context,
+                      TrustTunnelEndpoint(
+                        serverId: widget.serverId,
+                        spec: {
+                          ...widget.spec,
+                          'deleted': true,
+                          'enabled': false,
+                        },
+                      ),
+                    );
+                  },
+            child: Text(l.vpnDelete),
+          ),
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text(l.runnerNotNow),
+          child: Text(l.sshCancel),
         ),
         FilledButton(
           onPressed: certificateDialogOpen || widget.runner.busy

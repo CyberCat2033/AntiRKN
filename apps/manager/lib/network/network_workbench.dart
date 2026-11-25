@@ -16,14 +16,12 @@ class NetworkWorkbench extends StatefulWidget {
     required this.controller,
     required this.motion,
     this.ssh,
-    this.protocols,
     this.diagnosticsOnly = false,
     super.key,
   });
   final NetworkController controller;
   final MotionPreference motion;
   final SshController? ssh;
-  final Widget? protocols;
   final bool diagnosticsOnly;
 
   @override
@@ -36,7 +34,6 @@ class _NetworkWorkbenchState extends State<NetworkWorkbench> {
   NetworkController get controller => widget.controller;
   MotionPreference get motion => widget.motion;
   SshController? get ssh => widget.ssh;
-  Widget? get protocols => widget.protocols;
   bool get diagnosticsOnly => widget.diagnosticsOnly;
   @override
   void initState() {
@@ -100,10 +97,6 @@ class _NetworkWorkbenchState extends State<NetworkWorkbench> {
             if (ssh!.hasSavedProfile) ...[
               RunnerPanel(controller: ssh!.runner, motion: motion),
               const SizedBox(height: AppLayout.gap),
-              if (protocols != null) ...[
-                protocols!,
-                const SizedBox(height: AppLayout.gap),
-              ],
             ],
           ],
           if (ssh != null)
@@ -130,10 +123,9 @@ class _NetworkWorkbenchState extends State<NetworkWorkbench> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (ssh == null && !diagnosticsOnly)
-                    Text(l.networkSampleNotice),
+                  if (!diagnosticsOnly) Text(l.networkSampleNotice),
                   const SizedBox(height: AppLayout.gap),
-                  if (ssh == null && !diagnosticsOnly)
+                  if (!diagnosticsOnly)
                     Align(
                       alignment: AlignmentDirectional.centerStart,
                       child: FilledButton(
@@ -148,13 +140,12 @@ class _NetworkWorkbenchState extends State<NetworkWorkbench> {
                         ),
                       ),
                     ),
-                  if (controller.failed) ...[
-                    const SizedBox(height: AppLayout.smallGap),
-                    Semantics(
-                      liveRegion: true,
-                      child: Text(l.networkLoadError),
+                  if (controller.failed)
+                    AppNotice(
+                      message: l.networkLoadError,
+                      error: true,
+                      margin: const EdgeInsets.only(top: AppLayout.smallGap),
                     ),
-                  ],
                   if (inventory == null) ...[
                     const SizedBox(height: AppLayout.gap),
                     Text(l.networkNotLoaded),

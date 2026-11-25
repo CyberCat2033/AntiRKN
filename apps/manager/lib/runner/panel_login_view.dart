@@ -83,6 +83,7 @@ class _PanelLoginViewState extends State<PanelLoginView> {
     username = TextEditingController(text: saved?.username ?? '');
     password = TextEditingController();
   }
+
   @override
   void dispose() {
     username.dispose();
@@ -148,9 +149,13 @@ class _PanelLoginViewState extends State<PanelLoginView> {
               ),
             ),
           ),
-          if (invalid) Text(l.panelLoginRequiredFields),
+          if (invalid)
+            AppNotice(message: l.panelLoginRequiredFields, error: true),
           if (c.responseCode != null && c.responseCode != 'ok')
-            Text(runnerCodeLabel(l, c.responseCode!)),
+            AppNotice(
+              message: runnerCodeLabel(l, c.responseCode!),
+              error: true,
+            ),
           Align(
             alignment: AlignmentDirectional.centerStart,
             child: FilledButton(

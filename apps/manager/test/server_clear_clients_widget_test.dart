@@ -1,5 +1,6 @@
 import 'package:antirkn_manager/l10n/app_localizations.dart';
 import 'package:antirkn_manager/ssh/server_clear_clients_view.dart';
+import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'ssh_support.dart';
@@ -39,12 +40,12 @@ void main() {
         );
         await tester.tap(
           find.descendant(
-            of: find.byType(AlertDialog),
+            of: find.byType(AppFormDialog),
             matching: find.byType(TextButton),
           ),
         );
         await tester.pumpAndSettle();
-        expect(find.byType(AlertDialog), findsNothing);
+        expect(find.byType(AppFormDialog), findsNothing);
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox());
         c.dispose();
@@ -70,7 +71,7 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.byKey(const ValueKey('server-clear-clients-confirm')));
         await tester.pumpAndSettle();
-        expect(find.byType(AlertDialog), findsNothing);
+        expect(find.byType(AppFormDialog), findsNothing);
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox());
         c.dispose();

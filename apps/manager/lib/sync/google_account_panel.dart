@@ -185,7 +185,7 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
                 syncStatusLabel(l, sync),
                 key: const ValueKey('google-sync-status'),
               ),
-              subtitle: Text(account.email),
+              // The account is named once, on the Google Drive row (UI-51).
             ),
             const Divider(indent: 17, endIndent: 17),
             if (sync.divergence != null) SyncDivergenceNotice(sync: sync),
@@ -204,7 +204,7 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
                 : () async {
                     await showDialog<void>(
                       context: context,
-                      builder: (_) => AppFormDialog(
+                      builder: (dialogContext) => AppFormDialog(
                         title: Text(l.uiGoogleDrive),
                         content: GoogleAccountPanel(
                           service: widget.service,
@@ -214,6 +214,13 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
                           beforeAccountChange: widget.beforeAccountChange,
                           afterAccountChange: widget.afterAccountChange,
                         ),
+                        // Every dialog can be closed by a button (UI-65).
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(dialogContext),
+                            child: Text(l.networkClose),
+                          ),
+                        ],
                       ),
                     );
                     if (mounted) await _load();

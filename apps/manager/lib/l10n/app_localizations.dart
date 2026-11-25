@@ -1844,6 +1844,18 @@ abstract class AppLocalizations {
   /// **'Check and retry this request'**
   String get runnerRetry;
 
+  /// No description provided for @runnerReconnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnect runner'**
+  String get runnerReconnect;
+
+  /// No description provided for @runnerResend.
+  ///
+  /// In en, this message translates to:
+  /// **'Send again'**
+  String get runnerResend;
+
   /// No description provided for @runnerConnectionLost.
   ///
   /// In en, this message translates to:
@@ -1873,6 +1885,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Reset job queue'**
   String get runnerResetQueue;
+
+  /// No description provided for @runnerResetQueueTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset the job queue?'**
+  String get runnerResetQueueTitle;
+
+  /// No description provided for @runnerResetQueueHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'All server jobs of this server are cancelled and the queue is cleared. Steps already applied on the server are not undone; check the server state afterwards.'**
+  String get runnerResetQueueHelp;
 
   /// No description provided for @runnerEventsTruncated.
   ///
@@ -2852,6 +2876,12 @@ abstract class AppLocalizations {
   /// **'The operation was not confirmed. Refresh the server status or retry the saved operation.'**
   String get vpnFailed;
 
+  /// No description provided for @vpnBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'Another operation is still running, so this change was not made. Try again when it finishes.'**
+  String get vpnBusy;
+
   /// No description provided for @vpnPortBusy.
   ///
   /// In en, this message translates to:
@@ -3001,6 +3031,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Check for updates'**
   String get updatesCheck;
+
+  /// No description provided for @updatesCheckedRecently.
+  ///
+  /// In en, this message translates to:
+  /// **'Updates were checked moments ago; the result shown is current.'**
+  String get updatesCheckedRecently;
+
+  /// No description provided for @updatesLastChecked.
+  ///
+  /// In en, this message translates to:
+  /// **'Last checked: {time}'**
+  String updatesLastChecked(String time);
 
   /// No description provided for @updatesAutomatic.
   ///
@@ -3499,6 +3541,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Transport settings (JSON)'**
   String get observedTransportJson;
+
+  /// No description provided for @observedTransportInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'The JSON is invalid: it must be an object, with realitySettings and xhttpSettings as objects. Fix it to save or to edit the fields.'**
+  String get observedTransportInvalid;
 
   /// No description provided for @panelUpdateSummary.
   ///
@@ -6230,6 +6278,12 @@ abstract class AppLocalizations {
   /// **'Check all'**
   String get connectionCheckAll;
 
+  /// No description provided for @connectionTargetsFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read the list of connections to check. Refresh the server and try again.'**
+  String get connectionTargetsFailed;
+
   /// No description provided for @connectionStop.
   ///
   /// In en, this message translates to:
@@ -6991,6 +7045,138 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The server is busy with another operation. Issuing becomes available when it finishes.'**
   String get ttIssueWaiting;
+
+  /// No description provided for @vpnDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get vpnDelete;
+
+  /// No description provided for @awgDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete AmneziaWG interface'**
+  String get awgDelete;
+
+  /// No description provided for @awgDeleteHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'The next plan removes this AmneziaWG interface and its client keys on the server. Clients in this app remain.'**
+  String get awgDeleteHelp;
+
+  /// No description provided for @ttDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete TrustTunnel endpoint'**
+  String get ttDelete;
+
+  /// No description provided for @ttDeleteHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'The next plan removes this TrustTunnel endpoint and its client credentials on the server. Clients in this app remain.'**
+  String get ttDeleteHelp;
+
+  /// No description provided for @xrayUpgradeStopTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop the Xray upgrade?'**
+  String get xrayUpgradeStopTitle;
+
+  /// No description provided for @xrayUpgradeStopHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'The server aborts the upgrade and restores the previous core. Connections are checked again.'**
+  String get xrayUpgradeStopHelp;
+
+  /// No description provided for @uiProtocolActions.
+  ///
+  /// In en, this message translates to:
+  /// **'Protocol actions'**
+  String get uiProtocolActions;
+
+  /// No description provided for @uiBusySync.
+  ///
+  /// In en, this message translates to:
+  /// **'Profiles are being synced and published'**
+  String get uiBusySync;
+
+  /// No description provided for @uiBusyChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Wait for the current change to finish'**
+  String get uiBusyChanges;
+
+  /// No description provided for @uiBusyServerOperation.
+  ///
+  /// In en, this message translates to:
+  /// **'The server is running another operation'**
+  String get uiBusyServerOperation;
+
+  /// No description provided for @uiBusyConnecting.
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting to the server'**
+  String get uiBusyConnecting;
+
+  /// No description provided for @uiNeedsConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Not connected to the server'**
+  String get uiNeedsConnection;
+
+  /// No description provided for @uiApply.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply'**
+  String get uiApply;
+
+  /// No description provided for @inboundDeleteReadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The selected inbounds could not be read on the server. Nothing was deleted; try again after refreshing the list.'**
+  String get inboundDeleteReadFailed;
+
+  /// No description provided for @egressCheckedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'TCP and UDP checked · {ms} ms · {date}'**
+  String egressCheckedAt(Object date, Object ms);
+
+  /// No description provided for @egressInbound.
+  ///
+  /// In en, this message translates to:
+  /// **'VLESS inbound'**
+  String get egressInbound;
+
+  /// No description provided for @softwareUpdateAvailableList.
+  ///
+  /// In en, this message translates to:
+  /// **'Update available: {items}'**
+  String softwareUpdateAvailableList(Object items);
+
+  /// No description provided for @inventoryPartialList.
+  ///
+  /// In en, this message translates to:
+  /// **'Some checks were incomplete: {items}'**
+  String inventoryPartialList(Object items);
+
+  /// No description provided for @inventoryVersionUnknownReason.
+  ///
+  /// In en, this message translates to:
+  /// **'Version unknown: {reason}'**
+  String inventoryVersionUnknownReason(Object reason);
+
+  /// No description provided for @xrayUpgradeProblemAfter.
+  ///
+  /// In en, this message translates to:
+  /// **'{reason} The check did not finish. Review the connection results and retry when connectivity is restored.'**
+  String xrayUpgradeProblemAfter(Object reason);
+
+  /// No description provided for @uiClientAccessFor.
+  ///
+  /// In en, this message translates to:
+  /// **'Access for {name}'**
+  String uiClientAccessFor(Object name);
 }
 
 class _AppLocalizationsDelegate

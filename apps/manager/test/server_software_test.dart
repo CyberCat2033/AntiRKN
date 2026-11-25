@@ -368,6 +368,11 @@ void main() {
       await tester.ensureVisible(save);
       await tester.tap(save);
       await tester.pumpAndSettle();
+      // Two steps (UI-61): the plan is shown first and nothing is submitted.
+      expect(remote.submissions, 0);
+      await tester.ensureVisible(save);
+      await tester.tap(save);
+      await tester.pumpAndSettle();
       expect(remote.submissions, 1);
       final planned =
           remote.requests

@@ -996,6 +996,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get runnerRetry => 'Check and retry this request';
 
   @override
+  String get runnerReconnect => 'Reconnect runner';
+
+  @override
+  String get runnerResend => 'Send again';
+
+  @override
   String get runnerConnectionLost =>
       'Connection lost. The server job may still be running. Reconnect to retrieve its result.';
 
@@ -1012,6 +1018,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get runnerResetQueue => 'Reset job queue';
+
+  @override
+  String get runnerResetQueueTitle => 'Reset the job queue?';
+
+  @override
+  String get runnerResetQueueHelp =>
+      'All server jobs of this server are cancelled and the queue is cleared. Steps already applied on the server are not undone; check the server state afterwards.';
 
   @override
   String get runnerEventsTruncated =>
@@ -1579,6 +1592,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'The operation was not confirmed. Refresh the server status or retry the saved operation.';
 
   @override
+  String get vpnBusy =>
+      'Another operation is still running, so this change was not made. Try again when it finishes.';
+
+  @override
   String get vpnPortBusy =>
       'The listen address or port is unavailable or conflicts with another inbound.';
 
@@ -1662,6 +1679,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get updatesCheck => 'Check for updates';
+
+  @override
+  String get updatesCheckedRecently =>
+      'Updates were checked moments ago; the result shown is current.';
+
+  @override
+  String updatesLastChecked(String time) {
+    return 'Last checked: $time';
+  }
 
   @override
   String get updatesAutomatic => 'Check for new versions';
@@ -1957,6 +1983,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get observedTransportJson => 'Transport settings (JSON)';
+
+  @override
+  String get observedTransportInvalid =>
+      'The JSON is invalid: it must be an object, with realitySettings and xhttpSettings as objects. Fix it to save or to edit the fields.';
 
   @override
   String get panelUpdateSummary =>
@@ -3516,6 +3546,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get connectionCheckAll => 'Check all';
 
   @override
+  String get connectionTargetsFailed =>
+      'Could not read the list of connections to check. Refresh the server and try again.';
+
+  @override
   String get connectionStop => 'Stop check';
 
   @override
@@ -3980,4 +4014,86 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get ttIssueWaiting =>
       'The server is busy with another operation. Issuing becomes available when it finishes.';
+
+  @override
+  String get vpnDelete => 'Delete';
+
+  @override
+  String get awgDelete => 'Delete AmneziaWG interface';
+
+  @override
+  String get awgDeleteHelp =>
+      'The next plan removes this AmneziaWG interface and its client keys on the server. Clients in this app remain.';
+
+  @override
+  String get ttDelete => 'Delete TrustTunnel endpoint';
+
+  @override
+  String get ttDeleteHelp =>
+      'The next plan removes this TrustTunnel endpoint and its client credentials on the server. Clients in this app remain.';
+
+  @override
+  String get xrayUpgradeStopTitle => 'Stop the Xray upgrade?';
+
+  @override
+  String get xrayUpgradeStopHelp =>
+      'The server aborts the upgrade and restores the previous core. Connections are checked again.';
+
+  @override
+  String get uiProtocolActions => 'Protocol actions';
+
+  @override
+  String get uiBusySync => 'Profiles are being synced and published';
+
+  @override
+  String get uiBusyChanges => 'Wait for the current change to finish';
+
+  @override
+  String get uiBusyServerOperation => 'The server is running another operation';
+
+  @override
+  String get uiBusyConnecting => 'Connecting to the server';
+
+  @override
+  String get uiNeedsConnection => 'Not connected to the server';
+
+  @override
+  String get uiApply => 'Apply';
+
+  @override
+  String get inboundDeleteReadFailed =>
+      'The selected inbounds could not be read on the server. Nothing was deleted; try again after refreshing the list.';
+
+  @override
+  String egressCheckedAt(Object date, Object ms) {
+    return 'TCP and UDP checked · $ms ms · $date';
+  }
+
+  @override
+  String get egressInbound => 'VLESS inbound';
+
+  @override
+  String softwareUpdateAvailableList(Object items) {
+    return 'Update available: $items';
+  }
+
+  @override
+  String inventoryPartialList(Object items) {
+    return 'Some checks were incomplete: $items';
+  }
+
+  @override
+  String inventoryVersionUnknownReason(Object reason) {
+    return 'Version unknown: $reason';
+  }
+
+  @override
+  String xrayUpgradeProblemAfter(Object reason) {
+    return '$reason The check did not finish. Review the connection results and retry when connectivity is restored.';
+  }
+
+  @override
+  String uiClientAccessFor(Object name) {
+    return 'Access for $name';
+  }
 }

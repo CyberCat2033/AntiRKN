@@ -1,6 +1,7 @@
 import 'connection_checks.dart';
 import 'dart:async';
 import 'dart:convert';
+import 'dart:isolate';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_profile_compiler/antirkn_profile_compiler.dart';
 import 'package:flutter/foundation.dart';
@@ -144,8 +145,24 @@ final class ServerProfileSyncResult {
   bool get verified => issue == null;
 }
 
-ProfileResult _compile((String, String, String, Map<String, String>) input) {
-  final workspace = VpnWorkspace.decode(input.$1);
+/// What the profile compiler reads: the workspace without its profile
+/// history. The YAML of every client is never encoded or copied for a build.
+VpnWorkspace _compileInput(VpnWorkspace workspace) =>
+    workspace.profiles.isEmpty ? workspace : workspace.copy(profiles: const {});
+
+/// Documents above this size are decoded on a short-lived isolate; smaller
+/// ones are cheaper to decode in place than to spawn one.
+const _isolateDecodeThreshold = 256 * 1024;
+
+Future<VpnWorkspace> _decodeWorkspace(String source) =>
+    source.length < _isolateDecodeThreshold
+    ? Future.value(VpnWorkspace.decode(source))
+    : Isolate.run(() => VpnWorkspace.decode(source));
+
+ProfileResult _compile(
+  (VpnWorkspace, String, String, Map<String, String>) input,
+) {
+  final workspace = input.$1;
   try {
     final pending = <ProfileAccessException>[];
     final accesses = [
@@ -204,9 +221,9 @@ ProfileResult _compile((String, String, String, Map<String, String>) input) {
 }
 
 Map<String, ProfileResult> _compileBatch(
-  (String, String, List<String>, Map<String, String>) input,
+  (VpnWorkspace, String, List<String>, Map<String, String>) input,
 ) {
-  final workspace = VpnWorkspace.decode(input.$1);
+  final workspace = input.$1;
   final userIds = input.$3;
   final serverNames = input.$4;
   final results = <String, ProfileResult>{};
@@ -324,12 +341,23 @@ class VpnController extends ChangeNotifier {
     Timer Function(Duration, void Function(Timer))? timer,
   }) {
     connections = ConnectionChecks(this, connectionProbe, probeStore)
-      ..addListener(_notify);
-    _timer = (timer ?? Timer.periodic)(
-      const Duration(seconds: 5),
-      (_) => unawaited(reconcile()),
-    );
+      ..addListener(_connectionsChanged);
+    _timer = (timer ?? Timer.periodic)(const Duration(seconds: 5), (_) {
+      if (_foreground) unawaited(reconcile());
+    });
   }
+
+  bool _foreground = true;
+
+  /// A hidden or paused app does not poll servers every 5 s; it catches up
+  /// as soon as it is in front again. Connection checks follow the same state.
+  void setForeground(bool value) {
+    connections.setForeground(value);
+    if (_foreground == value) return;
+    _foreground = value;
+    if (value) unawaited(reconcile());
+  }
+
   late final ConnectionChecks connections;
   final Future<bool> Function()? enterConnectionTraffic;
   final Future<void> Function()? leaveConnectionTraffic;
@@ -423,6 +451,13 @@ class VpnController extends ChangeNotifier {
   bool get foregroundBusy =>
       (_busy && _backgroundReconcile == null) || _upgradeBusy;
 
+  /// Whether a person's change (save, delete, apply) can start now.
+  ///
+  /// The same rule gates the UI and [_run]: a background reconcile is awaited
+  /// and running connection checks are interrupted, so neither blocks a
+  /// change. A change rejected anyway reports `vpn_busy` in [error].
+  bool get canMutate => loaded && !_disposed && !foregroundBusy;
+
   Future<void> waitForBackgroundReconcile() async {
     await _backgroundReconcile?.future;
   }
@@ -475,16 +510,19 @@ class VpnController extends ChangeNotifier {
     try {
       // Compile a fresh snapshot without writing profile history or publishing.
       final source = template();
-      final snapshot = workspace.encode();
+      // The workspace is immutable: the same instance means the same input.
+      final snapshot = workspace;
       final compiled = await compute(_compile, (
-        snapshot,
+        _compileInput(snapshot),
         source,
         userId,
         profileServerNames,
       ));
       if (_disposed || token.isCancelled) return;
       final yaml = compiled.yaml, hash = compiled.sha256Hash;
-      if (yaml == null || hash == null || compiled.hasBlockingErrors) return;
+      if (yaml == null || hash == null || compiled.hasBlockingErrors) {
+        throw const FormatException('core_profile_unavailable');
+      }
       final check = coreValidator == null
           ? CoreConfigCheck(
               status: CoreConfigStatus.unavailable,
@@ -495,13 +533,30 @@ class VpnController extends ChangeNotifier {
           : await coreValidator!.validate(yaml, token);
       if (!_disposed &&
           source == template() &&
-          snapshot == workspace.encode() &&
+          identical(snapshot, workspace) &&
           results[userId]?.sha256Hash == hash &&
           check.profileHash == hash) {
         _coreChecks[userId] = check;
       }
-    } catch (_) {
-      // No YAML, native errors or credentials are exposed by the controller.
+    } catch (e) {
+      // No YAML, native errors or credentials are exposed by the controller:
+      // only the error type is logged and the person sees "unavailable".
+      debugPrint('core_validation_failed type=${e.runtimeType}');
+      final hash = results[userId]?.sha256Hash;
+      final previous = _coreChecks[userId];
+      // An inconclusive retry never hides a known "invalid" verdict for the
+      // same profile: publication relies on it.
+      final keepsInvalid =
+          previous?.status == CoreConfigStatus.invalid &&
+          previous?.profileHash == hash;
+      if (!_disposed && !token.isCancelled && hash != null && !keepsInvalid) {
+        _coreChecks[userId] = CoreConfigCheck(
+          status: CoreConfigStatus.unavailable,
+          code: 'validation_failed',
+          profileHash: hash,
+          checkedAt: DateTime.now().toUtc(),
+        );
+      }
     } finally {
       _coreCancellation = null;
       coreCheckingUser = null;
@@ -513,6 +568,18 @@ class VpnController extends ChangeNotifier {
   String? _lastTemplate;
   void _notify() {
     if (!_disposed) notifyListeners();
+  }
+
+  bool _connectionsBusy = false;
+
+  /// Check progress (each start, result and counter) is for the check
+  /// widgets, which listen to [connections] themselves. Only a change of
+  /// [busy], which this controller exposes, is forwarded.
+  void _connectionsChanged() {
+    final next = connections.busy;
+    if (next == _connectionsBusy) return;
+    _connectionsBusy = next;
+    _notify();
   }
 
   Future<void> _write(VpnWorkspace next) async {
@@ -543,15 +610,30 @@ class VpnController extends ChangeNotifier {
     bool background = false,
   }) async {
     if (!background) await waitForBackgroundReconcile();
-    if (busy || _disposed) return;
+    if (_disposed) return;
+    if (background && busy) return;
+    if (!background && workspaceBusy) {
+      // Never drop a change silently: callers check [error] before
+      // reporting success, closing a form or playing haptics.
+      error = 'vpn_busy';
+      _notify();
+      return;
+    }
     final backgroundDone = background ? Completer<void>() : null;
     _backgroundReconcile = backgroundDone;
     busy = true;
-    error = null;
+    // A background run must not erase an error the person has not seen yet.
+    if (!background) error = null;
     final token = CancellationToken();
     _token = token;
     if (!background) _notify();
     try {
+      // Checks only read the workspace; a change interrupts them and the
+      // interrupted ones stay queued to run again afterwards. [busy] is
+      // already set, so no new check starts meanwhile.
+      if (!background && connections.busy) {
+        await connections.yieldToChange();
+      }
       await action(token);
     } on SyncMergeFailure {
       if (background) {
@@ -621,7 +703,8 @@ class VpnController extends ChangeNotifier {
     revision = saved.revision;
     workspace = saved.source == null
         ? VpnWorkspace(id: saved.workspaceId ?? newVpnId())
-        : VpnWorkspace.decode(saved.source!);
+        : await _decodeWorkspace(saved.source!);
+    token.check();
     if (saved.source == null) await _write(workspace);
     loaded = true;
     plans = [];
@@ -710,7 +793,13 @@ class VpnController extends ChangeNotifier {
     return referenced.difference(available);
   }
 
-  bool get hasUnappliedActiveAccess {
+  /// Derived from the immutable [workspace] alone, so it is computed once per
+  /// workspace instance instead of on every notification.
+  bool get hasUnappliedActiveAccess =>
+      _unappliedAccess[workspace] ??= _computeUnappliedActiveAccess();
+  final _unappliedAccess = Expando<bool>('hasUnappliedActiveAccess');
+
+  bool _computeUnappliedActiveAccess() {
     final users = workspace.users
         .where((user) => !user.deleted && user.enabled)
         .map((user) => user.id)
@@ -978,7 +1067,7 @@ class VpnController extends ChangeNotifier {
   });
 
   Future<bool> retireProtocol(String serverId, String protocol) async {
-    if (busy || hasRunning || !loaded) return false;
+    if (!canMutate || hasRunning) return false;
     var saved = false;
     await _run((token) async {
       final target = protocol == 'amneziawg'
@@ -1045,7 +1134,7 @@ class VpnController extends ChangeNotifier {
   /// as explicit `abandoned` audit records rather than reported as revoked.
   Future<bool> forgetServersLocally(Iterable<String> serverIds) async {
     final physical = serverIds.toSet();
-    if (busy || !loaded || physical.isEmpty) return false;
+    if (!canMutate || physical.isEmpty) return false;
     var saved = false;
     await _run((token) async {
       token.check();
@@ -1213,33 +1302,55 @@ class VpnController extends ChangeNotifier {
     }
   }
 
-  void cleanStalePending(String target) {
-    final record = workspace.servers[target];
-    if (record == null || record['pending'] == null) return;
-    final jobMap = record['job'] as Map?;
-    final jobStatus = jobMap?['status'] as String?;
-    final isTerminal =
-        jobStatus == 'failed' ||
+  /// A pending marker left by a finished job, or older than five minutes.
+  /// Readers treat it as cleared; [reconcile] removes it from storage.
+  bool _isStalePending(Map<String, dynamic>? record) {
+    if (record == null || record['pending'] == null) return false;
+    final jobStatus = (record['job'] as Map?)?['status'] as String?;
+    if (jobStatus == 'failed' ||
         jobStatus == 'cancelled' ||
         jobStatus == 'partially_applied' ||
-        jobStatus == 'succeeded';
-    bool expired = false;
+        jobStatus == 'succeeded') {
+      return true;
+    }
     if (record['pending'] case final Map pMap) {
       if (pMap['startedAt'] case final String started) {
         final start = DateTime.tryParse(started);
         if (start != null &&
             DateTime.now().difference(start) > const Duration(minutes: 5)) {
-          expired = true;
+          return true;
         }
       }
     }
-    if (isTerminal || expired) {
-      final updated = {...record, 'pending': null};
-      workspace = workspace.copy(
-        servers: {...workspace.servers, target: updated},
-      );
-      unawaited(_record(target, updated));
-      notifyListeners();
+    return false;
+  }
+
+  /// The pending operation of [target] as the UI should see it. Pure: safe to
+  /// call from `build`.
+  Object? pendingOf(String target) {
+    final record = workspace.servers[target];
+    return _isStalePending(record) ? null : record?['pending'];
+  }
+
+  /// A stale marker that may be removed from storage. A request whose job
+  /// failed or was partially applied stays: [resume] and automatic
+  /// recovery still need it.
+  bool _isRemovablePending(Map<String, dynamic>? record) {
+    if (!_isStalePending(record)) return false;
+    final status = (record!['job'] as Map?)?['status'];
+    return status != 'failed' && status != 'partially_applied';
+  }
+
+  List<String> _stalePendingTargets() => [
+    for (final entry in workspace.servers.entries)
+      if (_isRemovablePending(entry.value)) entry.key,
+  ];
+
+  Future<void> _clearStalePending(List<String> targets) async {
+    for (final target in targets) {
+      final record = workspace.servers[target];
+      if (!_isRemovablePending(record)) continue;
+      await _record(target, {...record!, 'pending': null});
     }
   }
 
@@ -1291,8 +1402,7 @@ class VpnController extends ChangeNotifier {
   }
 
   bool adoptionConfirmed(String target, String id) {
-    cleanStalePending(target);
-    return workspace.servers[target]?['pending'] == null &&
+    return pendingOf(target) == null &&
         (workspace.servers[target]?['observed'] as List? ?? []).any(
           (row) => row['id'] == id && row['confirmed'] == true,
         );
@@ -1521,12 +1631,18 @@ class VpnController extends ChangeNotifier {
     }
     _reconcileRetry = Timer(const Duration(seconds: 1), () {
       _reconcileRetry = null;
-      unawaited(reconcile());
+      // In the background the follow-up waits for [setForeground] too.
+      if (_foreground) unawaited(reconcile());
     });
   }
 
   Future<void> reconcile() async {
     if (!loaded || busy || _disposed || diagnosticsPaused) return;
+    final stale = _stalePendingTargets();
+    if (stale.isNotEmpty) {
+      await _run((_) => _clearStalePending(stale), background: true);
+      if (busy || _disposed) return;
+    }
     if (_staleIdentities().isNotEmpty) {
       await _run((_) => _adoptIdentities(), background: true);
       if (busy || _disposed) return;
@@ -2515,6 +2631,24 @@ class VpnController extends ChangeNotifier {
     if (loaded) await _profiles();
   });
 
+  /// Clients with access on [serverId]: every enabled client gets each
+  /// client-facing protocol, so a server without one serves nobody (UI-75).
+  int clientCountOn(String serverId) {
+    final w = workspace;
+    final serves =
+        w.inbounds.any(
+          (r) =>
+              r.serverId == serverId && r.enabled && !r.deleted && !r.internal,
+        ) ||
+        w.awgInterfaces.any(
+          (r) => r.serverId == serverId && r.enabled && !r.deleted,
+        ) ||
+        w.ttEndpoints.any(
+          (r) => r.serverId == serverId && r.enabled && !r.deleted,
+        );
+    return serves ? w.users.where((u) => !u.deleted && u.enabled).length : 0;
+  }
+
   /// Re-reads every active access resource before rebuilding [userId]'s
   /// profile. This is intentionally read-only: it never submits a new access
   /// plan from a profile/share action.
@@ -2581,6 +2715,35 @@ class VpnController extends ChangeNotifier {
           record['authorizedPayload'] != applied) {
         return false;
       }
+      if (!_readbackMatchesDesired(target, panelId, applied, record)) {
+        return false;
+      }
+    }
+    for (final user in workspace.users.where((u) => u.enabled && !u.deleted)) {
+      final result = results[user.id];
+      if (result == null ||
+          result.hasBlockingErrors ||
+          result.yaml == null ||
+          result.sha256Hash == null ||
+          workspace.profiles[user.id]?['hash'] != result.sha256Hash ||
+          coreCheckFor(user.id)?.status == CoreConfigStatus.invalid) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Whether [target]'s applied payload and confirmed readback equal the
+  /// desired state. Every input lives in the immutable [workspace], so the
+  /// two canonical encodings per target run once per workspace instance.
+  bool _readbackMatchesDesired(
+    String target,
+    String panelId,
+    String applied,
+    Map<String, dynamic> record,
+  ) {
+    final cache = _readbackMatches[workspace] ??= <String, bool>{};
+    return cache[target] ??= () {
       try {
         final desired = workspace.desired(target, panelId);
         if (canonicalJson(jsonDecode(applied)) != canonicalJson(desired)) {
@@ -2602,23 +2765,14 @@ class VpnController extends ChangeNotifier {
             return false;
           }
         }
+        return true;
       } catch (_) {
         return false;
       }
-    }
-    for (final user in workspace.users.where((u) => u.enabled && !u.deleted)) {
-      final result = results[user.id];
-      if (result == null ||
-          result.hasBlockingErrors ||
-          result.yaml == null ||
-          result.sha256Hash == null ||
-          workspace.profiles[user.id]?['hash'] != result.sha256Hash ||
-          coreCheckFor(user.id)?.status == CoreConfigStatus.invalid) {
-        return false;
-      }
-    }
-    return true;
+    }();
   }
+
+  final _readbackMatches = Expando<Map<String, bool>>('readbackMatches');
 
   /// Reads server observations before publication when saved verification is
   /// unavailable or a fresh server check was explicitly requested.
@@ -2633,7 +2787,7 @@ class VpnController extends ChangeNotifier {
       return ServerProfileSyncResult(revision: revision, issue: issue);
     }
 
-    if (!loaded || busy) {
+    if (!loaded || workspaceBusy) {
       return ServerProfileSyncResult(revision: revision, issue: 'vpn_busy');
     }
     // A template edit changes local YAML, not the confirmed server payload.
@@ -2852,7 +3006,7 @@ class VpnController extends ChangeNotifier {
     final source = template();
     if (onlyUserId != null && source != _lastTemplate) onlyUserId = null;
     _lastTemplate = source;
-    final encoded = workspace.encode();
+    final input = _compileInput(workspace);
     final histories = {...workspace.profiles};
     var changed = false;
     final activeUserIds = <String>[];
@@ -2867,7 +3021,7 @@ class VpnController extends ChangeNotifier {
     }
     if (activeUserIds.isNotEmpty) {
       final batchResults = await compute(_compileBatch, (
-        encoded,
+        input,
         source,
         activeUserIds,
         profileServerNames,

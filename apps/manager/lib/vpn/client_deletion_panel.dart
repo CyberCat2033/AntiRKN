@@ -22,27 +22,17 @@ class ClientDeletionPanel extends StatelessWidget {
         .map((e) => serverName(vpnServerId(e.key as String)))
         .toSet()
         .join(', ');
-    final accepted = await showDialog<bool>(
-      context: context,
-      builder: (context) => AppFormDialog(
-        title: Text(l.uiForceDeleteClient),
-        content: Text(l.uiForceDeleteWarning(user.name, servers)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(l.sshCancel),
-          ),
-          FilledButton(
-            onPressed: () {
-              AppHaptics.deleted();
-              Navigator.pop(context, true);
-            },
-            child: Text(l.uiForceDeleteClient),
-          ),
-        ],
-      ),
+    final accepted = await confirmAppDanger(
+      context,
+      title: l.uiForceDeleteClient,
+      message: l.uiForceDeleteWarning(user.name, servers),
+      confirmLabel: l.uiForceDeleteClient,
+      cancelLabel: l.sshCancel,
     );
-    if (accepted == true) await controller.forceDeleteClient(user.id);
+    if (!accepted) return;
+    await controller.forceDeleteClient(user.id);
+    // Haptic confirms the accepted deletion, not the tap before checks.
+    if (controller.error == null) AppHaptics.deleted();
   }
 
   Widget details(BuildContext context) => ListenableBuilder(
@@ -77,19 +67,17 @@ class ClientDeletionPanel extends StatelessWidget {
               ),
             if (user.deletion!['file']?['error'] case final String issue)
               AppNotice(message: publicationMessage(l, issue), error: true),
+            // Force deletion is offered once, by the panel's notice (UI-51).
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
                 OutlinedButton(
-                  onPressed: c.busy ? null : () => c.retryDeletion(user.id),
+                  onPressed: !c.canMutate
+                      ? null
+                      : () => c.retryDeletion(user.id),
                   child: Text(l.runnerRetry),
                 ),
-                if (c.canForceDelete(user))
-                  FilledButton.tonal(
-                    onPressed: c.busy ? null : () => force(context, user),
-                    child: Text(l.uiForceDeleteClient),
-                  ),
               ],
             ),
           ],
@@ -141,7 +129,7 @@ class ClientDeletionPanel extends StatelessWidget {
                           message: l.uiForceDeleteOffer(user.name),
                           action: TextButton(
                             key: ValueKey('client-force-delete-${user.id}'),
-                            onPressed: c.busy
+                            onPressed: !c.canMutate
                                 ? null
                                 : () => force(context, user),
                             child: Text(l.uiForceDeleteClient),

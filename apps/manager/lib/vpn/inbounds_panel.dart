@@ -25,7 +25,6 @@ class InboundsPanel extends StatefulWidget {
     this.runner,
     this.selection,
     this.selectionInHeader = false,
-    this.showPlan = true,
     this.serverHost = '',
     required this.serverId,
     required this.serverName,
@@ -34,7 +33,6 @@ class InboundsPanel extends StatefulWidget {
     super.key,
   });
   final VpnController controller;
-  final bool showPlan;
   final RunnerController? runner;
   final String serverHost;
   final String serverId;
@@ -54,13 +52,15 @@ class InboundsPanelState extends State<InboundsPanel> {
   RunnerController? get runner => widget.runner;
   String get serverId => widget.serverId;
   String get serverHost => widget.serverHost;
-  String Function(String) get serverName => widget.serverName;
   NetworkController get network => widget.network;
   MotionPreference get motion => widget.motion;
-  bool get showPlan => widget.showPlan;
   final deletionState = ValueNotifier(false);
   bool get deleting => deletionState.value;
   set deleting(bool value) => deletionState.value = value;
+
+  /// Guards a deletion while its sign-ins and consent are still open; the
+  /// list and its bar stay idle until the person confirms (UI-62).
+  bool _preparingDeletion = false;
   String? deletionIssue;
   String externalId(Map panel, Map inbound) =>
       'external-${panel['port']}-${inbound['id']}';
@@ -182,14 +182,19 @@ class InboundsPanelState extends State<InboundsPanel> {
       prefix: 'inbound',
       busy:
           deleting ||
-          controller.busy ||
+          !controller.canMutate ||
           controller.hasRunning ||
           (runner?.busy ?? false) ||
           (runner?.actionPending ?? false),
     ),
   );
 
-  Widget selectable(String id, Widget child) => Row(
+  /// The card draws its own selection and ripple (UI-58).
+  Widget selectable(
+    String id,
+    ResourceTile Function(bool selected, bool selecting, VoidCallback? onTap)
+    tile,
+  ) => Row(
     children: [
       CatalogSelectionLeading(
         active: selection.active,
@@ -198,21 +203,10 @@ class InboundsPanelState extends State<InboundsPanel> {
         child: const SizedBox.shrink(),
       ),
       Expanded(
-        child: Material(
-          color: selection.ids.contains(id)
-              ? Theme.of(context).colorScheme.secondaryContainer
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(AppLayout.radius),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: selection.active && !deleting
-                ? () => selection.toggle(id)
-                : null,
-            child: AbsorbPointer(
-              absorbing: selection.active || deleting,
-              child: child,
-            ),
-          ),
+        child: tile(
+          selection.ids.contains(id),
+          selection.active || deleting,
+          selection.active && !deleting ? () => selection.toggle(id) : null,
         ),
       ),
     ],
@@ -257,11 +251,14 @@ class InboundsPanelState extends State<InboundsPanel> {
         }
       }
     }
-    if (managed.isEmpty && external.isEmpty || deleting) return;
-    setState(() {
-      deleting = true;
-      deletionIssue = null;
-    });
+    if (managed.isEmpty && external.isEmpty || deleting || _preparingDeletion) {
+      return;
+    }
+    _preparingDeletion = true;
+    setState(() => deletionIssue = null);
+    // Before consent nothing has changed: a failure then is a read failure,
+    // not an incomplete deletion.
+    var started = false;
     try {
       // Read external snapshots before consent, then retain their fingerprints through execution.
       final removals = <int, List<Map<String, Object?>>>{};
@@ -300,6 +297,8 @@ class InboundsPanelState extends State<InboundsPanel> {
           !mounted) {
         return;
       }
+      setState(() => deleting = true);
+      started = true;
       if (managed.isNotEmpty) {
         if (runner != null &&
             (!await showPanelLogin(context, runner!) || !mounted)) {
@@ -350,8 +349,15 @@ class InboundsPanelState extends State<InboundsPanel> {
       }
       selection.exit();
     } catch (_) {
-      if (mounted) setState(() => deletionIssue = l.inboundDeleteIncomplete);
+      if (mounted) {
+        setState(
+          () => deletionIssue = started
+              ? l.inboundDeleteIncomplete
+              : l.inboundDeleteReadFailed,
+        );
+      }
     } finally {
+      _preparingDeletion = false;
       if (mounted) setState(() => deleting = false);
     }
   }
@@ -374,7 +380,7 @@ class InboundsPanelState extends State<InboundsPanel> {
       return DragSelectList(
         selection: selection,
         ids: availableIds,
-        enabled: !deleting && !c.busy && !(runner?.busy ?? false),
+        enabled: !deleting && c.canMutate && !(runner?.busy ?? false),
         builder: (scroll, item) => ListView(
           controller: scroll,
           shrinkWrap: true,
@@ -393,8 +399,15 @@ class InboundsPanelState extends State<InboundsPanel> {
                   selectionActions(),
                 ],
               ),
-            if (deleting) const LinearProgressIndicator(),
-            if (deletionIssue != null) Text(deletionIssue!),
+            // The page's VpnPlanView shows a busy controller and
+            // VpnJobView a running job; this bar covers the rest of a
+            // deletion, so the tab has one indicator (UI-40).
+            if (deleting &&
+                !c.foregroundBusy &&
+                c.currentJob(serverId)?.terminal != false)
+              const LinearProgressIndicator(),
+            if (deletionIssue != null)
+              AppNotice(message: deletionIssue!, error: true),
             CatalogNormalContent(
               selection: selection,
               child: Column(
@@ -416,9 +429,7 @@ class InboundsPanelState extends State<InboundsPanel> {
                   ],
                   FilledButton.icon(
                     key: const ValueKey('vpn-inbound-add'),
-                    onPressed: c.workspaceBusy || !c.loaded
-                        ? null
-                        : () => _edit(context),
+                    onPressed: !c.canMutate ? null : () => _edit(context),
                     icon: const Icon(Icons.add),
                     label: Text(l.vpnAddInbound),
                   ),
@@ -429,9 +440,13 @@ class InboundsPanelState extends State<InboundsPanel> {
                         : () async {
                             final keys = <({String target, String resource})>[];
                             for (final panel in runner!.panels) {
+                              if (panel['port'] is! int) continue;
                               for (final row
-                                  in (panel['inbounds'] as List)
+                                  in (panel['inbounds'] as List? ?? const [])
                                       .whereType<Map>()) {
+                                // Rows come from the server panel: skip ones
+                                // that cannot be addressed.
+                                if (row['id'] is! int) continue;
                                 if (inbounds.any(
                                   (r) =>
                                       (r.spec['adoption']
@@ -499,7 +514,7 @@ class InboundsPanelState extends State<InboundsPanel> {
                   ? null
                   : IconButton(
                       tooltip: l.sshRefresh,
-                      onPressed: (runner?.busy ?? false) || c.busy
+                      onPressed: (runner?.busy ?? false) || !c.canMutate
                           ? null
                           : () async {
                               await c.refreshServer(serverId);
@@ -541,7 +556,10 @@ class InboundsPanelState extends State<InboundsPanel> {
                       externalId(entry.panel, entry.row),
                       selectable(
                         externalId(entry.panel, entry.row),
-                        ResourceTile(
+                        (selected, selecting, onTap) => ResourceTile(
+                          selected: selected,
+                          selecting: selecting,
+                          onTap: onTap,
                           storageId:
                               'observed-$serverId-${entry.panel['port']}-${entry.row['id']}',
                           footer:
@@ -562,16 +580,14 @@ class InboundsPanelState extends State<InboundsPanel> {
                               : '${entry.row['name']}',
                           subtitle:
                               '${entry.row['transport']} · ${entry.row['security']}',
-                          badge: entry.row['enabled'] == true
-                              ? l.vpnEnabled
-                              : l.vpnDisabled,
+                          badge: l.vpnEnabled,
+                          switchValue: entry.row['enabled'] == true,
                           note: l.vpnObserved,
-                          detailsLabel: l.componentsDetails,
-                          details: const [],
                           badgeBusy: _busyExternalKeys.contains(
                             externalId(entry.panel, entry.row),
                           ),
-                          onBadgeTap: runner == null ||
+                          onBadgeTap:
+                              runner == null ||
                                   runner!.busy ||
                                   runner!.actionPending ||
                                   _busyExternalKeys.contains(
@@ -581,18 +597,22 @@ class InboundsPanelState extends State<InboundsPanel> {
                               : () async {
                                   final id = (entry.row['id'] as num?)?.toInt();
                                   if (id == null) return;
-                                  final extKey = externalId(entry.panel, entry.row);
+                                  final extKey = externalId(
+                                    entry.panel,
+                                    entry.row,
+                                  );
                                   if (_busyExternalKeys.contains(extKey) ||
                                       runner == null ||
                                       runner!.busy ||
                                       runner!.actionPending) {
                                     return;
                                   }
-                                  setState(
-                                    () => _busyExternalKeys.add(extKey),
-                                  );
+                                  setState(() => _busyExternalKeys.add(extKey));
                                   try {
-                                    final port = (entry.panel['port'] as num?)?.toInt() ?? 0;
+                                    final port =
+                                        (entry.panel['port'] as num?)
+                                            ?.toInt() ??
+                                        0;
                                     if (!await showPanelLogin(
                                           context,
                                           runner!,
@@ -624,7 +644,9 @@ class InboundsPanelState extends State<InboundsPanel> {
                                   tooltip: l.vpnAdopt,
                                   icon: const Icon(Icons.people_outline),
                                   onPressed:
-                                      c.busy || c.hasRunning || runner == null
+                                      !c.canMutate ||
+                                          c.hasRunning ||
+                                          runner == null
                                       ? null
                                       : () => adoptExistingResource(
                                           context,
@@ -693,8 +715,6 @@ class InboundsPanelState extends State<InboundsPanel> {
                           '${r.spec['transport'].toString().toUpperCase()} · ${r.spec['security'].toString().toUpperCase()}',
                       badge: l.vpnDisabled,
                       note: l.vpnPendingDeletion,
-                      detailsLabel: l.componentsDetails,
-                      details: const [],
                     ),
                   ),
                 for (final r in inbounds)
@@ -704,7 +724,10 @@ class InboundsPanelState extends State<InboundsPanel> {
                       r.id,
                       selectable(
                         r.id,
-                        ResourceTile(
+                        (selected, selecting, onTap) => ResourceTile(
+                          selected: selected,
+                          selecting: selecting,
+                          onTap: onTap,
                           key: ValueKey('inbound-summary-${r.id}'),
                           footer: selection.active
                               ? null
@@ -717,7 +740,8 @@ class InboundsPanelState extends State<InboundsPanel> {
                           title: r.spec['name'] as String,
                           subtitle:
                               '${r.spec['transport'].toString().toUpperCase()} · ${r.spec['security'].toString().toUpperCase()}',
-                          badge: r.enabled ? l.vpnEnabled : l.vpnDisabled,
+                          badge: l.vpnEnabled,
+                          switchValue: r.enabled,
                           note:
                               r.spec.containsKey('adoption') &&
                                   !c.adoptionConfirmed(serverId, r.id)
@@ -737,15 +761,13 @@ class InboundsPanelState extends State<InboundsPanel> {
                               : r.internal
                               ? l.vpnInternal
                               : l.vpnClientAccess,
-                          detailsLabel: l.componentsDetails,
-                          details: const [],
                           badgeBusy: _busyInboundIds.contains(r.id),
-                          onBadgeTap: _busyInboundIds.contains(r.id) ||
-                                  c.workspaceBusy
+                          onBadgeTap:
+                              _busyInboundIds.contains(r.id) || !c.canMutate
                               ? null
                               : () async {
                                   if (_busyInboundIds.contains(r.id) ||
-                                      c.workspaceBusy) {
+                                      !c.canMutate) {
                                     return;
                                   }
                                   setState(() => _busyInboundIds.add(r.id));
@@ -788,12 +810,11 @@ class InboundsPanelState extends State<InboundsPanel> {
                                 tooltip: r.internal
                                     ? l.vpnInternal
                                     : l.vpnClientAccess,
-                                icon: Icon(
-                                  r.internal
-                                      ? Icons.lock_outline
-                                      : Icons.people_outline,
-                                ),
-                                onPressed: c.workspaceBusy
+                                // A toggle: "internal" is its on state (UI-73).
+                                isSelected: r.internal,
+                                icon: const Icon(Icons.people_outline),
+                                selectedIcon: const Icon(Icons.lock_outline),
+                                onPressed: !c.canMutate
                                     ? null
                                     : () async {
                                         await c.saveInbound(
@@ -814,7 +835,7 @@ class InboundsPanelState extends State<InboundsPanel> {
                               ),
                               IconButton(
                                 tooltip: l.vpnEdit,
-                                onPressed: c.workspaceBusy
+                                onPressed: !c.canMutate
                                     ? null
                                     : () => _edit(context, r),
                                 icon: const Icon(Icons.edit_outlined),
@@ -830,12 +851,6 @@ class InboundsPanelState extends State<InboundsPanel> {
                   controller: c,
                   serverId: serverId,
                 ),
-                if (showPlan)
-                  VpnPlanView(
-                    controller: c,
-                    serverName: serverName,
-                    showProgress: !deleting,
-                  ),
               ],
             ),
           ],
@@ -851,13 +866,13 @@ class InboundsPanelState extends State<InboundsPanel> {
     if (inbound?.spec.containsKey('adoption') == true) {
       final spec = await editAdoptedResource(context, inbound!.spec);
       if (spec == null) return;
-      await controller.saveInbound(
-        VlessInbound(serverId: serverId, spec: spec),
+      return saveAndApply(
+        controller,
+        target: serverId,
+        save: () => controller.saveInbound(
+          VlessInbound(serverId: serverId, spec: spec),
+        ),
       );
-      if (controller.error == null) {
-        await controller.prepareAndApply(serverIds: {serverId});
-      }
-      return;
     }
     final result = await showDialog<VlessInbound>(
       context: context,
@@ -874,17 +889,13 @@ class InboundsPanelState extends State<InboundsPanel> {
       ),
     );
     if (result == null) return;
-    await controller.saveInbound(result);
-    if (controller.error == null) {
-      if (result.deleted && inbound != null && !inbound.deleted) {
-        AppHaptics.deleted();
-      } else if (inbound == null && !result.deleted) {
-        AppHaptics.added();
-      }
-    }
-    if (controller.error == null) {
-      await controller.prepareAndApply(serverIds: {serverId});
-    }
+    await saveAndApply(
+      controller,
+      target: serverId,
+      save: () => controller.saveInbound(result),
+      added: inbound == null && !result.deleted,
+      deleted: result.deleted && inbound != null && !inbound.deleted,
+    );
   }
 }
 
@@ -1166,9 +1177,7 @@ class _InboundFormState extends State<InboundForm> {
                 contentPadding: EdgeInsets.zero,
                 title: Text(l.vpnEnabled),
                 value: spec['enabled'] as bool,
-                onChanged: spec['deleted'] == true
-                    ? null
-                    : (v) => setState(() => spec['enabled'] = v),
+                onChanged: (v) => setState(() => spec['enabled'] = v),
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
@@ -1178,31 +1187,46 @@ class _InboundFormState extends State<InboundForm> {
                 value: spec['internal'] == true,
                 onChanged: (v) => setState(() => spec['internal'] = v),
               ),
-              if (widget.inbound != null)
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l.vpnDeleteInbound),
-                  subtitle: Text(l.vpnDeleteHelp),
-                  value: spec['deleted'] as bool,
-                  onChanged: (v) => setState(() {
-                    spec['deleted'] = v == true;
-                    if (v == true) spec['enabled'] = false;
-                  }),
-                ),
               Text(l.connectionAfterSave),
               if (invalid)
-                Text(
-                  l.vpnInvalid,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                AppNotice(
+                  message: l.vpnInvalid,
+                  error: true,
+                  margin: const EdgeInsets.only(top: 12),
                 ),
             ],
           ),
         ),
       ),
       actions: [
+        // Deleting is its own confirmed action, not a form field applied by
+        // "Save" (UI-54).
+        if (widget.inbound case final inbound?)
+          AppDangerButton.text(
+            key: const ValueKey('vpn-inbound-delete'),
+            onPressed: () async {
+              final confirmed = await confirmAppDanger(
+                context,
+                title: l.vpnDeleteInbound,
+                message: l.vpnDeleteHelp,
+                confirmLabel: l.vpnDelete,
+                cancelLabel: l.sshCancel,
+                confirmKey: const ValueKey('vpn-inbound-delete-confirm'),
+              );
+              if (!confirmed || !context.mounted) return;
+              Navigator.pop(
+                context,
+                VlessInbound(
+                  serverId: widget.serverId,
+                  spec: {...inbound.spec, 'deleted': true, 'enabled': false},
+                ),
+              );
+            },
+            child: Text(l.vpnDelete),
+          ),
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text(l.runnerNotNow),
+          child: Text(l.sshCancel),
         ),
         FilledButton(
           key: const ValueKey('vpn-inbound-save'),

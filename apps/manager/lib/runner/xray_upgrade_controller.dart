@@ -336,7 +336,7 @@ class XrayUpgradeController extends ChangeNotifier {
         phase = 'committed';
         code = 'committed';
         runner.refreshSoftware?.call();
-      });
+      }, ownProgress: true);
       if (!began) throw const FormatException('server_unavailable');
     } catch (error) {
       code = token.isCancelled

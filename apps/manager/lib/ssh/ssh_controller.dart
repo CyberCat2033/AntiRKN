@@ -69,8 +69,11 @@ class SshController extends ChangeNotifier {
     sudoPassword.addListener(() {
       if (_lastSudoDraft != sudoPassword.text) {
         _lastSudoDraft = sudoPassword.text;
-        privileges = null;
-        _notify();
+        // Only a reset verdict is news for listeners, not every keystroke.
+        if (privileges != null) {
+          privileges = null;
+          _notify();
+        }
       }
     });
     _clock = Timer.periodic(const Duration(seconds: 10), (_) => network.tick());
@@ -183,6 +186,14 @@ class SshController extends ChangeNotifier {
   SecretVault? _vault;
   bool initialised = false;
   bool vaultBusy = false;
+
+  /// [vaultBusy] for the background save of observed server facts.
+  bool _remembering = false;
+
+  /// A vault write the person waits for. The background save of server
+  /// facts keeps [vaultBusy] as a lock but shows no bar and keeps Back
+  /// enabled (UI-42).
+  bool get vaultSaving => vaultBusy && !_remembering;
   bool picking = false;
   bool get saved {
     final profile = unlocked ? _vault!.profile : null;
@@ -244,14 +255,30 @@ class SshController extends ChangeNotifier {
   SettingsStore? get _trafficStore =>
       repository is SettingsStore ? repository as SettingsStore : null;
   bool get canResetTraffic => _trafficStore != null;
+  /// The last parsed sample and baseline: a build reads them several times
+  /// (bytes, reset time, labels), each used to parse the raw counters anew.
+  (String, ServerTrafficSnapshot?)? _parsedTraffic;
+  (String, ServerTrafficSnapshot?)? _parsedBaseline;
+  static ServerTrafficSnapshot? _parseTraffic(
+    String raw,
+    (String, ServerTrafficSnapshot?)? cached,
+    void Function((String, ServerTrafficSnapshot?)) store,
+  ) {
+    if (cached != null && cached.$1 == raw) return cached.$2;
+    ServerTrafficSnapshot? parsed;
+    try {
+      parsed = ServerTrafficSnapshot.parse(raw);
+    } on FormatException {
+      parsed = null;
+    }
+    store((raw, parsed));
+    return parsed;
+  }
+
   ServerTrafficSnapshot? get trafficSample {
     final raw = software?.facts[ServerFact.networkTraffic]?.value;
     if (raw == null) return null;
-    try {
-      return ServerTrafficSnapshot.parse(raw);
-    } on FormatException {
-      return null;
-    }
+    return _parseTraffic(raw, _parsedTraffic, (v) => _parsedTraffic = v);
   }
 
   ServerTrafficSnapshot? get _matchingTrafficBaseline {
@@ -262,7 +289,12 @@ class SshController extends ChangeNotifier {
       return null;
     }
     try {
-      final baseline = ServerTrafficSnapshot.parse(stored['sample'] as String);
+      final baseline = _parseTraffic(
+        stored['sample'] as String,
+        _parsedBaseline,
+        (v) => _parsedBaseline = v,
+      );
+      if (baseline == null) return null;
       if (baseline.bootId != current.bootId ||
           baseline.interfaces != current.interfaces ||
           current.counters.entries.any(
@@ -335,10 +367,19 @@ class SshController extends ChangeNotifier {
       : null;
 
   void _notify() {
-    if (!_disposed) notifyListeners();
+    if (_disposed) return;
+    _notifiedSaved = saved;
+    notifyListeners();
   }
 
+  /// [saved] as listeners last saw it.
+  bool? _notifiedSaved;
+
+  /// A keystroke or cursor move is not news for the controller's listeners
+  /// (the whole catalogue and shell): only a change of [saved] is. Widgets
+  /// that show the field text itself listen to [fields] directly.
   void _edited() {
+    if (_disposed || saved == _notifiedSaved) return;
     _notify();
   }
 
@@ -1221,7 +1262,7 @@ class SshController extends ChangeNotifier {
       return;
     }
     vaultBusy = true;
-    _notify();
+    _remembering = true;
     try {
       await _vault!.saveProfile(
         profile.withInfo(
@@ -1240,6 +1281,7 @@ class SshController extends ChangeNotifier {
       if (!_disposed) vaultError = VaultIssue.writeFailed;
     } finally {
       vaultBusy = false;
+      _remembering = false;
       _notify();
     }
   }

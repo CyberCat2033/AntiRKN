@@ -999,6 +999,12 @@ class AppLocalizationsRu extends AppLocalizations {
   String get runnerRetry => 'Проверить и повторить этот запрос';
 
   @override
+  String get runnerReconnect => 'Переподключить исполнитель';
+
+  @override
+  String get runnerResend => 'Отправить снова';
+
+  @override
   String get runnerConnectionLost =>
       'Связь потеряна. Задание на сервере может продолжать работу. Подключитесь для получения результата.';
 
@@ -1015,6 +1021,13 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get runnerResetQueue => 'Сбросить зависшие операции';
+
+  @override
+  String get runnerResetQueueTitle => 'Сбросить очередь заданий?';
+
+  @override
+  String get runnerResetQueueHelp =>
+      'Все задания этого сервера будут отменены, очередь очищена. Уже выполненные на сервере шаги не откатываются: после сброса проверьте состояние сервера.';
 
   @override
   String get runnerEventsTruncated =>
@@ -1583,6 +1596,10 @@ class AppLocalizationsRu extends AppLocalizations {
       'Операция не подтверждена. Обновите состояние сервера или повторите сохранённую операцию.';
 
   @override
+  String get vpnBusy =>
+      'Выполняется другая операция, поэтому изменение не внесено. Повторите, когда она завершится.';
+
+  @override
   String get vpnPortBusy =>
       'Адрес или порт прослушивания недоступен либо конфликтует с другим inbound.';
 
@@ -1668,6 +1685,15 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get updatesCheck => 'Проверить обновления';
+
+  @override
+  String get updatesCheckedRecently =>
+      'Обновления проверены только что, показан актуальный результат.';
+
+  @override
+  String updatesLastChecked(String time) {
+    return 'Последняя проверка: $time';
+  }
 
   @override
   String get updatesAutomatic => 'Проверять новые версии';
@@ -1962,6 +1988,10 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get observedTransportJson => 'Настройки транспорта (JSON)';
+
+  @override
+  String get observedTransportInvalid =>
+      'JSON некорректен: нужен объект, realitySettings и xhttpSettings — тоже объекты. Исправьте его, чтобы сохранить или вернуться к полям.';
 
   @override
   String get panelUpdateSummary =>
@@ -3520,6 +3550,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String get connectionCheckAll => 'Проверить все';
 
   @override
+  String get connectionTargetsFailed =>
+      'Не удалось прочитать список подключений для проверки. Обновите сервер и повторите.';
+
+  @override
   String get connectionStop => 'Остановить проверку';
 
   @override
@@ -3986,4 +4020,86 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get ttIssueWaiting =>
       'Сервер занят другой операцией. Выпуск станет доступен, когда она закончится.';
+
+  @override
+  String get vpnDelete => 'Удалить';
+
+  @override
+  String get awgDelete => 'Удалить интерфейс AmneziaWG';
+
+  @override
+  String get awgDeleteHelp =>
+      'Следующий план удалит этот интерфейс AmneziaWG и его клиентские ключи на сервере. Клиенты в приложении сохранятся.';
+
+  @override
+  String get ttDelete => 'Удалить точку TrustTunnel';
+
+  @override
+  String get ttDeleteHelp =>
+      'Следующий план удалит эту точку TrustTunnel и её клиентские пароли на сервере. Клиенты в приложении сохранятся.';
+
+  @override
+  String get xrayUpgradeStopTitle => 'Остановить обновление Xray?';
+
+  @override
+  String get xrayUpgradeStopHelp =>
+      'Сервер прервёт обновление и вернёт прежнее ядро. Подключения будут проверены ещё раз.';
+
+  @override
+  String get uiProtocolActions => 'Действия с протоколом';
+
+  @override
+  String get uiBusySync => 'Идёт синхронизация и публикация профилей';
+
+  @override
+  String get uiBusyChanges => 'Дождитесь завершения текущего изменения';
+
+  @override
+  String get uiBusyServerOperation => 'Сервер выполняет другую операцию';
+
+  @override
+  String get uiBusyConnecting => 'Идёт подключение к серверу';
+
+  @override
+  String get uiNeedsConnection => 'Нет подключения к серверу';
+
+  @override
+  String get uiApply => 'Применить';
+
+  @override
+  String get inboundDeleteReadFailed =>
+      'Не удалось прочитать выбранные inbounds на сервере. Ничего не удалено; повторите после обновления списка.';
+
+  @override
+  String egressCheckedAt(Object date, Object ms) {
+    return 'TCP и UDP проверены · $ms мс · $date';
+  }
+
+  @override
+  String get egressInbound => 'VLESS inbound';
+
+  @override
+  String softwareUpdateAvailableList(Object items) {
+    return 'Доступно обновление: $items';
+  }
+
+  @override
+  String inventoryPartialList(Object items) {
+    return 'Часть проверок не выполнена: $items';
+  }
+
+  @override
+  String inventoryVersionUnknownReason(Object reason) {
+    return 'Версия неизвестна: $reason';
+  }
+
+  @override
+  String xrayUpgradeProblemAfter(Object reason) {
+    return '$reason Проверка не завершена. Посмотрите результаты подключений и повторите после восстановления связи.';
+  }
+
+  @override
+  String uiClientAccessFor(Object name) {
+    return 'Доступ для $name';
+  }
 }

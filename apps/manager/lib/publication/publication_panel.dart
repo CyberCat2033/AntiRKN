@@ -70,12 +70,24 @@ class _PublicationSettingsState extends State<PublicationSettingsPanel> {
             : setup;
       }
 
+      final needsAuthorization =
+          c.needsAuthorization ||
+          ['unauthorized', 'forbidden'].contains(folderError);
+      // One primary action per state: while sign-in is the primary step,
+      // enabling is tonal (UI-66).
+      final enableStyle = needsAuthorization
+          ? FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+              foregroundColor: Theme.of(
+                context,
+              ).colorScheme.onSecondaryContainer,
+            )
+          : null;
       final content = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (settings == null) Text(l.publicationHelp),
-          if (c.needsAuthorization ||
-              ['unauthorized', 'forbidden'].contains(folderError))
+          if (needsAuthorization)
             FilledButton.icon(
               key: const ValueKey('publication-authorize'),
               onPressed: c.editing ? null : c.authorize,
@@ -83,8 +95,13 @@ class _PublicationSettingsState extends State<PublicationSettingsPanel> {
               label: Text(l.publicationAuthorize),
             ),
           if (c.editing) const LinearProgressIndicator(),
-          if (c.accountError != null) Text(l.publicationAuthorizeHelp),
-          if (c.error != null) Text(publicationMessage(l, c.error!.name)),
+          // An unauthorized error and the account error read the same:
+          // one line (UI-51).
+          for (final message in {
+            if (c.accountError != null) l.publicationAuthorizeHelp,
+            if (c.error != null) publicationMessage(l, c.error!.name),
+          })
+            AppNotice(message: message, error: true),
           if (settings == null && c.authorized) ...[
             Text(l.publicationLinkHelp),
             if (folders != null) ...[
@@ -108,7 +125,11 @@ class _PublicationSettingsState extends State<PublicationSettingsPanel> {
               const SizedBox(height: 8),
             ],
             if (folders == null) Text(l.publicationNewFolder),
-            if (folderError != null) Text(publicationMessage(l, folderError)),
+            if (folderError != null)
+              AppNotice(
+                message: publicationMessage(l, folderError),
+                error: true,
+              ),
             TextButton(
               onPressed: c.editing || loading
                   ? null
@@ -136,6 +157,7 @@ class _PublicationSettingsState extends State<PublicationSettingsPanel> {
             ),
             FilledButton(
               key: const ValueKey('publication-configure'),
+              style: enableStyle,
               onPressed: c.editing
                   ? null
                   : () => c.configure(access, folder: folder),
@@ -175,12 +197,8 @@ class _PublicationSettingsState extends State<PublicationSettingsPanel> {
               SwitchListTile(
                 title: Text(l.publicationAuto),
                 subtitle: Text(l.uiPublicationAutoHelp),
-                value: settings.enabled,
-                onChanged: c.editing
-                    ? null
-                    : (value) {
-                        c.setEnabled(value);
-                      },
+                value: c.enabling ?? settings.enabled,
+                onChanged: c.editing ? null : c.setEnabled,
               ),
             if (c.error != null ||
                 c.queues.values.any((q) => q['status'] == 'error'))
@@ -208,7 +226,8 @@ class UserPublicationView extends StatelessWidget {
   final String userId;
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: controller,
+    // Includes batch progress: this client's state changes inside a batch.
+    listenable: controller.changes,
     builder: (context, _) {
       final l = AppLocalizations.of(context),
           queue = controller.queues[userId],
@@ -224,23 +243,32 @@ class UserPublicationView extends StatelessWidget {
           result['hash'] == savedHash &&
           queue?['status'] != 'error';
       final issue = queue?['issue'] as String?;
-      final isConflict = queue?['status'] == 'error' &&
+      final isConflict =
+          queue?['status'] == 'error' &&
           (issue == 'conflict' || issue == 'readback');
       final content = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           if (controller.bindingPending(userId)) Text(l.publicationBindPending),
-          Text(
-            serverUnverified && result != null
-                ? l.publicationPreviousVerified
-                : published
-                ? l.publicationPublished
-                : queue?['status'] == 'error'
-                ? publicationMessage(l, issue)
-                : l.publicationWaiting,
-          ),
-          if (!published && (controller.busy || isUserBusy)) const LinearProgressIndicator(),
+          if (!(serverUnverified && result != null) &&
+              !published &&
+              queue?['status'] == 'error')
+            AppNotice(
+              message: publicationMessage(l, issue),
+              error: true,
+              margin: EdgeInsets.zero,
+            )
+          else
+            Text(
+              serverUnverified && result != null
+                  ? l.publicationPreviousVerified
+                  : published
+                  ? l.publicationPublished
+                  : l.publicationWaiting,
+            ),
+          if (!published && (controller.busy || isUserBusy))
+            const LinearProgressIndicator(),
           if (!published) ...[
             const SizedBox(height: 8),
             Wrap(
@@ -251,7 +279,10 @@ class UserPublicationView extends StatelessWidget {
                   key: ValueKey('publication-retry-$userId'),
                   onPressed: isUserBusy
                       ? null
-                      : () => controller.request(force: true, targetUserId: userId),
+                      : () => controller.request(
+                          force: true,
+                          targetUserId: userId,
+                        ),
                   child: Text(l.runnerRetry),
                 ),
                 if (isConflict)
@@ -333,7 +364,12 @@ class _PickerSettingsDialogState extends State<_PickerSettingsDialog> {
                     labelText: l.publicationPickerProject,
                   ),
                 ),
-                if (invalid) Text(l.publicationFailed),
+                if (invalid)
+                  AppNotice(
+                    message: l.publicationFailed,
+                    error: true,
+                    margin: const EdgeInsets.only(top: 12),
+                  ),
               ],
             ),
           ),

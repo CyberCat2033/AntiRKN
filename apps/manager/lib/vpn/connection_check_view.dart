@@ -1,4 +1,5 @@
 import 'package:antirkn_domain/antirkn_domain.dart';
+import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import 'connection_checks.dart';
@@ -51,12 +52,9 @@ class ConnectionCheckView extends StatelessWidget {
       child: ListenableBuilder(
         listenable: Listenable.merge([controller, c]),
         builder: (context, _) {
-          final running = c.isTargetRunning(target) || c.current == target,
-              result = c.result(target);
-          final available = c.available(target);
-          final reasonCode = !running && result == null && !available
-              ? c.unavailableReasonCode(target)
-              : null;
+          final state = c.viewState(target);
+          final running = state.running, result = state.result;
+          final available = state.available, reasonCode = state.reasonCode;
           final reasonText = switch (reasonCode) {
             'vpn_disabled' => l.vpnDisabled,
             'vpn_pending' => l.vpnApplying,
@@ -154,9 +152,40 @@ class ConnectionCheckAll extends StatefulWidget {
 }
 
 class _ConnectionCheckAllState extends State<ConnectionCheckAll> {
-  bool reading = false, ran = false;
+  bool reading = false, ran = false, readFailed = false;
+
+  Future<void> _run(ConnectionChecks c) async {
+    setState(() {
+      reading = true;
+      ran = true;
+      readFailed = false;
+    });
+    var others = <ConnectionTarget>[];
+    try {
+      others = await widget.readOthers?.call() ?? <ConnectionTarget>[];
+    } catch (e) {
+      // A malformed panel row must not leave the button "checking" forever.
+      debugPrint('connection_targets_failed type=${e.runtimeType}');
+      if (mounted) setState(() => readFailed = true);
+      return;
+    } finally {
+      if (mounted) setState(() => reading = false);
+    }
+    if (!mounted) return;
+    await c.checkAll({...widget.targets, ...others});
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ListenableBuilder(
+    // Check progress is not forwarded through the VPN controller.
+    listenable: Listenable.merge([
+      widget.controller,
+      widget.controller.connections,
+    ]),
+    builder: (context, _) => _build(context),
+  );
+
+  Widget _build(BuildContext context) {
     final l = AppLocalizations.of(context), c = widget.controller.connections;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -169,17 +198,7 @@ class _ConnectionCheckAllState extends State<ConnectionCheckAll> {
                     widget.controller.coreValidationBusy ||
                     widget.targets.isEmpty && widget.readOthers == null
               ? null
-              : () async {
-                  setState(() {
-                    reading = true;
-                    ran = true;
-                  });
-                  final others =
-                      await widget.readOthers?.call() ?? <ConnectionTarget>[];
-                  if (!mounted) return;
-                  setState(() => reading = false);
-                  await c.checkAll({...widget.targets, ...others});
-                },
+              : () => _run(c),
           icon: Icon(
             c.queueRunning ? Icons.stop_circle_outlined : Icons.network_check,
           ),
@@ -191,7 +210,19 @@ class _ConnectionCheckAllState extends State<ConnectionCheckAll> {
                 : l.connectionCheckAll,
           ),
         ),
-        if (ran && !reading && c.total > 0)
+        if (readFailed)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Semantics(
+              liveRegion: true,
+              child: AppNotice(
+                key: const ValueKey('connection-check-all-failed'),
+                message: l.connectionTargetsFailed,
+                error: true,
+              ),
+            ),
+          )
+        else if (ran && !reading && c.total > 0)
           Text(l.connectionProgress(c.completed, c.total, c.skipped.length)),
       ],
     );
