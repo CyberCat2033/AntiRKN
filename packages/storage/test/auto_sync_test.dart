@@ -358,4 +358,209 @@ void main() {
       expect(remote.writes, 1);
     },
   );
+
+  test(
+    'clean device after another device upload receives the new version',
+    () async {
+      final first = open('first', 11);
+      await first.writeDraft('version one');
+      await _upload(await session(first));
+      final second = open('second', 22);
+      expect(await second.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+      await second.close();
+      final restored = open('second', 22);
+      await restored.writeDraft('version two');
+      await _upload(await session(restored));
+      final writes = remote.writes;
+      // First device has no edits; leaving the app must not report a conflict
+      // and must not overwrite or race the newer cloud state.
+      final result = await _upload(await session(first));
+      expect(result.remoteNewer, isTrue);
+      expect(remote.writes, writes);
+      await _upload(await session(first), retry: true);
+      expect(remote.writes, writes);
+      expect(await first.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+      await first.close();
+      final refreshed = open('first', 11);
+      expect(await refreshed.readDraft(), 'version two');
+    },
+  );
+
+  test(
+    'unconfirmed snapshot of a clean device does not block a later pull',
+    () async {
+      final first = open('first', 11);
+      await first.writeDraft('version one');
+      await _upload(await session(first));
+      // Leaving again without edits; the upload never reaches Drive.
+      remote.unavailable = true;
+      await expectLater(
+        _upload(await session(first)),
+        throwsA(isA<SyncTransportFailure>()),
+      );
+      remote.unavailable = false;
+      final local = File('${directory.path}/first.sqlite.current-snapshot');
+      expect(await local.exists(), isTrue);
+      final second = open('second', 22);
+      expect(await second.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+      await second.close();
+      final restored = open('second', 22);
+      await restored.writeDraft('version two');
+      await _upload(await session(restored));
+      final writes = remote.writes;
+      // Startup recovery finds nothing to send and does not conflict.
+      await _upload(await session(first), retry: true);
+      expect(remote.writes, writes);
+      expect(await first.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+      await first.close();
+      final refreshed = open('first', 11);
+      expect(await refreshed.readDraft(), 'version two');
+      expect(await local.exists(), isFalse);
+      // The refreshed device is clean and bound to the received version.
+      await refreshed.writeDraft('version three');
+      await _upload(await session(refreshed));
+      expect(remote.writes, writes + 1);
+    },
+  );
+
+  test(
+    'empty unbound device never uploads over an existing cloud snapshot',
+    () async {
+      final first = open('first', 11);
+      await first.writeDraft('cloud data');
+      await _upload(await session(first));
+      final second = open('second', 22);
+      final result = await _upload(await session(second));
+      expect(result.remoteNewer, isTrue);
+      expect(remote.writes, 1);
+      expect(await second.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+      await second.close();
+      expect(await open('second', 22).readDraft(), 'cloud data');
+    },
+  );
+
+  test(
+    'device id and sync key stay stable across cloud pulls of one workspace',
+    () async {
+      final first = open('first', 11);
+      await first.writeDraft('version one');
+      await _upload(await session(first));
+      final second = open('second', 22);
+      final ownDevice = (await second.readWorkspaceIdentity()).deviceId;
+      expect(await second.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+      await second.close();
+      var restored = open('second', 22);
+      final identity = await restored.readWorkspaceIdentity();
+      expect(identity.deviceId, ownDevice);
+      Uint8List syncKey() {
+        final db = sqlite3.open('${directory.path}/second.sqlite');
+        try {
+          return db.select('SELECT payload FROM sync_keys').single['payload']
+              as Uint8List;
+        } finally {
+          db.dispose();
+        }
+      }
+
+      final operation = ServerOperation(
+        operationId: 'e' * 32,
+        executorDeviceId: identity.deviceId,
+      );
+      final vpn = await restored.readVpn();
+      await restored.writeVpn(
+        VpnWorkspace(
+          id: identity.workspaceId,
+          servers: {
+            fixtureServerId: {'operation': operation.toJson()},
+          },
+        ).encode(),
+        expectedRevision: vpn.revision,
+      );
+      await _upload(await session(restored));
+      final key = syncKey();
+      await first.close();
+      final firstAgain = open('first', 11);
+      expect(
+        await firstAgain.pullCurrentSnapshot(tokens, remote: remote),
+        isTrue,
+      );
+      await firstAgain.close();
+      final edited = open('first', 11);
+      await edited.writeDraft('version two');
+      await _upload(await session(edited));
+      expect(
+        await restored.pullCurrentSnapshot(tokens, remote: remote),
+        isTrue,
+      );
+      await restored.close();
+      restored = open('second', 22);
+      final after = await restored.readWorkspaceIdentity();
+      expect(after.deviceId, ownDevice);
+      expect(after.workspaceId, identity.workspaceId);
+      expect(syncKey(), key);
+      expect(await restored.readDraft(), 'version two');
+      final record = VpnWorkspace.decode(
+        (await restored.readVpn()).source!,
+      ).servers[fixtureServerId]!;
+      expect(
+        ServerOperation.fromJson(record['operation'] as Map).executorDeviceId,
+        after.deviceId,
+      );
+    },
+  );
+
+  test(
+    'legacy merge conflicts do not block upload and are cleared after it',
+    () async {
+      final path = '${directory.path}/legacy.sqlite';
+      var store = open('legacy', 33);
+      await store.writeDraft('materialized state');
+      await store.close();
+      final db = sqlite3.open(path);
+      try {
+        for (final row in db.select(
+          'SELECT entity_kind,entity_id FROM sync_heads',
+        )) {
+          db.execute('INSERT INTO sync_conflicts VALUES (?,?)', [
+            row['entity_kind'],
+            row['entity_id'],
+          ]);
+          db.execute('INSERT INTO sync_branches VALUES (?,?,?)', [
+            row['entity_kind'],
+            row['entity_id'],
+            'f' * 32,
+          ]);
+        }
+        db.execute("INSERT INTO sync_incoming VALUES (?,'{}',x'00',0)", [
+          'a' * 32,
+        ]);
+      } finally {
+        db.dispose();
+      }
+      store = open('legacy', 33);
+      await _upload(await session(store));
+      expect(remote.writes, 1);
+      int count(String sql) {
+        final db = sqlite3.open(path);
+        try {
+          return db.select(sql).single['n'] as int;
+        } finally {
+          db.dispose();
+        }
+      }
+
+      expect(count('SELECT count(*) AS n FROM sync_conflicts'), 0);
+      expect(count('SELECT count(*) AS n FROM sync_incoming'), 0);
+      expect(
+        count(
+          'SELECT count(*) AS n FROM (SELECT 1 FROM sync_branches GROUP BY entity_kind,entity_id HAVING count(*)>1)',
+        ),
+        0,
+      );
+      await store.writeDraft('edited after cleanup');
+      expect(await store.readDraft(), 'edited after cleanup');
+      await _upload(await session(store));
+      expect(remote.writes, 2);
+    },
+  );
 }

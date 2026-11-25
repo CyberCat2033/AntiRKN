@@ -13,8 +13,13 @@ final class AutoSyncResult {
     this.rejected = 0,
     this.otherWorkspaces = 0,
     this.lastSuccess,
+    this.remoteNewer = false,
   });
   final bool more, waitingForEditor;
+
+  /// The cloud holds a newer snapshot and this device has no unsent edits.
+  /// Nothing was uploaded; the newer snapshot is received at the next pull.
+  final bool remoteNewer;
   final int conflicts, waitingGroups, rejected, otherWorkspaces;
   final DateTime? lastSuccess;
 }

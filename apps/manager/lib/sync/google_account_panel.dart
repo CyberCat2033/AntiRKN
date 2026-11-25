@@ -281,6 +281,8 @@ String syncStatusLabel(AppLocalizations l, AutoSyncController sync) {
     AutoSyncPhase.editing => l.autoSyncEditing,
     AutoSyncPhase.conflict => l.autoSyncConflict,
     AutoSyncPhase.incomplete => l.autoSyncIncomplete,
+    AutoSyncPhase.remoteNewer => l.autoSyncRemoteNewer,
+    AutoSyncPhase.retrying => l.autoSyncRetrying,
     AutoSyncPhase.error => l.autoSyncError,
   };
 }

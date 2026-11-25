@@ -138,17 +138,14 @@ Future<void> _compactCurrentHistory(
   WorkspaceDatabase store,
 ) => store._serial(() {
   store._transaction(() {
-    if (store._db.select('SELECT 1 FROM sync_conflicts LIMIT 1').isNotEmpty ||
-        store._db
-            .select('SELECT 1 FROM sync_incoming WHERE state IN (0,2) LIMIT 1')
-            .isNotEmpty ||
-        store._db
-            .select(
-              'SELECT 1 FROM sync_branches GROUP BY entity_kind,entity_id HAVING COUNT(*)>1 LIMIT 1',
-            )
-            .isNotEmpty) {
-      throw const BackupFailure(BackupIssue.changed);
-    }
+    // Merge state left by the network exchange removed on 2026-09-24 has no
+    // consumer: snapshots carry the materialized rows. Unresolved conflicts,
+    // waiting packets and extra branches collapse to the current heads, once.
+    store._db.execute('DELETE FROM sync_conflicts');
+    store._db.execute('DELETE FROM sync_branches');
+    store._db.execute(
+      'INSERT INTO sync_branches SELECT entity_kind,entity_id,change_id FROM sync_heads',
+    );
     store._db.execute('DELETE FROM sync_packets');
     store._db.execute('DELETE FROM sync_outbox');
     store._db.execute('DROP TRIGGER sync_changes_immutable_delete');
@@ -194,8 +191,25 @@ Future<void> _restoreBackup(
       if (_backupStamp(store) != plan.stamp) {
         throw const BackupFailure(BackupIssue.changed);
       }
-      final deviceId = newVpnId();
       final workspaceId = snapshot.summary.workspaceId;
+      // A cloud pull replaces data, not the installation: operations this
+      // device executes keep their executor. A backup file may come from
+      // another installation, so restoring one starts a new device identity.
+      final local = store._db
+          .select(
+            'SELECT workspace_id,device_id FROM sync_identity WHERE singleton=1',
+          )
+          .single;
+      final deviceId = plan.cloudBound
+          ? local['device_id'] as String
+          : newVpnId();
+      final keptSyncKey =
+          plan.cloudBound && local['workspace_id'] == workspaceId
+          ? (store._db
+                    .select('SELECT payload FROM sync_keys WHERE singleton=1')
+                    .firstOrNull?['payload']
+                as Uint8List?)
+          : null;
       final owner = WorkspaceIdentity(
         workspaceId: workspaceId,
         deviceId: deviceId,
@@ -209,11 +223,13 @@ Future<void> _restoreBackup(
           'deviceId': deviceId,
         }),
       );
-      final syncKeyPayload = await store._encrypt(
-        _WorkspaceSync.keyScope(workspaceId),
-        1,
-        canonicalJson(await _newSyncKey()),
-      );
+      final syncKeyPayload =
+          keptSyncKey ??
+          await store._encrypt(
+            _WorkspaceSync.keyScope(workspaceId),
+            1,
+            canonicalJson(await _newSyncKey()),
+          );
       final records = <String, List<List<Object?>>>{
         'servers': [],
         'documents': [],

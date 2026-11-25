@@ -2492,7 +2492,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get autoSyncHelp =>
-      'The current snapshot uploads when the app closes or enters the background. A failed upload is retried on the next launch.';
+      'The current snapshot uploads when the app closes or enters the background. A temporary failure is retried automatically; an unsent snapshot is also retried on the next launch.';
 
   @override
   String get autoSyncDisabled => 'Automatic sync is off.';
@@ -2512,7 +2512,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get autoSyncConflict =>
-      'Different versions received. Choose a version in the conflicts section below.';
+      'This device has unsent changes, and Google Drive holds a different version. Nothing was overwritten: the changes stay on this device and are not uploaded automatically.';
 
   @override
   String get autoSyncIncomplete =>
@@ -2520,7 +2520,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get autoSyncError =>
-      'The exchange did not finish. Your data is saved; the app will retry automatically.';
+      'The exchange did not finish. Your data is saved on this device. The next attempt happens when the app enters the background or on the next launch.';
+
+  @override
+  String get autoSyncRetrying =>
+      'No connection to Google Drive. Your data is saved on this device; the app will retry automatically.';
+
+  @override
+  String get autoSyncRemoteNewer =>
+      'Google Drive has a newer version. It loads on the next app launch; nothing was uploaded from this device.';
 
   @override
   String get autoSyncNow => 'Sync now';
@@ -2532,7 +2540,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get autoSyncPairing =>
-      'Sign in to the same Google account on your devices. An empty device loads the snapshot at launch; changes upload when the app closes or enters the background. Do not edit on two devices at once.';
+      'Sign in to the same Google account on your devices. A device without unsent changes loads the newer snapshot at launch; changes upload when the app closes or enters the background. Do not edit on two devices at once.';
 
   @override
   String get googleDesktopConfigurationError =>

@@ -4433,7 +4433,7 @@ abstract class AppLocalizations {
   /// No description provided for @autoSyncHelp.
   ///
   /// In en, this message translates to:
-  /// **'The current snapshot uploads when the app closes or enters the background. A failed upload is retried on the next launch.'**
+  /// **'The current snapshot uploads when the app closes or enters the background. A temporary failure is retried automatically; an unsent snapshot is also retried on the next launch.'**
   String get autoSyncHelp;
 
   /// No description provided for @autoSyncDisabled.
@@ -4469,7 +4469,7 @@ abstract class AppLocalizations {
   /// No description provided for @autoSyncConflict.
   ///
   /// In en, this message translates to:
-  /// **'Different versions received. Choose a version in the conflicts section below.'**
+  /// **'This device has unsent changes, and Google Drive holds a different version. Nothing was overwritten: the changes stay on this device and are not uploaded automatically.'**
   String get autoSyncConflict;
 
   /// No description provided for @autoSyncIncomplete.
@@ -4481,8 +4481,20 @@ abstract class AppLocalizations {
   /// No description provided for @autoSyncError.
   ///
   /// In en, this message translates to:
-  /// **'The exchange did not finish. Your data is saved; the app will retry automatically.'**
+  /// **'The exchange did not finish. Your data is saved on this device. The next attempt happens when the app enters the background or on the next launch.'**
   String get autoSyncError;
+
+  /// No description provided for @autoSyncRetrying.
+  ///
+  /// In en, this message translates to:
+  /// **'No connection to Google Drive. Your data is saved on this device; the app will retry automatically.'**
+  String get autoSyncRetrying;
+
+  /// No description provided for @autoSyncRemoteNewer.
+  ///
+  /// In en, this message translates to:
+  /// **'Google Drive has a newer version. It loads on the next app launch; nothing was uploaded from this device.'**
+  String get autoSyncRemoteNewer;
 
   /// No description provided for @autoSyncNow.
   ///
@@ -4499,7 +4511,7 @@ abstract class AppLocalizations {
   /// No description provided for @autoSyncPairing.
   ///
   /// In en, this message translates to:
-  /// **'Sign in to the same Google account on your devices. An empty device loads the snapshot at launch; changes upload when the app closes or enters the background. Do not edit on two devices at once.'**
+  /// **'Sign in to the same Google account on your devices. A device without unsent changes loads the newer snapshot at launch; changes upload when the app closes or enters the background. Do not edit on two devices at once.'**
   String get autoSyncPairing;
 
   /// No description provided for @googleDesktopConfigurationError.

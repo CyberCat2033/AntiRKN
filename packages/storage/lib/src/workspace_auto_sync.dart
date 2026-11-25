@@ -24,25 +24,13 @@ extension WorkspaceAutomaticSync on WorkspaceDatabase {
       throw const SyncTransportFailure(SyncTransportIssue.changed);
     }
     final localState = await _snapshotLocalState();
-    final localFile = File('$_path.current-snapshot');
-    if (await localFile.exists()) {
-      final uploaded = await readSetting('syncSnapshotUploaded');
-      final digest = (await Sha256().hash(
-        await localFile.readAsBytes(),
-      )).bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
-      if (uploaded != digest) return false;
-    }
-    if (!localState.empty &&
-        (await readSetting('syncSnapshotBound') != localState.workspaceId ||
-            await readSetting('syncSnapshotLocalSequence') !=
-                '${localState.sequence}')) {
+    if (!await _snapshotReplaceable(localState) ||
+        await _unsentSnapshotPending(localState)) {
       return false;
     }
     final file = await cloud.findSnapshot();
     if (file == null) return false;
-    if (!localState.empty &&
-        await readSetting('syncSnapshotRemoteFileId') == file.id &&
-        await readSetting('syncSnapshotRemoteVersion') == file.version) {
+    if (!localState.empty && !await _snapshotRemoteChanged(file)) {
       return false;
     }
     final key = await _SnapshotAutoSync.readKey(cloud);
@@ -62,13 +50,56 @@ extension WorkspaceAutomaticSync on WorkspaceDatabase {
         throw const SyncTransportFailure(SyncTransportIssue.conflict);
       }
       final stamp = await _snapshotStamp();
+      // Any local file left here holds no unsent edits (checked above). It
+      // would describe the replaced state, so it must not outlive the restore.
+      final local = File('$_path.current-snapshot');
+      if (await local.exists()) await local.delete();
       await _restoreCloudSnapshot(snapshot, stamp, file.id, file.version);
       return true;
     } finally {
       key.destroy();
     }
   }
+
+  /// Empty, or bound to the cloud and unchanged since the last confirmed
+  /// upload or pull: the cloud snapshot may replace it without losing edits.
+  Future<bool> _snapshotReplaceable(
+    ({bool empty, int sequence, String workspaceId}) state,
+  ) async =>
+      state.empty ||
+      (await readSetting('syncSnapshotBound') == state.workspaceId &&
+          await readSetting('syncSnapshotLocalSequence') ==
+              '${state.sequence}');
+
+  Future<bool> _snapshotRemoteChanged(SyncRemoteFile file) async =>
+      await readSetting('syncSnapshotRemoteFileId') != file.id ||
+      await readSetting('syncSnapshotRemoteVersion') != file.version;
+
+  /// True while an unconfirmed local snapshot may hold edits absent from the
+  /// cloud. An unconfirmed snapshot captured at the current sequence of a
+  /// replaceable workspace holds none; it is discarded so it cannot block.
+  Future<bool> _unsentSnapshotPending(
+    ({bool empty, int sequence, String workspaceId}) state,
+  ) async {
+    final local = File('$_path.current-snapshot');
+    if (!await local.exists()) return false;
+    if (await readSetting('syncSnapshotUploaded') ==
+        await _snapshotDigest(await local.readAsBytes())) {
+      return false;
+    }
+    if (await readSetting('syncSnapshotPendingSequence') !=
+            '${state.sequence}' ||
+        !await _snapshotReplaceable(state)) {
+      return true;
+    }
+    await local.delete();
+    return false;
+  }
 }
+
+Future<String> _snapshotDigest(Uint8List bytes) async => (await Sha256().hash(
+  bytes,
+)).bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
 
 /// A local snapshot is written atomically before any network request. A failed
 /// upload leaves its encrypted bytes and an unmatched receipt for next start.
@@ -167,10 +198,6 @@ final class _SnapshotAutoSync implements AutoSyncSession {
     return SecretKeyData(raw, overwriteWhenDestroyed: true);
   }
 
-  Future<String> _digest(Uint8List bytes) async => (await Sha256().hash(
-    bytes,
-  )).bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
-
   Future<AutoSyncResult> _recordUpload(
     _BackupSnapshot snapshot,
     SyncRemoteFile written,
@@ -191,7 +218,7 @@ final class _SnapshotAutoSync implements AutoSyncSession {
     int capturedSequence,
   ) async {
     cancel.check();
-    final digest = await _digest(local);
+    final digest = await _snapshotDigest(local);
     final source = await open(local, store._key, 'local');
     final snapshot = await _validateBackupInBackground(source);
     if (snapshot.summary.workspaceId !=
@@ -251,13 +278,27 @@ final class _SnapshotAutoSync implements AutoSyncSession {
     }
     _running = true;
     try {
+      final state = await store._snapshotLocalState();
+      if (await store._snapshotReplaceable(state) &&
+          !await store._unsentSnapshotPending(state)) {
+        // Nothing here is missing from the cloud. Recovery has nothing to send;
+        // a newer cloud snapshot is received by a pull, never overwritten.
+        if (forceRecovery) return const AutoSyncResult();
+        cancellation.check();
+        final file = await remote.findSnapshot();
+        if (file != null &&
+            (state.empty || await store._snapshotRemoteChanged(file))) {
+          return const AutoSyncResult(remoteNewer: true);
+        }
+        if (state.empty) return const AutoSyncResult();
+      }
       Uint8List local;
       int capturedSequence;
       if (forceRecovery) {
         if (!await _local.exists()) return const AutoSyncResult();
         local = await _local.readAsBytes();
         if (await store.readSetting('syncSnapshotUploaded') ==
-            await _digest(local)) {
+            await _snapshotDigest(local)) {
           return const AutoSyncResult();
         }
         capturedSequence =
@@ -275,9 +316,14 @@ final class _SnapshotAutoSync implements AutoSyncSession {
           'syncSnapshotPendingSequence',
           '$capturedSequence',
         );
-        await store._compactHistory();
       }
-      return await _upload(local, cancellation, capturedSequence);
+      final result = await _upload(local, cancellation, capturedSequence);
+      // Bounding the legacy journal is housekeeping after a confirmed upload;
+      // it never decides whether the snapshot reaches the cloud.
+      try {
+        await store._compactHistory();
+      } catch (_) {}
+      return result;
     } finally {
       _running = false;
     }
