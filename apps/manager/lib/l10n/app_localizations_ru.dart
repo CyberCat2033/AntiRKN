@@ -2536,6 +2536,54 @@ class AppLocalizationsRu extends AppLocalizations {
       'В Google Drive есть более новая версия. Она загрузится при возвращении в приложение; с этого устройства ничего не отправлялось.';
 
   @override
+  String get autoSyncDiverged =>
+      'На этом устройстве есть неотправленные изменения, а в Google Drive сохранена другая версия. Автоматический обмен приостановлен, ничего не перезаписано. Выберите, какие данные оставить.';
+
+  @override
+  String get autoSyncDivergedShort => 'Нужно выбрать версию данных';
+
+  @override
+  String get autoSyncChooseVersion => 'Выбрать версию';
+
+  @override
+  String get autoSyncChooseTitle => 'Какие данные оставить?';
+
+  @override
+  String get autoSyncChooseHelp =>
+      'Объединения нет: остаётся одна из версий. Незавершённые операции на серверах и удаления клиентов сохраняются в любом случае.';
+
+  @override
+  String get autoSyncKeepLocal => 'Оставить данные этого устройства';
+
+  @override
+  String get autoSyncTakeCloud => 'Взять из облака';
+
+  @override
+  String get autoSyncKeepLocalEffect => 'Версия в Google Drive будет заменена.';
+
+  @override
+  String get autoSyncTakeCloudEffect =>
+      'Неотправленные изменения этого устройства будут заменены.';
+
+  @override
+  String autoSyncVersionSaved(String time, String device) {
+    return 'Сохранено $time · $device';
+  }
+
+  @override
+  String get autoSyncVersionUnknownTime => 'время неизвестно';
+
+  @override
+  String get autoSyncVersionUnknownDevice => 'устройство не указано';
+
+  @override
+  String get autoSyncThisDevice => 'это устройство';
+
+  @override
+  String get autoSyncChoiceBlocked =>
+      'Сначала закройте редакторы и диалоги и дождитесь окончания операций, затем выберите версию снова.';
+
+  @override
   String get autoSyncUpdateRequired =>
       'Данные в Google Drive сохранены более новой версией AntiRKN. Обновите приложение на этом устройстве. До обновления с Google Drive ничего не загружается и туда ничего не отправляется; данные на этом устройстве не изменены.';
 

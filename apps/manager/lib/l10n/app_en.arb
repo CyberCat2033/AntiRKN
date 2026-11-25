@@ -984,6 +984,26 @@
   "autoSyncError": "The exchange did not finish. Your data is saved on this device. The next attempt happens after the next edit, or when the app enters the background or you return to it.",
   "autoSyncRetrying": "No connection to Google Drive. Your data is saved on this device; the app will retry automatically.",
   "autoSyncRemoteNewer": "Google Drive has a newer version. It loads when you return to the app; nothing was uploaded from this device.",
+  "autoSyncDiverged": "This device has unsent changes, and Google Drive holds another version. Automatic exchange is paused and nothing was overwritten. Choose which data to keep.",
+  "autoSyncDivergedShort": "Choose a version of your data",
+  "autoSyncChooseVersion": "Choose version",
+  "autoSyncChooseTitle": "Which data to keep?",
+  "autoSyncChooseHelp": "Nothing is merged: one of the versions remains. Unfinished server operations and client deletions are kept either way.",
+  "autoSyncKeepLocal": "Keep this device's data",
+  "autoSyncTakeCloud": "Take from the cloud",
+  "autoSyncKeepLocalEffect": "The version in Google Drive will be replaced.",
+  "autoSyncTakeCloudEffect": "Unsent changes on this device will be replaced.",
+  "autoSyncVersionSaved": "Saved {time} · {device}",
+  "autoSyncVersionUnknownTime": "time unknown",
+  "autoSyncVersionUnknownDevice": "device not named",
+  "autoSyncThisDevice": "this device",
+  "autoSyncChoiceBlocked": "Close editors and dialogs first and wait for operations to finish, then choose the version again.",
+  "@autoSyncVersionSaved": {
+    "placeholders": {
+      "time": {"type": "String"},
+      "device": {"type": "String"}
+    }
+  },
   "autoSyncUpdateRequired": "The data in Google Drive was saved by a newer version of AntiRKN. Update the app on this device. Until then nothing is downloaded from or sent to Google Drive; the data on this device is unchanged.",
   "restoredCacheRunning": "Server data is being read again in the background after sync. Data saved on this device is shown meanwhile.",
   "restoredCacheStale": "Servers not answering: {count}. Showing data from {date}. Profiles already published can be opened from Google Drive.",

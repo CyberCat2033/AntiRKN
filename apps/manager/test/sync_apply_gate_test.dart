@@ -4,7 +4,8 @@ import 'package:antirkn_manager/main.dart';
 import 'package:antirkn_manager/sync/auto_sync_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'auto_sync_test.dart' show Settings;
+import 'package:antirkn_manager/l10n/app_localizations.dart';
+import 'auto_sync_test.dart' show Session, Settings;
 import 'desktop_lifecycle_sync_test.dart'
     show AndroidAccountService, TestLanguageStore;
 import 'google_account_test.dart' show AccountService;
@@ -93,6 +94,55 @@ void main() {
     expect(session.received, 1);
     expect(reopened, 1);
     expect(sync.phase, AutoSyncPhase.synced);
+    await tester.runAsync(sync.stop);
+    sync.dispose();
+  });
+
+  testWidgets('a divergence is announced once, without a modal dialog', (
+    tester,
+  ) async {
+    final account = AccountService();
+    await account.signIn();
+    final divergence = SyncDivergence(
+      local: SyncVersionInfo(savedAt: DateTime.utc(2026, 11, 25, 9)),
+      cloud: SyncVersionInfo(savedAt: DateTime.utc(2026, 11, 25, 10)),
+    );
+    final session = Session()..next = AutoSyncResult(divergence: divergence);
+    final sync = AutoSyncController(
+      accountService: account,
+      settings: Settings(),
+      changes: const Stream<void>.empty(),
+      openSession: () async => session,
+      apply: (_) async => false,
+    );
+    await tester.pumpWidget(
+      AntiRknApp(
+        source: '',
+        languages: LanguageController(TestLanguageStore()),
+        googleAccount: AndroidAccountService(),
+        autoSync: sync,
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 10));
+    await tester.pump(const Duration(milliseconds: 10));
+    expect(sync.phase, AutoSyncPhase.diverged);
+    final snackbar = find.byKey(const ValueKey('sync-divergence-snackbar'));
+    expect(snackbar, findsOneWidget);
+    final l = AppLocalizations.of(tester.element(snackbar));
+    expect(find.text(l.autoSyncDivergedShort), findsOneWidget);
+    expect(find.byType(Dialog), findsNothing);
+    ScaffoldMessenger.of(tester.element(snackbar)).hideCurrentSnackBar();
+    await tester.pumpAndSettle();
+    // The same divergence found again on return is not announced again.
+    await tester.pump(const Duration(seconds: 30));
+    sync.resumed();
+    await tester.pump(const Duration(milliseconds: 10));
+    await tester.pump();
+    expect(session.enters.length, greaterThan(1));
+    expect(
+      find.byKey(const ValueKey('sync-divergence-snackbar')),
+      findsNothing,
+    );
     await tester.runAsync(sync.stop);
     sync.dispose();
   });

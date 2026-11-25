@@ -480,6 +480,7 @@ class _ManagerShellState extends State<ManagerShell>
     WidgetsBinding.instance.addObserver(this);
     widget.autoSync?.apply = _applyReceived;
     widget.autoSync?.addListener(_syncChanged);
+    widget.autoSync?.addListener(_divergenceChanged);
     if (widget.ssh case final ssh?) {
       if (widget.servers case final repository?) {
         _catalog = ServerCatalogController(
@@ -732,6 +733,7 @@ class _ManagerShellState extends State<ManagerShell>
     _clientSelection.dispose();
     WidgetsBinding.instance.removeObserver(this);
     widget.autoSync?.removeListener(_syncChanged);
+    widget.autoSync?.removeListener(_divergenceChanged);
     widget.autoSync?.apply = (_) async => false;
     _catalog?.removeListener(_catalogChanged);
     _catalog?.dispose();
@@ -783,6 +785,33 @@ class _ManagerShellState extends State<ManagerShell>
 
   void _syncChanged() {
     if (mounted) setState(() {});
+  }
+
+  String? _announcedDivergence;
+
+  /// A divergence is announced once, unobtrusively; the choice itself stays
+  /// in the synchronization settings.
+  void _divergenceChanged() {
+    final sync = widget.autoSync;
+    final divergence = sync?.divergence;
+    final key = divergence == null
+        ? null
+        : '${divergence.cloud.savedAt}|${divergence.cloud.deviceName}';
+    if (key == _announcedDivergence || !mounted) return;
+    _announcedDivergence = key;
+    if (key == null) return;
+    final l = AppLocalizations.of(context);
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(
+        key: const ValueKey('sync-divergence-snackbar'),
+        behavior: SnackBarBehavior.floating,
+        content: Text(l.autoSyncDivergedShort),
+        action: SnackBarAction(
+          label: l.autoSyncChooseVersion,
+          onPressed: () => chooseSyncVersion(context, sync!),
+        ),
+      ),
+    );
   }
 
   Future<bool> _applyReceived(Future<void> Function() receive) async {

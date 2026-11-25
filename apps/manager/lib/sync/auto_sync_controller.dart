@@ -20,6 +20,10 @@ enum AutoSyncPhase {
   /// A temporary failure; a retry is scheduled without a lifecycle event.
   retrying,
 
+  /// Unsent edits here and a newer cloud version: nothing is exchanged until
+  /// the user chooses one of them.
+  diverged,
+
   /// Not retried automatically: needs the user or the next background/launch.
   error,
 }
@@ -78,6 +82,12 @@ class AutoSyncController extends ChangeNotifier {
   bool applying = false;
   AutoSyncPhase phase = AutoSyncPhase.disconnected;
   AutoSyncResult? result;
+
+  /// Both versions while [phase] is [AutoSyncPhase.diverged].
+  SyncDivergence? divergence;
+
+  /// The last choice could not be applied: an editor or operation was open.
+  bool choiceBlocked = false;
   GoogleAccountIssue? accountError;
   SyncTransportIssue? transportError;
   AutoSyncSession? _session;
@@ -226,7 +236,7 @@ class AutoSyncController extends ChangeNotifier {
 
   /// A local change: upload once the edits settle.
   void _edited() {
-    if (!_allowed) return;
+    if (!_allowed || divergence != null) return;
     _editTimer?.cancel();
     _editTimer = Timer(uploadDebounce, _uploadEdits);
     _editDeadline ??= Timer(uploadMaxWait, _uploadEdits);
@@ -243,7 +253,7 @@ class AutoSyncController extends ChangeNotifier {
     _editTimer = _editDeadline = null;
   }
 
-  Future<void> _run() async {
+  Future<void> _run({SyncDivergenceChoice? choice}) async {
     final forceRecovery = _forceRecovery, enter = _enter;
     _forceRecovery = _enter = false;
     _runningEnter = enter;
@@ -258,25 +268,42 @@ class AutoSyncController extends ChangeNotifier {
     try {
       _session ??= await openSession();
       _cancel!.check();
-      final next = await _session!.exchange(
-        cancellation: _cancel!,
-        forceRecovery: forceRecovery,
-        enter: enter,
-        apply: (receive) => apply(() async {
-          _cancel!.check();
-          applying = true;
+      Future<bool> gate(Future<void> Function() receive) => apply(() async {
+        _cancel!.check();
+        applying = true;
+        _notify();
+        try {
+          await receive();
+        } finally {
+          applying = false;
           _notify();
-          try {
-            await receive();
-          } finally {
-            applying = false;
-            _notify();
-          }
-        }),
-      );
+        }
+      });
+      final next = choice == null
+          ? await _session!.exchange(
+              cancellation: _cancel!,
+              forceRecovery: forceRecovery,
+              enter: enter,
+              apply: gate,
+            )
+          : await _session!.resolve(
+              choice,
+              cancellation: _cancel!,
+              apply: gate,
+            );
       _cancel!.check();
       result = next;
-      phase = next.received
+      choiceBlocked = false;
+      if (next.divergence != null) divergence = next.divergence;
+      if (choice != null && next.waitingForEditor && next.divergence == null) {
+        // Nothing replaced: the versions still wait for a choice.
+        choiceBlocked = true;
+      } else if (next.divergence == null) {
+        divergence = null;
+      }
+      phase = divergence != null
+          ? AutoSyncPhase.diverged
+          : next.received
           ? AutoSyncPhase.synced
           : next.waitingForEditor
           ? AutoSyncPhase.editing
@@ -375,30 +402,39 @@ class AutoSyncController extends ChangeNotifier {
       if (!done.isCompleted) done.complete();
     });
     unawaited(
-      () async {
-        await ready;
-        if (!_allowed) return;
-        _timer?.cancel();
-        _cancelEdits();
-        final pending = _running;
-        if (pending != null) await pending;
-        if (done.isCompleted || _running != null) return;
-        // Leaving: send edits, no entry check.
-        _enter = false;
-        final run = _run();
-        _running = run;
-        try {
-          await run;
-        } finally {
-          if (identical(_running, run)) _running = null;
-        }
-      }().whenComplete(() {
+      _runNow(cancelled: () => done.isCompleted).whenComplete(() {
         if (!done.isCompleted) done.complete();
       }),
     );
     await done.future;
     if (!deadline.isActive) _cancel?.cancel();
     deadline.cancel();
+  }
+
+  /// The user's explicit choice between the diverged versions.
+  Future<void> resolve(SyncDivergenceChoice choice) => _runNow(choice: choice);
+
+  /// Runs one exchange (or [choice]) now, after the current one; leaving
+  /// mode, no entry check.
+  Future<void> _runNow({
+    SyncDivergenceChoice? choice,
+    bool Function()? cancelled,
+  }) async {
+    await ready;
+    if (!_allowed) return;
+    _timer?.cancel();
+    _cancelEdits();
+    final pending = _running;
+    if (pending != null) await pending;
+    if ((cancelled?.call() ?? false) || _running != null) return;
+    _enter = false;
+    final run = _run(choice: choice);
+    _running = run;
+    try {
+      await run;
+    } finally {
+      if (identical(_running, run)) _running = null;
+    }
   }
 
   Future<void> setEnabled(bool value) async {
@@ -430,6 +466,8 @@ class AutoSyncController extends ChangeNotifier {
     account = value;
     _suspended = false;
     result = null;
+    divergence = null;
+    choiceBlocked = false;
     phase = value == null
         ? AutoSyncPhase.disconnected
         : enabled

@@ -434,3 +434,126 @@ extension WorkspaceSnapshotDiagnostics on WorkspaceDatabase {
   Future<void> debugValidateSnapshot(String source, {required bool cloud}) =>
       _validateBackupInBackground(source, cloud: cloud);
 }
+
+String? _executorOf(Object? operation) =>
+    operation is Map && operation['executorDeviceId'] is String
+    ? operation['executorDeviceId'] as String
+    : null;
+
+Map<String, dynamic>? _vpnRow(List<Map<String, dynamic>> rows) =>
+    rows.where((row) => row['id'] == 'vpn-workspace-v1').firstOrNull;
+
+/// A copy of [into] with the unfinished work of [from] whose executor device
+/// [owns] accepts: VPN target records with an operation, runner journals with
+/// one, and client deletions not yet complete. Choosing a version never
+/// drops or orphans such work, and never brings back a client it deletes.
+/// Where [into] holds other unfinished work on the same target, the chosen
+/// version keeps it. Null when nothing had to be carried.
+Map<String, dynamic>? _carryOperations(
+  Map<String, dynamic> into,
+  Map<String, dynamic> from,
+  bool Function(String executor) owns,
+) {
+  // Records carried into a v5 snapshot keep its intent-only shape.
+  final intent = into['version'] == cloudSnapshotVersion;
+  final documents = [
+    for (final dynamic row in into['documents'] as List)
+      Map<String, dynamic>.from(row as Map),
+  ];
+  final source = [
+    for (final dynamic row in from['documents'] as List)
+      Map<String, dynamic>.from(row as Map),
+  ];
+  var changed = false;
+  final intoRow = _vpnRow(documents), fromRow = _vpnRow(source);
+  if (intoRow != null && fromRow != null) {
+    final intoVpn = jsonDecode(intoRow['source'] as String) as Map;
+    final fromVpn = jsonDecode(fromRow['source'] as String) as Map;
+    final servers = Map<String, dynamic>.from(intoVpn['servers'] as Map);
+    var vpnChanged = false;
+    for (final entry in (fromVpn['servers'] as Map).entries) {
+      final target = entry.key as String;
+      final executor = _executorOf((entry.value as Map)['operation']);
+      if (executor == null || !owns(executor)) continue;
+      final other = _executorOf((servers[target] as Map?)?['operation']);
+      if (other != null && other != executor) continue;
+      var record = Map<String, dynamic>.from(entry.value as Map);
+      if (intent) {
+        final cleaned = _cloudVpn({
+          'servers': {target: record},
+          'profiles': const <String, Object?>{},
+        })['servers'];
+        record = Map<String, dynamic>.from((cleaned as Map)[target] as Map);
+      }
+      if (servers[target] != null &&
+          canonicalJson(servers[target]) == canonicalJson(record)) {
+        continue;
+      }
+      servers[target] = record;
+      vpnChanged = true;
+    }
+    final users = [
+      for (final dynamic user in intoVpn['users'] as List)
+        Map<String, dynamic>.from(user as Map),
+    ];
+    final fromUsers = {
+      for (final dynamic user in fromVpn['users'] as List)
+        user['id'] as String: Map<String, dynamic>.from(user as Map),
+    };
+    for (final user in VpnWorkspace.decode(fromRow['source'] as String).users) {
+      final executor = user.deletion?['executor'];
+      if (!user.deleted ||
+          user.deletionComplete ||
+          executor is! String ||
+          !owns(executor)) {
+        continue;
+      }
+      final index = users.indexWhere((value) => value['id'] == user.id);
+      if (index >= 0 && users[index]['deleted'] == true) continue;
+      if (index >= 0) {
+        users[index] = fromUsers[user.id]!;
+      } else {
+        users.add(fromUsers[user.id]!);
+      }
+      vpnChanged = true;
+    }
+    if (vpnChanged) {
+      intoRow['source'] = canonicalJson({
+        ...intoVpn,
+        'servers': servers,
+        'users': users,
+      });
+      changed = true;
+    }
+  }
+  for (final row in source) {
+    final id = row['id'] as String;
+    if (!id.startsWith('runner/')) continue;
+    final journal = jsonDecode(row['source'] as String) as Map;
+    final executor = _executorOf(journal['operation']);
+    if (!_runnerUnfinished(journal) || executor == null || !owns(executor)) {
+      continue;
+    }
+    final index = documents.indexWhere((value) => value['id'] == id);
+    if (index >= 0) {
+      final current = jsonDecode(documents[index]['source'] as String) as Map;
+      final other = _executorOf(current['operation']);
+      if (_runnerUnfinished(current) && other != null && other != executor) {
+        continue;
+      }
+    }
+    final carried = intent
+        ? _cloudSource('documents', id, row['source'] as String)!
+        : row['source'] as String;
+    if (index >= 0) {
+      if (documents[index]['source'] == carried) continue;
+      documents[index] = {...documents[index], 'source': carried};
+    } else {
+      documents.add({'id': id, 'revision': 1, 'source': carried});
+    }
+    changed = true;
+  }
+  if (!changed) return null;
+  documents.sort((a, b) => (a['id'] as String).compareTo(b['id'] as String));
+  return {...into, 'documents': documents};
+}

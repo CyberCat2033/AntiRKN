@@ -34,6 +34,26 @@ Future<void> _editVpn(
   await db.writeVpn(jsonEncode(vpn), expectedRevision: stored.revision);
 }
 
+Map<String, dynamic> _vpnOf(String source) =>
+    jsonDecode(source) as Map<String, dynamic>;
+
+Map<String, Object?> _operation(String id, String device) =>
+    ServerOperation(operationId: id, executorDeviceId: device).toJson();
+
+/// An operation this device started on [target]: pending until the runner
+/// answers.
+void _startOperation(
+  Map<String, dynamic> vpn,
+  String target,
+  String id,
+  String device,
+) {
+  final record = (vpn['servers'] as Map)[target] as Map;
+  record['pending'] = {'id': id, 'kind': 'vless_apply', 'payload': '{}'};
+  record['operation'] = _operation(id, device);
+  record['authorizedPayload'] = '{"next":"$id"}';
+}
+
 void main() {
   late Directory directory;
   final stores = <WorkspaceDatabase>[];
@@ -242,6 +262,256 @@ void main() {
       await pc.writeDraft('intent changed');
       await leave(sync);
       expect(remote.calls, ['writeSnapshot']);
+    },
+  );
+
+  Future<AutoSyncResult> choose(
+    AutoSyncSession sync,
+    SyncDivergenceChoice choice, [
+    _Gate? gate,
+  ]) => sync.resolve(
+    choice,
+    apply: (gate ?? _Gate()).call,
+    cancellation: SyncCancellation(),
+  );
+
+  /// The phone's upload is killed midway; the PC, not knowing its edit,
+  /// works on and uploads; the phone comes back.
+  Future<(WorkspaceDatabase, WorkspaceDatabase, AutoSyncResult)>
+  killedUploadThenPc({
+    void Function(Map<String, dynamic> vpn, String phone)? phoneVpn,
+    void Function(Map<String, dynamic> vpn, String pc)? pcVpn,
+  }) async {
+    final pc = open('pc', 11);
+    await fillSyntheticWorkspace(pc, clients: 3, servers: 1);
+    await pc.writeDraft('version one');
+    await leave(await session(pc));
+    var phone = open('phone', 22);
+    expect(await phone.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+    phone = await reopen(phone, 'phone', 22);
+    final phoneDevice = (await phone.readWorkspaceIdentity()).deviceId;
+    await phone.writeDraft('edit made on the phone');
+    if (phoneVpn != null) {
+      await _editVpn(phone, (vpn) => phoneVpn(vpn, phoneDevice));
+    }
+    remote.unavailable = true;
+    await expectLater(
+      leave(await session(phone)),
+      throwsA(isA<SyncTransportFailure>()),
+    );
+    remote.unavailable = false;
+    final pcSync = await session(pc);
+    await enter(pcSync, _Gate(), launch: true);
+    await pc.writeDraft('edit made on the PC');
+    if (pcVpn != null) {
+      final pcDevice = (await pc.readWorkspaceIdentity()).deviceId;
+      await _editVpn(pc, (vpn) => pcVpn(vpn, pcDevice));
+    }
+    await leave(pcSync);
+    final writes = remote.writes;
+    final result = await enter(await session(phone), _Gate(), launch: true);
+    expect(remote.writes, writes, reason: 'nothing is overwritten');
+    return (pc, phone, result);
+  }
+
+  Future<String?> cloudDraft() async {
+    final reader = open('reader-${remote.version}', 99);
+    expect(await reader.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+    return (await reopen(reader, 'reader-${remote.version}', 99)).readDraft();
+  }
+
+  test(
+    'an upload killed midway, then work on the PC: the phone offers a choice and loses nothing',
+    () async {
+      final (_, phone, result) = await killedUploadThenPc();
+      final divergence = result.divergence!;
+      expect(divergence.cloud.savedAt, isNotNull);
+      expect(divergence.local.savedAt, isNotNull);
+      if (Platform.isLinux) {
+        expect(divergence.cloud.deviceName, startsWith('Linux'));
+      }
+      expect(await phone.readDraft(), 'edit made on the phone');
+      expect(await cloudDraft(), 'edit made on the PC');
+      // Until the user chooses: no writes, one metadata request on return.
+      final sync = await session(phone);
+      remote.calls.clear();
+      expect((await leave(sync)).divergence, isNotNull);
+      expect(remote.calls, isEmpty);
+      expect((await enter(sync, _Gate())).divergence, isNotNull);
+      expect(remote.calls, ['findSnapshot']);
+      await phone.writeDraft('more edits while waiting');
+      expect((await leave(sync)).divergence, isNotNull);
+      expect(remote.calls, ['findSnapshot']);
+    },
+  );
+
+  test('a stale conditional write diverges instead of overwriting', () async {
+    final (pc, phone) = await pcAndPhone();
+    final phoneSync = await session(phone);
+    await pc.writeDraft('PC version');
+    await leave(await session(pc));
+    await phone.writeDraft('phone version');
+    remote.calls.clear();
+    final result = await leave(phoneSync);
+    expect(result.divergence, isNotNull);
+    expect(remote.calls.first, 'writeSnapshot');
+    expect(remote.writes, 2);
+    expect(await cloudDraft(), 'PC version');
+    expect(await phone.readDraft(), 'phone version');
+  });
+
+  test(
+    'keeping this device data replaces the cloud version, confirmed by Drive',
+    () async {
+      final (pc, phone, _) = await killedUploadThenPc();
+      final device = (await phone.readWorkspaceIdentity()).deviceId;
+      final sync = await session(phone);
+      final result = await choose(sync, SyncDivergenceChoice.keepLocal);
+      expect(result.divergence, isNull);
+      expect(result.lastSuccess, isNotNull);
+      expect(await cloudDraft(), 'edit made on the phone');
+      expect((await phone.readWorkspaceIdentity()).deviceId, device);
+      // Automatic exchange is back; the PC receives the phone's data.
+      remote.calls.clear();
+      expect((await enter(sync, _Gate())).divergence, isNull);
+      expect(remote.calls, ['findSnapshot']);
+      expect((await enter(await session(pc), _Gate())).received, isTrue);
+      final refreshed = await reopen(pc, 'pc', 11);
+      expect(await refreshed.readDraft(), 'edit made on the phone');
+    },
+  );
+
+  test(
+    'taking the cloud version replaces unsent edits and keeps own operations',
+    () async {
+      late String target;
+      final (_, before, _) = await killedUploadThenPc(
+        phoneVpn: (vpn, device) {
+          target = (vpn['servers'] as Map).keys.first as String;
+          _startOperation(vpn, target, 'a1' * 16, device);
+        },
+      );
+      final device = (await before.readWorkspaceIdentity()).deviceId;
+      final gate = _Gate();
+      final result = await choose(
+        await session(before),
+        SyncDivergenceChoice.takeCloud,
+        gate,
+      );
+      expect(result.received, isTrue);
+      expect(gate.applied, 1);
+      final phone = await reopen(before, 'phone', 22);
+      expect(await phone.readDraft(), 'edit made on the PC');
+      final identity = await phone.readWorkspaceIdentity();
+      expect(identity.deviceId, device);
+      final record =
+          _vpnOf((await phone.readVpn()).source!)['servers'][target] as Map;
+      expect(record['pending']['id'], 'a1' * 16);
+      expect(record['operation']['executorDeviceId'], device);
+      expect(await phone.readRestoredTargets(), isNot(contains(target)));
+      expect(await phone.readSetting('syncSnapshotDivergence'), isEmpty);
+      // The cloud learns about the operation with the next upload.
+      final sync = await session(phone);
+      expect((await enter(sync, _Gate(), launch: true)).divergence, isNull);
+      final cloud = await openFakeSnapshot(remote);
+      final cloudVpn = _vpnOf(
+        (cloud['documents'] as List).singleWhere(
+              (row) => row['id'] == 'vpn-workspace-v1',
+            )['source']
+            as String,
+      );
+      expect(cloudVpn['servers'][target]['pending']['id'], 'a1' * 16);
+    },
+  );
+
+  test(
+    'keeping this device data keeps the PC operation and deletion',
+    () async {
+      late String target, deleted;
+      final (pc, before, _) = await killedUploadThenPc(
+        pcVpn: (vpn, device) {
+          target = (vpn['servers'] as Map).keys.first as String;
+          _startOperation(vpn, target, 'c3' * 16, device);
+          final users = vpn['users'] as List;
+          deleted = (users[0] as Map)['id'] as String;
+          users[0] = {
+            ...users[0] as Map,
+            'enabled': false,
+            'deleted': true,
+            'deletion': {
+              'version': 1,
+              'id': 'd4' * 16,
+              'executor': device,
+              'targets': {
+                target: {'status': 'waiting'},
+              },
+            },
+          };
+        },
+      );
+      final pcDevice = (await pc.readWorkspaceIdentity()).deviceId;
+      final gate = _Gate();
+      final result = await choose(
+        await session(before),
+        SyncDivergenceChoice.keepLocal,
+        gate,
+      );
+      // The PC's operation is merged here first; it uploads at the reopen.
+      expect(result.received, isTrue);
+      var phone = await reopen(before, 'phone', 22);
+      expect(await phone.readDraft(), 'edit made on the phone');
+      Future<void> check(WorkspaceDatabase db) async {
+        final vpn = _vpnOf((await db.readVpn()).source!);
+        expect(
+          vpn['servers'][target]['operation']['executorDeviceId'],
+          pcDevice,
+        );
+        final user = (vpn['users'] as List).singleWhere(
+          (u) => u['id'] == deleted,
+        );
+        expect(user['deleted'], isTrue);
+        expect(user['deletion']['executor'], pcDevice);
+      }
+
+      await check(phone);
+      // Foreign work still needs a look on this device.
+      expect(await phone.readRestoredTargets(), contains(target));
+      await enter(await session(phone), _Gate(), launch: true);
+      expect(await cloudDraft(), 'edit made on the phone');
+      expect((await enter(await session(pc), _Gate())).received, isTrue);
+      phone = await reopen(pc, 'pc', 11);
+      await check(phone);
+      expect(await phone.readDraft(), 'edit made on the phone');
+      expect(await phone.readRestoredTargets(), isNot(contains(target)));
+    },
+  );
+
+  test(
+    'own unfinished operations after a cloud pull need no confirmation',
+    () async {
+      final pc = open('pc', 11);
+      await fillSyntheticWorkspace(pc, clients: 3, servers: 1);
+      await leave(await session(pc));
+      var phone = open('phone', 22);
+      expect(await phone.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+      phone = await reopen(phone, 'phone', 22);
+      final device = (await phone.readWorkspaceIdentity()).deviceId;
+      late String target;
+      await _editVpn(phone, (vpn) {
+        target = (vpn['servers'] as Map).keys.first as String;
+        _startOperation(vpn, target, 'e5' * 16, device);
+      });
+      await leave(await session(phone));
+      // The PC receives a foreign operation: it is to be confirmed there.
+      expect((await enter(await session(pc), _Gate())).received, isTrue);
+      final pcAgain = await reopen(pc, 'pc', 11);
+      expect(await pcAgain.readRestoredTargets(), contains(target));
+      await pcAgain.writeDraft('PC edit');
+      await leave(await session(pcAgain));
+      expect((await enter(await session(phone), _Gate())).received, isTrue);
+      phone = await reopen(phone, 'phone', 22);
+      expect(await phone.readDraft(), 'PC edit');
+      expect(await phone.readRestoredTargets(), isNot(contains(target)));
     },
   );
 }

@@ -4496,6 +4496,90 @@ abstract class AppLocalizations {
   /// **'Google Drive has a newer version. It loads when you return to the app; nothing was uploaded from this device.'**
   String get autoSyncRemoteNewer;
 
+  /// No description provided for @autoSyncDiverged.
+  ///
+  /// In en, this message translates to:
+  /// **'This device has unsent changes, and Google Drive holds another version. Automatic exchange is paused and nothing was overwritten. Choose which data to keep.'**
+  String get autoSyncDiverged;
+
+  /// No description provided for @autoSyncDivergedShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a version of your data'**
+  String get autoSyncDivergedShort;
+
+  /// No description provided for @autoSyncChooseVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose version'**
+  String get autoSyncChooseVersion;
+
+  /// No description provided for @autoSyncChooseTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Which data to keep?'**
+  String get autoSyncChooseTitle;
+
+  /// No description provided for @autoSyncChooseHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing is merged: one of the versions remains. Unfinished server operations and client deletions are kept either way.'**
+  String get autoSyncChooseHelp;
+
+  /// No description provided for @autoSyncKeepLocal.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep this device\'s data'**
+  String get autoSyncKeepLocal;
+
+  /// No description provided for @autoSyncTakeCloud.
+  ///
+  /// In en, this message translates to:
+  /// **'Take from the cloud'**
+  String get autoSyncTakeCloud;
+
+  /// No description provided for @autoSyncKeepLocalEffect.
+  ///
+  /// In en, this message translates to:
+  /// **'The version in Google Drive will be replaced.'**
+  String get autoSyncKeepLocalEffect;
+
+  /// No description provided for @autoSyncTakeCloudEffect.
+  ///
+  /// In en, this message translates to:
+  /// **'Unsent changes on this device will be replaced.'**
+  String get autoSyncTakeCloudEffect;
+
+  /// No description provided for @autoSyncVersionSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved {time} · {device}'**
+  String autoSyncVersionSaved(String time, String device);
+
+  /// No description provided for @autoSyncVersionUnknownTime.
+  ///
+  /// In en, this message translates to:
+  /// **'time unknown'**
+  String get autoSyncVersionUnknownTime;
+
+  /// No description provided for @autoSyncVersionUnknownDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'device not named'**
+  String get autoSyncVersionUnknownDevice;
+
+  /// No description provided for @autoSyncThisDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'this device'**
+  String get autoSyncThisDevice;
+
+  /// No description provided for @autoSyncChoiceBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Close editors and dialogs first and wait for operations to finish, then choose the version again.'**
+  String get autoSyncChoiceBlocked;
+
   /// No description provided for @autoSyncUpdateRequired.
   ///
   /// In en, this message translates to:

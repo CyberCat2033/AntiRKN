@@ -1362,14 +1362,16 @@ final class WorkspaceDatabase
   Future<void> _restoreCloudSnapshot(
     _BackupSnapshot snapshot,
     String stamp,
-    SyncRemoteFile file,
-  ) => _dbWorker != null
+    SyncRemoteFile file, {
+    String? boundIntent,
+  }) => _dbWorker != null
       ? _remoteCall('restoreCloudSnapshot', [
           snapshot,
           stamp,
           file.id,
           file.version,
           file.etag,
+          boundIntent,
         ])
       : _restoreCloudSnapshotInWorker(
           this,
@@ -1378,6 +1380,7 @@ final class WorkspaceDatabase
           file.id,
           file.version,
           file.etag,
+          boundIntent,
         );
 
   Future<void> close() async {

@@ -21,10 +21,12 @@ final class _CapturedSnapshot {
     this.sequence,
     this.workspaceId,
     this.intent,
+    this.createdAt,
   );
   final String source;
   final int sequence;
   final String workspaceId, intent;
+  final DateTime createdAt;
 }
 
 final class _RestorePlan implements WorkspaceRestorePlan {
@@ -36,6 +38,10 @@ final class _RestorePlan implements WorkspaceRestorePlan {
   _BackupSnapshot? _snapshot;
   bool cloudBound = false;
   String? remoteFileId, remoteVersion, remoteEtag;
+
+  /// The cloud's intent when the restored data differs from it: the device
+  /// is bound to the cloud version and still has something to upload.
+  String? boundIntent;
   @override
   final BackupSummary summary;
   @override
@@ -86,7 +92,11 @@ Future<_CapturedSnapshot> _currentSnapshot(
     'version': cloud ? cloudSnapshotVersion : 4,
     'createdAt': DateTime.now().toUtc().toIso8601String(),
     'workspaceId': store._journal.identity.workspaceId,
-    if (cloud) 'author': {'deviceId': store._journal.identity.deviceId},
+    if (cloud)
+      'author': {
+        'deviceId': store._journal.identity.deviceId,
+        'deviceName': ?_localDeviceName(),
+      },
     'servers': <Object?>[],
     'documents': <Object?>[],
   };
@@ -140,6 +150,7 @@ Future<_CapturedSnapshot> _currentSnapshot(
     sequence,
     validated.summary.workspaceId,
     validated.intent,
+    validated.summary.createdAt,
   );
 });
 
@@ -364,11 +375,14 @@ Future<void> _restoreBackup(
             [workspaceId],
           );
           for (final (key, value) in [
-            ('syncSnapshotLocalSequence', '${bootstrap.changes.length}'),
+            (
+              'syncSnapshotLocalSequence',
+              plan.boundIntent == null ? '${bootstrap.changes.length}' : '',
+            ),
             ('syncSnapshotRemoteFileId', plan.remoteFileId!),
             ('syncSnapshotRemoteVersion', plan.remoteVersion!),
             ('syncSnapshotRemoteEtag', plan.remoteEtag ?? ''),
-            ('syncSnapshotIntent', snapshot.intent),
+            ('syncSnapshotIntent', plan.boundIntent ?? snapshot.intent),
             ('syncSnapshotUnsupported', ''),
             ('syncCacheRefresh', jsonEncode(staleServers)),
           ]) {
@@ -378,11 +392,21 @@ Future<void> _restoreBackup(
             );
           }
         }
+        // Whatever divergence was waiting is answered by this restore.
+        store._db.execute(
+          "INSERT INTO settings VALUES ('syncSnapshotDivergence','') ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        );
+        // This installation's own work, received back from the cloud, is
+        // not foreign: it continues without a review. A backup file always
+        // starts a new device, so all its work is reviewed.
         store._db.execute(
           "INSERT INTO settings VALUES ('backupRestoredTargets',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
           [
             jsonEncode(
-              _restoredTargets(data['documents'] as List).toList()..sort(),
+              _restoredTargets(
+                data['documents'] as List,
+                own: plan.cloudBound ? deviceId : null,
+              ).toList()..sort(),
             ),
           ],
         );
@@ -405,13 +429,18 @@ Future<void> _restoreBackup(
   }
 }
 
-Set<String> _restoredTargets(List<dynamic> documents) {
+/// Targets with unfinished work to review after a restore; work whose
+/// executor is [own] is this device's and is left out.
+Set<String> _restoredTargets(List<dynamic> documents, {String? own}) {
   final targets = <String>{};
   for (final dynamic row in documents) {
     if (row['id'] != 'vpn-workspace-v1') continue;
     final vpn = VpnWorkspace.decode(row['source'] as String);
     for (final user in vpn.users.where(
-      (u) => u.deleted && !u.deletionComplete,
+      (u) =>
+          u.deleted &&
+          !u.deletionComplete &&
+          (own == null || u.deletion!['executor'] != own),
     )) {
       targets.addAll(
         (user.deletion!['targets'] as Map).entries
@@ -421,6 +450,12 @@ Set<String> _restoredTargets(List<dynamic> documents) {
     }
     for (final entry in vpn.servers.entries) {
       final record = entry.value;
+      final operation = record['operation'];
+      if (own != null &&
+          operation is Map &&
+          operation['executorDeviceId'] == own) {
+        continue;
+      }
       if (record['pending'] != null ||
           record['cancelRequested'] == true ||
           record['observingCancel'] == true ||

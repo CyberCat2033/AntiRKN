@@ -2531,6 +2531,55 @@ class AppLocalizationsEn extends AppLocalizations {
       'Google Drive has a newer version. It loads when you return to the app; nothing was uploaded from this device.';
 
   @override
+  String get autoSyncDiverged =>
+      'This device has unsent changes, and Google Drive holds another version. Automatic exchange is paused and nothing was overwritten. Choose which data to keep.';
+
+  @override
+  String get autoSyncDivergedShort => 'Choose a version of your data';
+
+  @override
+  String get autoSyncChooseVersion => 'Choose version';
+
+  @override
+  String get autoSyncChooseTitle => 'Which data to keep?';
+
+  @override
+  String get autoSyncChooseHelp =>
+      'Nothing is merged: one of the versions remains. Unfinished server operations and client deletions are kept either way.';
+
+  @override
+  String get autoSyncKeepLocal => 'Keep this device\'s data';
+
+  @override
+  String get autoSyncTakeCloud => 'Take from the cloud';
+
+  @override
+  String get autoSyncKeepLocalEffect =>
+      'The version in Google Drive will be replaced.';
+
+  @override
+  String get autoSyncTakeCloudEffect =>
+      'Unsent changes on this device will be replaced.';
+
+  @override
+  String autoSyncVersionSaved(String time, String device) {
+    return 'Saved $time · $device';
+  }
+
+  @override
+  String get autoSyncVersionUnknownTime => 'time unknown';
+
+  @override
+  String get autoSyncVersionUnknownDevice => 'device not named';
+
+  @override
+  String get autoSyncThisDevice => 'this device';
+
+  @override
+  String get autoSyncChoiceBlocked =>
+      'Close editors and dialogs first and wait for operations to finish, then choose the version again.';
+
+  @override
   String get autoSyncUpdateRequired =>
       'The data in Google Drive was saved by a newer version of AntiRKN. Update the app on this device. Until then nothing is downloaded from or sent to Google Drive; the data on this device is unchanged.';
 

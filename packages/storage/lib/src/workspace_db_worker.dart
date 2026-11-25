@@ -386,6 +386,7 @@ Future<Object?> _dispatchDatabase(
       args[2] as String,
       args[3] as String,
       args[4] as String,
+      args[5] as String?,
     ),
   ),
   _ => throw const VaultFailure(VaultIssue.unavailable),
@@ -398,11 +399,13 @@ Future<void> _restoreCloudSnapshotInWorker(
   String fileId,
   String version,
   String etag,
+  String? boundIntent,
 ) async {
   final plan = _RestorePlan(db, stamp, snapshot)
     ..cloudBound = true
     ..remoteFileId = fileId
     ..remoteVersion = version
-    ..remoteEtag = etag;
+    ..remoteEtag = etag
+    ..boundIntent = boundIntent;
   await db.restoreBackup(plan);
 }

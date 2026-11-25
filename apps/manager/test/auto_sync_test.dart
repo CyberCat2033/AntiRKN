@@ -482,4 +482,77 @@ void main() {
     await tester.runAsync(controller.stop);
     controller.dispose();
   });
+
+  final divergence = SyncDivergence(
+    local: SyncVersionInfo(
+      savedAt: DateTime.utc(2026, 11, 25, 9, 30),
+      deviceName: 'Android',
+    ),
+    cloud: SyncVersionInfo(
+      savedAt: DateTime.utc(2026, 11, 25, 10, 15),
+      deviceName: 'Linux · desk',
+    ),
+  );
+
+  testWidgets('a divergence pauses uploads until the user chooses', (
+    tester,
+  ) async {
+    final changes = StreamController<void>.broadcast();
+    final account = AccountService();
+    await account.signIn();
+    final session = Session()
+      ..results.add(AutoSyncResult(divergence: divergence));
+    final controller = AutoSyncController(
+      accountService: account,
+      settings: Settings(),
+      changes: changes.stream,
+      openSession: () async => session,
+      apply: (_) async => true,
+    );
+    await tester.pump(Duration.zero);
+    await tester.pump(Duration.zero);
+    expect(controller.phase, AutoSyncPhase.diverged);
+    expect(controller.divergence, same(divergence));
+    for (final locale in AppLocalizations.supportedLocales) {
+      final l = lookupAppLocalizations(locale);
+      expect(syncStatusLabel(l, controller), l.autoSyncDivergedShort);
+    }
+    // Edits are not uploaded and do not retry while the choice is open.
+    changes.add(null);
+    await tester.pump(const Duration(minutes: 5));
+    expect(session.modes, hasLength(1));
+    session.results.add(AutoSyncResult(lastSuccess: DateTime(2026, 11, 25)));
+    await tester.runAsync(
+      () => controller.resolve(SyncDivergenceChoice.keepLocal),
+    );
+    expect(session.resolved, [SyncDivergenceChoice.keepLocal]);
+    expect(controller.phase, AutoSyncPhase.synced);
+    expect(controller.divergence, isNull);
+    await tester.runAsync(controller.stop);
+    controller.dispose();
+    await changes.close();
+  });
+
+  testWidgets('a choice refused by an open editor keeps the divergence', (
+    tester,
+  ) async {
+    final (controller, session) = await started(tester);
+    session.results.addAll([
+      AutoSyncResult(divergence: divergence),
+      const AutoSyncResult(waitingForEditor: true),
+    ]);
+    controller.foreground(false);
+    await tester.pump(Duration.zero);
+    expect(controller.phase, AutoSyncPhase.diverged);
+    await tester.runAsync(
+      () => controller.resolve(SyncDivergenceChoice.takeCloud),
+    );
+    expect(controller.phase, AutoSyncPhase.diverged);
+    expect(controller.divergence, same(divergence));
+    expect(controller.choiceBlocked, isTrue);
+    await tester.pump(const Duration(minutes: 1));
+    expect(session.modes, hasLength(2));
+    await tester.runAsync(controller.stop);
+    controller.dispose();
+  });
 }

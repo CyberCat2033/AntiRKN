@@ -603,16 +603,8 @@ void main() {
       remote.beforeWrite = () async {
         await _upload(otherSync);
       };
-      await expectLater(
-        _upload(sync),
-        throwsA(
-          isA<SyncTransportFailure>().having(
-            (e) => e.issue,
-            'issue',
-            SyncTransportIssue.conflict,
-          ),
-        ),
-      );
+      // Stage 4: the same workspace diverged; the user chooses a version.
+      expect((await _upload(sync)).divergence, isNotNull);
       final third = open('third', 33);
       expect(await third.pullCurrentSnapshot(tokens, remote: remote), isTrue);
       await third.close();
