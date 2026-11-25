@@ -329,11 +329,145 @@ class RelayTransactionTests(unittest.TestCase):
         self.assertEqual(vless.normal(self.api.rows[3]), vless.normal(before))
         self.assertFalse(relay.STATE.exists())
         self.assertEqual(list((self.root / 'egress-access').glob('*.json')), [])
-        # Resumable: the kept intent replays once the panel recovers.
+        # Rolled back for good: a resume changes nothing.
+        self.assertFalse((self.root / ('relay-' + 'b' * 32 + '.json')).exists())
         self.assertEqual(self.store.request(dict(version=1, action='resume', id=req['id']))['code'], 'ok')
-        self.assertEqual(self.finish(req)['status'], 'succeeded')
+        self.assertEqual(self.finish(req)['status'], 'failed')
+        self.assertEqual(self.template, TEMPLATE)
+        self.assertEqual(self.service(), [])
+
+    def fail_restart_once(self):
+        calls = []
+        def failing(api):
+            calls.append(1)
+            if len(calls) == 1: raise ValueError('panel_api_failed')
+            api.call('/panel/api/server/restartXrayService', {})
+        return patch.object(panel_api, 'restart_xray', failing)
+
+    def applied(self, key, enabled=True):
+        """A job with its effects done, before its last checkpoint."""
+        req = self.submit(key, enabled=enabled)
+        task = relay.RelayApply(self.store, req)
+        task.step(0); task.step(1)
+        with self.store.db: self.store.db.execute('UPDATE jobs SET checkpoint=2 WHERE id=?', (req['id'],))
+        return req, task
+
+    def cancel(self, req):
+        self.assertEqual(self.store.request(dict(version=1, action='cancel', id=req['id']))['code'], 'ok')
+        return self.finish(req)
+
+    def test_resumed_rolled_back_job_leaves_a_later_job_alone(self):
+        req = self.submit('b')
+        with self.fail_restart_once(): self.assertEqual(self.finish(req)['status'], 'failed')
+        # Another job enables the same inbound again, with a new UUID.
+        self.assertEqual(self.finish(self.submit('c'))['status'], 'succeeded')
+        live, state = self.service(), relay.load()
+        self.assertEqual(self.store.request(dict(version=1, action='resume', id=req['id']))['code'], 'ok')
+        self.assertEqual(self.finish(req)['status'], 'failed')
+        self.assertIn(relay.rule('inbound-443'), self.template['routing']['rules'])
+        self.assertEqual(self.service(), live)
+        self.assertEqual(relay.load(), state)
+
+    def test_rolled_back_intent_refuses_replay(self):
+        req, task = self.applied('b')
+        task.rollback()
+        self.assertTrue(task.read()['rolledBack'])
+        restarts = self.api.restarts
+        with self.assertRaises(relay.RelayError) as error: task.step(2)
+        self.assertEqual(error.exception.code, 'relay_conflict')
+        task.rollback()  # Already done: nothing more happens.
+        self.assertEqual(self.template, TEMPLATE)
+        self.assertEqual(self.service(), [])
+        self.assertEqual(self.api.restarts, restarts)
+        with self.store.db: self.store.db.execute("UPDATE jobs SET status='failed' WHERE id=?", (req['id'],))
+        # A rollback cut short refuses replay too, and completes when repeated.
+        req, task = self.applied('c')
+        with patch.object(access, 'restore_record', side_effect=OSError()), self.assertRaises(OSError): task.rollback()
+        with self.assertRaises(relay.RelayError): task.step(2)
+        task.rollback()
+        self.assertEqual((self.template, self.service(), relay.load()), (TEMPLATE, [], None))
+
+    def test_rollback_refuses_a_relay_state_changed_by_another_job(self):
+        req, _ = self.applied('b')
+        other = dict(panelId='b' * 32, inboundId=7, tag='inbound-7', key='0' * 64)
+        relay.save(dict(inbounds=relay.load()['inbounds'] + [other]))
+        template, live = copy.deepcopy(self.template), self.service()
+        job = self.cancel(req)
+        self.assertEqual(job['status'], 'needs_attention')
+        self.assertEqual(job['events'][-1]['code'], 'relay_conflict')
+        # Nothing was written: the other panel's entry stays.
+        self.assertEqual((self.template, self.service()), (template, live))
+        self.assertIn(other, relay.load()['inbounds'])
+
+    def test_rollback_keeps_only_this_entry_of_the_relay_state(self):
+        value = dict(panelId=PANEL, inboundId=3, old=dict(inbounds=[dict(panelId=PANEL, inboundId=3, tag='a', key='k')]))
+        other = dict(panelId='b' * 32, inboundId=3, tag='b', key='l')
+        now = dict(inbounds=[dict(panelId=PANEL, inboundId=3, tag='c', key='k'), other])
+        self.assertEqual(relay.restored(now, value), dict(inbounds=[value['old']['inbounds'][0], other]))
+        self.assertEqual(relay.restored(dict(inbounds=[other]), dict(value, old=None)), dict(inbounds=[other]))
+        self.assertIsNone(relay.restored(dict(inbounds=[now['inbounds'][0]]), dict(value, old=None)))
+
+    def test_rollback_refuses_another_client_with_our_email(self):
+        req, _ = self.applied('b')
+        settings = object_field(self.api.rows[3]['settings'])
+        for item in settings['clients']:
+            if item['email'].startswith(relay.PREFIX): item['id'] = '99999999-2222-4333-8444-555555555555'
+        self.api.rows[3]['settings'] = json.dumps(settings)
+        job = self.cancel(req)
+        self.assertEqual(job['status'], 'needs_attention')
+        # The live client keeps its direct route.
         self.assertIn(relay.rule('inbound-443'), self.template['routing']['rules'])
         self.assertEqual(len(self.service()), 1)
+
+    def test_rollback_order_mirrors_the_effects(self):
+        order = []
+        write, restore = client_egress.write_template, access.restore_client
+        self.mock(client_egress, 'write_template', lambda *a: (order.append('template'), write(*a)))
+        self.mock(access, 'restore_client', lambda *a, **k: (order.append('client'), restore(*a, **k))[1])
+        self.assertEqual(self.cancel(self.applied('b')[0])['status'], 'cancelled')
+        self.assertEqual(order[-2:], ['client', 'template'])
+        self.finish(self.submit('c'))
+        self.assertEqual(self.cancel(self.applied('d', enabled=False)[0])['status'], 'cancelled')
+        self.assertEqual(order[-2:], ['template', 'client'])
+        self.assertIn(relay.rule('inbound-443'), self.template['routing']['rules'])
+        self.assertEqual(len(self.service()), 1)
+
+    def test_failed_client_restore_keeps_the_route(self):
+        req, _ = self.applied('b')
+        with patch.object(access, 'restore_client', side_effect=ValueError('panel_api_failed')):
+            self.assertEqual(self.cancel(req)['status'], 'needs_attention')
+        # The client stays live, and its traffic still leaves directly.
+        self.assertEqual(len(self.service()), 1)
+        self.assertIn(relay.rule('inbound-443'), self.template['routing']['rules'])
+
+    def test_panel_login_codes_reach_the_app(self):
+        payload = self.payload()
+        for code in ('panel_auth_failed', 'panel_login_limited'):
+            def login(*args): raise ValueError(code)
+            with self.subTest(code=code), patch.object(relay, 'panel_for', login):
+                self.assertEqual(self.store.request(dict(version=1, action='relay_plan', payload=payload))['code'], code)
+                self.assertEqual(self.store.request(dict(version=1, action='relay_state'))['code'], 'ok')  # No entries.
+        req = self.submit('b')
+        def login(*args): raise ValueError('panel_auth_failed')
+        with patch.object(relay, 'panel_for', login): job = self.finish(req)
+        self.assertEqual((job['status'], job['events'][-1]['code']), ('failed', 'relay_failed'))
+        with patch.object(relay, 'panel_for', lambda *a: (_ for _ in ()).throw(ValueError('upstream text'))):
+            self.assertEqual(self.store.request(dict(version=1, action='relay_plan', payload=payload))['code'], 'relay_failed')
+
+    def test_relay_key_is_apart_from_egress_access_keys(self):
+        self.assertNotEqual(relay.key_for(PANEL, 3), vless.digest([PANEL, 3, 'relay']))
+        self.assertNotEqual(relay.key_for(PANEL, 3), relay.key_for(PANEL, 4))
+
+    def test_foreign_template_edit_before_the_first_effect_fails_cleanly(self):
+        req = self.submit('b')
+        relay.RelayApply(self.store, req).step(0)
+        self.template['routing']['rules'].append(dict(type='field', network='udp', outboundTag='blocked'))
+        edited = copy.deepcopy(self.template)
+        job = self.finish(req)
+        self.assertEqual((job['status'], job['events'][-1]['code']), ('failed', 'relay_conflict'))
+        self.assertEqual(self.template, edited)
+        self.assertEqual(self.service(), [])
+        self.assertFalse(relay.STATE.exists())
 
     def test_external_drift_during_rollback_needs_attention(self):
         req = self.submit('b')

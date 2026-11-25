@@ -13,6 +13,7 @@ from pathlib import Path
 import re
 
 import vless
+from contract import SCHEMA
 from vless import VlessError, canonical, digest, panel_for
 from panel import atomic_file, safe_file
 from observed_inbounds import object_field
@@ -28,6 +29,8 @@ CHECK_HOST = 'relay.invalid'
 CODES = ('relay_unsupported', 'relay_client_inbound', 'relay_conflict', 'relay_config_failed',
          'relay_disable_first', 'relay_missing', 'relay_failed')
 EVENTS = ('relay_preparing', 'relay_applying', 'relay_checking')
+# Panel login and reachability codes reach the app as they are.
+PANEL_CODES = tuple(c for c in SCHEMA['codes'] if c.startswith('panel_'))
 
 
 class RelayError(Exception):
@@ -46,8 +49,9 @@ def codes():
     except VlessError as error:
         if error.code == 'relay_disable_first': raise
         raise RelayError('relay_unsupported' if error.code.startswith('vpn_adoption') else 'relay_failed') from None
-    except ValueError:
-        raise RelayError('relay_failed') from None
+    except ValueError as error:
+        code = str(error)
+        raise RelayError(code if code in PANEL_CODES else 'relay_failed') from None
 
 
 def load():
@@ -75,7 +79,8 @@ def guard(panel_id, inbound_id):
 
 
 def key_for(panel_id, inbound_id):
-    return digest([panel_id, inbound_id, 'relay'])
+    # Own namespace: egress_access keys are digest([panelId, inboundId, source]).
+    return digest(['relay', panel_id, inbound_id])
 
 
 def rule(tag):
@@ -240,6 +245,18 @@ def link(store, req):
     return dict(uri=uri.split('#', 1)[0])
 
 
+def changes_client(value):
+    return value['before'] is not None and value['after'] != value['before']
+
+
+def restored(info, value):
+    """``info`` with only this job's entry back as before the job: entries
+    of other inbounds and panels keep their state."""
+    same = lambda e: (e['panelId'], e['inboundId']) == (value['panelId'], value['inboundId'])
+    result = [e for e in entries(info) if not same(e)] + [e for e in entries(value['old']) if same(e)]
+    return dict(inbounds=sorted(result, key=lambda e: (e['panelId'], e['inboundId']))) if result else None
+
+
 class RelayApply:
     def __init__(self, store, req):
         self.store, self.req = store, req
@@ -251,6 +268,24 @@ class RelayApply:
         if value['requestHash'] != digest(self.req['payload']): raise RelayError('relay_conflict')
         return value
 
+    def mark(self, value, flag):
+        value[flag] = True
+        atomic_file(self.path, canonical(value).encode())
+
+    def ours(self, value):
+        """Our objects are still where this job left them: the relay state,
+        the template and the service client. Reads only."""
+        import client_egress as egress
+        if digest(load()) not in (digest(value['old']), digest(value['new'])): raise RelayError('relay_conflict')
+        api = panel_for(self.store, value['panelId'])
+        template, url = egress.read_template(api)
+        if template not in (value['templateBefore'], value['templateAfter']): raise RelayError('relay_conflict')
+        row = None
+        if changes_client(value):
+            row = api.call('/panel/api/inbounds/get/%d' % value['inboundId'])
+            if not isinstance(row, dict): raise RelayError('relay_conflict')
+        return api, template, url, row
+
     def template(self, api, wanted, other):
         import client_egress as egress
         current, url = egress.read_template(api)
@@ -259,7 +294,7 @@ class RelayApply:
         egress.write_template(api, wanted, url)
 
     def client(self, api, value):
-        if value['before'] is None or value['after'] == value['before']:
+        if not changes_client(value):
             current = None
         else:
             current = access.ensure_inbound(api, value['inboundId'], value['before'], value['after'])
@@ -269,8 +304,17 @@ class RelayApply:
 
     def effects(self, value):
         """Idempotent: a replay after any partial effect converges."""
-        if digest(load()) not in (digest(value['old']), digest(value['new'])): raise RelayError('relay_conflict')
-        api = panel_for(self.store, value['panelId'])
+        if not value.get('started'):
+            # A foreign edit since the plan stops the job before any change:
+            # rollback then has nothing to restore.
+            api, _, _, row = self.ours(value)
+            if row is not None and not vless.subset(vless.normal(value['after']), vless.normal(row)) \
+                    and vless.normal(row) != vless.normal(value['before']):
+                raise RelayError('relay_conflict')
+            self.mark(value, 'started')
+        else:
+            if digest(load()) not in (digest(value['old']), digest(value['new'])): raise RelayError('relay_conflict')
+            api = panel_for(self.store, value['panelId'])
         # Enabling routes first, then issues the user; disabling revokes the
         # user first. The user never exists without its direct route.
         if value['enabled']:
@@ -283,34 +327,55 @@ class RelayApply:
         return api
 
     def rollback(self):
+        value = self.read()
+        if value.get('rolledBack'): return
+        if value.get('started'):
+            with codes():
+                self.restore(value)
+        self.mark(value, 'rolledBack')
+
+    def restore(self, value):
+        """Undo this job only while every object is still ours: another job
+        or a person may have changed them since, and then a person decides
+        (needs_attention) before anything is written."""
         import client_egress as egress
         from panel_api import restart_xray
-        value = self.read()
-        with codes():
-            api = panel_for(self.store, value['panelId'])
-            current, url = egress.read_template(api)
-            if current != value['templateBefore']:
-                if current != value['templateAfter']: raise RelayError('relay_conflict')
-                egress.write_template(api, value['templateBefore'], url)
-            if value['before'] is not None and value['after'] != value['before']:
-                row = access.restore_client(api, value['inboundId'], value['client'], value['before'],
-                                            readd=not value['enabled'])
-                access.refresh_observation(self.store, value, row)
-            access.restore_record(value['key'], value['previous'])
-            save(value['old'])
-            restart_xray(api)
+        # A replay must never follow a started rollback.
+        if not value.get('rollingBack'): self.mark(value, 'rollingBack')
+        api, current, url, row = self.ours(value)
+        if row is not None:
+            mine = value['client']
+            listed = object_field(row['settings']).get('clients', [])
+            # Our email under another UUID is another job's live client.
+            if any(c.get('id') != mine['id'] for c in listed
+                   if c.get('email') == mine['email'] or c.get('id') == mine['id']):
+                raise RelayError('relay_conflict')
+
+        def template():
+            if current != value['templateBefore']: egress.write_template(api, value['templateBefore'], url)
+
+        def client():
+            if row is None: return  # The job did not change the inbound.
+            restored_row = access.restore_client(api, value['inboundId'], value['client'], value['before'],
+                                                 readd=not value['enabled'])
+            access.refresh_observation(self.store, value, restored_row)
+        # The mirror of effects: the service client never stays live without its route.
+        for undo in ((client, template) if value['enabled'] else (template, client)): undo()
+        access.restore_record(value['key'], value['previous'])
+        save(restored(load(), value))
+        restart_xray(api)
 
     def step(self, checkpoint):
         from panel_api import restart_xray
         with codes():
-            if checkpoint == 0:
-                if not self.path.exists():
-                    value = prepare(self.store, self.req)
-                    if value['fingerprint'] != self.req['fingerprint']: raise RelayError('relay_conflict')
-                    atomic_file(self.path, canonical(value).encode())
-                self.read()
-            else:
-                value = self.read()
+            if checkpoint == 0 and not self.path.exists():
+                value = prepare(self.store, self.req)
+                if value['fingerprint'] != self.req['fingerprint']: raise RelayError('relay_conflict')
+                atomic_file(self.path, canonical(value).encode())
+            value = self.read()
+            # A rolled back job is over: another job may own these objects now.
+            if value.get('rollingBack') or value.get('rolledBack'): raise RelayError('relay_conflict')
+            if checkpoint > 0:
                 api = self.effects(value)
                 if checkpoint == 2:
                     import client_egress as egress

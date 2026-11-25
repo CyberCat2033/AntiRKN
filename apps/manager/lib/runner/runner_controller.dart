@@ -904,6 +904,7 @@ class RunnerController extends ChangeNotifier {
     );
     token.check();
     responseCode = plan.code;
+    if (plan.code == 'panel_auth_failed') panelLoginRequired = true;
     final fingerprint = result(plan)?['fingerprint'];
     if (plan.code != 'ok' || fingerprint is! String) return false;
     pending = RunnerRequest.fromJson({
@@ -955,6 +956,7 @@ class RunnerController extends ChangeNotifier {
       sudoPassword: password(),
     );
     token.check();
+    if (result.code == 'panel_auth_failed') panelLoginRequired = true;
     if (result.code != 'ok') {
       // An unreachable panel says nothing about relay: keep the last state.
       relayStateIssue = result.code;
@@ -1036,6 +1038,7 @@ class RunnerController extends ChangeNotifier {
         );
         token.check();
         responseCode = result.code;
+        if (result.code == 'panel_auth_failed') panelLoginRequired = true;
         if (result.code == 'ok' && result.relay?['uri'] is String) {
           uri = namedShareLink(result.relay!['uri'] as String, label);
         }

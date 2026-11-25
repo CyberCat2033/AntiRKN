@@ -229,6 +229,15 @@ void main() {
       });
     });
 
+    test('a rejected panel login asks for the panel login again', () async {
+      await ready();
+      remote.planCode = 'panel_auth_failed';
+      expect(await c.applyRelay(inboundId: 7, enabled: true), isFalse);
+      expect(c.responseCode, 'panel_auth_failed');
+      expect(c.panelLoginRequired, isTrue);
+      expect(remote.submissions, 0);
+    });
+
     test('an unreachable panel keeps the last known state', () async {
       remote.inbounds = [entry()];
       await ready();

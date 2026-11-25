@@ -892,9 +892,12 @@ class Store:
                         # Our objects changed outside the job: a person decides.
                         status = 'needs_attention'
                         code = failure.code if isinstance(failure, relay.RelayError) else 'relay_failed'
+                if code not in SCHEMA['events']: code = 'relay_failed'
             self.finish(job_id, status, code, req['count'])
-            if status in ('succeeded', 'cancelled'):
-                # A failed job keeps its intent: resume replays it.
+            if status in ('succeeded', 'cancelled', 'failed'):
+                # Applied or rolled back: a rolled back job never replays
+                # (another job may own these objects now), so its intent with
+                # the client UUID is no longer needed.
                 cleanup_job_transients(self.directory, job_id)
             return .1
         if req['kind']=='server_reboot':
