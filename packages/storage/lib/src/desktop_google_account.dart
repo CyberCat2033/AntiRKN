@@ -8,6 +8,7 @@ import 'package:cryptography/cryptography.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'google_session_store.dart';
+import 'shared_access_token.dart';
 
 /// Existing private configuration is reused. Otherwise import it once through
 /// the system picker; the session stores its contents encrypted, never its path.
@@ -126,8 +127,8 @@ final class DesktopGoogleAccountService
   final DriveHttp? _http;
   final DateTime Function() _now;
   _Session? _session;
-  String? _stored, _accountKey, _access;
-  DateTime? _expires;
+  String? _stored, _accountKey;
+  late final _access = SharedAccessToken(now: _now);
   Future<void>? _pending;
   GoogleOAuthCancellation? _cancellation;
   bool _closed = false;
@@ -186,8 +187,7 @@ final class DesktopGoogleAccountService
   Future<void> _remember(_Session? value, String? encoded) async {
     _session = value;
     _stored = encoded;
-    _access = null;
-    _expires = null;
+    _access.clear();
     _accountKey = value == null
         ? null
         : (await Sha256().hash(
@@ -259,8 +259,7 @@ final class DesktopGoogleAccountService
       final encoded = session.encode();
       await store.replace(expected, encoded);
       await _remember(session, encoded);
-      _access = tokens.accessToken;
-      _expires = started.add(tokens.expiresIn);
+      _access.remember(tokens.accessToken, started.add(tokens.expiresIn));
       return account;
     } finally {
       _cancellation = null;
@@ -269,7 +268,7 @@ final class DesktopGoogleAccountService
 
   Future<void> _stillCurrent() async {
     if (await store.read() != _stored) {
-      _access = null;
+      _access.invalidate();
       throw const GoogleAccountFailure(GoogleAccountIssue.reauthorize);
     }
   }
@@ -281,10 +280,9 @@ final class DesktopGoogleAccountService
       throw const GoogleAccountFailure(GoogleAccountIssue.reauthorize);
     }
     await _stillCurrent();
-    if (_access != null &&
-        _expires!.isAfter(_now().add(const Duration(seconds: 60)))) {
-      return _access!;
-    }
+    // Operations run one at a time, so callers queued behind a renewal
+    // find its token here.
+    if (_access.fresh case final cached?) return cached;
     final started = _now();
     try {
       final tokens = await _oauth.refresh(session.client, session.refresh);
@@ -306,11 +304,10 @@ final class DesktopGoogleAccountService
         await store.replace(_stored, encoded);
         await _remember(next, encoded);
       }
-      _access = tokens.accessToken;
-      _expires = started.add(tokens.expiresIn);
-      return _access!;
+      _access.remember(tokens.accessToken, started.add(tokens.expiresIn));
+      return tokens.accessToken;
     } on GoogleAccountFailure catch (error) {
-      _access = null;
+      _access.invalidate();
       if (error.issue == GoogleAccountIssue.reauthorize &&
           await store.read() == _stored) {
         final next = _Session(
@@ -330,12 +327,8 @@ final class DesktopGoogleAccountService
   });
 
   @override
-  Future<void> invalidateAccessToken(String rejected) => _operation(() async {
-    if (_access == rejected) {
-      _access = null;
-      _expires = null;
-    }
-  });
+  Future<void> invalidateAccessToken(String rejected) =>
+      _operation(() async => _access.invalidate(rejected));
 
   @override
   Future<void> signOut() => _operation(() async {

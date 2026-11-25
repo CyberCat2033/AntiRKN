@@ -1358,11 +1358,23 @@ final class WorkspaceDatabase
   Future<void> _restoreCloudSnapshot(
     _BackupSnapshot snapshot,
     String stamp,
-    String fileId,
-    String version,
+    SyncRemoteFile file,
   ) => _dbWorker != null
-      ? _remoteCall('restoreCloudSnapshot', [snapshot, stamp, fileId, version])
-      : _restoreCloudSnapshotInWorker(this, snapshot, stamp, fileId, version);
+      ? _remoteCall('restoreCloudSnapshot', [
+          snapshot,
+          stamp,
+          file.id,
+          file.version,
+          file.etag,
+        ])
+      : _restoreCloudSnapshotInWorker(
+          this,
+          snapshot,
+          stamp,
+          file.id,
+          file.version,
+          file.etag,
+        );
 
   Future<void> close() async {
     if (_closed) return;

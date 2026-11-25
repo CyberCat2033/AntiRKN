@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:ui' show AppLifecycleState;
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/foundation.dart';
 
@@ -263,6 +264,21 @@ class AutoSyncController extends ChangeNotifier {
     _failureBackoff = Duration.zero;
     _again = _retry = false;
   }
+
+  /// Whether [state] keeps automatic sync in the foreground; null keeps the
+  /// current state. An unfocused desktop window is still visible. On Android
+  /// `inactive` is transient (notification shade, permission dialog, picker,
+  /// Google sign-in, share sheet): only hidden/paused leave and upload.
+  static bool? lifecycleForeground(
+    AppLifecycleState state, {
+    required bool desktop,
+  }) => switch (state) {
+    AppLifecycleState.resumed => true,
+    AppLifecycleState.inactive => desktop ? true : null,
+    AppLifecycleState.hidden ||
+    AppLifecycleState.paused ||
+    AppLifecycleState.detached => false,
+  };
 
   void foreground(bool value) {
     if (_foreground == value) return;

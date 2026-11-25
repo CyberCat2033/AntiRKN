@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:antirkn_domain/antirkn_domain.dart';
+import 'drive_conditional.dart';
 import 'drive_http.dart';
 
 /// Drive v3 adapter for appDataFolder. No OAuth token persistence or app UI.
@@ -18,6 +19,8 @@ final class GoogleDriveSyncStore
   final String accountKey;
   static const scope = 'https://www.googleapis.com/auth/drive.appdata';
   static const _fileFields = 'id,name,mimeType,size,version,spaces,trashed';
+  static const _v2FileFields =
+      'id,title,fileSize,version,etag,createdDate,labels(trashed)';
   static final _idPattern = RegExp(r'^[A-Za-z0-9_-]{1,256}$');
   static final _packetName = RegExp('^$syncTransportNamePrefix[a-f0-9]{64}\$');
   static final _accountKeyName = RegExp('^$syncAccountKeyPrefix[a-f0-9]{32}\$');
@@ -81,7 +84,8 @@ final class GoogleDriveSyncStore
               ? SyncTransportIssue.rateLimited
               : SyncTransportIssue.forbidden,
         404 => SyncTransportIssue.notFound,
-        409 => SyncTransportIssue.conflict,
+        409 ||
+        DriveConditional.preconditionFailed => SyncTransportIssue.conflict,
         410 when page => SyncTransportIssue.invalidCursor,
         400 when page => SyncTransportIssue.invalidCursor,
         429 => SyncTransportIssue.rateLimited,
@@ -331,21 +335,86 @@ final class GoogleDriveSyncStore
   Future<SyncRemotePage> listAccountKeys({String? pageToken}) =>
       _listObjects(syncAccountKeyPrefix, pageToken);
 
+  /// Drive v2 metadata: unlike v3 it carries the etag for conditional writes.
+  SyncRemoteFile _v2File(Object? input) {
+    try {
+      final map = input as Map;
+      final id = map['id'] as String;
+      _id(id);
+      final name = map['title'] as String;
+      final size = int.tryParse('${map['fileSize'] ?? 0}');
+      final version = '${map['version'] ?? 0}';
+      final etag = map['etag'] as String? ?? '';
+      final created = map['createdDate'] as String?;
+      if (name.length > 1024 ||
+          size == null ||
+          size < 0 ||
+          version.length > 256 ||
+          etag.length > 1024) {
+        throw const FormatException();
+      }
+      return SyncRemoteFile(
+        id: id,
+        name: name,
+        size: size,
+        version: version,
+        packet: false,
+        removed: (map['labels'] as Map?)?['trashed'] == true,
+        etag: etag,
+        createdAt: created == null ? null : DateTime.parse(created).toUtc(),
+      );
+    } catch (_) {
+      throw const SyncTransportFailure(SyncTransportIssue.invalid);
+    }
+  }
+
+  /// Devices creating the same object at once leave duplicates. Every device
+  /// picks the same one: the earliest created, then the smallest id.
+  static bool _wins(SyncRemoteFile file, SyncRemoteFile other) {
+    final a = file.createdAt, b = other.createdAt;
+    if (a != null && b != null && a != b) return a.isBefore(b);
+    if ((a == null) != (b == null)) return a != null;
+    return file.id.compareTo(other.id) < 0;
+  }
+
   Future<SyncRemoteFile?> _singleNamed(String name) async {
     String? page;
-    SyncRemoteFile? match;
+    SyncRemoteFile? winner;
+    var pages = 0;
     do {
-      final result = await _listObjects(name, page);
-      for (final file in result.files) {
-        if (file.name != name || file.removed) continue;
-        if (match != null) {
-          throw const SyncTransportFailure(SyncTransportIssue.conflict);
-        }
-        match = file;
+      if (++pages > 20) {
+        throw const SyncTransportFailure(SyncTransportIssue.limit);
       }
-      page = result.nextPageToken;
+      final json = _json(
+        await _send(
+          'GET',
+          DriveConditional.v2('files', {
+            'spaces': 'appDataFolder',
+            'maxResults': '100',
+            'q': "title = '$name' and trashed = false",
+            'fields': 'nextPageToken,incompleteSearch,items($_v2FileFields)',
+            'pageToken': ?page,
+          }),
+          page: page != null,
+        ),
+      );
+      if (json['incompleteSearch'] == true) {
+        throw const SyncTransportFailure(SyncTransportIssue.unavailable);
+      }
+      final items = json['items'] ?? <dynamic>[];
+      if (items is! List || items.length > 100) {
+        throw const SyncTransportFailure(SyncTransportIssue.invalid);
+      }
+      for (final item in items) {
+        final file = _v2File(item);
+        if (file.name != name || file.removed) continue;
+        if (winner == null || _wins(file, winner)) winner = file;
+      }
+      page = json['nextPageToken'] == null
+          ? null
+          : _token(json['nextPageToken']);
     } while (page != null);
-    return match;
+    return winner;
   }
 
   @override
@@ -362,35 +431,68 @@ final class GoogleDriveSyncStore
   }
 
   @override
-  Future<void> writeSnapshot(String? fileId, Uint8List bytes) async {
+  Future<SyncRemoteFile> writeSnapshot(
+    SyncRemoteFile? expected,
+    Uint8List bytes,
+  ) async {
     if (bytes.isEmpty || bytes.length > maxWorkspaceBackupBytes) {
       throw const SyncTransportFailure(SyncTransportIssue.limit);
     }
-    if (fileId == null) {
+    if (expected == null) {
+      final id = await generateFileId();
       await _createObject(
-        await generateFileId(),
+        id,
         syncSnapshotName,
         bytes,
         maxBytes: maxWorkspaceBackupBytes,
       );
-      return;
+      // Re-read: a snapshot another device created at the same time may win.
+      final winner = await findSnapshot();
+      if (winner == null) {
+        throw const SyncTransportFailure(SyncTransportIssue.notFound);
+      }
+      if (winner.id != id) {
+        throw const SyncTransportFailure(SyncTransportIssue.conflict);
+      }
+      return winner;
     }
-    _id(fileId);
+    _id(expected.id);
+    final precondition =
+        DriveConditional.ifMatch(expected.etag) ??
+        (throw const SyncTransportFailure(SyncTransportIssue.invalid));
     final result = _json(
       await _send(
-        'PATCH',
-        Uri.https('www.googleapis.com', '/upload/drive/v3/files/$fileId', {
+        'PUT',
+        DriveConditional.v2('files/${expected.id}', {
           'uploadType': 'media',
-          'fields': 'id',
-        }),
+          'fields': 'id,version,etag',
+        }, true),
         contentType: 'application/octet-stream',
         body: bytes,
         limit: 32768,
+        extraHeaders: precondition,
       ),
     );
-    if (result['id'] != fileId) {
+    if (result['id'] != expected.id) {
       throw const SyncTransportFailure(SyncTransportIssue.conflict);
     }
+    final version = '${result['version'] ?? ''}';
+    final etag = result['etag'];
+    if (version.isEmpty ||
+        version.length > 256 ||
+        etag is! String ||
+        DriveConditional.ifMatch(etag) == null) {
+      throw const SyncTransportFailure(SyncTransportIssue.invalid);
+    }
+    return SyncRemoteFile(
+      id: expected.id,
+      name: syncSnapshotName,
+      size: bytes.length,
+      version: version,
+      packet: false,
+      etag: etag,
+      createdAt: expected.createdAt,
+    );
   }
 
   @override
@@ -408,16 +510,21 @@ final class GoogleDriveSyncStore
   }
 
   @override
-  Future<void> createSnapshotKey(Uint8List bytes) async {
-    if (bytes.length != 32 || await _singleNamed(syncSnapshotKeyName) != null) {
-      throw const SyncTransportFailure(SyncTransportIssue.conflict);
+  Future<Uint8List> createSnapshotKey(Uint8List bytes) async {
+    if (bytes.length != 32) {
+      throw const SyncTransportFailure(SyncTransportIssue.invalid);
     }
-    await _createObject(
-      await generateFileId(),
-      syncSnapshotKeyName,
-      bytes,
-      maxBytes: 4096,
-    );
+    if (await _singleNamed(syncSnapshotKeyName) == null) {
+      await _createObject(
+        await generateFileId(),
+        syncSnapshotKeyName,
+        bytes,
+        maxBytes: 4096,
+      );
+    }
+    // Re-read: a key another device created at the same time may win.
+    return await readSnapshotKey() ??
+        (throw const SyncTransportFailure(SyncTransportIssue.notFound));
   }
 
   Future<SyncRemotePage> _listObjects(String prefix, String? pageToken) async {

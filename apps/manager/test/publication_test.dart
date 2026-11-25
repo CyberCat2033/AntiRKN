@@ -233,6 +233,16 @@ class Remote implements PublicationRemoteStore {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+/// Android allows one silent authorization at a time; a parallel caller is busy.
+class BusyRemote extends Remote {
+  int busy = 0;
+  @override
+  Future<PublicationFile> getFile(String id) async {
+    busy++;
+    throw const GoogleAccountFailure(GoogleAccountIssue.busy);
+  }
+}
+
 class BlockingRemote extends Remote {
   final entered = Completer<void>();
   final release = Completer<void>();
@@ -268,6 +278,55 @@ class BlockingRemote extends Remote {
 }
 
 void main() {
+  test('a busy Google authorization is temporary, never a lost sign-in', () async {
+    final account = Account()..publicationAuthorized = true;
+    final repo = Repository();
+    final remote = BusyRemote();
+    final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
+    addTearDown(vpn.dispose);
+    final c = PublicationController(
+      repository: repo,
+      account: account,
+      remote: () => remote,
+      vpn: vpn,
+    );
+    addTearDown(c.dispose);
+    await c.ready;
+    await vpn.load();
+    await vpn.saveUser(
+      VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice'),
+    );
+    final saved = vpn.workspace.profiles[fixtures.alice]!;
+    repo.drafts[fixtures.alice] = PublicationDraft(
+      workspaceId: vpn.workspace.id,
+      deviceId: 'b' * 32,
+      userId: fixtures.alice,
+      name: 'Alice',
+      headId: 'head-alice',
+      hash: saved['hash'] as String,
+      stamp: 'stamp-alice',
+      bytes: Uint8List.fromList(utf8.encode(saved['yaml'] as String)),
+      ancestors: {},
+    );
+    repo.docs['settings'] = canonicalJson(
+      const PublicationSettings(
+        accountKey: 'account',
+        folderId: 'test-folder',
+        folderName: 'Folder',
+        access: PublicationAccess.link,
+        enabled: true,
+        folderReady: true,
+      ).toJson(),
+    );
+    await c.reload();
+    await c.forcePublishAll(force: true);
+    expect(remote.busy, greaterThan(0));
+    expect(c.queues[fixtures.alice]?['issue'], isNot('unauthorized'));
+    expect(c.error, isNot(PublicationIssue.unauthorized));
+    expect(c.accountError, isNull);
+    expect(c.needsAuthorization, isFalse);
+  });
+
   test('reload reads publication states in one batch', () async {
     final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
     final repo = BatchRepository();
@@ -283,7 +342,9 @@ void main() {
     });
     await c.ready;
     await vpn.load();
-    await vpn.saveUser(VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice'));
+    await vpn.saveUser(
+      VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice'),
+    );
     repo.queues[fixtures.alice] = '{"status":"waiting"}';
     await c.reload();
     expect(c.queues[fixtures.alice]?['status'], 'waiting');

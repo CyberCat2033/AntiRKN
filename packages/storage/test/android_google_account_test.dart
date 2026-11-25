@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_integrations/antirkn_integrations.dart';
@@ -39,10 +40,14 @@ class Bridge
   final calls = <bool>[];
   String? email;
   int cleared = 0;
+
+  /// Play services that never answers a silent request.
+  bool hang = false;
   @override
   Future<String?> authorize({required bool interactive, String? email}) async {
     calls.add(interactive);
     this.email = email;
+    if (hang && !interactive) return Completer<String?>().future;
     return token;
   }
 
@@ -93,14 +98,17 @@ void main() {
   late Keys keys;
   late Bridge bridge;
   late Http http;
-  AndroidGoogleAccountService service({String project = 'fixture-project'}) =>
-      AndroidGoogleAccountService(
-        projectId: project,
-        keys: keys,
-        bridge: bridge,
-        http: http,
-        supported: true,
-      );
+  AndroidGoogleAccountService service({
+    String project = 'fixture-project',
+    Duration authorizationTimeout = const Duration(seconds: 25),
+  }) => AndroidGoogleAccountService(
+    projectId: project,
+    keys: keys,
+    bridge: bridge,
+    http: http,
+    supported: true,
+    authorizationTimeout: authorizationTimeout,
+  );
   setUp(() {
     keys = Keys();
     bridge = Bridge();
@@ -261,6 +269,55 @@ void main() {
         expect(e.issue, GoogleAccountIssue.configuration);
         expect(e.toString(), isNot(contains('PRIVATE-PROVIDER-DETAIL')));
       }
+    },
+  );
+  test(
+    'concurrent silent requests share one bridge call and one identity check',
+    () async {
+      final auth = service();
+      await auth.signIn();
+      bridge.calls.clear();
+      final requests = http.requests;
+      final tokens = await Future.wait([
+        for (var index = 0; index < 4; index++) auth.accessToken(),
+      ]);
+      expect(tokens.toSet(), {'PRIVATE-ANDROID-TOKEN-FIXTURE'});
+      expect(bridge.calls, [false]);
+      expect(http.requests, requests + 1);
+    },
+  );
+  test(
+    'a cached token is reused until Drive rejects it; 401 clears the cache',
+    () async {
+      final auth = service();
+      await auth.signIn();
+      bridge.calls.clear();
+      final requests = http.requests;
+      expect(await auth.accessToken(), 'PRIVATE-ANDROID-TOKEN-FIXTURE');
+      expect(await auth.accessToken(), 'PRIVATE-ANDROID-TOKEN-FIXTURE');
+      expect(bridge.calls, [false]);
+      expect(http.requests, requests + 1);
+      await auth.invalidateAccessToken('PRIVATE-ANDROID-TOKEN-FIXTURE');
+      expect(bridge.cleared, 1);
+      expect(await auth.accessToken(), 'PRIVATE-ANDROID-TOKEN-FIXTURE');
+      expect(bridge.calls, [false, false]);
+      expect(http.requests, requests + 2);
+    },
+  );
+  test(
+    'an unanswered silent authorization fails as temporary, then recovers',
+    () async {
+      final auth = service(
+        authorizationTimeout: const Duration(milliseconds: 100),
+      );
+      await auth.signIn();
+      bridge.hang = true;
+      await expectLater(
+        auth.accessToken(),
+        throwsA(issue(GoogleAccountIssue.network)),
+      );
+      bridge.hang = false;
+      expect(await auth.accessToken(), 'PRIVATE-ANDROID-TOKEN-FIXTURE');
     },
   );
 }

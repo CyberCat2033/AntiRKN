@@ -10,10 +10,12 @@ final class _BackupSnapshot {
   String toString() => 'BackupSnapshot(<redacted>)';
 }
 
+/// A validated capture: its source goes on without being checked again.
 final class _CapturedSnapshot {
-  const _CapturedSnapshot(this.source, this.sequence);
+  const _CapturedSnapshot(this.source, this.sequence, this.workspaceId);
   final String source;
   final int sequence;
+  final String workspaceId;
 }
 
 final class _RestorePlan implements WorkspaceRestorePlan {
@@ -24,7 +26,7 @@ final class _RestorePlan implements WorkspaceRestorePlan {
   final String stamp;
   _BackupSnapshot? _snapshot;
   bool cloudBound = false;
-  String? remoteFileId, remoteVersion;
+  String? remoteFileId, remoteVersion, remoteEtag;
   @override
   final BackupSummary summary;
   @override
@@ -114,8 +116,8 @@ Future<_CapturedSnapshot> _currentSnapshot(
     }
   }
   final source = jsonEncode(data);
-  await _validateBackupInBackground(source);
-  return _CapturedSnapshot(source, sequence);
+  final validated = await _validateBackupInBackground(source);
+  return _CapturedSnapshot(source, sequence, validated.summary.workspaceId);
 });
 
 Future<Uint8List> _createBackup(
@@ -334,6 +336,7 @@ Future<void> _restoreBackup(
             ('syncSnapshotLocalSequence', '${bootstrap.changes.length}'),
             ('syncSnapshotRemoteFileId', plan.remoteFileId!),
             ('syncSnapshotRemoteVersion', plan.remoteVersion!),
+            ('syncSnapshotRemoteEtag', plan.remoteEtag ?? ''),
           ]) {
             store._db.execute(
               'INSERT INTO settings VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',

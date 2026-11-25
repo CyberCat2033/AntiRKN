@@ -71,7 +71,8 @@ class PublicationController extends ChangeNotifier {
   bool _readyBaselineSet = false;
   final Set<String> _newlyReadyUsers = {};
   int _reloadGeneration = 0;
-  bool isUserBusy(String userId) => editing || _inFlightUserIds.contains(userId);
+  bool isUserBusy(String userId) =>
+      editing || _inFlightUserIds.contains(userId);
   bool isUserInFlight(String userId) => _inFlightUserIds.contains(userId);
   bool isUserCompleted(String userId) => _completedUserIds.contains(userId);
   bool isUserFailed(String userId) => _failedUserIds.contains(userId);
@@ -138,6 +139,7 @@ class PublicationController extends ChangeNotifier {
     }
     _notify();
   }
+
   bool get busy => editing || _running != null;
 
   Map<String, dynamic>? deletionFileFor(String userId) {
@@ -346,9 +348,7 @@ class PublicationController extends ChangeNotifier {
     if (vpn.loaded && !vpn.workspaceBusy) {
       readyProfiles.clear();
     }
-    if (vpn.loaded &&
-        !vpn.workspaceBusy &&
-        vpn.hasCurrentVerifiedProfiles) {
+    if (vpn.loaded && !vpn.workspaceBusy && vpn.hasCurrentVerifiedProfiles) {
       for (final user in vpn.workspace.users) {
         final hash = savedProfileHashFor(user.id);
         final result = vpn.results[user.id];
@@ -526,6 +526,11 @@ class PublicationController extends ChangeNotifier {
   Future<void> forceOverwrite(String userId) =>
       publishUser(userId, force: true, forceUpload: true);
 
+  /// Only revoked consent needs the user; other account failures pass.
+  static bool _lostAuthorization(GoogleAccountIssue issue) =>
+      issue == GoogleAccountIssue.reauthorize ||
+      issue == GoogleAccountIssue.denied;
+
   Future<PublicationBatchResult> _run(
     bool force, {
     Set<String>? targetUserIds,
@@ -650,7 +655,9 @@ class PublicationController extends ChangeNotifier {
                   break;
                 }
                 if (e.issue == PublicationIssue.rateLimited) {
-                  _rateLimitedUntil = DateTime.now().add(const Duration(seconds: 2));
+                  _rateLimitedUntil = DateTime.now().add(
+                    const Duration(seconds: 2),
+                  );
                 }
                 final isRetryable =
                     e.issue == PublicationIssue.network ||
@@ -665,9 +672,8 @@ class PublicationController extends ChangeNotifier {
                 queues[user.id] = {'issue': e.issue.name, 'userId': user.id};
                 break;
               } on GoogleAccountFailure catch (e) {
-                accountError = e.issue;
-                if (e.issue == GoogleAccountIssue.reauthorize ||
-                    e.issue == GoogleAccountIssue.denied) {
+                if (_lostAuthorization(e.issue)) {
+                  accountError = e.issue;
                   error = PublicationIssue.unauthorized;
                   queues[user.id] = {
                     'issue': PublicationIssue.unauthorized.name,
@@ -676,6 +682,8 @@ class PublicationController extends ChangeNotifier {
                   _cancel?.cancel();
                   break;
                 }
+                // Busy, offline or unavailable authorization is temporary:
+                // the sign-in is intact, so it is never recorded as lost.
                 if (attempt < 2) {
                   await Future<void>.delayed(
                     Duration(milliseconds: 500 * (1 << attempt)),
@@ -683,7 +691,7 @@ class PublicationController extends ChangeNotifier {
                   continue;
                 }
                 queues[user.id] = {
-                  'issue': PublicationIssue.unauthorized.name,
+                  'issue': PublicationIssue.network.name,
                   'userId': user.id,
                 };
                 break;
@@ -731,7 +739,8 @@ class PublicationController extends ChangeNotifier {
               'binding/${user.id}',
             );
             if (bindingDoc != null) {
-              bindings[user.id] = jsonDecode(bindingDoc) as Map<String, dynamic>;
+              bindings[user.id] =
+                  jsonDecode(bindingDoc) as Map<String, dynamic>;
             }
             if (success) {
               if (!forceUpload &&
@@ -765,10 +774,11 @@ class PublicationController extends ChangeNotifier {
 
       await Future.wait(List.generate(concurrency, (_) => worker()));
     } on GoogleAccountFailure catch (e) {
-      accountError = e.issue;
-      if (e.issue == GoogleAccountIssue.reauthorize ||
-          e.issue == GoogleAccountIssue.denied) {
+      if (_lostAuthorization(e.issue)) {
+        accountError = e.issue;
         error = PublicationIssue.unauthorized;
+      } else {
+        error = PublicationIssue.network;
       }
     } on SyncTransportFailure catch (e) {
       if (e.issue != SyncTransportIssue.cancelled) {

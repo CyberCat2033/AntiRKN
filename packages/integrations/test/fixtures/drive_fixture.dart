@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_integrations/antirkn_integrations.dart';
@@ -19,7 +20,7 @@ final class DriveFixture implements DriveHttp {
   final log = <Map<String, dynamic>>[];
   final sessions = <String, Map<String, dynamic>>{};
   final paths = <String>[];
-  int generated = 0, creates = 0, puts = 0;
+  int generated = 0, creates = 0, puts = 0, conditionalPuts = 0, clock = 0;
   int pageSize = 100;
   bool loseUploadResponse = false, denyDownload = false, expired = false;
   Future<void> Function()? duringFirstList;
@@ -59,14 +60,19 @@ final class DriveFixture implements DriveHttp {
   }
 
   void insert(String id, String name, Uint8List bytes) {
+    final version = '${log.length + 1}';
     final metadata = <String, dynamic>{
       'id': id,
       'name': name,
       'mimeType': 'application/octet-stream',
       'spaces': ['appDataFolder'],
       'size': '${bytes.length}',
-      'version': '${log.length + 1}',
+      'version': version,
       'trashed': false,
+      'createdTime':
+          files[id]?['createdTime'] ??
+          DateTime.utc(2026).add(Duration(seconds: ++clock)).toIso8601String(),
+      'etag': '"etag-$id-$version"',
     };
     files[id] = metadata;
     contents[id] = bytes;
@@ -136,7 +142,8 @@ final class DriveFixture implements DriveHttp {
       return json({'id': metadata['id']});
     }
     if (path.startsWith('/upload/drive/v3/files/') &&
-        request.method == 'PATCH' && query['uploadType'] == 'media') {
+        request.method == 'PATCH' &&
+        query['uploadType'] == 'media') {
       final id = path.split('/').last;
       if (!files.containsKey(id)) return json({}, 404);
       final builder = BytesBuilder();
@@ -145,6 +152,59 @@ final class DriveFixture implements DriveHttp {
       }
       insert(id, files[id]!['name'] as String, builder.takeBytes());
       return json({'id': id});
+    }
+    if (path.startsWith('/upload/drive/v2/files/') &&
+        request.method == 'PUT' &&
+        query['uploadType'] == 'media') {
+      conditionalPuts++;
+      final id = path.split('/').last;
+      final builder = BytesBuilder();
+      await for (final chunk in request) {
+        builder.add(chunk);
+      }
+      if (!files.containsKey(id)) return json({}, 404);
+      if (request.headers.value('if-match') != files[id]!['etag']) {
+        return json({}, 412);
+      }
+      insert(id, files[id]!['name'] as String, builder.takeBytes());
+      return json({
+        'id': id,
+        'version': files[id]!['version'],
+        'etag': files[id]!['etag'],
+      });
+    }
+    if (path == '/drive/v2/files' && request.method == 'GET') {
+      if (query['spaces'] != 'appDataFolder') return json({}, 400);
+      final title = RegExp(
+        r"title = '([^']+)'",
+      ).firstMatch(query['q'] ?? '')?.group(1);
+      final matching = files.values
+          .where((file) => file['name'] == title && file['trashed'] != true)
+          .toList();
+      final size = int.tryParse(query['maxResults'] ?? '') ?? 100;
+      final start = int.tryParse(query['pageToken'] ?? '0') ?? -1;
+      if (start < 0) return json({}, 400);
+      final page = matching.skip(start).take(min(size, pageSize)).toList();
+      final hook = duringFirstList;
+      duringFirstList = null;
+      if (hook != null) await hook();
+      return json({
+        'incompleteSearch': false,
+        'items': [
+          for (final file in page)
+            {
+              'id': file['id'],
+              'title': file['name'],
+              'fileSize': file['size'],
+              'version': file['version'],
+              'etag': file['etag'],
+              'createdDate': file['createdTime'],
+              'labels': {'trashed': file['trashed']},
+            },
+        ],
+        if (start + page.length < matching.length)
+          'nextPageToken': '${start + page.length}',
+      });
     }
     if (path == '/drive/v3/changes/startPageToken') {
       return json({'startPageToken': '${log.length}'});

@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:cryptography/cryptography.dart';
 
+import 'drive_conditional.dart';
 import 'drive_http.dart';
 
 /// Ordinary Drive files, separate from the encrypted appData sync transport.
@@ -97,7 +98,8 @@ final class GoogleDrivePublisher
                 ? PublicationIssue.rateLimited
                 : PublicationIssue.forbidden,
           404 => PublicationIssue.missing,
-          409 || 412 => PublicationIssue.conflict,
+          409 ||
+          DriveConditional.preconditionFailed => PublicationIssue.conflict,
           429 => PublicationIssue.rateLimited,
           >= 500 => PublicationIssue.unavailable,
           _ => PublicationIssue.invalid,
@@ -198,11 +200,7 @@ final class GoogleDrivePublisher
   }
 
   Uri _v2(String path, [Map<String, String>? query, bool upload = false]) =>
-      Uri.https(
-        'www.googleapis.com',
-        '${upload ? '/upload' : ''}/drive/v2/$path',
-        query,
-      );
+      DriveConditional.v2(path, query, upload);
   @override
   Future<PublicationFile> getFile(String fileId) async => _file(
     _json(
@@ -339,12 +337,9 @@ final class GoogleDrivePublisher
         {'key': p.key, 'value': p.value, 'visibility': 'PRIVATE'},
     ],
   };
-  String _etag(PublicationFile file) {
-    if (file.etag.isEmpty || file.etag.contains(RegExp(r'[\r\n]'))) {
-      throw const PublicationFailure(PublicationIssue.invalid);
-    }
-    return file.etag;
-  }
+  Map<String, String> _ifMatch(PublicationFile file) =>
+      DriveConditional.ifMatch(file.etag) ??
+      (throw const PublicationFailure(PublicationIssue.invalid));
 
   @override
   Future<PublicationFile> updateProperties(
@@ -361,7 +356,7 @@ final class GoogleDrivePublisher
       ),
       headers: {
         'Content-Type': 'application/json; charset=UTF-8',
-        'If-Match': _etag(expected),
+        ..._ifMatch(expected),
       },
     );
     final json = _json(response);
@@ -405,7 +400,7 @@ final class GoogleDrivePublisher
       ),
       headers: {
         'Content-Type': 'application/json; charset=UTF-8',
-        'If-Match': _etag(expected),
+        ..._ifMatch(expected),
       },
     );
   }
@@ -445,7 +440,7 @@ final class GoogleDrivePublisher
       body: body.takeBytes(),
       headers: {
         'Content-Type': 'multipart/related; boundary=$boundary',
-        'If-Match': _etag(expected),
+        ..._ifMatch(expected),
       },
     );
     final json = _json(response);

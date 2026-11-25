@@ -45,6 +45,9 @@ Future<void> main() async {
   runApp(const WorkspaceLauncher());
 }
 
+/// The launch waits at most this long for the cloud before opening local data.
+const startupPullDeadline = Duration(seconds: 4);
+
 class WorkspaceLauncher extends StatefulWidget {
   const WorkspaceLauncher({
     this.openWorkspace = openLocalWorkspace,
@@ -109,8 +112,14 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher>
       if (google.supported &&
           await database.readSetting('googleAutoSync') != 'false') {
         try {
-          if (await google.restore() != null &&
-              await database.pullCurrentSnapshot(google)) {
+          // Unreachable Google or a slow link must not hold the launch: past
+          // the deadline local data opens and the next launch pulls again.
+          final waited = Stopwatch()..start();
+          if (await google.restore().timeout(startupPullDeadline) != null &&
+              await database.pullCurrentSnapshot(
+                google,
+                deadline: startupPullDeadline - waited.elapsed,
+              )) {
             if (google case final CancelableGoogleSignIn lifecycle) {
               await lifecycle.close();
             }
@@ -490,9 +499,8 @@ class _ManagerShellState extends State<ManagerShell>
           agentAvailable: ssh.agentAvailable,
           network: _networkController,
         )..initialise();
-        _sshController!.onServerReplaced = (identity) => unawaited(
-          _vpn?.rebindServer(SshProfile.serverId, identity),
-        );
+        _sshController!.onServerReplaced = (identity) =>
+            unawaited(_vpn?.rebindServer(SshProfile.serverId, identity));
       }
     }
     _controller = TemplateController(
@@ -744,10 +752,11 @@ class _ManagerShellState extends State<ManagerShell>
     final inForeground =
         state == AppLifecycleState.resumed ||
         (isDesktop && state != AppLifecycleState.detached);
-    final syncForeground =
-        state == AppLifecycleState.resumed ||
-        (isDesktop && state == AppLifecycleState.inactive);
-    widget.autoSync?.foreground(syncForeground);
+    final syncForeground = AutoSyncController.lifecycleForeground(
+      state,
+      desktop: isDesktop,
+    );
+    if (syncForeground != null) widget.autoSync?.foreground(syncForeground);
     _publications?.foreground(inForeground);
     if (state == AppLifecycleState.resumed) {
       _networkController.tick();
