@@ -563,19 +563,14 @@ class _ServerDetailViewState extends State<ServerDetailView> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-              child: Row(
-                children: [
-                  IconButton(
-                    key: const ValueKey('server-list-back'),
-                    tooltip: l.uiBack,
-                    onPressed: widget.onBack,
-                    icon: const Icon(Icons.arrow_back),
-                  ),
-                  Expanded(child: AppPageTitle(c.displayName)),
-                ],
+            AppPageHeader(
+              leading: IconButton(
+                key: const ValueKey('server-list-back'),
+                tooltip: l.uiBack,
+                onPressed: widget.onBack,
+                icon: const Icon(Icons.arrow_back),
               ),
+              title: Text(c.displayName),
             ),
             Padding(
               padding: const EdgeInsets.all(AppLayout.gap),
@@ -633,10 +628,8 @@ class _ServerDetailViewState extends State<ServerDetailView> {
         child: Column(
           children: [
             if (selecting)
-              AppBar(
+              AppPageHeader(
                 key: const ValueKey('inbound-selection-toolbar'),
-                primary: false,
-                automaticallyImplyLeading: false,
                 title: CatalogTitle(
                   selection: section!.selection!,
                   title: section.name,
@@ -647,44 +640,41 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                 ],
               )
             else
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-                child: Row(
-                  children: [
-                    IconButton(
-                      key: const ValueKey('server-list-back'),
-                      tooltip: l.uiBack,
-                      onPressed: c.vaultSaving || c.picking
-                          ? null
-                          : index == 0 || (index == 1 && requiresConnection)
-                          ? widget.onBack
-                          : () {
-                              if (_cancelDiagnostics()) return;
-                              final selection = index >= 5
-                                  ? widget.sections[index - 5].selection
-                                  : null;
-                              if (selection?.active == true) {
-                                selection!.exit();
-                              } else {
-                                open(0);
-                              }
-                            },
-                      icon: const Icon(Icons.arrow_back),
-                    ),
-                    Expanded(child: AppPageTitle(titles[index])),
-                    if (index >= 5 &&
-                        widget.sections[index - 5].selection != null &&
-                        !widget.sections[index - 5].selection!.active)
-                      IconButton(
-                        key: const ValueKey('inbound-edit'),
-                        tooltip: l.catalogEdit,
-                        onPressed: widget.sections[index - 5].selectionEnabled
-                            ? widget.sections[index - 5].selection!.start
-                            : null,
-                        icon: const Icon(Icons.edit_outlined),
-                      ),
-                  ],
+              AppPageHeader(
+                leading: IconButton(
+                  key: const ValueKey('server-list-back'),
+                  tooltip: l.uiBack,
+                  onPressed: c.vaultSaving || c.picking
+                      ? null
+                      : index == 0 || (index == 1 && requiresConnection)
+                      ? widget.onBack
+                      : () {
+                          if (_cancelDiagnostics()) return;
+                          final selection = index >= 5
+                              ? widget.sections[index - 5].selection
+                              : null;
+                          if (selection?.active == true) {
+                            selection!.exit();
+                          } else {
+                            open(0);
+                          }
+                        },
+                  icon: const Icon(Icons.arrow_back),
                 ),
+                title: Text(titles[index]),
+                actions: [
+                  if (index >= 5 &&
+                      widget.sections[index - 5].selection != null &&
+                      !widget.sections[index - 5].selection!.active)
+                    IconButton(
+                      key: const ValueKey('inbound-edit'),
+                      tooltip: l.catalogEdit,
+                      onPressed: widget.sections[index - 5].selectionEnabled
+                          ? widget.sections[index - 5].selection!.start
+                          : null,
+                      icon: const Icon(Icons.edit_outlined),
+                    ),
+                ],
               ),
             // A banner leads to the page that shows the issue; on that page
             // it would repeat it (UI-44).

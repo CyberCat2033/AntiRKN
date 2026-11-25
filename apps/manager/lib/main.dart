@@ -934,6 +934,79 @@ class _ManagerShellState extends State<ManagerShell>
     setState(() => _index = value);
   }
 
+  /// A top-level page under its own title row, as in Settings: the row sits
+  /// beside the navigation and changes with its page.
+  Widget _withHeader(
+    String title,
+    Widget page, {
+    CatalogSelection? selection,
+    List<Widget> actions = const [],
+  }) => Column(
+    children: [
+      AppPageHeader(
+        title: selection == null
+            ? Text(title)
+            : CatalogTitle(selection: selection, title: title),
+        actions: actions,
+      ),
+      Expanded(child: page),
+    ],
+  );
+
+  Widget _catalogHeader(String title) => Builder(
+    builder: (context) => AppPageHeader(
+      title: CatalogTitle(selection: _serverSelection, title: title),
+      actions: [
+        ListenableBuilder(
+          listenable: Listenable.merge([_catalog!, _vpn]),
+          builder: (context, _) => CatalogActions(
+            selection: _serverSelection,
+            available: _catalog!.servers.map((s) => s.id),
+            prefix: 'server',
+            busy: _catalog!.loading || (_vpn?.busy ?? false),
+            onAdd: _catalog!.add,
+            onDelete: () => ServerCatalog.deleteSelected(
+              context,
+              _catalog!,
+              _serverSelection,
+              _vpn,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  List<Widget> _clientActions() => [
+    if (_vpn != null)
+      Builder(
+        builder: (context) => ListenableBuilder(
+          listenable: _vpn!,
+          builder: (context, _) => CatalogActions(
+            selection: _clientSelection,
+            available: _vpn!.workspace.users
+                .where((u) => !u.deleted)
+                .map((u) => u.id),
+            prefix: 'vpn-user',
+            busy: _vpn!.busy || !_vpn!.loaded,
+            onAdd: () => UsersPage.edit(
+              context,
+              _vpn!,
+              widget.motion,
+              null,
+              _publications,
+            ),
+            onDelete: () => UsersPage.deleteSelected(
+              context,
+              _vpn!,
+              _clientSelection,
+              _publications,
+            ),
+          ),
+        ),
+      ),
+  ];
+
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
@@ -961,70 +1034,6 @@ class _ManagerShellState extends State<ManagerShell>
               }
             },
             child: Scaffold(
-              appBar: _index == 2 || _index == 0 && _catalog?.selectedId != null
-                  ? null
-                  : AppBar(
-                      title: _index >= 2
-                          ? Text(labels[_index])
-                          : CatalogTitle(
-                              selection: _selection,
-                              title: labels[_index],
-                            ),
-                      actions: [
-                        if (_index == 0 && _catalog != null)
-                          ListenableBuilder(
-                            listenable: Listenable.merge([_catalog!, _vpn]),
-                            builder: (context, _) =>
-                                _catalog!.selectedId != null
-                                ? const SizedBox.shrink()
-                                : CatalogActions(
-                                    selection: _serverSelection,
-                                    available: _catalog!.servers.map(
-                                      (s) => s.id,
-                                    ),
-                                    prefix: 'server',
-                                    busy:
-                                        _catalog!.loading ||
-                                        (_vpn?.busy ?? false),
-
-                                    onAdd: _catalog!.add,
-                                    onDelete: () =>
-                                        ServerCatalog.deleteSelected(
-                                          context,
-                                          _catalog!,
-                                          _serverSelection,
-                                          _vpn,
-                                        ),
-                                  ),
-                          ),
-                        if (_index == 1 && _vpn != null)
-                          ListenableBuilder(
-                            listenable: _vpn!,
-                            builder: (context, _) => CatalogActions(
-                              selection: _clientSelection,
-                              available: _vpn!.workspace.users
-                                  .where((u) => !u.deleted)
-                                  .map((u) => u.id),
-                              prefix: 'vpn-user',
-                              busy: _vpn!.busy || !_vpn!.loaded,
-
-                              onAdd: () => UsersPage.edit(
-                                context,
-                                _vpn!,
-                                widget.motion,
-                                null,
-                                _publications,
-                              ),
-                              onDelete: () => UsersPage.deleteSelected(
-                                context,
-                                _vpn!,
-                                _clientSelection,
-                                _publications,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
               bottomNavigationBar: rail
                   ? null
                   : NavigationBar(
@@ -1087,28 +1096,36 @@ class _ManagerShellState extends State<ManagerShell>
                                 motion: widget.motion,
                                 vpn: _vpn,
                                 cacheRefresh: _cacheRefresh,
-                              )
-                            else if (_sshController != null)
-                              NetworkWorkbench(
-                                controller: _networkController,
-                                motion: widget.motion,
-                                ssh: _sshController,
+                                header: _catalogHeader(labels[0]),
                               )
                             else
-                              Center(child: Text(l.noServers)),
-                            if (_vpn != null)
-                              UsersPage(
-                                controller: _vpn!,
-                                showAddAction: false,
-                                selection: _clientSelection,
-                                publications: _publications,
-                                serverName: (id) =>
-                                    _catalog?.serverDisplayName(id) ?? id,
-                                exporter: SystemProfileExporter(),
-                                motion: widget.motion,
-                              )
-                            else
-                              Center(child: Text(l.vpnNoUsers)),
+                              _withHeader(
+                                labels[0],
+                                _sshController != null
+                                    ? NetworkWorkbench(
+                                        controller: _networkController,
+                                        motion: widget.motion,
+                                        ssh: _sshController,
+                                      )
+                                    : Center(child: Text(l.noServers)),
+                              ),
+                            _withHeader(
+                              labels[1],
+                              _vpn != null
+                                  ? UsersPage(
+                                      controller: _vpn!,
+                                      showAddAction: false,
+                                      selection: _clientSelection,
+                                      publications: _publications,
+                                      serverName: (id) =>
+                                          _catalog?.serverDisplayName(id) ?? id,
+                                      exporter: SystemProfileExporter(),
+                                      motion: widget.motion,
+                                    )
+                                  : Center(child: Text(l.vpnNoUsers)),
+                              selection: _vpn != null ? _clientSelection : null,
+                              actions: _clientActions(),
+                            ),
                             SettingsHub(
                               key: _settingsKey,
                               motion: widget.motion,

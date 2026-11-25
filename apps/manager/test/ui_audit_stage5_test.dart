@@ -94,7 +94,9 @@ void main() {
 
     testWidgets('a page title is a heading', (tester) async {
       final handle = tester.ensureSemantics();
-      await tester.pumpWidget(_app(const AppPageTitle('Settings')));
+      await tester.pumpWidget(
+        _app(const AppPageHeader(title: Text('Settings'))),
+      );
       expect(
         tester.getSemantics(find.text('Settings')),
         matchesSemantics(label: 'Settings', isHeader: true),

@@ -342,16 +342,50 @@ class _AppPageSwitchState extends State<AppPageSwitch>
   }
 }
 
-/// Titles stay still so a second animation never competes with the page.
-/// A page's own title row text: a heading for screen readers. It does not
-/// animate apart from its page (UI-73, UI-74).
-class AppPageTitle extends StatelessWidget {
-  const AppPageTitle(this.title, {super.key});
-  final String title;
+/// A page's own title row: inside the content beside the navigation, with
+/// the same height, inset and type on every page. The title is a heading for
+/// screen readers; it belongs to its page and never animates apart from it
+/// (UI-73, UI-74). [leading] is usually a back button; [actions] sit at the
+/// end like app bar actions.
+class AppPageHeader extends StatelessWidget {
+  const AppPageHeader({
+    required this.title,
+    this.leading,
+    this.actions = const [],
+    super.key,
+  });
+  final Widget title;
+  final Widget? leading;
+  final List<Widget> actions;
+
+  /// Icon buttons keep their glyphs on the same 20 dp inset as a bare title.
+  static const double _inset = 20, _buttonInset = 8, height = 68;
+
   @override
-  Widget build(BuildContext context) => Semantics(
-    header: true,
-    child: Text(title, style: Theme.of(context).textTheme.headlineSmall),
+  Widget build(BuildContext context) => ConstrainedBox(
+    // A minimum, not a fixed height: enlarged text grows the row.
+    constraints: const BoxConstraints(minHeight: height),
+    child: Padding(
+      padding: EdgeInsetsDirectional.only(
+        start: leading == null ? _inset : _buttonInset,
+        end: actions.isEmpty ? _inset : _buttonInset,
+      ),
+      child: Row(
+        children: [
+          ?leading,
+          Expanded(
+            child: Semantics(
+              header: true,
+              child: DefaultTextStyle.merge(
+                style: Theme.of(context).textTheme.headlineSmall,
+                child: title,
+              ),
+            ),
+          ),
+          ...actions,
+        ],
+      ),
+    ),
   );
 }
 

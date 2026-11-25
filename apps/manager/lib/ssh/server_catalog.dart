@@ -30,6 +30,7 @@ class ServerCatalog extends StatefulWidget {
     this.selection,
     this.diagnostics,
     this.cacheRefresh,
+    this.header,
     super.key,
   });
   final ServerCatalogController controller;
@@ -38,6 +39,9 @@ class ServerCatalog extends StatefulWidget {
   final CatalogSelection? selection;
   final IpDiagnosticsController? diagnostics;
   final RestoredCacheRefresh? cacheRefresh;
+
+  /// The list page's title row; the detail page shows its own.
+  final Widget? header;
 
   static Future<void> deleteSelected(
     BuildContext context,
@@ -672,7 +676,15 @@ class _ServerCatalogState extends State<ServerCatalog> {
         depth: selected && !containerOpen ? 1 : 0,
         motion: widget.motion,
         children: [
-          _content(context),
+          if (widget.header == null)
+            _content(context)
+          else
+            Column(
+              children: [
+                widget.header!,
+                Expanded(child: _content(context)),
+              ],
+            ),
           containerOpen
               ? const SizedBox.shrink()
               : _detail ?? const SizedBox.shrink(),

@@ -106,28 +106,19 @@ class SettingsHubState extends State<SettingsHub> {
       },
       child: Column(
         children: [
-          SizedBox(
-            height: 68,
-            child: Row(
-              children: [
-                if (selected > 0)
-                  IconButton(
+          AppPageHeader(
+            leading: selected > 0
+                ? IconButton(
                     key: const ValueKey('settings-back'),
                     tooltip: l.uiBack,
                     onPressed: () => open(0),
                     icon: const Icon(Icons.arrow_back),
                   )
-                else
-                  const SizedBox(width: 20),
-                Expanded(
-                  child: AppPageTitle(
-                    selected == 0
-                        ? l.settings
-                        : widget.destinations[selected - 1].title,
-                  ),
-                ),
-                const SizedBox(width: 20),
-              ],
+                : null,
+            title: Text(
+              selected == 0
+                  ? l.settings
+                  : widget.destinations[selected - 1].title,
             ),
           ),
           Expanded(
