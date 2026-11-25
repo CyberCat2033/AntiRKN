@@ -526,7 +526,12 @@ class Store:
         if action == 'inbound_plan':
             return {**self.response('ok'), 'inboundPlan': (inbound_removal_plan(self, req) if 'removals' in json.loads(req['payload']) else inbound_plan(self, req))}
         if action == 'apt_plan':
-            return {**self.response('ok'), 'aptPlan': apt_plan()}
+            try:
+                return {**self.response('ok'), 'aptPlan': apt_plan()}
+            except AptError as error:
+                return self.response(error.code if error.code in SCHEMA['codes'] else 'apt_failed')
+            except (OSError, ValueError, subprocess.SubprocessError):
+                return self.response('apt_failed')
         if action == 'reality_scan':
             result = panel_for(self, req['id']).call('/panel/api/server/scanRealityTarget',
                 dict(target=req['target'], sni=req['sni'], xver='0', allowPrivate='false'), form=True)
@@ -697,12 +702,16 @@ class Store:
             (cutoff,)).fetchall()
         for r in rows:
             request = json.loads(r['request'])
+            code = 'cancelled' if r['cancel'] else 'failed'
             if r['checkpoint'] > 0 and request['kind'] != 'diagnostic':
                 status = 'partially_applied'  # Earlier steps changed the server.
+            elif request['kind'] in ('apt_update', 'apt_upgrade') and (self.directory / ('apt-' + r['id'] + '.started')).exists():
+                # Its transient apt unit runs on (or ran) without the worker.
+                status, code = 'partially_applied', 'apt_interrupted'
             else:
-                status = 'cancelled' if r['cancel'] else 'failed'
+                status = code
             self.db.execute('UPDATE jobs SET status=? WHERE id=?', (status, r['id']))
-            self.event(r['id'], 'cancelled' if r['cancel'] else 'failed', r['checkpoint'], request['count'])
+            self.event(r['id'], code, r['checkpoint'], request['count'])
 
     def prune_jobs(self):
         """Free room for new jobs by forgetting old finished history.

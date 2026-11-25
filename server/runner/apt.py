@@ -74,6 +74,10 @@ LOCKS = (Path('/var/lib/dpkg/lock-frontend'), Path('/var/lib/dpkg/lock'),
          Path('/var/lib/apt/lists/lock'))
 # Longest apt-get run in a transient unit; systemd stops it after that.
 RUNTIME_MAX = 7200
+# dpkg's journal of a run that did not finish (power loss, killed dpkg).
+DPKG_UPDATES = Path('/var/lib/dpkg/updates')
+# Package states only `dpkg --configure -a` completes.
+UNFINISHED_STATES = ('half-installed', 'unpacked', 'half-configured', 'triggers-awaited', 'triggers-pending')
 
 
 def unit_properties(unit):
@@ -124,6 +128,30 @@ def acquire_dpkg_locks(timeout=60, paths=LOCKS, sleep=time.sleep):
         backoff = min(backoff * 1.5, 3.0)
 
 
+def dpkg_interrupted():
+    """Whether an earlier dpkg run stopped midway, so apt refuses to work until
+    an administrator runs `dpkg --configure -a` (never run here: it executes
+    maintainer scripts of whatever was left). Read-only; a dpkg run in
+    progress is not judged (its journal and states are transient)."""
+    if any(lock_busy(path) for path in LOCKS):
+        return False
+    try:
+        if any(entry.name.isdigit() for entry in DPKG_UPDATES.iterdir()):
+            return True
+    except FileNotFoundError:
+        pass
+    result = run_command(['/usr/bin/dpkg-query', '--show', '--showformat=${Status}\\n'], timeout=60)
+    if result.returncode:
+        raise AptError()
+    return any(line.split()[-1:] and line.split()[-1] in UNFINISHED_STATES
+               for line in result.stdout.decode(errors='replace').splitlines())
+
+
+def check_dpkg():
+    if dpkg_interrupted():
+        raise AptError('apt_dpkg_interrupted')
+
+
 def run(args, *, capture=False, unit=None, record=None, runtime=RUNTIME_MAX):
     """apt-get with fixed options. A unit run is a transient systemd service
     bounded by RuntimeMaxSec; record, a root-only path, receives its exit
@@ -162,10 +190,13 @@ def recorded(path):
 
 
 def record_exit(path, argv):
-    """Inside the transient unit: run apt-get, then record its exit status."""
+    """Inside the transient unit: run apt-get, then record its exit status.
+
+    A SIGTERM (reboot, shutdown, RuntimeMaxSec) stops the whole unit, apt-get
+    and dpkg included: the marker stays 'running', so the end is reported
+    as unknown (apt_interrupted), not as an apt-get failure."""
     import signal
     def stopped(number, _frame):
-        atomic_file(path, b'exit %d' % (128 + number))
         os._exit(128 + number)
     signal.signal(signal.SIGTERM, stopped)
     atomic_file(path, b'running')
@@ -201,6 +232,7 @@ def parse_packages(output):
 def plan():
     prerequisites()
     check_disk_and_memory()
+    check_dpkg()
     packages = parse_packages(run(['--simulate', 'upgrade'], capture=True))
     # Include dpkg and apt inputs, so manual changes or a subsequent index
     # refresh invalidate the confirmation even if the visible list looks alike.
@@ -237,7 +269,7 @@ class AptJob:
     def abort(self):
         if is_unit_active(self.unit):
             return 'partially_applied'
-        if self.marker.exists() and self.outcome() is not None:
+        if self.started():
             return 'partially_applied'  # apt already ran to its end.
         self.marker.unlink(missing_ok=True)
         return 'cancelled'
@@ -264,7 +296,7 @@ class AptJob:
                 self.marker.unlink(missing_ok=True)  # apt-get never started.
             acquire_dpkg_locks()
             if req['kind'] == 'apt_upgrade':
-                current = plan()
+                current = plan()  # Also refuses an interrupted dpkg.
                 if current['fingerprint'] != req['fingerprint']:
                     raise AptError('apt_conflict')
                 packages = current['packages']
@@ -278,6 +310,7 @@ class AptJob:
                 if not all(simulated_map.get(p['name']) == p['version'] for p in packages):
                     raise AptError('apt_conflict')
             else:
+                check_dpkg()
                 args = ['-o', 'APT::Update::Error-Mode=any', 'update']
             with self.store.db:
                 self.store.event(req['id'], 'apt_upgrading' if req['kind'] == 'apt_upgrade' else 'apt_updating', 0, 2)
@@ -295,8 +328,20 @@ class AptJob:
             self.store.db.execute('UPDATE jobs SET checkpoint=? WHERE id=?', (checkpoint + 1, req['id']))
             self.store.event(req['id'], 'apt_reboot_required' if checkpoint == 1 and Path('/var/run/reboot-required').exists() else 'apt_checked', checkpoint + 1, 2)
 
+    def started(self):
+        """Whether apt-get of the apply run really started (its marker says
+        running or an exit status, or systemd still holds the finished unit)."""
+        return self.marker.exists() and self.outcome() is not None
+
     def failure_status(self):
-        return 'partially_applied' if self.marker.exists() else 'failed'
+        """partially_applied only when packages may have changed: an upgrade
+        whose apt-get started. Otherwise failed (a list refresh changes no
+        package), and the marker goes, so a resume starts afresh."""
+        if self.request['kind'] == 'apt_upgrade' and self.started():
+            return 'partially_applied'
+        if not is_unit_active(self.unit):
+            self.marker.unlink(missing_ok=True)
+        return 'failed'
 
 
 if __name__ == '__main__':
