@@ -95,7 +95,17 @@ class ExternalConnectionCheck extends StatefulWidget {
 class _ExternalConnectionCheckState extends State<ExternalConnectionCheck> {
   bool reading = false, unavailable = false;
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ListenableBuilder(
+    // Check progress is not forwarded through the VPN controller.
+    listenable: Listenable.merge([
+      widget.controller,
+      widget.controller.connections,
+      widget.runner,
+    ]),
+    builder: (context, _) => _build(context),
+  );
+
+  Widget _build(BuildContext context) {
     final l = AppLocalizations.of(context), c = widget.controller.connections;
     final key = externalConnectionTarget(
       widget.serverId,

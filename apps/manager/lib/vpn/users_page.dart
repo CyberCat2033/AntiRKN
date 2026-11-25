@@ -20,6 +20,38 @@ import '../template_settings.dart';
 
 enum UserSortField { name, creationDate }
 
+/// Clients as the list shows them: enabled first, then disabled, each part
+/// ordered by [field]. Names are lower-cased once per client, not once per
+/// comparison.
+@visibleForTesting
+({List<VpnUser> enabled, List<VpnUser> disabled}) sortUsersForDisplay(
+  List<VpnUser> users,
+  UserSortField field,
+  bool ascending,
+) {
+  final order = <String, int>{
+    for (var i = 0; i < users.length; i++) users[i].id: i,
+  };
+  final names = field == UserSortField.name
+      ? {for (final user in users) user.id: user.name.toLowerCase()}
+      : const <String, String>{};
+  int compare(VpnUser a, VpnUser b) {
+    if (field == UserSortField.name) {
+      final res = names[a.id]!.compareTo(names[b.id]!);
+      if (res != 0) return ascending ? res : -res;
+      return order[a.id]!.compareTo(order[b.id]!);
+    }
+    final res = order[a.id]!.compareTo(order[b.id]!);
+    return ascending ? res : -res;
+  }
+
+  final visible = users.where((u) => !u.deleted);
+  return (
+    enabled: visible.where((u) => u.enabled).toList()..sort(compare),
+    disabled: visible.where((u) => !u.enabled).toList()..sort(compare),
+  );
+}
+
 class UsersPage extends StatefulWidget {
   const UsersPage({
     required this.controller,
@@ -210,6 +242,25 @@ class _UsersPageState extends State<UsersPage> {
   bool _syncing = false;
   UserSortField _sortField = UserSortField.creationDate;
   bool _sortAscending = true;
+
+  /// The sorted lists for one immutable users list and sort order: busy,
+  /// selection and publication notifications rebuild without sorting.
+  ({List<VpnUser> enabled, List<VpnUser> disabled})? _sorted;
+  (List<VpnUser>, UserSortField, bool)? _sortedFor;
+  ({List<VpnUser> enabled, List<VpnUser> disabled}) _sortedUsers(
+    List<VpnUser> users,
+  ) {
+    final cached = _sorted, key = _sortedFor;
+    if (cached != null &&
+        key != null &&
+        identical(key.$1, users) &&
+        key.$2 == _sortField &&
+        key.$3 == _sortAscending) {
+      return cached;
+    }
+    _sortedFor = (users, _sortField, _sortAscending);
+    return _sorted = sortUsersForDisplay(users, _sortField, _sortAscending);
+  }
 
   Future<void> _syncAndPublish(
     BuildContext context, {
@@ -438,32 +489,10 @@ class _UsersPageState extends State<UsersPage> {
     listenable: Listenable.merge([controller, selection]),
     builder: (context, _) {
       final c = controller, l = AppLocalizations.of(context);
-      final allUsers = c.workspace.users
-          .where((u) => !u.deleted)
-          .toList(growable: false);
-
-      final creationOrder = {
-        for (var i = 0; i < c.workspace.users.length; i++)
-          c.workspace.users[i].id: i,
-      };
-
-      int compareUsers(VpnUser a, VpnUser b) {
-        if (_sortField == UserSortField.name) {
-          final res = a.name.toLowerCase().compareTo(b.name.toLowerCase());
-          if (res != 0) return _sortAscending ? res : -res;
-          return creationOrder[a.id]!.compareTo(creationOrder[b.id]!);
-        } else {
-          final res = creationOrder[a.id]!.compareTo(creationOrder[b.id]!);
-          return _sortAscending ? res : -res;
-        }
-      }
-
-      final enabledUsers = allUsers.where((u) => u.enabled).toList()
-        ..sort(compareUsers);
-      final disabledUsers = allUsers.where((u) => !u.enabled).toList()
-        ..sort(compareUsers);
-
+      final sorted = _sortedUsers(c.workspace.users);
+      final enabledUsers = sorted.enabled, disabledUsers = sorted.disabled;
       final sortedAllUsers = [...enabledUsers, ...disabledUsers];
+      final allUsers = sortedAllUsers;
       final protocolSummary = _protocolSummary();
       return DragSelectList(
         selection: selection,
@@ -509,7 +538,7 @@ class _UsersPageState extends State<UsersPage> {
                   ),
                   if (publications != null)
                     ListenableBuilder(
-                      listenable: publications!,
+                      listenable: publications!.changes,
                       builder: (context, _) => _buildSyncProgress(),
                     )
                   else
@@ -827,9 +856,13 @@ class UserTile extends StatelessWidget {
                   children: [
                     Text(user.enabled ? protocolSummary : l.vpnDisabled),
                     if (publications != null)
-                      ListenableBuilder(
-                        listenable: publications!,
-                        builder: (context, _) {
+                      _PublicationSelector(
+                        listenable: publications!.changes,
+                        select: () => (
+                          publications!.queues[user.id]?['status'],
+                          publications!.queues[user.id]?['issue'],
+                        ),
+                        builder: (context) {
                           final queue = publications!.queues[user.id];
                           if (queue?['status'] == 'error') {
                             return Text(
@@ -864,9 +897,15 @@ class UserTile extends StatelessWidget {
                 trailing: selection.active
                     ? null
                     : publications != null
-                    ? ListenableBuilder(
-                        listenable: publications!,
-                        builder: (context, _) => _buildTrailing(context, c),
+                    ? _PublicationSelector(
+                        listenable: publications!.changes,
+                        select: () => (
+                          publications!.hasActiveSync,
+                          publications!.isUserInFlight(user.id),
+                          publications!.isUserCompleted(user.id),
+                          publications!.isUserFailed(user.id),
+                        ),
+                        builder: (context) => _buildTrailing(context, c),
                       )
                     : _buildTrailing(context, c),
               ),
@@ -954,6 +993,59 @@ class UserTile extends StatelessWidget {
       icon: iconWidget,
     );
   }
+}
+
+/// Rebuilds a client row part only when that client's publication state
+/// changes: a batch reports progress for one client at a time, and every
+/// other row stays as it is.
+class _PublicationSelector<T> extends StatefulWidget {
+  const _PublicationSelector({
+    required this.listenable,
+    required this.select,
+    required this.builder,
+  });
+  final Listenable listenable;
+  final T Function() select;
+  final WidgetBuilder builder;
+
+  @override
+  State<_PublicationSelector<T>> createState() =>
+      _PublicationSelectorState<T>();
+}
+
+class _PublicationSelectorState<T> extends State<_PublicationSelector<T>> {
+  late T _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.select();
+    widget.listenable.addListener(_changed);
+  }
+
+  @override
+  void didUpdateWidget(_PublicationSelector<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.listenable != widget.listenable) {
+      oldWidget.listenable.removeListener(_changed);
+      widget.listenable.addListener(_changed);
+    }
+    _selected = widget.select();
+  }
+
+  @override
+  void dispose() {
+    widget.listenable.removeListener(_changed);
+    super.dispose();
+  }
+
+  void _changed() {
+    final next = widget.select();
+    if (next != _selected) setState(() => _selected = next);
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(context);
 }
 
 class _AttentionServersSection extends StatelessWidget {

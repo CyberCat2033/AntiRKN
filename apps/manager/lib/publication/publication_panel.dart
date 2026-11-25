@@ -204,7 +204,8 @@ class UserPublicationView extends StatelessWidget {
   final String userId;
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: controller,
+    // Includes batch progress: this client's state changes inside a batch.
+    listenable: controller.changes,
     builder: (context, _) {
       final l = AppLocalizations.of(context),
           queue = controller.queues[userId],

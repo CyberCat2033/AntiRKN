@@ -34,6 +34,8 @@ class PublicationController extends ChangeNotifier {
     this.canPublish,
   }) {
     vpn.addListener(_vpnChanged);
+    _seenSyncResult = sync?.result;
+    _seenSyncAccount = sync?.account;
     sync?.addListener(_syncChanged);
     ready = reload();
   }
@@ -80,7 +82,7 @@ class PublicationController extends ChangeNotifier {
   final Set<String> _failedUserIds = {};
   int _activeSyncTotal = 0;
   DateTime? _rateLimitedUntil;
-  String? _profileStamp;
+  List<Object?>? _profileStamp;
   Map<String, String> _readyProfileHashes = {};
   bool _readyBaselineSet = false;
   final Set<String> _newlyReadyUsers = {};
@@ -287,6 +289,27 @@ class PublicationController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
+  final _progress = ValueNotifier<int>(0);
+  bool _progressScheduled = false;
+
+  /// Ticks when a client of a running batch starts or finishes. A batch
+  /// notifies the controller itself only when it starts and ends, so the
+  /// whole users page does not rebuild twice per client.
+  ValueListenable<int> get progress => _progress;
+
+  /// Controller state and batch progress, for per-client views.
+  late final Listenable changes = Listenable.merge([this, _progress]);
+
+  /// Coalesces the progress of every client handled in one event-loop turn.
+  void _progressChanged() {
+    if (_progressScheduled || _disposed) return;
+    _progressScheduled = true;
+    scheduleMicrotask(() {
+      _progressScheduled = false;
+      if (!_disposed) _progress.value++;
+    });
+  }
+
   static void _decodeInto(
     Map<String, Map<String, dynamic>> target,
     String id,
@@ -401,20 +424,21 @@ class PublicationController extends ChangeNotifier {
         : <String>{};
     if (vpn.loaded && !vpn.workspaceBusy) _readyBaselineSet = true;
     if (!vpn.workspaceBusy) _readyProfileHashes = readyProfiles;
-    final stamp = jsonEncode([
+    // Compared element by element: no JSON encoding of every client on each
+    // VPN notification.
+    final stamp = <Object?>[
       vpn.loaded,
       vpn.workspaceBusy,
       vpn.serverSyncIssue,
-      for (final user in vpn.workspace.users)
-        [
-          user.id,
-          user.enabled,
-          vpn.workspace.profiles[user.id]?['hash'],
-          vpn.results[user.id]?.hasBlockingErrors,
-          vpn.coreCheckFor(user.id)?.status == CoreConfigStatus.invalid,
-        ],
-    ]);
-    if (stamp == _profileStamp) return;
+      for (final user in vpn.workspace.users) ...[
+        user.id,
+        user.enabled,
+        vpn.workspace.profiles[user.id]?['hash'],
+        vpn.results[user.id]?.hasBlockingErrors,
+        vpn.coreCheckFor(user.id)?.status == CoreConfigStatus.invalid,
+      ],
+    ];
+    if (listEquals(stamp, _profileStamp)) return;
     _profileStamp = stamp;
     _newlyReadyUsers.addAll(newlyReadyUsers);
     unawaited(reload());
@@ -661,7 +685,7 @@ class PublicationController extends ChangeNotifier {
           _inFlightUserIds.add(user.id);
           _completedUserIds.remove(user.id);
           _failedUserIds.remove(user.id);
-          _notify();
+          _progressChanged();
           var success = false;
           try {
             // Fast-path: skip user if profile is already published and unchanged
@@ -818,7 +842,7 @@ class PublicationController extends ChangeNotifier {
               _failedUserIds.add(user.id);
               _completedUserIds.remove(user.id);
             }
-            _notify();
+            _progressChanged();
           }
           await Future<void>.delayed(Duration.zero);
         }
@@ -1268,10 +1292,26 @@ class PublicationController extends ChangeNotifier {
     _resetSyncProgress(notify: false);
     vpn.removeListener(_vpnChanged);
     sync?.removeListener(_syncChanged);
+    _progress.dispose();
     super.dispose();
   }
 
+  AutoSyncResult? _seenSyncResult;
+  GoogleDriveAccount? _seenSyncAccount;
+  bool _seenSyncApplying = false;
+
+  /// Publication documents change only through received data (an apply that
+  /// finished, a new exchange result) or another account. Phase and progress
+  /// notifications of a sync (several per run) re-read nothing.
   void _syncChanged() {
-    unawaited(reload());
+    final current = sync!;
+    final applied = _seenSyncApplying && !current.applying;
+    final changed =
+        !identical(current.result, _seenSyncResult) ||
+        current.account != _seenSyncAccount;
+    _seenSyncApplying = current.applying;
+    _seenSyncResult = current.result;
+    _seenSyncAccount = current.account;
+    if (applied || changed) unawaited(reload());
   }
 }

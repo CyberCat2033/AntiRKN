@@ -78,7 +78,10 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([widget.controller, widget.publications]),
+    listenable: Listenable.merge([
+      widget.controller,
+      widget.publications?.changes,
+    ]),
     builder: (context, _) {
       final c = widget.controller, l = AppLocalizations.of(context);
       final user = c.workspace.users

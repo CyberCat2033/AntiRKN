@@ -52,12 +52,9 @@ class ConnectionCheckView extends StatelessWidget {
       child: ListenableBuilder(
         listenable: Listenable.merge([controller, c]),
         builder: (context, _) {
-          final running = c.isTargetRunning(target) || c.current == target,
-              result = c.result(target);
-          final available = c.available(target);
-          final reasonCode = !running && result == null && !available
-              ? c.unavailableReasonCode(target)
-              : null;
+          final state = c.viewState(target);
+          final running = state.running, result = state.result;
+          final available = state.available, reasonCode = state.reasonCode;
           final reasonText = switch (reasonCode) {
             'vpn_disabled' => l.vpnDisabled,
             'vpn_pending' => l.vpnApplying,
@@ -179,7 +176,16 @@ class _ConnectionCheckAllState extends State<ConnectionCheckAll> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ListenableBuilder(
+    // Check progress is not forwarded through the VPN controller.
+    listenable: Listenable.merge([
+      widget.controller,
+      widget.controller.connections,
+    ]),
+    builder: (context, _) => _build(context),
+  );
+
+  Widget _build(BuildContext context) {
     final l = AppLocalizations.of(context), c = widget.controller.connections;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

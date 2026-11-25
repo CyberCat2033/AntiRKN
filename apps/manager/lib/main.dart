@@ -478,13 +478,12 @@ class _ManagerShellState extends State<ManagerShell>
       store: widget.settings,
       enter: _enterDiagnostics,
       leave: _leaveDiagnostics,
-    )..addListener(_syncChanged);
-    _serverSelection.addListener(_syncChanged);
-    _clientSelection.addListener(_syncChanged);
+    )..addListener(_shellChanged);
+    _serverSelection.addListener(_shellChanged);
+    _clientSelection.addListener(_shellChanged);
     _networkController = NetworkController(reader: widget.networkReader);
     WidgetsBinding.instance.addObserver(this);
     widget.autoSync?.apply = _applyReceived;
-    widget.autoSync?.addListener(_syncChanged);
     if (widget.ssh case final ssh?) {
       if (widget.servers case final repository?) {
         _catalog = ServerCatalogController(
@@ -496,7 +495,9 @@ class _ManagerShellState extends State<ManagerShell>
         );
         _catalog!.onServerReplaced = (id, identity) =>
             unawaited(_vpn?.rebindServer(id, identity));
-        _catalog!.addListener(_catalogChanged);
+        _catalog!
+          ..addListener(_catalogChanged)
+          ..addListener(_shellChanged);
         catalogReady = _catalog!.load();
       } else {
         _sshController = SshController(
@@ -718,14 +719,14 @@ class _ManagerShellState extends State<ManagerShell>
 
   @override
   void dispose() {
-    _diagnostics.removeListener(_syncChanged);
+    _diagnostics.removeListener(_shellChanged);
     _diagnostics.dispose();
     _serverSelection.dispose();
     _clientSelection.dispose();
     WidgetsBinding.instance.removeObserver(this);
-    widget.autoSync?.removeListener(_syncChanged);
     widget.autoSync?.apply = (_) async => false;
     _catalog?.removeListener(_catalogChanged);
+    _catalog?.removeListener(_shellChanged);
     _catalog?.dispose();
     _publications?.dispose();
     _vpn?.dispose();
@@ -744,10 +745,10 @@ class _ManagerShellState extends State<ManagerShell>
             defaultTargetPlatform == TargetPlatform.android) {
       _diagnostics.stop();
       _vpn?.cancelCoreValidation();
-      _vpn?.connections.setForeground(false);
+      _vpn?.setForeground(false);
     }
     if (state == AppLifecycleState.resumed) {
-      _vpn?.connections.setForeground(true);
+      _vpn?.setForeground(true);
     }
     // An unfocused desktop window is still visible (e.g. beside a browser).
     // Android retains its existing foreground-only scheduling policy.
@@ -770,8 +771,25 @@ class _ManagerShellState extends State<ManagerShell>
     }
   }
 
-  void _syncChanged() {
-    if (mounted) setState(() {});
+  /// What [build] reads from the controllers it listens to. Rebuilding the
+  /// shell recreates every page (users, settings, the catalogue), so only a
+  /// change of these values does it — not a keystroke, a runner poll, an IP
+  /// probe or a selection toggle (those widgets listen themselves).
+  Object _shellState() => (
+    _catalog?.selectedId,
+    _catalog?.servers,
+    _catalog?.loading,
+    _serverSelection.active,
+    _clientSelection.active,
+    _diagnostics.busy,
+  );
+  late Object _builtShellState = _shellState();
+
+  void _shellChanged() {
+    if (!mounted) return;
+    final next = _shellState();
+    if (next == _builtShellState) return;
+    setState(() => _builtShellState = next);
   }
 
   Future<bool> _applyReceived(Future<void> Function() receive) async {
@@ -851,13 +869,9 @@ class _ManagerShellState extends State<ManagerShell>
       final rail =
           constraints.maxWidth >= AppLayout.compact &&
           constraints.maxHeight >= 400;
-      return ListenableBuilder(
-        listenable: Listenable.merge([
-          _catalog,
-          _serverSelection,
-          _clientSelection,
-        ]),
-        builder: (context, _) => AbsorbPointer(
+      _builtShellState = _shellState();
+      return Builder(
+        builder: (context) => AbsorbPointer(
           absorbing: _applyingSync,
           child: PopScope(
             canPop:

@@ -528,7 +528,25 @@ abstract final class AppTheme {
     );
   }
 
+  /// Themes already built, by brightness and dynamic scheme. ThemeData holds
+  /// closures without value equality: a new instance on every app rebuild
+  /// (language, settings error, dynamic color) made MaterialApp animate the
+  /// whole theme each time.
+  static final _themes = <(Brightness, ColorScheme?), ThemeData>{};
+
   static ThemeData create(Brightness brightness, {ColorScheme? dynamicScheme}) {
+    final key = (brightness, dynamicScheme);
+    final cached = _themes[key];
+    if (cached != null) return cached;
+    // Dynamic color changes rarely; keep the cache from growing without end.
+    if (_themes.length >= 8) _themes.clear();
+    return _themes[key] = _create(brightness, dynamicScheme: dynamicScheme);
+  }
+
+  static ThemeData _create(
+    Brightness brightness, {
+    ColorScheme? dynamicScheme,
+  }) {
     final dark = brightness == Brightness.dark;
     final colors =
         (dynamicScheme == null

@@ -119,13 +119,17 @@ class CatalogTitle extends StatelessWidget {
   final CatalogSelection selection;
   final String title;
   @override
-  Widget build(BuildContext context) => AnimatedSwitcher(
-    duration: AppMotion.duration(context, MotionPreference.system),
-    child: Text(
-      selection.active
-          ? AppLocalizations.of(context).catalogSelected(selection.ids.length)
-          : title,
-      key: ValueKey(selection.active),
+  Widget build(BuildContext context) => ListenableBuilder(
+    // The count follows each toggle without rebuilding the whole shell.
+    listenable: selection,
+    builder: (context, _) => AnimatedSwitcher(
+      duration: AppMotion.duration(context, MotionPreference.system),
+      child: Text(
+        selection.active
+            ? AppLocalizations.of(context).catalogSelected(selection.ids.length)
+            : title,
+        key: ValueKey(selection.active),
+      ),
     ),
   );
 }

@@ -1,6 +1,7 @@
 import 'connection_checks.dart';
 import 'dart:async';
 import 'dart:convert';
+import 'dart:isolate';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_profile_compiler/antirkn_profile_compiler.dart';
 import 'package:flutter/foundation.dart';
@@ -144,8 +145,24 @@ final class ServerProfileSyncResult {
   bool get verified => issue == null;
 }
 
-ProfileResult _compile((String, String, String, Map<String, String>) input) {
-  final workspace = VpnWorkspace.decode(input.$1);
+/// What the profile compiler reads: the workspace without its profile
+/// history. The YAML of every client is never encoded or copied for a build.
+VpnWorkspace _compileInput(VpnWorkspace workspace) =>
+    workspace.profiles.isEmpty ? workspace : workspace.copy(profiles: const {});
+
+/// Documents above this size are decoded on a short-lived isolate; smaller
+/// ones are cheaper to decode in place than to spawn one.
+const _isolateDecodeThreshold = 256 * 1024;
+
+Future<VpnWorkspace> _decodeWorkspace(String source) =>
+    source.length < _isolateDecodeThreshold
+    ? Future.value(VpnWorkspace.decode(source))
+    : Isolate.run(() => VpnWorkspace.decode(source));
+
+ProfileResult _compile(
+  (VpnWorkspace, String, String, Map<String, String>) input,
+) {
+  final workspace = input.$1;
   try {
     final pending = <ProfileAccessException>[];
     final accesses = [
@@ -204,9 +221,9 @@ ProfileResult _compile((String, String, String, Map<String, String>) input) {
 }
 
 Map<String, ProfileResult> _compileBatch(
-  (String, String, List<String>, Map<String, String>) input,
+  (VpnWorkspace, String, List<String>, Map<String, String>) input,
 ) {
-  final workspace = VpnWorkspace.decode(input.$1);
+  final workspace = input.$1;
   final userIds = input.$3;
   final serverNames = input.$4;
   final results = <String, ProfileResult>{};
@@ -324,12 +341,23 @@ class VpnController extends ChangeNotifier {
     Timer Function(Duration, void Function(Timer))? timer,
   }) {
     connections = ConnectionChecks(this, connectionProbe, probeStore)
-      ..addListener(_notify);
-    _timer = (timer ?? Timer.periodic)(
-      const Duration(seconds: 5),
-      (_) => unawaited(reconcile()),
-    );
+      ..addListener(_connectionsChanged);
+    _timer = (timer ?? Timer.periodic)(const Duration(seconds: 5), (_) {
+      if (_foreground) unawaited(reconcile());
+    });
   }
+
+  bool _foreground = true;
+
+  /// A hidden or paused app does not poll servers every 5 s; it catches up
+  /// as soon as it is in front again. Connection checks follow the same state.
+  void setForeground(bool value) {
+    connections.setForeground(value);
+    if (_foreground == value) return;
+    _foreground = value;
+    if (value) unawaited(reconcile());
+  }
+
   late final ConnectionChecks connections;
   final Future<bool> Function()? enterConnectionTraffic;
   final Future<void> Function()? leaveConnectionTraffic;
@@ -482,9 +510,10 @@ class VpnController extends ChangeNotifier {
     try {
       // Compile a fresh snapshot without writing profile history or publishing.
       final source = template();
-      final snapshot = workspace.encode();
+      // The workspace is immutable: the same instance means the same input.
+      final snapshot = workspace;
       final compiled = await compute(_compile, (
-        snapshot,
+        _compileInput(snapshot),
         source,
         userId,
         profileServerNames,
@@ -504,7 +533,7 @@ class VpnController extends ChangeNotifier {
           : await coreValidator!.validate(yaml, token);
       if (!_disposed &&
           source == template() &&
-          snapshot == workspace.encode() &&
+          identical(snapshot, workspace) &&
           results[userId]?.sha256Hash == hash &&
           check.profileHash == hash) {
         _coreChecks[userId] = check;
@@ -539,6 +568,18 @@ class VpnController extends ChangeNotifier {
   String? _lastTemplate;
   void _notify() {
     if (!_disposed) notifyListeners();
+  }
+
+  bool _connectionsBusy = false;
+
+  /// Check progress (each start, result and counter) is for the check
+  /// widgets, which listen to [connections] themselves. Only a change of
+  /// [busy], which this controller exposes, is forwarded.
+  void _connectionsChanged() {
+    final next = connections.busy;
+    if (next == _connectionsBusy) return;
+    _connectionsBusy = next;
+    _notify();
   }
 
   Future<void> checkProfileEffects() async {
@@ -668,7 +709,8 @@ class VpnController extends ChangeNotifier {
     revision = saved.revision;
     workspace = saved.source == null
         ? VpnWorkspace(id: saved.workspaceId ?? newVpnId())
-        : VpnWorkspace.decode(saved.source!);
+        : await _decodeWorkspace(saved.source!);
+    token.check();
     if (saved.source == null) await _write(workspace);
     loaded = true;
     plans = [];
@@ -757,7 +799,13 @@ class VpnController extends ChangeNotifier {
     return referenced.difference(available);
   }
 
-  bool get hasUnappliedActiveAccess {
+  /// Derived from the immutable [workspace] alone, so it is computed once per
+  /// workspace instance instead of on every notification.
+  bool get hasUnappliedActiveAccess =>
+      _unappliedAccess[workspace] ??= _computeUnappliedActiveAccess();
+  final _unappliedAccess = Expando<bool>('hasUnappliedActiveAccess');
+
+  bool _computeUnappliedActiveAccess() {
     final users = workspace.users
         .where((user) => !user.deleted && user.enabled)
         .map((user) => user.id)
@@ -1592,7 +1640,8 @@ class VpnController extends ChangeNotifier {
     }
     _reconcileRetry = Timer(const Duration(seconds: 1), () {
       _reconcileRetry = null;
-      unawaited(reconcile());
+      // In the background the follow-up waits for [setForeground] too.
+      if (_foreground) unawaited(reconcile());
     });
   }
 
@@ -2611,6 +2660,35 @@ class VpnController extends ChangeNotifier {
           record['authorizedPayload'] != applied) {
         return false;
       }
+      if (!_readbackMatchesDesired(target, panelId, applied, record)) {
+        return false;
+      }
+    }
+    for (final user in workspace.users.where((u) => u.enabled && !u.deleted)) {
+      final result = results[user.id];
+      if (result == null ||
+          result.hasBlockingErrors ||
+          result.yaml == null ||
+          result.sha256Hash == null ||
+          workspace.profiles[user.id]?['hash'] != result.sha256Hash ||
+          coreCheckFor(user.id)?.status == CoreConfigStatus.invalid) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Whether [target]'s applied payload and confirmed readback equal the
+  /// desired state. Every input lives in the immutable [workspace], so the
+  /// two canonical encodings per target run once per workspace instance.
+  bool _readbackMatchesDesired(
+    String target,
+    String panelId,
+    String applied,
+    Map<String, dynamic> record,
+  ) {
+    final cache = _readbackMatches[workspace] ??= <String, bool>{};
+    return cache[target] ??= () {
       try {
         final desired = workspace.desired(target, panelId);
         if (canonicalJson(jsonDecode(applied)) != canonicalJson(desired)) {
@@ -2632,23 +2710,14 @@ class VpnController extends ChangeNotifier {
             return false;
           }
         }
+        return true;
       } catch (_) {
         return false;
       }
-    }
-    for (final user in workspace.users.where((u) => u.enabled && !u.deleted)) {
-      final result = results[user.id];
-      if (result == null ||
-          result.hasBlockingErrors ||
-          result.yaml == null ||
-          result.sha256Hash == null ||
-          workspace.profiles[user.id]?['hash'] != result.sha256Hash ||
-          coreCheckFor(user.id)?.status == CoreConfigStatus.invalid) {
-        return false;
-      }
-    }
-    return true;
+    }();
   }
+
+  final _readbackMatches = Expando<Map<String, bool>>('readbackMatches');
 
   /// Reads server observations before publication when saved verification is
   /// unavailable or a fresh server check was explicitly requested.
@@ -2883,7 +2952,7 @@ class VpnController extends ChangeNotifier {
     final source = template();
     if (onlyUserId != null && source != _lastTemplate) onlyUserId = null;
     _lastTemplate = source;
-    final encoded = workspace.encode();
+    final input = _compileInput(workspace);
     final histories = {...workspace.profiles};
     var changed = false;
     final activeUserIds = <String>[];
@@ -2898,7 +2967,7 @@ class VpnController extends ChangeNotifier {
     }
     if (activeUserIds.isNotEmpty) {
       final batchResults = await compute(_compileBatch, (
-        encoded,
+        input,
         source,
         activeUserIds,
         profileServerNames,

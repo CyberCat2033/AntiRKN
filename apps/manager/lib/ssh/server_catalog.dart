@@ -167,6 +167,10 @@ class _ServerCatalogState extends State<ServerCatalog> {
     if (detail && c.selected != null) {
       final session = c.selected!;
       final vpn = widget.vpn;
+      // The saved host: a draft being typed in the SSH form does not reach
+      // the protocol panels (the form no longer notifies per keystroke, and
+      // the runner has no connection while the settings are open).
+      final host = session.profile?.host ?? session.host.text.trim();
       final managed =
           vpn?.workspace.inbounds
               .where((r) => r.serverId == c.selectedId && !r.deleted)
@@ -234,7 +238,7 @@ class _ServerCatalogState extends State<ServerCatalog> {
             : XrayUpgradeView(
                 runner: session.runner,
                 vpn: vpn,
-                host: session.host.text.trim(),
+                host: host,
               ),
         diagnostics: widget.diagnostics,
         motion: widget.motion,
@@ -294,7 +298,7 @@ class _ServerCatalogState extends State<ServerCatalog> {
                     showPlan: false,
                     controller: vpn,
                     runner: session.runner,
-                    serverHost: session.host.text.trim(),
+                    serverHost: host,
                     serverId: c.selectedId!,
                     serverName: serverName,
                     network: session.network,
@@ -329,7 +333,7 @@ class _ServerCatalogState extends State<ServerCatalog> {
                       AwgExistingPanel(
                         controller: vpn,
                         serverId: c.selectedId!,
-                        serverHost: session.host.text.trim(),
+                        serverHost: host,
                         runner: session.runner,
                         motion: widget.motion,
                       ),

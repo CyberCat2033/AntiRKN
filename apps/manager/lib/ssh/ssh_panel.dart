@@ -78,7 +78,12 @@ class _SshPanelState extends State<SshPanel> {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: widget.controller,
+    // The form shows text-derived state (hint, summary, trusted key); the
+    // controller itself only reports changes of the saved flag.
+    listenable: Listenable.merge([
+      widget.controller,
+      ...widget.controller.fields,
+    ]),
     builder: (context, _) {
       final c = widget.controller;
       final expanded = widget.editorOnly || c.settingsExpanded;

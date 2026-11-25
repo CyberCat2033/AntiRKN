@@ -341,7 +341,9 @@ void main() {
 
     final recordedTotals = <int>[];
     final recordedCompleted = <int>[];
-    c.addListener(() {
+    // Per-client progress is reported through [changes] (UI-30), not by a
+    // controller notification per client.
+    c.changes.addListener(() {
       recordedTotals.add(c.activeSyncTotal);
       recordedCompleted.add(c.activeSyncCompleted);
     });

@@ -131,9 +131,11 @@ class ConnectionChecks extends ChangeNotifier {
   ) {
     final key = (target: target, resource: spec['id'] as String);
     if (_external.length >= 256 && !_external.containsKey(key)) {
+      _signatures.remove(_external.keys.first);
       _external.remove(_external.keys.first);
     }
     _external[key] = (spec: Map.of(spec), identity: identity);
+    _signatures.remove(key);
     return key;
   }
 
@@ -331,16 +333,53 @@ class ConnectionChecks extends ChangeNotifier {
     return _proxy(temporary, user.id, key);
   }
 
-  String _signature(ConnectionTarget key) => canonicalJson([
-    spec(key),
-    _identity(key),
-    _observed(key)?['revision'],
-    _existing(key)?.fields,
-  ]);
-  ConnectionCheck? result(ConnectionTarget key) {
+  /// Signatures depend only on the immutable workspace, the profile server
+  /// names and [_external]; each is computed once per workspace instance
+  /// instead of on every build of every check tile.
+  final _signatures = <ConnectionTarget, String>{};
+  VpnWorkspace? _signaturesWorkspace;
+  Map<String, String> _signaturesNames = const {};
+
+  String _signature(ConnectionTarget key) {
+    final names = owner.profileServerNames;
+    if (!identical(_signaturesWorkspace, owner.workspace) ||
+        !mapEquals(_signaturesNames, names)) {
+      _signatures.clear();
+      _signaturesWorkspace = owner.workspace;
+      _signaturesNames = names;
+    }
+    return _signatures[key] ??= canonicalJson([
+      spec(key),
+      _identity(key),
+      _observed(key)?['revision'],
+      _existing(key)?.fields,
+    ]);
+  }
+
+  ConnectionCheck? result(ConnectionTarget key) =>
+      _result(key, ready: _ready(key));
+
+  /// Everything one check tile shows, with readiness evaluated once.
+  ({bool running, ConnectionCheck? result, bool available, String? reasonCode})
+  viewState(ConnectionTarget key) {
+    final readiness = evaluateReadiness(key);
+    final available = readiness.state == InboundReadinessState.ready;
+    final running = isTargetRunning(key) || current == key;
+    final result = _result(key, ready: available);
+    return (
+      running: running,
+      result: result,
+      available: available,
+      reasonCode: !running && result == null && !available
+          ? readiness.diagnosticReason
+          : null,
+    );
+  }
+
+  ConnectionCheck? _result(ConnectionTarget key, {required bool ready}) {
     final entry = _results[key];
     if (entry == null ||
-        !_ready(key) ||
+        !ready ||
         entry.signature != _signature(key) ||
         DateTime.now().difference(entry.check.at) >
             (entry.check.code == 'busy'
@@ -449,6 +488,7 @@ class ConnectionChecks extends ChangeNotifier {
         serverIds.contains(vpnServerId(key.target));
     _pending.removeWhere(belongs);
     _external.removeWhere((key, _) => belongs(key));
+    _signatures.removeWhere((key, _) => belongs(key));
     _results.removeWhere((key, _) => belongs(key));
     _busyBackoff.removeWhere((key, _) => belongs(key));
     skipped.removeWhere(belongs);

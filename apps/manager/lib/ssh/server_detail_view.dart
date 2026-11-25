@@ -568,6 +568,8 @@ class _ServerDetailViewState extends State<ServerDetailView> {
     listenable: Listenable.merge([
       widget.session,
       widget.session.runner,
+      // The header shows the typed host and, for a new server, its name.
+      widget.session.host,
       ...widget.sections.map((s) => s.selection),
     ]),
     builder: (context, _) {
