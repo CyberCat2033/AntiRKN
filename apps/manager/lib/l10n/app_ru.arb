@@ -1497,5 +1497,17 @@
   "inventoryPartialList": "Часть проверок не выполнена: {items}",
   "inventoryVersionUnknownReason": "Версия неизвестна: {reason}",
   "xrayUpgradeProblemAfter": "{reason} Проверка не завершена. Посмотрите результаты подключений и повторите после восстановления связи.",
-  "uiClientAccessFor": "Доступ для {name}"
+  "uiClientAccessFor": "Доступ для {name}",
+  "aptDiskFull": "На сервере не хватает места для APT (/, /boot или кэш пакетов). Освободите место и повторите.",
+  "aptMemoryLow": "На сервере не хватает свободной памяти для APT. Остановите тяжёлые процессы или добавьте память и повторите.",
+  "aptLockBusy": "Блокировку APT держит другой процесс менеджера пакетов (например, автоматические обновления Ubuntu). Дождитесь его завершения и повторите.",
+  "aptDpkgInterrupted": "Предыдущая установка пакетов была прервана. Выполните на сервере sudo dpkg --configure -a и повторите.",
+  "runnerUpgradeDiskFull": "Недостаточно места на диске для обновления",
+  "runnerUpgradeMemoryLow": "Недостаточно свободной памяти для обновления",
+  "runnerUpgradeNotInstalled": "Компонент не установлен на сервере",
+  "runnerUpgradeInvalidComponent": "Этот компонент нельзя обновить таким способом",
+  "runnerUpgradeBinaryNotFound": "В пакете нет ожидаемого исполняемого файла",
+  "runnerUpgradeArchitectureMismatch": "Пакет собран для другой архитектуры сервера",
+  "runnerUpgradeRollbackFailed": "Откат не удался: предыдущая версия не восстановлена. Проверьте сервер",
+  "softwareAwgDockerUpdate": "AmneziaWG работает в Docker. Приложение не обновляет Docker-контейнеры: обновите образ контейнера самостоятельно."
 }

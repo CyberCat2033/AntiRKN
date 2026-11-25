@@ -45,7 +45,7 @@ class RunnerController extends ChangeNotifier {
           !busy &&
           !backgroundBusy &&
           transport() != null &&
-          error == null &&
+          (error == null || watchesUpgrade) &&
           hasUnfinishedJob) {
         unawaited(pollActiveJob());
       }
@@ -295,7 +295,20 @@ class RunnerController extends ChangeNotifier {
   bool get hasUnfinishedJob =>
       pending != null ||
       selected?.terminal == false ||
-      jobs.any((job) => !job.terminal);
+      jobs.any((job) => !job.terminal) ||
+      watchesUpgrade;
+
+  /// A component upgrade that succeeded but is not settled yet: the server
+  /// waits for this device's confirmation and rolls back on its own when
+  /// none arrives. The job stays watched (and the confirmation retried)
+  /// until it is confirmed or rolled back, at most [upgradeWatchLimit].
+  String? _upgradeWatchId;
+  DateTime? _upgradeWatchUntil;
+  String? _upgradeConfirmedId;
+  @visibleForTesting
+  Duration upgradeWatchLimit = const Duration(minutes: 15);
+  bool get watchesUpgrade =>
+      _upgradeWatchId != null && DateTime.now().isBefore(_upgradeWatchUntil!);
   int cursor = 0;
   bool eventsTruncated = false;
   bool get connected => transport() != null;
@@ -648,7 +661,8 @@ class RunnerController extends ChangeNotifier {
     final id =
         pending?.id ??
         (selected?.terminal == false ? selected?.id : null) ??
-        jobs.where((job) => !job.terminal).firstOrNull?.id;
+        jobs.where((job) => !job.terminal).firstOrNull?.id ??
+        (watchesUpgrade ? _upgradeWatchId : null);
     if (id != null) await _readJob(remote, token, id);
   }, background: true);
 
@@ -1294,8 +1308,14 @@ class RunnerController extends ChangeNotifier {
     await prepareApt(upgrade: false);
     if (!choosingAptUpdate || !canStart) return;
     _systemUpdate = true;
+    final before = selected?.id;
     await applyApt();
-    if (error != null && pending == null) _systemUpdate = false;
+    // Only a submitted (or possibly submitted) index refresh continues with
+    // the upgrade. A refusal (busy, capacity) or a skipped start leaves no
+    // job: a later unrelated apt_update must not upgrade packages.
+    if (pending == null && (selected == null || selected!.id == before)) {
+      _systemUpdate = false;
+    }
   }
 
   Future<void> retryJob() => requestAction(() async {
@@ -2158,32 +2178,56 @@ class RunnerController extends ChangeNotifier {
     if (job.kind == 'protocol_remove' && job.status == 'succeeded') {
       await _discoverPanel(remote, token);
     }
-    if ((job.kind == 'panel_update' ||
-            job.kind == 'component_upgrade_apply' && !wasTerminal) &&
-        job.terminal &&
+    bool hasEvent(String code) => selected!.events.any((e) => e.code == code);
+    final awaitingConfirmation =
+        job.kind == 'component_upgrade_apply' &&
+        job.status == 'succeeded' &&
+        hasEvent('upgrade_awaiting_confirmation') &&
+        !hasEvent('upgrade_confirmed') &&
+        !hasEvent('upgrade_rolled_back') &&
+        !hasEvent('upgrade_rollback_failed');
+    // The server rolls an unconfirmed upgrade back after the job succeeded:
+    // the versions read before are stale then.
+    var rolledBackLate = false;
+    if (awaitingConfirmation) {
+      if (_upgradeWatchId != id) {
+        _upgradeWatchId = id;
+        _upgradeWatchUntil = DateTime.now().add(upgradeWatchLimit);
+      }
+    } else if (_upgradeWatchId == id) {
+      _upgradeWatchId = null;
+      _upgradeWatchUntil = null;
+      if (job.status != 'succeeded') {
+        rolledBackLate = true;
+        _softwareRefreshPending = true;
+      }
+    }
+    if ((rolledBackLate ||
+            (job.kind == 'panel_update' ||
+                    job.kind == 'component_upgrade_apply') &&
+                !wasTerminal &&
+                job.terminal) &&
         panelAccess != null) {
       // Panel and Xray upgrades change the versions the panel is verified
       // against; re-verify so VLESS changes are not deferred on stale records.
       await _verifyPanel(remote, token, panelAccess!.id);
     }
-    if (job.kind == 'component_upgrade_apply' &&
-        job.status == 'succeeded' &&
-        selected!.events.any(
-          (e) => e.code == 'upgrade_awaiting_confirmation',
-        ) &&
-        !selected!.events.any((e) => e.code == 'upgrade_confirmed')) {
+    if (awaitingConfirmation && _upgradeConfirmedId != id) {
       // The server verified real connections; this device confirms that it
       // still controls the server. Without this the server rolls back itself.
+      // A failed or refused-for-now confirmation (lock busy) is sent again
+      // with the next poll while the job is watched.
       final confirm = await remote.request(
         RunnerRequest.componentUpgradeConfirm(job.id),
         token,
         sudoPassword: password(),
       );
       token.check();
-      responseCode = confirm.code;
-      // A refused confirmation (already rolled back) shows up in the job
-      // itself; re-reading it once is enough and cannot loop.
+      // Confirmed or already rolled back: the outcome shows up in the job
+      // itself. It is confirmed once and re-read once, so this cannot loop.
       if (confirm.code == 'ok' || confirm.code == 'upgrade_rolled_back') {
+        responseCode = confirm.code;
+        _upgradeConfirmedId = id;
         await _readJob(remote, token, job.id);
       }
     }

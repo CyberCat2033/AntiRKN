@@ -65,6 +65,28 @@ void main() {
     },
   );
 
+  test('AmneziaWG tags sort newest first with equal tags kept', () async {
+    final source = GithubComponentReleaseSource(
+      metadata: (path) async {
+        expect(path, 'amnezia-vpn/amneziawg-go/tags');
+        return [
+          {'name': 'v3.1.20260828'},
+          {'name': 'v3.1.20250101'},
+          {'name': '3.1.20260828'},
+          {'name': 'v3.1.20261116'},
+          {'name': 'v3.1.20260828'},
+        ];
+      },
+    );
+    expect((await source.releases('amneziawg')).map((r) => r.version), [
+      '3.1.20261116',
+      '3.1.20260828',
+      '3.1.20260828',
+      '3.1.20260828',
+      '3.1.20250101',
+    ]);
+  });
+
   test('lists recent releases with previews marked, drafts dropped', () async {
     final source = GithubComponentReleaseSource(
       metadata: (path) async {
