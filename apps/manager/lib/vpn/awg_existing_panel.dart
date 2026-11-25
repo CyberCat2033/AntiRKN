@@ -127,10 +127,7 @@ class _AwgExistingPanelState extends State<AwgExistingPanel> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          AppSectionHeading(
-            title: l.awgObserved,
-            count: external.length,
-          ),
+          AppSectionHeading(title: l.awgObserved, count: external.length),
           // "Check all" and refresh are AwgPanel's, one each (UI-49).
           for (final item in external)
             Padding(

@@ -97,7 +97,10 @@ void main() {
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: SingleChildScrollView(
-              child: RunnerPanel(controller: c, motion: MotionPreference.system),
+              child: RunnerPanel(
+                controller: c,
+                motion: MotionPreference.system,
+              ),
             ),
           ),
         ),

@@ -260,10 +260,7 @@ void main() {
       await tester.pumpAndSettle();
       final issue = find.byKey(const ValueKey('tt-issue-certificate'));
       expect(issue, findsOneWidget);
-      expect(
-        tester.widget<ButtonStyleButton>(issue).onPressed,
-        isNull,
-      );
+      expect(tester.widget<ButtonStyleButton>(issue).onPressed, isNull);
       expect(find.text(l.ttIssueWaiting), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
       runner.dispose();

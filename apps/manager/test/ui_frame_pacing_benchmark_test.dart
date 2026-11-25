@@ -409,42 +409,39 @@ void main() {
   });
 
   group('CPU-Bound Tasks & Isolate Offloading Benchmarks', () {
-    test(
-      'Benchmark 6: Parsing and hashing 2000-rule YAML configuration',
-      () async {
-        final heavyYaml = generateHeavyYamlRules(2000);
-        expect(heavyYaml.length, greaterThan(50000));
+    test('Benchmark 6: Parsing and hashing 2000-rule YAML configuration', () async {
+      final heavyYaml = generateHeavyYamlRules(2000);
+      expect(heavyYaml.length, greaterThan(50000));
 
-        // Measure synchronous execution on main isolate
-        final swSync = Stopwatch()..start();
-        final parsed = loadYaml(heavyYaml);
-        final hash = sha256.convert(utf8.encode(heavyYaml)).toString();
-        swSync.stop();
+      // Measure synchronous execution on main isolate
+      final swSync = Stopwatch()..start();
+      final parsed = loadYaml(heavyYaml);
+      final hash = sha256.convert(utf8.encode(heavyYaml)).toString();
+      swSync.stop();
 
-        expect(parsed, isA<Map>());
-        expect(hash.length, 64);
-        final syncMs = swSync.elapsedMilliseconds;
-        // ignore: avoid_print
-        print(
-          'BASELINE: 2000 rules YAML loadYaml + SHA-256 on Main Isolate took $syncMs ms',
-        );
+      expect(parsed, isA<Map>());
+      expect(hash.length, 64);
+      final syncMs = swSync.elapsedMilliseconds;
+      // ignore: avoid_print
+      print(
+        'BASELINE: 2000 rules YAML loadYaml + SHA-256 on Main Isolate took $syncMs ms',
+      );
 
-        // Measure background isolate execution via Isolate.run
-        final swIsolate = Stopwatch()..start();
-        final isolateHash = await Isolate.run(() {
-          final _ = loadYaml(heavyYaml);
-          return sha256.convert(utf8.encode(heavyYaml)).toString();
-        });
-        swIsolate.stop();
+      // Measure background isolate execution via Isolate.run
+      final swIsolate = Stopwatch()..start();
+      final isolateHash = await Isolate.run(() {
+        final _ = loadYaml(heavyYaml);
+        return sha256.convert(utf8.encode(heavyYaml)).toString();
+      });
+      swIsolate.stop();
 
-        expect(isolateHash, hash);
-        final isolateMs = swIsolate.elapsedMilliseconds;
-        // ignore: avoid_print
-        print(
-          'OFFLOADED: 2000 rules YAML loadYaml + SHA-256 via Isolate.run took $isolateMs ms (0 ms Main Isolate blocking)',
-        );
-      },
-    );
+      expect(isolateHash, hash);
+      final isolateMs = swIsolate.elapsedMilliseconds;
+      // ignore: avoid_print
+      print(
+        'OFFLOADED: 2000 rules YAML loadYaml + SHA-256 via Isolate.run took $isolateMs ms (0 ms Main Isolate blocking)',
+      );
+    });
 
     test('Benchmark 7: ProfileCompiler compilation with 2000 rules', () async {
       final heavyYaml = generateHeavyYamlRules(2000);

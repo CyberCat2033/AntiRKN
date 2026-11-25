@@ -47,7 +47,8 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
               // the core: the shown "current → candidate" is stale.
               (c.plan?['current'] != null &&
                   widget.runner.panelAccess?.xrayVersion != null &&
-                  c.plan!['current'] != widget.runner.panelAccess!.xrayVersion) ||
+                  c.plan!['current'] !=
+                      widget.runner.panelAccess!.xrayVersion) ||
               c.operation != null &&
                   !XrayUpgradeController.terminal.contains(
                     c.operation!['phase'],
@@ -81,23 +82,19 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
       final l = AppLocalizations.of(context);
       final updates = ComponentUpdatesScope.of(context);
       final currentXray =
-          c.plan?['current'] as String? ?? widget.runner.panelAccess?.xrayVersion;
+          c.plan?['current'] as String? ??
+          widget.runner.panelAccess?.xrayVersion;
       final dynamicXray = updates?.latest['xray'];
-      final hasDynamicCandidate = dynamicXray != null &&
+      final hasDynamicCandidate =
+          dynamicXray != null &&
           currentXray != null &&
           (componentIsNewer(dynamicXray, currentXray) == true ||
-              componentIsNewer(
-                    dynamicXray,
-                    currentXray,
-                    allowPreview: true,
-                  ) ==
+              componentIsNewer(dynamicXray, currentXray, allowPreview: true) ==
                   true);
-      final hasPlanCandidate = c.plan?['candidate'] != null &&
+      final hasPlanCandidate =
+          c.plan?['candidate'] != null &&
           currentXray != null &&
-          (componentIsNewer(
-                    c.plan!['candidate'] as String,
-                    currentXray,
-                  ) ==
+          (componentIsNewer(c.plan!['candidate'] as String, currentXray) ==
                   true ||
               componentIsNewer(
                     c.plan!['candidate'] as String,
@@ -109,9 +106,8 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
           ? c.plan!['candidate'] as String
           : (hasDynamicCandidate ? dynamicXray : null);
       final isCandidateNewer = hasPlanCandidate || hasDynamicCandidate;
-      final canRun = (c.available &&
-              c.plan?['available'] == true &&
-              hasPlanCandidate) ||
+      final canRun =
+          (c.available && c.plan?['available'] == true && hasPlanCandidate) ||
           ((hasDynamicCandidate || hasPlanCandidate) && updates != null);
       final message = switch (c.phase) {
         'baseline' => l.xrayUpgradeBaseline,
@@ -129,7 +125,9 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
         'xray_check_layout' => isCandidateNewer ? '' : l.xrayUpgradeLayout,
         'xray_check_changed' => l.xrayUpgradeConflict,
         'xray_check_rollback' => l.xrayUpgradeAttention,
-        'vpn_pending_readback' => l.xrayUpgradeProblemAfter(l.vpnPendingReadback),
+        'vpn_pending_readback' => l.xrayUpgradeProblemAfter(
+          l.vpnPendingReadback,
+        ),
         'vpn_pending' => l.xrayUpgradeProblemAfter(l.vpnPending),
         'vpn_conflict' => l.xrayUpgradeProblemAfter(l.vpnConflict),
         '' ||
@@ -155,9 +153,7 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
               const SizedBox(height: 8),
               Text(l.xrayUpgradeIntro),
               if (effectiveCandidate != null && currentXray != null)
-                Text(
-                  'Xray $currentXray → $effectiveCandidate',
-                ),
+                Text('Xray $currentXray → $effectiveCandidate'),
               if (c.plan != null && effectiveCandidate == null)
                 Text(l.xrayUpgradeNoStable),
               if (c.busy)
@@ -225,7 +221,8 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
                             c.plan?['available'] == true &&
                             hasPlanCandidate) {
                           await c.run();
-                        } else if (effectiveCandidate != null && updates != null) {
+                        } else if (effectiveCandidate != null &&
+                            updates != null) {
                           final candidate = await updates.source.resolveAsset(
                             component: 'xray',
                             version: effectiveCandidate,

@@ -211,9 +211,7 @@ void main() {
       await c.ready;
       await tester.runAsync(() async {
         await vpn.load();
-        await vpn.saveUser(
-          VpnUser(id: f.alice, login: 'alice', name: 'Alice'),
-        );
+        await vpn.saveUser(VpnUser(id: f.alice, login: 'alice', name: 'Alice'));
         await c.configure(PublicationAccess.link);
         repo.docs['result/${f.alice}'] = jsonEncode({
           'fileId': 'bound-file',
@@ -247,10 +245,7 @@ void main() {
       expect(find.byIcon(Icons.pending_actions), findsNothing);
 
       // Now set publication error in queue for Alice and notify publications
-      c.queues[f.alice] = {
-        'status': 'error',
-        'issue': 'linkUnavailable',
-      };
+      c.queues[f.alice] = {'status': 'error', 'issue': 'linkUnavailable'};
       c.notifyListeners();
       await tester.pump();
       // Alice tile should now display the publication error message
@@ -290,9 +285,7 @@ void main() {
       await c.ready;
       await tester.runAsync(() async {
         await vpn.load();
-        await vpn.saveUser(
-          VpnUser(id: f.alice, login: 'alice', name: 'Alice'),
-        );
+        await vpn.saveUser(VpnUser(id: f.alice, login: 'alice', name: 'Alice'));
       });
       // Ensure profile is uncompiled/missing in workspace.profiles and results
       vpn.workspace = vpn.workspace.copy(profiles: {});
@@ -329,7 +322,10 @@ void main() {
 
       // Verify that profile-generating-card is displayed while regenerating in background
       await tester.pump(const Duration(milliseconds: 50));
-      expect(find.byKey(const ValueKey('profile-generating-card')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('profile-generating-card')),
+        findsOneWidget,
+      );
       expect(find.byKey(const ValueKey('profile-close')), findsOneWidget);
 
       await tester.tap(find.byKey(const ValueKey('profile-close')));
@@ -358,9 +354,7 @@ void main() {
       await c.ready;
       await tester.runAsync(() async {
         await vpn.load();
-        await vpn.saveUser(
-          VpnUser(id: f.alice, login: 'alice', name: '   '),
-        );
+        await vpn.saveUser(VpnUser(id: f.alice, login: 'alice', name: '   '));
       });
 
       await tester.pumpWidget(

@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('mouse back button (kBackMouseButton) pops pushed route', (tester) async {
+  testWidgets('mouse back button (kBackMouseButton) pops pushed route', (
+    tester,
+  ) async {
     final navigatorKey = GlobalKey<NavigatorState>();
     await tester.pumpWidget(
       MaterialApp(
@@ -17,9 +19,7 @@ void main() {
           },
           child: child ?? const SizedBox.shrink(),
         ),
-        home: const Scaffold(
-          body: Center(child: Text('Home')),
-        ),
+        home: const Scaffold(body: Center(child: Text('Home'))),
       ),
     );
 
@@ -29,9 +29,8 @@ void main() {
     // Push detail route
     navigatorKey.currentState!.push(
       MaterialPageRoute<void>(
-        builder: (context) => const Scaffold(
-          body: Center(child: Text('Detail')),
-        ),
+        builder: (context) =>
+            const Scaffold(body: Center(child: Text('Detail'))),
       ),
     );
     await tester.pumpAndSettle();
@@ -52,7 +51,9 @@ void main() {
     expect(find.text('Home'), findsOneWidget);
   });
 
-  testWidgets('mouse back button invokes PopScope when canPop is false', (tester) async {
+  testWidgets('mouse back button invokes PopScope when canPop is false', (
+    tester,
+  ) async {
     final navigatorKey = GlobalKey<NavigatorState>();
     var backInvoked = false;
 

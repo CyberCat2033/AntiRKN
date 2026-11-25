@@ -84,7 +84,8 @@ class Repository implements PublicationRepository {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-class BatchRepository extends Repository implements PublicationStateBatchReader {
+class BatchRepository extends Repository
+    implements PublicationStateBatchReader {
   int batchReads = 0;
 
   @override
@@ -120,8 +121,10 @@ class Remote implements PublicationRemoteStore {
   @override
   Future<PublicationFile> getFile(String id) async {
     if (failWithIssue != null) throw PublicationFailure(failWithIssue!);
-    return folders[id] ?? (throw const PublicationFailure(PublicationIssue.missing));
+    return folders[id] ??
+        (throw const PublicationFailure(PublicationIssue.missing));
   }
+
   @override
   Future<void> createFolder(String id, String name) async {
     creates++;
@@ -278,54 +281,57 @@ class BlockingRemote extends Remote {
 }
 
 void main() {
-  test('a busy Google authorization is temporary, never a lost sign-in', () async {
-    final account = Account()..publicationAuthorized = true;
-    final repo = Repository();
-    final remote = BusyRemote();
-    final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
-    addTearDown(vpn.dispose);
-    final c = PublicationController(
-      repository: repo,
-      account: account,
-      remote: () => remote,
-      vpn: vpn,
-    );
-    addTearDown(c.dispose);
-    await c.ready;
-    await vpn.load();
-    await vpn.saveUser(
-      VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice'),
-    );
-    final saved = vpn.workspace.profiles[fixtures.alice]!;
-    repo.drafts[fixtures.alice] = PublicationDraft(
-      workspaceId: vpn.workspace.id,
-      deviceId: 'b' * 32,
-      userId: fixtures.alice,
-      name: 'Alice',
-      headId: 'head-alice',
-      hash: saved['hash'] as String,
-      stamp: 'stamp-alice',
-      bytes: Uint8List.fromList(utf8.encode(saved['yaml'] as String)),
-      ancestors: {},
-    );
-    repo.docs['settings'] = canonicalJson(
-      const PublicationSettings(
-        accountKey: 'account',
-        folderId: 'test-folder',
-        folderName: 'Folder',
-        access: PublicationAccess.link,
-        enabled: true,
-        folderReady: true,
-      ).toJson(),
-    );
-    await c.reload();
-    await c.forcePublishAll(force: true);
-    expect(remote.busy, greaterThan(0));
-    expect(c.queues[fixtures.alice]?['issue'], isNot('unauthorized'));
-    expect(c.error, isNot(PublicationIssue.unauthorized));
-    expect(c.accountError, isNull);
-    expect(c.needsAuthorization, isFalse);
-  });
+  test(
+    'a busy Google authorization is temporary, never a lost sign-in',
+    () async {
+      final account = Account()..publicationAuthorized = true;
+      final repo = Repository();
+      final remote = BusyRemote();
+      final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
+      addTearDown(vpn.dispose);
+      final c = PublicationController(
+        repository: repo,
+        account: account,
+        remote: () => remote,
+        vpn: vpn,
+      );
+      addTearDown(c.dispose);
+      await c.ready;
+      await vpn.load();
+      await vpn.saveUser(
+        VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice'),
+      );
+      final saved = vpn.workspace.profiles[fixtures.alice]!;
+      repo.drafts[fixtures.alice] = PublicationDraft(
+        workspaceId: vpn.workspace.id,
+        deviceId: 'b' * 32,
+        userId: fixtures.alice,
+        name: 'Alice',
+        headId: 'head-alice',
+        hash: saved['hash'] as String,
+        stamp: 'stamp-alice',
+        bytes: Uint8List.fromList(utf8.encode(saved['yaml'] as String)),
+        ancestors: {},
+      );
+      repo.docs['settings'] = canonicalJson(
+        const PublicationSettings(
+          accountKey: 'account',
+          folderId: 'test-folder',
+          folderName: 'Folder',
+          access: PublicationAccess.link,
+          enabled: true,
+          folderReady: true,
+        ).toJson(),
+      );
+      await c.reload();
+      await c.forcePublishAll(force: true);
+      expect(remote.busy, greaterThan(0));
+      expect(c.queues[fixtures.alice]?['issue'], isNot('unauthorized'));
+      expect(c.error, isNot(PublicationIssue.unauthorized));
+      expect(c.accountError, isNull);
+      expect(c.needsAuthorization, isFalse);
+    },
+  );
 
   test('reload reads publication states in one batch', () async {
     final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
@@ -705,11 +711,15 @@ void main() {
       );
       await tester.pump();
       expect(
-        find.text('Current profile is unverified. The previous verified link remains available.'),
+        find.text(
+          'Current profile is unverified. The previous verified link remains available.',
+        ),
         findsOneWidget,
       );
-      expect(c.verifiedLinkFor(fixtures.alice),
-          'https://drive.google.com/uc?id=existing');
+      expect(
+        c.verifiedLinkFor(fixtures.alice),
+        'https://drive.google.com/uc?id=existing',
+      );
       await tester.pump(const Duration(milliseconds: 1));
     },
   );
@@ -748,10 +758,7 @@ void main() {
             home: Scaffold(
               body: ListView(
                 children: [
-                  PublicationSettingsPanel(
-                    controller: c,
-                    configuration: true,
-                  ),
+                  PublicationSettingsPanel(controller: c, configuration: true),
                   UserPublicationView(controller: c, userId: fixtures.alice),
                 ],
               ),
@@ -812,7 +819,10 @@ void main() {
         repo.queues.remove(fixtures.alice);
         await c.reload();
         // Per-user issues are stored in queues, not the global error field.
-        c.queues[fixtures.alice] = {'issue': 'missing', 'userId': fixtures.alice};
+        c.queues[fixtures.alice] = {
+          'issue': 'missing',
+          'userId': fixtures.alice,
+        };
         expect(c.verifiedLinkFor(fixtures.alice), isNull);
         c.queues.remove(fixtures.alice);
         // Global errors like 'unauthorized' still block all links.
@@ -828,649 +838,724 @@ void main() {
     );
   }
 
-  test('bindFile publishes immediately and persists new link across reload', () async {
-    final account = Account()..publicationAuthorized = true;
-    final repo = Repository();
-    final remote = Remote();
-    final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
-    addTearDown(vpn.dispose);
-    final c = PublicationController(
-      repository: repo,
-      account: account,
-      remote: () => remote,
-      vpn: vpn,
-    );
-    addTearDown(c.dispose);
-    await c.ready;
-    final user = VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice');
-    await vpn.load();
-    await vpn.saveUser(user);
-    final saved = vpn.workspace.profiles[fixtures.alice]!;
-    final savedYaml = saved['yaml'] as String;
-    final savedHash = saved['hash'] as String;
-    final draft = PublicationDraft(
-      workspaceId: vpn.workspace.id,
-      deviceId: 'b' * 32,
-      userId: fixtures.alice,
-      name: 'Alice',
-      headId: 'head-1',
-      hash: savedHash,
-      stamp: 'stamp-1',
-      bytes: Uint8List.fromList(utf8.encode(savedYaml)),
-      ancestors: {},
-    );
-    repo.draft = draft;
-    c.settings = const PublicationSettings(
-      accountKey: 'account',
-      folderId: 'folder-1',
-      folderName: 'Folder',
-      access: PublicationAccess.link,
-      enabled: true,
-      folderReady: true,
-    );
-    repo.docs['settings'] = canonicalJson(c.settings!.toJson());
-    remote.folders['folder-1'] = PublicationFile(
-      id: 'folder-1',
-      name: 'Folder',
-      mimeType: 'application/vnd.google-apps.folder',
-      version: '1',
-      etag: 'etag-f',
-      editable: true,
-      properties: {'antirknRegistry.${vpn.workspace.id}': 'ready:registry-1'},
-    );
-    final regBytes = Uint8List.fromList(utf8.encode(canonicalJson({
-      'version': 2,
-      'workspaceId': vpn.workspace.id,
-      'users': <String, dynamic>{},
-    })));
-    final regHash = sha256.convert(regBytes).toString();
-    remote.folders['registry-1'] = PublicationFile(
-      id: 'registry-1',
-      name: 'registry.json',
-      mimeType: 'application/json',
-      version: '1',
-      etag: 'etag-r',
-      editable: true,
-      properties: {
-        'antirknWorkspace': vpn.workspace.id,
-        'antirknUser': 'registry',
-        'antirknHash': regHash,
-      },
-      downloadUrl: 'https://drive.google.com/uc?id=registry-1',
-    );
-    remote.contents['registry-1'] = regBytes;
+  test(
+    'bindFile publishes immediately and persists new link across reload',
+    () async {
+      final account = Account()..publicationAuthorized = true;
+      final repo = Repository();
+      final remote = Remote();
+      final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
+      addTearDown(vpn.dispose);
+      final c = PublicationController(
+        repository: repo,
+        account: account,
+        remote: () => remote,
+        vpn: vpn,
+      );
+      addTearDown(c.dispose);
+      await c.ready;
+      final user = VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice');
+      await vpn.load();
+      await vpn.saveUser(user);
+      final saved = vpn.workspace.profiles[fixtures.alice]!;
+      final savedYaml = saved['yaml'] as String;
+      final savedHash = saved['hash'] as String;
+      final draft = PublicationDraft(
+        workspaceId: vpn.workspace.id,
+        deviceId: 'b' * 32,
+        userId: fixtures.alice,
+        name: 'Alice',
+        headId: 'head-1',
+        hash: savedHash,
+        stamp: 'stamp-1',
+        bytes: Uint8List.fromList(utf8.encode(savedYaml)),
+        ancestors: {},
+      );
+      repo.draft = draft;
+      c.settings = const PublicationSettings(
+        accountKey: 'account',
+        folderId: 'folder-1',
+        folderName: 'Folder',
+        access: PublicationAccess.link,
+        enabled: true,
+        folderReady: true,
+      );
+      repo.docs['settings'] = canonicalJson(c.settings!.toJson());
+      remote.folders['folder-1'] = PublicationFile(
+        id: 'folder-1',
+        name: 'Folder',
+        mimeType: 'application/vnd.google-apps.folder',
+        version: '1',
+        etag: 'etag-f',
+        editable: true,
+        properties: {'antirknRegistry.${vpn.workspace.id}': 'ready:registry-1'},
+      );
+      final regBytes = Uint8List.fromList(
+        utf8.encode(
+          canonicalJson({
+            'version': 2,
+            'workspaceId': vpn.workspace.id,
+            'users': <String, dynamic>{},
+          }),
+        ),
+      );
+      final regHash = sha256.convert(regBytes).toString();
+      remote.folders['registry-1'] = PublicationFile(
+        id: 'registry-1',
+        name: 'registry.json',
+        mimeType: 'application/json',
+        version: '1',
+        etag: 'etag-r',
+        editable: true,
+        properties: {
+          'antirknWorkspace': vpn.workspace.id,
+          'antirknUser': 'registry',
+          'antirknHash': regHash,
+        },
+        downloadUrl: 'https://drive.google.com/uc?id=registry-1',
+      );
+      remote.contents['registry-1'] = regBytes;
 
-    remote.folders['custom-file-1'] = const PublicationFile(
-      id: 'custom-file-1',
-      name: 'custom.yml',
-      mimeType: 'text/yaml',
-      version: '1',
-      etag: 'etag-c',
-      editable: true,
-      properties: {},
-      downloadUrl: 'https://drive.google.com/uc?id=custom-file-1',
-    );
-    remote.contents['custom-file-1'] = Uint8List.fromList(utf8.encode('old: content'));
+      remote.folders['custom-file-1'] = const PublicationFile(
+        id: 'custom-file-1',
+        name: 'custom.yml',
+        mimeType: 'text/yaml',
+        version: '1',
+        etag: 'etag-c',
+        editable: true,
+        properties: {},
+        downloadUrl: 'https://drive.google.com/uc?id=custom-file-1',
+      );
+      remote.contents['custom-file-1'] = Uint8List.fromList(
+        utf8.encode('old: content'),
+      );
 
-    final preview = await c.inspectFile(user.id, PublicationTarget('custom-file-1'));
-    expect(preview.file.id, 'custom-file-1');
+      final preview = await c.inspectFile(
+        user.id,
+        PublicationTarget('custom-file-1'),
+      );
+      expect(preview.file.id, 'custom-file-1');
 
-    await c.bindFile(preview);
+      await c.bindFile(preview);
 
-    expect(c.verifiedLinkFor(user.id), 'https://drive.google.com/uc?id=custom-file-1');
-    expect(c.results[user.id]?['fileId'], 'custom-file-1');
-    expect(c.bindingPending(user.id), isFalse);
+      expect(
+        c.verifiedLinkFor(user.id),
+        'https://drive.google.com/uc?id=custom-file-1',
+      );
+      expect(c.results[user.id]?['fileId'], 'custom-file-1');
+      expect(c.bindingPending(user.id), isFalse);
 
-    // Simulate reload / restart
-    await c.reload();
-    expect(c.verifiedLinkFor(user.id), 'https://drive.google.com/uc?id=custom-file-1');
-    expect(c.results[user.id]?['fileId'], 'custom-file-1');
-  });
+      // Simulate reload / restart
+      await c.reload();
+      expect(
+        c.verifiedLinkFor(user.id),
+        'https://drive.google.com/uc?id=custom-file-1',
+      );
+      expect(c.results[user.id]?['fileId'], 'custom-file-1');
+    },
+  );
 
-  test('forcePublishAll waits if suspended and completes once resumed', () async {
-    final account = Account()..publicationAuthorized = true;
-    final repo = Repository();
-    final remote = Remote();
-    final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
-    addTearDown(vpn.dispose);
-    final c = PublicationController(
-      repository: repo,
-      account: account,
-      remote: () => remote,
-      vpn: vpn,
-    );
-    addTearDown(c.dispose);
-    await c.ready;
-    final user = VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice');
-    await vpn.load();
-    await vpn.saveUser(user);
-    final saved = vpn.workspace.profiles[fixtures.alice]!;
-    final savedYaml = saved['yaml'] as String;
-    final savedHash = saved['hash'] as String;
-    final draft = PublicationDraft(
-      workspaceId: vpn.workspace.id,
-      deviceId: 'b' * 32,
-      userId: fixtures.alice,
-      name: 'Alice',
-      headId: 'head-1',
-      hash: savedHash,
-      stamp: 'stamp-1',
-      bytes: Uint8List.fromList(utf8.encode(savedYaml)),
-      ancestors: {},
-    );
-    repo.draft = draft;
-    final settings = const PublicationSettings(
-      accountKey: 'account',
-      folderId: 'test-folder',
-      folderName: 'Folder',
-      access: PublicationAccess.link,
-      enabled: true,
-      folderReady: true,
-    );
-    repo.docs['settings'] = canonicalJson(settings.toJson());
-    await c.reload();
-    remote.folders['test-folder'] = PublicationFile(
-      id: 'test-folder',
-      name: 'Folder',
-      mimeType: 'application/vnd.google-apps.folder',
-      version: '1',
-      etag: 'etag-f',
-      editable: true,
-      properties: {'antirknRegistry.${vpn.workspace.id}': 'ready:registry-1'},
-    );
-    final regBytes = Uint8List.fromList(utf8.encode(canonicalJson({
-      'version': 2,
-      'workspaceId': vpn.workspace.id,
-      'users': <String, dynamic>{},
-    })));
-    final regHash = sha256.convert(regBytes).toString();
-    remote.folders['registry-1'] = PublicationFile(
-      id: 'registry-1',
-      name: 'registry.json',
-      mimeType: 'application/json',
-      version: '1',
-      etag: 'etag-r',
-      editable: true,
-      properties: {
-        'antirknWorkspace': vpn.workspace.id,
-        'antirknUser': 'registry',
-        'antirknHash': regHash,
-      },
-      downloadUrl: 'https://drive.google.com/uc?id=registry-1',
-    );
-    remote.contents['registry-1'] = regBytes;
+  test(
+    'forcePublishAll waits if suspended and completes once resumed',
+    () async {
+      final account = Account()..publicationAuthorized = true;
+      final repo = Repository();
+      final remote = Remote();
+      final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
+      addTearDown(vpn.dispose);
+      final c = PublicationController(
+        repository: repo,
+        account: account,
+        remote: () => remote,
+        vpn: vpn,
+      );
+      addTearDown(c.dispose);
+      await c.ready;
+      final user = VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice');
+      await vpn.load();
+      await vpn.saveUser(user);
+      final saved = vpn.workspace.profiles[fixtures.alice]!;
+      final savedYaml = saved['yaml'] as String;
+      final savedHash = saved['hash'] as String;
+      final draft = PublicationDraft(
+        workspaceId: vpn.workspace.id,
+        deviceId: 'b' * 32,
+        userId: fixtures.alice,
+        name: 'Alice',
+        headId: 'head-1',
+        hash: savedHash,
+        stamp: 'stamp-1',
+        bytes: Uint8List.fromList(utf8.encode(savedYaml)),
+        ancestors: {},
+      );
+      repo.draft = draft;
+      final settings = const PublicationSettings(
+        accountKey: 'account',
+        folderId: 'test-folder',
+        folderName: 'Folder',
+        access: PublicationAccess.link,
+        enabled: true,
+        folderReady: true,
+      );
+      repo.docs['settings'] = canonicalJson(settings.toJson());
+      await c.reload();
+      remote.folders['test-folder'] = PublicationFile(
+        id: 'test-folder',
+        name: 'Folder',
+        mimeType: 'application/vnd.google-apps.folder',
+        version: '1',
+        etag: 'etag-f',
+        editable: true,
+        properties: {'antirknRegistry.${vpn.workspace.id}': 'ready:registry-1'},
+      );
+      final regBytes = Uint8List.fromList(
+        utf8.encode(
+          canonicalJson({
+            'version': 2,
+            'workspaceId': vpn.workspace.id,
+            'users': <String, dynamic>{},
+          }),
+        ),
+      );
+      final regHash = sha256.convert(regBytes).toString();
+      remote.folders['registry-1'] = PublicationFile(
+        id: 'registry-1',
+        name: 'registry.json',
+        mimeType: 'application/json',
+        version: '1',
+        etag: 'etag-r',
+        editable: true,
+        properties: {
+          'antirknWorkspace': vpn.workspace.id,
+          'antirknUser': 'registry',
+          'antirknHash': regHash,
+        },
+        downloadUrl: 'https://drive.google.com/uc?id=registry-1',
+      );
+      remote.contents['registry-1'] = regBytes;
 
-    await c.suspend();
-    final publishFuture = c.forcePublishAll();
-    await Future<void>.delayed(const Duration(milliseconds: 50));
-    c.resume();
-    await publishFuture;
+      await c.suspend();
+      final publishFuture = c.forcePublishAll();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      c.resume();
+      await publishFuture;
 
-    expect(c.queues[fixtures.alice]?['issue'], isNull);
-    expect(c.queues[fixtures.alice]?['status'], 'published');
-    expect(c.results[fixtures.alice]?['hash'], savedHash);
-  });
+      expect(c.queues[fixtures.alice]?['issue'], isNull);
+      expect(c.queues[fixtures.alice]?['status'], 'published');
+      expect(c.results[fixtures.alice]?['hash'], savedHash);
+    },
+  );
 
-  test('PublicationController retries transient SyncMergeFailure up to 3 times', () async {
-    final account = Account()..publicationAuthorized = true;
-    final repo = Repository();
-    final remote = Remote();
-    final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
-    addTearDown(vpn.dispose);
-    final c = PublicationController(
-      repository: repo,
-      account: account,
-      remote: () => remote,
-      vpn: vpn,
-    );
-    addTearDown(c.dispose);
-    await c.ready;
-    final user = VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice');
-    await vpn.load();
-    await vpn.saveUser(user);
-    final saved = vpn.workspace.profiles[fixtures.alice]!;
-    final savedYaml = saved['yaml'] as String;
-    final savedHash = saved['hash'] as String;
-    final draft = PublicationDraft(
-      workspaceId: vpn.workspace.id,
-      deviceId: 'b' * 32,
-      userId: fixtures.alice,
-      name: 'Alice',
-      headId: 'head-1',
-      hash: savedHash,
-      stamp: 'stamp-1',
-      bytes: Uint8List.fromList(utf8.encode(savedYaml)),
-      ancestors: {},
-    );
-    repo.draft = draft;
-    final settings = const PublicationSettings(
-      accountKey: 'account',
-      folderId: 'test-folder',
-      folderName: 'Folder',
-      access: PublicationAccess.link,
-      enabled: true,
-      folderReady: true,
-    );
-    repo.docs['settings'] = canonicalJson(settings.toJson());
-    await c.reload();
-    remote.folders['test-folder'] = PublicationFile(
-      id: 'test-folder',
-      name: 'Folder',
-      mimeType: 'application/vnd.google-apps.folder',
-      version: '1',
-      etag: 'etag-f',
-      editable: true,
-      properties: {'antirknRegistry.${vpn.workspace.id}': 'ready:registry-1'},
-    );
-    final regBytes = Uint8List.fromList(utf8.encode(canonicalJson({
-      'version': 2,
-      'workspaceId': vpn.workspace.id,
-      'users': <String, dynamic>{},
-    })));
-    final regHash = sha256.convert(regBytes).toString();
-    remote.folders['registry-1'] = PublicationFile(
-      id: 'registry-1',
-      name: 'registry.json',
-      mimeType: 'application/json',
-      version: '1',
-      etag: 'etag-r',
-      editable: true,
-      properties: {
-        'antirknWorkspace': vpn.workspace.id,
-        'antirknUser': 'registry',
-        'antirknHash': regHash,
-      },
-      downloadUrl: 'https://drive.google.com/uc?id=registry-1',
-    );
-    remote.contents['registry-1'] = regBytes;
+  test(
+    'PublicationController retries transient SyncMergeFailure up to 3 times',
+    () async {
+      final account = Account()..publicationAuthorized = true;
+      final repo = Repository();
+      final remote = Remote();
+      final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
+      addTearDown(vpn.dispose);
+      final c = PublicationController(
+        repository: repo,
+        account: account,
+        remote: () => remote,
+        vpn: vpn,
+      );
+      addTearDown(c.dispose);
+      await c.ready;
+      final user = VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice');
+      await vpn.load();
+      await vpn.saveUser(user);
+      final saved = vpn.workspace.profiles[fixtures.alice]!;
+      final savedYaml = saved['yaml'] as String;
+      final savedHash = saved['hash'] as String;
+      final draft = PublicationDraft(
+        workspaceId: vpn.workspace.id,
+        deviceId: 'b' * 32,
+        userId: fixtures.alice,
+        name: 'Alice',
+        headId: 'head-1',
+        hash: savedHash,
+        stamp: 'stamp-1',
+        bytes: Uint8List.fromList(utf8.encode(savedYaml)),
+        ancestors: {},
+      );
+      repo.draft = draft;
+      final settings = const PublicationSettings(
+        accountKey: 'account',
+        folderId: 'test-folder',
+        folderName: 'Folder',
+        access: PublicationAccess.link,
+        enabled: true,
+        folderReady: true,
+      );
+      repo.docs['settings'] = canonicalJson(settings.toJson());
+      await c.reload();
+      remote.folders['test-folder'] = PublicationFile(
+        id: 'test-folder',
+        name: 'Folder',
+        mimeType: 'application/vnd.google-apps.folder',
+        version: '1',
+        etag: 'etag-f',
+        editable: true,
+        properties: {'antirknRegistry.${vpn.workspace.id}': 'ready:registry-1'},
+      );
+      final regBytes = Uint8List.fromList(
+        utf8.encode(
+          canonicalJson({
+            'version': 2,
+            'workspaceId': vpn.workspace.id,
+            'users': <String, dynamic>{},
+          }),
+        ),
+      );
+      final regHash = sha256.convert(regBytes).toString();
+      remote.folders['registry-1'] = PublicationFile(
+        id: 'registry-1',
+        name: 'registry.json',
+        mimeType: 'application/json',
+        version: '1',
+        etag: 'etag-r',
+        editable: true,
+        properties: {
+          'antirknWorkspace': vpn.workspace.id,
+          'antirknUser': 'registry',
+          'antirknHash': regHash,
+        },
+        downloadUrl: 'https://drive.google.com/uc?id=registry-1',
+      );
+      remote.contents['registry-1'] = regBytes;
 
-    // First attempt will fail due to transient merge issue, second attempt will succeed
-    repo.failQueueWrites = 1;
-    await c.forcePublishAll();
+      // First attempt will fail due to transient merge issue, second attempt will succeed
+      repo.failQueueWrites = 1;
+      await c.forcePublishAll();
 
-    expect(c.queues[fixtures.alice]?['issue'], isNull);
-    expect(c.queues[fixtures.alice]?['status'], 'published');
-    expect(c.results[fixtures.alice]?['hash'], savedHash);
-  });
+      expect(c.queues[fixtures.alice]?['issue'], isNull);
+      expect(c.queues[fixtures.alice]?['status'], 'published');
+      expect(c.results[fixtures.alice]?['hash'], savedHash);
+    },
+  );
 
-  test('active publication count strictly filters deleted users and requires matching hashes', () {
-    final active1 = VpnUser(id: '1' * 32, login: 'active1', name: 'Active 1');
-    final active2 = VpnUser(id: '2' * 32, login: 'active2', name: 'Active 2');
-    final active3 = VpnUser(id: '3' * 32, login: 'active3', name: 'Active 3');
-    final deleted = VpnUser(
-      id: '4' * 32,
-      login: 'deleted',
-      name: 'Deleted',
-      enabled: false,
-      deletion: {
-        'version': 1,
-        'id': 'd' * 32,
-        'targets': <String, dynamic>{},
-        'deletedAt': '2026-09-01T00:00:00.000Z',
-      },
-    );
+  test(
+    'active publication count strictly filters deleted users and requires matching hashes',
+    () {
+      final active1 = VpnUser(id: '1' * 32, login: 'active1', name: 'Active 1');
+      final active2 = VpnUser(id: '2' * 32, login: 'active2', name: 'Active 2');
+      final active3 = VpnUser(id: '3' * 32, login: 'active3', name: 'Active 3');
+      final deleted = VpnUser(
+        id: '4' * 32,
+        login: 'deleted',
+        name: 'Deleted',
+        enabled: false,
+        deletion: {
+          'version': 1,
+          'id': 'd' * 32,
+          'targets': <String, dynamic>{},
+          'deletedAt': '2026-09-01T00:00:00.000Z',
+        },
+      );
 
-    final users = [active1, active2, active3, deleted];
-    final profiles = {
-      active1.id: {'hash': 'hash-active1'},
-      active2.id: {'hash': 'hash-active2-current'},
-      active3.id: {'hash': 'hash-active3'},
-      deleted.id: {'hash': 'hash-deleted'},
-    };
+      final users = [active1, active2, active3, deleted];
+      final profiles = {
+        active1.id: {'hash': 'hash-active1'},
+        active2.id: {'hash': 'hash-active2-current'},
+        active3.id: {'hash': 'hash-active3'},
+        deleted.id: {'hash': 'hash-deleted'},
+      };
 
-    // active1: properly published
-    final queues = <String, Map<String, dynamic>>{
-      active1.id: {'status': 'published', 'issue': null},
-      active2.id: {'status': 'error', 'issue': 'changed'}, // failed with issue
-      active3.id: {'status': 'published', 'issue': null}, // published with outdated hash
-      deleted.id: {'status': 'published', 'issue': null}, // deleted user with old published record
-    };
-    final results = <String, Map<String, dynamic>>{
-      active1.id: {'hash': 'hash-active1'},
-      active2.id: {'hash': 'hash-active2-old'},
-      active3.id: {'hash': 'hash-active3-outdated'},
-      deleted.id: {'hash': 'hash-deleted'},
-    };
+      // active1: properly published
+      final queues = <String, Map<String, dynamic>>{
+        active1.id: {'status': 'published', 'issue': null},
+        active2.id: {
+          'status': 'error',
+          'issue': 'changed',
+        }, // failed with issue
+        active3.id: {
+          'status': 'published',
+          'issue': null,
+        }, // published with outdated hash
+        deleted.id: {
+          'status': 'published',
+          'issue': null,
+        }, // deleted user with old published record
+      };
+      final results = <String, Map<String, dynamic>>{
+        active1.id: {'hash': 'hash-active1'},
+        active2.id: {'hash': 'hash-active2-old'},
+        active3.id: {'hash': 'hash-active3-outdated'},
+        deleted.id: {'hash': 'hash-deleted'},
+      };
 
-    final activeUsers = users
-        .where((u) => u.enabled && !u.deleted)
-        .toList(growable: false);
-    expect(activeUsers.length, 3);
+      final activeUsers = users
+          .where((u) => u.enabled && !u.deleted)
+          .toList(growable: false);
+      expect(activeUsers.length, 3);
 
-    final published = activeUsers
-        .where((u) {
-          final q = queues[u.id];
-          final r = results[u.id];
-          final expectedHash = profiles[u.id]?['hash'];
-          return q?['status'] == 'published' &&
-              q?['issue'] == null &&
-              r != null &&
-              r['hash'] == expectedHash;
-        })
-        .length;
+      final published = activeUsers.where((u) {
+        final q = queues[u.id];
+        final r = results[u.id];
+        final expectedHash = profiles[u.id]?['hash'];
+        return q?['status'] == 'published' &&
+            q?['issue'] == null &&
+            r != null &&
+            r['hash'] == expectedHash;
+      }).length;
 
-    // Only active1 satisfies all conditions
-    expect(published, 1);
-    // Deleted users must never be included even if present in results
-    expect(activeUsers.any((u) => u.id == deleted.id), isFalse);
-  });
+      // Only active1 satisfies all conditions
+      expect(published, 1);
+      // Deleted users must never be included even if present in results
+      expect(activeUsers.any((u) => u.id == deleted.id), isFalse);
+    },
+  );
 
-  test('PublicationController does not abort in-flight publication or break loop when window loses focus (foreground false)', () async {
-    final account = Account()..publicationAuthorized = true;
-    final repo = Repository();
-    final remote = Remote();
-    final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
-    addTearDown(vpn.dispose);
-    final c = PublicationController(
-      repository: repo,
-      account: account,
-      remote: () => remote,
-      vpn: vpn,
-    );
-    addTearDown(c.dispose);
-    await c.ready;
+  test(
+    'PublicationController does not abort in-flight publication or break loop when window loses focus (foreground false)',
+    () async {
+      final account = Account()..publicationAuthorized = true;
+      final repo = Repository();
+      final remote = Remote();
+      final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
+      addTearDown(vpn.dispose);
+      final c = PublicationController(
+        repository: repo,
+        account: account,
+        remote: () => remote,
+        vpn: vpn,
+      );
+      addTearDown(c.dispose);
+      await c.ready;
 
-    final userAlice = VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice');
-    final userBob = VpnUser(id: fixtures.bob, login: 'bob', name: 'Bob');
-    await vpn.load();
-    await vpn.saveUser(userAlice);
-    await vpn.saveUser(userBob);
+      final userAlice = VpnUser(
+        id: fixtures.alice,
+        login: 'alice',
+        name: 'Alice',
+      );
+      final userBob = VpnUser(id: fixtures.bob, login: 'bob', name: 'Bob');
+      await vpn.load();
+      await vpn.saveUser(userAlice);
+      await vpn.saveUser(userBob);
 
-    final aliceSaved = vpn.workspace.profiles[fixtures.alice]!;
-    final bobSaved = vpn.workspace.profiles[fixtures.bob]!;
+      final aliceSaved = vpn.workspace.profiles[fixtures.alice]!;
+      final bobSaved = vpn.workspace.profiles[fixtures.bob]!;
 
-    final aliceDraft = PublicationDraft(
-      workspaceId: vpn.workspace.id,
-      deviceId: 'b' * 32,
-      userId: fixtures.alice,
-      name: 'Alice',
-      headId: 'head-alice',
-      hash: aliceSaved['hash'] as String,
-      stamp: 'stamp-alice',
-      bytes: Uint8List.fromList(utf8.encode(aliceSaved['yaml'] as String)),
-      ancestors: {},
-    );
-    final bobDraft = PublicationDraft(
-      workspaceId: vpn.workspace.id,
-      deviceId: 'b' * 32,
-      userId: fixtures.bob,
-      name: 'Bob',
-      headId: 'head-bob',
-      hash: bobSaved['hash'] as String,
-      stamp: 'stamp-bob',
-      bytes: Uint8List.fromList(utf8.encode(bobSaved['yaml'] as String)),
-      ancestors: {},
-    );
+      final aliceDraft = PublicationDraft(
+        workspaceId: vpn.workspace.id,
+        deviceId: 'b' * 32,
+        userId: fixtures.alice,
+        name: 'Alice',
+        headId: 'head-alice',
+        hash: aliceSaved['hash'] as String,
+        stamp: 'stamp-alice',
+        bytes: Uint8List.fromList(utf8.encode(aliceSaved['yaml'] as String)),
+        ancestors: {},
+      );
+      final bobDraft = PublicationDraft(
+        workspaceId: vpn.workspace.id,
+        deviceId: 'b' * 32,
+        userId: fixtures.bob,
+        name: 'Bob',
+        headId: 'head-bob',
+        hash: bobSaved['hash'] as String,
+        stamp: 'stamp-bob',
+        bytes: Uint8List.fromList(utf8.encode(bobSaved['yaml'] as String)),
+        ancestors: {},
+      );
 
-    repo.drafts[fixtures.alice] = aliceDraft;
-    repo.drafts[fixtures.bob] = bobDraft;
+      repo.drafts[fixtures.alice] = aliceDraft;
+      repo.drafts[fixtures.bob] = bobDraft;
 
-    final settings = const PublicationSettings(
-      accountKey: 'account',
-      folderId: 'test-folder',
-      folderName: 'Folder',
-      access: PublicationAccess.link,
-      enabled: true,
-      folderReady: true,
-    );
-    repo.docs['settings'] = canonicalJson(settings.toJson());
-    await c.reload();
+      final settings = const PublicationSettings(
+        accountKey: 'account',
+        folderId: 'test-folder',
+        folderName: 'Folder',
+        access: PublicationAccess.link,
+        enabled: true,
+        folderReady: true,
+      );
+      repo.docs['settings'] = canonicalJson(settings.toJson());
+      await c.reload();
 
-    remote.folders['test-folder'] = PublicationFile(
-      id: 'test-folder',
-      name: 'Folder',
-      mimeType: 'application/vnd.google-apps.folder',
-      version: '1',
-      etag: 'etag-f',
-      editable: true,
-      properties: {'antirknRegistry.${vpn.workspace.id}': 'ready:registry-1'},
-    );
-    final regBytes = Uint8List.fromList(utf8.encode(canonicalJson({
-      'version': 2,
-      'workspaceId': vpn.workspace.id,
-      'users': <String, dynamic>{},
-    })));
-    final regHash = sha256.convert(regBytes).toString();
-    remote.folders['registry-1'] = PublicationFile(
-      id: 'registry-1',
-      name: 'registry.json',
-      mimeType: 'application/json',
-      version: '1',
-      etag: 'etag-r',
-      editable: true,
-      properties: {
-        'antirknWorkspace': vpn.workspace.id,
-        'antirknUser': 'registry',
-        'antirknHash': regHash,
-      },
-      downloadUrl: 'https://drive.google.com/uc?id=registry-1',
-    );
-    remote.contents['registry-1'] = regBytes;
+      remote.folders['test-folder'] = PublicationFile(
+        id: 'test-folder',
+        name: 'Folder',
+        mimeType: 'application/vnd.google-apps.folder',
+        version: '1',
+        etag: 'etag-f',
+        editable: true,
+        properties: {'antirknRegistry.${vpn.workspace.id}': 'ready:registry-1'},
+      );
+      final regBytes = Uint8List.fromList(
+        utf8.encode(
+          canonicalJson({
+            'version': 2,
+            'workspaceId': vpn.workspace.id,
+            'users': <String, dynamic>{},
+          }),
+        ),
+      );
+      final regHash = sha256.convert(regBytes).toString();
+      remote.folders['registry-1'] = PublicationFile(
+        id: 'registry-1',
+        name: 'registry.json',
+        mimeType: 'application/json',
+        version: '1',
+        etag: 'etag-r',
+        editable: true,
+        properties: {
+          'antirknWorkspace': vpn.workspace.id,
+          'antirknUser': 'registry',
+          'antirknHash': regHash,
+        },
+        downloadUrl: 'https://drive.google.com/uc?id=registry-1',
+      );
+      remote.contents['registry-1'] = regBytes;
 
-    // Start publishing and immediately simulate window becoming inactive / losing focus
-    final future = c.forcePublishAll(force: false);
-    c.foreground(false);
-    await future;
+      // Start publishing and immediately simulate window becoming inactive / losing focus
+      final future = c.forcePublishAll(force: false);
+      c.foreground(false);
+      await future;
 
-    expect(c.queues[fixtures.alice]?['status'], 'published');
-    expect(c.queues[fixtures.alice]?['issue'], isNull);
-    expect(c.queues[fixtures.bob]?['status'], 'published');
-    expect(c.queues[fixtures.bob]?['issue'], isNull);
-  });
+      expect(c.queues[fixtures.alice]?['status'], 'published');
+      expect(c.queues[fixtures.alice]?['issue'], isNull);
+      expect(c.queues[fixtures.bob]?['status'], 'published');
+      expect(c.queues[fixtures.bob]?['issue'], isNull);
+    },
+  );
 
-  test('background proxy latency checks (vpn.connections.busy) do not block publication or mark drafts as changed', () async {
-    final account = Account()..publicationAuthorized = true;
-    final repo = Repository();
-    final remote = Remote();
-    final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
-    addTearDown(vpn.dispose);
-    final c = PublicationController(
-      repository: repo,
-      account: account,
-      remote: () => remote,
-      vpn: vpn,
-    );
-    addTearDown(c.dispose);
-    await c.ready;
+  test(
+    'background proxy latency checks (vpn.connections.busy) do not block publication or mark drafts as changed',
+    () async {
+      final account = Account()..publicationAuthorized = true;
+      final repo = Repository();
+      final remote = Remote();
+      final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
+      addTearDown(vpn.dispose);
+      final c = PublicationController(
+        repository: repo,
+        account: account,
+        remote: () => remote,
+        vpn: vpn,
+      );
+      addTearDown(c.dispose);
+      await c.ready;
 
-    final userAlice = VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice');
-    final userBob = VpnUser(id: fixtures.bob, login: 'bob', name: 'Bob');
-    await vpn.load();
-    await vpn.saveUser(userAlice);
-    await vpn.saveUser(userBob);
+      final userAlice = VpnUser(
+        id: fixtures.alice,
+        login: 'alice',
+        name: 'Alice',
+      );
+      final userBob = VpnUser(id: fixtures.bob, login: 'bob', name: 'Bob');
+      await vpn.load();
+      await vpn.saveUser(userAlice);
+      await vpn.saveUser(userBob);
 
-    final aliceSaved = vpn.workspace.profiles[fixtures.alice]!;
-    final bobSaved = vpn.workspace.profiles[fixtures.bob]!;
+      final aliceSaved = vpn.workspace.profiles[fixtures.alice]!;
+      final bobSaved = vpn.workspace.profiles[fixtures.bob]!;
 
-    repo.drafts[fixtures.alice] = PublicationDraft(
-      workspaceId: vpn.workspace.id,
-      deviceId: 'b' * 32,
-      userId: fixtures.alice,
-      name: 'Alice',
-      headId: 'head-alice',
-      hash: aliceSaved['hash'] as String,
-      stamp: 'stamp-alice',
-      bytes: Uint8List.fromList(utf8.encode(aliceSaved['yaml'] as String)),
-      ancestors: {},
-    );
-    repo.drafts[fixtures.bob] = PublicationDraft(
-      workspaceId: vpn.workspace.id,
-      deviceId: 'b' * 32,
-      userId: fixtures.bob,
-      name: 'Bob',
-      headId: 'head-bob',
-      hash: bobSaved['hash'] as String,
-      stamp: 'stamp-bob',
-      bytes: Uint8List.fromList(utf8.encode(bobSaved['yaml'] as String)),
-      ancestors: {},
-    );
+      repo.drafts[fixtures.alice] = PublicationDraft(
+        workspaceId: vpn.workspace.id,
+        deviceId: 'b' * 32,
+        userId: fixtures.alice,
+        name: 'Alice',
+        headId: 'head-alice',
+        hash: aliceSaved['hash'] as String,
+        stamp: 'stamp-alice',
+        bytes: Uint8List.fromList(utf8.encode(aliceSaved['yaml'] as String)),
+        ancestors: {},
+      );
+      repo.drafts[fixtures.bob] = PublicationDraft(
+        workspaceId: vpn.workspace.id,
+        deviceId: 'b' * 32,
+        userId: fixtures.bob,
+        name: 'Bob',
+        headId: 'head-bob',
+        hash: bobSaved['hash'] as String,
+        stamp: 'stamp-bob',
+        bytes: Uint8List.fromList(utf8.encode(bobSaved['yaml'] as String)),
+        ancestors: {},
+      );
 
-    final settings = const PublicationSettings(
-      accountKey: 'account',
-      folderId: 'test-folder',
-      folderName: 'Folder',
-      access: PublicationAccess.link,
-      enabled: true,
-      folderReady: true,
-    );
-    repo.docs['settings'] = canonicalJson(settings.toJson());
-    await c.reload();
+      final settings = const PublicationSettings(
+        accountKey: 'account',
+        folderId: 'test-folder',
+        folderName: 'Folder',
+        access: PublicationAccess.link,
+        enabled: true,
+        folderReady: true,
+      );
+      repo.docs['settings'] = canonicalJson(settings.toJson());
+      await c.reload();
 
-    remote.folders['test-folder'] = PublicationFile(
-      id: 'test-folder',
-      name: 'Folder',
-      mimeType: 'application/vnd.google-apps.folder',
-      version: '1',
-      etag: 'etag-f',
-      editable: true,
-      properties: {'antirknRegistry.${vpn.workspace.id}': 'ready:registry-1'},
-    );
-    final regBytes = Uint8List.fromList(utf8.encode(canonicalJson({
-      'version': 2,
-      'workspaceId': vpn.workspace.id,
-      'users': <String, dynamic>{},
-    })));
-    final regHash = sha256.convert(regBytes).toString();
-    remote.folders['registry-1'] = PublicationFile(
-      id: 'registry-1',
-      name: 'registry.json',
-      mimeType: 'application/json',
-      version: '1',
-      etag: 'etag-r',
-      editable: true,
-      properties: {
-        'antirknWorkspace': vpn.workspace.id,
-        'antirknUser': 'registry',
-        'antirknHash': regHash,
-      },
-      downloadUrl: 'https://drive.google.com/uc?id=registry-1',
-    );
-    remote.contents['registry-1'] = regBytes;
+      remote.folders['test-folder'] = PublicationFile(
+        id: 'test-folder',
+        name: 'Folder',
+        mimeType: 'application/vnd.google-apps.folder',
+        version: '1',
+        etag: 'etag-f',
+        editable: true,
+        properties: {'antirknRegistry.${vpn.workspace.id}': 'ready:registry-1'},
+      );
+      final regBytes = Uint8List.fromList(
+        utf8.encode(
+          canonicalJson({
+            'version': 2,
+            'workspaceId': vpn.workspace.id,
+            'users': <String, dynamic>{},
+          }),
+        ),
+      );
+      final regHash = sha256.convert(regBytes).toString();
+      remote.folders['registry-1'] = PublicationFile(
+        id: 'registry-1',
+        name: 'registry.json',
+        mimeType: 'application/json',
+        version: '1',
+        etag: 'etag-r',
+        editable: true,
+        properties: {
+          'antirknWorkspace': vpn.workspace.id,
+          'antirknUser': 'registry',
+          'antirknHash': regHash,
+        },
+        downloadUrl: 'https://drive.google.com/uc?id=registry-1',
+      );
+      remote.contents['registry-1'] = regBytes;
 
-    // Simulate active background proxy connection check
-    vpn.connections.current = (target: 'server-1', resource: 'inbound-1');
-    expect(vpn.busy, isTrue);
-    expect(vpn.workspaceBusy, isFalse);
+      // Simulate active background proxy connection check
+      vpn.connections.current = (target: 'server-1', resource: 'inbound-1');
+      expect(vpn.busy, isTrue);
+      expect(vpn.workspaceBusy, isFalse);
 
-    await c.forcePublishAll(force: false);
+      await c.forcePublishAll(force: false);
 
-    expect(c.queues[fixtures.alice]?['status'], 'published');
-    expect(c.queues[fixtures.alice]?['issue'], isNull);
-    expect(c.queues[fixtures.bob]?['status'], 'published');
-    expect(c.queues[fixtures.bob]?['issue'], isNull);
-  });
+      expect(c.queues[fixtures.alice]?['status'], 'published');
+      expect(c.queues[fixtures.alice]?['issue'], isNull);
+      expect(c.queues[fixtures.bob]?['status'], 'published');
+      expect(c.queues[fixtures.bob]?['issue'], isNull);
+    },
+  );
 
-  test('single user failure is isolated and does not abort remaining users in batch publication', () async {
-    final account = Account()..publicationAuthorized = true;
-    final repo = Repository();
-    final remote = Remote();
-    final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
-    addTearDown(vpn.dispose);
-    final c = PublicationController(
-      repository: repo,
-      account: account,
-      remote: () => remote,
-      vpn: vpn,
-    );
-    addTearDown(c.dispose);
-    await c.ready;
+  test(
+    'single user failure is isolated and does not abort remaining users in batch publication',
+    () async {
+      final account = Account()..publicationAuthorized = true;
+      final repo = Repository();
+      final remote = Remote();
+      final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
+      addTearDown(vpn.dispose);
+      final c = PublicationController(
+        repository: repo,
+        account: account,
+        remote: () => remote,
+        vpn: vpn,
+      );
+      addTearDown(c.dispose);
+      await c.ready;
 
-    final userAlice = VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice');
-    final userBob = VpnUser(id: fixtures.bob, login: 'bob', name: 'Bob');
-    await vpn.load();
-    await vpn.saveUser(userAlice);
-    await vpn.saveUser(userBob);
+      final userAlice = VpnUser(
+        id: fixtures.alice,
+        login: 'alice',
+        name: 'Alice',
+      );
+      final userBob = VpnUser(id: fixtures.bob, login: 'bob', name: 'Bob');
+      await vpn.load();
+      await vpn.saveUser(userAlice);
+      await vpn.saveUser(userBob);
 
-    final aliceSaved = vpn.workspace.profiles[fixtures.alice]!;
-    final bobSaved = vpn.workspace.profiles[fixtures.bob]!;
+      final aliceSaved = vpn.workspace.profiles[fixtures.alice]!;
+      final bobSaved = vpn.workspace.profiles[fixtures.bob]!;
 
-    repo.drafts[fixtures.alice] = PublicationDraft(
-      workspaceId: vpn.workspace.id,
-      deviceId: 'b' * 32,
-      userId: fixtures.alice,
-      name: 'Alice',
-      headId: 'head-alice',
-      hash: aliceSaved['hash'] as String,
-      stamp: 'stamp-alice',
-      bytes: Uint8List.fromList(utf8.encode(aliceSaved['yaml'] as String)),
-      ancestors: {},
-    );
-    repo.drafts[fixtures.bob] = PublicationDraft(
-      workspaceId: vpn.workspace.id,
-      deviceId: 'b' * 32,
-      userId: fixtures.bob,
-      name: 'Bob',
-      headId: 'head-bob',
-      hash: bobSaved['hash'] as String,
-      stamp: 'stamp-bob',
-      bytes: Uint8List.fromList(utf8.encode(bobSaved['yaml'] as String)),
-      ancestors: {},
-    );
+      repo.drafts[fixtures.alice] = PublicationDraft(
+        workspaceId: vpn.workspace.id,
+        deviceId: 'b' * 32,
+        userId: fixtures.alice,
+        name: 'Alice',
+        headId: 'head-alice',
+        hash: aliceSaved['hash'] as String,
+        stamp: 'stamp-alice',
+        bytes: Uint8List.fromList(utf8.encode(aliceSaved['yaml'] as String)),
+        ancestors: {},
+      );
+      repo.drafts[fixtures.bob] = PublicationDraft(
+        workspaceId: vpn.workspace.id,
+        deviceId: 'b' * 32,
+        userId: fixtures.bob,
+        name: 'Bob',
+        headId: 'head-bob',
+        hash: bobSaved['hash'] as String,
+        stamp: 'stamp-bob',
+        bytes: Uint8List.fromList(utf8.encode(bobSaved['yaml'] as String)),
+        ancestors: {},
+      );
 
-    final settings = const PublicationSettings(
-      accountKey: 'account',
-      folderId: 'test-folder',
-      folderName: 'Folder',
-      access: PublicationAccess.link,
-      enabled: true,
-      folderReady: true,
-    );
-    repo.docs['settings'] = canonicalJson(settings.toJson());
-    await c.reload();
+      final settings = const PublicationSettings(
+        accountKey: 'account',
+        folderId: 'test-folder',
+        folderName: 'Folder',
+        access: PublicationAccess.link,
+        enabled: true,
+        folderReady: true,
+      );
+      repo.docs['settings'] = canonicalJson(settings.toJson());
+      await c.reload();
 
-    remote.folders['test-folder'] = PublicationFile(
-      id: 'test-folder',
-      name: 'Folder',
-      mimeType: 'application/vnd.google-apps.folder',
-      version: '1',
-      etag: 'etag-f',
-      editable: true,
-      properties: {'antirknRegistry.${vpn.workspace.id}': 'ready:registry-1'},
-    );
-    final regBytes = Uint8List.fromList(utf8.encode(canonicalJson({
-      'version': 2,
-      'workspaceId': vpn.workspace.id,
-      'users': <String, dynamic>{},
-    })));
-    final regHash = sha256.convert(regBytes).toString();
-    remote.folders['registry-1'] = PublicationFile(
-      id: 'registry-1',
-      name: 'registry.json',
-      mimeType: 'application/json',
-      version: '1',
-      etag: 'etag-r',
-      editable: true,
-      properties: {
-        'antirknWorkspace': vpn.workspace.id,
-        'antirknUser': 'registry',
-        'antirknHash': regHash,
-      },
-      downloadUrl: 'https://drive.google.com/uc?id=registry-1',
-    );
-    remote.contents['registry-1'] = regBytes;
+      remote.folders['test-folder'] = PublicationFile(
+        id: 'test-folder',
+        name: 'Folder',
+        mimeType: 'application/vnd.google-apps.folder',
+        version: '1',
+        etag: 'etag-f',
+        editable: true,
+        properties: {'antirknRegistry.${vpn.workspace.id}': 'ready:registry-1'},
+      );
+      final regBytes = Uint8List.fromList(
+        utf8.encode(
+          canonicalJson({
+            'version': 2,
+            'workspaceId': vpn.workspace.id,
+            'users': <String, dynamic>{},
+          }),
+        ),
+      );
+      final regHash = sha256.convert(regBytes).toString();
+      remote.folders['registry-1'] = PublicationFile(
+        id: 'registry-1',
+        name: 'registry.json',
+        mimeType: 'application/json',
+        version: '1',
+        etag: 'etag-r',
+        editable: true,
+        properties: {
+          'antirknWorkspace': vpn.workspace.id,
+          'antirknUser': 'registry',
+          'antirknHash': regHash,
+        },
+        downloadUrl: 'https://drive.google.com/uc?id=registry-1',
+      );
+      remote.contents['registry-1'] = regBytes;
 
-    // Fail Alice by throwing PublicationFailure
-    remote.folders['folder-1'] = PublicationFile(
-      id: 'folder-1',
-      name: 'broken',
-      mimeType: 'application/x-yaml',
-      version: '1',
-      etag: 'etag',
-      editable: false, // Invalid
-      properties: const {},
-    );
+      // Fail Alice by throwing PublicationFailure
+      remote.folders['folder-1'] = PublicationFile(
+        id: 'folder-1',
+        name: 'broken',
+        mimeType: 'application/x-yaml',
+        version: '1',
+        etag: 'etag',
+        editable: false, // Invalid
+        properties: const {},
+      );
 
-    final batchResult = await c.forcePublishAll(force: true);
+      final batchResult = await c.forcePublishAll(force: true);
 
-    // Alice should fail with invalid or conflict
-    expect(c.queues[fixtures.alice]?['issue'], isNotNull);
-    // Bob must succeed despite Alice failing
-    expect(c.queues[fixtures.bob]?['status'], 'published');
-    expect(c.queues[fixtures.bob]?['issue'], isNull);
-    expect(batchResult.uploaded, 1);
-    expect(batchResult.failed, 1);
-    expect(batchResult.upToDate, 0);
-  });
+      // Alice should fail with invalid or conflict
+      expect(c.queues[fixtures.alice]?['issue'], isNotNull);
+      // Bob must succeed despite Alice failing
+      expect(c.queues[fixtures.bob]?['status'], 'published');
+      expect(c.queues[fixtures.bob]?['issue'], isNull);
+      expect(batchResult.uploaded, 1);
+      expect(batchResult.failed, 1);
+      expect(batchResult.upToDate, 0);
+    },
+  );
 
   test(
     'unchanged private publication skips Drive without a public URL',
@@ -1534,153 +1619,167 @@ void main() {
     },
   );
 
-  test('forcePublishAll returns honest PublicationBatchResult with upToDate count on fast-path', () async {
-    final account = Account()..publicationAuthorized = true;
-    final repo = Repository();
-    final remote = Remote();
-    final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
-    addTearDown(vpn.dispose);
-    final c = PublicationController(
-      repository: repo,
-      account: account,
-      remote: () => remote,
-      vpn: vpn,
-    );
-    addTearDown(c.dispose);
-    await c.ready;
+  test(
+    'forcePublishAll returns honest PublicationBatchResult with upToDate count on fast-path',
+    () async {
+      final account = Account()..publicationAuthorized = true;
+      final repo = Repository();
+      final remote = Remote();
+      final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
+      addTearDown(vpn.dispose);
+      final c = PublicationController(
+        repository: repo,
+        account: account,
+        remote: () => remote,
+        vpn: vpn,
+      );
+      addTearDown(c.dispose);
+      await c.ready;
 
-    final userAlice = VpnUser(id: fixtures.alice, login: 'alice', name: 'Alice');
-    final userBob = VpnUser(id: fixtures.bob, login: 'bob', name: 'Bob');
-    await vpn.load();
-    await vpn.saveUser(userAlice);
-    await vpn.saveUser(userBob);
+      final userAlice = VpnUser(
+        id: fixtures.alice,
+        login: 'alice',
+        name: 'Alice',
+      );
+      final userBob = VpnUser(id: fixtures.bob, login: 'bob', name: 'Bob');
+      await vpn.load();
+      await vpn.saveUser(userAlice);
+      await vpn.saveUser(userBob);
 
-    final aliceSaved = vpn.workspace.profiles[fixtures.alice]!;
-    final bobSaved = vpn.workspace.profiles[fixtures.bob]!;
+      final aliceSaved = vpn.workspace.profiles[fixtures.alice]!;
+      final bobSaved = vpn.workspace.profiles[fixtures.bob]!;
 
-    repo.drafts[fixtures.alice] = PublicationDraft(
-      workspaceId: vpn.workspace.id,
-      deviceId: 'a' * 32,
-      userId: fixtures.alice,
-      name: 'Alice',
-      headId: 'head-alice',
-      hash: aliceSaved['hash'] as String,
-      stamp: 'stamp-1',
-      bytes: Uint8List.fromList(utf8.encode(aliceSaved['yaml'] as String)),
-      ancestors: {},
-    );
-    repo.drafts[fixtures.bob] = PublicationDraft(
-      workspaceId: vpn.workspace.id,
-      deviceId: 'b' * 32,
-      userId: fixtures.bob,
-      name: 'Bob',
-      headId: 'head-bob',
-      hash: bobSaved['hash'] as String,
-      stamp: 'stamp-1',
-      bytes: Uint8List.fromList(utf8.encode(bobSaved['yaml'] as String)),
-      ancestors: {},
-    );
+      repo.drafts[fixtures.alice] = PublicationDraft(
+        workspaceId: vpn.workspace.id,
+        deviceId: 'a' * 32,
+        userId: fixtures.alice,
+        name: 'Alice',
+        headId: 'head-alice',
+        hash: aliceSaved['hash'] as String,
+        stamp: 'stamp-1',
+        bytes: Uint8List.fromList(utf8.encode(aliceSaved['yaml'] as String)),
+        ancestors: {},
+      );
+      repo.drafts[fixtures.bob] = PublicationDraft(
+        workspaceId: vpn.workspace.id,
+        deviceId: 'b' * 32,
+        userId: fixtures.bob,
+        name: 'Bob',
+        headId: 'head-bob',
+        hash: bobSaved['hash'] as String,
+        stamp: 'stamp-1',
+        bytes: Uint8List.fromList(utf8.encode(bobSaved['yaml'] as String)),
+        ancestors: {},
+      );
 
-    final settings = const PublicationSettings(
-      accountKey: 'account',
-      folderId: 'test-folder',
-      folderName: 'Folder',
-      access: PublicationAccess.link,
-      enabled: true,
-      folderReady: true,
-    );
-    repo.docs['settings'] = canonicalJson(settings.toJson());
-    await c.reload();
+      final settings = const PublicationSettings(
+        accountKey: 'account',
+        folderId: 'test-folder',
+        folderName: 'Folder',
+        access: PublicationAccess.link,
+        enabled: true,
+        folderReady: true,
+      );
+      repo.docs['settings'] = canonicalJson(settings.toJson());
+      await c.reload();
 
-    remote.folders['test-folder'] = PublicationFile(
-      id: 'test-folder',
-      name: 'Folder',
-      mimeType: 'application/vnd.google-apps.folder',
-      version: '1',
-      etag: 'etag-f',
-      editable: true,
-      properties: {'antirknRegistry.${vpn.workspace.id}': 'ready:registry-1'},
-    );
-    final regBytes = Uint8List.fromList(utf8.encode(canonicalJson({
-      'version': 2,
-      'workspaceId': vpn.workspace.id,
-      'users': <String, dynamic>{},
-    })));
-    final regHash = sha256.convert(regBytes).toString();
-    remote.folders['registry-1'] = PublicationFile(
-      id: 'registry-1',
-      name: 'registry.json',
-      mimeType: 'application/json',
-      version: '1',
-      etag: 'etag-r',
-      editable: true,
-      properties: {
-        'antirknWorkspace': vpn.workspace.id,
-        'antirknUser': 'registry',
-        'antirknHash': regHash,
-      },
-      downloadUrl: 'https://drive.google.com/uc?id=registry-1',
-    );
-    remote.contents['registry-1'] = regBytes;
+      remote.folders['test-folder'] = PublicationFile(
+        id: 'test-folder',
+        name: 'Folder',
+        mimeType: 'application/vnd.google-apps.folder',
+        version: '1',
+        etag: 'etag-f',
+        editable: true,
+        properties: {'antirknRegistry.${vpn.workspace.id}': 'ready:registry-1'},
+      );
+      final regBytes = Uint8List.fromList(
+        utf8.encode(
+          canonicalJson({
+            'version': 2,
+            'workspaceId': vpn.workspace.id,
+            'users': <String, dynamic>{},
+          }),
+        ),
+      );
+      final regHash = sha256.convert(regBytes).toString();
+      remote.folders['registry-1'] = PublicationFile(
+        id: 'registry-1',
+        name: 'registry.json',
+        mimeType: 'application/json',
+        version: '1',
+        etag: 'etag-r',
+        editable: true,
+        properties: {
+          'antirknWorkspace': vpn.workspace.id,
+          'antirknUser': 'registry',
+          'antirknHash': regHash,
+        },
+        downloadUrl: 'https://drive.google.com/uc?id=registry-1',
+      );
+      remote.contents['registry-1'] = regBytes;
 
-    // First publish: initial upload of both users
-    final initialResult = await c.forcePublishAll(force: true);
-    expect(initialResult.uploaded, 2);
-    expect(initialResult.upToDate, 0);
-    expect(initialResult.failed, 0);
-    expect(c.isUserUpToDate(fixtures.alice), isTrue);
-    expect(c.isUserUpToDate(fixtures.bob), isTrue);
+      // First publish: initial upload of both users
+      final initialResult = await c.forcePublishAll(force: true);
+      expect(initialResult.uploaded, 2);
+      expect(initialResult.upToDate, 0);
+      expect(initialResult.failed, 0);
+      expect(c.isUserUpToDate(fixtures.alice), isTrue);
+      expect(c.isUserUpToDate(fixtures.bob), isTrue);
 
-    // Second publish with force: false (no changes): both should skip via fast-path
-    final fastPathResult = await c.forcePublishAll(force: false);
-    expect(fastPathResult.uploaded, 0);
-    expect(fastPathResult.upToDate, 2);
-    expect(fastPathResult.failed, 0);
+      // Second publish with force: false (no changes): both should skip via fast-path
+      final fastPathResult = await c.forcePublishAll(force: false);
+      expect(fastPathResult.uploaded, 0);
+      expect(fastPathResult.upToDate, 2);
+      expect(fastPathResult.failed, 0);
 
-    final before = {
-      for (final userId in [fixtures.alice, fixtures.bob])
-        userId: remote.folders[c.results[userId]!['fileId']]!.etag,
-    };
-    // A forced check verifies remote state without rewriting unchanged YAML.
-    final forcedResult = await c.forcePublishAll(force: true);
-    expect(forcedResult.uploaded, 0);
-    expect(forcedResult.upToDate, 2);
-    expect(forcedResult.failed, 0);
-    for (final userId in [fixtures.alice, fixtures.bob]) {
-      expect(remote.folders[c.results[userId]!['fileId']]!.etag, before[userId]);
-    }
+      final before = {
+        for (final userId in [fixtures.alice, fixtures.bob])
+          userId: remote.folders[c.results[userId]!['fileId']]!.etag,
+      };
+      // A forced check verifies remote state without rewriting unchanged YAML.
+      final forcedResult = await c.forcePublishAll(force: true);
+      expect(forcedResult.uploaded, 0);
+      expect(forcedResult.upToDate, 2);
+      expect(forcedResult.failed, 0);
+      for (final userId in [fixtures.alice, fixtures.bob]) {
+        expect(
+          remote.folders[c.results[userId]!['fileId']]!.etag,
+          before[userId],
+        );
+      }
 
-    vpn.serverSyncIssue = 'vpn_connection';
-    final blockedByServer = await c.forcePublishAll(force: true);
-    expect(blockedByServer.failed, 1);
-    expect(blockedByServer.uploaded, 0);
-    vpn.serverSyncIssue = null;
+      vpn.serverSyncIssue = 'vpn_connection';
+      final blockedByServer = await c.forcePublishAll(force: true);
+      expect(blockedByServer.failed, 1);
+      expect(blockedByServer.uploaded, 0);
+      vpn.serverSyncIssue = null;
 
-    // A changed ETag requires content readback even if old hash metadata remains.
-    final aliceFileId = c.results[fixtures.alice]!['fileId'] as String;
-    final aliceFile = remote.folders[aliceFileId]!;
-    remote.folders[aliceFileId] = PublicationFile(
-      id: aliceFile.id,
-      name: aliceFile.name,
-      mimeType: aliceFile.mimeType,
-      version: '9',
-      etag: 'etag-external',
-      editable: true,
-      properties: aliceFile.properties,
-      downloadUrl: aliceFile.downloadUrl,
-    );
-    remote.contents[aliceFileId] = Uint8List.fromList(utf8.encode('changed'));
-    final checked = await c.forcePublishAll(force: true);
-    expect(checked.uploaded, 0);
-    expect(checked.upToDate, 1);
-    expect(checked.failed, 1);
-    expect(remote.contents[aliceFileId], utf8.encode('changed'));
+      // A changed ETag requires content readback even if old hash metadata remains.
+      final aliceFileId = c.results[fixtures.alice]!['fileId'] as String;
+      final aliceFile = remote.folders[aliceFileId]!;
+      remote.folders[aliceFileId] = PublicationFile(
+        id: aliceFile.id,
+        name: aliceFile.name,
+        mimeType: aliceFile.mimeType,
+        version: '9',
+        etag: 'etag-external',
+        editable: true,
+        properties: aliceFile.properties,
+        downloadUrl: aliceFile.downloadUrl,
+      );
+      remote.contents[aliceFileId] = Uint8List.fromList(utf8.encode('changed'));
+      final checked = await c.forcePublishAll(force: true);
+      expect(checked.uploaded, 0);
+      expect(checked.upToDate, 1);
+      expect(checked.failed, 1);
+      expect(remote.contents[aliceFileId], utf8.encode('changed'));
 
-    // An explicit repair replaces the bytes only when requested separately.
-    final repaired = await c.forcePublishAll(forceUpload: true);
-    expect(repaired.uploaded, 2);
-    expect(remote.contents[aliceFileId], repo.drafts[fixtures.alice]!.bytes);
-  });
+      // An explicit repair replaces the bytes only when requested separately.
+      final repaired = await c.forcePublishAll(forceUpload: true);
+      expect(repaired.uploaded, 2);
+      expect(remote.contents[aliceFileId], repo.drafts[fixtures.alice]!.bytes);
+    },
+  );
 
   test(
     'concurrent AutoSync exchange and batch publication run simultaneously without busy or conflict errors',
@@ -1766,11 +1865,15 @@ void main() {
         editable: true,
         properties: {'antirknRegistry.${vpn.workspace.id}': 'ready:registry-1'},
       );
-      final regBytes = Uint8List.fromList(utf8.encode(canonicalJson({
-        'version': 2,
-        'workspaceId': vpn.workspace.id,
-        'users': <String, dynamic>{},
-      })));
+      final regBytes = Uint8List.fromList(
+        utf8.encode(
+          canonicalJson({
+            'version': 2,
+            'workspaceId': vpn.workspace.id,
+            'users': <String, dynamic>{},
+          }),
+        ),
+      );
       final regHash = sha256.convert(regBytes).toString();
       remote.folders['registry-1'] = PublicationFile(
         id: 'registry-1',

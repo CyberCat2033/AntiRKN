@@ -23,7 +23,9 @@ class TestLanguageStore implements LanguagePreferenceStore {
 
 Future<void> openGroup(WidgetTester tester, String key) async {
   if (key == 'settings-template') {
-    if (find.byType(TemplateSettings).hitTestable().evaluate().isNotEmpty) return;
+    if (find.byType(TemplateSettings).hitTestable().evaluate().isNotEmpty) {
+      return;
+    }
     final back = find.byKey(const ValueKey('settings-back')).hitTestable();
     if (back.evaluate().isNotEmpty) {
       await tester.tap(back);
@@ -142,13 +144,15 @@ void main() {
     });
   }
 
-Future<void> selectLanguage(WidgetTester tester, AppLanguage language) async {
-  await openGroup(tester, 'settings-appearance');
-  await tester.tap(find.byIcon(Icons.language).hitTestable());
-  await tester.pumpAndSettle();
-  await tester.tap(find.byKey(ValueKey('app-choice-$language')).hitTestable());
-  await tester.pumpAndSettle();
-}
+  Future<void> selectLanguage(WidgetTester tester, AppLanguage language) async {
+    await openGroup(tester, 'settings-appearance');
+    await tester.tap(find.byIcon(Icons.language).hitTestable());
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(ValueKey('app-choice-$language')).hitTestable(),
+    );
+    await tester.pumpAndSettle();
+  }
 
   testWidgets(
     'manual selection survives restart, preserves draft and overrides OS',

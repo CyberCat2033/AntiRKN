@@ -54,6 +54,7 @@ class DatabaseRemote implements RunnerTransport {
     delegate.store.raw = (await db.readVpn()).source;
     return delegate.request(request, token);
   }
+
   @override
   Future<void> emergencyReset(
     CancellationToken token, {
@@ -212,5 +213,4 @@ void main() {
       expect(await another.readRunnerJournal('one'), source);
     },
   );
-
 }

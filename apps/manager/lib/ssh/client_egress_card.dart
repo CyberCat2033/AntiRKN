@@ -90,7 +90,11 @@ class _ClientEgressCardState extends State<ClientEgressCard> {
       final enabled = info?['enabled'] == true;
       final job = c.jobs.where((j) => j.kind == 'egress_apply').firstOrNull;
       final busy =
-          opening || dialogOpen || c.busy || c.actionPending || job?.terminal == false;
+          opening ||
+          dialogOpen ||
+          c.busy ||
+          c.actionPending ||
+          job?.terminal == false;
       final check = info?['lastCheck'] as Map?;
       final failure =
           issue ??

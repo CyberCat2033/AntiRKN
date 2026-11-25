@@ -71,7 +71,8 @@ extension PublicationBinding on PublicationCoordinator {
     if (!before.editable) {
       throw const PublicationFailure(PublicationIssue.forbidden);
     }
-    final isOwnFile = owner == userId ||
+    final isOwnFile =
+        owner == userId ||
         owner == entry?['owner'] ||
         (owner != null && owner.startsWith('bound:$userId:')) ||
         (entry?['pending'] == true &&

@@ -94,9 +94,7 @@ final class _WorkerConnection implements SshConnection, RunnerTransport {
     String? sudoPassword,
   }) async {
     cancellation.check();
-    await cancellation.bind(
-      _request('runnerEmergencyReset', sudoPassword),
-    );
+    await cancellation.bind(_request('runnerEmergencyReset', sudoPassword));
   }
 
   _WorkerConnection(this.verifier, this.jumpVerifier) {

@@ -19,20 +19,24 @@ void main() {
     );
   });
 
-  test('runner install payload formats valid JSON containing bundle and fingerprint', () {
-    const fingerprint = 'test-runner-fingerprint-12345';
-    final payload = '{"fingerprint":${jsonEncode(fingerprint)},"bundle":$runnerBundle}';
+  test(
+    'runner install payload formats valid JSON containing bundle and fingerprint',
+    () {
+      const fingerprint = 'test-runner-fingerprint-12345';
+      final payload =
+          '{"fingerprint":${jsonEncode(fingerprint)},"bundle":$runnerBundle}';
 
-    final decoded = jsonDecode(payload) as Map<String, dynamic>;
-    expect(decoded['fingerprint'], equals(fingerprint));
-    expect(decoded['bundle'], isA<Map<String, dynamic>>());
+      final decoded = jsonDecode(payload) as Map<String, dynamic>;
+      expect(decoded['fingerprint'], equals(fingerprint));
+      expect(decoded['bundle'], isA<Map<String, dynamic>>());
 
-    final bundle = decoded['bundle'] as Map<String, dynamic>;
-    expect(bundle['release'], equals(runnerRelease));
-    expect(bundle['files'], isA<Map<String, dynamic>>());
-    expect(bundle['hashes'], isA<Map<String, dynamic>>());
-    expect((bundle['files'] as Map).keys, contains('antirkn-runner.service'));
-  });
+      final bundle = decoded['bundle'] as Map<String, dynamic>;
+      expect(bundle['release'], equals(runnerRelease));
+      expect(bundle['files'], isA<Map<String, dynamic>>());
+      expect(bundle['hashes'], isA<Map<String, dynamic>>());
+      expect((bundle['files'] as Map).keys, contains('antirkn-runner.service'));
+    },
+  );
 
   group('decodeRunnerObject sanitization and noise immunity', () {
     test('extracts clean JSON dictionary without noise', () {
@@ -70,15 +74,18 @@ void main() {
       expect(res['jobs'], hasLength(1));
     });
 
-    test('extracts JSON when noise surrounds it with curly braces and ANSI escapes', () {
-      const noisy =
-          '\x1B[0;32mSystem message: {warning: kernel tainted}\x1B[0m\r\n'
-          '{"version":51,"code":"ok","alive":true}\r\n'
-          'Connection to 127.0.0.1 closed by remote host.\n';
-      final res = decodeRunnerObject(noisy);
-      expect(res['code'], 'ok');
-      expect(res['version'], 51);
-    });
+    test(
+      'extracts JSON when noise surrounds it with curly braces and ANSI escapes',
+      () {
+        const noisy =
+            '\x1B[0;32mSystem message: {warning: kernel tainted}\x1B[0m\r\n'
+            '{"version":51,"code":"ok","alive":true}\r\n'
+            'Connection to 127.0.0.1 closed by remote host.\n';
+        final res = decodeRunnerObject(noisy);
+        expect(res['code'], 'ok');
+        expect(res['version'], 51);
+      },
+    );
 
     test('throws FormatException on entirely invalid garbage without json', () {
       expect(

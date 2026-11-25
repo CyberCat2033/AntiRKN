@@ -75,10 +75,10 @@ class ComponentInstallationView extends StatelessWidget {
               key: const ValueKey('component-cancel'),
               onPressed:
                   !c.busy && !c.actionPending && !c.selected!.cancelRequested
-                      ? () async {
-                          await c.cancelJob();
-                        }
-                      : null,
+                  ? () async {
+                      await c.cancelJob();
+                    }
+                  : null,
               child: Text(l.runnerCancel),
             ),
           ),
@@ -204,6 +204,7 @@ String releaseKey(VpnComponent component, String identity) =>
             ? 'amneziawgTools'
             : 'amneziawg',
     };
+
 /// Product name of [component] for software cards and the inventory: one
 /// name table with [componentName] (UI-53).
 String vpnComponentName(VpnComponent component) => switch (component) {

@@ -33,7 +33,10 @@ final class PublicationCoordinator {
 
   Future<T> _lockRegistry<T>(Future<T> Function() action) {
     final next = _registryLock.then((_) => action());
-    _registryLock = next.then<void>((_) {}, onError: (Object _, StackTrace _) {});
+    _registryLock = next.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
     return next;
   }
 
@@ -41,27 +44,28 @@ final class PublicationCoordinator {
     String registryId,
     String workspaceId,
   ) {
-    return _registrySnapshotFuture ??= () async {
-      final cached = _cachedRegistry;
-      if (cached != null && cached.$1.id == registryId) {
-        final current = await remote.getFile(registryId);
-        if (current.etag == cached.$1.etag) {
-          return cached;
-        }
-        final snapshot = await _snapshot(registryId, file: current);
-        final decoded = _decodeRegistry(snapshot.$2, workspaceId);
-        final result = (snapshot.$1, decoded);
-        _cachedRegistry = result;
-        return result;
-      }
-      final snapshot = await _snapshot(registryId);
-      final decoded = _decodeRegistry(snapshot.$2, workspaceId);
-      final result = (snapshot.$1, decoded);
-      _cachedRegistry = result;
-      return result;
-    }().whenComplete(() {
-      _registrySnapshotFuture = null;
-    });
+    return _registrySnapshotFuture ??=
+        () async {
+          final cached = _cachedRegistry;
+          if (cached != null && cached.$1.id == registryId) {
+            final current = await remote.getFile(registryId);
+            if (current.etag == cached.$1.etag) {
+              return cached;
+            }
+            final snapshot = await _snapshot(registryId, file: current);
+            final decoded = _decodeRegistry(snapshot.$2, workspaceId);
+            final result = (snapshot.$1, decoded);
+            _cachedRegistry = result;
+            return result;
+          }
+          final snapshot = await _snapshot(registryId);
+          final decoded = _decodeRegistry(snapshot.$2, workspaceId);
+          final result = (snapshot.$1, decoded);
+          _cachedRegistry = result;
+          return result;
+        }().whenComplete(() {
+          _registrySnapshotFuture = null;
+        });
   }
 
   void _invalidateRegistryCache() {
@@ -226,8 +230,7 @@ final class PublicationCoordinator {
           file ??= await remote.getFile(fileId);
           final f = file;
           if (f.properties['antirknWorkspace'] != draft.workspaceId ||
-              f.properties['antirknUser'] !=
-                  (entry['owner'] ?? draft.userId) ||
+              f.properties['antirknUser'] != (entry['owner'] ?? draft.userId) ||
               !f.editable ||
               f.properties['antirknDeleted'] != null ||
               !f.binary ||
@@ -244,7 +247,8 @@ final class PublicationCoordinator {
             throw const PublicationFailure(PublicationIssue.conflict);
           }
           final remoteHash = f.properties['antirknHash'];
-          final canSkipDownload = forceUpload ||
+          final canSkipDownload =
+              forceUpload ||
               (previousEtag != null &&
                   previousEtag == f.etag &&
                   remoteHash != null);
@@ -438,13 +442,10 @@ final class PublicationCoordinator {
     Future<void> Function() guard,
   ) {
     if (_cachedRegistryId != null) return Future.value(_cachedRegistryId!);
-    return _registryFuture ??= _resolveRegistry(
-      settings,
-      draft,
-      guard,
-    ).whenComplete(() {
-      _registryFuture = null;
-    });
+    return _registryFuture ??= _resolveRegistry(settings, draft, guard)
+        .whenComplete(() {
+          _registryFuture = null;
+        });
   }
 
   Future<String> _resolveRegistry(
@@ -550,11 +551,7 @@ final class PublicationCoordinator {
       };
       await guard();
       try {
-        await remote.updateFile(
-          file,
-          _bytes(next),
-          properties: const {},
-        );
+        await remote.updateFile(file, _bytes(next), properties: const {});
         final freshSnapshot = await _snapshot(registryId);
         _cachedRegistry = (freshSnapshot.$1, next);
         return {'fileId': candidate, 'created': false};
@@ -587,16 +584,9 @@ final class PublicationCoordinator {
         ...users,
         userId: {...entry, 'created': true},
       };
-      final next = {
-        ...value,
-        'users': nextUsers,
-      };
+      final next = {...value, 'users': nextUsers};
       try {
-        await remote.updateFile(
-          file,
-          _bytes(next),
-          properties: const {},
-        );
+        await remote.updateFile(file, _bytes(next), properties: const {});
         final freshSnapshot = await _snapshot(registryId);
         _cachedRegistry = (freshSnapshot.$1, next);
         return;

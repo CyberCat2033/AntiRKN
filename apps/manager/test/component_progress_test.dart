@@ -43,15 +43,15 @@ void main() {
       expect(componentActiveStepLabel(ru, 0), ru.protocolPrepared);
       expect(componentActiveStepLabel(en, 0), en.protocolPrepared);
       expect(componentStepProgressText(ru, 0, 6), 'Шаг 1 из 6: План проверен');
-      expect(
-        componentStepProgressText(en, 0, 6),
-        'Step 1 of 6: Plan verified',
-      );
+      expect(componentStepProgressText(en, 0, 6), 'Step 1 of 6: Plan verified');
 
       // Checkpoint 1: Downloading
       expect(componentActiveStepLabel(ru, 1), ru.componentsDownloading);
       expect(componentActiveStepLabel(en, 1), en.componentsDownloading);
-      expect(componentStepProgressText(ru, 1, 6), 'Шаг 2 из 6: Загрузка архива');
+      expect(
+        componentStepProgressText(ru, 1, 6),
+        'Шаг 2 из 6: Загрузка архива',
+      );
       expect(
         componentStepProgressText(en, 1, 6),
         'Step 2 of 6: Downloading archive',
@@ -286,64 +286,65 @@ void main() {
   });
 
   group('RunnerPanel with active component_install', () {
-    testWidgets('shows banner step progress and mini progress on component card', (
-      tester,
-    ) async {
-      final store = MemoryRunnerJournal();
-      final remote = FakeRunnerTransport(store);
-      final c = RunnerController(
-        serverId: 'srv1',
-        transport: () => remote,
-        identity: () => 'fixture|key',
-        password: () => null,
-        accessFailure: (_) {},
-        store: store,
-      );
+    testWidgets(
+      'shows banner step progress and mini progress on component card',
+      (tester) async {
+        final store = MemoryRunnerJournal();
+        final remote = FakeRunnerTransport(store);
+        final c = RunnerController(
+          serverId: 'srv1',
+          transport: () => remote,
+          identity: () => 'fixture|key',
+          password: () => null,
+          accessFailure: (_) {},
+          store: store,
+        );
 
-      c.selected = runnerJob(
-        'a' * 32,
-        kind: 'component_install',
-        status: 'running',
-        progress: 2,
-        count: 6,
-        events: [
-          {
-            'sequence': 1,
-            'timestamp': 1789340000,
-            'code': 'component_downloaded',
-            'progress': 2,
-            'total': 6,
-          },
-        ],
-      );
-      c.activeComponent = 'trusttunnel';
+        c.selected = runnerJob(
+          'a' * 32,
+          kind: 'component_install',
+          status: 'running',
+          progress: 2,
+          count: 6,
+          events: [
+            {
+              'sequence': 1,
+              'timestamp': 1789340000,
+              'code': 'component_downloaded',
+              'progress': 2,
+              'total': 6,
+            },
+          ],
+        );
+        c.activeComponent = 'trusttunnel';
 
-      await tester.pumpWidget(
-        MaterialApp(
-          locale: const Locale('ru'),
-          supportedLocales: AppLocalizations.supportedLocales,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: RunnerPanel(
-                controller: c,
-                motion: MotionPreference.system,
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('ru'),
+            supportedLocales: AppLocalizations.supportedLocales,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: RunnerPanel(
+                  controller: c,
+                  motion: MotionPreference.system,
+                ),
               ),
             ),
           ),
-        ),
-      );
+        );
 
-      // Top banner shows active step text instead of past event code:
-      expect(
-        find.text('Шаг 3 из 6: Сборка исполняемых файлов на сервере'),
-        findsWidgets,
-      );
+        // Top banner shows active step text instead of past event code:
+        expect(
+          find.text('Шаг 3 из 6: Сборка исполняемых файлов на сервере'),
+          findsWidgets,
+        );
 
-      // Card action shows mini progress "2/6":
-      expect(find.text('2/6'), findsOneWidget);
+        // Card action shows mini progress "2/6":
+        expect(find.text('2/6'), findsOneWidget);
 
-      c.dispose();
-    });
+        c.dispose();
+      },
+    );
   });
 }

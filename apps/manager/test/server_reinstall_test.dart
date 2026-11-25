@@ -63,10 +63,9 @@ void main() {
     expect(c.error, isNull);
     expect(remotes['one']!.submissions, hasLength(1));
     final sent = remotes['one']!.submissions.values.single;
-    expect(
-      (sent['resources'] as List).map((r) => (r as Map)['id']),
-      ['1' * 32],
-    );
+    expect((sent['resources'] as List).map((r) => (r as Map)['id']), [
+      '1' * 32,
+    ]);
     expect(c.missingOnServer('one'), 0);
   });
 
@@ -99,10 +98,7 @@ void main() {
     await c.reconcile();
     expect(remotes['one']!.submissions, hasLength(2));
     final sent = remotes['one']!.submissions.values.last;
-    expect(
-      ((sent['resources'] as List).single as Map)['deleted'],
-      isTrue,
-    );
+    expect(((sent['resources'] as List).single as Map)['deleted'], isTrue);
   });
 
   test('a refusal on one target does not block or mislabel another', () async {
@@ -159,26 +155,31 @@ void main() {
     expect(remote.submissions, 1);
   });
 
-  test('an install the server refuses as busy is retried, not dropped', () async {
-    final journal = MemoryRunnerJournal();
-    final remote = _BusyOnce(journal);
-    final runner = RunnerController(
-      serverId: 'fixture',
-      store: journal,
-      identity: () => 'fixture',
-      password: () => null,
-      accessFailure: (_) {},
-      transport: () => remote,
-    )..busyRetryDelay = const Duration(milliseconds: 10);
-    addTearDown(runner.dispose);
-    // The app's own VPN sync holds the server: this controller does not see
-    // that job, only the "busy" answer to its submission.
-    await runner.installOrUpdate('trusttunnel').timeout(const Duration(seconds: 10));
-    expect(remote.refusals, 1);
-    expect(remote.submissions, 2);
-    expect(runner.queuedInstalls, isEmpty);
-    expect(runner.responseCode, 'ok');
-  });
+  test(
+    'an install the server refuses as busy is retried, not dropped',
+    () async {
+      final journal = MemoryRunnerJournal();
+      final remote = _BusyOnce(journal);
+      final runner = RunnerController(
+        serverId: 'fixture',
+        store: journal,
+        identity: () => 'fixture',
+        password: () => null,
+        accessFailure: (_) {},
+        transport: () => remote,
+      )..busyRetryDelay = const Duration(milliseconds: 10);
+      addTearDown(runner.dispose);
+      // The app's own VPN sync holds the server: this controller does not see
+      // that job, only the "busy" answer to its submission.
+      await runner
+          .installOrUpdate('trusttunnel')
+          .timeout(const Duration(seconds: 10));
+      expect(remote.refusals, 1);
+      expect(remote.submissions, 2);
+      expect(runner.queuedInstalls, isEmpty);
+      expect(runner.responseCode, 'ok');
+    },
+  );
 }
 
 class _BusyOnce extends FakeRunnerTransport {

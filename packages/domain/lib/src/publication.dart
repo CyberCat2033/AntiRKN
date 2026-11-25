@@ -268,10 +268,7 @@ final class PublicationTarget {
     if (id == null || resourceKeys.length > 1) {
       throw const PublicationFailure(PublicationIssue.invalid);
     }
-    return PublicationTarget(
-      id,
-      resourceKey: resourceKeys.singleOrNull,
-    );
+    return PublicationTarget(id, resourceKey: resourceKeys.singleOrNull);
   }
   @override
   String toString() => 'PublicationTarget(<private>)';

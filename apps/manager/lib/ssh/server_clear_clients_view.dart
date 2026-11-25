@@ -5,11 +5,7 @@ import '../vpn/vpn_controller.dart';
 import 'ssh_controller.dart';
 
 class ServerClearClientsView extends StatefulWidget {
-  const ServerClearClientsView({
-    required this.controller,
-    this.vpn,
-    super.key,
-  });
+  const ServerClearClientsView({required this.controller, this.vpn, super.key});
   final SshController controller;
   final VpnController? vpn;
 
@@ -92,14 +88,14 @@ class _ServerClearClientsViewState extends State<ServerClearClientsView> {
             child: Semantics(
               liveRegion: true,
               child: Text(
-              lastResult == 'done'
-                  ? l.serverClearClientsDone
-                  : l.serverClearClientsFailed,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: lastResult == 'done'
-                        ? null
-                        : Theme.of(context).colorScheme.error,
-                  ),
+                lastResult == 'done'
+                    ? l.serverClearClientsDone
+                    : l.serverClearClientsFailed,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: lastResult == 'done'
+                      ? null
+                      : Theme.of(context).colorScheme.error,
+                ),
               ),
             ),
           ),

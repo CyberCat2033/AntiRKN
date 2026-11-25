@@ -118,7 +118,8 @@ void main() {
         authMethod: SshAuthMethod.password,
         secrets: {
           ServerSecret.sshPassword: 'fallback-password',
-          ServerSecret.privateKey: 'invalid-key-will-be-skipped-in-password-mode',
+          ServerSecret.privateKey:
+              'invalid-key-will-be-skipped-in-password-mode',
         },
       );
       final connecting = const DartSshConnector().connect(

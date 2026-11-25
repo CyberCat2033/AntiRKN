@@ -255,6 +255,7 @@ class SshController extends ChangeNotifier {
   SettingsStore? get _trafficStore =>
       repository is SettingsStore ? repository as SettingsStore : null;
   bool get canResetTraffic => _trafficStore != null;
+
   /// The last parsed sample and baseline: a build reads them several times
   /// (bytes, reset time, labels), each used to parse the raw counters anew.
   (String, ServerTrafficSnapshot?)? _parsedTraffic;

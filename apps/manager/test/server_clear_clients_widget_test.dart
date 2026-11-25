@@ -69,7 +69,9 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.byKey(const ValueKey('server-clear-clients')));
         await tester.pumpAndSettle();
-        await tester.tap(find.byKey(const ValueKey('server-clear-clients-confirm')));
+        await tester.tap(
+          find.byKey(const ValueKey('server-clear-clients-confirm')),
+        );
         await tester.pumpAndSettle();
         expect(find.byType(AppFormDialog), findsNothing);
         expect(tester.takeException(), isNull);

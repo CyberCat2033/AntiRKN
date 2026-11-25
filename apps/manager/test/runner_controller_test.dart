@@ -314,69 +314,102 @@ void main() {
     },
   );
 
-  test('resetJobQueue cancels active jobs and clears local queue state', () async {
-    await install();
-    // Simulate a hung / active job
-    c.pending = RunnerRequest.diagnostic('d' * 32);
-    c.connectionLost = true;
-    c.busy = true;
+  test(
+    'resetJobQueue cancels active jobs and clears local queue state',
+    () async {
+      await install();
+      // Simulate a hung / active job
+      c.pending = RunnerRequest.diagnostic('d' * 32);
+      c.connectionLost = true;
+      c.busy = true;
 
-    await c.resetJobQueue();
-    expect(c.busy, isFalse);
-    expect(c.pending, isNull);
-    expect(c.connectionLost, isFalse);
-    expect(
-      remote.requests.any((r) => r.json['action'] == 'cancel'),
-      isFalse, // no server active jobs in initial store
-    );
-  });
+      await c.resetJobQueue();
+      expect(c.busy, isFalse);
+      expect(c.pending, isNull);
+      expect(c.connectionLost, isFalse);
+      expect(
+        remote.requests.any((r) => r.json['action'] == 'cancel'),
+        isFalse, // no server active jobs in initial store
+      );
+    },
+  );
 
-  test('non-terminal apt_update and apt_upgrade do not block canRequestAction', () async {
-    await install();
-    expect(c.canRequestAction, isTrue);
+  test(
+    'non-terminal apt_update and apt_upgrade do not block canRequestAction',
+    () async {
+      await install();
+      expect(c.canRequestAction, isTrue);
 
-    c.jobs = [runnerJob('1' * 32, kind: 'diagnostic', status: 'running')];
-    expect(c.canRequestAction, isFalse);
+      c.jobs = [runnerJob('1' * 32, kind: 'diagnostic', status: 'running')];
+      expect(c.canRequestAction, isFalse);
 
-    c.jobs = [
-      runnerJob('2' * 32, kind: 'apt_update', count: 2, interval: 1, status: 'running'),
-    ];
-    expect(c.canRequestAction, isTrue);
+      c.jobs = [
+        runnerJob(
+          '2' * 32,
+          kind: 'apt_update',
+          count: 2,
+          interval: 1,
+          status: 'running',
+        ),
+      ];
+      expect(c.canRequestAction, isTrue);
 
-    c.jobs = [
-      runnerJob('3' * 32, kind: 'apt_upgrade', count: 2, interval: 1, status: 'planned'),
-    ];
-    expect(c.canRequestAction, isTrue);
-  });
+      c.jobs = [
+        runnerJob(
+          '3' * 32,
+          kind: 'apt_upgrade',
+          count: 2,
+          interval: 1,
+          status: 'planned',
+        ),
+      ];
+      expect(c.canRequestAction, isTrue);
+    },
+  );
 
-  test('submit succeeds without invalidResponse when response contains multiple jobs in queue', () async {
-    await install();
-    final candidate = {
-      'component': 'panel',
-      'version': '3.11.0',
-      'architecture': 'x86_64',
-      'assetName': 'x-ui-linux-amd64.tar.gz',
-      'url': 'https://example.com/x-ui.tar.gz',
-      'bytes': 80000000,
-      'sha256': '',
-    };
-    final plan = {
-      'component': 'panel',
-      'currentVersion': '3.8.0',
-      'targetVersion': '3.11.0',
-      'fingerprint': 'a' * 64,
-    };
-    final oldJob = runnerJob('b' * 32, kind: 'apt_update', count: 2, interval: 1, status: 'planned');
-    remote.customSubmitJobs = [
-      runnerJob('1' * 32, kind: 'component_upgrade_apply', count: 6, interval: 1, status: 'planned'),
-      oldJob,
-    ];
+  test(
+    'submit succeeds without invalidResponse when response contains multiple jobs in queue',
+    () async {
+      await install();
+      final candidate = {
+        'component': 'panel',
+        'version': '3.11.0',
+        'architecture': 'x86_64',
+        'assetName': 'x-ui-linux-amd64.tar.gz',
+        'url': 'https://example.com/x-ui.tar.gz',
+        'bytes': 80000000,
+        'sha256': '',
+      };
+      final plan = {
+        'component': 'panel',
+        'currentVersion': '3.8.0',
+        'targetVersion': '3.11.0',
+        'fingerprint': 'a' * 64,
+      };
+      final oldJob = runnerJob(
+        'b' * 32,
+        kind: 'apt_update',
+        count: 2,
+        interval: 1,
+        status: 'planned',
+      );
+      remote.customSubmitJobs = [
+        runnerJob(
+          '1' * 32,
+          kind: 'component_upgrade_apply',
+          count: 6,
+          interval: 1,
+          status: 'planned',
+        ),
+        oldJob,
+      ];
 
-    await c.applyComponentUpgrade(plan, candidate);
-    expect(c.error, isNull);
-    expect(c.pending, isNull);
-    expect(c.selected?.kind, equals('component_upgrade_apply'));
-  });
+      await c.applyComponentUpgrade(plan, candidate);
+      expect(c.error, isNull);
+      expect(c.pending, isNull);
+      expect(c.selected?.kind, equals('component_upgrade_apply'));
+    },
+  );
 
   test('test_ui_upgrade_labels_parity resolves all upgrade event codes', () {
     final l = AppLocalizationsEn();

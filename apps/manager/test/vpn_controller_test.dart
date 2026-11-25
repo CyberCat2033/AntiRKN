@@ -1127,7 +1127,9 @@ void main() {
       await setup(c);
 
       const inboundOne = '11111111111111111111111111111111';
-      final inbSpec = c.workspace.inbounds.firstWhere((i) => i.id == inboundOne).spec;
+      final inbSpec = c.workspace.inbounds
+          .firstWhere((i) => i.id == inboundOne)
+          .spec;
 
       c.workspace = c.workspace.copy(
         servers: {

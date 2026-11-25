@@ -181,10 +181,7 @@ extension ClientDeletion on VpnController {
       ...deletion['targets'] as Map,
       for (final e in targetUpdates.entries) e.key: e.value,
     };
-    await _saveDeletion(userId, {
-      ...deletion,
-      'targets': nextTargets,
-    });
+    await _saveDeletion(userId, {...deletion, 'targets': nextTargets});
   }
 
   Future<void> deleteUser(
@@ -386,8 +383,9 @@ extension ClientDeletion on VpnController {
                   token.check();
                   var record = Map<String, dynamic>.from(
                     (workspace.users
-                            .singleWhere((u) => u.id == original.id)
-                            .deletion!['targets'] as Map)[target]
+                                .singleWhere((u) => u.id == original.id)
+                                .deletion!['targets']
+                            as Map)[target]
                         as Map,
                   );
                   if (record['request'] != null) continue;
@@ -503,8 +501,9 @@ extension ClientDeletion on VpnController {
                   token.check();
                   var record = Map<String, dynamic>.from(
                     (workspace.users
-                            .singleWhere((u) => u.id == original.id)
-                            .deletion!['targets'] as Map)[target]
+                                .singleWhere((u) => u.id == original.id)
+                                .deletion!['targets']
+                            as Map)[target]
                         as Map,
                   );
                   if (vpnRevocationSettled(record) ||
@@ -524,8 +523,9 @@ extension ClientDeletion on VpnController {
                     );
                     final payload =
                         jsonDecode(request.json['payload'] as String) as Map;
-                    if (!(payload['revokedUsers'] as List? ?? [])
-                            .contains(original.id) ||
+                    if (!(payload['revokedUsers'] as List? ?? []).contains(
+                          original.id,
+                        ) ||
                         payload['workspaceId'] !=
                             workspace.resourceWorkspaceId(target)) {
                       throw const FormatException('vpn_conflict');
@@ -603,12 +603,13 @@ extension ClientDeletion on VpnController {
                           ...record,
                           'status': 'waiting',
                           'request': null,
-                          'generation':
-                              (record['generation'] as int? ?? 0) + 1,
+                          'generation': (record['generation'] as int? ?? 0) + 1,
                         };
                       } else if (resumeHidden &&
-                          ['failed', 'partially_applied']
-                              .contains(job.status)) {
+                          [
+                            'failed',
+                            'partially_applied',
+                          ].contains(job.status)) {
                         await _deletionGuard(original.id, deletionId);
                         await _request(
                           r,
@@ -621,8 +622,7 @@ extension ClientDeletion on VpnController {
                           ...record,
                           'status': 'waiting',
                           'request': null,
-                          'generation':
-                              (record['generation'] as int? ?? 0) + 1,
+                          'generation': (record['generation'] as int? ?? 0) + 1,
                         };
                       } else {
                         record = {

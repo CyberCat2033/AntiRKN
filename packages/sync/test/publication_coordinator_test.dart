@@ -203,6 +203,7 @@ class Remote implements PublicationRemoteStore {
       bytes: data,
     );
   }
+
   Blob _check(PublicationFile expected) {
     final b = blobs[expected.id];
     if (b == null) throw const PublicationFailure(PublicationIssue.missing);
@@ -263,6 +264,7 @@ class Remote implements PublicationRemoteStore {
     }
     return Uint8List.fromList(blobs[id]!.content);
   }
+
   @override
   Future<void> checkPrivate(String id) async {
     if (shared.contains(id)) {
@@ -313,7 +315,8 @@ void main() {
       final first = Repository(await draft('head-1')), remote = Remote();
       expect((await publish(first, remote))['status'], 'published');
       final versions = {
-        for (final entry in remote.blobs.entries) entry.key: entry.value.version,
+        for (final entry in remote.blobs.entries)
+          entry.key: entry.value.version,
       };
       final fresh = Repository(null);
       final file = await coordinator(
@@ -323,7 +326,8 @@ void main() {
       expect(file?.id, remote.profileId);
       expect(file?.downloadUrl, contains(remote.profileId));
       expect({
-        for (final entry in remote.blobs.entries) entry.key: entry.value.version,
+        for (final entry in remote.blobs.entries)
+          entry.key: entry.value.version,
       }, versions);
       expect(fresh.documents.keys, ['settings']);
       expect(fresh.queues, isEmpty);
@@ -344,7 +348,8 @@ void main() {
           remote = Remote();
       expect((await publish(first, remote))['status'], 'published');
       final versions = {
-        for (final entry in remote.blobs.entries) entry.key: entry.value.version,
+        for (final entry in remote.blobs.entries)
+          entry.key: entry.value.version,
       };
       final created = remote.createdProfiles;
       // After a pull: the same profile under a new journal head, with no
@@ -361,7 +366,8 @@ void main() {
       expect(remote.updatedProfiles, 0);
       expect(remote.profilePropertyWrites, 0);
       expect({
-        for (final entry in remote.blobs.entries) entry.key: entry.value.version,
+        for (final entry in remote.blobs.entries)
+          entry.key: entry.value.version,
       }, versions);
       expect(
         jsonDecode(pulled.documents['result/$user']!)['fileId'],
@@ -443,7 +449,10 @@ void main() {
       repo.current = await draft('head-2', ancestors: {'unrelated-base'});
       expect((await publish(repo, remote, force: false))['issue'], 'conflict');
       expect((await publish(repo, remote, force: true))['status'], 'published');
-      expect(remote.blobs[remote.profileId]!.properties['antirknHead'], 'head-2');
+      expect(
+        remote.blobs[remote.profileId]!.properties['antirknHead'],
+        'head-2',
+      );
     },
   );
   test(
@@ -452,9 +461,15 @@ void main() {
       final repo = Repository(await draft('head-1')), remote = Remote();
       await publish(repo, remote);
       expect(remote.updatedProfiles, 0);
-      await coordinator(repo, remote).publish(user, force: true, forceUpload: false);
+      await coordinator(
+        repo,
+        remote,
+      ).publish(user, force: true, forceUpload: false);
       expect(remote.updatedProfiles, 0);
-      await coordinator(repo, remote).publish(user, force: true, forceUpload: true);
+      await coordinator(
+        repo,
+        remote,
+      ).publish(user, force: true, forceUpload: true);
       expect(remote.updatedProfiles, 1);
     },
   );
@@ -499,11 +514,10 @@ void main() {
       expect(remote.updatedProfiles, 0);
 
       // Force overwrite overcomes readback and updates the remote file
-      final forced = await coordinator(repo, remote).publish(
-        user,
-        force: true,
-        forceUpload: true,
-      );
+      final forced = await coordinator(
+        repo,
+        remote,
+      ).publish(user, force: true, forceUpload: true);
       expect(forced?['status'], 'published');
       expect(forced?['issue'], isNull);
       expect(remote.updatedProfiles, 1);
@@ -551,7 +565,8 @@ void main() {
   test(
     'publish returns nextQueue with publication issue and status error even if queue persistence fails',
     () async {
-      final repo = Repository(await draft('head-1'))..failErrorQueueWrite = true;
+      final repo = Repository(await draft('head-1'))
+        ..failErrorQueueWrite = true;
       final remote = Remote()..linkBroken = true;
       final res = await publish(repo, remote);
       expect(res['issue'], 'linkUnavailable');
@@ -650,10 +665,16 @@ void main() {
       final batchCoord = coordinator(repo, remote);
       final registryDownloadsBefore = remote.registryDownloadCalls;
 
-      repo.drafts[user1] =
-          await draft('head-2', user: user1, ancestors: {'head-1'});
-      repo.drafts[user2] =
-          await draft('head-2', user: user2, ancestors: {'head-1'});
+      repo.drafts[user1] = await draft(
+        'head-2',
+        user: user1,
+        ancestors: {'head-1'},
+      );
+      repo.drafts[user2] = await draft(
+        'head-2',
+        user: user2,
+        ancestors: {'head-1'},
+      );
 
       final res1 = await batchCoord.publish(user1);
       expect(res1?['status'], 'published');
@@ -737,4 +758,3 @@ void main() {
     },
   );
 }
-

@@ -214,43 +214,42 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('existing bound or published file is pre-populated in link field', (
-    tester,
-  ) async {
-    final c = Controller();
-    addTearDown(c.dispose);
-    await c.ready;
-    final user = VpnUser(id: 'c' * 32, login: 'fixture', name: 'Fixture');
-    c.results[user.id] = {
-      'fileId': 'published-file-id-123',
-      'url': 'https://drive.google.com/uc?id=published-file-id-123',
-      'access': 'link',
-    };
-    await tester.pumpWidget(
-      MaterialApp(
-        supportedLocales: AppLocalizations.supportedLocales,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => showDialog<void>(
-                context: context,
-                builder: (_) => PublicationBindingDialog(
-                  controller: c,
-                  user: user,
+  testWidgets(
+    'existing bound or published file is pre-populated in link field',
+    (tester) async {
+      final c = Controller();
+      addTearDown(c.dispose);
+      await c.ready;
+      final user = VpnUser(id: 'c' * 32, login: 'fixture', name: 'Fixture');
+      c.results[user.id] = {
+        'fileId': 'published-file-id-123',
+        'url': 'https://drive.google.com/uc?id=published-file-id-123',
+        'access': 'link',
+      };
+      await tester.pumpWidget(
+        MaterialApp(
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showDialog<void>(
+                  context: context,
+                  builder: (_) =>
+                      PublicationBindingDialog(controller: c, user: user),
                 ),
+                child: const Text('Open'),
               ),
-              child: const Text('Open'),
             ),
           ),
         ),
-      ),
-    );
-    await tester.tap(find.text('Open'));
-    await tester.pumpAndSettle();
-    final linkField = tester.widget<TextField>(
-      find.byKey(const ValueKey('publication-file-link')),
-    );
-    expect(linkField.controller!.text, 'published-file-id-123');
-  });
+      );
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+      final linkField = tester.widget<TextField>(
+        find.byKey(const ValueKey('publication-file-link')),
+      );
+      expect(linkField.controller!.text, 'published-file-id-123');
+    },
+  );
 }

@@ -51,6 +51,7 @@ abstract interface class ComponentReleaseSource {
 
   /// Recent releases, newest first, previews included and marked.
   Future<List<ComponentRelease>> releases(String component);
+
   /// A newer upstream TrustTunnel/AmneziaWG release for the AntiRKN
   /// installer: `{version, archive: {url, bytes, sha256}[, commit]}`, or null
   /// when it cannot be identified with a checksum.

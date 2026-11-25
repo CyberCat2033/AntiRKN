@@ -323,9 +323,7 @@ final class VpnWorkspace {
   final List<TrustTunnelEndpoint> ttEndpoints;
   final Map<String, Map<String, dynamic>> servers, profiles;
 
-  late final Map<String, VpnUser> _userMap = {
-    for (final u in users) u.id: u,
-  };
+  late final Map<String, VpnUser> _userMap = {for (final u in users) u.id: u};
 
   VpnUser? userById(String id) => _userMap[id];
 
