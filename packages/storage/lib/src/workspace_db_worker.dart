@@ -360,7 +360,7 @@ Future<Object?> _dispatchDatabase(
   'importLegacyProfile' => await _unit(
     db._serial(() => db._importLegacyProfile(args[0] as SshProfile?)),
   ),
-  'captureSnapshot' => await _currentSnapshot(db),
+  'captureSnapshot' => await _currentSnapshot(db, cloud: true),
   'compactHistory' => await _unit(_compactCurrentHistory(db)),
   'snapshotState' => await db._serial(
     () => (

@@ -2,9 +2,13 @@ part of 'workspace_database.dart';
 
 // The archive is a single materialized workspace. Event history never enters it.
 final class _BackupSnapshot {
-  _BackupSnapshot(this.data, this.summary);
+  _BackupSnapshot(this.data, this.summary, this.intent);
   final Map<String, dynamic> data;
   final BackupSummary summary;
+
+  /// [_intentDigest] of [data]: equal for the same intent on any device.
+  final String intent;
+  int get version => data['version'] as int;
   List<dynamic> get documents => data['documents'] as List;
   @override
   String toString() => 'BackupSnapshot(<redacted>)';
@@ -12,10 +16,15 @@ final class _BackupSnapshot {
 
 /// A validated capture: its source goes on without being checked again.
 final class _CapturedSnapshot {
-  const _CapturedSnapshot(this.source, this.sequence, this.workspaceId);
+  const _CapturedSnapshot(
+    this.source,
+    this.sequence,
+    this.workspaceId,
+    this.intent,
+  );
   final String source;
   final int sequence;
-  final String workspaceId;
+  final String workspaceId, intent;
 }
 
 final class _RestorePlan implements WorkspaceRestorePlan {
@@ -42,9 +51,12 @@ String _backupStamp(WorkspaceDatabase store) => jsonEncode([
   ...store._db.select('SELECT epoch FROM sync_merge_meta'),
 ]);
 
+/// The file backup keeps format 4 with everything this device knows; with
+/// [cloud] the automatic sync snapshot v5 carries intent only.
 Future<_CapturedSnapshot> _currentSnapshot(
-  WorkspaceDatabase store,
-) => store._serial(() async {
+  WorkspaceDatabase store, {
+  bool cloud = false,
+}) => store._serial(() async {
   await store._vpnOverlay.materialize();
   final captured = <String, List<Row>>{};
   late final int sequence;
@@ -71,9 +83,10 @@ Future<_CapturedSnapshot> _currentSnapshot(
     rethrow;
   }
   final data = <String, dynamic>{
-    'version': 4,
+    'version': cloud ? cloudSnapshotVersion : 4,
     'createdAt': DateTime.now().toUtc().toIso8601String(),
     'workspaceId': store._journal.identity.workspaceId,
+    if (cloud) 'author': {'deviceId': store._journal.identity.deviceId},
     'servers': <Object?>[],
     'documents': <Object?>[],
   };
@@ -103,6 +116,11 @@ Future<_CapturedSnapshot> _currentSnapshot(
         }
         source = jsonEncode(journal);
       }
+      if (cloud) {
+        final intent = _cloudSource(table, id, source);
+        if (intent == null) continue;
+        source = intent;
+      }
       sourceBytes += utf8.encode(source).length;
       if (sourceBytes > maxWorkspaceBackupBytes) {
         throw const BackupFailure(BackupIssue.tooLarge);
@@ -116,8 +134,13 @@ Future<_CapturedSnapshot> _currentSnapshot(
     }
   }
   final source = jsonEncode(data);
-  final validated = await _validateBackupInBackground(source);
-  return _CapturedSnapshot(source, sequence, validated.summary.workspaceId);
+  final validated = await _validateBackupInBackground(source, cloud: cloud);
+  return _CapturedSnapshot(
+    source,
+    sequence,
+    validated.summary.workspaceId,
+    validated.intent,
+  );
 });
 
 Future<Uint8List> _createBackup(
@@ -193,6 +216,14 @@ Future<void> _restoreBackup(
       if (_backupStamp(store) != plan.stamp) {
         throw const BackupFailure(BackupIssue.changed);
       }
+      // A cloud v5 snapshot replaces intent; this device's cache of the same
+      // workspace and server stays. Format 4 already carries its own cache.
+      final (
+        data,
+        staleServers,
+      ) = plan.cloudBound && snapshot.version == cloudSnapshotVersion
+          ? await _withLocalCache(store, snapshot.data)
+          : (snapshot.data, const <String>[]);
       final workspaceId = snapshot.summary.workspaceId;
       // A cloud pull replaces data, not the installation: operations this
       // device executes keep their executor. A backup file may come from
@@ -242,7 +273,7 @@ Future<void> _restoreBackup(
         ),
       };
       for (final table in ['servers', 'documents']) {
-        for (final dynamic row in snapshot.data[table] as List) {
+        for (final dynamic row in data[table] as List) {
           final id = row['id'] as String;
           final revision = row['revision'] as int;
           final source = row['source'] as String;
@@ -337,6 +368,9 @@ Future<void> _restoreBackup(
             ('syncSnapshotRemoteFileId', plan.remoteFileId!),
             ('syncSnapshotRemoteVersion', plan.remoteVersion!),
             ('syncSnapshotRemoteEtag', plan.remoteEtag ?? ''),
+            ('syncSnapshotIntent', snapshot.intent),
+            ('syncSnapshotUnsupported', ''),
+            ('syncCacheRefresh', jsonEncode(staleServers)),
           ]) {
             store._db.execute(
               'INSERT INTO settings VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
@@ -346,7 +380,11 @@ Future<void> _restoreBackup(
         }
         store._db.execute(
           "INSERT INTO settings VALUES ('backupRestoredTargets',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-          [jsonEncode(_restoredTargets(snapshot.documents).toList()..sort())],
+          [
+            jsonEncode(
+              _restoredTargets(data['documents'] as List).toList()..sort(),
+            ),
+          ],
         );
         _VpnOverlay.installGuards(store._db);
         store._db.userVersion = 6;
@@ -395,8 +433,11 @@ Set<String> _restoredTargets(List<dynamic> documents) {
   return targets;
 }
 
-Future<_BackupSnapshot> _validateBackupInBackground(String source) =>
-    Isolate.run(() => _validateBackup(source));
+/// A file backup is always format 4; a [cloud] snapshot may also be v5.
+Future<_BackupSnapshot> _validateBackupInBackground(
+  String source, {
+  bool cloud = false,
+}) => Isolate.run(() => _validateBackup(source, cloud: cloud));
 
 // Limit nesting before jsonDecode, including JSON strings embedded in records.
 Object? _backupJson(String source) {
@@ -421,25 +462,27 @@ Object? _backupJson(String source) {
   return jsonDecode(source);
 }
 
-_BackupSnapshot _validateBackup(String source) {
+_BackupSnapshot _validateBackup(String source, {bool cloud = false}) {
   try {
     if (utf8.encode(source).length > maxWorkspaceBackupBytes - 53) {
       throw const BackupFailure(BackupIssue.tooLarge);
     }
     final data = _backupJson(source) as Map<String, dynamic>;
-    if (data['version'] != 4) {
+    final version = data['version'];
+    if (version != 4 &&
+        !(cloud &&
+            version is int &&
+            cloudSnapshotReadableVersions.contains(version))) {
       throw const BackupFailure(BackupIssue.version);
     }
-    if (data.length != 5 ||
-        !data.keys.toSet().containsAll({
-          'version',
-          'createdAt',
-          'workspaceId',
-          'servers',
-          'documents',
-        })) {
+    final v5 = version == cloudSnapshotVersion;
+    final keys = v5
+        ? cloudSnapshotKeys
+        : const {'version', 'createdAt', 'workspaceId', 'servers', 'documents'};
+    if (data.length != keys.length || !data.keys.toSet().containsAll(keys)) {
       throw const FormatException();
     }
+    if (v5) _checkCloudAuthor(data['author']);
     final workspaceId = data['workspaceId'] as String;
     if (!RegExp(r'^[a-f0-9]{32}$').hasMatch(workspaceId)) {
       throw const FormatException();
@@ -449,7 +492,9 @@ _BackupSnapshot _validateBackup(String source) {
     for (final table in ['servers', 'documents']) {
       final ids = <String>{};
       final records = data[table] as List;
-      if (records.length > 100000) throw const FormatException();
+      if (records.length > cloudSnapshotMaxRecords) {
+        throw const FormatException();
+      }
       for (final dynamic row in records) {
         final record = row as Map<String, dynamic>;
         if (record.length != (table == 'servers' ? 4 : 3)) {
@@ -466,6 +511,7 @@ _BackupSnapshot _validateBackup(String source) {
             revision > 9007199254740991) {
           throw const FormatException();
         }
+        if (v5) _checkCloudRecord(table, id, source);
         if (table == 'servers') {
           if (record['updatedAt'] is! int ||
               utf8.encode(source).length > 256 * 1024) {
@@ -519,6 +565,7 @@ _BackupSnapshot _validateBackup(String source) {
         servers: (data['servers'] as List).length,
         users: users,
       ),
+      _intentDigest(data),
     );
   } on BackupFailure {
     rethrow;

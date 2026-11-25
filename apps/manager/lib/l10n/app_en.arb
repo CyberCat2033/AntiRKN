@@ -984,6 +984,7 @@
   "autoSyncError": "The exchange did not finish. Your data is saved on this device. The next attempt happens when the app enters the background or on the next launch.",
   "autoSyncRetrying": "No connection to Google Drive. Your data is saved on this device; the app will retry automatically.",
   "autoSyncRemoteNewer": "Google Drive has a newer version. It loads on the next app launch; nothing was uploaded from this device.",
+  "autoSyncUpdateRequired": "The data in Google Drive was saved by a newer version of AntiRKN. Update the app on this device. Until then nothing is downloaded from or sent to Google Drive; the data on this device is unchanged.",
   "autoSyncNow": "Sync now",
   "autoSyncLast": "Last exchange: {time}",
   "autoSyncPairing": "Sign in to the same Google account on your devices. A device without unsent changes loads the newer snapshot at launch; changes upload when the app closes or enters the background. Do not edit on two devices at once.",

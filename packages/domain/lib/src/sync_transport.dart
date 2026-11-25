@@ -15,6 +15,10 @@ enum SyncTransportIssue {
   changed,
   storage,
   cancelled,
+
+  /// The cloud snapshot was written by a newer app version: this device
+  /// leaves it untouched until the app is updated.
+  unsupportedVersion,
 }
 
 final class SyncTransportFailure implements Exception {

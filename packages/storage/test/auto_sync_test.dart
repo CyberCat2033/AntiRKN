@@ -7,107 +7,30 @@ import 'package:antirkn_storage/antirkn_storage.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart';
+import 'fixtures/fake_snapshot_remote.dart';
 import 'fixtures/journal_data.dart';
 
-final class _Tokens implements SyncAccessTokenProvider {
-  @override
-  String get accountKey => 'snapshot-test-account';
-  @override
-  Future<String> accessToken() async => 'fixture';
-}
+typedef _Remote = FakeSnapshotRemote;
+typedef _Tokens = FakeSnapshotTokens;
 
-final class _Remote implements SyncRemoteStore, SyncSnapshotStore {
-  @override
-  String get accountKey => 'snapshot-test-account';
-  Uint8List? snapshot, key;
-  int version = 0, writes = 0;
-  bool unavailable = false, loseResponse = false;
-
-  /// Store calls in order. Drive cost: a key read is a list plus a download.
-  final calls = <String>[];
-  int get requests =>
-      calls.fold(0, (sum, call) => sum + (call == 'readSnapshotKey' ? 2 : 1));
-
-  /// Runs inside the next write, before Drive applies it (a racing device).
-  Future<void> Function()? beforeWrite;
-
-  /// Another device's key created at the same moment as ours, and winning.
-  Uint8List? racingKey;
-
-  /// Holds snapshot downloads, as on a stalled mobile link.
-  Completer<void>? holdRead;
-
-  @override
-  Future<SyncRemoteFile?> findSnapshot() async {
-    calls.add('findSnapshot');
-    return _current();
-  }
-
-  SyncRemoteFile? _current() => snapshot == null
-      ? null
-      : SyncRemoteFile(
-          id: 'snapshot-id',
-          name: syncSnapshotName,
-          size: snapshot!.length,
-          version: '$version',
-          packet: false,
-          etag: 'etag-$version',
-        );
-
-  @override
-  Future<Uint8List> readSnapshot(String fileId) async {
-    calls.add('readSnapshot');
-    await holdRead?.future;
-    return Uint8List.fromList(snapshot!);
-  }
-
-  /// Conditional like Drive v2 If-Match: a stale expectation writes nothing.
-  @override
-  Future<SyncRemoteFile> writeSnapshot(
-    SyncRemoteFile? expected,
-    Uint8List bytes,
-  ) async {
-    calls.add('writeSnapshot');
-    final race = beforeWrite;
-    beforeWrite = null;
-    if (race != null) await race();
-    if (unavailable) {
-      throw const SyncTransportFailure(SyncTransportIssue.network);
-    }
-    if (expected != null && snapshot == null) {
-      throw const SyncTransportFailure(SyncTransportIssue.notFound);
-    }
-    if (expected == null
-        ? snapshot != null
-        : expected.etag != 'etag-$version') {
-      throw const SyncTransportFailure(SyncTransportIssue.conflict);
-    }
-    snapshot = Uint8List.fromList(bytes);
-    version++;
-    writes++;
-    if (loseResponse) {
-      loseResponse = false;
-      throw const SyncTransportFailure(SyncTransportIssue.network);
-    }
-    return _current()!;
-  }
-
-  @override
-  Future<Uint8List?> readSnapshotKey() async {
-    calls.add('readSnapshotKey');
-    return key == null ? null : Uint8List.fromList(key!);
-  }
-
-  /// A key created by another device first wins and is returned instead.
-  @override
-  Future<Uint8List> createSnapshotKey(Uint8List bytes) async {
-    calls.add('createSnapshotKey');
-    key ??= racingKey ?? Uint8List.fromList(bytes);
-    return Uint8List.fromList(key!);
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+/// What the cloud snapshot v5 carries of a VPN document: no observations or
+/// compiled profiles (schemas/cloud-snapshot-v5.json). Compared canonically.
+String _vpnIntent(String source) {
+  final vpn = jsonDecode(source) as Map<String, dynamic>;
+  Map<String, dynamic> record(Object? value) =>
+      Map<String, dynamic>.of(value as Map<String, dynamic>)..removeWhere(
+        (key, _) =>
+            const {'observed', 'verifiedAt', 'appliedPayload'}.contains(key),
+      );
+  return canonicalJson({
+    ...vpn,
+    'servers': {
+      for (final entry in (vpn['servers'] as Map).entries)
+        if (record(entry.value).isNotEmpty)
+          entry.key as String: record(entry.value),
+    },
+    'profiles': <String, Object?>{},
+  });
 }
 
 Future<AutoSyncResult> _upload(AutoSyncSession session, {bool retry = false}) =>
@@ -359,7 +282,11 @@ void main() {
         (await restored.listServers()).single.profile.secrets,
         fixtureServer().secrets,
       );
-      expect((await restored.readVpn()).source, fixtureCurrentVpnSource());
+      // A new device has the intent; its cache is read from the servers.
+      expect(
+        canonicalJson(jsonDecode((await restored.readVpn()).source!)),
+        _vpnIntent(fixtureCurrentVpnSource()),
+      );
       await restored.writeDraft('new state from second');
       await _upload(await session(restored));
       expect(await first.pullCurrentSnapshot(tokens, remote: remote), isTrue);
@@ -374,7 +301,12 @@ void main() {
         (await refreshed.listServers()).single.profile.secrets,
         fixtureServer().secrets,
       );
-      expect((await refreshed.readVpn()).source, fixtureCurrentVpnSource());
+      // These fixture records name no server identity: nothing proves the
+      // cache belongs to the same machine, so only the intent remains.
+      expect(
+        canonicalJson(jsonDecode((await refreshed.readVpn()).source!)),
+        _vpnIntent(fixtureCurrentVpnSource()),
+      );
     },
   );
 

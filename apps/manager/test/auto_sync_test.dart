@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:antirkn_domain/antirkn_domain.dart';
+import 'package:antirkn_manager/l10n/app_localizations.dart';
 import 'package:antirkn_manager/sync/auto_sync_controller.dart';
+import 'package:antirkn_manager/sync/google_account_panel.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'google_account_test.dart' show AccountService;
 
@@ -308,6 +310,11 @@ void main() {
       const SyncTransportFailure(SyncTransportIssue.unauthorized),
       AutoSyncPhase.error,
     ),
+    (
+      'a newer cloud format',
+      const SyncTransportFailure(SyncTransportIssue.unsupportedVersion),
+      AutoSyncPhase.error,
+    ),
   ]) {
     testWidgets('$name is not retried automatically', (tester) async {
       final (controller, session) = await started(tester);
@@ -340,6 +347,21 @@ void main() {
     expect(controller.transportError, isNull);
     await tester.pump(const Duration(minutes: 10));
     expect(session.modes, [true, false]);
+    await tester.runAsync(controller.stop);
+    controller.dispose();
+  });
+
+  testWidgets('a newer cloud format asks to update the app', (tester) async {
+    final (controller, session) = await started(tester);
+    session.failures.add(
+      const SyncTransportFailure(SyncTransportIssue.unsupportedVersion),
+    );
+    controller.foreground(false);
+    await tester.pump(Duration.zero);
+    for (final locale in AppLocalizations.supportedLocales) {
+      final l = lookupAppLocalizations(locale);
+      expect(syncStatusLabel(l, controller), l.autoSyncUpdateRequired);
+    }
     await tester.runAsync(controller.stop);
     controller.dispose();
   });

@@ -8,10 +8,13 @@ import 'dart:typed_data';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_sync/antirkn_sync.dart';
 import 'package:cryptography/cryptography.dart';
+import 'package:cryptography/dart.dart' show DartSha256;
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqlite3/sqlite3.dart';
 
+import 'cloud_snapshot_contract.g.dart';
 import 'profile_codec.dart';
 import 'backup_envelope.dart';
 import 'backup_file_store.dart';
@@ -21,6 +24,7 @@ import 'package:antirkn_integrations/antirkn_integrations.dart';
 
 part 'workspace_journal.dart';
 part 'workspace_backup.dart';
+part 'workspace_cloud_snapshot.dart';
 part 'workspace_sync.dart';
 part 'workspace_merge.dart';
 part 'workspace_auto_sync.dart';
@@ -1326,7 +1330,7 @@ final class WorkspaceDatabase
 
   Future<_CapturedSnapshot> _captureSnapshot() => _dbWorker != null
       ? _remoteCall('captureSnapshot')
-      : _currentSnapshot(this);
+      : _currentSnapshot(this, cloud: true);
 
   Future<void> _compactHistory() => _dbWorker != null
       ? _remoteCall('compactHistory')

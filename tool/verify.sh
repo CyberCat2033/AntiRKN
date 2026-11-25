@@ -7,6 +7,7 @@ python3 tool/generate_changes.py --check
 python3 tool/generate_sync.py --check
 python3 tool/generate_vless.py --check
 python3 tool/generate_runner.py --check
+python3 tool/generate_snapshot.py --check
 python3 -m unittest discover -s tests/runner -v
 python3 -m unittest discover -s tests/tools -v
 (

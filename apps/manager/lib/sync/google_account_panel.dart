@@ -272,6 +272,9 @@ String syncStatusLabel(AppLocalizations l, AutoSyncController sync) {
       sync.transportError == SyncTransportIssue.forbidden) {
     return l.googleDenied;
   }
+  if (sync.transportError == SyncTransportIssue.unsupportedVersion) {
+    return l.autoSyncUpdateRequired;
+  }
   return switch (sync.phase) {
     AutoSyncPhase.disconnected => l.googleAccountHelp,
     AutoSyncPhase.disabled => l.autoSyncDisabled,

@@ -2536,6 +2536,10 @@ class AppLocalizationsRu extends AppLocalizations {
       'В Google Drive есть более новая версия. Она загрузится при следующем запуске приложения; с этого устройства ничего не отправлялось.';
 
   @override
+  String get autoSyncUpdateRequired =>
+      'Данные в Google Drive сохранены более новой версией AntiRKN. Обновите приложение на этом устройстве. До обновления с Google Drive ничего не загружается и туда ничего не отправляется; данные на этом устройстве не изменены.';
+
+  @override
   String get autoSyncNow => 'Синхронизировать сейчас';
 
   @override
