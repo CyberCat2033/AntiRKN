@@ -309,5 +309,44 @@ class RawBinaryNameTests(unittest.TestCase):
             self.assertEqual((root / 'staging' / 'xray-linux-amd64').read_bytes(), archive.read_bytes())
 
 
+
+class ProbeBinaryTests(unittest.TestCase):
+    def test_arm64_panel_gets_its_own_core_and_amd64_stays_first_on_x86(self):
+        import upgrade_probe
+        with tempfile.TemporaryDirectory() as tmp:
+            amd, arm = Path(tmp) / 'xray-linux-amd64', Path(tmp) / 'xray-linux-arm64'
+            with patch.object(upgrade_probe, 'XRAY_BINARIES', (amd, arm)):
+                arm.write_bytes(b'core')
+                for machine in ('aarch64', 'x86_64'):
+                    with patch('upgrade_probe.platform.machine', return_value=machine):
+                        self.assertEqual(upgrade_probe.xray_binary(), arm)
+                amd.write_bytes(b'core')
+                with patch('upgrade_probe.platform.machine', return_value='x86_64'):
+                    self.assertEqual(upgrade_probe.xray_binary(), amd)
+                with patch('upgrade_probe.platform.machine', return_value='aarch64'):
+                    self.assertEqual(upgrade_probe.xray_binary(), arm)
+                target = dict(port=1, user=dict(id='u'), stream={})
+                with patch('upgrade_probe.platform.machine', return_value='aarch64'), \
+                     patch.object(upgrade_probe, 'vless_targets', return_value={'vless:1': target}), \
+                     patch.object(upgrade_probe, '_wait_port'), \
+                     patch.object(upgrade_probe.subprocess, 'Popen', side_effect=OSError('stop')) as popen:
+                    try:
+                        upgrade_probe.probe_vless()
+                    except OSError:
+                        pass
+                self.assertEqual(popen.call_args.args[0][0], str(arm))
+
+    def test_awg_from_the_distribution_package_is_probed(self):
+        import upgrade_probe
+        with tempfile.TemporaryDirectory() as tmp:
+            local, system = Path(tmp) / 'local-awg', Path(tmp) / 'usr-bin-awg'
+            system.write_bytes(b'awg')
+            outputs = {('show', 'interfaces'): 'awg0\n', ('show', 'awg0', 'listen-port'): '51820\n'}
+            run = lambda argv, **kw: MagicMock(stdout=outputs[tuple(argv[1:])])
+            with patch.object(upgrade_probe, 'AWG_BINARIES', (local, system)), \
+                 patch('upgrade_probe.sysutil_run', side_effect=run) as calls:
+                self.assertEqual(upgrade_probe.probe_awg(), {'awg:awg0': True})
+            self.assertEqual({c.args[0][0] for c in calls.call_args_list}, {str(system)})
+
 if __name__ == '__main__':
     unittest.main()
