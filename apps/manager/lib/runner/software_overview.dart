@@ -265,7 +265,7 @@ class SoftwareOverview extends StatelessWidget {
               ),
             ),
           if (changes.isNotEmpty)
-            Text('${l.softwareUpdateAvailable}: ${changes.join(', ')}'),
+            Text(l.softwareUpdateAvailableList(changes.join(', '))),
           if (updatable.keys.any((k) => k != 'xray') && !canUpdate)
             Text(
               isPanel
@@ -409,20 +409,6 @@ class AptMaintenanceView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (!c.choosingAptUpdate && c.aptPlan == null) ...[
-            Text(l.uiSystemUpdateHelp),
-            const SizedBox(height: AppLayout.smallGap),
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: FilledButton.tonal(
-                key: const ValueKey('system-update'),
-                onPressed: c.canRequestAction
-                    ? () => c.requestAction(c.updateSystem)
-                    : null,
-                child: Text(l.uiSystemUpdate),
-              ),
-            ),
-          ],
           if (c.choosingAptUpdate || packages != null) ...[
             Text(c.choosingAptUpdate ? l.aptUpdatePlan : l.aptUpgradePlan),
             if (packages != null) ...[

@@ -8,13 +8,11 @@ import 'template_controller.dart';
 class TemplateSettings extends StatelessWidget {
   const TemplateSettings({
     required this.controller,
-    this.showTitle = true,
     this.emptyMessage,
     super.key,
   });
 
   final TemplateController controller;
-  final bool showTitle;
   final String? emptyMessage;
 
   @override
@@ -23,7 +21,7 @@ class TemplateSettings extends StatelessWidget {
     builder: (context, _) {
       final l = AppLocalizations.of(context);
       final hasSource = controller.source.trim().isNotEmpty;
-      final content = Column(
+      return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           ListTile(
@@ -77,9 +75,6 @@ class TemplateSettings extends StatelessWidget {
               AppNotice(message: l.diagnostic(d.code), error: true),
         ],
       );
-      return showTitle
-          ? AppSettingsSection(title: l.uiClientProfiles, child: content)
-          : content;
     },
   );
 }

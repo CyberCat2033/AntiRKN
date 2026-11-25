@@ -2594,6 +2594,24 @@ class VpnController extends ChangeNotifier {
     if (loaded) await _profiles();
   });
 
+  /// Clients with access on [serverId]: every enabled client gets each
+  /// client-facing protocol, so a server without one serves nobody (UI-75).
+  int clientCountOn(String serverId) {
+    final w = workspace;
+    final serves =
+        w.inbounds.any(
+          (r) =>
+              r.serverId == serverId && r.enabled && !r.deleted && !r.internal,
+        ) ||
+        w.awgInterfaces.any(
+          (r) => r.serverId == serverId && r.enabled && !r.deleted,
+        ) ||
+        w.ttEndpoints.any(
+          (r) => r.serverId == serverId && r.enabled && !r.deleted,
+        );
+    return serves ? w.users.where((u) => !u.deleted && u.enabled).length : 0;
+  }
+
   /// Re-reads every active access resource before rebuilding [userId]'s
   /// profile. This is intentionally read-only: it never submits a new access
   /// plan from a profile/share action.

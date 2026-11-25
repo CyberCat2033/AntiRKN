@@ -23,7 +23,6 @@ class AutoSyncController extends ChangeNotifier {
     required this.openSession,
     required this.changes,
     required this.apply,
-    this.interval = const Duration(seconds: 30),
     this.debounce = const Duration(seconds: 1),
   }) {
     ready = _initialize();
@@ -33,7 +32,7 @@ class AutoSyncController extends ChangeNotifier {
   final Future<AutoSyncSession> Function() openSession;
   final Stream<void> changes;
   SyncApplyGate apply;
-  final Duration interval, debounce;
+  final Duration debounce;
   late final Future<void> ready;
   GoogleDriveAccount? account;
   bool enabled = true;

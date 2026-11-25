@@ -23,6 +23,7 @@ class ProfileLinkQr extends StatefulWidget {
 
 class _ProfileLinkQrState extends State<ProfileLinkQr> {
   bool copying = false;
+  bool focused = false;
   String? error;
   late String _cachedLink;
 
@@ -77,6 +78,7 @@ class _ProfileLinkQrState extends State<ProfileLinkQr> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    final scheme = Theme.of(context).colorScheme;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -89,32 +91,58 @@ class _ProfileLinkQrState extends State<ProfileLinkQr> {
                 button: true,
                 enabled: !copying,
                 label: l.publicationCopyLink,
+                // The Semantics above names the button once; the tooltip
+                // stays visual only (UI-73).
                 child: Tooltip(
                   message: l.publicationCopyLink,
-                  child: Material(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    clipBehavior: Clip.antiAlias,
-                    child: InkWell(
+                  excludeFromSemantics: true,
+                  // A keyboard focus ring on the card's edge, clear of the QR
+                  // modules: a theme overlay alone is faint on white (UI-73).
+                  child: DecoratedBox(
+                    position: DecorationPosition.foreground,
+                    decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16),
-                      key: const ValueKey('profile-link-qr'),
-                      onTap: copying ? null : copy,
-                      child: Padding(
-                        padding: const EdgeInsets.all(AppLayout.gap),
-                        child: ExcludeSemantics(
-                          child: RepaintBoundary(
-                            child: QrImageView(
-                              data: _cachedLink,
-                              padding: const EdgeInsets.all(16),
-                              backgroundColor: Colors.white,
-                              errorCorrectionLevel: QrErrorCorrectLevel.M,
-                              eyeStyle: const QrEyeStyle(
-                                eyeShape: QrEyeShape.square,
-                                color: Colors.black,
-                              ),
-                              dataModuleStyle: const QrDataModuleStyle(
-                                dataModuleShape: QrDataModuleShape.square,
-                                color: Colors.black,
+                      border: focused
+                          ? Border.all(color: scheme.primary, width: 3)
+                          : null,
+                    ),
+                    child: Material(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        key: const ValueKey('profile-link-qr'),
+                        onTap: copying ? null : copy,
+                        onFocusChange: (value) =>
+                            setState(() => focused = value),
+                        // The scrim role is dark in both themes, so hover and
+                        // press stay visible on the white background.
+                        overlayColor: WidgetStateProperty.resolveWith(
+                          (states) => states.contains(WidgetState.pressed)
+                              ? scheme.scrim.withValues(alpha: .12)
+                              : states.contains(WidgetState.hovered) ||
+                                    states.contains(WidgetState.focused)
+                              ? scheme.scrim.withValues(alpha: .08)
+                              : null,
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(AppLayout.gap),
+                          child: ExcludeSemantics(
+                            child: RepaintBoundary(
+                              child: QrImageView(
+                                data: _cachedLink,
+                                padding: const EdgeInsets.all(16),
+                                backgroundColor: Colors.white,
+                                errorCorrectionLevel: QrErrorCorrectLevel.M,
+                                eyeStyle: const QrEyeStyle(
+                                  eyeShape: QrEyeShape.square,
+                                  color: Colors.black,
+                                ),
+                                dataModuleStyle: const QrDataModuleStyle(
+                                  dataModuleShape: QrDataModuleShape.square,
+                                  color: Colors.black,
+                                ),
                               ),
                             ),
                           ),

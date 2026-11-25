@@ -1147,7 +1147,6 @@ class _ManagerShellState extends State<ManagerShell>
                                       children: [
                                         TemplateSettings(
                                           controller: _controller,
-                                          showTitle: false,
                                         ),
                                         if (_publications != null) ...[
                                           const Divider(

@@ -4092,4 +4092,37 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get inboundDeleteReadFailed =>
       'The selected inbounds could not be read on the server. Nothing was deleted; try again after refreshing the list.';
+
+  @override
+  String egressCheckedAt(Object date, Object ms) {
+    return 'TCP and UDP checked · $ms ms · $date';
+  }
+
+  @override
+  String get egressInbound => 'VLESS inbound';
+
+  @override
+  String softwareUpdateAvailableList(Object items) {
+    return 'Update available: $items';
+  }
+
+  @override
+  String inventoryPartialList(Object items) {
+    return 'Some checks were incomplete: $items';
+  }
+
+  @override
+  String inventoryVersionUnknownReason(Object reason) {
+    return 'Version unknown: $reason';
+  }
+
+  @override
+  String xrayUpgradeProblemAfter(Object reason) {
+    return '$reason The check did not finish. Review the connection results and retry when connectivity is restored.';
+  }
+
+  @override
+  String uiClientAccessFor(Object name) {
+    return 'Access for $name';
+  }
 }

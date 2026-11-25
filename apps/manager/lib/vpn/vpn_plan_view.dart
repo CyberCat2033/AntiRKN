@@ -1,12 +1,10 @@
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
+import '../app_strings.dart';
 import '../runner/runner_panel.dart';
 import 'vpn_controller.dart';
 import 'vpn_strings.dart';
-
-String inboundSummary(Map s) =>
-    '${s['name']} · VLESS ${s['transport']} / ${s['security']}\n${s['listen']}:${s['port']} → ${s['endpoint']}:${s['externalPort']}\nSNI: ${s['sni']}${s['security'] == 'reality' ? ' · target: ${s['target']}' : ''}${s['transport'] == 'xhttp' ? '\n${s['path']} · ${s['mode']} · Host: ${s['host']}' : ''}';
 
 class VpnPlanView extends StatelessWidget {
   const VpnPlanView({
@@ -185,7 +183,10 @@ class VpnJobView extends StatelessWidget {
                 children: [
                   Align(
                     alignment: AlignmentDirectional.centerStart,
-                    child: Text('${DateTime.tryParse(at)?.toLocal() ?? at}'),
+                    child: Text(switch (DateTime.tryParse(at)) {
+                      final parsed? => l.formatDateTime(parsed),
+                      null => at,
+                    }),
                   ),
                   if (job?.status == 'succeeded')
                     Text(runnerStateLabel(l, job!.status)),

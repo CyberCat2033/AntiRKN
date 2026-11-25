@@ -120,7 +120,7 @@ class SettingsHubState extends State<SettingsHub> {
                 else
                   const SizedBox(width: 20),
                 Expanded(
-                  child: AppAnimatedTitle(
+                  child: AppPageTitle(
                     selected == 0
                         ? l.settings
                         : widget.destinations[selected - 1].title,

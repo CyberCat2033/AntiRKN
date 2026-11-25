@@ -91,7 +91,7 @@ mixin TtPlannedState<T extends StatefulWidget> on State<T> {
   List<Widget> actions(AppLocalizations l) => [
     TextButton(
       onPressed: busy ? null : () => Navigator.pop(context),
-      child: Text(l.runnerNotNow),
+      child: Text(l.sshCancel),
     ),
     if (preview != null)
       TextButton(onPressed: busy ? null : changed, child: Text(l.vpnEdit)),

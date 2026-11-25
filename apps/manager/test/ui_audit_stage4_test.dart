@@ -356,8 +356,9 @@ void main() {
       expect(delete, findsOneWidget);
       await tester.tap(delete);
       await tester.pumpAndSettle();
-      // Cancelling the confirmation keeps the form and deletes nothing.
-      await tester.tap(find.text('Cancel'));
+      // Cancelling the confirmation keeps the form and deletes nothing. The
+      // form's own action is also "Cancel" (UI-72); the confirmation is on top.
+      await tester.tap(find.text('Cancel').last);
       await tester.pumpAndSettle();
       expect(closed, isFalse);
       expect(find.byType(InboundForm), findsOneWidget);

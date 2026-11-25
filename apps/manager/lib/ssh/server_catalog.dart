@@ -231,9 +231,7 @@ class _ServerCatalogState extends State<ServerCatalog> {
         diagnostics: widget.diagnostics,
         motion: widget.motion,
         onBack: onBack ?? c.showList,
-        clientCount:
-            vpn?.workspace.users.where((u) => !u.deleted && u.enabled).length ??
-            0,
+        clientCount: vpn?.clientCountOn(c.selectedId!) ?? 0,
         plans: vpn == null
             ? null
             : VpnPlanView(controller: vpn, serverName: serverName),

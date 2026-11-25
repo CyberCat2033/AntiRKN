@@ -3,6 +3,7 @@ import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
+import '../app_strings.dart';
 import '../network/network_controller.dart';
 import '../runner/runner_controller.dart';
 import 'tt_dialog.dart';
@@ -61,7 +62,7 @@ class TtCertificates extends StatelessWidget {
                       ),
               ),
               subtitle: Text(
-                '${l.ttExpiry}: ${DateTime.fromMillisecondsSinceEpoch(((c['expiresAt'] as num) * 1000).toInt()).toLocal()}\n${c['mode'] == 'acme'
+                '${l.ttExpiry}: ${l.formatEpochSeconds(c['expiresAt'] as num)}\n${c['mode'] == 'acme'
                     ? l.ttRenewAcme
                     : c['mode'] == 'import'
                     ? l.ttRenewImport
@@ -69,13 +70,9 @@ class TtCertificates extends StatelessWidget {
               ),
             ),
             if (c['lastSuccess'] case final num at)
-              Text(
-                '${l.ttLastSuccess}: ${DateTime.fromMillisecondsSinceEpoch((at * 1000).toInt()).toLocal()}',
-              ),
+              Text('${l.ttLastSuccess}: ${l.formatEpochSeconds(at)}'),
             if (c['nextCheck'] case final num at)
-              Text(
-                '${l.ttNextCheck}: ${DateTime.fromMillisecondsSinceEpoch((at * 1000).toInt()).toLocal()}',
-              ),
+              Text('${l.ttNextCheck}: ${l.formatEpochSeconds(at)}'),
             if ([
                   if (c['error'] case final String error) vpnMessage(l, error),
                   if ((c['expiresAt'] as num) <

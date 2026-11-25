@@ -140,21 +140,11 @@ class UsersPage extends StatefulWidget {
     if (controller.error == null &&
         accessChanged &&
         controller.workspace.serverIds.isNotEmpty) {
-      final serverTimer = Stopwatch()..start();
       unawaited(() async {
         try {
           await controller.prepareAndApply(background: true);
-          debugPrint(
-            'client_save_timing phase=servers ms=${serverTimer.elapsedMilliseconds} '
-            'targets=${controller.workspace.serverIds.length} '
-            'ok=${controller.serverSyncIssue == null}',
-          );
           if (customTarget != null && publications != null) {
-            final driveTimer = Stopwatch()..start();
             await publications.publishUser(nextUser.id, force: true);
-            debugPrint(
-              'client_save_timing phase=drive ms=${driveTimer.elapsedMilliseconds}',
-            );
           }
         } catch (e) {
           debugPrint('client_save_background_failed type=${e.runtimeType}');
@@ -272,13 +262,8 @@ class _UsersPageState extends State<UsersPage> {
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final serverTimer = Stopwatch()..start();
       final serverSync = await controller.syncAllServersAndProfiles(
         allowVerifiedSnapshot: !force,
-      );
-      debugPrint(
-        'publication_timing phase=server_check ms=${serverTimer.elapsedMilliseconds} '
-        'saved=${serverSync.usedSavedVerification} ok=${serverSync.verified}',
       );
       if (!serverSync.verified) {
         if (mounted) {
@@ -290,15 +275,7 @@ class _UsersPageState extends State<UsersPage> {
       }
       PublicationBatchResult? batchResult;
       if (publications != null) {
-        final driveTimer = Stopwatch()..start();
         batchResult = await publications!.forcePublishAll(force: force);
-        debugPrint(
-          'publication_timing phase=drive ms=${driveTimer.elapsedMilliseconds} '
-          'total=${batchResult.total} failed=${batchResult.failed}',
-        );
-      }
-      if (mounted && batchResult != null && batchResult.total > 0) {
-        await Future<void>.delayed(const Duration(milliseconds: 600));
       }
       if (mounted) {
         final activeUsers = controller.workspace.users
@@ -914,31 +891,35 @@ class UserTile extends StatelessWidget {
       children: [
         AppDisabledReason(
           reason: reason,
-          child: Switch(
-            key: ValueKey('client-toggle-${user.id}'),
-            value: user.enabled,
-            onChanged: !c.canMutate || activeSync
-                ? null
-                : (val) async {
-                    final next = user.copyWith(enabled: val);
-                    await c.saveUser(next);
-                    if (c.error case final code?) {
-                      // The switch snaps back to the stored value; say why.
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              vpnMessage(AppLocalizations.of(context), code),
+          // The switch names its client for screen readers (UI-73).
+          child: Semantics(
+            label: AppLocalizations.of(context).uiClientAccessFor(user.name),
+            child: Switch(
+              key: ValueKey('client-toggle-${user.id}'),
+              value: user.enabled,
+              onChanged: !c.canMutate || activeSync
+                  ? null
+                  : (val) async {
+                      final next = user.copyWith(enabled: val);
+                      await c.saveUser(next);
+                      if (c.error case final code?) {
+                        // The switch snaps back to the stored value; say why.
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                vpnMessage(AppLocalizations.of(context), code),
+                              ),
                             ),
-                          ),
-                        );
+                          );
+                        }
+                        return;
                       }
-                      return;
-                    }
-                    if (c.workspace.serverIds.isNotEmpty) {
-                      unawaited(c.prepareAndApply(background: true));
-                    }
-                  },
+                      if (c.workspace.serverIds.isNotEmpty) {
+                        unawaited(c.prepareAndApply(background: true));
+                      }
+                    },
+            ),
           ),
         ),
         _buildTrailingAction(context, c, activeSync: activeSync),
@@ -1214,7 +1195,6 @@ class _UserFormState extends State<_UserForm> {
               if (individualTemplate)
                 TemplateSettings(
                   controller: template,
-                  showTitle: false,
                   emptyMessage: l.vpnIndividualTemplateRequired,
                 ),
               if (widget.user == null &&
@@ -1354,7 +1334,7 @@ class _UserFormState extends State<_UserForm> {
         actions: [
           TextButton(
             onPressed: saving ? null : () => Navigator.pop(context),
-            child: Text(l.runnerNotNow),
+            child: Text(l.sshCancel),
           ),
           FilledButton(
             key: const ValueKey('vpn-user-save'),

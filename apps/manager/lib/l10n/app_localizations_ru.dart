@@ -4099,4 +4099,37 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get inboundDeleteReadFailed =>
       'Не удалось прочитать выбранные inbounds на сервере. Ничего не удалено; повторите после обновления списка.';
+
+  @override
+  String egressCheckedAt(Object date, Object ms) {
+    return 'TCP и UDP проверены · $ms мс · $date';
+  }
+
+  @override
+  String get egressInbound => 'VLESS inbound';
+
+  @override
+  String softwareUpdateAvailableList(Object items) {
+    return 'Доступно обновление: $items';
+  }
+
+  @override
+  String inventoryPartialList(Object items) {
+    return 'Часть проверок не выполнена: $items';
+  }
+
+  @override
+  String inventoryVersionUnknownReason(Object reason) {
+    return 'Версия неизвестна: $reason';
+  }
+
+  @override
+  String xrayUpgradeProblemAfter(Object reason) {
+    return '$reason Проверка не завершена. Посмотрите результаты подключений и повторите после восстановления связи.';
+  }
+
+  @override
+  String uiClientAccessFor(Object name) {
+    return 'Доступ для $name';
+  }
 }

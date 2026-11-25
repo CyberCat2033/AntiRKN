@@ -571,7 +571,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                     onPressed: widget.onBack,
                     icon: const Icon(Icons.arrow_back),
                   ),
-                  Expanded(child: AppAnimatedTitle(c.displayName)),
+                  Expanded(child: AppPageTitle(c.displayName)),
                 ],
               ),
             ),
@@ -669,7 +669,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                             },
                       icon: const Icon(Icons.arrow_back),
                     ),
-                    Expanded(child: AppAnimatedTitle(titles[index])),
+                    Expanded(child: AppPageTitle(titles[index])),
                     if (index >= 5 &&
                         widget.sections[index - 5].selection != null &&
                         !widget.sections[index - 5].selection!.active)

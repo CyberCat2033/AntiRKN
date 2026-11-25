@@ -165,13 +165,11 @@ class AwgPanel extends StatelessWidget {
                           )
                         ? l.vpnConflict
                         : null,
-                    detailsLabel: l.componentsDetails,
                     actions: IconButton(
                       tooltip: busyReason(l, vpn: c) ?? l.vpnEdit,
                       onPressed: !c.canMutate ? null : () => edit(context, r),
                       icon: const Icon(Icons.edit_outlined),
                     ),
-                    details: const [],
                   ),
                 ),
               VpnJobView(showSnapshot: false, controller: c, serverId: target),
@@ -356,7 +354,7 @@ class _AwgFormState extends State<AwgForm> {
           ),
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text(l.runnerNotNow),
+          child: Text(l.sshCancel),
         ),
         FilledButton(
           key: const ValueKey('awg-save'),

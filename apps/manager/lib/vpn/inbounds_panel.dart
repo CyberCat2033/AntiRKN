@@ -583,8 +583,6 @@ class InboundsPanelState extends State<InboundsPanel> {
                           badge: l.vpnEnabled,
                           switchValue: entry.row['enabled'] == true,
                           note: l.vpnObserved,
-                          detailsLabel: l.componentsDetails,
-                          details: const [],
                           badgeBusy: _busyExternalKeys.contains(
                             externalId(entry.panel, entry.row),
                           ),
@@ -717,8 +715,6 @@ class InboundsPanelState extends State<InboundsPanel> {
                           '${r.spec['transport'].toString().toUpperCase()} · ${r.spec['security'].toString().toUpperCase()}',
                       badge: l.vpnDisabled,
                       note: l.vpnPendingDeletion,
-                      detailsLabel: l.componentsDetails,
-                      details: const [],
                     ),
                   ),
                 for (final r in inbounds)
@@ -765,8 +761,6 @@ class InboundsPanelState extends State<InboundsPanel> {
                               : r.internal
                               ? l.vpnInternal
                               : l.vpnClientAccess,
-                          detailsLabel: l.componentsDetails,
-                          details: const [],
                           badgeBusy: _busyInboundIds.contains(r.id),
                           onBadgeTap:
                               _busyInboundIds.contains(r.id) || !c.canMutate
@@ -816,11 +810,10 @@ class InboundsPanelState extends State<InboundsPanel> {
                                 tooltip: r.internal
                                     ? l.vpnInternal
                                     : l.vpnClientAccess,
-                                icon: Icon(
-                                  r.internal
-                                      ? Icons.lock_outline
-                                      : Icons.people_outline,
-                                ),
+                                // A toggle: "internal" is its on state (UI-73).
+                                isSelected: r.internal,
+                                icon: const Icon(Icons.people_outline),
+                                selectedIcon: const Icon(Icons.lock_outline),
                                 onPressed: !c.canMutate
                                     ? null
                                     : () async {
@@ -1237,7 +1230,7 @@ class _InboundFormState extends State<InboundForm> {
           ),
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text(l.runnerNotNow),
+          child: Text(l.sshCancel),
         ),
         FilledButton(
           key: const ValueKey('vpn-inbound-save'),

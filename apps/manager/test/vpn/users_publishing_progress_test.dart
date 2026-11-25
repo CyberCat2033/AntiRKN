@@ -250,7 +250,7 @@ void main() {
     expect(find.byIcon(Icons.qr_code_2), findsNWidgets(2));
   });
 
-  test('PublicationController tracks real publication progress and auto-clears after 600ms', () async {
+  test('PublicationController tracks real publication progress and clears it when the run ends', () async {
     final account = p.Account()..publicationAuthorized = true;
     final repo = p.Repository();
     final remote = p.Remote();
@@ -354,16 +354,10 @@ void main() {
     expect(recordedTotals, contains(2));
     expect(recordedCompleted, contains(1));
 
-    // Right after completion, completed status is retained for the 600ms grace period
-    expect(c.hasActiveSync, isTrue);
-    expect(c.completedUserIds, containsAll([f.alice, f.bob]));
-    expect(c.inFlightUserIds, isEmpty);
-    expect(c.failedUserIds, isEmpty);
-    expect(c.activeSyncTotal, 2);
-    expect(c.activeSyncCompleted, 2);
+    expect(recordedCompleted, contains(2));
 
-    // After 650ms, the internal timer fires and cleanly resets progress
-    await Future<void>.delayed(const Duration(milliseconds: 650));
+    // The batch result carries the outcome: progress clears as soon as the
+    // run ends, without an artificial 600 ms pause (UI-74).
     expect(c.hasActiveSync, isFalse);
     expect(c.activeSyncTotal, 0);
     expect(c.activeSyncCompleted, 0);
@@ -372,7 +366,7 @@ void main() {
     expect(c.failedUserIds, isEmpty);
   });
 
-  test('back-to-back publish cancels pending clearProgressTimer', () async {
+  test('back-to-back publishes each clear their progress when they end', () async {
     final account = p.Account()..publicationAuthorized = true;
     final repo = p.Repository();
     final remote = p.Remote();
@@ -448,20 +442,15 @@ void main() {
     remote.contents['registry-1'] = regBytes;
 
     await c.forcePublishAll(force: true);
-    expect(c.hasActiveSync, isTrue);
+    expect(c.hasActiveSync, isFalse);
 
-    // Starting a second publish immediately cancels pending timer
-    final secondFuture = c.forcePublishAll(force: true);
-    final result = await secondFuture;
+    final result = await c.forcePublishAll(force: true);
     expect(result.failed, 0);
-    expect(c.hasActiveSync, isTrue);
-
-    await Future<void>.delayed(const Duration(milliseconds: 650));
     expect(c.hasActiveSync, isFalse);
     expect(c.activeSyncTotal, 0);
   });
 
-  test('dispose() cleans up pending clearProgressTimer', () async {
+  test('dispose() after a finished publish leaves no progress', () async {
     final account = p.Account()..publicationAuthorized = true;
     final repo = p.Repository();
     final remote = p.Remote();
@@ -536,9 +525,8 @@ void main() {
     remote.contents['registry-1'] = regBytes;
 
     await c.forcePublishAll(force: true);
-    expect(c.hasActiveSync, isTrue);
+    expect(c.hasActiveSync, isFalse);
 
-    // Dispose while timer is active
     c.dispose();
     expect(c.hasActiveSync, isFalse);
     expect(c.activeSyncTotal, 0);

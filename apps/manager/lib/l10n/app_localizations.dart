@@ -7195,6 +7195,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The selected inbounds could not be read on the server. Nothing was deleted; try again after refreshing the list.'**
   String get inboundDeleteReadFailed;
+
+  /// No description provided for @egressCheckedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'TCP and UDP checked · {ms} ms · {date}'**
+  String egressCheckedAt(Object date, Object ms);
+
+  /// No description provided for @egressInbound.
+  ///
+  /// In en, this message translates to:
+  /// **'VLESS inbound'**
+  String get egressInbound;
+
+  /// No description provided for @softwareUpdateAvailableList.
+  ///
+  /// In en, this message translates to:
+  /// **'Update available: {items}'**
+  String softwareUpdateAvailableList(Object items);
+
+  /// No description provided for @inventoryPartialList.
+  ///
+  /// In en, this message translates to:
+  /// **'Some checks were incomplete: {items}'**
+  String inventoryPartialList(Object items);
+
+  /// No description provided for @inventoryVersionUnknownReason.
+  ///
+  /// In en, this message translates to:
+  /// **'Version unknown: {reason}'**
+  String inventoryVersionUnknownReason(Object reason);
+
+  /// No description provided for @xrayUpgradeProblemAfter.
+  ///
+  /// In en, this message translates to:
+  /// **'{reason} The check did not finish. Review the connection results and retry when connectivity is restored.'**
+  String xrayUpgradeProblemAfter(Object reason);
+
+  /// No description provided for @uiClientAccessFor.
+  ///
+  /// In en, this message translates to:
+  /// **'Access for {name}'**
+  String uiClientAccessFor(Object name);
 }
 
 class _AppLocalizationsDelegate

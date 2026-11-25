@@ -54,7 +54,11 @@ class ServerInventoryPanel extends StatelessWidget {
                   Align(
                     alignment: AlignmentDirectional.centerStart,
                     child: Text(
-                      '${l.inventoryPartial}: ${component.issues.map((s) => inventoryStatusLabel(l, s)).join(', ')}',
+                      l.inventoryPartialList(
+                        component.issues
+                            .map((s) => inventoryStatusLabel(l, s))
+                            .join(', '),
+                      ),
                     ),
                   ),
                 for (final installation in component.installations)
@@ -94,7 +98,12 @@ class ServerInventoryPanel extends StatelessWidget {
                                   )
                                 : installation.version == null
                                 ? l.inventoryVersionUnknown
-                                : '${l.inventoryVersionUnknown}: ${inventoryStatusLabel(l, installation.version!.status)}',
+                                : l.inventoryVersionUnknownReason(
+                                    inventoryStatusLabel(
+                                      l,
+                                      installation.version!.status,
+                                    ),
+                                  ),
                           ),
                       ],
                     ),

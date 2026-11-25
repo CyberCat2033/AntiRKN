@@ -96,8 +96,6 @@ class PublicationController extends ChangeNotifier {
   Set<String> get inFlightUserIds =>
       Set.unmodifiable({..._inFlightUserIds, ..._requestedUserIds});
   Set<String> get completedUserIds => Set.unmodifiable(_completedUserIds);
-  static const syncProgressResetDelay = Duration(milliseconds: 600);
-  Timer? _clearProgressTimer;
 
   Set<String> get failedUserIds => Set.unmodifiable(_failedUserIds);
   int get activeSyncTotal => _activeSyncTotal;
@@ -113,8 +111,6 @@ class PublicationController extends ChangeNotifier {
       _failedUserIds.isNotEmpty;
 
   void _resetSyncProgress({bool notify = true}) {
-    _clearProgressTimer?.cancel();
-    _clearProgressTimer = null;
     _inFlightUserIds.clear();
     _completedUserIds.clear();
     _failedUserIds.clear();
@@ -515,8 +511,6 @@ class PublicationController extends ChangeNotifier {
         _running != null) {
       return _running;
     }
-    _clearProgressTimer?.cancel();
-    _clearProgressTimer = null;
     final targets =
         targetUserIds ?? (targetUserId == null ? null : {targetUserId});
     final future = _run(
@@ -534,13 +528,10 @@ class PublicationController extends ChangeNotifier {
       }
       _schedulePending();
       if (_running == null) {
+        // The batch result carries the outcome: progress clears at once,
+        // without an artificial pause (UI-74).
         if (!_disposed && !_suspended && hasActiveSync) {
-          _clearProgressTimer?.cancel();
-          _clearProgressTimer = Timer(syncProgressResetDelay, () {
-            if (!_disposed && !_suspended && _running == null) {
-              _resetSyncProgress(notify: true);
-            }
-          });
+          _resetSyncProgress(notify: false);
         }
         _notify();
       }
@@ -680,8 +671,6 @@ class PublicationController extends ChangeNotifier {
           }
           final userIndex = nextIndex++;
           final user = activeUsers[userIndex];
-          final userTimer = Stopwatch()..start();
-
           _inFlightUserIds.add(user.id);
           _completedUserIds.remove(user.id);
           _failedUserIds.remove(user.id);
@@ -693,10 +682,6 @@ class PublicationController extends ChangeNotifier {
             if (!force && !forceUpload && wasUpToDate) {
               upToDateCount++;
               success = true;
-              debugPrint(
-                'publication_timing phase=user index=$userIndex path=local '
-                'ms=${userTimer.elapsedMilliseconds}',
-              );
               continue;
             }
             final previousResult = results[user.id] == null
@@ -829,10 +814,6 @@ class PublicationController extends ChangeNotifier {
             } else {
               failedCount++;
             }
-            debugPrint(
-              'publication_timing phase=user index=$userIndex path=drive '
-              'ms=${userTimer.elapsedMilliseconds} ok=$success',
-            );
           } finally {
             _inFlightUserIds.remove(user.id);
             if (success) {
@@ -879,8 +860,6 @@ class PublicationController extends ChangeNotifier {
   Future<void> suspend() async {
     _suspended = true;
     _timer?.cancel();
-    _clearProgressTimer?.cancel();
-    _clearProgressTimer = null;
     _pendingAll = false;
     _pendingForce = false;
     _pendingUserIds.clear();

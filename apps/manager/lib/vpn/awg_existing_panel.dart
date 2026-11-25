@@ -148,8 +148,6 @@ class _AwgExistingPanelState extends State<AwgExistingPanel> {
                 title: '${item['name']}',
                 subtitle: l.uiPeerCount(item['peers'] as int),
                 badge: item['active'] == true ? l.vpnEnabled : l.vpnDisabled,
-                detailsLabel: l.componentsDetails,
-                details: const [],
                 actions: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -252,7 +250,11 @@ class _EditExistingAwgState extends State<_EditExistingAwg> {
             children: [
               Text(l.awgPeersPreserved),
               Text(
-                '${snapshot['source']} · ${snapshot['path']} · ${snapshot['peers']} peers',
+                [
+                  '${snapshot['source']}',
+                  '${snapshot['path']}',
+                  l.uiPeerCount((snapshot['peers'] as num?)?.toInt() ?? 0),
+                ].join(' · '),
               ),
               if (snapshot['portLocked'] == true) Text(l.awgDockerPortHelp),
               for (final e in fields.entries)
@@ -293,7 +295,7 @@ class _EditExistingAwgState extends State<_EditExistingAwg> {
       actions: [
         TextButton(
           onPressed: busy ? null : () => Navigator.pop(context),
-          child: Text(l.runnerNotNow),
+          child: Text(l.sshCancel),
         ),
         FilledButton(
           onPressed: busy

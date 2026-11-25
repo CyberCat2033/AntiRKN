@@ -2,6 +2,7 @@ import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
+import '../app_strings.dart';
 import 'backup_controller.dart';
 
 class BackupPanel extends StatelessWidget {
@@ -168,7 +169,7 @@ class _BackupDialogState extends State<_BackupDialog> {
                 else if (summary != null) ...[
                   Text(
                     l.backupSummary(
-                      summary.createdAt.toLocal().toString(),
+                      l.formatDateTime(summary.createdAt),
                       summary.servers,
                       summary.users,
                     ),

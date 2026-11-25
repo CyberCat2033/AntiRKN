@@ -1,4 +1,17 @@
+import 'package:intl/intl.dart';
 import 'l10n/app_localizations.dart';
+
+/// Local date and time in the app's language instead of `DateTime.toString()`
+/// (UI-71).
+extension DateTimeLabels on AppLocalizations {
+  String formatDateTime(DateTime at) =>
+      DateFormat.yMd(localeName).add_Hm().format(at.toLocal());
+
+  /// [seconds] since the Unix epoch, as the runner reports them.
+  String formatEpochSeconds(num seconds) => formatDateTime(
+    DateTime.fromMillisecondsSinceEpoch((seconds * 1000).round()),
+  );
+}
 
 extension DiagnosticMessages on AppLocalizations {
   String diagnostic(String code) => switch (code) {

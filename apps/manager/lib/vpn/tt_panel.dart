@@ -233,13 +233,11 @@ class _TtPanelState extends State<TtPanel> {
                               : l.vpnAdopting
                         : null,
                     badge: e.enabled ? l.vpnEnabled : l.vpnDisabled,
-                    detailsLabel: l.componentsDetails,
                     actions: IconButton(
                       onPressed: !c.canMutate || r.busy ? null : () => edit(e),
                       icon: const Icon(Icons.edit_outlined),
                       tooltip: busyReason(l, vpn: c, runner: r) ?? l.vpnEdit,
                     ),
-                    details: const [],
                   ),
                 ),
               // Certificate errors and expiry are shown once, in
@@ -292,8 +290,6 @@ class _TtPanelState extends State<TtPanel> {
                         .map((h) => (h as Map)['domain'])
                         .join(', '),
                     note: l.uiPeerCount((item['users'] as List).length),
-                    detailsLabel: l.componentsDetails,
-                    details: const [],
                     actions: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -778,7 +774,7 @@ class _ManagedTtState extends State<ManagedTtDialog> {
           ),
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text(l.runnerNotNow),
+          child: Text(l.sshCancel),
         ),
         FilledButton(
           onPressed: certificateDialogOpen || widget.runner.busy

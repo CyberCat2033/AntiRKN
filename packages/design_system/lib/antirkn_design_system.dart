@@ -343,12 +343,16 @@ class _AppPageSwitchState extends State<AppPageSwitch>
 }
 
 /// Titles stay still so a second animation never competes with the page.
-class AppAnimatedTitle extends StatelessWidget {
-  const AppAnimatedTitle(this.title, {super.key});
+/// A page's own title row text: a heading for screen readers. It does not
+/// animate apart from its page (UI-73, UI-74).
+class AppPageTitle extends StatelessWidget {
+  const AppPageTitle(this.title, {super.key});
   final String title;
   @override
-  Widget build(BuildContext context) =>
-      Text(title, style: Theme.of(context).textTheme.headlineSmall);
+  Widget build(BuildContext context) => Semantics(
+    header: true,
+    child: Text(title, style: Theme.of(context).textTheme.headlineSmall),
+  );
 }
 
 /// Stable catalogue rows animate insertion and removal without losing gestures.
@@ -839,56 +843,13 @@ class SummaryCard extends StatelessWidget {
   );
 }
 
-/// A section heading whose actions move below the title on narrow layouts.
-class ContentSection extends StatelessWidget {
-  const ContentSection({
-    required this.title,
-    required this.child,
-    this.actions,
-    super.key,
-  });
-  final String title;
-  final Widget child;
-  final Widget? actions;
-
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      LayoutBuilder(
-        builder: (context, constraints) {
-          final titleWidget = Text(
-            title,
-            style: Theme.of(context).textTheme.titleLarge,
-          );
-          if (constraints.maxWidth < 280 ||
-              MediaQuery.textScalerOf(context).scale(14) > 21) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [titleWidget, ?actions],
-            );
-          }
-          return Row(
-            children: [
-              Expanded(child: titleWidget),
-              ?actions,
-            ],
-          );
-        },
-      ),
-      const SizedBox(height: AppLayout.smallGap),
-      child,
-    ],
-  );
-}
-
 /// A compact resource card. Technical values open in a labelled detail sheet.
 class ResourceTile extends StatelessWidget {
   const ResourceTile({
     required this.title,
     required this.subtitle,
-    required this.details,
     required this.storageId,
+    this.details = const [],
     this.actions,
     this.footer,
     this.badge,
@@ -1494,9 +1455,16 @@ class AppFormDialog extends StatelessWidget {
             if (title != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
-                child: DefaultTextStyle(
-                  style: Theme.of(context).textTheme.headlineSmall!,
-                  child: title!,
+                // The title names the dialog route for screen readers, as in
+                // AlertDialog (UI-73).
+                child: Semantics(
+                  container: true,
+                  header: true,
+                  namesRoute: true,
+                  child: DefaultTextStyle(
+                    style: Theme.of(context).textTheme.headlineSmall!,
+                    child: title!,
+                  ),
                 ),
               ),
             if (content != null)

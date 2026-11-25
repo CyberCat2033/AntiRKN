@@ -253,7 +253,7 @@ class _PublicationBindingDialogState extends State<PublicationBindingDialog> {
             onPressed: picking
                 ? () => c.picker?.cancel()
                 : () => Navigator.pop(context),
-            child: Text(l.runnerNotNow),
+            child: Text(l.sshCancel),
           ),
           FilledButton(
             key: const ValueKey('publication-bind-confirm'),

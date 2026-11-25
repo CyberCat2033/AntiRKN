@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../l10n/app_localizations.dart';
+import '../app_strings.dart';
 import '../runner/panel_login_view.dart';
 import '../runner/egress_strings.dart';
 import '../runner/runner_controller.dart';
@@ -152,8 +153,10 @@ class _ClientEgressCardState extends State<ClientEgressCard> {
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(
-                    '${l.egressChecked} · ${check['tcpMs']} ms · '
-                    '${DateTime.fromMillisecondsSinceEpoch(((check['checkedAt'] as num) * 1000).round()).toLocal()}',
+                    l.egressCheckedAt(
+                      '${check['tcpMs']}',
+                      l.formatEpochSeconds(check['checkedAt'] as num),
+                    ),
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),
@@ -423,7 +426,7 @@ class _ClientEgressFormState extends State<ClientEgressForm> {
               AppSelectField<int?>(
                 key: const ValueKey('client-egress-inbound'),
                 value: inbound,
-                label: 'VLESS inbound',
+                label: l.egressInbound,
                 motion: widget.motion,
                 options: [
                   for (final row in inbounds)
@@ -474,7 +477,11 @@ class _ClientEgressFormState extends State<ClientEgressForm> {
               ),
               if (parsed != null && validEgressLink(uri.text.trim()))
                 Text(
-                  '${parsed.host}:${parsed.port} · ${parsed.queryParameters['type'] ?? 'tcp'} · ${parsed.queryParameters['security'] ?? ''}',
+                  [
+                    '${parsed.host}:${parsed.port}',
+                    parsed.queryParameters['type'] ?? 'tcp',
+                    parsed.queryParameters['security'] ?? '',
+                  ].where((s) => s.isNotEmpty).join(' · '),
                 ),
             ],
             const SizedBox(height: 16),

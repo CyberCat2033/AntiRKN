@@ -200,11 +200,14 @@ class _SshHardenDialogState extends State<_SshHardenDialog> {
                 decoration: InputDecoration(
                   labelText: l.sshHardenSudoPassword,
                   prefixIcon: const Icon(Icons.lock_outline),
+                  // Same icon and tooltip as the SSH form: the eye shows
+                  // what tapping does (UI-73).
                   suffixIcon: IconButton(
+                    tooltip: _obscurePassword ? l.showPassword : l.hidePassword,
                     icon: Icon(
                       _obscurePassword
-                          ? Icons.visibility_off
-                          : Icons.visibility,
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
                     ),
                     onPressed: () =>
                         setState(() => _obscurePassword = !_obscurePassword),
@@ -219,8 +222,11 @@ class _SshHardenDialogState extends State<_SshHardenDialog> {
                   labelText: l.sshHardenSudoPasswordConfirm,
                   prefixIcon: const Icon(Icons.lock_outline),
                   suffixIcon: IconButton(
+                    tooltip: _obscureConfirm ? l.showPassword : l.hidePassword,
                     icon: Icon(
-                      _obscureConfirm ? Icons.visibility_off : Icons.visibility,
+                      _obscureConfirm
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
                     ),
                     onPressed: () =>
                         setState(() => _obscureConfirm = !_obscureConfirm),
