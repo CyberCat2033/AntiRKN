@@ -71,7 +71,7 @@ class Session implements AutoSyncSession {
       if (fail) throw const SyncTransportFailure(SyncTransportIssue.network);
       if (failures.isNotEmpty) throw failures.removeAt(0);
       if (results.isNotEmpty) return results.removeAt(0);
-      return next ?? AutoSyncResult(lastSuccess: DateTime(2026, 9, 23));
+      return next ?? const AutoSyncResult();
     } finally {
       active--;
     }
@@ -521,7 +521,7 @@ void main() {
     changes.add(null);
     await tester.pump(const Duration(minutes: 5));
     expect(session.modes, hasLength(1));
-    session.results.add(AutoSyncResult(lastSuccess: DateTime(2026, 11, 25)));
+    session.results.add(const AutoSyncResult());
     await tester.runAsync(
       () => controller.resolve(SyncDivergenceChoice.keepLocal),
     );

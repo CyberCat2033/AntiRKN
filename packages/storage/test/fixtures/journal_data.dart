@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_storage/src/profile_codec.dart';
 import 'package:cryptography/cryptography.dart';
@@ -192,6 +193,27 @@ Future<void> createV1(String path, {int vpnVersion = 3}) async {
     db.userVersion = 1;
   } finally {
     key.destroy();
+    db.dispose();
+  }
+}
+
+/// Values of `workspace-v6-legacy.sql`, as the shipped v6 build reported them.
+const legacyWorkspaceId = 'edba5518a6fbbce7d7fd3867994abf9b';
+const legacyDeviceId = 'd8c5d047ff04de3a79aacc1bf8ab2521';
+const legacyProfileHead = '818207ec11f95db0ab080951cbba0297';
+const legacyProfileAncestors = {
+  '818207ec11f95db0ab080951cbba0297',
+  '97440036b3fd17957c8f7bad2105b758',
+};
+
+/// Writes the schema v6 database of `workspace-v6-legacy.sql` to [path].
+/// [fixtures] is the directory holding the dump, relative to the package
+/// that runs the test.
+void createV6Legacy(String path, {String fixtures = 'test/fixtures'}) {
+  final db = sqlite3.open(path);
+  try {
+    db.execute(File('$fixtures/workspace-v6-legacy.sql').readAsStringSync());
+  } finally {
     db.dispose();
   }
 }

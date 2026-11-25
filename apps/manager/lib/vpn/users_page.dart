@@ -69,12 +69,7 @@ class UsersPage extends StatefulWidget {
     ) = result is (VpnUser, PublicationTarget?)
         ? result
         : (result as VpnUser, null);
-    final saveTimer = Stopwatch()..start();
     await controller.saveUser(nextUser);
-    debugPrint(
-      'client_save_timing phase=local ms=${saveTimer.elapsedMilliseconds} '
-      'ok=${controller.error == null}',
-    );
     if (user == null && controller.error == null) AppHaptics.added();
     if (customTarget != null &&
         publications != null &&
@@ -94,21 +89,11 @@ class UsersPage extends StatefulWidget {
     if (controller.error == null &&
         accessChanged &&
         controller.workspace.serverIds.isNotEmpty) {
-      final serverTimer = Stopwatch()..start();
       unawaited(() async {
         try {
           await controller.prepareAndApply(background: true);
-          debugPrint(
-            'client_save_timing phase=servers ms=${serverTimer.elapsedMilliseconds} '
-            'targets=${controller.workspace.serverIds.length} '
-            'ok=${controller.serverSyncIssue == null}',
-          );
           if (customTarget != null && publications != null) {
-            final driveTimer = Stopwatch()..start();
             await publications.publishUser(nextUser.id, force: true);
-            debugPrint(
-              'client_save_timing phase=drive ms=${driveTimer.elapsedMilliseconds}',
-            );
           }
         } catch (_) {}
       }());
@@ -203,13 +188,8 @@ class _UsersPageState extends State<UsersPage> {
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final serverTimer = Stopwatch()..start();
       final serverSync = await controller.syncAllServersAndProfiles(
         allowVerifiedSnapshot: !force,
-      );
-      debugPrint(
-        'publication_timing phase=server_check ms=${serverTimer.elapsedMilliseconds} '
-        'saved=${serverSync.usedSavedVerification} ok=${serverSync.verified}',
       );
       if (!serverSync.verified) {
         if (mounted) {
@@ -221,12 +201,7 @@ class _UsersPageState extends State<UsersPage> {
       }
       PublicationBatchResult? batchResult;
       if (publications != null) {
-        final driveTimer = Stopwatch()..start();
         batchResult = await publications!.forcePublishAll(force: force);
-        debugPrint(
-          'publication_timing phase=drive ms=${driveTimer.elapsedMilliseconds} '
-          'total=${batchResult.total} failed=${batchResult.failed}',
-        );
       }
       if (mounted && batchResult != null && batchResult.total > 0) {
         await Future<void>.delayed(const Duration(milliseconds: 600));

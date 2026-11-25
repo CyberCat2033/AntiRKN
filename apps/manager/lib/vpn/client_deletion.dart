@@ -37,7 +37,6 @@ extension ClientDeletion on VpnController {
 
   /// Hide the tombstone, never claim that an unreachable server revoked access.
   Future<void> forceDeleteClient(String userId) => _run((token) async {
-    await checkProfileEffects();
     final user = workspace.users.singleWhere((u) => u.id == userId);
     if (!canForceDelete(user)) throw const FormatException('vpn_conflict');
     await _saveDeletion(userId, {...user.deletion!, 'hidden': true});
@@ -116,7 +115,6 @@ extension ClientDeletion on VpnController {
       }
     }
     if (deletions.isEmpty) return;
-    await checkProfileEffects();
     token.check();
     // The connection results are one checkpoint. The revision check and the
     // entire set of changed tombstones commit together before any revocation.
@@ -220,7 +218,6 @@ extension ClientDeletion on VpnController {
           throw const FormatException('vpn_conflict');
         }
       }
-      await checkProfileEffects();
       final targets = {
         ...workspace.serverIds,
         for (final e in workspace.servers.entries)
@@ -289,7 +286,6 @@ extension ClientDeletion on VpnController {
   }
 
   Future<void> _deletionGuard(String userId, String deletionId) async {
-    await checkProfileEffects();
     final current = workspace.users.singleWhere((u) => u.id == userId);
     if (!current.deleted ||
         current.deletion!['id'] != deletionId ||
@@ -329,7 +325,6 @@ extension ClientDeletion on VpnController {
           }
         }
       }
-      await checkProfileEffects();
       await _saveDeletion(userId, {...user.deletion!, 'executor': _deviceId});
     }
     await _approveRestored(

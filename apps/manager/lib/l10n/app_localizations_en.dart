@@ -2342,109 +2342,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get backupReviewServer => 'Check server state';
 
   @override
-  String get syncConflictsTitle => 'Change conflicts';
-
-  @override
-  String get syncLocalHelp =>
-      'Resolve stored conflicts here. Google Drive exchange is not connected yet.';
-
-  @override
-  String syncConflictCount(int count) {
-    return 'Conflicts: $count';
-  }
-
-  @override
-  String syncWaitingCount(int groups, int missing) {
-    return 'Waiting groups: $groups. Missing earlier changes: $missing.';
-  }
-
-  @override
-  String syncBlockedCount(int count) {
-    return 'Groups with incompatible data: $count. Correct the local data, then retry applying changes.';
-  }
-
-  @override
-  String get syncChanged =>
-      'The conflict has changed. Open it again and review the versions.';
-
-  @override
-  String get syncStorageError =>
-      'Could not apply the selected version. Refresh the list and check data compatibility.';
-
-  @override
   String get syncEffectsBlocked =>
       'Resolve change conflicts in Settings first. Server actions and profile export are paused.';
-
-  @override
-  String get syncRefresh => 'Refresh list';
-
-  @override
-  String get syncRetry => 'Retry applying changes';
-
-  @override
-  String get syncChooseHelp =>
-      'Review the versions and choose one. Contents may include passwords and keys. Your decision is saved as a new change; server operations require a separate action.';
-
-  @override
-  String syncVariant(int number) {
-    return 'Version $number';
-  }
-
-  @override
-  String get syncDeleted => 'Resource deletion';
-
-  @override
-  String get syncReveal => 'Show contents and secrets';
-
-  @override
-  String get syncHide => 'Hide contents';
-
-  @override
-  String get syncSelect => 'Choose this version';
-
-  @override
-  String get syncDeviceThis => 'This device';
-
-  @override
-  String get syncDeviceOther => 'Other device';
-
-  @override
-  String get syncResolve => 'Save decision';
-
-  @override
-  String get syncKindServer => 'Server';
-
-  @override
-  String get syncKindTemplate => 'Base template';
-
-  @override
-  String get syncKindUser => 'VPN client';
-
-  @override
-  String get syncKindVless => 'VLESS inbound';
-
-  @override
-  String get syncKindAwg => 'AmneziaWG interface';
-
-  @override
-  String get syncKindTt => 'TrustTunnel endpoint';
-
-  @override
-  String get syncKindOperation => 'Server and operation state';
-
-  @override
-  String get syncKindProfile => 'Profile history';
-
-  @override
-  String get syncKindWorkspace => 'Workspace';
-
-  @override
-  String syncRejectedCount(int count) {
-    return 'Rejected groups with inconsistent change history: $count. Working data is preserved.';
-  }
-
-  @override
-  String get googleAccountTitle => 'Google account';
 
   @override
   String get googleAccountHelp => 'Sign in to Google to sync your devices.';
@@ -2457,9 +2356,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get googleSignOut => 'Sign out';
-
-  @override
-  String get googleConnected => 'Google Drive connected.';
 
   @override
   String get googleWorking => 'Connecting to Google…';
@@ -2491,10 +2387,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get autoSyncTitle => 'Automatic sync';
 
   @override
-  String get autoSyncHelp =>
-      'Changes upload 30 seconds after an edit and when the app closes or enters the background. At launch and when you return to the app, a newer version is loaded from Google Drive. A temporary failure is retried automatically.';
-
-  @override
   String get autoSyncDisabled => 'Automatic sync is off.';
 
   @override
@@ -2513,10 +2405,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get autoSyncConflict =>
       'This device has unsent changes, and Google Drive holds a different version. Nothing was overwritten: the changes stay on this device and are not uploaded automatically.';
-
-  @override
-  String get autoSyncIncomplete =>
-      'Some data is waiting for related changes or failed validation. Check the conflicts section.';
 
   @override
   String get autoSyncError =>
@@ -2617,14 +2505,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Published file from Google Drive. It was not rebuilt on this device.';
 
   @override
-  String get autoSyncNow => 'Sync now';
-
-  @override
-  String autoSyncLast(String time) {
-    return 'Last exchange: $time';
-  }
-
-  @override
   String get autoSyncPairing =>
       'Sign in to the same Google account on your devices and use them in turn. Changes upload 30 seconds after an edit and when the app closes or enters the background; a device without unsent changes loads the newer version at launch and when you return to the app.';
 
@@ -2642,10 +2522,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get googleCancelSignIn => 'Cancel sign-in';
-
-  @override
-  String get autoSyncOtherWorkspaces =>
-      'Some data was saved by an older app version. Update and open AntiRKN on the device that has it; it will become available here automatically.';
 
   @override
   String get publicationTitle => 'Profile publication';

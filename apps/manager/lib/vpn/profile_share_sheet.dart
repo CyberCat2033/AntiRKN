@@ -211,7 +211,6 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                   url: link,
                   profileName: user?.name ?? widget.user.name,
                   beforeCopy: () async {
-                    await c.checkProfileEffects();
                     if (publication!.verifiedLinkFor(widget.user.id) != link) {
                       throw StateError('publication_changed');
                     }
@@ -342,7 +341,6 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                         : () async {
                             setState(() => saving = true);
                             try {
-                              await c.checkProfileEffects();
                               if (!mounted ||
                                   c.results[widget.user.id]?.sha256Hash !=
                                       result!.sha256Hash ||
@@ -357,10 +355,6 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                               );
                               if (mounted && saved) {
                                 setState(() => message = l.vpnProfileSaved);
-                              }
-                            } on SyncMergeFailure {
-                              if (mounted) {
-                                setState(() => message = l.syncEffectsBlocked);
                               }
                             } catch (_) {
                               if (mounted) {

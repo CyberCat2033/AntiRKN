@@ -460,7 +460,6 @@ class RunnerController extends ChangeNotifier {
   }
 
   Future<void> _checkCurrentOperation() async {
-    if (store case final SyncEffectGuard guard) await guard.checkSyncEffects();
     if (store is ConditionalRunnerJournalStore &&
         await store!.readRunnerJournal(serverId) != _journalSource) {
       throw const SyncMergeFailure(SyncMergeIssue.changed);

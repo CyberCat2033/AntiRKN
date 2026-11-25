@@ -2346,109 +2346,8 @@ class AppLocalizationsRu extends AppLocalizations {
   String get backupReviewServer => 'Проверить состояние сервера';
 
   @override
-  String get syncConflictsTitle => 'Конфликты изменений';
-
-  @override
-  String get syncLocalHelp =>
-      'Здесь можно разрешить сохранённые конфликты. Обмен через Google Drive ещё не подключён.';
-
-  @override
-  String syncConflictCount(int count) {
-    return 'Конфликтов: $count';
-  }
-
-  @override
-  String syncWaitingCount(int groups, int missing) {
-    return 'Ожидающих групп: $groups. Недостающих предыдущих изменений: $missing.';
-  }
-
-  @override
-  String syncBlockedCount(int count) {
-    return 'Групп с несовместимыми данными: $count. Исправьте локальные данные, затем повторите применение.';
-  }
-
-  @override
-  String get syncChanged =>
-      'Состав конфликта изменился. Откройте его заново и повторите выбор.';
-
-  @override
-  String get syncStorageError =>
-      'Не удалось применить выбранную версию. Обновите список и проверьте совместимость данных.';
-
-  @override
   String get syncEffectsBlocked =>
       'Сначала разрешите конфликты изменений в настройках. Серверные действия и выдача профилей приостановлены.';
-
-  @override
-  String get syncRefresh => 'Обновить список';
-
-  @override
-  String get syncRetry => 'Повторить применение';
-
-  @override
-  String get syncChooseHelp =>
-      'Просмотрите версии и выберите одну. Содержимое может включать пароли и ключи. Решение сохранится как новое изменение; серверные операции требуют отдельного действия.';
-
-  @override
-  String syncVariant(int number) {
-    return 'Версия $number';
-  }
-
-  @override
-  String get syncDeleted => 'Удаление ресурса';
-
-  @override
-  String get syncReveal => 'Показать содержимое и секреты';
-
-  @override
-  String get syncHide => 'Скрыть содержимое';
-
-  @override
-  String get syncSelect => 'Выбрать эту версию';
-
-  @override
-  String get syncDeviceThis => 'Это устройство';
-
-  @override
-  String get syncDeviceOther => 'Другое устройство';
-
-  @override
-  String get syncResolve => 'Сохранить решение';
-
-  @override
-  String get syncKindServer => 'Сервер';
-
-  @override
-  String get syncKindTemplate => 'Базовый шаблон';
-
-  @override
-  String get syncKindUser => 'VPN-клиент';
-
-  @override
-  String get syncKindVless => 'VLESS inbound';
-
-  @override
-  String get syncKindAwg => 'Интерфейс AmneziaWG';
-
-  @override
-  String get syncKindTt => 'TrustTunnel endpoint';
-
-  @override
-  String get syncKindOperation => 'Состояние сервера и операций';
-
-  @override
-  String get syncKindProfile => 'История профиля';
-
-  @override
-  String get syncKindWorkspace => 'Рабочее пространство';
-
-  @override
-  String syncRejectedCount(int count) {
-    return 'Отклонённых групп с нарушенной историей изменений: $count. Рабочие данные сохранены.';
-  }
-
-  @override
-  String get googleAccountTitle => 'Аккаунт Google';
 
   @override
   String get googleAccountHelp =>
@@ -2462,9 +2361,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get googleSignOut => 'Выйти';
-
-  @override
-  String get googleConnected => 'Google Drive подключён.';
 
   @override
   String get googleWorking => 'Подключение к Google…';
@@ -2496,10 +2392,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get autoSyncTitle => 'Автосинхронизация';
 
   @override
-  String get autoSyncHelp =>
-      'Изменения отправляются через 30 секунд после правки, а также при уходе приложения в фон или закрытии. При запуске и возвращении в приложение загружается более новая версия из Google Drive. Временный сбой повторяется автоматически.';
-
-  @override
   String get autoSyncDisabled => 'Автосинхронизация выключена.';
 
   @override
@@ -2518,10 +2410,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get autoSyncConflict =>
       'На этом устройстве есть неотправленные изменения, а в Google Drive — другая версия. Ничего не перезаписано: изменения остаются на устройстве и автоматически не отправляются.';
-
-  @override
-  String get autoSyncIncomplete =>
-      'Часть данных ожидает связанных изменений или не прошла проверку. Проверьте раздел конфликтов.';
 
   @override
   String get autoSyncError =>
@@ -2621,14 +2509,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'Опубликованный файл из Google Drive. Он не пересобирался на этом устройстве.';
 
   @override
-  String get autoSyncNow => 'Синхронизировать сейчас';
-
-  @override
-  String autoSyncLast(String time) {
-    return 'Последний обмен: $time';
-  }
-
-  @override
   String get autoSyncPairing =>
       'Войдите в один Google-аккаунт на своих устройствах и работайте на них по очереди. Изменения отправляются через 30 секунд после правки и при уходе приложения в фон или закрытии; устройство без неотправленных изменений получает более новую версию при запуске и возвращении в приложение.';
 
@@ -2646,10 +2526,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get googleCancelSignIn => 'Отменить вход';
-
-  @override
-  String get autoSyncOtherWorkspaces =>
-      'Часть данных сохранена старой версией приложения. Обновите и откройте AntiRKN на устройстве с этими данными — они появятся здесь автоматически.';
 
   @override
   String get publicationTitle => 'Публикация профилей';

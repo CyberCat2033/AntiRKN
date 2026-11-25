@@ -189,11 +189,6 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
             ),
             const Divider(indent: 17, endIndent: 17),
             if (sync.divergence != null) SyncDivergenceNotice(sync: sync),
-            if ((sync.result?.otherWorkspaces ?? 0) > 0)
-              AppNotice(
-                key: const ValueKey('google-other-workspaces'),
-                message: l.autoSyncOtherWorkspaces,
-              ),
           ],
           ListTile(
             leading: const Icon(Icons.cloud_outlined),
@@ -362,7 +357,6 @@ String syncStatusLabel(AppLocalizations l, AutoSyncController sync) {
     AutoSyncPhase.synced => l.autoSyncDone,
     AutoSyncPhase.editing => l.autoSyncEditing,
     AutoSyncPhase.conflict => l.autoSyncConflict,
-    AutoSyncPhase.incomplete => l.autoSyncIncomplete,
     AutoSyncPhase.remoteNewer => l.autoSyncRemoteNewer,
     AutoSyncPhase.retrying => l.autoSyncRetrying,
     AutoSyncPhase.diverged => l.autoSyncDivergedShort,

@@ -368,7 +368,6 @@ void main() {
       final sync = await session(phone);
       final result = await choose(sync, SyncDivergenceChoice.keepLocal);
       expect(result.divergence, isNull);
-      expect(result.lastSuccess, isNotNull);
       expect(await cloudDraft(), 'edit made on the phone');
       expect((await phone.readWorkspaceIdentity()).deviceId, device);
       // Automatic exchange is back; the PC receives the phone's data.

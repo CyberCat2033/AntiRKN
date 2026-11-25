@@ -859,79 +859,11 @@
     }
   },
   "backupReviewServer": "Проверить состояние сервера",
-  "syncConflictsTitle": "Конфликты изменений",
-  "syncLocalHelp": "Здесь можно разрешить сохранённые конфликты. Обмен через Google Drive ещё не подключён.",
-  "syncConflictCount": "Конфликтов: {count}",
-  "syncWaitingCount": "Ожидающих групп: {groups}. Недостающих предыдущих изменений: {missing}.",
-  "syncBlockedCount": "Групп с несовместимыми данными: {count}. Исправьте локальные данные, затем повторите применение.",
-  "syncChanged": "Состав конфликта изменился. Откройте его заново и повторите выбор.",
-  "syncStorageError": "Не удалось применить выбранную версию. Обновите список и проверьте совместимость данных.",
   "syncEffectsBlocked": "Сначала разрешите конфликты изменений в настройках. Серверные действия и выдача профилей приостановлены.",
-  "syncRefresh": "Обновить список",
-  "syncRetry": "Повторить применение",
-  "syncChooseHelp": "Просмотрите версии и выберите одну. Содержимое может включать пароли и ключи. Решение сохранится как новое изменение; серверные операции требуют отдельного действия.",
-  "syncVariant": "Версия {number}",
-  "syncDeleted": "Удаление ресурса",
-  "syncReveal": "Показать содержимое и секреты",
-  "syncHide": "Скрыть содержимое",
-  "syncSelect": "Выбрать эту версию",
-  "syncDeviceThis": "Это устройство",
-  "syncDeviceOther": "Другое устройство",
-  "syncResolve": "Сохранить решение",
-  "syncKindServer": "Сервер",
-  "syncKindTemplate": "Базовый шаблон",
-  "syncKindUser": "VPN-клиент",
-  "syncKindVless": "VLESS inbound",
-  "syncKindAwg": "Интерфейс AmneziaWG",
-  "syncKindTt": "TrustTunnel endpoint",
-  "syncKindOperation": "Состояние сервера и операций",
-  "syncKindProfile": "История профиля",
-  "syncKindWorkspace": "Рабочее пространство",
-  "@syncConflictCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "@syncWaitingCount": {
-    "placeholders": {
-      "groups": {
-        "type": "int"
-      },
-      "missing": {
-        "type": "int"
-      }
-    }
-  },
-  "@syncBlockedCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "@syncVariant": {
-    "placeholders": {
-      "number": {
-        "type": "int"
-      }
-    }
-  },
-  "syncRejectedCount": "Отклонённых групп с нарушенной историей изменений: {count}. Рабочие данные сохранены.",
-  "@syncRejectedCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "googleAccountTitle": "Аккаунт Google",
   "googleAccountHelp": "Войдите в Google для синхронизации устройств.",
   "googleSignIn": "Войти в Google",
   "googleSwitchAccount": "Сменить аккаунт",
   "googleSignOut": "Выйти",
-  "googleConnected": "Google Drive подключён.",
   "googleWorking": "Подключение к Google…",
   "googleConfigurationError": "Google-вход не настроен для этой сборки. Проверьте Android-клиент и сертификат приложения.",
   "googleDenied": "Доступ к Google Drive не предоставлен. Повторите вход и разрешите доступ.",
@@ -940,14 +872,12 @@
   "googleReauthorize": "Нужно снова войти в Google.",
   "googleUnavailable": "Вход Google недоступен. Проверьте Google Play services и повторите попытку.",
   "autoSyncTitle": "Автосинхронизация",
-  "autoSyncHelp": "Изменения отправляются через 30 секунд после правки, а также при уходе приложения в фон или закрытии. При запуске и возвращении в приложение загружается более новая версия из Google Drive. Временный сбой повторяется автоматически.",
   "autoSyncDisabled": "Автосинхронизация выключена.",
   "autoSyncWaiting": "Ожидание синхронизации",
   "autoSyncWorking": "Обмен с Google Drive…",
   "autoSyncDone": "Синхронизировано",
   "autoSyncEditing": "Новая версия из Google Drive загружена. Она применится, как только вы закроете редакторы и диалоги и завершатся текущие операции.",
   "autoSyncConflict": "На этом устройстве есть неотправленные изменения, а в Google Drive — другая версия. Ничего не перезаписано: изменения остаются на устройстве и автоматически не отправляются.",
-  "autoSyncIncomplete": "Часть данных ожидает связанных изменений или не прошла проверку. Проверьте раздел конфликтов.",
   "autoSyncError": "Не удалось завершить обмен. Данные сохранены на этом устройстве. Следующая попытка — после следующей правки, при уходе приложения в фон или возвращении в него.",
   "autoSyncRetrying": "Нет связи с Google Drive. Данные сохранены на этом устройстве; приложение повторит попытку автоматически.",
   "autoSyncRemoteNewer": "В Google Drive есть более новая версия. Она загрузится при возвращении в приложение; с этого устройства ничего не отправлялось.",
@@ -982,21 +912,11 @@
   "profilePublishedMissing": "В Google Drive нет опубликованного по ссылке файла этого клиента.",
   "profilePublishedFailed": "Не удалось открыть опубликованный файл. Проверьте связь с Google Drive и повторите попытку.",
   "profilePublishedFromDrive": "Опубликованный файл из Google Drive. Он не пересобирался на этом устройстве.",
-  "autoSyncNow": "Синхронизировать сейчас",
-  "autoSyncLast": "Последний обмен: {time}",
   "autoSyncPairing": "Войдите в один Google-аккаунт на своих устройствах и работайте на них по очереди. Изменения отправляются через 30 секунд после правки и при уходе приложения в фон или закрытии; устройство без неотправленных изменений получает более новую версию при запуске и возвращении в приложение.",
-  "@autoSyncLast": {
-    "placeholders": {
-      "time": {
-        "type": "String"
-      }
-    }
-  },
   "googleDesktopConfigurationError": "Google-вход не настроен. При запросе выберите JSON клиента Desktop OAuth из своего Google-проекта.",
   "googleDesktopUnavailable": "Не удалось открыть Google-вход в системном браузере. Проверьте браузер по умолчанию и повторите попытку.",
   "googleDesktopWaiting": "Завершите вход в браузере и вернитесь сюда. При первой настройке выберите файл Google Desktop client, если появится запрос.",
   "googleCancelSignIn": "Отменить вход",
-  "autoSyncOtherWorkspaces": "Часть данных сохранена старой версией приложения. Обновите и откройте AntiRKN на устройстве с этими данными — они появятся здесь автоматически.",
   "publicationTitle": "Публикация профилей",
   "publicationHelp": "Автоматически сохранять клиентские YAML в Google Drive и обновлять тот же файл. Настройте папку на одном устройстве, затем синхронизируйте остальные.",
   "publicationAuthorize": "Разрешить публикацию в Drive",

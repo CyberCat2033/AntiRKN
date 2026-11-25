@@ -892,79 +892,11 @@
     }
   },
   "backupReviewServer": "Check server state",
-  "syncConflictsTitle": "Change conflicts",
-  "syncLocalHelp": "Resolve stored conflicts here. Google Drive exchange is not connected yet.",
-  "syncConflictCount": "Conflicts: {count}",
-  "syncWaitingCount": "Waiting groups: {groups}. Missing earlier changes: {missing}.",
-  "syncBlockedCount": "Groups with incompatible data: {count}. Correct the local data, then retry applying changes.",
-  "syncChanged": "The conflict has changed. Open it again and review the versions.",
-  "syncStorageError": "Could not apply the selected version. Refresh the list and check data compatibility.",
   "syncEffectsBlocked": "Resolve change conflicts in Settings first. Server actions and profile export are paused.",
-  "syncRefresh": "Refresh list",
-  "syncRetry": "Retry applying changes",
-  "syncChooseHelp": "Review the versions and choose one. Contents may include passwords and keys. Your decision is saved as a new change; server operations require a separate action.",
-  "syncVariant": "Version {number}",
-  "syncDeleted": "Resource deletion",
-  "syncReveal": "Show contents and secrets",
-  "syncHide": "Hide contents",
-  "syncSelect": "Choose this version",
-  "syncDeviceThis": "This device",
-  "syncDeviceOther": "Other device",
-  "syncResolve": "Save decision",
-  "syncKindServer": "Server",
-  "syncKindTemplate": "Base template",
-  "syncKindUser": "VPN client",
-  "syncKindVless": "VLESS inbound",
-  "syncKindAwg": "AmneziaWG interface",
-  "syncKindTt": "TrustTunnel endpoint",
-  "syncKindOperation": "Server and operation state",
-  "syncKindProfile": "Profile history",
-  "syncKindWorkspace": "Workspace",
-  "@syncConflictCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "@syncWaitingCount": {
-    "placeholders": {
-      "groups": {
-        "type": "int"
-      },
-      "missing": {
-        "type": "int"
-      }
-    }
-  },
-  "@syncBlockedCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "@syncVariant": {
-    "placeholders": {
-      "number": {
-        "type": "int"
-      }
-    }
-  },
-  "syncRejectedCount": "Rejected groups with inconsistent change history: {count}. Working data is preserved.",
-  "@syncRejectedCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "googleAccountTitle": "Google account",
   "googleAccountHelp": "Sign in to Google to sync your devices.",
   "googleSignIn": "Sign in to Google",
   "googleSwitchAccount": "Switch account",
   "googleSignOut": "Sign out",
-  "googleConnected": "Google Drive connected.",
   "googleWorking": "Connecting to Google…",
   "googleConfigurationError": "Google sign-in is not configured for this build. Check the Android client and app certificate.",
   "googleDenied": "Google Drive access was not granted. Sign in again and allow access.",
@@ -973,14 +905,12 @@
   "googleReauthorize": "Please sign in to Google again.",
   "googleUnavailable": "Google sign-in is unavailable. Check Google Play services and try again.",
   "autoSyncTitle": "Automatic sync",
-  "autoSyncHelp": "Changes upload 30 seconds after an edit and when the app closes or enters the background. At launch and when you return to the app, a newer version is loaded from Google Drive. A temporary failure is retried automatically.",
   "autoSyncDisabled": "Automatic sync is off.",
   "autoSyncWaiting": "Waiting to sync",
   "autoSyncWorking": "Exchanging data with Google Drive…",
   "autoSyncDone": "Synced",
   "autoSyncEditing": "A newer version from Google Drive is downloaded. It is applied as soon as editors and dialogs are closed and current operations finish.",
   "autoSyncConflict": "This device has unsent changes, and Google Drive holds a different version. Nothing was overwritten: the changes stay on this device and are not uploaded automatically.",
-  "autoSyncIncomplete": "Some data is waiting for related changes or failed validation. Check the conflicts section.",
   "autoSyncError": "The exchange did not finish. Your data is saved on this device. The next attempt happens after the next edit, or when the app enters the background or you return to it.",
   "autoSyncRetrying": "No connection to Google Drive. Your data is saved on this device; the app will retry automatically.",
   "autoSyncRemoteNewer": "Google Drive has a newer version. It loads when you return to the app; nothing was uploaded from this device.",
@@ -1015,21 +945,11 @@
   "profilePublishedMissing": "Google Drive has no file of this client published by link.",
   "profilePublishedFailed": "Could not open the published file. Check the connection to Google Drive and try again.",
   "profilePublishedFromDrive": "Published file from Google Drive. It was not rebuilt on this device.",
-  "autoSyncNow": "Sync now",
-  "autoSyncLast": "Last exchange: {time}",
   "autoSyncPairing": "Sign in to the same Google account on your devices and use them in turn. Changes upload 30 seconds after an edit and when the app closes or enters the background; a device without unsent changes loads the newer version at launch and when you return to the app.",
-  "@autoSyncLast": {
-    "placeholders": {
-      "time": {
-        "type": "String"
-      }
-    }
-  },
   "googleDesktopConfigurationError": "Google sign-in is not configured. Select a Desktop OAuth client JSON from your Google project when prompted.",
   "googleDesktopUnavailable": "Could not open Google sign-in in the system browser. Check your default browser and try again.",
   "googleDesktopWaiting": "Complete sign-in in your browser, then return here. On first setup, select your Google Desktop client file if prompted.",
   "googleCancelSignIn": "Cancel sign-in",
-  "autoSyncOtherWorkspaces": "Some data was saved by an older app version. Update and open AntiRKN on the device that has it; it will become available here automatically.",
   "publicationTitle": "Profile publication",
   "publicationHelp": "Automatically save client YAML profiles to Google Drive and update the same file. Set up the folder on one device, then sync the others.",
   "publicationAuthorize": "Allow publishing to Drive",

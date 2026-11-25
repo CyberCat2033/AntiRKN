@@ -515,12 +515,6 @@ class VpnController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
-  Future<void> checkProfileEffects() async {
-    if (repository case final SyncEffectGuard guard) {
-      await guard.checkSyncEffects();
-    }
-  }
-
   Future<void> _write(VpnWorkspace next) async {
     final updated = repository is VpnWorkspaceWriter
         ? await (repository as VpnWorkspaceWriter).writeVpnWorkspace(
@@ -987,7 +981,6 @@ class VpnController extends ChangeNotifier {
     if (busy || hasRunning || !loaded) return false;
     var saved = false;
     await _run((token) async {
-      await checkProfileEffects();
       final target = protocol == 'amneziawg'
           ? awgTarget(serverId)
           : protocol == 'trusttunnel'
@@ -1055,7 +1048,6 @@ class VpnController extends ChangeNotifier {
     if (busy || !loaded || physical.isEmpty) return false;
     var saved = false;
     await _run((token) async {
-      await checkProfileEffects();
       token.check();
       final targets = <String>{
         for (final id in physical) id,
@@ -1176,7 +1168,6 @@ class VpnController extends ChangeNotifier {
     bool allowMissing = false,
   }) async {
     try {
-      if (request.json['action'] != 'status') await checkProfileEffects();
       if (const {
         'submit',
         'resume',
@@ -2378,7 +2369,6 @@ class VpnController extends ChangeNotifier {
             canonicalJson(workspace.desired(id, connection.panelId))) {
       throw const FormatException('vpn_conflict');
     }
-    await checkProfileEffects();
     await _record(id, {
       ...record,
       'operation': op.withExecutor(_deviceId!).toJson(),
@@ -2653,7 +2643,6 @@ class VpnController extends ChangeNotifier {
     }
     if (allowVerifiedSnapshot && hasCurrentVerifiedProfiles) {
       try {
-        await checkProfileEffects();
         if ((await repository.readVpn()).revision != revision) {
           return failed('sync_conflict');
         }

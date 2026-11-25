@@ -435,7 +435,7 @@ final class _SnapshotAutoSync implements AutoSyncSession {
       '${out.capturedSequence}',
     );
     await store.writeSetting('syncSnapshotUploaded', out.digest);
-    return AutoSyncResult(lastSuccess: DateTime.now().toUtc());
+    return const AutoSyncResult();
   }
 
   /// One conditional write of [out] over [expected] (null creates).
@@ -651,7 +651,7 @@ final class _SnapshotAutoSync implements AutoSyncSession {
     );
     _held = received;
     if (received == null) {
-      return AutoSyncResult(lastSuccess: DateTime.now().toUtc());
+      return const AutoSyncResult();
     }
     cancellation.check();
     return _applyReceived(received, apply);
@@ -687,7 +687,7 @@ final class _SnapshotAutoSync implements AutoSyncSession {
     });
     if (!applied) return const AutoSyncResult(waitingForEditor: true);
     _held = null;
-    return AutoSyncResult(received: true, lastSuccess: DateTime.now().toUtc());
+    return const AutoSyncResult(received: true);
   }
 
   /// Uploads what the cloud is missing; null when there is nothing to send.
@@ -843,7 +843,7 @@ final class _SnapshotAutoSync implements AutoSyncSession {
     });
     if (!applied) return const AutoSyncResult(waitingForEditor: true);
     _held = null;
-    return AutoSyncResult(received: true, lastSuccess: DateTime.now().toUtc());
+    return const AutoSyncResult(received: true);
   });
 
   @override

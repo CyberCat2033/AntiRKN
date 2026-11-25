@@ -623,7 +623,6 @@ class PublicationController extends ChangeNotifier {
           }
           final userIndex = nextIndex++;
           final user = activeUsers[userIndex];
-          final userTimer = Stopwatch()..start();
 
           _inFlightUserIds.add(user.id);
           _completedUserIds.remove(user.id);
@@ -636,10 +635,6 @@ class PublicationController extends ChangeNotifier {
             if (!force && !forceUpload && wasUpToDate) {
               upToDateCount++;
               success = true;
-              debugPrint(
-                'publication_timing phase=user index=$userIndex path=local '
-                'ms=${userTimer.elapsedMilliseconds}',
-              );
               continue;
             }
             final previousResult = results[user.id] == null
@@ -778,10 +773,6 @@ class PublicationController extends ChangeNotifier {
             } else {
               failedCount++;
             }
-            debugPrint(
-              'publication_timing phase=user index=$userIndex path=drive '
-              'ms=${userTimer.elapsedMilliseconds} ok=$success',
-            );
           } finally {
             _inFlightUserIds.remove(user.id);
             if (success) {

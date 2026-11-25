@@ -2118,11 +2118,7 @@ class _TestAutoSyncSession implements AutoSyncSession {
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 20));
     executed = true;
-    return AutoSyncResult(
-      otherWorkspaces: 0,
-      waitingForEditor: false,
-      lastSuccess: DateTime.now(),
-    );
+    return const AutoSyncResult();
   }
 
   @override

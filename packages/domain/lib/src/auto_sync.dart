@@ -31,18 +31,11 @@ enum SyncDivergenceChoice {
 
 final class AutoSyncResult {
   const AutoSyncResult({
-    this.more = false,
     this.waitingForEditor = false,
-    this.conflicts = 0,
-    this.waitingGroups = 0,
-    this.rejected = 0,
-    this.otherWorkspaces = 0,
-    this.lastSuccess,
     this.remoteNewer = false,
     this.received = false,
     this.divergence,
   });
-  final bool more;
 
   /// A newer cloud snapshot is downloaded and waits for editors and
   /// operations to finish; it is kept, not downloaded again.
@@ -57,8 +50,6 @@ final class AutoSyncResult {
 
   /// Automatic exchange is paused until the user chooses a version.
   final SyncDivergence? divergence;
-  final int conflicts, waitingGroups, rejected, otherWorkspaces;
-  final DateTime? lastSuccess;
 }
 
 abstract interface class AutoSyncSession {

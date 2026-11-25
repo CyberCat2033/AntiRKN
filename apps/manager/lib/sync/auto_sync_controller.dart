@@ -11,8 +11,10 @@ enum AutoSyncPhase {
   syncing,
   synced,
   editing,
+
+  /// The cloud holds different data that is not a choice between versions
+  /// (another workspace): nothing is exchanged or overwritten.
   conflict,
-  incomplete,
 
   /// The cloud has a newer snapshot; this device has nothing unsent.
   remoteNewer,
@@ -307,14 +309,8 @@ class AutoSyncController extends ChangeNotifier {
           ? AutoSyncPhase.synced
           : next.waitingForEditor
           ? AutoSyncPhase.editing
-          : next.conflicts > 0
-          ? AutoSyncPhase.conflict
           : next.remoteNewer
           ? AutoSyncPhase.remoteNewer
-          : next.waitingGroups > 0 || next.rejected > 0
-          ? AutoSyncPhase.incomplete
-          : next.more
-          ? AutoSyncPhase.waiting
           : AutoSyncPhase.synced;
       _consecutiveFailures = 0;
       _failureBackoff = Duration.zero;
