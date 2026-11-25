@@ -4096,4 +4096,47 @@ class AppLocalizationsEn extends AppLocalizations {
   String uiClientAccessFor(Object name) {
     return 'Access for $name';
   }
+
+  @override
+  String get aptDiskFull =>
+      'Not enough free disk space on the server for APT (/, /boot or the package cache). Free up space, then try again.';
+
+  @override
+  String get aptMemoryLow =>
+      'Not enough free memory on the server for APT. Stop heavy processes or add memory, then try again.';
+
+  @override
+  String get aptLockBusy =>
+      'Another package manager process (for example, automatic Ubuntu updates) holds the APT lock. Wait for it to finish, then try again.';
+
+  @override
+  String get aptDpkgInterrupted =>
+      'A previous package installation was interrupted. Run sudo dpkg --configure -a on the server, then try again.';
+
+  @override
+  String get runnerUpgradeDiskFull =>
+      'Not enough free disk space for the update';
+
+  @override
+  String get runnerUpgradeMemoryLow => 'Not enough free memory for the update';
+
+  @override
+  String get runnerUpgradeNotInstalled =>
+      'The component is not installed on the server';
+
+  @override
+  String get runnerUpgradeInvalidComponent =>
+      'This component cannot be updated this way';
+
+  @override
+  String get runnerUpgradeBinaryNotFound =>
+      'The package does not contain the expected program file';
+
+  @override
+  String get runnerUpgradeArchitectureMismatch =>
+      'The package is built for a different server architecture';
+
+  @override
+  String get runnerUpgradeRollbackFailed =>
+      'Rollback failed: the previous version was not restored. Check the server';
 }

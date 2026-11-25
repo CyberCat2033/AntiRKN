@@ -244,14 +244,11 @@ String runnerCodeLabel(AppLocalizations l, String code) => switch (code) {
   'vless_port_busy' || 'awg_port_busy' => l.vpnPortBusy,
   'vless_invalid' || 'awg_invalid' => l.vpnInvalid,
   'vless_api_failed' || 'awg_failed' => l.vpnFailed,
-  'apt_failed' => l.aptFailed,
-  'apt_conflict' => l.aptConflict,
-  'apt_interrupted' => l.aptInterrupted,
-  'apt_prerequisites' ||
-  'apt_disk_full' ||
-  'apt_memory_low' => l.runnerPrerequisites,
-  'apt_lock_busy' => l.runnerBusy,
-  final String v when v.startsWith('upgrade_') => l.runnerFailed,
+  final String v when v.startsWith('apt_') =>
+    aptIssueLabel(l, v) ?? l.aptFailed,
+  // A response code is never progress: unknown upgrade codes are failures.
+  final String v when v.startsWith('upgrade_') =>
+    upgradeOutcomeLabel(l, v) ?? l.runnerUpgradeFailedGeneric,
   'failed' => l.runnerFailed,
   'busy' => l.runnerBusy,
   'missing' => l.runnerMissing,
@@ -259,8 +256,45 @@ String runnerCodeLabel(AppLocalizations l, String code) => switch (code) {
   _ => l.runnerInvalidResponse,
 };
 
+/// APT failures, both as `apt_plan` response codes and as job events.
+/// Matched by string: `apt_dpkg_interrupted` comes with newer runners.
+String? aptIssueLabel(AppLocalizations l, String code) => switch (code) {
+  'apt_failed' => l.aptFailed,
+  'apt_conflict' => l.aptConflict,
+  'apt_interrupted' => l.aptInterrupted,
+  'apt_prerequisites' => l.runnerPrerequisites,
+  'apt_disk_full' => l.aptDiskFull,
+  'apt_memory_low' => l.aptMemoryLow,
+  'apt_lock_busy' => l.aptLockBusy,
+  'apt_dpkg_interrupted' => l.aptDpkgInterrupted,
+  _ => null,
+};
+
+/// Terminal outcomes and failures of a component upgrade; null for
+/// progress and unknown codes.
+String? upgradeOutcomeLabel(AppLocalizations l, String code) => switch (code) {
+  'upgrade_rolled_back' => l.runnerUpgradeRolledBack,
+  'upgrade_rollback_failed' => l.runnerUpgradeRollbackFailed,
+  'upgrade_syntax_failed' => l.runnerUpgradeSyntaxFailed,
+  'upgrade_healthcheck_failed' => l.runnerUpgradeHealthcheckFailed,
+  'upgrade_connectivity_failed' => l.runnerUpgradeConnectivityFailed,
+  'upgrade_download_missing' => l.runnerUpgradeDownloadMissing,
+  'upgrade_download_failed' => l.runnerUpgradeDownloadFailed,
+  'upgrade_checksum_failed' => l.runnerUpgradeChecksumFailed,
+  'upgrade_conflict' => l.runnerUpgradeConflict,
+  'upgrade_binary_not_found' => l.runnerUpgradeBinaryNotFound,
+  'upgrade_architecture_mismatch' => l.runnerUpgradeArchitectureMismatch,
+  'upgrade_disk_full' => l.runnerUpgradeDiskFull,
+  'upgrade_memory_low' => l.runnerUpgradeMemoryLow,
+  'upgrade_not_installed' => l.runnerUpgradeNotInstalled,
+  'upgrade_invalid_component' => l.runnerUpgradeInvalidComponent,
+  'upgrade_failed' => l.runnerUpgradeFailedGeneric,
+  _ => null,
+};
+
 /// Единый резолвер для кодов обновления (используется и в журнале событий, и в статусе раннера).
 String? tryResolveUpgradeLabel(AppLocalizations l, String code) {
+  if (upgradeOutcomeLabel(l, code) case final label?) return label;
   return switch (code) {
     // Progress states
     'upgrade_preparing' => l.runnerUpgradePreparing,
@@ -270,21 +304,9 @@ String? tryResolveUpgradeLabel(AppLocalizations l, String code) {
     'upgrade_switching' => l.runnerUpgradeSwitching,
     'upgrade_verifying' => l.runnerUpgradeVerifying,
     'upgrade_rolling_back' => l.runnerUpgradeRollingBack,
-    // Terminal outcomes
     'upgrade_completed' || 'upgrade_checked' => l.runnerUpgradeCompleted,
-    'upgrade_rolled_back' => l.runnerUpgradeRolledBack,
-    // Specific failures
-    'upgrade_syntax_failed' => l.runnerUpgradeSyntaxFailed,
-    'upgrade_healthcheck_failed' => l.runnerUpgradeHealthcheckFailed,
-    'upgrade_connectivity_failed' => l.runnerUpgradeConnectivityFailed,
     'upgrade_awaiting_confirmation' => l.runnerUpgradeAwaitingConfirmation,
     'upgrade_confirmed' => l.runnerUpgradeConfirmed,
-    'upgrade_download_missing' => l.runnerUpgradeDownloadMissing,
-    'upgrade_download_failed' => l.runnerUpgradeDownloadFailed,
-    'upgrade_checksum_failed' => l.runnerUpgradeChecksumFailed,
-    'upgrade_conflict' => l.runnerUpgradeConflict,
-    'upgrade_binary_not_found' => l.runnerUpgradeSyntaxFailed,
-    'upgrade_architecture_mismatch' => l.runnerUpgradeSyntaxFailed,
     // Safe fallback for future upgrade_* codes (never masks progress as failure)
     final String v
         when v.startsWith('upgrade_') &&
@@ -335,10 +357,7 @@ String runnerEventLabel(AppLocalizations l, String code) =>
       'apt_upgrading' => l.aptUpgrading,
       'apt_checked' => l.runnerSucceeded,
       'apt_reboot_required' => l.aptReboot,
-      'apt_failed' => l.aptFailed,
-      'apt_conflict' => l.aptConflict,
-      'apt_interrupted' => l.aptInterrupted,
-      'apt_prerequisites' => l.runnerPrerequisites,
+      final String v when aptIssueLabel(l, v) != null => aptIssueLabel(l, v)!,
       'component_prepared' => l.protocolPrepared,
       'component_downloaded' => l.componentsDownloaded,
       'component_built' => l.protocolBuilt,

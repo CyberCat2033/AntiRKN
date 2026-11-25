@@ -1284,8 +1284,14 @@ class RunnerController extends ChangeNotifier {
     await prepareApt(upgrade: false);
     if (!choosingAptUpdate || !canStart) return;
     _systemUpdate = true;
+    final before = selected?.id;
     await applyApt();
-    if (error != null && pending == null) _systemUpdate = false;
+    // Only a submitted (or possibly submitted) index refresh continues with
+    // the upgrade. A refusal (busy, capacity) or a skipped start leaves no
+    // job: a later unrelated apt_update must not upgrade packages.
+    if (pending == null && (selected == null || selected!.id == before)) {
+      _systemUpdate = false;
+    }
   }
 
   Future<void> retryJob() => requestAction(() async {

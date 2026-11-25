@@ -1539,5 +1539,16 @@
   "inventoryPartialList": "Some checks were incomplete: {items}",
   "inventoryVersionUnknownReason": "Version unknown: {reason}",
   "xrayUpgradeProblemAfter": "{reason} The check did not finish. Review the connection results and retry when connectivity is restored.",
-  "uiClientAccessFor": "Access for {name}"
+  "uiClientAccessFor": "Access for {name}",
+  "aptDiskFull": "Not enough free disk space on the server for APT (/, /boot or the package cache). Free up space, then try again.",
+  "aptMemoryLow": "Not enough free memory on the server for APT. Stop heavy processes or add memory, then try again.",
+  "aptLockBusy": "Another package manager process (for example, automatic Ubuntu updates) holds the APT lock. Wait for it to finish, then try again.",
+  "aptDpkgInterrupted": "A previous package installation was interrupted. Run sudo dpkg --configure -a on the server, then try again.",
+  "runnerUpgradeDiskFull": "Not enough free disk space for the update",
+  "runnerUpgradeMemoryLow": "Not enough free memory for the update",
+  "runnerUpgradeNotInstalled": "The component is not installed on the server",
+  "runnerUpgradeInvalidComponent": "This component cannot be updated this way",
+  "runnerUpgradeBinaryNotFound": "The package does not contain the expected program file",
+  "runnerUpgradeArchitectureMismatch": "The package is built for a different server architecture",
+  "runnerUpgradeRollbackFailed": "Rollback failed: the previous version was not restored. Check the server"
 }
