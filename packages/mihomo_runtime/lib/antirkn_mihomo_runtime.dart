@@ -9,7 +9,7 @@ import 'package:crypto/crypto.dart';
 import 'package:yaml/yaml.dart';
 import 'src/native_worker.dart';
 
-const mihomoVersion = '1.19.30';
+const mihomoVersion = '1.19.34';
 const _revision = 'ac017cdd246ce8bd547653d927e7bf77d7ee73d5';
 
 /// A worker handles one request, then exits. No user config is ever executed.

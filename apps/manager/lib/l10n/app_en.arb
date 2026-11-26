@@ -470,6 +470,8 @@
   "componentsChecked": "Versions, settings and API verified on the server",
   "componentsDownloadFailed": "Archive download failed. Installation is incomplete.",
   "componentsChecksumFailed": "Checksum mismatch. The archive will not be executed.",
+  "vpnRealityFingerprint": "REALITY on current Xray accepts only Chrome, Firefox or Safari from Mihomo clients. With this fingerprint Clash Meta clients and the app's check cannot connect; choose one of them.",
+  "componentsArchiveInvalid": "This release's archive does not contain the programs AntiRKN installs. Nothing was changed; choose another version.",
   "componentsApiFailed": "Panel operation could not be verified. Check the journal and service state.",
   "componentsPartial": "The operation stopped after applying some changes. Created files are retained; the installation has not been rolled back.",
   "@componentsVerified": {

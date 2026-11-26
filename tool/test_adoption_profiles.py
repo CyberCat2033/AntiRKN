@@ -26,7 +26,7 @@ def main():
     parser.add_argument('--mihomo', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
-    if hashlib.sha256(args.mihomo.read_bytes()).hexdigest() != '8ad44e28fe72be4640254b96741b677f4074991b99186cc4486a1c28ded02b1a':
+    if hashlib.sha256(args.mihomo.read_bytes()).hexdigest() != '5b6644c487e5dffae86b0e0e9bb5cec445579a3a9d03977c09576fee2aeefc01':
         raise SystemExit('Unexpected Mihomo binary')
     reality = dict(privateKey='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', shortIds=['0123456789abcdef'],
                    serverNames=['example.com'], target='example.com:443')
@@ -76,7 +76,7 @@ def main():
                 results.append(dict(case=name, compiled=True, mihomoConfig=True))
             finally:
                 fixture.tearDown()
-    args.output.write_text(json.dumps(dict(mihomo='1.19.30', liveConnectivity=False, results=results),indent=2)+'\n')
+    args.output.write_text(json.dumps(dict(mihomo='1.19.34', liveConnectivity=False, results=results),indent=2)+'\n')
     print(f'{len(results)} adopted profile cases: production compiler and pinned Mihomo -t PASS')
 
 

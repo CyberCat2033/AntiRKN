@@ -438,17 +438,17 @@ def fixture(name, fetch=False):
             raise RuntimeError('Invalid/stale AWG Go module cache. Run: python3 tool/vm_regression.py --fetch')
         return archive
     if name == 'mihomo':
-        # Pinned official Mihomo v1.19.30 (same pin as tool/test_vless_vm.py).
+        # Pinned official Mihomo v1.19.34 (same pin as tool/test_vless_vm.py).
         binary = CACHE / 'mihomo'
-        pinned = '8ad44e28fe72be4640254b96741b677f4074991b99186cc4486a1c28ded02b1a'
+        pinned = '5b6644c487e5dffae86b0e0e9bb5cec445579a3a9d03977c09576fee2aeefc01'
         if binary.exists() and sha256_file(binary) == pinned:
             return binary
         if not fetch:
             raise RuntimeError('Missing or invalid cached mihomo binary. Run: python3 tool/vm_regression.py --fetch')
         import gzip
-        archive = _download('https://github.com/MetaCubeX/mihomo/releases/download/v1.19.30/'
-                            'mihomo-linux-amd64-compatible-v1.19.30.gz', CACHE / 'mihomo.gz',
-                            'db214c7a2517e63c150d123178d16d102e03a241ccdae4e5e07ffbe9cf56c6f9', fetch=True)
+        archive = _download('https://github.com/MetaCubeX/mihomo/releases/download/v1.19.34/'
+                            'mihomo-linux-amd64-compatible-v1.19.34.gz', CACHE / 'mihomo.gz',
+                            '2763f5b414527f7baf6dc57e3f82f3ab561eedf34bfd7c2f2cde1f7e592efe06', fetch=True)
         binary.write_bytes(gzip.decompress(archive.read_bytes()))
         binary.chmod(0o700)
         if sha256_file(binary) != pinned:

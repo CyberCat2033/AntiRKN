@@ -99,11 +99,11 @@ pathlib.Path('/etc/systemd/system/antirkn-runner.service').unlink(missing_ok=Tru
         job=wait(req);check(job['status']=='succeeded','trusttunnel_install_'+job['events'][-1]['code'])
     mihomo=DIRECTORY/'mihomo-compatible'
     if not mihomo.exists():
-        metadata=json.load(urllib.request.urlopen('https://api.github.com/repos/MetaCubeX/mihomo/releases/tags/v1.19.30'))
-        asset=next(a for a in metadata['assets'] if a['name']=='mihomo-linux-amd64-compatible-v1.19.30.gz')
+        metadata=json.load(urllib.request.urlopen('https://api.github.com/repos/MetaCubeX/mihomo/releases/tags/v1.19.34'))
+        asset=next(a for a in metadata['assets'] if a['name']=='mihomo-linux-amd64-compatible-v1.19.34.gz')
         raw=download(asset['browser_download_url'],asset['digest'].split(':')[1],DIRECTORY/'mihomo-compatible.gz')
         mihomo.write_bytes(gzip.decompress(raw));mihomo.chmod(0o700)
-        (DIRECTORY/'mihomo-release.json').write_text(json.dumps(dict(version='1.19.30',url=asset['browser_download_url'],archiveSha256=asset['digest'],binarySha256=hashlib.sha256(mihomo.read_bytes()).hexdigest())))
+        (DIRECTORY/'mihomo-release.json').write_text(json.dumps(dict(version='1.19.34',url=asset['browser_download_url'],archiveSha256=asset['digest'],binarySha256=hashlib.sha256(mihomo.read_bytes()).hexdigest())))
     return mihomo
 
 

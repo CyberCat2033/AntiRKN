@@ -256,4 +256,81 @@ class ComponentTests(unittest.TestCase):
         self.assertFalse(staging.exists())
 
 
+class ChosenTrustTunnelLayoutTests(unittest.TestCase):
+    """TrustTunnel 1.3 ships no setup_wizard (it is `trusttunnel_endpoint
+    --setup-wizard` now); the archive digest already matched on download."""
+
+    URL = 'https://github.com/TrustTunnel/TrustTunnel/releases/download/v1.3.1/trusttunnel-v1.3.1-linux-x86_64.tar.gz'
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+        self.store = Store(self.root)
+        payload = json.dumps({'version': '1.3.1', 'archive': {'url': self.URL, 'bytes': 10, 'sha256': 'd' * 64}})
+        self.installer = ComponentInstaller(self.store, {**request(), 'payload': payload})
+        self.installer.directory.mkdir(mode=0o700)
+
+    def tearDown(self):
+        self.store.close()
+        self.temp.cleanup()
+
+    def archive(self, *names):
+        with tarfile.open(self.installer.directory / 'endpoint.archive', 'w:gz') as tar:
+            for name in names:
+                info = tarfile.TarInfo('trusttunnel-v1.3.1-linux-x86_64/' + name)
+                info.size, info.mode = 4, 0o755
+                tar.addfile(info, io.BytesIO(name.encode()[:4].ljust(4, b'.')))
+
+    def build(self):
+        with patch.object(ComponentInstaller, 'verify'):
+            return self.installer.build()
+
+    def test_release_without_setup_wizard_builds_the_endpoint_only(self):
+        self.archive('trusttunnel_endpoint', 'trusttunnel_endpoint.sig', 'LICENSE', 'trusttunnel.service.template')
+        self.assertTrue(self.build())
+        output = self.installer.directory / 'output'
+        self.assertEqual(sorted(p.name for p in output.iterdir()), ['trusttunnel_endpoint'])
+
+    def test_older_layout_keeps_setup_wizard(self):
+        self.archive('trusttunnel_endpoint', 'setup_wizard', 'LICENSE')
+        self.assertTrue(self.build())
+        output = self.installer.directory / 'output'
+        self.assertEqual(sorted(p.name for p in output.iterdir()), ['setup_wizard', 'trusttunnel_endpoint'])
+        self.assertTrue((output / 'setup_wizard').stat().st_mode & 0o100)
+
+    def test_missing_endpoint_or_ambiguous_program_is_an_invalid_archive(self):
+        for names in (('setup_wizard', 'LICENSE'), ('trusttunnel_endpoint', 'setup_wizard', 'x/setup_wizard')):
+            with self.subTest(names=names):
+                for leftover in ('endpoint', 'output', '.build_prepared'):
+                    path = self.installer.directory / leftover
+                    if path.is_dir():
+                        import shutil; shutil.rmtree(str(path))
+                    elif path.exists():
+                        path.unlink()
+                self.archive(*names)
+                with self.assertRaises(ComponentError) as raised:
+                    self.build()
+                self.assertEqual(raised.exception.code, 'component_archive_invalid')
+
+    def test_links_only_programs_the_release_ships(self):
+        bin_dir, base = self.root / 'bin', self.root / 'base'
+        bin_dir.mkdir()
+        self.installer.root = base / 'trusttunnel'
+        with patch('components.BIN', bin_dir):
+            self.installer.link_programs({'trusttunnel_endpoint': 'a' * 64})
+            self.assertEqual(sorted(p.name for p in bin_dir.iterdir()), ['trusttunnel_endpoint'])
+            # An earlier version's wizard link stays for a rollback.
+            (bin_dir / 'setup_wizard').symlink_to(base / 'trusttunnel' / 'current' / 'setup_wizard')
+            self.installer.link_programs({'trusttunnel_endpoint': 'a' * 64})
+            self.installer.link_programs({'trusttunnel_endpoint': 'a' * 64, 'setup_wizard': 'b' * 64})
+            (bin_dir / 'setup_wizard').unlink()
+            (bin_dir / 'setup_wizard').write_bytes(b'foreign')
+            with self.assertRaises(ComponentError):
+                self.installer.link_programs({'trusttunnel_endpoint': 'a' * 64, 'setup_wizard': 'b' * 64})
+
+    def test_installed_version_without_setup_wizard_is_recognised(self):
+        self.assertEqual(components.names('trusttunnel'), ('trusttunnel_endpoint',))
+        self.assertIn('setup_wizard', components.programs('trusttunnel'))
+
+
 if __name__=='__main__': unittest.main()

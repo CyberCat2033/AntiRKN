@@ -7,6 +7,7 @@ import uuid
 import vless
 from managed_existing import derive, intent, user_enabled
 from observed_inbounds import object_field
+from panel_clients import converge, in_transition
 from vless import VlessError, canonical, digest, normal, subset
 from vless_contract import SCHEMA
 
@@ -163,18 +164,25 @@ def build(store, p, r, old, current, preview=False):
     return intent(old, current, desired, clients, proxy)
 
 
+def between(current, plan):
+    """An unfinished write of this plan (3x-ui 3.9+ takes several calls)."""
+    return (plan['after'] is not None and current['row'] is not None
+            and in_transition(plan['before']['row'], plan['after'], current['row']))
+
+
 def apply(store, p, r, plan, marker=None):
     current = snapshot(store, p, r, expected_hash=plan['before']['fingerprint'])
-    if current['fingerprint'] != plan['before']['fingerprint'] and not verify(current, plan):
-        raise VlessError('vpn_adoption_conflict')
     if verify(current, plan):
         return
+    if current['fingerprint'] != plan['before']['fingerprint'] and not between(current, plan):
+        raise VlessError('vpn_adoption_conflict')
     api = vless.panel_for(store, p['panelId'])
     source = int(r['adoption']['sourceId'])
     if plan['after'] is None:
         api.call('/panel/api/inbounds/del/%d' % source, {})
     else:
-        api.call('/panel/api/inbounds/update/%d' % source, plan['after'])
+        # Only our clients and the switch the plan changes; foreign clients stay.
+        converge(api, source, plan['after'], before=plan['before']['row'])
 
 
 def restore(store, p, r, plan, marker=None):
@@ -187,10 +195,10 @@ def restore(store, p, r, plan, marker=None):
     current = snapshot(store, p, r, expected_hash=before['fingerprint'])
     if current['fingerprint'] == before['fingerprint']:
         return True
-    if plan['after'] is None or current['row'] is None or not verify(current, plan):
+    if plan['after'] is None or current['row'] is None or not (verify(current, plan) or between(current, plan)):
         return None
     api = vless.panel_for(store, p['panelId'])
-    api.call('/panel/api/inbounds/update/%d' % int(r['adoption']['sourceId']), before['row'])
+    converge(api, int(r['adoption']['sourceId']), before['row'], before=plan['after'])
     vless.restart(api)
     again = snapshot(store, p, r, expected_hash=before['fingerprint'])
     if again['fingerprint'] != before['fingerprint'] and not (

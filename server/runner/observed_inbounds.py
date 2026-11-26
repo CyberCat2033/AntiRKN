@@ -154,12 +154,18 @@ class ObservedInboundEdit:
             safe_file(self.backup, 262144)
             original = json.loads(self.backup.read_text())
             desired = wanted(original, p['patch'])
-            if digest(normal(current)) == digest(normal(original)):
-                # Merge onto current counters rather than resetting traffic totals.
-                api.call('/panel/api/inbounds/update/%d' % current['id'], wanted(current, p['patch']))
-            elif not subset(normal(desired), normal(current)):
-                raise VlessError('vless_conflict')
-            _, observed = read(self.store, p['panelId'], p['inboundId'], api=api)
+            from panel_clients import converge, in_transition
+            unchanged = digest(normal(current)) == digest(normal(original))
+            if unchanged or not subset(normal(desired), normal(current)):
+                # 3x-ui 3.9+ takes a second call for the switch: a crash in
+                # between leaves this edit half done, not a foreign change.
+                if not unchanged and not in_transition(original, desired, current):
+                    raise VlessError('vless_conflict')
+                # Merge onto current counters rather than resetting traffic
+                # totals; the clients stay as the panel holds them.
+                observed = converge(api, current['id'], wanted(current, p['patch']), before=current)
+            else:
+                _, observed = read(self.store, p['panelId'], p['inboundId'], api=api)
             if not subset(normal(desired), normal(observed)): raise VlessError('vless_api_failed')
             code = 'vless_applying'
         else:

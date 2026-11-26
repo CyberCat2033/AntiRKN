@@ -218,7 +218,7 @@ def network(state,resources,index,user_index=0,expected=True):
         process.terminate();process.wait(timeout=10);log.close()
 
 def main():
-    check(hashlib.sha256(MIHOMO.read_bytes()).hexdigest()=='8ad44e28fe72be4640254b96741b677f4074991b99186cc4486a1c28ded02b1a','pinned_mihomo_sha256')
+    check(hashlib.sha256(MIHOMO.read_bytes()).hexdigest()=='5b6644c487e5dffae86b0e0e9bb5cec445579a3a9d03977c09576fee2aeefc01','pinned_mihomo_sha256')
     close=fixtures()
     try:
         resources=[public_spec(0),public_spec(1,'xhttp'),public_spec(2,'xhttp','tls','packet-up'),public_spec(3,'xhttp','tls','stream-up'),public_spec(4,'xhttp','tls','stream-one')]
@@ -250,7 +250,7 @@ def main():
         check(preview(payload(bad))['code']=='vless_port_busy','colliding_port_refused')
         bad=copy.deepcopy(resources);bad[2]['sni']='wrong.test'
         check(preview(payload(bad))['code']=='vless_invalid','wrong_tls_certificate_refused')
-        report=dict(results=results,panelVersion='3.7.0',xrayVersion='26.7.28',mihomoVersion='1.19.30',
+        report=dict(results=results,panelVersion='3.7.0',xrayVersion='26.7.28',mihomoVersion='1.19.34',
             environment='Ubuntu QEMU x86_64; host Linux; loopback host-forwarded TCP; controlled TLS CA and TCP/UDP echo destinations',
             tlsTrust='Dedicated test CA, no skip-cert-verify',productionCompiler=True,
             realityCompatibility='minClientVer=1.8.2 for pinned Mihomo handshake; Xray default 26.3.27 rejects it',

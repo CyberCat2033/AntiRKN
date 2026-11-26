@@ -30,7 +30,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const Version = "1.19.30"
+const Version = "1.19.34"
 const Revision = "ac017cdd246ce8bd547653d927e7bf77d7ee73d5"
 const MaxInput = 4 * 1024 * 1024
 

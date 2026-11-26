@@ -799,21 +799,24 @@ class VlessApply:
             desired = normal(wanted)
             for k in ('id','tag','up','down','total','userId','nodeId'): desired.pop(k,None)
             already = current is None if r['deleted'] else current is not None and subset(desired, normal(current))
-            created_id = None
+            created_id = observed = None
             if not already:
-                if current and (not previous or not matches_observation(api, current, p['workspaceId'], r['id'], previous['observedHash'])): raise VlessError('vless_conflict')
+                if current and (not previous or not matches_observation(api, current, p['workspaceId'], r['id'], previous['observedHash'])) \
+                        and not self.resumable(r, wanted, current): raise VlessError('vless_conflict')
                 if not current and previous and not (previous.get('deleted') or r.get('deleted')): raise VlessError('vless_conflict')
                 if r['deleted']:
                     if current: api.call('/panel/api/inbounds/del/%d' % current['id'], {})
                 elif current:
-                    api.call('/panel/api/inbounds/update/%d' % current['id'], wanted)
+                    from panel_clients import converge
+                    observed = converge(api, current['id'], wanted)
                 else:
                     created = api.call('/panel/api/inbounds/add', wanted)
                     if isinstance(created, dict) and isinstance(created.get('id'), int):
                         created_id = created['id']
             readback_id = current['id'] if current and not r['deleted'] else created_id
             if readback_id is not None:
-                observed = api.call('/panel/api/inbounds/get/%d' % readback_id)
+                if observed is None:
+                    observed = api.call('/panel/api/inbounds/get/%d' % readback_id)
                 if not isinstance(observed, dict) or observed.get('remark') != marker(p['workspaceId'], r['id']):
                     raise VlessError('vless_api_failed')
             else:
@@ -845,6 +848,18 @@ class VlessApply:
         with db:
             db.execute('UPDATE jobs SET checkpoint=? WHERE id=?',(checkpoint+1,job_id))
             self.store.event(job_id,code,checkpoint+1,self.req['count'])
+
+    def resumable(self, r, wanted, current):
+        """current is this job's own unfinished write: on 3x-ui 3.9+ one
+        resource takes several panel calls, and a crash between them leaves
+        a row that matches neither the observation nor the wanted row."""
+        backup = self.store.directory / ('vless-backup-' + self.req['id'] + '.json')
+        if not backup.exists():
+            return False
+        safe_file(backup, 16777216)
+        before = locate(json.loads(backup.read_text()).get('rows', []), self.payload['workspaceId'], r['id'])
+        from panel_clients import in_transition
+        return in_transition(before, wanted, current)
 
     def recover(self, checkpoint):
         """After a failed resource step, put an adopted inbound back as it was

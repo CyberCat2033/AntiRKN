@@ -209,12 +209,14 @@ def clear_managed_clients(store):
                 settings['clients'] = kept
                 wanted = dict(row)
                 wanted['settings'] = vless.canonical(settings)
-                api.call('/panel/api/inbounds/update/%d' % row['id'], wanted)
+                # Only the dropped clients are touched (removed from this
+                # inbound alone when another one shares them).
+                from panel_clients import converge
+                detail = converge(api, row['id'], wanted, before=row)
                 restart = True
                 cleared += len(clients_list) - len(kept)
                 # Hash the panel's own readback, as VlessApply does.
-                detail = api.call('/panel/api/inbounds/get/%d' % row['id'])
-                r['observedHash'] = vless.digest(vless.normal(detail if isinstance(detail, dict) and detail.get('id') == row['id'] else wanted))
+                r['observedHash'] = vless.digest(vless.normal(detail))
                 save('vless_resources', res_id, r)
             except Exception:
                 failed = True

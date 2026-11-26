@@ -395,6 +395,7 @@ String runnerEventLabel(AppLocalizations l, String code) =>
       'component_incompatible' => l.runnerIncompatible,
       'component_download_failed' => l.componentsDownloadFailed,
       'component_checksum_failed' => l.componentsChecksumFailed,
+      'component_archive_invalid' => l.componentsArchiveInvalid,
       'component_build_failed' => l.protocolBuildFailed,
       'component_check_failed' => l.protocolCheckFailed,
       'component_prerequisites' => l.protocolPrerequisites,

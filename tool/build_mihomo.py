@@ -9,8 +9,8 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / 'native/mihomo'
-VERSION = '1.19.30'
-REVISION = 'ac017cdd246ce8bd547653d927e7bf77d7ee73d5'
+VERSION = '1.19.34'
+REVISION = '0455d0d28c4526937380505153e65a843d8612e8'
 
 def notices(destination):
     destination.mkdir(parents=True, exist_ok=True)

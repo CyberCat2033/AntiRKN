@@ -1285,12 +1285,14 @@ class ComponentUpgrader:
                 p for p in self.staging_dir.rglob('setup_wizard')
                 if p.is_file() and not p.is_symlink() and not p.name.endswith('.antirkn-tmp')
             ]
-            if not wizards:
+            # TrustTunnel 1.3+ ships no setup_wizard: the endpoint carries it
+            # (`trusttunnel_endpoint --setup-wizard`). The old one, if any, stays.
+            # A linked one is never followed.
+            if any(p.is_symlink() for p in self.staging_dir.rglob('setup_wizard')):
                 raise ComponentUpgradeError(
                     UpgradeEventCode.SYNTAX_FAILED,
-                    detail='setup_wizard binary missing from archive',
+                    detail='setup_wizard is a link',
                 )
-
             for w in wizards:
                 probe_staged_binary(w, ['--help'])
 
