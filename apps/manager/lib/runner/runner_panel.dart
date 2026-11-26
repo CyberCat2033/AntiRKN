@@ -8,16 +8,22 @@ import '../l10n/app_localizations.dart';
 import 'runner_controller.dart';
 import 'component_installation_view.dart';
 import 'software_overview.dart';
+import '../ssh/server_activity.dart' show runnerJobTitle;
 
 class RunnerPanel extends StatelessWidget {
   const RunnerPanel({
     required this.controller,
     required this.motion,
     this.coreUpgrade,
+    this.reboot,
     super.key,
   });
   final RunnerController controller;
   final MotionPreference motion;
+
+  /// The reboot action (with its reconnect tracking), offered under a
+  /// finished job that left the server needing a reboot.
+  final Widget? reboot;
 
   /// The checked Xray core transaction, shown under the 3x-ui / Xray row.
   final Widget? coreUpgrade;
@@ -83,7 +89,10 @@ class RunnerPanel extends StatelessWidget {
           children: [
             // Background reads (refresh, polling) show no page-wide bar;
             // only an action the user started does.
-            if (c.actionPending && !c.actionShowsOwnProgress && !active)
+            if (c.actionPending &&
+                !c.actionShowsOwnProgress &&
+                !c.waitingForProbe &&
+                !active)
               const LinearProgressIndicator(),
             if (c.error case final issue?)
               Semantics(
@@ -176,52 +185,58 @@ class RunnerPanel extends StatelessWidget {
                   ),
                 ),
               ),
-            if (showJob && active) ...[
-              const SizedBox(height: AppLayout.gap),
-              // One compact block like a component install: the step, one
-              // bar, and the actions in one row (no standing help text).
-              Semantics(
-                liveRegion: true,
-                child: Text(
-                  event != null
-                      ? runnerEventLabel(l, event.code)
-                      : runnerStateLabel(l, job.status),
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-              ),
-              const SizedBox(height: 6),
-              LinearProgressIndicator(
+            if (showJob && active)
+              // One card like a component install: what runs, its step in
+              // a progress ring and the actions (no bare full-width bar).
+              AppProgressCard(
+                key: const ValueKey('runner-job-progress'),
+                margin: const EdgeInsets.only(top: AppLayout.gap, bottom: 12),
+                icon: job.kind.startsWith('apt_')
+                    ? Icons.system_update_alt
+                    : Icons.sync,
+                title: runnerJobTitle(l, job.kind),
+                status: event != null
+                    ? runnerEventLabel(l, event.code)
+                    : runnerStateLabel(l, job.status),
                 value: job.count > 0 && job.checkpoint > 0
                     ? job.checkpoint / job.count
                     : null,
+                step: job.count > 1
+                    ? '${(job.checkpoint + 1).clamp(1, job.count)}/${job.count}'
+                    : null,
+                notes: [
+                  if (reboot == true) l.aptReboot,
+                  if (job.cancelRequested) l.runnerCancelRequested,
+                ],
+                actions: [
+                  if (job.kind != 'server_reboot')
+                    TextButton(
+                      key: const ValueKey('runner-cancel'),
+                      onPressed:
+                          !c.busy && !c.actionPending && !job.cancelRequested
+                          ? () async {
+                              await c.cancelJob();
+                            }
+                          : null,
+                      child: Text(l.runnerCancel),
+                    ),
+                  if (resetAfterJob)
+                    RunnerResetQueueButton(
+                      controller: c,
+                      buttonKey: const ValueKey('runner-reset-queue'),
+                      inline: true,
+                    ),
+                ],
               ),
-              if (reboot == true) Text(l.aptReboot),
-              if (job.cancelRequested) Text(l.runnerCancelRequested),
-              if (job.kind != 'server_reboot' || resetAfterJob)
-                Wrap(
-                  spacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    if (job.kind != 'server_reboot')
-                      TextButton(
-                        key: const ValueKey('runner-cancel'),
-                        onPressed:
-                            !c.busy && !c.actionPending && !job.cancelRequested
-                            ? () async {
-                                await c.cancelJob();
-                              }
-                            : null,
-                        child: Text(l.runnerCancel),
-                      ),
-                    if (resetAfterJob)
-                      RunnerResetQueueButton(
-                        controller: c,
-                        buttonKey: const ValueKey('runner-reset-queue'),
-                        inline: true,
-                      ),
-                  ],
-                ),
-            ],
+            // Kept while the reboot job runs: the view tracks the reconnect.
+            if (this.reboot case final rebootAction?
+                when showJob &&
+                    (job.terminal && reboot == true ||
+                        job.kind == 'server_reboot'))
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: rebootAction,
+              ),
             // A job shown elsewhere (a component install) keeps the reset.
             if (resetAfterJob && !showJob)
               RunnerResetQueueButton(
@@ -229,7 +244,16 @@ class RunnerPanel extends StatelessWidget {
                 buttonKey: const ValueKey('runner-reset-queue'),
               ),
             if (c.observesOperation) Text(l.operationObserving),
-            if (c.pending != null) ...[
+            if (c.pending != null && c.waitingForProbe)
+              AppProgressCard(
+                key: const ValueKey('runner-waiting-probe'),
+                title: runnerJobTitle(
+                  l,
+                  c.pending!.json['kind'] as String? ?? '',
+                ),
+                status: l.runnerWaitingProbe,
+              )
+            else if (c.pending != null) ...[
               Text(c.observesOperation ? l.operationMissing : l.runnerPending),
               TextButton(
                 key: const ValueKey('runner-retry'),

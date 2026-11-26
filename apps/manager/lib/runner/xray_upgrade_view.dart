@@ -261,46 +261,33 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
           c.busy ||
           (_active.contains(c.phase) && c.phase != 'recovery_required');
       if (inProgress) {
-        return Padding(
+        return AppProgressCard(
           key: const ValueKey('xray-upgrade'),
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Semantics(
-                liveRegion: true,
-                child: Text(
-                  // A new run starts with the baseline check; the previous
-                  // run's outcome must not show while it is in progress.
-                  '$title · ${_active.contains(c.phase) ? message : l.xrayUpgradeBaseline}',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
+          icon: Icons.memory,
+          title: title,
+          // A new run starts with the baseline check; the previous run's
+          // outcome must not show while it is in progress.
+          status: _active.contains(c.phase) ? message : l.xrayUpgradeBaseline,
+          actions: [
+            if (c.running)
+              // Stopping aborts the upgrade and rolls the core back on the
+              // server: confirm in error colours (UI-55).
+              TextButton(
+                key: const ValueKey('xray-stop'),
+                onPressed: () async {
+                  final stop = await confirmAppDanger(
+                    context,
+                    title: l.xrayUpgradeStopTitle,
+                    message: l.xrayUpgradeStopHelp,
+                    confirmLabel: l.connectionStop,
+                    cancelLabel: l.runnerNotNow,
+                    confirmKey: const ValueKey('xray-stop-confirm'),
+                  );
+                  if (stop && c.running) c.cancel();
+                },
+                child: Text(l.connectionStop),
               ),
-              const SizedBox(height: 6),
-              const LinearProgressIndicator(),
-              if (c.running)
-                Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  // Stopping aborts the upgrade and rolls the core back on
-                  // the server: confirm in error colours (UI-55).
-                  child: TextButton(
-                    key: const ValueKey('xray-stop'),
-                    onPressed: () async {
-                      final stop = await confirmAppDanger(
-                        context,
-                        title: l.xrayUpgradeStopTitle,
-                        message: l.xrayUpgradeStopHelp,
-                        confirmLabel: l.connectionStop,
-                        cancelLabel: l.runnerNotNow,
-                        confirmKey: const ValueKey('xray-stop-confirm'),
-                      );
-                      if (stop && c.running) c.cancel();
-                    },
-                    child: Text(l.connectionStop),
-                  ),
-                ),
-            ],
-          ),
+          ],
         );
       }
       final text = [

@@ -347,4 +347,84 @@ void main() {
       },
     );
   });
+
+  group('apt job card and reboot', () {
+    Future<RunnerController> pump(WidgetTester tester, RunnerJob job) async {
+      final store = MemoryRunnerJournal();
+      final c = RunnerController(
+        serverId: 'srv1',
+        transport: () => FakeRunnerTransport(store),
+        identity: () => 'fixture|key',
+        password: () => null,
+        accessFailure: (_) {},
+        store: store,
+      );
+      c.selected = job;
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: RunnerPanel(
+                controller: c,
+                motion: MotionPreference.system,
+                reboot: const Text('reboot-action'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      return c;
+    }
+
+    testWidgets('a running apt job is one card with its step and cancel', (
+      tester,
+    ) async {
+      final c = await pump(
+        tester,
+        runnerJob(
+          'b' * 32,
+          kind: 'apt_update',
+          status: 'running',
+          progress: 0,
+          count: 2,
+        ),
+      );
+      expect(find.byType(AppProgressCard), findsOneWidget);
+      expect(find.text('1/2'), findsOneWidget);
+      expect(find.byKey(const ValueKey('runner-cancel')), findsOneWidget);
+      expect(find.text('reboot-action'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+      c.dispose();
+      await tester.pump(const Duration(minutes: 1));
+    });
+
+    testWidgets('a finished job that needs a reboot offers it', (tester) async {
+      final c = await pump(
+        tester,
+        runnerJob(
+          'c' * 32,
+          kind: 'apt_upgrade',
+          status: 'succeeded',
+          progress: 2,
+          count: 2,
+          events: [
+            {
+              'sequence': 1,
+              'timestamp': 1789340000,
+              'code': 'apt_reboot_required',
+              'progress': 2,
+              'total': 2,
+            },
+          ],
+        ),
+      );
+      expect(find.text('reboot-action'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      c.dispose();
+      await tester.pump(const Duration(minutes: 1));
+    });
+  });
 }

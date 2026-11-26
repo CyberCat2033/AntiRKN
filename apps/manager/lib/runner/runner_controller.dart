@@ -2280,6 +2280,9 @@ class RunnerController extends ChangeNotifier {
     });
   }
 
+  /// A submission is resent while a connection check holds the server.
+  bool waitingForProbe = false;
+
   /// How long a job waits for running connection checks (probe_busy).
   @visibleForTesting
   static Duration probeBusyWait = const Duration(seconds: 90);
@@ -2299,13 +2302,28 @@ class RunnerController extends ChangeNotifier {
     // A connection check holds a short server lease and the runner refuses
     // jobs meanwhile (probe_busy, a definitive refusal: nothing was queued).
     // One check ends within about 80 s, so the same request is sent again.
-    for (
-      final waitUntil = DateTime.now().add(probeBusyWait);
-      response.code == 'probe_busy' && DateTime.now().isBefore(waitUntil);
-    ) {
-      await token.bind(Future<void>.delayed(probeBusyRetry));
-      response = await remote.request(request, token, sudoPassword: password());
-      token.check();
+    if (response.code == 'probe_busy') {
+      waitingForProbe = true;
+      _notify();
+    }
+    try {
+      for (
+        final waitUntil = DateTime.now().add(probeBusyWait);
+        response.code == 'probe_busy' && DateTime.now().isBefore(waitUntil);
+      ) {
+        await token.bind(Future<void>.delayed(probeBusyRetry));
+        response = await remote.request(
+          request,
+          token,
+          sudoPassword: password(),
+        );
+        token.check();
+      }
+    } finally {
+      if (waitingForProbe) {
+        waitingForProbe = false;
+        _notify();
+      }
     }
     responseCode = response.code;
     alive = response.alive;

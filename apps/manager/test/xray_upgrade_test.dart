@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_manager/l10n/app_localizations.dart';
 import 'package:antirkn_manager/runner/component_updates_controller.dart';
@@ -744,7 +745,7 @@ void main() {
       }
       // Inline like a component install: the step and one bar, no card.
       expect(find.textContaining(l.xrayUpgradePending), findsOneWidget);
-      expect(find.byType(LinearProgressIndicator), findsOneWidget);
+      expect(find.byType(AppProgressCard), findsOneWidget);
       expect(find.byKey(const ValueKey('xray-upgrade-close')), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());

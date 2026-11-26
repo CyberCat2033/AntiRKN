@@ -1065,6 +1065,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'A connection check is still running on this server. Try again in a few minutes.';
 
   @override
+  String get runnerWaitingProbe =>
+      'Waiting for a connection check on the server to finish…';
+
+  @override
   String get runnerMissing => 'This request has not been found on the server.';
 
   @override

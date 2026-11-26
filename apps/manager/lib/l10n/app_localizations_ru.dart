@@ -1068,6 +1068,10 @@ class AppLocalizationsRu extends AppLocalizations {
       'На сервере ещё идёт проверка подключения. Повторите через несколько минут.';
 
   @override
+  String get runnerWaitingProbe =>
+      'Ждём окончания проверки подключения на сервере…';
+
+  @override
   String get runnerMissing => 'Этот запрос не найден на сервере.';
 
   @override

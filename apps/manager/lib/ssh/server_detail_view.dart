@@ -9,6 +9,7 @@ import '../runner/component_installation_view.dart';
 import '../runner/component_updates_controller.dart';
 import '../runner/runner_panel.dart';
 import 'server_about_view.dart';
+import 'server_reboot_view.dart';
 import 'server_activity.dart';
 import 'server_service_mode_view.dart';
 import 'ssh_controller.dart';
@@ -732,6 +733,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                             controller: c.runner,
                             motion: widget.motion,
                             coreUpgrade: widget.coreUpgrade,
+                            reboot: ServerRebootView(controller: c),
                           ),
                         ])
                       : const SizedBox.shrink(),

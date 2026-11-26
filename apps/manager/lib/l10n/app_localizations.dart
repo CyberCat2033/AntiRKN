@@ -1952,6 +1952,12 @@ abstract class AppLocalizations {
   /// **'A connection check is still running on this server. Try again in a few minutes.'**
   String get runnerProbeBusy;
 
+  /// No description provided for @runnerWaitingProbe.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for a connection check on the server to finish…'**
+  String get runnerWaitingProbe;
+
   /// No description provided for @runnerMissing.
   ///
   /// In en, this message translates to:

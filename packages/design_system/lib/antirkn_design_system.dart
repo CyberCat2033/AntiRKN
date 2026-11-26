@@ -685,6 +685,12 @@ abstract final class AppTheme {
       useMaterial3: true,
       colorScheme: colors,
       textTheme: typography,
+      // The 2024 M3 indicators: rounded track, gap and stop indicator.
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        // The documented opt-in; deprecated only until false is the default.
+        // ignore: deprecated_member_use
+        year2023: false,
+      ),
       scaffoldBackgroundColor: colors.surfaceContainerLowest,
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -1521,6 +1527,127 @@ class AppEmptyState extends StatelessWidget {
       ),
     ),
   );
+}
+
+/// A running operation: what runs, its current step and its actions.
+///
+/// The icon sits in a progress ring ([value] null: indeterminate), so a
+/// page shows one compact card instead of a bare full-width bar.
+class AppProgressCard extends StatelessWidget {
+  const AppProgressCard({
+    required this.title,
+    this.status,
+    this.icon = Icons.sync,
+    this.value,
+    this.step,
+    this.notes = const [],
+    this.actions = const [],
+    this.margin = const EdgeInsets.only(bottom: 12),
+    super.key,
+  });
+  final String title;
+
+  /// The current step in words ("Refreshing package lists…").
+  final String? status;
+  final IconData icon;
+
+  /// Completed share 0..1; null while the length is unknown.
+  final double? value;
+
+  /// A short counter such as "1/2", shown at the end of the title row.
+  final String? step;
+
+  /// Extra lines under the status (reboot required, cancel requested).
+  final List<String> notes;
+  final List<Widget> actions;
+  final EdgeInsetsGeometry margin;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context), colors = theme.colorScheme;
+    final still = MediaQuery.disableAnimationsOf(context);
+    return Padding(
+      padding: margin,
+      child: Semantics(
+        container: true,
+        liveRegion: true,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: colors.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    SizedBox.square(
+                      dimension: 44,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Positioned.fill(
+                            child: CircularProgressIndicator(
+                              // Reduced motion: a still ring, not a spinner.
+                              value: value ?? (still ? 0.25 : null),
+                              strokeWidth: 3,
+                            ),
+                          ),
+                          Icon(icon, size: 20, color: colors.primary),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(title, style: theme.textTheme.titleSmall),
+                          if (status case final status?)
+                            Text(
+                              status,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: colors.onSurfaceVariant,
+                              ),
+                            ),
+                          for (final note in notes)
+                            Text(
+                              note,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colors.onSurfaceVariant,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (step case final step?)
+                      Padding(
+                        padding: const EdgeInsetsDirectional.only(start: 12),
+                        child: Text(
+                          step,
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: colors.primary,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                if (actions.isNotEmpty)
+                  Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: Wrap(spacing: 8, children: actions),
+                  )
+                else
+                  const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class AppNotice extends StatelessWidget {
