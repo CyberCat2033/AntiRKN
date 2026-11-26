@@ -147,6 +147,8 @@ class AwgPanel extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: AppLayout.smallGap),
                   child: ResourceTile(
                     storageId: 'awg-${r.id}',
+                    onTap: !c.canMutate ? null : () => edit(context, r),
+                    tapHint: l.vpnEdit,
                     footer: ConnectionCheckView(
                       controller: c,
                       target: (target: target, resource: r.id),
@@ -154,10 +156,11 @@ class AwgPanel extends StatelessWidget {
                     ),
                     title: r.name,
                     subtitle: '${r.spec['pool']}',
-                    badge: r.enabled ? l.vpnEnabled : l.vpnDisabled,
+                    // Only the non-default states are labelled.
+                    badge: r.enabled ? null : l.vpnDisabled,
                     note: r.spec.containsKey('adoption')
                         ? c.adoptionConfirmed(target, r.id)
-                              ? l.vpnClientAccess
+                              ? null
                               : l.vpnAdopting
                         : observed.any(
                             (s) => s['id'] == r.id && s['confirmed'] != true,
