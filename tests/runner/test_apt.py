@@ -353,3 +353,20 @@ class StandaloneEntryTests(unittest.TestCase):
         result = subprocess.run([sys.executable, '-I', str(source), 'record'], capture_output=True, timeout=60,
                                 cwd=tempfile.gettempdir())
         self.assertEqual(result.returncode, 2, result.stderr)
+
+
+class ServiceSandboxTest(unittest.TestCase):
+    def test_apt_locks_are_writable_for_the_daemon(self):
+        # lock_busy() opens each lock O_RDWR inside the daemon. Under
+        # ProtectSystem=strict a path missing here is read-only, the open
+        # fails with EROFS and every apt job ends as apt_failed (2026-11-26).
+        import apt
+        unit = (Path(__file__).resolve().parents[2] / 'server/runner/antirkn-runner.service').read_text()
+        line = next(l for l in unit.splitlines() if l.startswith('ReadWritePaths='))
+        writable = [p.lstrip('-') for p in line.split('=', 1)[1].split()]
+        for lock in apt.LOCKS:
+            self.assertTrue(any(str(lock).startswith(p.rstrip('/') + '/') for p in writable), lock)
+
+
+if __name__ == '__main__':
+    unittest.main()
