@@ -348,7 +348,7 @@ class XrayUpgradeController extends ChangeNotifier {
           final now = await token.bind(
             vpn.connections.engine!.network.network(),
           );
-          if (now.vpn || now.identity != network) {
+          if (!now.measuresDevice || now.identity != network) {
             throw const FormatException('network_changed');
           }
         }

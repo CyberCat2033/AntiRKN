@@ -238,7 +238,7 @@ void main() {
   late ReadyRunner runner;
   late VpnController vpn;
   late XrayUpgradeController upgrade;
-  Future<void> setup() async {
+  Future<void> setup({IpProbeTransport? network}) async {
     store = f.MemoryVpn();
     remote = UpgradeRemote(store);
     core = UpgradeCore(remote);
@@ -263,7 +263,7 @@ void main() {
       template: () => f.template,
       connectionProbe: ConnectionProbeEngine(
         core: core,
-        network: n.Net(),
+        network: network ?? n.Net(),
         controls: [
           for (var i = 1; i <= 10; i++)
             IpControl('c$i', 'p$i', IpProbeTarget('192.0.2.$i', 443)),
@@ -329,6 +329,17 @@ void main() {
         ),
         isTrue,
       );
+    },
+  );
+  test(
+    'a device VPN with a known direct route does not stop the run',
+    () async {
+      // The checks measure the device's own network through the direct
+      // interface; the run used to refuse with network_changed (2026-11-26).
+      await setup(network: _VpnNet());
+      await upgrade.run();
+      expect(upgrade.code, 'committed');
+      expect(upgrade.phase, 'committed');
     },
   );
   test('incomplete baseline never submits replacement', () async {
@@ -704,4 +715,15 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
   }
+}
+
+class _VpnNet extends n.Net {
+  @override
+  Future<ProbeNetwork> network() async => const ProbeNetwork(
+    'wifi',
+    'wifi',
+    vpn: true,
+    directInterface: 'eth0',
+    directSource: '192.0.2.9',
+  );
 }
