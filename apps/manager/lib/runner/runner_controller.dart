@@ -2280,16 +2280,33 @@ class RunnerController extends ChangeNotifier {
     });
   }
 
+  /// How long a job waits for running connection checks (probe_busy).
+  @visibleForTesting
+  static Duration probeBusyWait = const Duration(seconds: 90);
+  @visibleForTesting
+  static Duration probeBusyRetry = const Duration(seconds: 3);
+
   Future<void> _submit(RunnerTransport remote, CancellationToken token) async {
     final request = pending!;
     if (observesOperation) throw const SyncMergeFailure(SyncMergeIssue.changed);
     await _checkCurrentOperation();
-    final response = await remote.request(
+    var response = await remote.request(
       request,
       token,
       sudoPassword: password(),
     );
     token.check();
+    // A connection check holds a short server lease and the runner refuses
+    // jobs meanwhile (probe_busy, a definitive refusal: nothing was queued).
+    // One check ends within about 80 s, so the same request is sent again.
+    for (
+      final waitUntil = DateTime.now().add(probeBusyWait);
+      response.code == 'probe_busy' && DateTime.now().isBefore(waitUntil);
+    ) {
+      await token.bind(Future<void>.delayed(probeBusyRetry));
+      response = await remote.request(request, token, sudoPassword: password());
+      token.check();
+    }
     responseCode = response.code;
     alive = response.alive;
     if (response.code == 'ok') {

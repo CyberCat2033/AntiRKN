@@ -1946,6 +1946,12 @@ abstract class AppLocalizations {
   /// **'Another server job is active. Wait for it to finish.'**
   String get runnerBusy;
 
+  /// No description provided for @runnerProbeBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'A connection check is still running on this server. Try again in a few minutes.'**
+  String get runnerProbeBusy;
+
   /// No description provided for @runnerMissing.
   ///
   /// In en, this message translates to:

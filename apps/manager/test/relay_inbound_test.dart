@@ -27,6 +27,9 @@ final panelId = 'a' * 32;
 class RelayTransport extends FakeRunnerTransport {
   RelayTransport(super.store);
   String planCode = 'ok', stateCode = 'ok', linkCode = 'ok';
+
+  /// Submissions refused with probe_busy before one is accepted.
+  int probeBusy = 0;
   String observedHash = 'f' * 64;
   List<Map<String, Object?>> inbounds = [];
   @override
@@ -36,6 +39,16 @@ class RelayTransport extends FakeRunnerTransport {
     String? sudoPassword,
   }) async {
     final action = request.json['action'] as String;
+    if (action == 'submit' && probeBusy > 0) {
+      probeBusy--;
+      requests.add(request);
+      return RunnerResponse.fromJson({
+        'version': 1,
+        'code': 'probe_busy',
+        'alive': true,
+        'jobs': <Object?>[],
+      });
+    }
     if (!action.startsWith('relay_')) {
       return super.request(request, cancellation, sudoPassword: sudoPassword);
     }
@@ -128,6 +141,33 @@ void main() {
       expect(c.relayInbounds, [entry()]);
       expect(c.relayEntry(7)?['tag'], 'inbound-443');
       expect(c.relayEntry(9), isNull);
+    });
+
+    test('a submission waits out a running connection check', () async {
+      final wait = RunnerController.probeBusyWait;
+      final retry = RunnerController.probeBusyRetry;
+      addTearDown(() {
+        RunnerController.probeBusyWait = wait;
+        RunnerController.probeBusyRetry = retry;
+      });
+      RunnerController.probeBusyRetry = Duration.zero;
+      await ready();
+      remote.probeBusy = 2;
+      expect(await c.applyRelay(inboundId: 7, enabled: true), isTrue);
+      expect(remote.count('submit'), 3);
+      expect(c.selected?.kind, 'relay_apply');
+    });
+
+    test('a lease that outlives the wait is reported, not queued', () async {
+      final wait = RunnerController.probeBusyWait;
+      addTearDown(() => RunnerController.probeBusyWait = wait);
+      RunnerController.probeBusyWait = Duration.zero;
+      await ready();
+      remote.probeBusy = 1;
+      expect(await c.applyRelay(inboundId: 7, enabled: true), isFalse);
+      expect(c.responseCode, 'probe_busy');
+      expect(c.pending, isNull);
+      expect(remote.count('submit'), 1);
     });
 
     test('plan, then a durable relay_apply submission', () async {

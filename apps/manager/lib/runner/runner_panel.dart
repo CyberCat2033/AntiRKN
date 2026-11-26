@@ -306,6 +306,7 @@ String runnerCodeLabel(AppLocalizations l, String code) => switch (code) {
     upgradeOutcomeLabel(l, v) ?? l.runnerUpgradeFailedGeneric,
   'failed' => l.runnerFailed,
   'busy' => l.runnerBusy,
+  'probe_busy' => l.runnerProbeBusy,
   'missing' => l.runnerMissing,
   'capacity' => l.runnerCapacity,
   _ => l.runnerInvalidResponse,

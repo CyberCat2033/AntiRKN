@@ -411,6 +411,7 @@
   "runnerUnavailable": "The job service is unavailable. Check the SSH connection and administrative access.",
   "runnerStorage": "The local job journal could not be saved or restored. Check local storage before retrying.",
   "runnerBusy": "Another server job is active. Wait for it to finish.",
+  "runnerProbeBusy": "A connection check is still running on this server. Try again in a few minutes.",
   "runnerMissing": "This request has not been found on the server.",
   "runnerCapacity": "The server job journal has reached its capacity.",
   "runnerPlanned": "Queued",
