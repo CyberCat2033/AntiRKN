@@ -2638,6 +2638,26 @@ class AppLocalizationsRu extends AppLocalizations {
   String get publicationPublished => 'Профиль опубликован';
 
   @override
+  String get publicationRetry => 'Повторить публикацию';
+
+  @override
+  String publicationClientsFailed(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Не опубликованы профили $count клиента',
+      many: 'Не опубликованы профили $count клиентов',
+      few: 'Не опубликованы профили $count клиентов',
+      one: 'Не опубликован профиль $count клиента',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get publicationClientsFailedMixed =>
+      'Причины разные: подробности в карточках клиентов ниже.';
+
+  @override
   String get publicationCopyLink => 'Копировать ссылку профиля';
 
   @override

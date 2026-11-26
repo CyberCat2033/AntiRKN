@@ -986,6 +986,16 @@
   "publicationWaiting": "Waiting to publish",
   "publicationFailed": "Publication is incomplete. Check settings and retry.",
   "publicationPublished": "Profile published",
+  "publicationRetry": "Retry publication",
+  "publicationClientsFailed": "{count, plural, one{{count} client profile was not published} other{{count} client profiles were not published}}",
+  "@publicationClientsFailed": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "publicationClientsFailedMixed": "Reasons differ: see the client cards below.",
   "publicationCopyLink": "Copy profile link",
   "uiGoogleDrive": "Google Drive",
   "uiAppearance": "Appearance & language",

@@ -200,11 +200,12 @@ class _PublicationSettingsState extends State<PublicationSettingsPanel> {
                 value: c.enabling ?? settings.enabled,
                 onChanged: c.editing ? null : c.setEnabled,
               ),
-            if (c.error != null ||
-                c.queues.values.any((q) => q['status'] == 'error'))
+            // Only a publication-wide failure belongs here; failed client
+            // profiles are reported on the Clients page.
+            if (c.error != null && !needsAuthorization)
               TextButton(
                 onPressed: c.busy ? null : () => c.request(force: true),
-                child: Text(l.runnerRetry),
+                child: Text(l.publicationRetry),
               ),
           ],
         ],
@@ -212,6 +213,47 @@ class _PublicationSettingsState extends State<PublicationSettingsPanel> {
       return widget.showTitle
           ? AppSettingsSection(title: l.publicationTitle, child: content)
           : content;
+    },
+  );
+}
+
+/// Summary of the active clients whose profile publication failed, with one
+/// retry for exactly those clients.
+class PublicationFailuresNotice extends StatelessWidget {
+  const PublicationFailuresNotice({required this.controller, super.key});
+  final PublicationController controller;
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: controller.changes,
+    builder: (context, _) {
+      final ids = controller.publicationErrorUserIds;
+      if (controller.settings == null || ids.isEmpty) {
+        return const SizedBox.shrink();
+      }
+      final l = AppLocalizations.of(context);
+      final issues = {
+        for (final id in ids) controller.queues[id]?['issue'] as String?,
+      };
+      return AppNotice(
+        key: const ValueKey('publication-failures'),
+        error: true,
+        title: l.publicationClientsFailed(ids.length),
+        message: issues.length == 1
+            ? publicationMessage(l, issues.single)
+            : l.publicationClientsFailedMixed,
+        margin: const EdgeInsets.only(top: 12),
+        action: TextButton(
+          key: const ValueKey('publication-failures-retry'),
+          onPressed: controller.busy || controller.hasActiveSync
+              ? null
+              : () {
+                  for (final id in ids) {
+                    controller.request(force: true, targetUserId: id);
+                  }
+                },
+          child: Text(l.publicationRetry),
+        ),
+      );
     },
   );
 }

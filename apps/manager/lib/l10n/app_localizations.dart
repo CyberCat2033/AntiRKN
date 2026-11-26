@@ -4658,6 +4658,24 @@ abstract class AppLocalizations {
   /// **'Profile published'**
   String get publicationPublished;
 
+  /// No description provided for @publicationRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry publication'**
+  String get publicationRetry;
+
+  /// No description provided for @publicationClientsFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{{count} client profile was not published} other{{count} client profiles were not published}}'**
+  String publicationClientsFailed(int count);
+
+  /// No description provided for @publicationClientsFailedMixed.
+  ///
+  /// In en, this message translates to:
+  /// **'Reasons differ: see the client cards below.'**
+  String get publicationClientsFailedMixed;
+
   /// No description provided for @publicationCopyLink.
   ///
   /// In en, this message translates to:

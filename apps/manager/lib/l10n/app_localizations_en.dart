@@ -2634,6 +2634,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get publicationPublished => 'Profile published';
 
   @override
+  String get publicationRetry => 'Retry publication';
+
+  @override
+  String publicationClientsFailed(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count client profiles were not published',
+      one: '$count client profile was not published',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get publicationClientsFailedMixed =>
+      'Reasons differ: see the client cards below.';
+
+  @override
   String get publicationCopyLink => 'Copy profile link';
 
   @override

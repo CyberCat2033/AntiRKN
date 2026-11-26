@@ -157,6 +157,17 @@ class PublicationController extends ChangeNotifier {
 
   bool get busy => editing || _running != null;
 
+  /// Enabled clients whose last publication failed. A disabled or deleted
+  /// client is never published, so its stored failure is not a current one
+  /// and no retry could clear it.
+  List<String> get publicationErrorUserIds => [
+    for (final user in vpn.workspace.users)
+      if (user.enabled &&
+          !user.deleted &&
+          queues[user.id]?['status'] == 'error')
+        user.id,
+  ];
+
   Map<String, dynamic>? deletionFileFor(String userId) {
     final result = results[userId], destination = settings;
     if (destination == null ||

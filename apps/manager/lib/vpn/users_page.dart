@@ -534,6 +534,10 @@ class _UsersPageState extends State<UsersPage> {
                               )
                             else
                               _buildSyncProgress(),
+                            if (publications != null)
+                              PublicationFailuresNotice(
+                                controller: publications!,
+                              ),
                             const SizedBox(height: 20),
                           ],
                         ),
@@ -861,7 +865,11 @@ class UserTile extends StatelessWidget {
                       ),
                       builder: (context) {
                         final queue = publications!.queues[user.id];
-                        if (queue?['status'] == 'error') {
+                        // A disabled client is not published: its stored
+                        // failure is stale.
+                        if (user.enabled &&
+                            !user.deleted &&
+                            queue?['status'] == 'error') {
                           return AppNotice(
                             message: publicationMessage(
                               l,

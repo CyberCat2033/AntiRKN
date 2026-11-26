@@ -251,8 +251,12 @@ void main() {
       c.queues[f.alice] = {'status': 'error', 'issue': 'linkUnavailable'};
       c.notifyListeners();
       await tester.pump();
-      // Alice tile should now display the publication error message
-      expect(find.textContaining('without Google sign-in'), findsOneWidget);
+      // Alice tile and the page summary both name the publication error.
+      expect(find.textContaining('without Google sign-in'), findsNWidgets(2));
+      expect(
+        find.byKey(const ValueKey('publication-failures')),
+        findsOneWidget,
+      );
 
       await tester.runAsync(() async {
         await vpn.saveInbound(f.inbound('srv1', '1' * 32));
