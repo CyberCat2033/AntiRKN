@@ -3680,6 +3680,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get xrayUpgradeNotTested => 'Not tested';
 
   @override
+  String get xrayUpgradeDigest =>
+      'The downloaded Xray archive does not match the published checksum. The core was not changed.';
+
+  @override
+  String get xrayUpgradeConfig =>
+      'The new Xray rejected the current configuration in a test run. The core was not changed.';
+
+  @override
+  String get xrayUpgradeTimeout =>
+      'The server did not finish the update in time. The core was not changed or was restored.';
+
+  @override
+  String get xrayUpgradeRestart =>
+      'Xray did not start with the new version. The server restores the previous core.';
+
+  @override
+  String get xrayUpgradeBusy =>
+      'Another Xray update is still running on this server.';
+
+  @override
+  String xrayUpgradeCode(String code) {
+    return 'Code: $code';
+  }
+
+  @override
   String get xrayUpgradeAttention =>
       'Recovery is not confirmed. Check the Xray service and binary changes on the server; the backup is retained.';
 

@@ -202,6 +202,13 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
         'xray_check_rollback' => l.xrayUpgradeAttention,
         'xray_check_panel_api' => l.xrayUpgradePanelApi,
         'xray_release_missing' => l.versionsAssetMissing,
+        'xray_check_digest' => l.xrayUpgradeDigest,
+        'xray_check_config' => l.xrayUpgradeConfig,
+        'xray_check_timeout' ||
+        'xray_check_watchdog' ||
+        'xray_check_late' => l.xrayUpgradeTimeout,
+        'xray_check_restart' => l.xrayUpgradeRestart,
+        'xray_check_busy' => l.xrayUpgradeBusy,
         'vpn_pending_readback' => l.xrayUpgradeProblemAfter(
           l.vpnPendingReadback,
         ),
@@ -222,6 +229,12 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
           : l.xrayUpgradeTitle;
       // Before/after of each inbound: technical, so in the details sheet.
       final details = [
+        // The exact reason for support: hidden from the main view.
+        if (c.code.isNotEmpty && c.code != 'committed')
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: SelectableText(l.xrayUpgradeCode(c.code)),
+          ),
         for (final row in c.rows)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
@@ -257,7 +270,9 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
               Semantics(
                 liveRegion: true,
                 child: Text(
-                  message.isEmpty ? title : '$title · $message',
+                  // A new run starts with the baseline check; the previous
+                  // run's outcome must not show while it is in progress.
+                  '$title · ${_active.contains(c.phase) ? message : l.xrayUpgradeBaseline}',
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
               ),

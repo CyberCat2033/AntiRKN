@@ -3686,6 +3686,30 @@ class AppLocalizationsRu extends AppLocalizations {
   String get xrayUpgradeNotTested => 'Не проверен';
 
   @override
+  String get xrayUpgradeDigest =>
+      'Скачанный архив Xray не совпадает с опубликованной контрольной суммой. Ядро не менялось.';
+
+  @override
+  String get xrayUpgradeConfig =>
+      'Новый Xray не принял текущую конфигурацию при пробном запуске. Ядро не менялось.';
+
+  @override
+  String get xrayUpgradeTimeout =>
+      'Сервер не успел завершить обновление. Ядро не менялось или уже восстановлено.';
+
+  @override
+  String get xrayUpgradeRestart =>
+      'Xray не запустился с новой версией. Сервер возвращает прежнее ядро.';
+
+  @override
+  String get xrayUpgradeBusy => 'На сервере ещё идёт другое обновление Xray.';
+
+  @override
+  String xrayUpgradeCode(String code) {
+    return 'Код: $code';
+  }
+
+  @override
   String get xrayUpgradeAttention =>
       'Восстановление не подтверждено. Проверьте службу Xray и изменения бинарного файла на сервере; резервная копия сохранена.';
 

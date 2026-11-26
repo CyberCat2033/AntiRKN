@@ -284,6 +284,7 @@ class XrayUpgradeController extends ChangeNotifier {
             return;
           }
           if (plan!['available'] != true) {
+            phase = 'not_changed';
             return;
           }
         }
@@ -412,7 +413,10 @@ class XrayUpgradeController extends ChangeNotifier {
         code = 'committed';
         runner.refreshSoftware?.call();
       }, ownProgress: true);
-      if (!began) throw const FormatException('server_unavailable');
+      // Already current or nothing offered: not a server failure.
+      if (!began && phase != 'not_changed') {
+        throw const FormatException('server_unavailable');
+      }
     } catch (error) {
       code = token.isCancelled
           ? 'cancelled'

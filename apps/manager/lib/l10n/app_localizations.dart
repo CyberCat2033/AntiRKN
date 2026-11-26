@@ -6482,6 +6482,42 @@ abstract class AppLocalizations {
   /// **'Not tested'**
   String get xrayUpgradeNotTested;
 
+  /// No description provided for @xrayUpgradeDigest.
+  ///
+  /// In en, this message translates to:
+  /// **'The downloaded Xray archive does not match the published checksum. The core was not changed.'**
+  String get xrayUpgradeDigest;
+
+  /// No description provided for @xrayUpgradeConfig.
+  ///
+  /// In en, this message translates to:
+  /// **'The new Xray rejected the current configuration in a test run. The core was not changed.'**
+  String get xrayUpgradeConfig;
+
+  /// No description provided for @xrayUpgradeTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'The server did not finish the update in time. The core was not changed or was restored.'**
+  String get xrayUpgradeTimeout;
+
+  /// No description provided for @xrayUpgradeRestart.
+  ///
+  /// In en, this message translates to:
+  /// **'Xray did not start with the new version. The server restores the previous core.'**
+  String get xrayUpgradeRestart;
+
+  /// No description provided for @xrayUpgradeBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'Another Xray update is still running on this server.'**
+  String get xrayUpgradeBusy;
+
+  /// No description provided for @xrayUpgradeCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Code: {code}'**
+  String xrayUpgradeCode(String code);
+
   /// No description provided for @xrayUpgradeAttention.
   ///
   /// In en, this message translates to:

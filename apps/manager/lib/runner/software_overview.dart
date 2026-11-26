@@ -41,7 +41,7 @@ class SoftwareOverview extends StatelessWidget {
           );
     final available = <Widget>[];
     final others = <Widget>[];
-    var installationShown = false;
+    var installationShown = false, coreShown = false;
     if (!c.connected) content.add(AppNotice(message: l.inventoryStale));
     for (final component in [
       VpnComponent.panel,
@@ -315,8 +315,14 @@ class SoftwareOverview extends StatelessWidget {
                   ? l.panelUpdateCompatibility
                   : l.componentUpdateUnverified,
             ),
+          // The core move belongs to this row, like an install's progress.
+          if (isPanel && core != null) ...[
+            const SizedBox(height: AppLayout.smallGap),
+            core,
+          ],
         ],
       );
+      if (isPanel && core != null) coreShown = true;
       if (updatable.isNotEmpty || canUpdate) {
         available.add(
           Padding(
@@ -351,7 +357,6 @@ class SoftwareOverview extends StatelessWidget {
         content.addAll([
           PanelInstallationView(controller: c, motion: motion),
           PanelUpdateView(controller: c),
-          ?core,
         ]);
       }
       if (!installationShown && hostsComponentInstallation(c, key)) {
@@ -359,7 +364,7 @@ class SoftwareOverview extends StatelessWidget {
         content.add(ComponentInstallationView(controller: c));
       }
     }
-    if (core != null && !content.contains(core)) content.add(core);
+    if (core != null && !coreShown) content.add(core);
     if (updates != null) {
       if (updates.busy) content.add(const LinearProgressIndicator());
       if (updates.failed) {
