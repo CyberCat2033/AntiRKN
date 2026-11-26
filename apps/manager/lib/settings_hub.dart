@@ -81,16 +81,11 @@ class SettingsHubState extends State<SettingsHub> {
   Widget scroll(String id, List<Widget> children) => ListView(
     key: PageStorageKey('settings-page-$id'),
     padding: AppLayout.screenPadding(context),
+    // Full width, like the other top-level pages (clients, servers, network).
     children: [
-      Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: children,
-          ),
-        ),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: children,
       ),
     ],
   );

@@ -235,16 +235,11 @@ class _ServerDetailViewState extends State<ServerDetailView> {
       physics: const AlwaysScrollableScrollPhysics(),
       key: PageStorageKey('${widget.session.serverId}-$id'),
       padding: AppLayout.screenPadding(context),
+      // Full width, like the other top-level pages (clients, servers).
       children: [
-        Align(
-          alignment: Alignment.topCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1000),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: children,
-            ),
-          ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: children,
         ),
       ],
     ),
