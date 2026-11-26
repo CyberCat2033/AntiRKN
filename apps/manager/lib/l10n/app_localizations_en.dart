@@ -3726,24 +3726,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'The restart is not confirmed yet. Reconnect to check its status.';
 
   @override
-  String get serverClearClients => 'Delete unmanaged clients';
-
-  @override
-  String get serverClearClientsConfirm =>
-      'This will remove all third-party (unmanaged) clients and peers from managed inbounds on this server (VLESS, AmneziaWG, TrustTunnel). Your AntiRKN clients will be preserved.';
-
-  @override
-  String get serverClearClientsWaiting => 'Deleting unmanaged clients…';
-
-  @override
-  String get serverClearClientsDone =>
-      'All unmanaged clients have been deleted from managed inbounds.';
-
-  @override
-  String get serverClearClientsFailed =>
-      'Failed to delete unmanaged clients from managed inbounds.';
-
-  @override
   String get egressTitle => 'Internet egress';
 
   @override

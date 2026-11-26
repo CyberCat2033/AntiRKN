@@ -1,4 +1,3 @@
-import 'server_clear_clients_view.dart';
 import 'server_reboot_view.dart';
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
@@ -142,8 +141,6 @@ class ServerAboutView extends StatelessWidget {
               ClientEgressCard(controller: c.runner, vpn: vpn, motion: motion),
           const SizedBox(height: 12),
           ServerRebootView(controller: c),
-          const SizedBox(height: 8),
-          ServerClearClientsView(controller: c, vpn: vpn),
           AppSettingsSection(
             title: l.uiPublicAddresses,
             child: Column(

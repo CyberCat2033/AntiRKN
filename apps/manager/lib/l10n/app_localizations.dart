@@ -6578,36 +6578,6 @@ abstract class AppLocalizations {
   /// **'The restart is not confirmed yet. Reconnect to check its status.'**
   String get serverRebootFailed;
 
-  /// No description provided for @serverClearClients.
-  ///
-  /// In en, this message translates to:
-  /// **'Delete unmanaged clients'**
-  String get serverClearClients;
-
-  /// No description provided for @serverClearClientsConfirm.
-  ///
-  /// In en, this message translates to:
-  /// **'This will remove all third-party (unmanaged) clients and peers from managed inbounds on this server (VLESS, AmneziaWG, TrustTunnel). Your AntiRKN clients will be preserved.'**
-  String get serverClearClientsConfirm;
-
-  /// No description provided for @serverClearClientsWaiting.
-  ///
-  /// In en, this message translates to:
-  /// **'Deleting unmanaged clients…'**
-  String get serverClearClientsWaiting;
-
-  /// No description provided for @serverClearClientsDone.
-  ///
-  /// In en, this message translates to:
-  /// **'All unmanaged clients have been deleted from managed inbounds.'**
-  String get serverClearClientsDone;
-
-  /// No description provided for @serverClearClientsFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Failed to delete unmanaged clients from managed inbounds.'**
-  String get serverClearClientsFailed;
-
   /// No description provided for @egressTitle.
   ///
   /// In en, this message translates to:

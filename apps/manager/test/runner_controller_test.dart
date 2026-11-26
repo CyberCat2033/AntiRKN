@@ -284,16 +284,6 @@ void main() {
     );
   });
 
-  test('clearManagedClients sends clear_managed_clients action', () async {
-    await install();
-    final ok = await c.clearManagedClients();
-    expect(ok, isTrue);
-    expect(
-      remote.requests.any((r) => r.json['action'] == 'clear_managed_clients'),
-      isTrue,
-    );
-  });
-
   test(
     'upgradable predecessor runner is automatically upgraded during prepare refresh and ensureReady',
     () async {

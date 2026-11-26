@@ -1251,29 +1251,6 @@ class RunnerController extends ChangeNotifier {
     });
   });
 
-  Future<bool> clearManagedClients() async {
-    var success = false;
-    await requestAction(() async {
-      await _run((remote, token) async {
-        final response = await remote.request(
-          RunnerRequest.clearManagedClients(),
-          token,
-          sudoPassword: password(),
-        );
-        responseCode = response.code;
-        if (response.code != 'ok') {
-          throw RunnerFailure(
-            response.code == 'clear_managed_clients_failed'
-                ? RunnerIssue.conflict
-                : RunnerIssue.unavailable,
-          );
-        }
-        success = true;
-      });
-    });
-    return success;
-  }
-
   Future<void> installPanelCli() => _run((remote, token) async {
     final result = await remote.request(
       RunnerRequest.panelCli(),
