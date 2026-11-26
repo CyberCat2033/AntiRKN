@@ -231,7 +231,13 @@ class _ServerCatalogState extends State<ServerCatalog> {
         clientCount: vpn?.clientCountOn(c.selectedId!) ?? 0,
         plans: vpn == null
             ? null
-            : VpnPlanView(controller: vpn, serverName: serverName),
+            // The overview's activity list reports jobs; a bare bar under
+            // it named nothing (owner, 2026-11-26). Errors stay.
+            : VpnPlanView(
+                controller: vpn,
+                serverName: serverName,
+                showProgress: false,
+              ),
         sections: vpn == null
             ? const []
             : [
