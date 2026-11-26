@@ -335,21 +335,7 @@ Future<Object?> _dispatchDatabase(
   ),
   'captureSnapshot' => await _currentSnapshot(db, cloud: true),
   'compactHistory' => await _unit(_compactCurrentHistory(db)),
-  'snapshotState' => await db._serial(
-    () => (
-      empty:
-          db._db.select('SELECT 1 FROM servers LIMIT 1').isEmpty &&
-          db._db.select('SELECT 1 FROM documents LIMIT 1').isEmpty,
-      sequence:
-          db._db
-                  .select(
-                    'SELECT sequence FROM sync_identity WHERE singleton=1',
-                  )
-                  .single['sequence']
-              as int,
-      workspaceId: db._journal.identity.workspaceId,
-    ),
-  ),
+  'snapshotState' => await db._serial(() => _localSnapshotState(db)),
   'snapshotStamp' => await db._serial(() => _backupStamp(db)),
   'restoreCloudSnapshot' => await _unit(
     _restoreCloudSnapshotInWorker(

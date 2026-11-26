@@ -2500,6 +2500,32 @@ class AppLocalizationsRu extends AppLocalizations {
       'Сначала закройте редакторы и диалоги и дождитесь окончания операций, затем выберите версию снова.';
 
   @override
+  String get autoSyncOtherWorkspace =>
+      'В Google Drive лежат данные, начатые отдельно на другом устройстве, а на этом устройстве есть свои. Ничего не перезаписано. Выберите, какие данные оставить.';
+
+  @override
+  String get autoSyncOtherWorkspaceHelp =>
+      'Это два отдельных набора данных: остаётся один из них целиком, ничего не объединяется. Незавершённые операции на серверах заменяемых данных не сохраняются.';
+
+  @override
+  String get autoSyncOtherKeepLocalEffect =>
+      'Данные в Google Drive будут заменены. На других ваших устройствах появится тот же вопрос.';
+
+  @override
+  String get autoSyncOtherTakeCloudEffect =>
+      'Все данные этого устройства будут заменены данными из Google Drive.';
+
+  @override
+  String get autoSyncReplaceCloudTitle => 'Заменить данные в Google Drive?';
+
+  @override
+  String get autoSyncReplaceCloudHelp =>
+      'Серверы и клиенты, сохранённые в Google Drive с других устройств, будут из него удалены. Устройства, на которых они есть, спросят, какие данные оставить.';
+
+  @override
+  String get autoSyncReplaceCloud => 'Заменить';
+
+  @override
   String get autoSyncUpdateRequired =>
       'Данные в Google Drive сохранены более новой версией AntiRKN. Обновите приложение на этом устройстве. До обновления с Google Drive ничего не загружается и туда ничего не отправляется; данные на этом устройстве не изменены.';
 

@@ -281,7 +281,9 @@ class SyncDivergenceNotice extends StatelessWidget {
         AppNotice(
           key: const ValueKey('google-sync-divergence'),
           icon: Icons.call_split,
-          message: l.autoSyncDiverged,
+          message: sync.divergence?.otherWorkspace ?? false
+              ? l.autoSyncOtherWorkspace
+              : l.autoSyncDiverged,
           action: Padding(
             padding: const EdgeInsets.only(top: 12),
             child: Align(
@@ -306,7 +308,9 @@ class SyncDivergenceNotice extends StatelessWidget {
 }
 
 /// Asks which version to keep, with the date and device of both. The answer
-/// is an explicit action; dismissing the sheet changes nothing.
+/// is an explicit action; dismissing the sheet changes nothing. Replacing
+/// another workspace in the cloud is confirmed once more: it reaches every
+/// device of the account.
 Future<void> chooseSyncVersion(
   BuildContext context,
   AutoSyncController sync,
@@ -323,10 +327,11 @@ Future<void> chooseSyncVersion(
               ).add_Hm().format(version.savedAt!.toLocal()),
         version.deviceName ?? fallbackDevice,
       );
+  final other = divergence.otherWorkspace;
   final choice = await showAppChoice<SyncDivergenceChoice?>(
     context,
     title: l.autoSyncChooseTitle,
-    message: l.autoSyncChooseHelp,
+    message: other ? l.autoSyncOtherWorkspaceHelp : l.autoSyncChooseHelp,
     value: null,
     options: [
       (SyncDivergenceChoice.keepLocal, l.autoSyncKeepLocal),
@@ -335,13 +340,27 @@ Future<void> chooseSyncVersion(
     descriptions: {
       SyncDivergenceChoice.keepLocal:
           '${saved(divergence.local, l.autoSyncThisDevice)}\n'
-          '${l.autoSyncKeepLocalEffect}',
+          '${other ? l.autoSyncOtherKeepLocalEffect : l.autoSyncKeepLocalEffect}',
       SyncDivergenceChoice.takeCloud:
           '${saved(divergence.cloud, l.autoSyncVersionUnknownDevice)}\n'
-          '${l.autoSyncTakeCloudEffect}',
+          '${other ? l.autoSyncOtherTakeCloudEffect : l.autoSyncTakeCloudEffect}',
     },
   );
-  if (choice != null) await sync.resolve(choice);
+  if (choice == null) return;
+  if (other &&
+      choice == SyncDivergenceChoice.keepLocal &&
+      !(context.mounted &&
+          await confirmAppDanger(
+            context,
+            title: l.autoSyncReplaceCloudTitle,
+            message: l.autoSyncReplaceCloudHelp,
+            confirmLabel: l.autoSyncReplaceCloud,
+            cancelLabel: l.sshCancel,
+            confirmKey: const ValueKey('google-sync-replace-cloud'),
+          ))) {
+    return;
+  }
+  await sync.resolve(choice);
 }
 
 String syncStatusLabel(AppLocalizations l, AutoSyncController sync) {

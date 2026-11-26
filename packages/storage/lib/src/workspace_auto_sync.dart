@@ -25,6 +25,13 @@ final class _PullDeadline {
 /// A validated cloud snapshot newer than this device's data.
 typedef _ReceivedSnapshot = ({SyncRemoteFile file, _BackupSnapshot snapshot});
 
+/// The cloud holds another workspace and this device holds data of its own:
+/// nothing replaces it implicitly, the user chooses.
+final class _OtherCloudWorkspace implements Exception {
+  const _OtherCloudWorkspace(this.received);
+  final _ReceivedSnapshot received;
+}
+
 extension WorkspaceAutomaticSync on WorkspaceDatabase {
   Future<AutoSyncSession> openAutoSync(
     SyncAccessTokenProvider tokens, {
@@ -77,11 +84,17 @@ extension WorkspaceAutomaticSync on WorkspaceDatabase {
         await _unsentSnapshotPending(localState)) {
       return false;
     }
-    final received = await _newerCloudSnapshot(
-      cloud,
-      localState,
-      commit: deadline?.commit,
-    );
+    final _ReceivedSnapshot? received;
+    try {
+      received = await _newerCloudSnapshot(
+        cloud,
+        localState,
+        commit: deadline?.commit,
+      );
+    } on _OtherCloudWorkspace {
+      // Asked in the app: the launch opens local data.
+      return false;
+    }
     if (received == null) return false;
     await _applyCloudSnapshot(received, commit: deadline?.commit);
     return true;
@@ -96,6 +109,9 @@ extension WorkspaceAutomaticSync on WorkspaceDatabase {
   /// (Drive moved the version on, or a device sent the same data again) is
   /// only remembered: replacing data with itself would reopen the whole app.
   /// [commit] runs synchronously right before that local write.
+  ///
+  /// Another workspace in the cloud replaces only an empty device; otherwise
+  /// [_OtherCloudWorkspace] carries it for the user's choice.
   Future<_ReceivedSnapshot?> _newerCloudSnapshot(
     SyncSnapshotStore cloud,
     ({bool empty, int sequence, String workspaceId}) state, {
@@ -103,8 +119,7 @@ extension WorkspaceAutomaticSync on WorkspaceDatabase {
     void Function()? commit,
   }) async {
     final file = await cloud.findSnapshot();
-    if (file == null) return null;
-    if (!state.empty && !await _snapshotRemoteChanged(file)) return null;
+    if (file == null || !await _cloudVersionNew(file, state)) return null;
     if (held != null &&
         held.file.id == file.id &&
         held.file.version == file.version) {
@@ -116,7 +131,7 @@ extension WorkspaceAutomaticSync on WorkspaceDatabase {
     );
     final snapshot = await _validateCloudSnapshot(source);
     if (!state.empty && snapshot.summary.workspaceId != state.workspaceId) {
-      throw const SyncTransportFailure(SyncTransportIssue.conflict);
+      throw _OtherCloudWorkspace((file: file, snapshot: snapshot));
     }
     if (!state.empty &&
         await readSetting('syncSnapshotIntent') == snapshot.intent &&
@@ -205,6 +220,17 @@ extension WorkspaceAutomaticSync on WorkspaceDatabase {
     await writeSetting('syncSnapshotLocalSequence', '${capture.sequence}');
     return true;
   }
+
+  /// Whether [file] is a version this device has not received or sent. An
+  /// empty device holds none, unless it received exactly this version (a
+  /// cloud workspace without data leaves it empty).
+  Future<bool> _cloudVersionNew(
+    SyncRemoteFile file,
+    ({bool empty, int sequence, String workspaceId}) state,
+  ) async =>
+      (state.empty &&
+          await readSetting('syncSnapshotBound') != state.workspaceId) ||
+      await _snapshotRemoteChanged(file);
 
   Future<bool> _snapshotRemoteChanged(SyncRemoteFile file) async =>
       await readSetting('syncSnapshotRemoteFileId') != file.id ||
@@ -527,12 +553,12 @@ final class _SnapshotAutoSync implements AutoSyncSession {
         if (remoteSource == out.source) return _recordUpload(out, file);
         // A newer format says so instead of a plain conflict.
         final cloud = await store._validateCloudSnapshot(remoteSource);
-        if (cloud.summary.workspaceId != out.workspaceId) {
-          // Another workspace: there are no two versions of one data to
-          // choose between.
-          throw const SyncTransportFailure(SyncTransportIssue.conflict);
-        }
-        return _diverged(file, cloud, out);
+        return _diverged(
+          file,
+          cloud,
+          localSavedAt: out.createdAt,
+          otherWorkspace: cloud.summary.workspaceId != out.workspaceId,
+        );
       }
       try {
         return await _writeOver(file, out, cancel);
@@ -545,23 +571,26 @@ final class _SnapshotAutoSync implements AutoSyncSession {
     }
   }
 
-  /// Unsent edits here and a newer cloud version of the same workspace.
-  /// Remembered so that nothing is sent until the user chooses.
+  /// Unsent edits here and a newer cloud version of the same workspace, or
+  /// data of its own here and [otherWorkspace] in the cloud. Remembered so
+  /// that nothing is sent until the user chooses.
   Future<AutoSyncResult> _diverged(
     SyncRemoteFile file,
-    _BackupSnapshot cloud,
-    _Outgoing out,
-  ) async {
+    _BackupSnapshot cloud, {
+    required DateTime? localSavedAt,
+    bool otherWorkspace = false,
+  }) async {
     final author = cloud.data['author'];
     final divergence = SyncDivergence(
       local: SyncVersionInfo(
-        savedAt: out.createdAt,
+        savedAt: localSavedAt,
         deviceName: _localDeviceName(),
       ),
       cloud: SyncVersionInfo(
         savedAt: cloud.summary.createdAt,
         deviceName: author is Map ? author['deviceName'] as String? : null,
       ),
+      otherWorkspace: otherWorkspace,
     );
     await store.writeSetting(
       'syncSnapshotDivergence',
@@ -570,6 +599,7 @@ final class _SnapshotAutoSync implements AutoSyncSession {
         'version': file.version,
         'local': _versionJson(divergence.local),
         'cloud': _versionJson(divergence.cloud),
+        if (otherWorkspace) 'otherWorkspace': true,
       }),
     );
     return AutoSyncResult(divergence: divergence);
@@ -603,6 +633,7 @@ final class _SnapshotAutoSync implements AutoSyncSession {
         divergence: SyncDivergence(
           local: _versionOf(json['local']),
           cloud: _versionOf(json['cloud']),
+          otherWorkspace: json['otherWorkspace'] == true,
         ),
       );
     } catch (_) {
@@ -658,20 +689,35 @@ final class _SnapshotAutoSync implements AutoSyncSession {
     if (!enter) {
       // A received snapshot waiting for an editor costs no request again.
       if (held != null) return _applyReceived(held, apply);
-      if (forceRecovery || !(await store._snapshotLocalState()).empty) {
-        return const AutoSyncResult();
-      }
+      final state = await store._snapshotLocalState();
+      if (forceRecovery || !state.empty) return const AutoSyncResult();
       // An empty device signed in after launch learns the cloud has data.
       cancellation.check();
-      return AutoSyncResult(remoteNewer: await remote.findSnapshot() != null);
+      final file = await remote.findSnapshot();
+      return AutoSyncResult(
+        remoteNewer: file != null && await store._cloudVersionNew(file, state),
+      );
     }
     // Entering the app: a newer cloud snapshot replaces unchanged data.
     cancellation.check();
-    final received = await store._newerCloudSnapshot(
-      remote,
-      await store._snapshotLocalState(),
-      held: held,
-    );
+    final _ReceivedSnapshot? received;
+    try {
+      received = await store._newerCloudSnapshot(
+        remote,
+        await store._snapshotLocalState(),
+        held: held,
+      );
+    } on _OtherCloudWorkspace catch (other) {
+      // This device's data was never sent over it: when it was last saved
+      // is not known here.
+      _held = null;
+      return _diverged(
+        other.received.file,
+        other.received.snapshot,
+        localSavedAt: null,
+        otherWorkspace: true,
+      );
+    }
     _held = received;
     if (received == null) {
       return const AutoSyncResult();
@@ -816,46 +862,48 @@ final class _SnapshotAutoSync implements AutoSyncSession {
       ),
     );
     final captured = await store._captureSnapshot();
-    if (cloud.summary.workspaceId != captured.workspaceId) {
+    final otherWorkspace = cloud.summary.workspaceId != captured.workspaceId;
+    if (otherWorkspace && !stored.divergence.otherWorkspace) {
       throw const SyncTransportFailure(SyncTransportIssue.conflict);
     }
     final device = (await store.readWorkspaceIdentity()).deviceId;
     final local = jsonDecode(captured.source) as Map<String, dynamic>;
-    final Map<String, dynamic>? merged;
-    if (choice == SyncDivergenceChoice.keepLocal) {
-      // Work another device started is never dropped by overwriting it.
-      merged = _carryOperations(local, cloud.data, (e) => e != device);
-      if (merged == null) {
-        // Over exactly the version shown; a newer one diverges again. The
-        // download above may change the etag without changing the content
-        // (Drive view metadata), so the precondition is read after it.
-        cancellation.check();
-        final current = await remote.findSnapshot();
-        if (current == null ||
-            current.id != stored.fileId ||
-            current.version != stored.version) {
-          await store.writeSetting('syncSnapshotDivergence', '');
-          return _exchange(apply, cancellation, true, true);
-        }
-        final out = await _keepLocally(captured);
-        final AutoSyncResult result;
-        try {
-          result = await _writeOver(current, out, cancellation);
-        } on SyncTransportFailure catch (error) {
-          if (error.issue != SyncTransportIssue.conflict) rethrow;
-          return _reconcile(out, cancellation);
-        }
-        final now = await remote.findSnapshot();
-        if (now?.id != await store.readSetting('syncSnapshotRemoteFileId') ||
-            now?.version !=
-                await store.readSetting('syncSnapshotRemoteVersion')) {
-          throw const SyncTransportFailure(SyncTransportIssue.conflict);
-        }
-        return result;
+    final Map<String, dynamic>? merged = otherWorkspace
+        // Operations target the servers of their own workspace: one
+        // workspace replaces the other whole.
+        ? null
+        : choice == SyncDivergenceChoice.keepLocal
+        // Work another device started is never dropped by overwriting it.
+        ? _carryOperations(local, cloud.data, (e) => e != device)
+        // This device's own unfinished work survives taking the cloud.
+        : _carryOperations(cloud.data, local, (e) => e == device);
+    if (choice == SyncDivergenceChoice.keepLocal && merged == null) {
+      // Over exactly the version shown; a newer one diverges again. The
+      // download above may change the etag without changing the content
+      // (Drive view metadata), so the precondition is read after it.
+      cancellation.check();
+      final current = await remote.findSnapshot();
+      if (current == null ||
+          current.id != stored.fileId ||
+          current.version != stored.version) {
+        await store.writeSetting('syncSnapshotDivergence', '');
+        return _exchange(apply, cancellation, true, true);
       }
-    } else {
-      // This device's own unfinished work survives taking the cloud.
-      merged = _carryOperations(cloud.data, local, (e) => e == device);
+      final out = await _keepLocally(captured);
+      final AutoSyncResult result;
+      try {
+        result = await _writeOver(current, out, cancellation);
+      } on SyncTransportFailure catch (error) {
+        if (error.issue != SyncTransportIssue.conflict) rethrow;
+        return _reconcile(out, cancellation);
+      }
+      final now = await remote.findSnapshot();
+      if (now?.id != await store.readSetting('syncSnapshotRemoteFileId') ||
+          now?.version !=
+              await store.readSetting('syncSnapshotRemoteVersion')) {
+        throw const SyncTransportFailure(SyncTransportIssue.conflict);
+      }
+      return result;
     }
     final snapshot = merged == null
         ? cloud

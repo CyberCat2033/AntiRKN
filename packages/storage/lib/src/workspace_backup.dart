@@ -54,6 +54,38 @@ String _backupStamp(WorkspaceDatabase store) => jsonEncode(
   store._db.select('SELECT workspace_id,device_id,sequence FROM sync_identity'),
 );
 
+/// The change counter and workspace of [store], and whether it never held
+/// data of its own. The first launch writes an empty VPN document before any
+/// sign-in, so such a device is still empty and the cloud replaces it. Any
+/// server, client, template or document ever saved leaves a journal head,
+/// also once deleted, so a device whose data was removed is not empty: its
+/// deletions are uploaded, not undone by a pull. Caller holds `_serial`.
+({bool empty, int sequence, String workspaceId}) _localSnapshotState(
+  WorkspaceDatabase store,
+) {
+  bool none(String sql) => store._db.select(sql).isEmpty;
+  return (
+    empty:
+        none('SELECT 1 FROM servers LIMIT 1') &&
+        // Only the first-launch VPN document, never written again.
+        none(
+          "SELECT 1 FROM documents WHERE id != 'vpn-workspace-v1' OR revision > 1 LIMIT 1",
+        ) &&
+        none('SELECT 1 FROM vpn_user_overlay LIMIT 1') &&
+        none('SELECT 1 FROM vpn_profile_overlay LIMIT 1') &&
+        // The workspace itself and its VPN root are journalled at creation.
+        none(
+          "SELECT 1 FROM sync_heads WHERE entity_kind NOT IN ('workspace', 'vpnWorkspace') LIMIT 1",
+        ),
+    sequence:
+        store._db
+                .select('SELECT sequence FROM sync_identity WHERE singleton=1')
+                .single['sequence']
+            as int,
+    workspaceId: store._journal.identity.workspaceId,
+  );
+}
+
 /// The file backup keeps format 4 with everything this device knows; with
 /// [cloud] the automatic sync snapshot v5 carries intent only.
 Future<_CapturedSnapshot> _currentSnapshot(

@@ -4430,6 +4430,48 @@ abstract class AppLocalizations {
   /// **'Close editors and dialogs first and wait for operations to finish, then choose the version again.'**
   String get autoSyncChoiceBlocked;
 
+  /// No description provided for @autoSyncOtherWorkspace.
+  ///
+  /// In en, this message translates to:
+  /// **'Google Drive holds data started separately on another device, and this device has data of its own. Nothing was overwritten. Choose which data to keep.'**
+  String get autoSyncOtherWorkspace;
+
+  /// No description provided for @autoSyncOtherWorkspaceHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'These are two separate sets of data: one of them remains whole, nothing is merged. Unfinished server operations of the replaced data are not kept.'**
+  String get autoSyncOtherWorkspaceHelp;
+
+  /// No description provided for @autoSyncOtherKeepLocalEffect.
+  ///
+  /// In en, this message translates to:
+  /// **'The data in Google Drive will be replaced. Your other devices will be asked the same question.'**
+  String get autoSyncOtherKeepLocalEffect;
+
+  /// No description provided for @autoSyncOtherTakeCloudEffect.
+  ///
+  /// In en, this message translates to:
+  /// **'All data on this device will be replaced with the data from Google Drive.'**
+  String get autoSyncOtherTakeCloudEffect;
+
+  /// No description provided for @autoSyncReplaceCloudTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace the data in Google Drive?'**
+  String get autoSyncReplaceCloudTitle;
+
+  /// No description provided for @autoSyncReplaceCloudHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Servers and clients saved in Google Drive from other devices will be removed from it. Devices that hold them will be asked which data to keep.'**
+  String get autoSyncReplaceCloudHelp;
+
+  /// No description provided for @autoSyncReplaceCloud.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace'**
+  String get autoSyncReplaceCloud;
+
   /// No description provided for @autoSyncUpdateRequired.
   ///
   /// In en, this message translates to:

@@ -16,16 +16,26 @@ final class SyncVersionInfo {
 /// Rare case of devices working in turn: this device has edits the cloud
 /// does not have, and the cloud has a newer snapshot of the same workspace.
 /// Nothing is merged or overwritten until the user chooses a side.
+///
+/// With [otherWorkspace] the cloud holds a different workspace (data started
+/// separately on another device) while this device holds data of its own.
 final class SyncDivergence {
-  const SyncDivergence({required this.local, required this.cloud});
+  const SyncDivergence({
+    required this.local,
+    required this.cloud,
+    this.otherWorkspace = false,
+  });
   final SyncVersionInfo local, cloud;
+  final bool otherWorkspace;
 }
 
 enum SyncDivergenceChoice {
-  /// Upload this device's data over the cloud version.
+  /// Upload this device's data over the cloud version. Over another
+  /// workspace this replaces it whole; other devices are then asked too.
   keepLocal,
 
-  /// Replace this device's unsent edits with the cloud version.
+  /// Replace this device's unsent edits with the cloud version. From another
+  /// workspace all data of this device is replaced.
   takeCloud,
 }
 

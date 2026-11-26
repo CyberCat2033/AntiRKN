@@ -307,8 +307,171 @@ void main() {
     },
   );
 
+  Future<AutoSyncResult> enter(AutoSyncSession sync) => sync.exchange(
+    apply: (receive) async {
+      await receive();
+      return true;
+    },
+    cancellation: SyncCancellation(),
+    forceRecovery: true,
+    enter: true,
+  );
+
+  Future<AutoSyncResult> choose(
+    AutoSyncSession sync,
+    SyncDivergenceChoice choice,
+  ) => sync.resolve(
+    choice,
+    apply: (receive) async {
+      await receive();
+      return true;
+    },
+    cancellation: SyncCancellation(),
+  );
+
+  /// A restore closes the store: the app reopens it, as the test does.
+  Future<WorkspaceDatabase> reopen(
+    WorkspaceDatabase store,
+    String name,
+    int key,
+  ) async {
+    await store.close();
+    return open(name, key);
+  }
+
+  /// What the app's first launch writes before anyone signs in.
+  Future<void> firstLaunch(WorkspaceDatabase store) async =>
+      store.writeVpnWorkspace(
+        VpnWorkspace(id: (await store.readWorkspaceIdentity()).workspaceId),
+        expectedRevision: 0,
+      );
+
   test(
-    'different nonempty local workspace cannot overwrite cloud state',
+    'a fresh install signed in after launch takes the cloud workspace',
+    () async {
+      final first = open('first', 11);
+      await first.writeDraft('cloud data');
+      await _upload(await session(first));
+      final cloudWorkspace = (await first.readWorkspaceIdentity()).workspaceId;
+      final second = open('second', 22);
+      await firstLaunch(second);
+      final result = await enter(await session(second));
+      expect(result.received, isTrue);
+      expect(result.divergence, isNull);
+      final restored = await reopen(second, 'second', 22);
+      expect(await restored.readDraft(), 'cloud data');
+      expect(
+        (await restored.readWorkspaceIdentity()).workspaceId,
+        cloudWorkspace,
+      );
+      expect(remote.writes, 1);
+    },
+  );
+
+  test(
+    'a fresh install left blocked by an earlier version recovers on entry',
+    () async {
+      final first = open('first', 11);
+      await first.writeDraft('cloud data');
+      await _upload(await session(first));
+      final second = open('second', 22);
+      await firstLaunch(second);
+      // The earlier version captured the first-launch state as unsent edits
+      // and stopped at the other workspace in the cloud.
+      final path = '${directory.path}/second.sqlite';
+      final db = sqlite3.open(path);
+      final int sequence;
+      try {
+        sequence =
+            db.select('SELECT sequence FROM sync_identity').single['sequence']
+                as int;
+      } finally {
+        db.dispose();
+      }
+      await File('$path.current-snapshot').writeAsBytes([1, 2, 3]);
+      await second.writeSetting('syncSnapshotPendingSequence', '$sequence');
+      expect((await enter(await session(second))).received, isTrue);
+      expect(await File('$path.current-snapshot').exists(), isFalse);
+      expect(
+        await (await reopen(second, 'second', 22)).readDraft(),
+        'cloud data',
+      );
+      expect(remote.writes, 1);
+    },
+  );
+
+  test('a fresh install also takes the cloud at the next launch', () async {
+    final first = open('first', 11);
+    await first.writeDraft('cloud data');
+    await _upload(await session(first));
+    final second = open('second', 22);
+    await firstLaunch(second);
+    expect(await second.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+    expect(
+      await (await reopen(second, 'second', 22)).readDraft(),
+      'cloud data',
+    );
+  });
+
+  test('an empty device takes a cloud workspace without data once', () async {
+    // An earlier version uploaded a fresh install as it was: a workspace
+    // without data. A journal tombstone, which no snapshot carries, makes
+    // this device send the same.
+    final first = open('first', 11);
+    await firstLaunch(first);
+    final db = sqlite3.open('${directory.path}/first.sqlite');
+    try {
+      db.execute(
+        "INSERT INTO sync_heads VALUES ('template', 'default', 1, 'gone', 1)",
+      );
+    } finally {
+      db.dispose();
+    }
+    await _upload(await session(first));
+    expect(remote.writes, 1);
+    var second = open('second', 22);
+    await firstLaunch(second);
+    expect((await enter(await session(second))).received, isTrue);
+    second = await reopen(second, 'second', 22);
+    final reads = remote.calls.where((c) => c == 'readSnapshot').length;
+    final sync = await session(second);
+    final again = await enter(sync);
+    expect(again.received, isFalse);
+    expect(again.divergence, isNull);
+    final leaving = await sync.exchange(
+      apply: (_) async => true,
+      cancellation: SyncCancellation(),
+    );
+    expect(leaving.remoteNewer, isFalse);
+    expect(remote.calls.where((c) => c == 'readSnapshot').length, reads);
+    expect(remote.writes, 1);
+  });
+
+  test('an empty device signed in to an empty Drive uploads nothing', () async {
+    final first = open('first', 11);
+    await firstLaunch(first);
+    await enter(await session(first));
+    expect(remote.writes, 0);
+    expect(remote.snapshot, isNull);
+  });
+
+  test('a device whose only server was deleted uploads the deletion', () async {
+    final first = open('first', 11);
+    await firstLaunch(first);
+    final server = await first.openServer('only-server');
+    await server.saveProfile(fixtureServer());
+    await _upload(await session(first));
+    await first.deleteServers(await first.listServers());
+    await enter(await session(first));
+    expect(remote.writes, 2);
+    final second = open('second', 22);
+    await firstLaunch(second);
+    expect(await second.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+    expect(await (await reopen(second, 'second', 22)).listServers(), isEmpty);
+  });
+
+  test(
+    'own data and another workspace in the cloud ask which data to keep',
     () async {
       final first = open('first', 11);
       await first.writeDraft('cloud data');
@@ -316,18 +479,59 @@ void main() {
       final second = open('second', 22);
       await second.writeDraft('independent local data');
       expect(await second.pullCurrentSnapshot(tokens, remote: remote), isFalse);
-      await expectLater(
-        _upload(await session(second)),
-        throwsA(
-          isA<SyncTransportFailure>().having(
-            (e) => e.issue,
-            'issue',
-            SyncTransportIssue.conflict,
-          ),
-        ),
-      );
+      final sync = await session(second);
+      final result = await enter(sync);
+      expect(result.divergence?.otherWorkspace, isTrue);
       expect(await second.readDraft(), 'independent local data');
       expect(remote.writes, 1);
+      // Remembered across sessions until the user chooses.
+      final again = await (await session(
+        second,
+      )).exchange(apply: (_) async => true, cancellation: SyncCancellation());
+      expect(again.divergence?.otherWorkspace, isTrue);
+      expect(remote.writes, 1);
+      final taken = await choose(sync, SyncDivergenceChoice.takeCloud);
+      expect(taken.received, isTrue);
+      final restored = await reopen(second, 'second', 22);
+      expect(await restored.readDraft(), 'cloud data');
+      expect(
+        (await restored.readWorkspaceIdentity()).workspaceId,
+        (await first.readWorkspaceIdentity()).workspaceId,
+      );
+      expect(remote.writes, 1);
+      final settled = await enter(await session(restored));
+      expect(settled.divergence, isNull);
+      expect(settled.received, isFalse);
+      expect(remote.writes, 1);
+    },
+  );
+
+  test(
+    'keeping own data replaces another cloud workspace and asks the others',
+    () async {
+      final first = open('first', 11);
+      await first.writeDraft('cloud data');
+      await _upload(await session(first));
+      final second = open('second', 22);
+      await second.writeDraft('independent local data');
+      final sync = await session(second);
+      expect((await _upload(sync)).divergence?.otherWorkspace, isTrue);
+      expect(remote.writes, 1);
+      await choose(sync, SyncDivergenceChoice.keepLocal);
+      expect(remote.writes, 2);
+      expect(await second.readDraft(), 'independent local data');
+      // The first device is clean and bound to its own workspace: it is
+      // asked as well instead of being replaced.
+      final firstSync = await session(first);
+      final asked = await enter(firstSync);
+      expect(asked.divergence?.otherWorkspace, isTrue);
+      expect(await first.readDraft(), 'cloud data');
+      await choose(firstSync, SyncDivergenceChoice.takeCloud);
+      expect(
+        await (await reopen(first, 'first', 11)).readDraft(),
+        'independent local data',
+      );
+      expect(remote.writes, 2);
     },
   );
 

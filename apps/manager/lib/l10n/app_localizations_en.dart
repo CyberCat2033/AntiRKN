@@ -2496,6 +2496,32 @@ class AppLocalizationsEn extends AppLocalizations {
       'Close editors and dialogs first and wait for operations to finish, then choose the version again.';
 
   @override
+  String get autoSyncOtherWorkspace =>
+      'Google Drive holds data started separately on another device, and this device has data of its own. Nothing was overwritten. Choose which data to keep.';
+
+  @override
+  String get autoSyncOtherWorkspaceHelp =>
+      'These are two separate sets of data: one of them remains whole, nothing is merged. Unfinished server operations of the replaced data are not kept.';
+
+  @override
+  String get autoSyncOtherKeepLocalEffect =>
+      'The data in Google Drive will be replaced. Your other devices will be asked the same question.';
+
+  @override
+  String get autoSyncOtherTakeCloudEffect =>
+      'All data on this device will be replaced with the data from Google Drive.';
+
+  @override
+  String get autoSyncReplaceCloudTitle => 'Replace the data in Google Drive?';
+
+  @override
+  String get autoSyncReplaceCloudHelp =>
+      'Servers and clients saved in Google Drive from other devices will be removed from it. Devices that hold them will be asked which data to keep.';
+
+  @override
+  String get autoSyncReplaceCloud => 'Replace';
+
+  @override
   String get autoSyncUpdateRequired =>
       'The data in Google Drive was saved by a newer version of AntiRKN. Update the app on this device. Until then nothing is downloaded from or sent to Google Drive; the data on this device is unchanged.';
 

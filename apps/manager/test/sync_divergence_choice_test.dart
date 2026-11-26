@@ -16,7 +16,114 @@ final _divergence = SyncDivergence(
   ),
 );
 
+final _otherWorkspace = SyncDivergence(
+  local: const SyncVersionInfo(),
+  cloud: SyncVersionInfo(
+    savedAt: DateTime.utc(2026, 11, 25, 10, 15),
+    deviceName: 'Linux · desk',
+  ),
+  otherWorkspace: true,
+);
+
 void main() {
+  for (final locale in AppLocalizations.supportedLocales) {
+    for (final width in [390.0, 1400.0]) {
+      for (final scale in [1.0, 2.0]) {
+        testWidgets('replacing another cloud workspace is confirmed at $width, '
+            'text x$scale, ${locale.languageCode}', (tester) async {
+          tester.view
+            ..physicalSize = Size(width, 900)
+            ..devicePixelRatio = 1;
+          addTearDown(tester.view.reset);
+          final account = AccountService();
+          await account.signIn();
+          final session = Session()
+            ..results.addAll([
+              AutoSyncResult(divergence: _otherWorkspace),
+              const AutoSyncResult(),
+            ]);
+          final sync = AutoSyncController(
+            accountService: account,
+            settings: Settings(),
+            changes: const Stream<void>.empty(),
+            openSession: () async => session,
+            apply: (_) async => true,
+          );
+          await tester.pumpWidget(
+            MaterialApp(
+              locale: locale,
+              theme: AppTheme.create(Brightness.light),
+              supportedLocales: AppLocalizations.supportedLocales,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              builder: (context, child) => MediaQuery(
+                data: MediaQuery.of(
+                  context,
+                ).copyWith(textScaler: TextScaler.linear(scale)),
+                child: child!,
+              ),
+              home: Scaffold(
+                body: ListenableBuilder(
+                  listenable: sync,
+                  builder: (context, _) => ListView(
+                    children: [
+                      if (sync.divergence != null)
+                        SyncDivergenceNotice(sync: sync),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+          await tester.pump(const Duration(milliseconds: 10));
+          await tester.pump(const Duration(milliseconds: 10));
+          final l = lookupAppLocalizations(locale);
+          expect(find.text(l.autoSyncOtherWorkspace), findsOneWidget);
+          expect(find.text(l.autoSyncDiverged), findsNothing);
+          Future<void> keepLocal() async {
+            await tester.tap(
+              find.byKey(const ValueKey('google-sync-choose-version')),
+            );
+            await tester.pumpAndSettle();
+            expect(find.text(l.autoSyncOtherWorkspaceHelp), findsOneWidget);
+            expect(
+              find.textContaining(l.autoSyncOtherTakeCloudEffect),
+              findsOne,
+            );
+            // With large text the sheet scrolls to the options.
+            final option = find.byKey(
+              const ValueKey('app-choice-SyncDivergenceChoice.keepLocal'),
+            );
+            await tester.ensureVisible(option);
+            await tester.pumpAndSettle();
+            await tester.tap(option);
+            await tester.pumpAndSettle();
+            expect(find.text(l.autoSyncReplaceCloudTitle), findsOneWidget);
+            expect(tester.takeException(), isNull);
+          }
+
+          // Cancelling the confirmation changes nothing.
+          await keepLocal();
+          await tester.ensureVisible(find.text(l.sshCancel));
+          await tester.tap(find.text(l.sshCancel));
+          await tester.pumpAndSettle();
+          expect(session.resolved, isEmpty);
+          expect(sync.divergence, isNotNull);
+          await keepLocal();
+          final replace = find.byKey(
+            const ValueKey('google-sync-replace-cloud'),
+          );
+          await tester.ensureVisible(replace);
+          await tester.tap(replace);
+          await tester.pumpAndSettle();
+          expect(session.resolved, [SyncDivergenceChoice.keepLocal]);
+          expect(sync.divergence, isNull);
+          await tester.runAsync(sync.stop);
+          sync.dispose();
+        });
+      }
+    }
+  }
+
   for (final locale in AppLocalizations.supportedLocales) {
     for (final width in [390.0, 700.0, 1000.0, 1400.0]) {
       for (final scale in [1.0, 2.0]) {

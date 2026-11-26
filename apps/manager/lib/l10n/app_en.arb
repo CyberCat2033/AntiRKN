@@ -940,6 +940,13 @@
   "autoSyncVersionUnknownDevice": "device not named",
   "autoSyncThisDevice": "this device",
   "autoSyncChoiceBlocked": "Close editors and dialogs first and wait for operations to finish, then choose the version again.",
+  "autoSyncOtherWorkspace": "Google Drive holds data started separately on another device, and this device has data of its own. Nothing was overwritten. Choose which data to keep.",
+  "autoSyncOtherWorkspaceHelp": "These are two separate sets of data: one of them remains whole, nothing is merged. Unfinished server operations of the replaced data are not kept.",
+  "autoSyncOtherKeepLocalEffect": "The data in Google Drive will be replaced. Your other devices will be asked the same question.",
+  "autoSyncOtherTakeCloudEffect": "All data on this device will be replaced with the data from Google Drive.",
+  "autoSyncReplaceCloudTitle": "Replace the data in Google Drive?",
+  "autoSyncReplaceCloudHelp": "Servers and clients saved in Google Drive from other devices will be removed from it. Devices that hold them will be asked which data to keep.",
+  "autoSyncReplaceCloud": "Replace",
   "@autoSyncVersionSaved": {
     "placeholders": {
       "time": {"type": "String"},

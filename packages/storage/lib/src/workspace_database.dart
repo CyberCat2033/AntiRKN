@@ -1192,21 +1192,7 @@ final class WorkspaceDatabase
   Future<({bool empty, int sequence, String workspaceId})>
   _snapshotLocalState() => _dbWorker != null
       ? _remoteCall('snapshotState')
-      : _serial(
-          () => (
-            empty:
-                _db.select('SELECT 1 FROM servers LIMIT 1').isEmpty &&
-                _db.select('SELECT 1 FROM documents LIMIT 1').isEmpty,
-            sequence:
-                _db
-                        .select(
-                          'SELECT sequence FROM sync_identity WHERE singleton=1',
-                        )
-                        .single['sequence']
-                    as int,
-            workspaceId: _journal.identity.workspaceId,
-          ),
-        );
+      : _serial(() => _localSnapshotState(this));
 
   Future<String> _snapshotStamp() => _dbWorker != null
       ? _remoteCall('snapshotStamp')

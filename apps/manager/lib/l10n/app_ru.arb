@@ -902,6 +902,13 @@
   "autoSyncVersionUnknownDevice": "устройство не указано",
   "autoSyncThisDevice": "это устройство",
   "autoSyncChoiceBlocked": "Сначала закройте редакторы и диалоги и дождитесь окончания операций, затем выберите версию снова.",
+  "autoSyncOtherWorkspace": "В Google Drive лежат данные, начатые отдельно на другом устройстве, а на этом устройстве есть свои. Ничего не перезаписано. Выберите, какие данные оставить.",
+  "autoSyncOtherWorkspaceHelp": "Это два отдельных набора данных: остаётся один из них целиком, ничего не объединяется. Незавершённые операции на серверах заменяемых данных не сохраняются.",
+  "autoSyncOtherKeepLocalEffect": "Данные в Google Drive будут заменены. На других ваших устройствах появится тот же вопрос.",
+  "autoSyncOtherTakeCloudEffect": "Все данные этого устройства будут заменены данными из Google Drive.",
+  "autoSyncReplaceCloudTitle": "Заменить данные в Google Drive?",
+  "autoSyncReplaceCloudHelp": "Серверы и клиенты, сохранённые в Google Drive с других устройств, будут из него удалены. Устройства, на которых они есть, спросят, какие данные оставить.",
+  "autoSyncReplaceCloud": "Заменить",
   "@autoSyncVersionSaved": {
     "placeholders": {
       "time": {"type": "String"},
