@@ -27,7 +27,9 @@ class SshHardenController extends ChangeNotifier {
     if (pollAutomatically) {
       _timer = Timer.periodic(const Duration(seconds: 1), (_) {
         if (!_disposed) notifyListeners();
-        if (!busy && jobId != null && !terminal) unawaited(poll());
+        if (!busy && _background == null && jobId != null && !terminal) {
+          unawaited(poll());
+        }
       });
     }
   }
@@ -35,7 +37,11 @@ class SshHardenController extends ChangeNotifier {
   final token = CancellationToken();
   Timer? _timer;
   bool _disposed = false;
+
+  /// An action the person started. Background status polls never set it, so
+  /// the dialog's buttons and icons do not blink once a second.
   bool busy = false;
+  Future<void>? _background;
   SshHardenStage stage = SshHardenStage.input;
   String? errorCode;
   DateTime? deadline;
@@ -89,6 +95,11 @@ class SshHardenController extends ChangeNotifier {
     errorCode = null;
     _notify();
     try {
+      // A status poll may already be changing the stage: act on its outcome.
+      if (_background case final pending?) {
+        await pending;
+        if (_disposed || terminal) return;
+      }
       await action();
     } catch (e) {
       if (!_disposed) _failure(e);
@@ -192,7 +203,25 @@ class SshHardenController extends ChangeNotifier {
     return response!.sshHardenResult!;
   }
 
-  Future<void> poll() => _run(_poll);
+  /// Reads the server status without marking the dialog busy and without
+  /// hiding the last error unless the stage actually moved.
+  Future<void> poll() {
+    if (busy || _disposed || terminal) return Future.value();
+    return _background ??= _quietPoll().whenComplete(() => _background = null);
+  }
+
+  Future<void> _quietPoll() async {
+    final before = stage;
+    try {
+      await _poll();
+      if (stage != before) errorCode = null;
+    } catch (e) {
+      if (!_disposed) _failure(e);
+    } finally {
+      _notify();
+    }
+  }
+
   Future<void> _poll() async {
     final id = jobId;
     if (id == null) return;

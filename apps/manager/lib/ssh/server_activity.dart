@@ -139,12 +139,16 @@ class RunnerJobIcon extends StatelessWidget {
             Icons.cancel_outlined,
             color: colors.onSurfaceVariant,
           ),
-          // Determinate, with a visible start: never an empty ring.
+          // A running job spins; the step count is already in the summary.
+          // With system animations off it stays a determinate ring with a
+          // visible start, never an empty one.
           'running' => Padding(
             padding: const EdgeInsets.all(2),
             child: CircularProgressIndicator(
               strokeWidth: 3,
-              value: max(job.checkpoint / job.count, .08),
+              value: MediaQuery.disableAnimationsOf(context)
+                  ? max(job.checkpoint / job.count, .08)
+                  : null,
             ),
           ),
           _ => Icon(Icons.schedule, color: colors.onSurfaceVariant),

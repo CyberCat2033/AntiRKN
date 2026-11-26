@@ -1800,9 +1800,10 @@ class AppFormFields extends StatelessWidget {
   );
 }
 
-/// A named group of form fields on a tonal surface: forms read as a few
-/// groups, not one flat wall of fields. With [expandable] the group stays
-/// closed under its title (e.g. "Advanced settings") and keeps its draft.
+/// A named group of form fields: a section title over the fields, straight
+/// on the dialog surface as in M3 forms, with no card around them. With
+/// [expandable] the group stays closed under its title (e.g. "Advanced
+/// settings") and keeps its draft.
 class AppFormSection extends StatelessWidget {
   const AppFormSection({
     required this.children,
@@ -1815,52 +1816,37 @@ class AppFormSection extends StatelessWidget {
   final List<Widget> children;
   final bool expandable;
 
-  /// The children are list rows (switches, disclosures) running edge to
-  /// edge, with their text on the same 16 dp inset as an expandable
-  /// section's title.
+  /// The children are list rows (switches, disclosures) whose text keeps the
+  /// 16 dp inset of the text inside the fields.
   final bool rows;
 
   @override
   Widget build(BuildContext context) {
-    final surface = Material(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(AppLayout.radius),
-      clipBehavior: Clip.antiAlias,
-      child: expandable
-          ? AppExpansionTile(
-              maintainState: true,
-              title: Text(title!),
-              tilePadding: const EdgeInsets.symmetric(horizontal: 16),
-              shape: const RoundedRectangleBorder(),
-              collapsedShape: const RoundedRectangleBorder(),
-              childrenPadding: rows
-                  ? const EdgeInsets.only(bottom: 4)
-                  : const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                rows
-                    ? Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: children,
-                      )
-                    : AppFormFields(children: children),
-              ],
-            )
-          : rows
-          ? Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: children,
-              ),
-            )
-          : Padding(
-              padding: const EdgeInsets.all(12),
-              child: AppFormFields(children: children),
-            ),
-    );
-    if (expandable || title == null) return surface;
+    final body = rows
+        ? Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: children,
+          )
+        : AppFormFields(children: children);
+    if (expandable) {
+      // The ink of the disclosure row keeps a field-like shape.
+      const shape = RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(12)),
+      );
+      return AppExpansionTile(
+        maintainState: true,
+        title: Text(title!),
+        tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+        shape: shape,
+        collapsedShape: shape,
+        childrenPadding: EdgeInsets.only(top: rows ? 0 : AppLayout.smallGap),
+        expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [body],
+      );
+    }
+    if (title == null) return body;
+    final theme = Theme.of(context);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1869,12 +1855,12 @@ class AppFormSection extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(4, 0, 4, AppLayout.smallGap),
           child: Text(
             title!,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: Theme.of(context).colorScheme.primary,
+            style: theme.textTheme.titleSmall?.copyWith(
+              color: theme.colorScheme.primary,
             ),
           ),
         ),
-        surface,
+        body,
       ],
     );
   }
