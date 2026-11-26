@@ -16,6 +16,7 @@ import 'missing_on_server_notice.dart';
 import 'adopt_resource.dart';
 import 'vpn_plan_view.dart';
 import 'vpn_strings.dart';
+import '../protocol_icon.dart';
 
 class TtPanel extends StatefulWidget {
   const TtPanel({
@@ -520,6 +521,7 @@ class TtSettingsEditor extends StatelessWidget {
           key: ValueKey('tt-options-$external'),
           title: l.awgAdvanced,
           expandable: true,
+          rows: true,
           children: [
             AppFormSwitch(
               title: l.ttIpv6,
@@ -670,6 +672,9 @@ class _ManagedTtState extends State<ManagedTtDialog> {
     final l = AppLocalizations.of(context);
     return AppFormDialog(
       title: const Text('TrustTunnel'),
+      icon: protocolIcon('trusttunnel'),
+      subtitle: widget.existing ? l.vpnEdit : l.ttAdd,
+      fullscreenOnCompact: true,
       content: AppFormFields(
         children: [
           TtSettingsEditor(
@@ -707,12 +712,8 @@ class _ManagedTtState extends State<ManagedTtDialog> {
             ],
           ),
           AppFormSection(
+            title: l.vpnUsers,
             children: [
-              AppFormSwitch(
-                title: l.vpnEnabled,
-                value: spec['enabled'] as bool,
-                onChanged: (v) => setState(() => spec['enabled'] = v),
-              ),
               AppFormAction(
                 buttonKey: const ValueKey('tt-regenerate-passwords'),
                 icon: Icons.refresh,
@@ -720,6 +721,16 @@ class _ManagedTtState extends State<ManagedTtDialog> {
                 onPressed: () => setState(() => rotate = true),
               ),
               if (rotate) AppFormHint(l.ttPasswordsRegenerated),
+            ],
+          ),
+          AppFormSection(
+            rows: true,
+            children: [
+              AppFormSwitch(
+                title: l.vpnEnabled,
+                value: spec['enabled'] as bool,
+                onChanged: (v) => setState(() => spec['enabled'] = v),
+              ),
             ],
           ),
           if (invalid)
@@ -759,6 +770,7 @@ class _ManagedTtState extends State<ManagedTtDialog> {
                       ),
                     );
                   },
+            icon: const Icon(Icons.delete_outline),
             child: Text(l.vpnDelete),
           ),
         TextButton(
@@ -862,7 +874,10 @@ class _ExistingTtState extends State<_ExistingTtDialog>
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     return AppFormDialog(
-      title: Text('${l.vpnEdit} · ${widget.snapshot['name']}'),
+      title: const Text('TrustTunnel'),
+      icon: protocolIcon('trusttunnel'),
+      subtitle: '${l.vpnEdit} · ${widget.snapshot['name']}',
+      fullscreenOnCompact: true,
       content: AppFormFields(
         children: [
           AppFormSection(

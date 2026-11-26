@@ -1553,13 +1553,140 @@ class AppNotice extends StatelessWidget {
 }
 
 /// Form body scrolls independently while the existing action buttons stay visible.
+/// A low-emphasis destructive action ([AppDangerButton.text], e.g. "Delete")
+/// sits at the leading edge, apart from Cancel and Save at the end.
 class AppFormDialog extends StatelessWidget {
-  const AppFormDialog({this.title, this.content, this.actions, super.key});
+  const AppFormDialog({
+    this.title,
+    this.content,
+    this.actions,
+    this.icon,
+    this.subtitle,
+    this.fullscreenOnCompact = false,
+    super.key,
+  });
   final Widget? title, content;
   final List<Widget>? actions;
+
+  /// Shown before [title], e.g. the protocol of the edited resource.
+  final IconData? icon;
+
+  /// A short line under the title, e.g. whether a resource is new.
+  final String? subtitle;
+
+  /// A long form fills a compact screen (M3 full-screen dialog), so it is not
+  /// a card in a card on a phone. Short dialogs stay basic.
+  final bool fullscreenOnCompact;
+
+  Widget _title(BuildContext context) {
+    final theme = Theme.of(context);
+    Widget heading = DefaultTextStyle(
+      style: theme.textTheme.headlineSmall!,
+      child: title!,
+    );
+    if (icon != null) {
+      heading = Row(
+        children: [
+          Icon(icon, color: theme.colorScheme.primary),
+          const SizedBox(width: 12),
+          Expanded(child: heading),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // The title names the dialog route for screen readers, as in
+        // AlertDialog (UI-73).
+        Semantics(
+          container: true,
+          header: true,
+          namesRoute: true,
+          child: heading,
+        ),
+        if (subtitle != null)
+          Padding(
+            padding: EdgeInsetsDirectional.only(
+              top: 4,
+              start: icon == null ? 0 : 36,
+            ),
+            child: Text(
+              subtitle!,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _actions(BuildContext context) {
+    final leading = [
+      for (final a in actions!)
+        if (a is AppDangerButton && a._text) a,
+    ];
+    final trailing = Wrap(
+      alignment: WrapAlignment.end,
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final a in actions!)
+          if (!leading.contains(a)) a,
+      ],
+    );
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(
+            color: Theme.of(
+              context,
+            ).colorScheme.outlineVariant.withValues(alpha: .5),
+          ),
+        ),
+      ),
+      child: leading.isEmpty
+          ? trailing
+          : Row(
+              children: [
+                ...leading,
+                const SizedBox(width: 8),
+                Expanded(child: trailing),
+              ],
+            ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
+    final fullscreen =
+        fullscreenOnCompact && media.size.width < AppLayout.compact;
+    final inset = fullscreen ? 16.0 : 22.0;
+    final body = Column(
+      mainAxisSize: fullscreen ? MainAxisSize.max : MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (title != null)
+          Padding(
+            padding: EdgeInsets.fromLTRB(inset, 22, inset, 18),
+            child: _title(context),
+          ),
+        if (content != null)
+          Flexible(
+            fit: fullscreen ? FlexFit.tight : FlexFit.loose,
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(inset, 4, inset, 20),
+              child: content,
+            ),
+          ),
+        if (actions?.isNotEmpty == true) _actions(context),
+      ],
+    );
+    if (fullscreen) {
+      return Dialog.fullscreen(child: SafeArea(child: body));
+    }
     return Dialog(
       clipBehavior: Clip.antiAlias,
       insetPadding: const EdgeInsets.all(16),
@@ -1573,53 +1700,7 @@ class AppFormDialog extends StatelessWidget {
                       32)
                   .clamp(120.0, double.infinity),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (title != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
-                // The title names the dialog route for screen readers, as in
-                // AlertDialog (UI-73).
-                child: Semantics(
-                  container: true,
-                  header: true,
-                  namesRoute: true,
-                  child: DefaultTextStyle(
-                    style: Theme.of(context).textTheme.headlineSmall!,
-                    child: title!,
-                  ),
-                ),
-              ),
-            if (content != null)
-              Flexible(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(22, 4, 22, 20),
-                  child: content,
-                ),
-              ),
-            if (actions?.isNotEmpty == true)
-              Container(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                decoration: BoxDecoration(
-                  border: Border(
-                    top: BorderSide(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.outlineVariant.withValues(alpha: .5),
-                    ),
-                  ),
-                ),
-                child: Wrap(
-                  alignment: WrapAlignment.end,
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: actions!,
-                ),
-              ),
-          ],
-        ),
+        child: body,
       ),
     );
   }
@@ -1665,11 +1746,17 @@ class AppFormSection extends StatelessWidget {
     required this.children,
     this.title,
     this.expandable = false,
+    this.rows = false,
     super.key,
   }) : assert(!expandable || title != null);
   final String? title;
   final List<Widget> children;
   final bool expandable;
+
+  /// The children are list rows (switches, disclosures) running edge to
+  /// edge, with their text on the same 16 dp inset as an expandable
+  /// section's title.
+  final bool rows;
 
   @override
   Widget build(BuildContext context) {
@@ -1684,9 +1771,27 @@ class AppFormSection extends StatelessWidget {
               tilePadding: const EdgeInsets.symmetric(horizontal: 16),
               shape: const RoundedRectangleBorder(),
               collapsedShape: const RoundedRectangleBorder(),
-              childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              childrenPadding: rows
+                  ? const EdgeInsets.only(bottom: 4)
+                  : const EdgeInsets.fromLTRB(12, 0, 12, 12),
               expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [AppFormFields(children: children)],
+              children: [
+                rows
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: children,
+                      )
+                    : AppFormFields(children: children),
+              ],
+            )
+          : rows
+          ? Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: children,
+              ),
             )
           : Padding(
               padding: const EdgeInsets.all(12),
@@ -1795,16 +1900,44 @@ class AppFormSwitch extends StatelessWidget {
   final Key? switchKey;
 
   @override
-  Widget build(BuildContext context) => SwitchListTile(
-    key: switchKey,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    title: Text(title),
-    subtitle: subtitle == null ? null : Text(subtitle!),
-    secondary: secondary,
-    value: value,
-    onChanged: onChanged,
-  );
+  Widget build(BuildContext context) {
+    const padding = EdgeInsets.symmetric(horizontal: 16);
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+    );
+    // Large text puts the switch under the text, so a description is not
+    // squeezed into a narrow column beside it.
+    if (MediaQuery.textScalerOf(context).scale(14) > 20) {
+      return MergeSemantics(
+        child: ListTile(
+          key: switchKey,
+          contentPadding: padding,
+          shape: shape,
+          leading: secondary,
+          enabled: onChanged != null,
+          onTap: onChanged == null ? null : () => onChanged!(!value),
+          title: Text(title),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (subtitle != null) Text(subtitle!),
+              Switch(value: value, onChanged: onChanged),
+            ],
+          ),
+        ),
+      );
+    }
+    return SwitchListTile(
+      key: switchKey,
+      contentPadding: padding,
+      shape: shape,
+      title: Text(title),
+      subtitle: subtitle == null ? null : Text(subtitle!),
+      secondary: secondary,
+      value: value,
+      onChanged: onChanged,
+    );
+  }
 }
 
 /// A "more" (⋮) button with a menu of actions, reachable by mouse, touch

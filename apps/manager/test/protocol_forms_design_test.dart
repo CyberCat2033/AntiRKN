@@ -132,15 +132,49 @@ void _expectGaps(WidgetTester tester, Finder upper, Finder lower) {
   expect(b.top - a.bottom, greaterThanOrEqualTo(AppFormFields.hintGap));
 }
 
+/// The shared dialog frame: full screen on a phone, Delete at the leading
+/// edge apart from Cancel and Save, the protocol icon in the title.
+void _expectFrame(WidgetTester tester, double width, String delete) {
+  final dialog = tester.getRect(
+    find
+        .descendant(of: find.byType(Dialog), matching: find.byType(Material))
+        .first,
+  );
+  if (width < AppLayout.compact) expect(dialog.width, width);
+  final deleteRect = tester.getRect(find.byKey(ValueKey(delete)));
+  final cancel = tester.getRect(find.text(_l.sshCancel));
+  final save = tester.getRect(find.text(_l.vpnSave));
+  expect(deleteRect.left - dialog.left, lessThan(40));
+  expect(cancel.left, greaterThan(deleteRect.right));
+  // Cancel and Save stay together at the end; narrow rows wrap them.
+  expect(save.left > cancel.right || save.top >= cancel.bottom, isTrue);
+  expect(
+    tester.widget<AppFormDialog>(find.byType(AppFormDialog)).icon,
+    isNotNull,
+  );
+}
+
+/// Row texts of the bottom groups start on one inset.
+void _expectRowInset(WidgetTester tester, String a, String b) {
+  expect(
+    tester.getRect(find.text(a)).left,
+    closeTo(tester.getRect(find.text(b)).left, 0.5),
+  );
+}
+
 void main() {
-  for (final width in [390.0, 1000.0]) {
-    testWidgets('VLESS editor: one form structure at $width', (tester) async {
-      _size(tester, width, 1900);
+  for (final (width, scale) in [(390.0, 1.0), (1000.0, 1.0), (390.0, 2.0)]) {
+    final shot = 'r2-%s-${width.toInt()}${scale == 1 ? '' : '-x2'}';
+    testWidgets('VLESS editor: one form structure at $width x$scale', (
+      tester,
+    ) async {
+      _size(tester, width, 2000 * scale);
       await _fonts(tester);
       final network = NetworkController(reader: const SampleInventoryReader());
       addTearDown(network.dispose);
       await tester.pumpWidget(
         _app(
+          scale: scale,
           InboundForm(
             serverId: 'one',
             network: network,
@@ -173,19 +207,22 @@ void main() {
       );
       await tester.tap(find.byKey(const ValueKey('vpn-reality-scan')));
       await tester.pumpAndSettle();
-      expect(find.text(_l.realityScanFailed), findsOneWidget);
+      // A failed scan is the target field's error, not a notice.
+      expect(find.byType(AppNotice), findsNothing);
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('vpn-inbound-target')))
+            .decoration!
+            .errorText,
+        _l.realityScanFailed,
+      );
       await tester.tap(find.byKey(const ValueKey('vpn-reality-regenerate')));
       await tester.pumpAndSettle();
       expect(find.text(_l.vpnRealityRegenerated), findsOneWidget);
       _expectGaps(
         tester,
+        find.byKey(const ValueKey('vpn-inbound-target')),
         find.byKey(const ValueKey('vpn-reality-scan')),
-        find.text(_l.realityScanFailed),
-      );
-      _expectGaps(
-        tester,
-        find.text(_l.realityScanFailed),
-        find.byKey(const ValueKey('vpn-inbound-sni')),
       );
       _expectGaps(
         tester,
@@ -197,20 +234,24 @@ void main() {
         find.text(_l.vpnRealityRegenerated),
         find.byType(XhttpOptionsEditor),
       );
-      await _capture(tester, 'vless-${width.toInt()}');
+      _expectFrame(tester, width, 'vpn-inbound-delete');
+      _expectRowInset(tester, 'XMUX', _l.vpnEnabled);
+      _expectRowInset(tester, _l.vpnInternal, _l.vpnEnabled);
+      await _capture(tester, shot.replaceFirst('%s', 'vless'));
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
-    testWidgets('AmneziaWG editor: one form structure at $width', (
+    testWidgets('AmneziaWG editor: one form structure at $width x$scale', (
       tester,
     ) async {
-      _size(tester, width, 1200);
+      _size(tester, width, 1200 * scale);
       await _fonts(tester);
       final network = NetworkController(reader: const SampleInventoryReader());
       addTearDown(network.dispose);
       await tester.pumpWidget(
         _app(
+          scale: scale,
           AwgForm(
             serverId: 'one',
             spec: awg.spec(),
@@ -223,7 +264,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(AppFormSection), findsNWidgets(3));
       expect(find.byType(AppFormSwitch), findsOneWidget);
-      await _capture(tester, 'awg-${width.toInt()}');
+      _expectFrame(tester, width, 'awg-delete');
+      _expectRowInset(tester, _l.awgAdvanced, _l.vpnEnabled);
+      await _capture(tester, shot.replaceFirst('%s', 'awg'));
       await tester.tap(find.text(_l.awgAdvanced));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('awg-externalPort')), findsOneWidget);
@@ -231,10 +274,10 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
-    testWidgets('TrustTunnel editor: one form structure at $width', (
+    testWidgets('TrustTunnel editor: one form structure at $width x$scale', (
       tester,
     ) async {
-      _size(tester, width, 1400);
+      _size(tester, width, 1500 * scale);
       await _fonts(tester);
       final runner = _runner(CertificateTransport.new);
       final network = NetworkController(reader: const SampleInventoryReader());
@@ -243,6 +286,7 @@ void main() {
       runner.ttCertificates = {'certificates': _certificates};
       await tester.pumpWidget(
         _app(
+          scale: scale,
           ManagedTtDialog(
             serverId: 'fixture',
             spec: tt.spec(),
@@ -255,21 +299,39 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.byType(AppFormSection), findsNWidgets(4));
+      expect(find.byType(AppFormSection), findsNWidgets(5));
       expect(
         tester.widget(find.byKey(const ValueKey('tt-issue-certificate'))),
         isA<FilledButton>(),
       );
+      final regenerate = find.byKey(const ValueKey('tt-regenerate-passwords'));
+      expect(tester.widget(regenerate), isA<FilledButton>());
+      // Passwords are regenerated from the Clients section, not beside the
+      // Enabled switch.
       expect(
-        tester.widget(find.byKey(const ValueKey('tt-regenerate-passwords'))),
-        isA<FilledButton>(),
+        find.ancestor(of: regenerate, matching: find.byType(AppFormSection)),
+        findsOneWidget,
       );
-      await _capture(tester, 'tt-${width.toInt()}');
+      expect(
+        find.descendant(
+          of: find.ancestor(
+            of: regenerate,
+            matching: find.byType(AppFormSection),
+          ),
+          matching: find.byType(AppFormSwitch),
+        ),
+        findsNothing,
+      );
+      _expectFrame(tester, width, 'tt-delete');
+      _expectRowInset(tester, _l.awgAdvanced, _l.vpnEnabled);
+      await _capture(tester, shot.replaceFirst('%s', 'tt'));
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
       runner.dispose();
     });
+  }
 
+  for (final width in [390.0, 1000.0]) {
     testWidgets('protocol page actions share one spaced row at $width', (
       tester,
     ) async {
@@ -325,7 +387,8 @@ void main() {
     testWidgets('TLS certificates are compact rows at $width', (tester) async {
       _size(tester, width, 700);
       await _fonts(tester);
-      final runner = _runner(FakeRunnerTransport.new);
+      final runner = _runner(CertificateTransport.new);
+      await runner.refresh(prepare: true);
       runner.ttCertificates = {'certificates': _certificates};
       final network = NetworkController(reader: const SampleInventoryReader());
       addTearDown(network.dispose);
@@ -345,37 +408,22 @@ void main() {
       expect(find.textContaining(_l.ttLastSuccess), findsNothing);
       expect(find.textContaining(_l.ttRenewAcme), findsNothing);
       expect(find.byTooltip(_l.awgRefresh), findsOneWidget);
-      await _capture(tester, 'certificates-${width.toInt()}');
+      // The add row is an enabled action in primary colour.
+      final add = find.byKey(const ValueKey('tt-certificate-add'));
+      expect(tester.widget<ListTile>(add).enabled, isTrue);
+      expect(
+        tester.widget<ListTile>(add).textColor,
+        AppTheme.create(Brightness.dark).colorScheme.primary,
+      );
+      await _capture(tester, 'r2-certificates-${width.toInt()}');
       await tester.tap(find.text('vpn.example.com'));
       await tester.pumpAndSettle();
       expect(find.text(_l.ttLastSuccess), findsOneWidget);
       expect(find.text(_l.ttRenewAcme), findsOneWidget);
-      await _capture(tester, 'certificate-details-${width.toInt()}');
+      await _capture(tester, 'r2-certificate-details-${width.toInt()}');
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
       runner.dispose();
     });
   }
-
-  testWidgets('VLESS editor fits at text scale 2', (tester) async {
-    _size(tester, 390, 3600);
-    await _fonts(tester);
-    final network = NetworkController(reader: const SampleInventoryReader());
-    addTearDown(network.dispose);
-    await tester.pumpWidget(
-      _app(
-        InboundForm(
-          serverId: 'one',
-          network: network,
-          motion: MotionPreference.off,
-          scanReality: (_, _) async => null,
-        ),
-        scale: 2,
-      ),
-    );
-    await tester.pumpAndSettle();
-    await _capture(tester, 'vless-390-x2');
-    expect(tester.takeException(), isNull);
-    await tester.pumpWidget(const SizedBox.shrink());
-  });
 }

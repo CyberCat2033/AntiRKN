@@ -1799,7 +1799,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get xhttpHeaders => 'HTTP headers';
 
   @override
-  String get vpnRegenerateReality => 'Regenerate REALITY keys and Short ID';
+  String get vpnRegenerateReality => 'Regenerate keys';
 
   @override
   String get vpnRealityRegenerated =>
@@ -2141,7 +2141,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ttRotate => 'Replace passwords for all clients of this endpoint';
 
   @override
-  String get ttRegeneratePasswords => 'Regenerate client passwords';
+  String get ttRegeneratePasswords => 'Regenerate passwords';
 
   @override
   String get ttPasswordsRegenerated =>
