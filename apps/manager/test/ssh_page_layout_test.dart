@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:antirkn_design_system/antirkn_design_system.dart';
+import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_manager/l10n/app_localizations.dart';
 import 'package:antirkn_manager/ssh/server_detail_view.dart';
 import 'package:antirkn_manager/ssh/ssh_controller.dart';
@@ -123,6 +124,15 @@ void main() {
         expect(find.text(l.sshEditHelp), findsNothing);
         expect(find.textContaining('SHA256:'), findsNothing);
         expect(find.byKey(const ValueKey('ssh-host')), findsOneWidget);
+        // Segments while they fit, radio rows when they do not (r2).
+        expect(
+          find.byType(SegmentedButton<SshAuthMethod>),
+          width < 600 ? findsNothing : findsOneWidget,
+        );
+        expect(
+          find.byType(RadioListTile<SshAuthMethod>),
+          width < 600 ? findsNWidgets(2) : findsNothing,
+        );
         if (connected) {
           expect(find.text(l.sshConnected), findsOneWidget);
           expect(find.text('Ubuntu 24.04 · x86_64'), findsOneWidget);
