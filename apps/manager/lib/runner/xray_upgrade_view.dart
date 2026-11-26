@@ -53,9 +53,9 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
   }
 
   /// The Update action of the 3x-ui / Xray software row when only the core
-  /// is behind: the runner's pinned candidate, else the newest upstream
-  /// release, through the same checked transaction.
-  Future<void> _update() async {
+  /// is behind: exactly the [version] the row shows, through the checked
+  /// transaction; the runner's pinned flow when it pins this release.
+  Future<void> _update(String version) async {
     if (!mounted || !await showPanelLogin(context, widget.runner) || !mounted) {
       return;
     }
@@ -63,25 +63,36 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
     if (c.plan == null) await c.inspect();
     if (!mounted) return;
     final updates = ComponentUpdatesScope.of(context);
-    final offer = _offer(updates);
-    if (offer.pinned) {
+    final current =
+        c.plan?['current'] as String? ?? widget.runner.panelAccess?.xrayVersion;
+    final newer =
+        current != null &&
+        componentIsNewer(version, current, allowPreview: true) == true;
+    if (newer &&
+        c.available &&
+        c.plan?['available'] == true &&
+        c.plan?['candidate'] == version) {
       await c.run();
-    } else if (offer.upstream && updates != null) {
+    } else if (newer &&
+        c.available &&
+        c.plan?['choosable'] == true &&
+        updates != null) {
       final asset = await updates.source.resolveAsset(
         component: 'xray',
-        version: offer.candidate!,
+        version: version,
       );
-      if (mounted) await c.install(asset);
+      if (mounted) await c.install(asset, upgradeOnly: true);
     } else if (c.code.isEmpty) {
       c.phase = 'not_changed';
       c.changed();
     }
   }
 
-  /// The core this server can move to: [pinned] by the runner, or a newer
-  /// [upstream] release the panel accepts.
-  ({String? current, String? candidate, bool newer, bool pinned, bool upstream})
-  _offer(ComponentUpdatesController? updates) {
+  /// The shown move of the core: the running transaction's release, else
+  /// the runner's pinned candidate, else a newer upstream release.
+  ({String? current, String? candidate, bool newer}) _offer(
+    ComponentUpdatesController? updates,
+  ) {
     final current =
         c.plan?['current'] as String? ?? widget.runner.panelAccess?.xrayVersion;
     bool newer(String? version) =>
@@ -100,12 +111,6 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
               ? c.plan!['candidate'] as String
               : (upstream ? dynamicXray : null)),
       newer: planned || upstream,
-      pinned: c.available && c.plan?['available'] == true && planned,
-      upstream:
-          c.available &&
-          upstream &&
-          updates != null &&
-          c.plan?['choosable'] == true,
     );
   }
 

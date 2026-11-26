@@ -145,6 +145,12 @@ class ReadyRunner extends RunnerController {
     Future<void> Function() action, {
     bool ownProgress = false,
   }) async => action();
+
+  /// The runner is installed and the panel signed in, as for a user who
+  /// reaches the software page.
+  bool signedIn = false;
+  @override
+  Future<bool> ensureReady() async => signedIn || await super.ensureReady();
 }
 
 class VersionsRunner extends ReadyRunner {
@@ -432,6 +438,25 @@ void main() {
       expect(upgrade.phase, 'committed');
       expect(remote.begun!.containsKey('candidate'), isFalse);
     });
+    test('an automatic update never moves a newer core back', () async {
+      await setup();
+      // Someone installed a newer core after the update was offered.
+      remote.currentVersion = '26.12.1';
+      await upgrade.install(asset('26.12.0'), upgradeOnly: true);
+      expect(upgrade.phase, 'not_changed');
+      expect(remote.calls, isNot(contains('xray_check_begin')));
+      // The pinned flow is forward-only as well.
+      remote.candidateVersion = '26.9.9';
+      await upgrade.run();
+      expect(upgrade.phase, 'not_changed');
+      expect(remote.calls, isNot(contains('xray_check_begin')));
+    });
+    test('a version chosen in the sheet may still be older', () async {
+      await setup();
+      await upgrade.install(asset('26.5.1'));
+      expect(upgrade.phase, 'committed');
+      expect((remote.begun!['candidate'] as Map)['version'], '26.5.1');
+    });
     test('an unsupported panel is not relaxed for a chosen version', () async {
       await setup();
       remote.choosable = false;
@@ -530,7 +555,7 @@ void main() {
       final installs = <Map<String, Object?>>[];
       versions.xrayVersionChoice = XrayVersionChoice(
         install: (a) async => installs.add(a),
-        update: () async {},
+        update: (_) async {},
         ready: () => true,
         previous: () => '26.7.1',
       );
@@ -556,7 +581,7 @@ void main() {
       final installs = <Map<String, Object?>>[];
       versions.xrayVersionChoice = XrayVersionChoice(
         install: (a) async => installs.add(a),
-        update: () async {},
+        update: (_) async {},
         ready: () => true,
         previous: () => '26.7.1',
       );
@@ -590,6 +615,41 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       versions.dispose();
     });
+  });
+  testWidgets('Update installs the shown release, not the pinned one', (
+    tester,
+  ) async {
+    await tester.runAsync(setup);
+    // The runner pins 26.9.9; the row shows the newest release.
+    remote.candidateVersion = '26.9.9';
+    runner.signedIn = true;
+    final source = XraySource();
+    final updates = ComponentUpdatesController(source: source);
+    addTearDown(updates.dispose);
+    await tester.pumpWidget(
+      ComponentUpdatesScope(
+        controller: updates,
+        child: MaterialApp(
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: XrayUpgradeView(
+                runner: runner,
+                vpn: vpn,
+                host: '192.0.2.1',
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.runAsync(() => runner.xrayVersionChoice!.update('26.11.9'));
+    await tester.pumpAndSettle();
+    expect(source.resolved, ['26.11.9']);
+    expect((remote.begun!['candidate'] as Map)['version'], '26.11.9');
+    await tester.pumpWidget(const SizedBox.shrink());
   });
   for (final locale in ['ru', 'en']) {
     testWidgets('no standalone block; a server-side upgrade fits a narrow '

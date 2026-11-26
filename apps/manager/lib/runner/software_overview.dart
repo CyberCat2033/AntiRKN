@@ -168,7 +168,7 @@ class SoftwareOverview extends StatelessWidget {
                     : xrayUpdate
                     ? () async {
                         if (xray.ready()) {
-                          await xray.update();
+                          await xray.update(updatable['xray']!);
                         } else {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(content: Text(l.versionsXrayUnavailable)),

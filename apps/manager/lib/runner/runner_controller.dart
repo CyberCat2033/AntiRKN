@@ -22,9 +22,9 @@ class XrayVersionChoice {
   /// Installs a release asset (`ComponentReleaseSource.resolveAsset`).
   final Future<void> Function(Map<String, Object?> asset) install;
 
-  /// Updates to the newer core the server offers: its pinned candidate or
-  /// the newest upstream release.
-  final Future<void> Function() update;
+  /// Updates to [version], the release the caller shows as the update; the
+  /// core only moves forward.
+  final Future<void> Function(String version) update;
 
   /// Whether a transaction can start now (connection checks are available).
   final bool Function() ready;

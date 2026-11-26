@@ -70,8 +70,13 @@ class XrayUpgradeController extends ChangeNotifier {
   };
 
   /// Installs an explicitly chosen release (newer or older) through the same
-  /// checked transaction as the pinned candidate.
-  Future<void> install(Map<String, Object?>? asset) async {
+  /// checked transaction as the pinned candidate. With [upgradeOnly] (an
+  /// automatic update, not a choice in the versions sheet) a server already
+  /// on this release or a newer one is not changed.
+  Future<void> install(
+    Map<String, Object?>? asset, {
+    bool upgradeOnly = false,
+  }) async {
     final candidate = releaseCandidate(asset);
     if (candidate == null) {
       phase = 'not_changed';
@@ -79,7 +84,7 @@ class XrayUpgradeController extends ChangeNotifier {
       changed();
       return;
     }
-    await run(candidate: candidate);
+    await run(candidate: candidate, upgradeOnly: upgradeOnly);
   }
 
   Future<RunnerResponse> request(
@@ -202,7 +207,11 @@ class XrayUpgradeController extends ChangeNotifier {
 
   /// [candidate] is an explicitly chosen release ([releaseCandidate]);
   /// without it the runner's pinned version is installed, only forward.
-  Future<void> run({Map<String, Object?>? candidate}) async {
+  /// [upgradeOnly] keeps a chosen release forward-only too.
+  Future<void> run({
+    Map<String, Object?>? candidate,
+    bool upgradeOnly = false,
+  }) async {
     if (busy || vpn.busy || !runner.canRequestAction || !available) return;
     busy = true;
     running = true;
@@ -254,14 +263,23 @@ class XrayUpgradeController extends ChangeNotifier {
           throw const FormatException('xray_check_layout');
         }
         String bare(Object? v) => '$v'.replaceFirst(RegExp(r'^v'), '');
+        // The core read now, not when the update was offered: another path
+        // may have installed this release or a newer one meanwhile.
+        bool notNewer(Object? target) =>
+            componentIsNewer(
+              bare(target),
+              bare(plan!['current']),
+              allowPreview: true,
+            ) !=
+            true;
         if (candidate != null) {
-          if (bare(plan!['current']) == bare(candidate['version'])) {
+          if (bare(plan!['current']) == bare(candidate['version']) ||
+              (upgradeOnly && notNewer(candidate['version']))) {
             phase = 'not_changed';
             return;
           }
         } else {
-          if (plan!['candidate'] != null &&
-              plan!['current'] == plan!['candidate']) {
+          if (plan!['candidate'] != null && notNewer(plan!['candidate'])) {
             phase = 'not_changed';
             return;
           }
