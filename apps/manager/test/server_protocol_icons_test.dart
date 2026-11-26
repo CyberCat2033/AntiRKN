@@ -357,10 +357,11 @@ void main() {
     addTearDown(tester.view.reset);
     // 3x-ui is at the verified version; only Xray has a newer release.
     final c = await runner(tester, panel: verifiedComponentVersions['panel']!);
-    var ready = true, runs = 0;
+    var ready = true;
+    final runs = <String>[];
     c.xrayVersionChoice = XrayVersionChoice(
       install: (_) async {},
-      update: () async => runs++,
+      update: (version) async => runs.add(version),
       ready: () => ready,
       previous: () => null,
     );
@@ -374,14 +375,16 @@ void main() {
     final l = AppLocalizations.of(tester.element(find.byType(RunnerPanel)));
     final update = find.byKey(const ValueKey('panel-update'));
     expect(update, findsOneWidget);
+    // Update installs exactly the release the row shows.
+    expect(find.textContaining('26.7.28 → 26.11.9'), findsOneWidget);
     await tester.tap(update);
     await tester.pumpAndSettle();
-    expect(runs, 1);
+    expect(runs, ['26.11.9']);
     // Without the connection check the core is not changed.
     ready = false;
     await tester.tap(update);
     await tester.pump();
-    expect(runs, 1);
+    expect(runs, hasLength(1));
     expect(find.text(l.versionsXrayUnavailable), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     c.dispose();
