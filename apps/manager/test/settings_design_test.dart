@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
+import 'package:antirkn_manager/l10n/app_localizations.dart';
 import 'package:antirkn_manager/language_controller.dart';
 import 'package:antirkn_manager/main.dart';
 import 'package:antirkn_profile_compiler/antirkn_profile_compiler.dart';
@@ -82,21 +83,33 @@ void main() {
             ),
           );
           await tester.pumpAndSettle();
-          await tester.tap(
-            find.text(locale == 'ru' ? 'Настройки' : 'Settings').last,
-          );
+          final l = lookupAppLocalizations(Locale(locale));
+          await tester.tap(find.text(l.settings).last);
           await tester.pumpAndSettle();
-          expect(
-            find.text('fixture@example.com').hitTestable(),
-            findsOneWidget,
+          // Settings is a menu of sections (SettingsHub): each essential is
+          // one tap away, on the page of its section.
+          Future<void> section(String title, Finder essential) async {
+            final tile = find.widgetWithText(ListTile, title);
+            await tester.ensureVisible(tile);
+            await tester.pumpAndSettle();
+            await tester.tap(tile);
+            await tester.pumpAndSettle();
+            await tester.ensureVisible(essential);
+            await tester.pumpAndSettle();
+            expect(essential.hitTestable(), findsOneWidget);
+            await tester.tap(find.byKey(const ValueKey('settings-back')));
+            await tester.pumpAndSettle();
+          }
+
+          // The account is named once, by its display name (UI-51).
+          await section(l.uiSynchronization, find.text('Fixture User'));
+          await section(
+            l.backupTitle,
+            find.byKey(const ValueKey('backup-export')),
           );
-          expect(
-            find.byKey(const ValueKey('backup-export')).hitTestable(),
-            findsOneWidget,
-          );
-          expect(
-            find.byKey(const ValueKey('import-template')).hitTestable(),
-            findsOneWidget,
+          await section(
+            l.uiClientProfiles,
+            find.byKey(const ValueKey('import-template')),
           );
           expect(find.textContaining('latest upstream version'), findsNothing);
           expect(find.textContaining('SHA-256'), findsNothing);
@@ -118,13 +131,12 @@ void main() {
               image.dispose();
             });
           }
+          // Large text keeps the language choice reachable.
           tester.platformDispatcher.textScaleFactorTestValue = 2;
           await tester.pumpAndSettle();
-          await tester.ensureVisible(find.byKey(ValueKey('language-$locale')));
-          await tester.pumpAndSettle();
-          expect(
-            find.byKey(ValueKey('language-$locale')).hitTestable(),
-            findsOneWidget,
+          await section(
+            l.uiInterface,
+            find.widgetWithText(ListTile, l.language),
           );
           expect(tester.takeException(), isNull);
           await tester.pumpWidget(const SizedBox.shrink());
