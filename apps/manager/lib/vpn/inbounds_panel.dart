@@ -245,12 +245,15 @@ class InboundsPanelState extends State<InboundsPanel> {
     ),
   );
 
-  /// The card draws its own selection and ripple (UI-58).
+  /// The card draws its own selection and ripple (UI-58). Outside selection
+  /// mode a tap on the card runs [onOpen], its edit action, which is null
+  /// exactly when that action is unavailable.
   Widget selectable(
     String id,
     ResourceTile Function(bool selected, bool selecting, VoidCallback? onTap)
-    tile,
-  ) => Row(
+    tile, {
+    VoidCallback? onOpen,
+  }) => Row(
     children: [
       CatalogSelectionLeading(
         active: selection.active,
@@ -262,7 +265,11 @@ class InboundsPanelState extends State<InboundsPanel> {
         child: tile(
           selection.ids.contains(id),
           selection.active || deleting,
-          selection.active && !deleting ? () => selection.toggle(id) : null,
+          deleting
+              ? null
+              : selection.active
+              ? () => selection.toggle(id)
+              : onOpen,
         ),
       ),
     ],
@@ -615,10 +622,12 @@ class InboundsPanelState extends State<InboundsPanel> {
                       externalId(entry.panel, entry.row),
                       selectable(
                         externalId(entry.panel, entry.row),
+                        onOpen: editObserved(context, entry.panel, entry.row),
                         (selected, selecting, onTap) => ResourceTile(
                           selected: selected,
                           selecting: selecting,
                           onTap: onTap,
+                          tapHint: l.vpnEdit,
                           tags: [
                             if (relayTarget(entry.panel, entry.row)
                                 case final target?)
@@ -738,40 +747,11 @@ class InboundsPanelState extends State<InboundsPanel> {
                               IconButton(
                                 tooltip: l.vpnEdit,
                                 icon: const Icon(Icons.edit_outlined),
-                                onPressed:
-                                    runner == null ||
-                                        runner!.busy ||
-                                        runner!.actionPending
-                                    ? null
-                                    : () async {
-                                        if (!await showPanelLogin(
-                                              context,
-                                              runner!,
-                                              port: entry.panel['port'] as int,
-                                            ) ||
-                                            !context.mounted) {
-                                          return;
-                                        }
-                                        await showDialog<void>(
-                                          context: context,
-                                          animationStyle: AnimationStyle(
-                                            duration: AppMotion.duration(
-                                              context,
-                                              motion,
-                                            ),
-                                          ),
-                                          builder: (context) =>
-                                              ObservedInboundDialog(
-                                                controller: runner!,
-                                                network: network,
-                                                inboundId:
-                                                    entry.row['id'] as int,
-                                                port:
-                                                    entry.panel['port'] as int,
-                                                motion: motion,
-                                              ),
-                                        );
-                                      },
+                                onPressed: editObserved(
+                                  context,
+                                  entry.panel,
+                                  entry.row,
+                                ),
                               ),
                             ],
                           ),
@@ -799,10 +779,12 @@ class InboundsPanelState extends State<InboundsPanel> {
                       r.id,
                       selectable(
                         r.id,
+                        onOpen: !c.canMutate ? null : () => _edit(context, r),
                         (selected, selecting, onTap) => ResourceTile(
                           selected: selected,
                           selecting: selecting,
                           onTap: onTap,
+                          tapHint: l.vpnEdit,
                           key: ValueKey('inbound-summary-${r.id}'),
                           tags: [
                             if (relayOf(r) case final relay?)
@@ -837,9 +819,11 @@ class InboundsPanelState extends State<InboundsPanel> {
                                           ? l.vpnMissingOnServer
                                           : l.vpnPendingReadback)
                                     : null)
+                              // Client access is the default and goes
+                              // unlabelled; only internal use is named.
                               : r.internal
                               ? l.vpnInternal
-                              : l.vpnClientAccess,
+                              : null,
                           badgeBusy: _busyInboundIds.contains(r.id),
                           onBadgeTap:
                               _busyInboundIds.contains(r.id) || !c.canMutate
@@ -947,6 +931,35 @@ class InboundsPanelState extends State<InboundsPanel> {
       );
     },
   );
+
+  /// Opens the editor of an inbound observed on a panel; null while the
+  /// runner cannot take it. Its edit button and its card share it.
+  VoidCallback? editObserved(BuildContext context, Map panel, Map row) =>
+      runner == null || runner!.busy || runner!.actionPending
+      ? null
+      : () async {
+          if (!await showPanelLogin(
+                context,
+                runner!,
+                port: panel['port'] as int,
+              ) ||
+              !context.mounted) {
+            return;
+          }
+          await showDialog<void>(
+            context: context,
+            animationStyle: AnimationStyle(
+              duration: AppMotion.duration(context, motion),
+            ),
+            builder: (context) => ObservedInboundDialog(
+              controller: runner!,
+              network: network,
+              inboundId: row['id'] as int,
+              port: panel['port'] as int,
+              motion: motion,
+            ),
+          );
+        };
 
   /// The relay state of [r] on the connected panel, or null.
   Map<String, dynamic>? relayOf(VlessInbound r) =>

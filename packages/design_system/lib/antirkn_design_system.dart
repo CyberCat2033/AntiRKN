@@ -986,6 +986,7 @@ class ResourceTile extends StatelessWidget {
     this.selected = false,
     this.selecting = false,
     this.onTap,
+    this.tapHint,
     super.key,
   });
   final String title, subtitle, storageId;
@@ -1010,14 +1011,34 @@ class ResourceTile extends StatelessWidget {
   /// In selection mode the whole card toggles; its own controls do not
   /// take the tap.
   final bool selecting;
+
+  /// A tap on the card body: in selection mode it toggles the card,
+  /// otherwise it opens the resource like its edit button. The card's own
+  /// controls keep their taps, disabled ones included.
   final VoidCallback? onTap;
+
+  /// Announces what [onTap] does outside selection mode, e.g. "Edit".
+  final String? tapHint;
   @override
   Widget build(BuildContext context) => Card.filled(
     color: selected ? Theme.of(context).colorScheme.secondaryContainer : null,
-    child: InkWell(
-      onTap: onTap,
-      child: AbsorbPointer(absorbing: selecting, child: _body(context)),
+    child: Semantics(
+      onTapHint: onTap == null || selecting ? null : tapHint,
+      child: InkWell(
+        onTap: onTap,
+        child: AbsorbPointer(absorbing: selecting, child: _body(context)),
+      ),
     ),
+  );
+
+  /// A disabled control has no tap of its own, so without this its tap
+  /// would fall through to the card and open it. The wrapper stays in the
+  /// tree either way, so a control keeps its state and focus when [onTap]
+  /// comes and goes.
+  Widget _own(Widget child) => GestureDetector(
+    onTap: onTap == null ? null : () {},
+    excludeFromSemantics: true,
+    child: child,
   );
 
   Widget _body(BuildContext context) => Padding(
@@ -1049,7 +1070,7 @@ class ResourceTile extends StatelessWidget {
                 ],
               ),
             ),
-            ?actions,
+            if (actions case final actions?) _own(actions),
           ],
         ),
         if (details.isNotEmpty || badge != null || note != null) ...[
@@ -1066,58 +1087,66 @@ class ResourceTile extends StatelessWidget {
                 Text(note!, style: Theme.of(context).textTheme.bodySmall),
               if (badge != null)
                 switchValue != null
-                    ? Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            badge!,
-                            style: Theme.of(context).textTheme.labelLarge,
-                          ),
-                          const SizedBox(width: AppLayout.smallGap),
-                          if (badgeBusy)
-                            const SizedBox.square(
-                              dimension: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          else
-                            Switch(
-                              key: ValueKey('resource-switch-$storageId'),
-                              value: switchValue!,
-                              onChanged: onBadgeTap == null
-                                  ? null
-                                  : (_) => onBadgeTap!(),
+                    ? _own(
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              badge!,
+                              style: Theme.of(context).textTheme.labelLarge,
                             ),
-                        ],
-                      )
-                    : onBadgeTap == null && !badgeBusy
-                    ? AppBadge(label: badge!)
-                    : FilledButton.tonal(
-                        onPressed: badgeBusy ? null : onBadgeTap,
-                        child: badgeBusy
-                            ? const SizedBox.square(
-                                dimension: 18,
+                            const SizedBox(width: AppLayout.smallGap),
+                            if (badgeBusy)
+                              const SizedBox.square(
+                                dimension: 20,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
                                 ),
                               )
-                            : Text(badge!),
+                            else
+                              Switch(
+                                key: ValueKey('resource-switch-$storageId'),
+                                value: switchValue!,
+                                onChanged: onBadgeTap == null
+                                    ? null
+                                    : (_) => onBadgeTap!(),
+                              ),
+                          ],
+                        ),
+                      )
+                    : onBadgeTap == null && !badgeBusy
+                    ? AppBadge(label: badge!)
+                    : _own(
+                        FilledButton.tonal(
+                          onPressed: badgeBusy ? null : onBadgeTap,
+                          child: badgeBusy
+                              ? const SizedBox.square(
+                                  dimension: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Text(badge!),
+                        ),
                       ),
               if (details.isNotEmpty)
-                TextButton.icon(
-                  key: ValueKey('resource-details-$storageId'),
-                  onPressed: () {
-                    showAppDetails(context, title: title, children: details);
-                  },
-                  icon: const Icon(Icons.chevron_right, size: 18),
-                  label: Text(
-                    detailsLabel ??
-                        MaterialLocalizations.of(context).moreButtonTooltip,
+                _own(
+                  TextButton.icon(
+                    key: ValueKey('resource-details-$storageId'),
+                    onPressed: () {
+                      showAppDetails(context, title: title, children: details);
+                    },
+                    icon: const Icon(Icons.chevron_right, size: 18),
+                    label: Text(
+                      detailsLabel ??
+                          MaterialLocalizations.of(context).moreButtonTooltip,
+                    ),
                   ),
                 ),
             ],
           ),
         ],
-        ?footer,
+        if (footer case final footer?) _own(footer),
       ],
     ),
   );

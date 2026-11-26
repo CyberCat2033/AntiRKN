@@ -120,6 +120,32 @@ class _TtPanelState extends State<TtPanel> {
     );
   }
 
+  /// Opens the editor of an endpoint found on the server; null while the
+  /// runner is busy. Its edit button and its card share it.
+  VoidCallback? editExisting(BuildContext context, Map item) {
+    final r = widget.runner;
+    if (r.busy) return null;
+    return () async {
+      final snapshot = await r.ttRequest(
+        'tt_external_read',
+        id: item['id'] as String,
+      );
+      if (snapshot == null || !context.mounted) return;
+      await showDialog<bool>(
+        context: context,
+        builder: (_) => _ExistingTtDialog(
+          runner: r,
+          snapshot: snapshot,
+          network: widget.network,
+          motion: widget.motion,
+        ),
+        animationStyle: AnimationStyle(
+          duration: AppMotion.duration(context, widget.motion),
+        ),
+      );
+    };
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: Listenable.merge([widget.controller, widget.runner]),
@@ -215,6 +241,8 @@ class _TtPanelState extends State<TtPanel> {
                   padding: const EdgeInsets.only(bottom: AppLayout.smallGap),
                   child: ResourceTile(
                     storageId: 'tt-${e.id}',
+                    onTap: !c.canMutate || r.busy ? null : () => edit(e),
+                    tapHint: l.vpnEdit,
                     footer: ConnectionCheckView(
                       controller: c,
                       target: (target: target, resource: e.id),
@@ -222,12 +250,13 @@ class _TtPanelState extends State<TtPanel> {
                     ),
                     title: e.name,
                     subtitle: '${e.spec['domain']}',
-                    note: e.spec.containsKey('adoption')
-                        ? c.adoptionConfirmed(target, e.id)
-                              ? l.vpnClientAccess
-                              : l.vpnAdopting
+                    // Only the non-default states are labelled.
+                    note:
+                        e.spec.containsKey('adoption') &&
+                            !c.adoptionConfirmed(target, e.id)
+                        ? l.vpnAdopting
                         : null,
-                    badge: e.enabled ? l.vpnEnabled : l.vpnDisabled,
+                    badge: e.enabled ? null : l.vpnDisabled,
                     actions: IconButton(
                       onPressed: !c.canMutate || r.busy ? null : () => edit(e),
                       icon: const Icon(Icons.edit_outlined),
@@ -266,6 +295,8 @@ class _TtPanelState extends State<TtPanel> {
                   padding: const EdgeInsets.only(bottom: 10),
                   child: ResourceTile(
                     storageId: 'tt-existing-${item['id']}',
+                    onTap: editExisting(context, item),
+                    tapHint: l.vpnEdit,
                     footer: ExternalConnectionCheck(
                       controller: c,
                       runner: r,
@@ -304,32 +335,7 @@ class _TtPanelState extends State<TtPanel> {
                         IconButton(
                           icon: const Icon(Icons.edit_outlined),
                           tooltip: l.vpnEdit,
-                          onPressed: r.busy
-                              ? null
-                              : () async {
-                                  final snapshot = await r.ttRequest(
-                                    'tt_external_read',
-                                    id: item['id'] as String,
-                                  );
-                                  if (snapshot == null || !context.mounted) {
-                                    return;
-                                  }
-                                  await showDialog<bool>(
-                                    context: context,
-                                    builder: (_) => _ExistingTtDialog(
-                                      runner: r,
-                                      snapshot: snapshot,
-                                      network: widget.network,
-                                      motion: widget.motion,
-                                    ),
-                                    animationStyle: AnimationStyle(
-                                      duration: AppMotion.duration(
-                                        context,
-                                        widget.motion,
-                                      ),
-                                    ),
-                                  );
-                                },
+                          onPressed: editExisting(context, item),
                         ),
                       ],
                     ),

@@ -111,6 +111,28 @@ class _AwgExistingPanelState extends State<AwgExistingPanel> {
     }
   }
 
+  /// Opens the editor of an interface found on the server; null while the
+  /// runner is busy. Its edit button and its card share it.
+  VoidCallback? editExisting(BuildContext context, Map item) {
+    final r = widget.runner;
+    if (r.busy || r.actionPending) return null;
+    return () async {
+      if (!await r.ensureReady()) return;
+      final snapshot = await r.awgRequest(
+        'awg_external_read',
+        id: item['id'] as String,
+      );
+      if (snapshot == null || !context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (_) => _EditExistingAwg(runner: r, snapshot: snapshot),
+        animationStyle: AnimationStyle(
+          duration: AppMotion.duration(context, widget.motion),
+        ),
+      );
+    };
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: Listenable.merge([widget.runner, widget.controller]),
@@ -134,6 +156,8 @@ class _AwgExistingPanelState extends State<AwgExistingPanel> {
               padding: const EdgeInsets.only(bottom: 10),
               child: ResourceTile(
                 storageId: 'awg-existing-${item['id']}',
+                onTap: editExisting(context, item),
+                tapHint: l.vpnEdit,
                 footer: ExternalConnectionCheck(
                   controller: widget.controller,
                   runner: r,
@@ -144,7 +168,7 @@ class _AwgExistingPanelState extends State<AwgExistingPanel> {
                 ),
                 title: '${item['name']}',
                 subtitle: l.uiPeerCount(item['peers'] as int),
-                badge: item['active'] == true ? l.vpnEnabled : l.vpnDisabled,
+                badge: item['active'] == true ? null : l.vpnDisabled,
                 actions: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -171,29 +195,7 @@ class _AwgExistingPanelState extends State<AwgExistingPanel> {
                     IconButton(
                       icon: const Icon(Icons.edit_outlined),
                       tooltip: l.vpnEdit,
-                      onPressed: r.busy || r.actionPending
-                          ? null
-                          : () async {
-                              if (!await r.ensureReady()) return;
-                              final snapshot = await r.awgRequest(
-                                'awg_external_read',
-                                id: item['id'] as String,
-                              );
-                              if (snapshot == null || !context.mounted) return;
-                              await showDialog<void>(
-                                context: context,
-                                builder: (_) => _EditExistingAwg(
-                                  runner: r,
-                                  snapshot: snapshot,
-                                ),
-                                animationStyle: AnimationStyle(
-                                  duration: AppMotion.duration(
-                                    context,
-                                    widget.motion,
-                                  ),
-                                ),
-                              );
-                            },
+                      onPressed: editExisting(context, item),
                     ),
                   ],
                 ),
