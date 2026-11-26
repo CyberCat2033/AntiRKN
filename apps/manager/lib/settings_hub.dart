@@ -27,6 +27,8 @@ class SettingsHub extends StatefulWidget {
     this.status,
     this.statusDestinationId,
     this.error,
+    this.initialId,
+    this.onOpened,
     super.key,
   });
   final List<SettingsDestination> destinations;
@@ -35,6 +37,12 @@ class SettingsHub extends StatefulWidget {
 
   /// The destination that tapping [status] opens.
   final String? statusDestinationId;
+
+  /// The destination open at first; null opens the menu.
+  final String? initialId;
+
+  /// The open destination changed; null is the menu.
+  final ValueChanged<String?>? onOpened;
   @override
   State<SettingsHub> createState() => SettingsHubState();
 }
@@ -51,6 +59,17 @@ class SettingsHubState extends State<SettingsHub> {
   }
 
   bool get canGoBack => selected != 0;
+
+  @override
+  void initState() {
+    super.initState();
+    final id = widget.initialId;
+    if (id != null && widget.destinations.any((d) => d.id == id)) {
+      selectedId = id;
+      visited.add(id);
+    }
+  }
+
   void showRoot() => open(0);
   void open(int value) {
     final id = value <= 0 || value > widget.destinations.length
@@ -60,6 +79,7 @@ class SettingsHubState extends State<SettingsHub> {
       selectedId = id;
       if (id != null) visited.add(id);
     });
+    widget.onOpened?.call(id);
   }
 
   void openId(String id) {
@@ -75,6 +95,7 @@ class SettingsHubState extends State<SettingsHub> {
     if (selectedId != null &&
         !widget.destinations.any((d) => d.id == selectedId)) {
       selectedId = null;
+      widget.onOpened?.call(null);
     }
   }
 
