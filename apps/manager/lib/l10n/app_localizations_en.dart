@@ -4369,7 +4369,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get serviceModeEnterNewClients =>
-      'New clients are not added to it. Protocol changes apply at once, and connection checks work.';
+      'New clients are not added to it. Protocols change at once; each gets a test client and link for checks.';
 
   @override
   String get serviceModeEnterRevocations =>
@@ -4422,4 +4422,40 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get serviceModeHeld => 'Changes wait for servers in service mode';
+
+  @override
+  String get serviceTestLink => 'Test link';
+
+  @override
+  String get serviceTestLinkHelp =>
+      'Access of the service mode test client: import it into a client app and check the connection. When the server leaves the mode, the test client is removed from it and the link stops working.';
+
+  @override
+  String get serviceTestLinkVless =>
+      'A vless:// link for v2rayNG, Hiddify, NekoBox and similar apps.';
+
+  @override
+  String get serviceTestLinkAwg =>
+      'An AmneziaWG config: paste the text or scan the QR code in the AmneziaWG or AmneziaVPN app.';
+
+  @override
+  String get serviceTestLinkTt => 'A tt:// link for the TrustTunnel app.';
+
+  @override
+  String get serviceTestLinkPending =>
+      'The test client is not on the server yet. The link appears here once the server confirms it.';
+
+  @override
+  String get serviceTestLinkUnsupported =>
+      'These resource settings have no standard link. You can still check the connection in the app.';
+
+  @override
+  String get serviceTestLinkGone =>
+      'The server is not in service mode: there is no test client.';
+
+  @override
+  String get serviceTestLinkQr => 'Test link QR code';
+
+  @override
+  String get serviceTestCopyConfig => 'Copy config';
 }

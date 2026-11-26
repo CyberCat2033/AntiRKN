@@ -3,6 +3,7 @@ import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import 'connection_checks.dart';
+import 'service_test_link_view.dart';
 import 'vpn_controller.dart';
 import 'vpn_strings.dart';
 
@@ -117,6 +118,10 @@ class ConnectionCheckView extends StatelessWidget {
                       label: Text(
                         running ? l.connectionStop : l.connectionCheck,
                       ),
+                    ),
+                    ServiceTestLinkButton(
+                      controller: controller,
+                      target: target,
                     ),
                     if (!running &&
                         result?.status == ConnectionCheckStatus.failed)

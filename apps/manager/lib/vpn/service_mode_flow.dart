@@ -6,15 +6,17 @@ part of 'vpn_controller.dart';
 /// Service mode is for testing and repair: no client is added to a server
 /// in it, but its protocols still change at once. What reaches it is built
 /// from a fresh readback: the desired resources with only the clients the
-/// server already has, each in its current `enabled` state. So a protocol
-/// set up there applies right away (a new server gets it without clients,
-/// and its connection check uses the runner's temporary probe client), and
-/// a client disabled (or enabled again) meanwhile changes only its own
-/// state. The intent needs no record of its own: it is the synced
-/// workspace against what the server last showed, so a restart or another
-/// device picks it up from the first readback. A deletion still goes
-/// through the revocation flow. None of this holds up publication or the
-/// other servers.
+/// server already has, each in its current `enabled` state, plus one test
+/// client of the mode ([serviceTestClient]). So a protocol set up there
+/// applies right away (a new server gets it with the test client only),
+/// each resource gives a test link ([serviceTestLink]) and its connection
+/// check uses the test client. A client disabled (or enabled again)
+/// meanwhile changes only its own state. The intent needs no record of its
+/// own: it is the synced workspace against what the server last showed, so
+/// a restart or another device picks it up from the first readback. A
+/// deletion still goes through the revocation flow. The way back applies
+/// the desired payload, which has no test client: the server drops it.
+/// None of this holds up publication or the other servers.
 extension ServiceModeFlow on VpnController {
   /// Puts [serverId] into service mode: a local, synced change only, with
   /// no server action. Its resources leave client profiles at once; its
@@ -211,6 +213,72 @@ extension ServiceModeFlow on VpnController {
       }
     }
     return added.length;
+  }
+
+  /// The test client of [target]'s server while it is in service mode
+  /// (`active`), or null. It is not a workspace user: it never reaches
+  /// profiles, publication or the client list, and the way back removes it
+  /// from the server. Its ID comes from the server and the time it entered
+  /// the mode, so every device names the same client and each entry gets a
+  /// new one (the runner derives its credentials from the ID).
+  VpnUser? serviceTestClient(String target) {
+    final mode = workspace.serviceModeOf(target);
+    if (mode == null || mode.state != ServerServiceState.active) return null;
+    final id = vlessRevision({
+      'serviceTestClient': vpnServerId(target),
+      'since': mode.since.toIso8601String(),
+    }).substring(0, 32);
+    return VpnUser(
+      id: id,
+      login: 'antirkn-test-${id.substring(0, 8)}',
+      name: 'Test',
+    );
+  }
+
+  /// Whether a client-facing resource of [target], per [observed] (its last
+  /// readback when omitted), still lacks the enabled test client.
+  bool _serviceTestDue(String target, [List<Map<String, dynamic>>? observed]) {
+    final test = serviceTestClient(target);
+    if (test == null) return false;
+    final rows =
+        (observed ??
+                workspace.servers[target]?['observed'] as List? ??
+                const [])
+            .whereType<Map>();
+    for (final spec in workspace.desiredResources(target)) {
+      if (spec['deleted'] == true ||
+          spec['enabled'] == false ||
+          spec['internal'] == true) {
+        continue;
+      }
+      final row = rows.where((r) => r['id'] == spec['id']).firstOrNull;
+      if (row == null ||
+          !(row['clients'] as List? ?? const []).whereType<Map>().any(
+            (c) => c['id'] == test.id && c['enabled'] == true,
+          )) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// [payload] with the enabled test client of [target], if it has one.
+  Map<String, Object?> _withServiceTestClient(
+    String target,
+    Map<String, Object?> payload,
+  ) {
+    final test = serviceTestClient(target);
+    if (test == null) return payload;
+    final users = <Map>[
+      for (final u in (payload['users'] as List).cast<Map>())
+        if (u['id'] != test.id) u,
+      {
+        'id': test.id,
+        'enabled': true,
+        if (isTtTarget(target)) 'login': test.login,
+      },
+    ]..sort((a, b) => (a['id'] as String).compareTo(b['id'] as String));
+    return {...payload, 'users': users};
   }
 
   /// Whether [target] in service mode lacks a resource as the workspace
@@ -606,7 +674,9 @@ extension ServiceModeFlow on VpnController {
     final due = <String>[];
     for (final target in _serviceAccessTargets()) {
       final changes = _serviceAccessChanges(target);
-      if (changes.isEmpty && !_serviceResourcesDue(target)) {
+      if (changes.isEmpty &&
+          !_serviceResourcesDue(target) &&
+          !_serviceTestDue(target)) {
         _serviceAccessSent.remove(target);
         _serviceAccessIssues.remove(target);
         continue;
@@ -615,7 +685,7 @@ extension ServiceModeFlow on VpnController {
       if (r != null && !_serviceAccessReady(target)) continue;
       // A new connection is a new attempt, even without an observation key.
       final key =
-          '${canonicalJson([changes, workspace.desiredResources(target)])}|${r == null ? 'offline' : 'online:${r.observationKey}'}';
+          '${canonicalJson([changes, workspace.desiredResources(target), serviceTestClient(target)?.id])}|${r == null ? 'offline' : 'online:${r.observationKey}'}';
       final last = _serviceAccessSent[target];
       if (last != null &&
           last.key == key &&
@@ -648,9 +718,9 @@ extension ServiceModeFlow on VpnController {
   }
 
   /// Reads [target] and, when it shows a client in another `enabled` state
-  /// than the workspace or lacks a resource as the workspace has it,
-  /// applies the desired resources with the clients the readback shows
-  /// (see the class comment). The request is durable before it is
+  /// than the workspace, or lacks a resource as the workspace has it or
+  /// the test client, applies the desired resources with the clients the
+  /// readback shows and the test client (see the class comment). The request is durable before it is
   /// submitted and then followed by ID like any other operation; success
   /// is the readback after the job.
   Future<void> _syncServiceAccess(
@@ -680,14 +750,16 @@ extension ServiceModeFlow on VpnController {
       if (observed == null) throw const FormatException('vpn_failed');
       await _applyServerObservations(target, r, observed);
       final changes = _serviceAccessChanges(target, observed);
-      if (changes.isEmpty && !_serviceResourcesDue(target, observed)) {
+      if (changes.isEmpty &&
+          !_serviceResourcesDue(target, observed) &&
+          !_serviceTestDue(target, observed)) {
         _serviceAccessIssues.remove(target);
         return;
       }
-      final payload = {
+      final payload = _withServiceTestClient(target, {
         ..._observedPayload(target, r.panelId, observed, enabled: changes),
         'resources': workspace.desiredResources(target),
-      };
+      });
       final plan = await _request(
         r,
         _planRequest(target, r.panelId, payload),

@@ -2,9 +2,9 @@ import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import '../l10n/app_localizations.dart';
 import 'clash_profile_link.dart';
+import '../vpn/secret_link_box.dart';
 
 /// Scanning imports into Clash; tapping copies the verified direct YAML URL.
 class ProfileLinkQr extends StatefulWidget {
@@ -130,20 +130,7 @@ class _ProfileLinkQrState extends State<ProfileLinkQr> {
                           padding: const EdgeInsets.all(AppLayout.gap),
                           child: ExcludeSemantics(
                             child: RepaintBoundary(
-                              child: QrImageView(
-                                data: _cachedLink,
-                                padding: const EdgeInsets.all(16),
-                                backgroundColor: Colors.white,
-                                errorCorrectionLevel: QrErrorCorrectLevel.M,
-                                eyeStyle: const QrEyeStyle(
-                                  eyeShape: QrEyeShape.square,
-                                  color: Colors.black,
-                                ),
-                                dataModuleStyle: const QrDataModuleStyle(
-                                  dataModuleShape: QrDataModuleShape.square,
-                                  color: Colors.black,
-                                ),
-                              ),
+                              child: ScannableQrImage(data: _cachedLink),
                             ),
                           ),
                         ),

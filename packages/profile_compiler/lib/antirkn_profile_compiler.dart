@@ -5,3 +5,4 @@ export 'src/compiler.dart';
 export 'src/prepared_proxy.dart';
 export 'src/proxy_name.dart' show serviceModeProxyNames;
 export 'src/vless_profile.dart';
+export 'src/share_link.dart';

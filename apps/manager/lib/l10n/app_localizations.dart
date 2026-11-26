@@ -7613,7 +7613,7 @@ abstract class AppLocalizations {
   /// No description provided for @serviceModeEnterNewClients.
   ///
   /// In en, this message translates to:
-  /// **'New clients are not added to it. Protocol changes apply at once, and connection checks work.'**
+  /// **'New clients are not added to it. Protocols change at once; each gets a test client and link for checks.'**
   String get serviceModeEnterNewClients;
 
   /// No description provided for @serviceModeEnterRevocations.
@@ -7675,6 +7675,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Changes wait for servers in service mode'**
   String get serviceModeHeld;
+
+  /// No description provided for @serviceTestLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Test link'**
+  String get serviceTestLink;
+
+  /// No description provided for @serviceTestLinkHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Access of the service mode test client: import it into a client app and check the connection. When the server leaves the mode, the test client is removed from it and the link stops working.'**
+  String get serviceTestLinkHelp;
+
+  /// No description provided for @serviceTestLinkVless.
+  ///
+  /// In en, this message translates to:
+  /// **'A vless:// link for v2rayNG, Hiddify, NekoBox and similar apps.'**
+  String get serviceTestLinkVless;
+
+  /// No description provided for @serviceTestLinkAwg.
+  ///
+  /// In en, this message translates to:
+  /// **'An AmneziaWG config: paste the text or scan the QR code in the AmneziaWG or AmneziaVPN app.'**
+  String get serviceTestLinkAwg;
+
+  /// No description provided for @serviceTestLinkTt.
+  ///
+  /// In en, this message translates to:
+  /// **'A tt:// link for the TrustTunnel app.'**
+  String get serviceTestLinkTt;
+
+  /// No description provided for @serviceTestLinkPending.
+  ///
+  /// In en, this message translates to:
+  /// **'The test client is not on the server yet. The link appears here once the server confirms it.'**
+  String get serviceTestLinkPending;
+
+  /// No description provided for @serviceTestLinkUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'These resource settings have no standard link. You can still check the connection in the app.'**
+  String get serviceTestLinkUnsupported;
+
+  /// No description provided for @serviceTestLinkGone.
+  ///
+  /// In en, this message translates to:
+  /// **'The server is not in service mode: there is no test client.'**
+  String get serviceTestLinkGone;
+
+  /// No description provided for @serviceTestLinkQr.
+  ///
+  /// In en, this message translates to:
+  /// **'Test link QR code'**
+  String get serviceTestLinkQr;
+
+  /// No description provided for @serviceTestCopyConfig.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy config'**
+  String get serviceTestCopyConfig;
 }
 
 class _AppLocalizationsDelegate

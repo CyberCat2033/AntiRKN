@@ -4379,7 +4379,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get serviceModeEnterNewClients =>
-      'Новые клиенты на него не добавляются. Изменения протоколов применяются сразу, проверка соединения работает.';
+      'Новые клиенты на него не добавляются. Протоколы меняются сразу; для проверки у каждого есть тестовый клиент и ссылка.';
 
   @override
   String get serviceModeEnterRevocations =>
@@ -4434,4 +4434,40 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get serviceModeHeld => 'Изменения ждут серверов в сервисном режиме';
+
+  @override
+  String get serviceTestLink => 'Ссылка для теста';
+
+  @override
+  String get serviceTestLinkHelp =>
+      'Доступ тестового клиента сервисного режима: импортируйте его в клиентское приложение и проверьте подключение. При выходе из режима тестовый клиент удаляется с сервера, и ссылка перестаёт работать.';
+
+  @override
+  String get serviceTestLinkVless =>
+      'Ссылка vless:// для v2rayNG, Hiddify, NekoBox и похожих приложений.';
+
+  @override
+  String get serviceTestLinkAwg =>
+      'Конфигурация AmneziaWG: вставьте текст или отсканируйте QR-код в приложении AmneziaWG или AmneziaVPN.';
+
+  @override
+  String get serviceTestLinkTt => 'Ссылка tt:// для приложения TrustTunnel.';
+
+  @override
+  String get serviceTestLinkPending =>
+      'Тестовый клиент ещё не появился на сервере. Ссылка будет здесь, когда сервер его подтвердит.';
+
+  @override
+  String get serviceTestLinkUnsupported =>
+      'Для настроек этого ресурса нет стандартной ссылки. Соединение можно проверить в приложении.';
+
+  @override
+  String get serviceTestLinkGone =>
+      'Сервер не в сервисном режиме: тестового клиента нет.';
+
+  @override
+  String get serviceTestLinkQr => 'QR-код ссылки для теста';
+
+  @override
+  String get serviceTestCopyConfig => 'Копировать конфигурацию';
 }

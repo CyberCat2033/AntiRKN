@@ -3,13 +3,13 @@ import 'dart:async';
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../l10n/app_localizations.dart';
 import '../runner/panel_login_view.dart';
 import '../runner/runner_controller.dart';
 import '../runner/runner_panel.dart';
 import '../ssh/client_egress_card.dart';
+import 'secret_link_box.dart';
 
 /// A VLESS inbound of the connected 3x-ui panel that may leave the server
 /// directly, past the client egress (relay class).
@@ -326,7 +326,7 @@ class RelayLinkView extends StatefulWidget {
 }
 
 class _RelayLinkViewState extends State<RelayLinkView> {
-  bool loading = true, visible = false;
+  bool loading = true;
   String? uri, issue;
 
   @override
@@ -351,21 +351,9 @@ class _RelayLinkViewState extends State<RelayLinkView> {
     });
   }
 
-  Future<void> copy() async {
-    final l = AppLocalizations.of(context);
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      await Clipboard.setData(ClipboardData(text: uri!));
-      messenger.showSnackBar(SnackBar(content: Text(l.uiLinkCopied)));
-    } catch (_) {
-      if (mounted) setState(() => issue = 'relay_copy_failed');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    final colors = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -378,55 +366,13 @@ class _RelayLinkViewState extends State<RelayLinkView> {
         if (issue != null)
           AppNotice(
             key: const ValueKey('relay-link-issue'),
-            message: issue == 'relay_copy_failed'
-                ? l.relayCopyFailed
-                : runnerCodeLabel(l, issue!),
+            message: runnerCodeLabel(l, issue!),
             error: true,
             margin: const EdgeInsets.only(top: 12),
           ),
         if (uri case final link?) ...[
           const SizedBox(height: 12),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: colors.surfaceContainerHigh,
-              borderRadius: BorderRadius.circular(AppLayout.radius),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(AppLayout.gap),
-              child: visible
-                  ? SelectableText(
-                      link,
-                      key: const ValueKey('relay-link-text'),
-                      style: Theme.of(context).textTheme.bodySmall,
-                    )
-                  : Text(
-                      l.relayLinkHidden,
-                      key: const ValueKey('relay-link-hidden'),
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            children: [
-              TextButton.icon(
-                key: const ValueKey('relay-link-reveal'),
-                onPressed: () => setState(() => visible = !visible),
-                icon: Icon(visible ? Icons.visibility_off : Icons.visibility),
-                label: Text(visible ? l.relayHide : l.relayShow),
-              ),
-              FilledButton.tonalIcon(
-                key: const ValueKey('relay-link-copy'),
-                onPressed: copy,
-                icon: const Icon(Icons.copy),
-                label: Text(l.relayCopy),
-              ),
-            ],
-          ),
+          SecretLinkBox(text: link, keyPrefix: 'relay-link'),
         ],
       ],
     );

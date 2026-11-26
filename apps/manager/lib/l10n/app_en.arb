@@ -1623,7 +1623,7 @@
   },
   "serviceModeEnterProfiles": "Its proxies leave client profiles: the next publication goes without them.",
   "serviceModeEnterPublication": "Publication no longer waits for this server.",
-  "serviceModeEnterNewClients": "New clients are not added to it. Protocol changes apply at once, and connection checks work.",
+  "serviceModeEnterNewClients": "New clients are not added to it. Protocols change at once; each gets a test client and link for checks.",
   "serviceModeEnterRevocations": "Disabling and deleting clients still applies on it whenever it is reachable.",
   "serviceModeEnterEgress": "Other servers leave to the internet through this one (relay or internal inbound). Service mode does not switch them: if this server stops, their clients lose internet access.",
   "serviceModeEnterEgressUnknown": "If other servers leave to the internet through this one, service mode does not switch them.",
@@ -1647,5 +1647,15 @@
   },
   "serviceAccessWaitingHelp": "Changes are sent automatically once the server is reachable.",
   "serviceAccessSendNow": "Send now",
-  "serviceModeHeld": "Changes wait for servers in service mode"
+  "serviceModeHeld": "Changes wait for servers in service mode",
+  "serviceTestLink": "Test link",
+  "serviceTestLinkHelp": "Access of the service mode test client: import it into a client app and check the connection. When the server leaves the mode, the test client is removed from it and the link stops working.",
+  "serviceTestLinkVless": "A vless:// link for v2rayNG, Hiddify, NekoBox and similar apps.",
+  "serviceTestLinkAwg": "An AmneziaWG config: paste the text or scan the QR code in the AmneziaWG or AmneziaVPN app.",
+  "serviceTestLinkTt": "A tt:// link for the TrustTunnel app.",
+  "serviceTestLinkPending": "The test client is not on the server yet. The link appears here once the server confirms it.",
+  "serviceTestLinkUnsupported": "These resource settings have no standard link. You can still check the connection in the app.",
+  "serviceTestLinkGone": "The server is not in service mode: there is no test client.",
+  "serviceTestLinkQr": "Test link QR code",
+  "serviceTestCopyConfig": "Copy config"
 }

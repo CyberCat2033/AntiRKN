@@ -4,6 +4,7 @@ import 'package:antirkn_manager/l10n/app_localizations.dart';
 import 'package:antirkn_manager/ssh/server_about_view.dart';
 import 'package:antirkn_manager/ssh/server_detail_view.dart';
 import 'package:antirkn_manager/ssh/server_service_mode_view.dart';
+import 'package:antirkn_manager/vpn/connection_check_view.dart';
 import 'package:antirkn_manager/vpn/server_operations_banner.dart';
 import 'package:antirkn_manager/vpn/vpn_controller.dart';
 import 'package:antirkn_manager/vpn/vpn_strings.dart';
@@ -206,6 +207,54 @@ void main() {
       noOverflow(tester);
       expect(find.text(l.serviceModeOff), findsOneWidget);
       expect(c.error, isNull);
+    });
+
+    testWidgets('a resource gives its test link in the mode: $label', (
+      tester,
+    ) async {
+      size(tester);
+      final (c, _, _) = (await tester.runAsync(sm.applied))!;
+      final key = (target: 'two', resource: '3' * 32);
+      const button = ValueKey(
+        'service-test-link-two-33333333333333333333333333333333',
+      );
+      await tester.pumpWidget(
+        app(
+          ConnectionCheckView(controller: c, target: key, onEdit: () {}),
+          locale: locale,
+          scale: scale,
+        ),
+      );
+      await frames(tester);
+      expect(find.byKey(button), findsNothing);
+
+      await tester.runAsync(() async {
+        await c.enterServiceMode('two');
+        await c.reconcile();
+      });
+      await frames(tester);
+      noOverflow(tester);
+      await tap(tester, button);
+      noOverflow(tester);
+      expect(find.text(l.serviceTestLinkHelp), findsOneWidget);
+      expect(find.text(l.serviceTestLinkVless), findsOneWidget);
+      // Hidden until shown: it grants access.
+      expect(
+        find.byKey(const ValueKey('service-test-link-hidden')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('service-test-link-qr')), findsNothing);
+      await tap(tester, const ValueKey('service-test-link-reveal'));
+      noOverflow(tester);
+      final text = tester.widget<SelectableText>(
+        find.byKey(const ValueKey('service-test-link-text')),
+      );
+      expect(text.data, c.connections.serviceTestLink(key)!.text);
+      expect(text.data, startsWith('vless://'));
+      expect(
+        find.byKey(const ValueKey('service-test-link-qr')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('relay servers are named in the entry dialog: $label', (

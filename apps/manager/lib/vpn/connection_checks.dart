@@ -286,8 +286,35 @@ class ConnectionChecks extends ChangeNotifier {
     return nodes.where((node) => node.identity.id == key.resource).firstOrNull;
   }
 
+  /// The access of the service mode test client to [key], once the server
+  /// shows it there (see [ServiceModeFlow.serviceTestClient]).
+  PreparedProxy? serviceTestProxy(ConnectionTarget key) {
+    if (_external.containsKey(key)) return null;
+    final test = owner.serviceTestClient(key.target);
+    if (test == null) return null;
+    try {
+      final isolated = _isolated(key);
+      return _proxy(
+        isolated.copy(users: [...isolated.users, test]),
+        test.id,
+        key,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// The share link of the service mode test client to [key]; null until
+  /// the server shows the client there or when the resource has no
+  /// standard link form.
+  ProxyShareLink? serviceTestLink(ConnectionTarget key) {
+    final proxy = serviceTestProxy(key);
+    return proxy == null ? null : proxyShareLink(proxy.fields, proxy.name);
+  }
+
   PreparedProxy? _existing(ConnectionTarget key) {
     if (_external.containsKey(key)) return null;
+    if (serviceTestProxy(key) case final test?) return test;
     for (final user in owner.workspace.users.where(
       (u) => u.enabled && !u.deleted,
     )) {

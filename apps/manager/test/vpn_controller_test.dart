@@ -1283,6 +1283,8 @@ void main() {
       () async {
         final (c, _, remotes) = await applied();
         await c.enterServiceMode('two');
+        // The test client of the mode lands first.
+        await c.reconcile();
         final submitted = remotes['two']!.submissions.length;
         final actions = remotes['two']!.actions.length;
 
@@ -1326,11 +1328,22 @@ void main() {
       await c.enterServiceMode('two');
       expect(c.hasCurrentVerifiedProfiles, isTrue);
       remotes['two'] = two;
-      final actions = two.actions.length;
+      final submitted = two.submissions.length;
       await c.reconcile();
       await c.syncAllServersAndProfiles();
 
-      expect(two.actions, hasLength(actions));
+      // Only the test client of the mode is sent, never carol.
+      final sent = two.submissions.values.skip(submitted).toList();
+      expect(sent, isNotEmpty);
+      for (final payload in sent) {
+        expect(
+          (payload['users'] as List).map((u) => (u as Map)['id']),
+          allOf(
+            isNot(contains(carol)),
+            contains(c.serviceTestClient('two')!.id),
+          ),
+        );
+      }
       expect(c.serverSyncIssue, isNull);
       expect(c.results[carol]!.hasBlockingErrors, isFalse);
       expect(c.attention.every((item) => !item.needsUser), isTrue);
@@ -1350,6 +1363,11 @@ void main() {
         contains(equals({'id': id, 'enabled': enabled}));
     List<Object?> sentUsers(Remote remote) =>
         remote.submissions.values.last['users'] as List;
+    // The last users sent but the test client of the mode.
+    List<Object?> realUsers(VpnController c, Remote remote) => [
+      for (final u in sentUsers(remote))
+        if ((u as Map)['id'] != c.serviceTestClient('two')?.id) u,
+    ];
     void finishJobs(Remote remote) {
       remote.running = false;
       for (final job in remote.jobs.values) {
@@ -1364,6 +1382,15 @@ void main() {
         final (c, _, remotes) = await applied();
         final two = remotes['two']!;
         await c.enterServiceMode('two');
+        await c.reconcile();
+        expect(
+          sentUsers(two),
+          [
+            {'id': alice, 'enabled': true},
+            {'id': bob, 'enabled': true},
+            {'id': c.serviceTestClient('two')!.id, 'enabled': true},
+          ]..sort((a, b) => a['id'].toString().compareTo(b['id'].toString())),
+        );
         // Carol exists only outside service mode.
         await c.saveUser(client(carol));
         await c.prepareAndApply();
@@ -1379,7 +1406,7 @@ void main() {
         expect(two.submissions, hasLength(submitted + 1));
         final sent = two.submissions.values.last;
         expect(sent.containsKey('revokedUsers'), isFalse);
-        expect(sentUsers(two), [
+        expect(realUsers(c, two), [
           {'id': alice, 'enabled': false},
           {'id': bob, 'enabled': true},
         ]);
@@ -1398,7 +1425,7 @@ void main() {
         await c.prepareAndApply();
         await c.reconcile();
         expect(two.submissions, hasLength(submitted + 2));
-        expect(sentUsers(two), [
+        expect(realUsers(c, two), [
           {'id': alice, 'enabled': true},
           {'id': bob, 'enabled': true},
         ]);
@@ -1410,6 +1437,7 @@ void main() {
       final (c, _, remotes) = await applied();
       final two = remotes['two']!;
       await c.enterServiceMode('two');
+      await c.reconcile();
       await c.saveUser(client(carol, enabled: false));
       await c.prepareAndApply();
       final actions = two.actions.length;
@@ -1455,10 +1483,14 @@ void main() {
 
         expect(restarted.serverSyncIssue, isNull);
         expect(two.submissions, hasLength(submitted + 1));
-        expect(sentUsers(two), [
+        expect(realUsers(restarted, two), [
           {'id': alice, 'enabled': false},
           {'id': bob, 'enabled': true},
         ]);
+        expect(
+          sentUsers(two),
+          hasClient(restarted.serviceTestClient('two')!.id, true),
+        );
         expect(restarted.serviceAccessWaiting('two'), 0);
         expect(restarted.serviceAccessIssue('two'), isNull);
       },
@@ -1510,7 +1542,10 @@ void main() {
 
         expect(c.error, isNull);
         expect(deleted().deletionComplete, isTrue);
-        expect(two.submissions.values.last['revokedUsers'], [alice]);
+        expect(
+          two.submissions.values.map((p) => p['revokedUsers']),
+          contains(equals([alice])),
+        );
         expect(
           two.state
               .expand((r) => r['clients'] as List)

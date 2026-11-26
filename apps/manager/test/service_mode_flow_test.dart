@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_manager/vpn/vpn_controller.dart';
+import 'package:antirkn_profile_compiler/antirkn_profile_compiler.dart'
+    show ShareLinkKind;
 import 'package:flutter_test/flutter_test.dart';
 import 'awg_test.dart' as awg;
 import 'vpn_controller_test.dart' as f;
@@ -28,6 +30,17 @@ class Devices extends f.MemoryVpn implements WorkspaceIdentityStore {
 
 List<Object?> sentUsers(f.Remote remote) =>
     remote.submissions.values.last['users'] as List;
+
+/// The last users sent to [remote] but the test client of [target]'s
+/// service mode.
+List<Object?> realUsers(
+  VpnController c,
+  f.Remote remote, [
+  String target = 'two',
+]) => [
+  for (final u in sentUsers(remote))
+    if ((u as Map)['id'] != c.serviceTestClient(target)?.id) u,
+];
 
 Iterable<String> proxyNames(VpnController c, String user, String server) =>
     RegExp(
@@ -176,7 +189,7 @@ void main() {
         (r) => r['id'] == '3' * 32,
       );
       expect(kept['deleted'], isFalse);
-      expect(sentUsers(two), [
+      expect(realUsers(c, two), [
         {'id': f.alice, 'enabled': false},
         {'id': f.bob, 'enabled': true},
       ]);
@@ -210,7 +223,7 @@ void main() {
         await c.reconcile();
 
         expect(two.submissions, hasLength(submitted + 1));
-        expect(sentUsers(two), [
+        expect(realUsers(c, two), [
           {'id': f.alice, 'enabled': false},
           {'id': f.bob, 'enabled': true},
           {'id': removed, 'enabled': false},
@@ -236,11 +249,80 @@ void main() {
     );
   });
 
+  group('the test client of the mode', () {
+    test(
+      'lands on every protocol, gives links, leaves on the way back',
+      () async {
+        final (c, _, remotes) = await applied(withAwg: true);
+        final two = remotes['two']!, awgRemote = remotes[awgTarget('two')]!;
+        expect(c.serviceTestClient('two'), isNull);
+        await c.enterServiceMode('two');
+        final probe = c.serviceTestClient('two')!;
+        expect(c.serviceTestClient(awgTarget('two'))!.id, probe.id);
+        expect(
+          c.serviceTestClient(ttTarget('two'))!.login,
+          startsWith('antirkn-test-'),
+        );
+        expect(c.workspace.userById(probe.id), isNull);
+        final vlessKey = (target: 'two', resource: '3' * 32);
+        final awgKey = (target: awgTarget('two'), resource: 'd' * 32);
+        // Not on the server yet: no link.
+        expect(c.connections.serviceTestLink(vlessKey), isNull);
+
+        await c.reconcile();
+
+        expect(c.error, isNull);
+        Matcher hasProbe() =>
+            contains(equals({'id': probe.id, 'enabled': true}));
+        expect(sentUsers(two), hasProbe());
+        expect(sentUsers(awgRemote), hasProbe());
+        final vless = c.connections.serviceTestLink(vlessKey)!;
+        expect(vless.kind, ShareLinkKind.vless);
+        expect(vless.text, startsWith('vless://'));
+        expect(
+          c.connections.serviceTestLink((target: 'two', resource: '4' * 32)),
+          isNotNull,
+        );
+        final awgLink = c.connections.serviceTestLink(awgKey)!;
+        expect(awgLink.kind, ShareLinkKind.awg);
+        expect(awgLink.text, contains('[Interface]'));
+        // Not a client: no profile, no count, nothing waits for it.
+        expect(c.results.containsKey(probe.id), isFalse);
+        expect(c.serviceAccessWaiting('two'), 0);
+        expect(c.serviceModeExitNewClients('two'), 0);
+        final submitted = two.submissions.length;
+        await c.reconcile();
+        expect(two.submissions, hasLength(submitted));
+
+        await c.exitServiceMode('two');
+
+        expect(c.error, isNull);
+        expect(c.serviceModeOf('two'), isNull);
+        expect(c.serviceTestClient('two'), isNull);
+        Iterable<Object?> ids(f.Remote r) =>
+            sentUsers(r).map((u) => (u as Map)['id']);
+        expect(ids(two), isNot(contains(probe.id)));
+        expect(ids(awgRemote), isNot(contains(probe.id)));
+        expect(
+          two.state.expand((r) => r['clients'] as List).map((u) => u['id']),
+          isNot(contains(probe.id)),
+        );
+        expect(c.connections.serviceTestLink(vlessKey), isNull);
+
+        // Each entry gets a new test client, so an old link stays dead.
+        await c.enterServiceMode('two');
+        expect(c.serviceTestClient('two')!.id, isNot(probe.id));
+      },
+    );
+  });
+
   group('protocols change at once, without new clients', () {
     test('a new inbound reaches the server with its clients only', () async {
       final (c, _, remotes) = await applied();
       final two = remotes['two']!;
       await c.enterServiceMode('two');
+      // The test client of the mode lands first.
+      await c.reconcile();
       final submitted = two.submissions.length;
       await c.saveUser(client(carol));
       await c.prepareAndApply();
@@ -258,7 +340,7 @@ void main() {
         '4' * 32,
         '5' * 32,
       ]);
-      expect(sentUsers(two), [
+      expect(realUsers(c, two), [
         {'id': f.alice, 'enabled': true},
         {'id': f.bob, 'enabled': true},
       ]);
@@ -277,6 +359,7 @@ void main() {
       final (c, _, remotes) = await applied(withAwg: true);
       final awgRemote = remotes[awgTarget('two')]!;
       await c.enterServiceMode('two');
+      await c.reconcile();
       await c.saveUser(client(carol));
       await c.prepareAndApply();
       final submitted = awgRemote.submissions.length;
@@ -290,14 +373,14 @@ void main() {
       expect(awgRemote.submissions, hasLength(submitted + 1));
       final sent = awgRemote.submissions.values.last;
       expect((sent['resources'] as List).single['mtu'], 1300);
-      expect(sentUsers(awgRemote).map((u) => (u as Map)['id']), [
-        f.alice,
-        f.bob,
-      ]);
+      expect(
+        realUsers(c, awgRemote, awgTarget('two')).map((u) => (u as Map)['id']),
+        [f.alice, f.bob],
+      );
       expect(c.adoptionConfirmed(awgTarget('two'), 'd' * 32), isTrue);
     });
 
-    test('a new server gets its protocol without any client', () async {
+    test('a new server gets its protocol with the test client only', () async {
       final store = f.MemoryVpn();
       final remotes = {'one': f.Remote(store), 'two': f.Remote(store)};
       final c = f.controller(store, remotes);
@@ -319,7 +402,9 @@ void main() {
         (two.submissions.values.single['resources'] as List).single['id'],
         '3' * 32,
       );
-      expect(sentUsers(two), isEmpty);
+      expect(sentUsers(two), [
+        {'id': c.serviceTestClient('two')!.id, 'enabled': true},
+      ]);
       expect(c.adoptionConfirmed('two', '3' * 32), isTrue);
     });
   });
