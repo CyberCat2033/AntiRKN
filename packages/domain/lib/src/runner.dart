@@ -81,6 +81,28 @@ final class RunnerRequest {
 
   /// Confirms that this device still controls the server after an upgrade;
   /// without it the server rolls the upgrade back on its own.
+  /// The device's checks after a checked component upgrade: [key] is the
+  /// secret whose SHA-256 the job carries, [checks] one result per lease.
+  factory RunnerRequest.componentUpgradeCommit(
+    String id, {
+    required String key,
+    required String network,
+    required List<Map<String, Object?>> checks,
+  }) => RunnerRequest.fromJson({
+    'version': 1,
+    'action': 'component_upgrade_commit',
+    'id': id,
+    'payload': jsonEncode({'key': key, 'network': network, 'checks': checks}),
+  });
+
+  /// Rolls a checked component upgrade back now.
+  factory RunnerRequest.componentUpgradeAbort(String id, String key) =>
+      RunnerRequest.fromJson({
+        'version': 1,
+        'action': 'component_upgrade_abort',
+        'id': id,
+        'payload': jsonEncode({'key': key}),
+      });
   factory RunnerRequest.componentUpgradeConfirm(String id) =>
       RunnerRequest.fromJson({
         'version': 1,

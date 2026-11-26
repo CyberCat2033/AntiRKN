@@ -1180,6 +1180,44 @@ class AppLocalizationsRu extends AppLocalizations {
       'Обновлено · проверяем подключения с устройства (без проверки — откат)';
 
   @override
+  String get upgradeChecksBaseline =>
+      'Проверяем подключения с этого устройства перед обновлением';
+
+  @override
+  String get upgradeChecksUpgrading => 'Обновляем на сервере';
+
+  @override
+  String get upgradeChecksComparison =>
+      'Проверяем те же подключения после обновления';
+
+  @override
+  String get upgradeChecksRollingBack => 'Возвращаем прежнюю версию';
+
+  @override
+  String get upgradeChecksCommitted =>
+      'Обновлено: подключения работают как прежде';
+
+  @override
+  String get upgradeChecksRolledBack => 'Прежняя версия возвращена';
+
+  @override
+  String get upgradeChecksFailed => 'Обновление не завершилось';
+
+  @override
+  String get upgradeChecksUnavailable =>
+      'Проверки подключений на этом устройстве недоступны';
+
+  @override
+  String get upgradeChecksProblem => 'Подключение не прошло проверку';
+
+  @override
+  String get upgradeChecksStopTitle => 'Остановить обновление?';
+
+  @override
+  String get upgradeChecksStopHelp =>
+      'Если обновление уже на сервере, вернётся прежняя версия. Подключения будут проверены снова.';
+
+  @override
   String get runnerUpgradeDownloadMissing => 'Пакет не найден в релизе (404)';
 
   @override

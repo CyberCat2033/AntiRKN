@@ -1628,6 +1628,11 @@ def plan(store, component, candidate_payload=None):
         'snapshot': snapshot_info(store.directory, component) if store is not None else None,
     }
     plan_data['fingerprint'] = canonical_plan_fingerprint(plan_data)
+    if store is not None:
+        # Outside the fingerprint: what the device checks around the upgrade.
+        checks = upgrade_checks().targets(store, component)
+        if checks is not None:
+            plan_data['deviceChecks'] = checks
     return plan_data
 
 

@@ -1177,6 +1177,43 @@ class AppLocalizationsEn extends AppLocalizations {
       'Updated · checking connections from the device (rolled back without the checks)';
 
   @override
+  String get upgradeChecksBaseline =>
+      'Checking connections from this device before the update';
+
+  @override
+  String get upgradeChecksUpgrading => 'Updating on the server';
+
+  @override
+  String get upgradeChecksComparison =>
+      'Checking the same connections after the update';
+
+  @override
+  String get upgradeChecksRollingBack => 'Returning the previous version';
+
+  @override
+  String get upgradeChecksCommitted => 'Updated: connections work as before';
+
+  @override
+  String get upgradeChecksRolledBack => 'The previous version is back';
+
+  @override
+  String get upgradeChecksFailed => 'The update did not finish';
+
+  @override
+  String get upgradeChecksUnavailable =>
+      'Connection checks are not available on this device';
+
+  @override
+  String get upgradeChecksProblem => 'A connection did not pass the check';
+
+  @override
+  String get upgradeChecksStopTitle => 'Stop the update?';
+
+  @override
+  String get upgradeChecksStopHelp =>
+      'An update already on the server is rolled back to the previous version. Connections are checked again.';
+
+  @override
   String get runnerUpgradeDownloadMissing => 'Package asset not found (404)';
 
   @override

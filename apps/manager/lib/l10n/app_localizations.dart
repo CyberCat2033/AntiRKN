@@ -2150,6 +2150,72 @@ abstract class AppLocalizations {
   /// **'Updated · checking connections from the device (rolled back without the checks)'**
   String get runnerUpgradeAwaitingChecks;
 
+  /// No description provided for @upgradeChecksBaseline.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking connections from this device before the update'**
+  String get upgradeChecksBaseline;
+
+  /// No description provided for @upgradeChecksUpgrading.
+  ///
+  /// In en, this message translates to:
+  /// **'Updating on the server'**
+  String get upgradeChecksUpgrading;
+
+  /// No description provided for @upgradeChecksComparison.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking the same connections after the update'**
+  String get upgradeChecksComparison;
+
+  /// No description provided for @upgradeChecksRollingBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Returning the previous version'**
+  String get upgradeChecksRollingBack;
+
+  /// No description provided for @upgradeChecksCommitted.
+  ///
+  /// In en, this message translates to:
+  /// **'Updated: connections work as before'**
+  String get upgradeChecksCommitted;
+
+  /// No description provided for @upgradeChecksRolledBack.
+  ///
+  /// In en, this message translates to:
+  /// **'The previous version is back'**
+  String get upgradeChecksRolledBack;
+
+  /// No description provided for @upgradeChecksFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The update did not finish'**
+  String get upgradeChecksFailed;
+
+  /// No description provided for @upgradeChecksUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection checks are not available on this device'**
+  String get upgradeChecksUnavailable;
+
+  /// No description provided for @upgradeChecksProblem.
+  ///
+  /// In en, this message translates to:
+  /// **'A connection did not pass the check'**
+  String get upgradeChecksProblem;
+
+  /// No description provided for @upgradeChecksStopTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop the update?'**
+  String get upgradeChecksStopTitle;
+
+  /// No description provided for @upgradeChecksStopHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'An update already on the server is rolled back to the previous version. Connections are checked again.'**
+  String get upgradeChecksStopHelp;
+
   /// No description provided for @runnerUpgradeDownloadMissing.
   ///
   /// In en, this message translates to:

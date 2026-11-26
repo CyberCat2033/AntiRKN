@@ -135,6 +135,21 @@ class AdmissionTests(Base):
         self.assertEqual(self.code(checks.admit, self.store, self.request('panel', self.device_check([key, foreign], 'panel'))),
                          'upgrade_checks_coverage')
 
+    def test_the_plan_names_what_the_device_checks(self):
+        self.resource(); self.resource('r0'); self.resource('off', enabled=False)
+        self.assertEqual(checks.targets(self.store, 'trusttunnel'), dict(resources=['r0', 'r1']))
+        self.assertIsNone(checks.targets(self.store, 'xray'))
+        with patch.object(checks, 'panel_id', return_value=self.panel):
+            self.rows.append(dict(id=2, enable=False, protocol='trojan', remark='old', port=8443))
+            found = checks.targets(self.store, 'panel')
+        self.assertEqual(found['panelId'], self.panel)
+        self.assertEqual([(r['id'], r['enabled'], r['protocol']) for r in found['inbounds']], [(1, True, 'vless'), (2, False, 'trojan')])
+        with patch.object(checks, 'panel_id', return_value=None):
+            self.assertEqual(checks.targets(self.store, 'panel'), dict(inbounds=[]))
+        with patch.object(checks, 'panel_id', return_value=self.panel), \
+                patch.object(checks, 'panel_rows', side_effect=ComponentUpgradeError('upgrade_checks_panel_api')):
+            self.assertEqual(checks.targets(self.store, 'panel'), dict(error='upgrade_checks_panel_api'))
+
     def test_other_components_carry_no_device_checks(self):
         checks.admit(self.store, self.request('xray'))
         self.assertEqual(self.code(checks.admit, self.store, self.request('xray', self.device_check([]))), 'upgrade_checks_coverage')

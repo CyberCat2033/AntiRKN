@@ -113,6 +113,38 @@ def wanted(store, component, value):
             if saved['spec'].get('enabled') and not saved['spec'].get('deleted')}
 
 
+def panel_id(store):
+    """The 3x-ui the app works with on this server: connected or installed."""
+    from panel_discovery import external_access
+    access = external_access()
+    if access:
+        return access['id']
+    row = store.db.execute("SELECT id FROM jobs WHERE status='succeeded' AND request LIKE '%\"kind\":\"panel_install\"%' "
+                           "ORDER BY created DESC LIMIT 1").fetchone()
+    return row[0] if row else None
+
+
+def targets(store, component):
+    """What the device must check before an upgrade of `component` (the same
+    set admit() requires), for component_upgrade_check; None when the
+    component has no device checks."""
+    if component not in CHECKED:
+        return None
+    try:
+        if component != 'panel':
+            return dict(resources=sorted(wanted(store, component, None)))
+        panel = panel_id(store)
+        if panel is None:
+            return dict(inbounds=[])
+        rows = panel_rows(store, panel)
+        return dict(panelId=panel, inbounds=[dict(id=r['id'], enabled=bool(r.get('enable')), protocol=r.get('protocol'),
+                                                  name=r.get('remark', ''), port=r.get('port')) for r in rows])
+    except ComponentUpgradeError as error:
+        return dict(error=error.code)
+    except Exception:
+        return dict(error='upgrade_checks_coverage')
+
+
 def required(store, component):
     """Whether this upgrade may not run without device checks."""
     if component not in CHECKED:

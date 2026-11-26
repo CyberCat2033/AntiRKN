@@ -6,6 +6,7 @@ import '../l10n/app_localizations.dart';
 import '../vpn/vpn_controller.dart';
 import '../vpn/connection_check_view.dart';
 import 'panel_login_view.dart';
+import 'device_upgrade_checks.dart';
 import 'runner_controller.dart';
 import 'component_updates_controller.dart';
 import 'xray_upgrade_controller.dart';
@@ -36,6 +37,19 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
   /// A transaction was asked for here: its progress and result stay shown
   /// until dismissed.
   bool _shown = false;
+
+  /// Component upgrades check their connections through the same VPN side.
+  DeviceUpgradeChecks _deviceChecks(
+    CancellationToken token,
+    VoidCallback changed,
+  ) => DeviceUpgradeChecks(
+    runner: widget.runner,
+    vpn: widget.vpn,
+    host: widget.host,
+    token: token,
+    changed: changed,
+  );
+
   late final XrayVersionChoice _choice = XrayVersionChoice(
     install: _install,
     update: _update,
@@ -131,6 +145,7 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     widget.runner.xrayVersionChoice = _choice;
+    widget.runner.deviceChecks = _deviceChecks;
     unawaited(c.inspect());
     _poll = Timer.periodic(const Duration(seconds: 5), (_) {
       if (mounted &&
@@ -167,6 +182,10 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
     WidgetsBinding.instance.removeObserver(this);
     if (identical(widget.runner.xrayVersionChoice, _choice)) {
       widget.runner.xrayVersionChoice = null;
+    }
+    // Tear-offs of one method on one object are equal, not identical.
+    if (widget.runner.deviceChecks == _deviceChecks) {
+      widget.runner.deviceChecks = null;
     }
     _poll?.cancel();
     c.dispose();

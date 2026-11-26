@@ -1,31 +1,16 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:antirkn_domain/antirkn_domain.dart';
-import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
-import '../vpn/adopt_resource.dart';
-import '../vpn/connection_checks.dart';
-import '../vpn/external_connection_check.dart';
 import '../vpn/vpn_controller.dart';
+import 'device_upgrade_checks.dart';
 import 'runner_controller.dart';
 
-class XrayComparison {
-  XrayComparison(this.id, this.name, this.enabled);
-  final int id;
-  final String name;
-  final bool enabled;
-  ConnectionCheck? before, after, restored;
-}
+export 'device_upgrade_checks.dart' show networkTag, UpgradeComparison;
+
+typedef XrayComparison = UpgradeComparison;
 
 /// Only this explicit device action can submit or commit an upgrade. Reopening
 /// the view merely observes the server's durable transaction and watchdog.
-/// The device network as the server stores it: a fixed-size digest. The raw
-/// identity (all addresses and route tables) is tens of KiB on a desktop and
-/// the runner accepts at most 1024 characters (xray_check_invalid).
-@visibleForTesting
-String networkTag(String identity) =>
-    sha256.convert(utf8.encode(identity)).toString();
-
 class XrayUpgradeController extends ChangeNotifier {
   XrayUpgradeController({
     required this.runner,
@@ -100,20 +85,12 @@ class XrayUpgradeController extends ChangeNotifier {
     String id,
     CancellationToken token, [
     Map<String, Object?>? payload,
-  ]) async {
-    final transport = runner.transport();
-    if (transport == null) throw const FormatException('server_unavailable');
-    return transport.request(
-      RunnerRequest.fromJson({
-        'version': 1,
-        'action': action,
-        'id': id,
-        if (payload != null) 'payload': jsonEncode(payload),
-      }),
-      token,
-      sudoPassword: runner.password(),
-    );
-  }
+  ]) => DeviceUpgradeChecks(
+    runner: runner,
+    vpn: vpn,
+    host: host,
+    token: token,
+  ).request(action, id, payload);
 
   Future<Map<String, dynamic>> rpc(
     String action,
@@ -172,47 +149,6 @@ class XrayUpgradeController extends ChangeNotifier {
     }
   }
 
-  Future<ConnectionTarget> target(Map row, String panelId) async {
-    final id = row['id'] as int;
-    final managed = vpn.workspace.inbounds
-        .where(
-          (r) =>
-              r.serverId == runner.serverId &&
-              ((r.spec['adoption'] as Map?)?['sourceId'] == '$id' &&
-                      (r.spec['adoption'] as Map?)?['panelId'] == panelId ||
-                  row['name'] ==
-                      'AntiRKN:${vpn.workspace.resourceWorkspaceId(r.serverId)}:${r.id}'),
-        )
-        .firstOrNull;
-    if (managed != null) {
-      final key = (target: runner.serverId, resource: managed.id);
-      final readiness = vpn.connections.evaluateReadiness(key);
-      if (readiness.state != InboundReadinessState.ready) {
-        throw FormatException(
-          readiness.diagnosticReason ?? 'xray_check_changed',
-        );
-      }
-      return key;
-    }
-    final observed = await runner.readInbound(id);
-    if (observed == null) throw const FormatException('diagnostic_access');
-    final key = externalConnectionTarget(
-      runner.serverId,
-      'vless',
-      id,
-      runner.panelAccess!.port,
-    );
-    final spec = adoptionSpec('vless', observed, host)..['id'] = key.resource;
-    spec['adoption'] = {
-      ...Map<String, Object?>.from(spec['adoption'] as Map),
-      'panelId': panelId,
-      'panelPort': runner.panelAccess!.port,
-    };
-    final identity = vpn.remote(key.target)?.identity;
-    if (identity == null) throw const FormatException('server_unavailable');
-    return vpn.connections.registerExternal(key.target, spec, identity);
-  }
-
   /// [candidate] is an explicitly chosen release ([releaseCandidate]);
   /// without it the runner's pinned version is installed, only forward.
   /// [upgradeOnly] keeps a chosen release forward-only too.
@@ -231,33 +167,23 @@ class XrayUpgradeController extends ChangeNotifier {
     final token = CancellationToken();
     _token = token;
     final deadline = Timer(const Duration(minutes: 14), token.cancel);
-    final leases = <String>[];
-    final fields = <Map<String, Object?>>[];
-    final signatures = <ConnectionTarget, String>{};
+    final checks = DeviceUpgradeChecks(
+      runner: runner,
+      vpn: vpn,
+      host: host,
+      token: token,
+      changed: changed,
+      requireBoth: true,
+    );
     String? id, nonce, manifest;
-    bool entered = false, began = false;
-    String network = '';
+    bool began = false;
     try {
-      if (vpn.enterConnectionTraffic != null) {
-        entered = await vpn.enterConnectionTraffic!();
-        if (!entered) throw const FormatException('busy');
-      }
-      vpn.upgradeBusy = true;
+      await checks.open();
       await runner.requestAction(() async {
-        final identity = runner.identity(), panelId = runner.panelAccess?.id;
-        if (panelId == null || identity == null) {
+        final panelId = runner.panelAccess?.id;
+        if (panelId == null || runner.identity() == null) {
           throw const FormatException('server_unavailable');
         }
-        void same() {
-          token.check();
-          if (runner.identity() != identity ||
-              signatures.entries.any(
-                (e) => vpn.connections.signature(e.key) != e.value,
-              )) {
-            throw const FormatException('xray_check_changed');
-          }
-        }
-
         plan = await rpc('xray_check_plan', panelId, token);
         if (plan!['latest'] case final Map latest) {
           if (!terminal.contains(latest['phase'])) {
@@ -314,54 +240,13 @@ class XrayUpgradeController extends ChangeNotifier {
           throw const FormatException('xray_check_coverage');
         }
         for (final row in enabled) {
-          same();
-          final key = await target(row, panelId);
-          signatures[key] = vpn.connections.signature(key);
-          final lease = newVpnId();
-          leases.add(lease);
-          final access = await request(
-            'probe_begin',
-            lease,
-            token,
-            vpn.connections.diagnosticPayload(key),
+          checks.same();
+          await checks.before(
+            await checks.panelInbound(row, panelId),
+            rows.firstWhere((r) => r.id == row['id']),
           );
-          if (access.code != 'ok' || access.connectionProbe == null) {
-            throw const FormatException('diagnostic_access');
-          }
-          final proxy = vpn.connections.compileDiagnostic(
-            key,
-            access.connectionProbe!,
-          );
-          if (proxy == null) throw const FormatException('unsupported_route');
-          fields.add(proxy.fields);
-          final check = await vpn.connections.engine!.check(
-            proxy.fields,
-            token,
-          );
-          rows.firstWhere((r) => r.id == row['id']).before = check;
-          changed();
-          if (check.status != ConnectionCheckStatus.working ||
-              check.traffic?.tcp != true ||
-              check.traffic?.udp != true) {
-            throw FormatException(check.code);
-          }
-          if (network.isEmpty) network = check.networkIdentity;
-          if (check.networkIdentity != network) {
-            throw const FormatException('network_changed');
-          }
         }
-        same();
-        Future<void> sameNetwork() async {
-          same();
-          final now = await token.bind(
-            vpn.connections.engine!.network.network(),
-          );
-          if (!now.measuresDevice || now.identity != network) {
-            throw const FormatException('network_changed');
-          }
-        }
-
-        await sameNetwork();
+        await checks.sameNetwork();
         id = newVpnId();
         began = true;
         phase = 'preparing';
@@ -369,20 +254,17 @@ class XrayUpgradeController extends ChangeNotifier {
         operation = await rpc('xray_check_begin', id!, token, {
           'panelId': panelId,
           'fingerprint': plan!['fingerprint'],
-          'leases': leases,
-          'network': networkTag(network),
+          'leases': checks.leases,
+          'network': checks.tag,
           'core': revision,
           'candidate': ?candidate,
-          'baseline': [
-            for (final lease in leases)
-              {'lease': lease, 'tcp': true, 'udp': true},
-          ],
+          'baseline': checks.results('before'),
         });
         nonce = operation!['nonce'] as String;
         manifest = operation!['manifest'] as String;
         while (operation!['phase'] != 'awaiting_checks' &&
             !terminal.contains(operation!['phase'])) {
-          same();
+          checks.same();
           phase = operation!['phase'] as String;
           changed();
           await token.bind(Future<void>.delayed(const Duration(seconds: 1)));
@@ -393,26 +275,12 @@ class XrayUpgradeController extends ChangeNotifier {
         }
         phase = 'comparison';
         changed();
-        final checks = <Map<String, Object?>>[];
-        for (var i = 0; i < fields.length; i++) {
-          await sameNetwork();
-          final check = await vpn.connections.engine!.check(fields[i], token);
-          rows.firstWhere((r) => r.id == enabled[i]['id']).after = check;
-          changed();
-          if (check.networkIdentity != network ||
-              check.status != ConnectionCheckStatus.working ||
-              check.traffic?.tcp != true ||
-              check.traffic?.udp != true) {
-            throw FormatException(check.code);
-          }
-          checks.add({'lease': leases[i], 'tcp': true, 'udp': true});
-        }
-        await sameNetwork();
+        final after = await checks.after();
         operation = await rpc('xray_check_commit', id!, token, {
           'nonce': nonce,
           'manifest': manifest,
-          'network': networkTag(network),
-          'checks': checks,
+          'network': checks.tag,
+          'checks': after,
         });
         if (operation!['phase'] != 'committed') {
           throw const FormatException('xray_check_failed');
@@ -454,16 +322,7 @@ class XrayUpgradeController extends ChangeNotifier {
             code = reason;
           }
           if (phase == 'rolled_back' && !token.isCancelled) {
-            // Repeat on the original device. A restored binary alone is not a
-            // claim that traffic has also recovered.
-            for (var i = 0; i < fields.length; i++) {
-              final check = await vpn.connections.engine!.check(
-                fields[i],
-                token,
-              );
-              rows.where((r) => r.enabled).elementAt(i).restored = check;
-              changed();
-            }
+            await checks.restore();
           }
         } catch (error) {
           // xray_check_missing: the server never recorded this run (begin was
@@ -480,21 +339,10 @@ class XrayUpgradeController extends ChangeNotifier {
     } finally {
       // The server rejects early lease removal while a transaction needs them.
       // Their independent expiry remains armed if SSH is unavailable.
-      for (final lease in leases) {
-        final cleanup = CancellationToken();
-        final limit = Timer(const Duration(seconds: 10), cleanup.cancel);
-        try {
-          await request('probe_end', lease, cleanup);
-        } catch (_) {
-        } finally {
-          limit.cancel();
-        }
-      }
+      await checks.close();
       deadline.cancel();
       _token = null;
       chosen = null;
-      vpn.upgradeBusy = false;
-      if (entered) await vpn.leaveConnectionTraffic?.call();
       running = false;
       busy = false;
       changed();

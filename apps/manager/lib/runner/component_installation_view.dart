@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import 'runner_controller.dart';
 import 'component_updates_controller.dart';
+import 'component_upgrade_checks_view.dart';
 
 class ComponentInstallationView extends StatelessWidget {
   const ComponentInstallationView({required this.controller, super.key});
@@ -16,6 +17,7 @@ class ComponentInstallationView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        ComponentUpgradeChecksView(controller: c),
         if (plan != null) ...[
           Text(
             '${componentName(plan.component)} · ${plan.installedVersion ?? '—'} → ${plan.version}',
@@ -182,6 +184,7 @@ const softwareComponentKeys = ['panel', 'trusttunnel', 'amneziawg'];
 /// for the step, progress and cancel of a component install (UI-39).
 bool hostsComponentInstallation(RunnerController c, String key) =>
     c.componentPlan?.component == key ||
+    (c.activeComponent == key && c.upgradeCheckPhase != null) ||
     (c.activeComponent == key &&
         const {
           'component_install',

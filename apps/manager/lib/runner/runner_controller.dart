@@ -3,7 +3,10 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:antirkn_domain/antirkn_domain.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
+
+import 'device_upgrade_checks.dart';
 
 /// One controller per server. Connection setup prepares the runner; polling
 /// observes jobs. Persist each job request before submitting it.
@@ -227,6 +230,37 @@ class RunnerController extends ChangeNotifier {
 
   /// Registered while the server's `XrayUpgradeView` is mounted.
   XrayVersionChoice? xrayVersionChoice;
+
+  /// The device's connection checks around a 3x-ui, TrustTunnel or
+  /// AmneziaWG upgrade; registered with [xrayVersionChoice], which has the
+  /// VPN side they need.
+  DeviceUpgradeChecks Function(CancellationToken token, VoidCallback changed)?
+  deviceChecks;
+
+  /// The connections compared around the last checked component upgrade
+  /// and its stage: `baseline`, `upgrading`, `comparison`, `committed`,
+  /// `rolling_back`, `rolled_back` or `failed` (with [upgradeCheckCode]).
+  final upgradeChecks = <UpgradeComparison>[];
+  String? upgradeCheckPhase;
+  String upgradeCheckCode = '';
+  CancellationToken? _upgradeCheckToken;
+
+  /// Stops a checked upgrade: before the switch nothing changes, after it
+  /// the server rolls back.
+  void cancelUpgradeChecks() => _upgradeCheckToken?.cancel();
+
+  /// A checked upgrade runs (its card shows progress and Stop).
+  bool get upgradeChecking => _upgradeCheckToken != null;
+
+  /// Closes the outcome of a finished checked upgrade.
+  void dismissUpgradeChecks() {
+    if (upgradeChecking) return;
+    upgradeCheckPhase = null;
+    upgradeCheckCode = '';
+    upgradeChecks.clear();
+    _notify();
+  }
+
   bool _softwareRefreshPending = false;
   final ServerSoftwareInventory? Function()? software;
   final RunnerTransport? Function() transport;
@@ -2100,7 +2134,248 @@ class RunnerController extends ChangeNotifier {
     );
     final plan = componentUpgradePlan;
     if (plan == null || plan['upgradable'] != true) return;
+    final targets = plan['deviceChecks'];
+    if (targets is Map && _checkedTargets(targets)) {
+      await _checkedComponentUpgrade(plan, candidate, targets);
+      return;
+    }
     await applyComponentUpgrade(plan, candidate);
+  }
+
+  /// Whether the server names connections to check (or failed to list them).
+  static bool _checkedTargets(Map targets) =>
+      targets['error'] != null ||
+      (targets['resources'] as List? ?? const []).isNotEmpty ||
+      (targets['inbounds'] as List? ?? const []).any(
+        (r) => r is Map && r['enabled'] == true,
+      );
+
+  /// A 3x-ui, TrustTunnel or AmneziaWG upgrade like the Xray transaction:
+  /// every enabled connection is checked from this device through a server
+  /// lease before the switch, the job keeps the leases, and its confirmation
+  /// window waits for the same checks from the same network. Only a commit
+  /// keeps the new version; anything else rolls it back on the server.
+  Future<void> _checkedComponentUpgrade(
+    Map<String, dynamic> plan,
+    Map<String, Object?> candidate,
+    Map targets,
+  ) async {
+    final component = (plan['component'] ?? candidate['component']) as String;
+    final token = CancellationToken();
+    _upgradeCheckToken = token;
+    final deadline = Timer(const Duration(minutes: 14), token.cancel);
+    upgradeChecks.clear();
+    upgradeCheckPhase = 'baseline';
+    upgradeCheckCode = '';
+    activeComponent = component;
+    _notify();
+    final checks = deviceChecks?.call(token, _notify);
+    String? jobId;
+    final random = Random.secure();
+    final key = List.generate(
+      32,
+      (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ).join();
+    var awaiting = false;
+    try {
+      if (targets['error'] case final String code) throw FormatException(code);
+      if (checks == null || !checks.available) {
+        throw const FormatException('upgrade_checks_unavailable');
+      }
+      await checks.open();
+      String? panelId;
+      if (component == 'panel') {
+        panelId = targets['panelId'] as String?;
+        final rows = (targets['inbounds'] as List).cast<Map>();
+        final enabled = rows.where((r) => r['enabled'] == true).toList();
+        if (panelId == null ||
+            panelAccess == null ||
+            enabled.any((r) => r['protocol'] != 'vless')) {
+          throw const FormatException('upgrade_checks_coverage');
+        }
+        for (final row in enabled) {
+          final comparison = UpgradeComparison(
+            row['id'] as int,
+            '${row['name']}',
+            true,
+          );
+          upgradeChecks.add(comparison);
+          await checks.before(
+            await checks.panelInbound(row, panelId),
+            comparison,
+          );
+        }
+      } else {
+        final target = component == 'trusttunnel'
+            ? ttTarget(serverId)
+            : awgTarget(serverId);
+        for (final id in (targets['resources'] as List).cast<String>()) {
+          final comparison = UpgradeComparison(
+            id,
+            checks.nameOf(component, id),
+            true,
+          );
+          upgradeChecks.add(comparison);
+          await checks.before(
+            checks.resource((target: target, resource: id)),
+            comparison,
+          );
+        }
+      }
+      await checks.sameNetwork();
+      upgradeCheckPhase = 'upgrading';
+      _notify();
+      await applyComponentUpgrade(plan, {
+        ...candidate,
+        'deviceCheck': {
+          'leases': checks.leases,
+          'baseline': checks.results('before'),
+          'network': checks.tag,
+          'keyHash': sha256.convert(utf8.encode(key)).toString(),
+          'panelId': ?panelId,
+        },
+      });
+      jobId = selected?.id;
+      if (responseCode != 'ok' || jobId == null) {
+        throw FormatException(responseCode ?? 'upgrade_failed');
+      }
+      awaiting = await _awaitChecks(jobId, token);
+      if (!awaiting) {
+        throw FormatException(_failureCode(selected) ?? 'upgrade_failed');
+      }
+      upgradeCheckPhase = 'comparison';
+      _notify();
+      final after = await checks.after();
+      final remote = transport();
+      if (remote == null) throw const FormatException('server_unavailable');
+      final response = await remote.request(
+        RunnerRequest.componentUpgradeCommit(
+          jobId,
+          key: key,
+          network: checks.tag,
+          checks: after,
+        ),
+        token,
+        sudoPassword: password(),
+      );
+      if (response.code != 'ok') throw FormatException(response.code);
+      upgradeCheckPhase = 'committed';
+      upgradeCheckCode = 'committed';
+      _softwareRefreshPending = true;
+      await selectJob(jobId);
+      refreshSoftware?.call();
+    } catch (error) {
+      upgradeCheckCode = token.isCancelled
+          ? 'cancelled'
+          : error is FormatException
+          ? error.message
+          : 'upgrade_failed';
+      upgradeCheckPhase = jobId == null ? 'failed' : 'rolling_back';
+      _notify();
+      if (jobId != null) {
+        await _rollBackChecked(jobId, key, awaiting);
+        if (upgradeCheckPhase == 'rolled_back' && checks != null) {
+          final again = CancellationToken();
+          final limit = Timer(const Duration(minutes: 3), again.cancel);
+          try {
+            await checks.restore(again);
+          } catch (_) {
+          } finally {
+            limit.cancel();
+          }
+        }
+      }
+    } finally {
+      await checks?.close();
+      deadline.cancel();
+      if (identical(_upgradeCheckToken, token)) _upgradeCheckToken = null;
+      _notify();
+    }
+  }
+
+  /// Reads the job until its window waits for the checks (true) or it ends
+  /// without one (false).
+  Future<bool> _awaitChecks(String id, CancellationToken token) async {
+    while (true) {
+      token.check();
+      final job = selected?.id == id ? selected : null;
+      if (job != null) {
+        if (job.events.any((e) => e.code == 'upgrade_awaiting_checks')) {
+          return job.status == 'succeeded';
+        }
+        if (job.terminal) return false;
+      }
+      await token.bind(Future<void>.delayed(const Duration(seconds: 1)));
+      await selectJob(id);
+    }
+  }
+
+  static String? _failureCode(RunnerJob? job) {
+    if (job == null) return null;
+    for (final event in job.events.reversed) {
+      if (event.code.startsWith('upgrade_') &&
+          upgradeFailureCodes.contains(event.code)) {
+        return event.code;
+      }
+    }
+    return null;
+  }
+
+  /// Codes of a checked upgrade that ended it: shown as the reason.
+  static const upgradeFailureCodes = {
+    'upgrade_checks_required',
+    'upgrade_checks_coverage',
+    'upgrade_checks_changed',
+    'upgrade_checks_timeout',
+    'upgrade_checks_failed',
+    'upgrade_checks_panel_api',
+    'upgrade_connectivity_failed',
+    'upgrade_healthcheck_failed',
+    'upgrade_syntax_failed',
+    'upgrade_checksum_failed',
+    'upgrade_download_failed',
+    'upgrade_download_missing',
+    'upgrade_conflict',
+    'upgrade_failed',
+  };
+
+  /// After a failed or stopped comparison: the server rolls back (a running
+  /// job is cancelled, an open window ends now) and the job is read until
+  /// it shows the outcome.
+  Future<void> _rollBackChecked(String id, String key, bool awaiting) async {
+    final recovery = CancellationToken();
+    final limit = Timer(const Duration(seconds: 120), recovery.cancel);
+    try {
+      final remote = transport();
+      if (remote == null) throw const FormatException('server_unavailable');
+      if (awaiting || selected?.terminal == true) {
+        await remote.request(
+          RunnerRequest.componentUpgradeAbort(id, key),
+          recovery,
+          sudoPassword: password(),
+        );
+      } else {
+        await cancelJob();
+      }
+      while (!recovery.isCancelled) {
+        await selectJob(id);
+        final job = selected?.id == id ? selected : null;
+        if (job != null && job.terminal && job.status != 'succeeded') {
+          upgradeCheckPhase = job.status == 'needs_attention'
+              ? 'failed'
+              : 'rolled_back';
+          break;
+        }
+        await recovery.bind(Future<void>.delayed(const Duration(seconds: 2)));
+      }
+    } catch (_) {
+      // The window's own timer still rolls back without the device.
+    } finally {
+      limit.cancel();
+      _softwareRefreshPending = true;
+      refreshSoftware?.call();
+      _notify();
+    }
   }
 
   Future<void> applyComponentUpgrade(
@@ -2345,6 +2620,11 @@ class RunnerController extends ChangeNotifier {
       'conflict',
       'invalid',
       'incompatible',
+      'upgrade_checks_required',
+      'upgrade_checks_coverage',
+      'upgrade_checks_changed',
+      'upgrade_checks_timeout',
+      'upgrade_checks_panel_api',
     }.contains(response.code)) {
       // A definitive refusal admits no effect. An uncertain response keeps ID.
       pending = null;
@@ -2449,10 +2729,19 @@ class RunnerController extends ChangeNotifier {
         !hasEvent('upgrade_confirmed') &&
         !hasEvent('upgrade_rolled_back') &&
         !hasEvent('upgrade_rollback_failed');
+    // A checked upgrade waits for this device's connection checks instead
+    // (_checkedComponentUpgrade); it is watched, never confirmed here.
+    final awaitingChecks =
+        job.kind == 'component_upgrade_apply' &&
+        job.status == 'succeeded' &&
+        hasEvent('upgrade_awaiting_checks') &&
+        !hasEvent('upgrade_confirmed') &&
+        !hasEvent('upgrade_rolled_back') &&
+        !hasEvent('upgrade_rollback_failed');
     // The server rolls an unconfirmed upgrade back after the job succeeded:
     // the versions read before are stale then.
     var rolledBackLate = false;
-    if (awaitingConfirmation) {
+    if (awaitingConfirmation || awaitingChecks) {
       if (_upgradeWatchId != id) {
         _upgradeWatchId = id;
         _upgradeWatchUntil = DateTime.now().add(upgradeWatchLimit);
