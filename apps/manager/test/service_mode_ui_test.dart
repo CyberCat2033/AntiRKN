@@ -14,6 +14,12 @@ import 'service_mode_flow_test.dart' as sm;
 import 'ssh_support.dart' as ssh;
 import 'vpn_controller_test.dart' as f;
 
+SwitchListTile _switch(WidgetTester tester) => tester.widget<SwitchListTile>(
+  find.byKey(const ValueKey('service-mode-switch')),
+);
+bool switchOn(WidgetTester tester) => _switch(tester).value;
+bool switchEnabled(WidgetTester tester) => _switch(tester).onChanged != null;
+
 void main() {
   Widget app(Widget child, {required String locale, required double scale}) =>
       MaterialApp(
@@ -106,10 +112,10 @@ void main() {
       noOverflow(tester);
       expect(find.text(l.serviceModeTitle), findsOneWidget);
       expect(find.text(l.serviceModeOff), findsOneWidget);
-      expect(find.byKey(const ValueKey('service-mode-exit')), findsNothing);
+      expect(switchOn(tester), isFalse);
 
       // Entering asks first and names every consequence.
-      await tap(tester, const ValueKey('service-mode-enter'));
+      await tap(tester, const ValueKey('service-mode-switch'));
       noOverflow(tester);
       expect(find.text(l.serviceModeEnterTitle), findsOneWidget);
       for (final text in [
@@ -128,7 +134,7 @@ void main() {
       await frames(tester);
       expect(c.serviceModeOf('two'), isNull);
 
-      await tap(tester, const ValueKey('service-mode-enter'));
+      await tap(tester, const ValueKey('service-mode-switch'));
       await tap(tester, const ValueKey('service-mode-enter-confirm'));
       await until(tester, c, () => c.serviceModeOf('two') != null);
       noOverflow(tester);
@@ -142,8 +148,7 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.widgetWithText(StatusChip, l.serviceModeTitle), findsOne);
-      expect(find.byKey(const ValueKey('service-mode-enter')), findsNothing);
+      expect(switchOn(tester), isTrue);
 
       // A client added meanwhile is counted for the way back.
       await tester.runAsync(() async {
@@ -152,7 +157,7 @@ void main() {
       });
       await frames(tester);
       expect(c.serviceModeExitNewClients('two'), 1);
-      await tap(tester, const ValueKey('service-mode-exit'));
+      await tap(tester, const ValueKey('service-mode-switch'));
       noOverflow(tester);
       expect(find.text(l.serviceModeExitTitle), findsOneWidget);
       expect(find.text(l.serviceModeExitClients(1)), findsOneWidget);
@@ -175,10 +180,9 @@ void main() {
         find.text(vpnMessage(l, c.serviceModeExitIssue('two')!)),
         findsOneWidget,
       );
-      expect(
-        find.widgetWithText(StatusChip, l.serviceModeReturningBadge),
-        findsOne,
-      );
+      expect(find.text(l.serviceModeReturningBadge), findsOne);
+      expect(switchOn(tester), isTrue);
+      expect(switchEnabled(tester), isFalse);
       expect(
         find.byKey(const ValueKey('service-mode-cancel-exit')),
         findsOneWidget,
@@ -192,11 +196,11 @@ void main() {
         () => c.serviceModeOf('two')?.state == ServerServiceState.active,
       );
       noOverflow(tester);
-      expect(find.byKey(const ValueKey('service-mode-exit')), findsOneWidget);
+      expect(switchEnabled(tester), isTrue);
 
       // Reachable again: the exit runs to the end and the section is off.
       remotes['two'] = two;
-      await tap(tester, const ValueKey('service-mode-exit'));
+      await tap(tester, const ValueKey('service-mode-switch'));
       await tap(tester, const ValueKey('service-mode-exit-confirm'));
       await until(tester, c, () => c.serviceModeOf('two') == null);
       noOverflow(tester);
@@ -213,7 +217,7 @@ void main() {
         app(section(c, relay: true), locale: locale, scale: scale),
       );
       await frames(tester);
-      await tap(tester, const ValueKey('service-mode-enter'));
+      await tap(tester, const ValueKey('service-mode-switch'));
       noOverflow(tester);
       expect(find.byKey(const ValueKey('service-mode-egress')), findsOneWidget);
       expect(find.text(l.serviceModeEnterEgress), findsOneWidget);
@@ -303,8 +307,8 @@ void main() {
     addTearDown(() => c.busy = false);
     await tester.pumpWidget(app(section(c), locale: 'en', scale: 1));
     await frames(tester);
-    final button = find.byKey(const ValueKey('service-mode-enter'));
-    expect(tester.widget<ButtonStyleButton>(button).onPressed, isNull);
+    final button = find.byKey(const ValueKey('service-mode-switch'));
+    expect(switchEnabled(tester), isFalse);
     final l = lookupAppLocalizations(const Locale('en'));
     expect(
       find.ancestor(of: button, matching: find.byType(Tooltip)),
@@ -355,7 +359,7 @@ void main() {
     await frames(tester);
     noOverflow(tester);
     expect(find.byKey(const ValueKey('service-mode-section')), findsOneWidget);
-    expect(find.byKey(const ValueKey('service-mode-exit')), findsOneWidget);
+    expect(switchOn(tester), isTrue);
     await tester.pumpWidget(const SizedBox());
     session.dispose();
     session.network.dispose();

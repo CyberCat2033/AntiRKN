@@ -148,68 +148,73 @@ class ServerServiceModeSection extends StatelessWidget {
           ready ? () => action(context) : null;
       Widget guarded(Widget child) =>
           AppDisabledReason(reason: reason, child: child);
+      final state = switch (mode?.state) {
+        null => l.serviceModeOff,
+        ServerServiceState.returning => l.serviceModeReturningBadge,
+        ServerServiceState.active => l.serviceModeSince(
+          DateFormat.yMd(l.localeName).add_Hm().format(mode!.since.toLocal()),
+        ),
+      };
+      Widget notice(Widget child) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        child: child,
+      );
       return AppSettingsSection(
         key: const ValueKey('service-mode-section'),
         title: l.serviceModeTitle,
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: AppAnimatedSize(
-            motion: motion,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  l.serviceModeHelp,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
+        child: AppAnimatedSize(
+          motion: motion,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // On and off both ask first; the way back runs on its own
+              // and is cancelled below, not with the switch.
+              guarded(
+                SwitchListTile(
+                  key: const ValueKey('service-mode-switch'),
+                  secondary: const Icon(Icons.construction_outlined),
+                  title: Text(state, key: const ValueKey('service-mode-state')),
+                  subtitle: Text(l.serviceModeHelp),
+                  isThreeLine: true,
+                  value: mode != null,
+                  onChanged: !ready || returning
+                      ? null
+                      : (on) => on ? _enter(context) : _exit(context),
                 ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    if (mode != null) ServiceModeBadge(mode: mode),
-                    Text(
-                      key: const ValueKey('service-mode-state'),
-                      mode == null
-                          ? l.serviceModeOff
-                          : l.serviceModeSince(
-                              DateFormat.yMd(
-                                l.localeName,
-                              ).add_Hm().format(mode.since.toLocal()),
+              ),
+              if (returning && !elsewhere)
+                notice(
+                  issue == null
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              l.serviceModeReturning,
+                              style: theme.textTheme.bodyMedium,
                             ),
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                  ],
-                ),
-                if (returning && !elsewhere) ...[
-                  const SizedBox(height: 12),
-                  if (issue == null) ...[
-                    Text(l.serviceModeReturning),
-                    const SizedBox(height: 8),
-                    const LinearProgressIndicator(
-                      key: ValueKey('service-mode-progress'),
-                    ),
-                  ] else
-                    AppNotice(
-                      key: const ValueKey('service-mode-issue'),
-                      title: l.serviceModeReturnStalled,
-                      message: vpnMessage(l, issue),
-                      error: true,
-                      margin: EdgeInsets.zero,
-                      action: guarded(
-                        TextButton(
-                          key: const ValueKey('service-mode-retry'),
-                          onPressed: when(_retryExit),
-                          child: Text(l.serviceModeRetry),
+                            const SizedBox(height: 8),
+                            const LinearProgressIndicator(
+                              key: ValueKey('service-mode-progress'),
+                            ),
+                          ],
+                        )
+                      : AppNotice(
+                          key: const ValueKey('service-mode-issue'),
+                          title: l.serviceModeReturnStalled,
+                          message: vpnMessage(l, issue),
+                          error: true,
+                          margin: EdgeInsets.zero,
+                          action: guarded(
+                            TextButton(
+                              key: const ValueKey('service-mode-retry'),
+                              onPressed: when(_retryExit),
+                              child: Text(l.serviceModeRetry),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                ],
-                if (elsewhere) ...[
-                  const SizedBox(height: 12),
+                ),
+              if (elsewhere)
+                notice(
                   AppNotice(
                     key: const ValueKey('service-mode-elsewhere'),
                     icon: Icons.devices_other_outlined,
@@ -223,9 +228,9 @@ class ServerServiceModeSection extends StatelessWidget {
                       ),
                     ),
                   ),
-                ],
-                if (waiting > 0 || accessIssue != null) ...[
-                  const SizedBox(height: 12),
+                ),
+              if (waiting > 0 || accessIssue != null)
+                notice(
                   AppNotice(
                     key: const ValueKey('service-access-waiting'),
                     icon: Icons.pending_actions,
@@ -245,42 +250,21 @@ class ServerServiceModeSection extends StatelessWidget {
                       ),
                     ),
                   ),
-                ],
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    if (mode == null)
-                      guarded(
-                        FilledButton.tonalIcon(
-                          key: const ValueKey('service-mode-enter'),
-                          onPressed: when(_enter),
-                          icon: const Icon(Icons.construction_outlined),
-                          label: Text(l.serviceModeEnter),
-                        ),
-                      )
-                    else if (!returning)
-                      guarded(
-                        FilledButton.tonalIcon(
-                          key: const ValueKey('service-mode-exit'),
-                          onPressed: when(_exit),
-                          icon: const Icon(Icons.task_alt),
-                          label: Text(l.serviceModeExit),
-                        ),
-                      )
-                    else
-                      guarded(
-                        OutlinedButton(
-                          key: const ValueKey('service-mode-cancel-exit'),
-                          onPressed: when(_cancelExit),
-                          child: Text(l.serviceModeCancelExit),
-                        ),
-                      ),
-                  ],
                 ),
-              ],
-            ),
+              if (returning)
+                notice(
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: guarded(
+                      OutlinedButton(
+                        key: const ValueKey('service-mode-cancel-exit'),
+                        onPressed: when(_cancelExit),
+                        child: Text(l.serviceModeCancelExit),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       );
