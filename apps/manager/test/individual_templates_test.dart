@@ -9,7 +9,6 @@ import 'package:antirkn_manager/vpn/users_page.dart';
 import 'package:antirkn_manager/vpn/vpn_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'core_config_check_test.dart' as core;
 import 'awg_test.dart' as awg;
 import 'tt_test.dart' as tt;
 
@@ -310,13 +309,7 @@ void main() {
       final store = f.MemoryVpn();
       final remotes = {'one': f.Remote(store), 'two': f.Remote(store)};
       var shared = f.template;
-      final validator = core.Validator();
-      final c = f.controller(
-        store,
-        remotes,
-        source: () => shared,
-        coreValidator: validator,
-      );
+      final c = f.controller(store, remotes, source: () => shared);
       addTearDown(c.dispose);
       await f.setup(c);
       await c.prepareAndApply();
@@ -360,9 +353,6 @@ void main() {
       );
       expect(sync.usedSavedVerification, isTrue);
       expect(remotes.values.every((r) => r.actions.isEmpty), isTrue);
-      await c.validateCoreProfile(f.alice);
-      expect(validator.yaml, contains('alice.example'));
-      expect(validator.yaml, c.results[f.alice]!.yaml);
 
       final individualHash = c.results[f.alice]!.sha256Hash;
       shared = customTemplate('shared.example');

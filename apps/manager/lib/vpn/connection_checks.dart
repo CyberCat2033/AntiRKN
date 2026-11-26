@@ -554,18 +554,13 @@ class ConnectionChecks extends ChangeNotifier {
         !foreground ||
         engine == null ||
         !owner.loaded ||
-        owner.coreValidationBusy ||
         owner.busy) {
       return;
     }
     _scheduled = true;
     scheduleMicrotask(() async {
       _scheduled = false;
-      if (_disposed ||
-          busy ||
-          !foreground ||
-          owner.busy ||
-          owner.coreValidationBusy) {
+      if (_disposed || busy || !foreground || owner.busy) {
         return;
       }
       final missing = _pending
@@ -593,8 +588,7 @@ class ConnectionChecks extends ChangeNotifier {
         !_ready(key) ||
         _activeTargets.contains(key) ||
         (!fromQueue && (_queue || busy)) ||
-        owner.busy ||
-        owner.coreValidationBusy) {
+        owner.busy) {
       return null;
     }
     final token = CancellationToken();

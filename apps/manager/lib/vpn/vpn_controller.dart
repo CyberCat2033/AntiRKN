@@ -160,67 +160,6 @@ Future<VpnWorkspace> _decodeWorkspace(String source) =>
     ? Future.value(VpnWorkspace.decode(source))
     : Isolate.run(() => VpnWorkspace.decode(source));
 
-ProfileResult _compile(
-  (VpnWorkspace, String, String, Map<String, String>) input,
-) {
-  final workspace = input.$1;
-  try {
-    final pending = <ProfileAccessException>[];
-    final accesses = [
-      ...vlessUserAccesses(
-        workspace,
-        input.$3,
-        serverNames: input.$4,
-        onPending: pending.add,
-      ),
-      ...awgUserAccesses(
-        workspace,
-        input.$3,
-        serverNames: input.$4,
-        onPending: pending.add,
-      ),
-      ...ttUserAccesses(
-        workspace,
-        input.$3,
-        serverNames: input.$4,
-        onPending: pending.add,
-      ),
-    ];
-    if (pending.isNotEmpty) {
-      return ProfileResult(
-        groups: [],
-        diagnostics: [
-          for (final issue in pending)
-            ProfileDiagnostic(
-              issue.code,
-              DiagnosticSeverity.error,
-              subject: issue.subject,
-            ),
-        ],
-      );
-    }
-    return const ProfileCompiler().compile(
-      template: workspace.users
-          .singleWhere((user) => user.id == input.$3)
-          .profileTemplate(input.$2),
-      userId: input.$3,
-      accesses: accesses,
-    );
-  } on ProfileAccessException catch (e) {
-    return ProfileResult(
-      groups: [],
-      diagnostics: [
-        ProfileDiagnostic(e.code, DiagnosticSeverity.error, subject: e.subject),
-      ],
-    );
-  } on FormatException catch (e) {
-    return ProfileResult(
-      groups: [],
-      diagnostics: [ProfileDiagnostic(e.message, DiagnosticSeverity.error)],
-    );
-  }
-}
-
 Map<String, ProfileResult> _compileBatch(
   (VpnWorkspace, String, List<String>, Map<String, String>) input,
 ) {
@@ -342,7 +281,6 @@ class VpnController extends ChangeNotifier {
     this.connectForAction,
     this.remoteIssue,
     this.recovery,
-    this.coreValidator,
     ConnectionProbeEngine? connectionProbe,
     SettingsStore? probeStore,
     this.enterConnectionTraffic,
@@ -371,7 +309,6 @@ class VpnController extends ChangeNotifier {
   final Future<bool> Function()? enterConnectionTraffic;
   final Future<void> Function()? leaveConnectionTraffic;
   final VpnRepository repository;
-  final CoreConfigValidator? coreValidator;
   final WorkspaceRecoveryStore? recovery;
   Set<String> _restoredTargets = {};
   bool needsRestoreReview(String id) => _restoredTargets.contains(id);
@@ -488,95 +425,6 @@ class VpnController extends ChangeNotifier {
   int revision = 0;
   List<VpnPlan> plans = [];
   final results = <String, ProfileResult>{};
-  final _coreChecks = <String, CoreConfigCheck>{};
-  CancellationToken? _coreCancellation;
-  String? coreCheckingUser;
-  bool get coreValidationBusy => _coreCancellation != null;
-
-  CoreConfigCheck? coreCheckFor(String userId) {
-    final check = _coreChecks[userId];
-    if (check == null ||
-        check.profileHash != results[userId]?.sha256Hash ||
-        _lastTemplate != template()) {
-      return null;
-    }
-    final user = workspace.userById(userId);
-    if (user == null || user.deleted || !user.enabled) {
-      return null;
-    }
-    if (check.status != CoreConfigStatus.invalid &&
-        DateTime.now().difference(check.checkedAt) >
-            const Duration(minutes: 5)) {
-      return null;
-    }
-    return check;
-  }
-
-  void cancelCoreValidation() => _coreCancellation?.cancel();
-
-  Future<void> validateCoreProfile(String userId) async {
-    if (coreValidationBusy || busy || !loaded) return;
-    final token = CancellationToken();
-    _coreCancellation = token;
-    coreCheckingUser = userId;
-    notifyListeners();
-    try {
-      // Compile a fresh snapshot without writing profile history or publishing.
-      final source = template();
-      // The workspace is immutable: the same instance means the same input.
-      final snapshot = workspace;
-      final compiled = await compute(_compile, (
-        _compileInput(snapshot),
-        source,
-        userId,
-        profileServerNames,
-      ));
-      if (_disposed || token.isCancelled) return;
-      final yaml = compiled.yaml, hash = compiled.sha256Hash;
-      if (yaml == null || hash == null || compiled.hasBlockingErrors) {
-        throw const FormatException('core_profile_unavailable');
-      }
-      final check = coreValidator == null
-          ? CoreConfigCheck(
-              status: CoreConfigStatus.unavailable,
-              code: 'runtime_unavailable',
-              profileHash: hash,
-              checkedAt: DateTime.now().toUtc(),
-            )
-          : await coreValidator!.validate(yaml, token);
-      if (!_disposed &&
-          source == template() &&
-          identical(snapshot, workspace) &&
-          results[userId]?.sha256Hash == hash &&
-          check.profileHash == hash) {
-        _coreChecks[userId] = check;
-      }
-    } catch (e) {
-      // No YAML, native errors or credentials are exposed by the controller:
-      // only the error type is logged and the person sees "unavailable".
-      debugPrint('core_validation_failed type=${e.runtimeType}');
-      final hash = results[userId]?.sha256Hash;
-      final previous = _coreChecks[userId];
-      // An inconclusive retry never hides a known "invalid" verdict for the
-      // same profile: publication relies on it.
-      final keepsInvalid =
-          previous?.status == CoreConfigStatus.invalid &&
-          previous?.profileHash == hash;
-      if (!_disposed && !token.isCancelled && hash != null && !keepsInvalid) {
-        _coreChecks[userId] = CoreConfigCheck(
-          status: CoreConfigStatus.unavailable,
-          code: 'validation_failed',
-          profileHash: hash,
-          checkedAt: DateTime.now().toUtc(),
-        );
-      }
-    } finally {
-      _coreCancellation = null;
-      coreCheckingUser = null;
-      if (!_disposed) notifyListeners();
-    }
-  }
-
   String? selectedUserId;
   String? _lastTemplate;
   void _notify() {
@@ -2772,8 +2620,7 @@ class VpnController extends ChangeNotifier {
           result.hasBlockingErrors ||
           result.yaml == null ||
           result.sha256Hash == null ||
-          workspace.profiles[user.id]?['hash'] != result.sha256Hash ||
-          coreCheckFor(user.id)?.status == CoreConfigStatus.invalid) {
+          workspace.profiles[user.id]?['hash'] != result.sha256Hash) {
         return false;
       }
     }
@@ -3121,7 +2968,6 @@ class VpnController extends ChangeNotifier {
     }
     _boundRunners.clear();
     connections.dispose();
-    _coreCancellation?.cancel();
     _identityNoticeTimer?.cancel();
     _disposed = true;
     _timer?.cancel();

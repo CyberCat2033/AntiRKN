@@ -227,7 +227,6 @@ class InstrumentedVpnController extends VpnController {
     required super.template,
     required super.remote,
     super.serverName,
-    super.coreValidator,
     super.recovery,
     super.connectForAction,
     super.connectForDeletion,

@@ -7,7 +7,6 @@ import '../publication/publication_panel.dart';
 import '../publication/profile_link_qr.dart';
 import 'vpn_controller.dart';
 import 'vpn_strings.dart';
-import 'core_config_check.dart';
 
 class ProfileShareSheet extends StatefulWidget {
   const ProfileShareSheet({
@@ -260,15 +259,15 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                       ),
                     ),
                 ],
+                // Base-config warnings belong to the base config: the sheet
+                // only shows what blocks this client's profile.
                 if (result != null)
-                  for (final d in result.diagnostics)
+                  for (final d in result.diagnostics.where(
+                    (d) => d.severity == DiagnosticSeverity.error,
+                  ))
                     Card.filled(
                       child: ListTile(
-                        leading: Icon(
-                          d.severity == DiagnosticSeverity.error
-                              ? Icons.error_outline
-                              : Icons.warning_amber_outlined,
-                        ),
+                        leading: const Icon(Icons.error_outline),
                         title: Text(d.subject ?? vpnMessage(l, d.code)),
                         subtitle: d.subject == null
                             ? null
@@ -309,9 +308,6 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                   ),
                 ],
                 const SizedBox(height: 20),
-                if (usable)
-                  CoreConfigCheckAction(controller: c, userId: widget.user.id),
-                const SizedBox(height: 12),
                 if (usable)
                   Card.filled(
                     child: Column(

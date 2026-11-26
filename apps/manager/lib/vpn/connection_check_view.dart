@@ -105,7 +105,6 @@ class ConnectionCheckView extends StatelessWidget {
                           ? c.cancel
                           : c.busy ||
                                 controller.busy ||
-                                controller.coreValidationBusy ||
                                 c.queueRunning ||
                                 !available
                           ? null
@@ -195,7 +194,6 @@ class _ConnectionCheckAllState extends State<ConnectionCheckAll> {
               ? c.cancel
               : reading ||
                     widget.controller.busy ||
-                    widget.controller.coreValidationBusy ||
                     widget.targets.isEmpty && widget.readOthers == null
               ? null
               : () => _run(c),

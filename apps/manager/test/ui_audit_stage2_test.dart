@@ -257,7 +257,7 @@ class _CountingPublications extends pub.Repository {
 
 void main() {
   group('UI-26 workspace encode/decode off the main isolate', () {
-    test('300 clients with real YAML: load, rebuild and core check', () async {
+    test('300 clients with real YAML: load and rebuild', () async {
       final workspace = _bigWorkspace(300);
       final source = workspace.encode();
       final encodeClock = Stopwatch()..start();
@@ -278,14 +278,10 @@ void main() {
       await c.load();
       final loadStall = await _longestStallMs(c.load);
       final rebuildStall = await _longestStallMs(c.refreshProfiles);
-      final checkStall = await _longestStallMs(
-        () => c.validateCoreProfile(_hex32(1)),
-      );
       _metric(
         'UI-26 300 clients, ${(source.length / 1024 / 1024).toStringAsFixed(1)} MiB: '
         'sync encode=${encodeMs}ms decode=${decodeMs}ms; main-isolate stall '
-        'load=${loadStall}ms refreshProfiles=${rebuildStall}ms '
-        'validateCoreProfile=${checkStall}ms',
+        'load=${loadStall}ms refreshProfiles=${rebuildStall}ms',
       );
       expect(c.loaded, isTrue);
       expect(c.workspace.users, hasLength(300));
@@ -294,7 +290,6 @@ void main() {
       // long as one synchronous encode or decode of the same document takes.
       expect(loadStall, lessThan(decodeMs));
       expect(rebuildStall, lessThan(encodeMs));
-      expect(checkStall, lessThan(encodeMs));
     });
   });
 

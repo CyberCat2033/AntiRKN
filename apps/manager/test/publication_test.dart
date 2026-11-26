@@ -430,7 +430,6 @@ void main() {
     );
     remote.contents['registry-1'] = registryBytes;
     await c.reload();
-    await vpn.validateCoreProfile(user.id);
     expect(c.queues[user.id], isNull);
 
     vpn.serverSyncIssue = null;

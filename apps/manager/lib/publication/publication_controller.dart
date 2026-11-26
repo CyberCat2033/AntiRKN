@@ -431,8 +431,7 @@ class PublicationController extends ChangeNotifier {
             !user.deleted &&
             hash != null &&
             result?.sha256Hash == hash &&
-            result?.hasBlockingErrors == false &&
-            vpn.coreCheckFor(user.id)?.status != CoreConfigStatus.invalid) {
+            result?.hasBlockingErrors == false) {
           readyProfiles[user.id] = hash;
         }
       }
@@ -456,7 +455,6 @@ class PublicationController extends ChangeNotifier {
         user.enabled,
         vpn.workspace.profiles[user.id]?['hash'],
         vpn.results[user.id]?.hasBlockingErrors,
-        vpn.coreCheckFor(user.id)?.status == CoreConfigStatus.invalid,
       ],
     ];
     if (listEquals(stamp, _profileStamp)) return;
@@ -1028,12 +1026,6 @@ class PublicationController extends ChangeNotifier {
         user?.enabled != true ||
         savedProfileHashFor(draft.userId) != draft.hash ||
         vpn.results[draft.userId]?.hasBlockingErrors == true) {
-      return false;
-    }
-    // A retained profile from a failed current compilation is not evidence
-    // that the current desired accesses were verified on the servers.
-    if (vpn.results[draft.userId]?.sha256Hash == draft.hash &&
-        vpn.coreCheckFor(draft.userId)?.status == CoreConfigStatus.invalid) {
       return false;
     }
     return true;

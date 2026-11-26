@@ -579,7 +579,6 @@ class _ManagerShellState extends State<ManagerShell>
     if (widget.source.trim().isNotEmpty) _controller.refresh();
     if (widget.servers is VpnRepository) {
       _vpn = VpnController(
-        coreValidator: MihomoConfigValidator(),
         connectionProbe: ConnectionProbeEngine(
           core: MihomoOutboundProbe(),
           network: defaultTargetPlatform == TargetPlatform.android
@@ -811,7 +810,6 @@ class _ManagerShellState extends State<ManagerShell>
         state == AppLifecycleState.inactive &&
             defaultTargetPlatform == TargetPlatform.android) {
       _diagnostics.stop();
-      _vpn?.cancelCoreValidation();
       _vpn?.setForeground(false);
     }
     if (state == AppLifecycleState.resumed) {

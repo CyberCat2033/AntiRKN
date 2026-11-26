@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
+import 'package:antirkn_profile_compiler/antirkn_profile_compiler.dart';
 import 'package:antirkn_manager/l10n/app_localizations.dart';
 import 'package:antirkn_manager/ssh/server_detail_view.dart';
 import 'package:antirkn_manager/ssh/server_catalog.dart';
@@ -479,6 +480,52 @@ void main() {
         find.text('The server has not confirmed this resource yet.'),
         findsOneWidget,
       );
+      await tester.pumpWidget(const SizedBox.shrink());
+      c.dispose();
+    },
+  );
+
+  testWidgets(
+    'profile sheet shows only blocking issues, not base-config warnings',
+    (tester) async {
+      final c = vpn.controller(vpn.MemoryVpn(), {});
+      await tester.runAsync(() async {
+        await c.load();
+        await c.saveUser(VpnUser(id: vpn.alice, login: 'alice', name: 'Alice'));
+      });
+      Future<void> show(List<ProfileDiagnostic> diagnostics) async {
+        c.results[vpn.alice] = ProfileResult(
+          groups: const <GroupPreview>[],
+          diagnostics: diagnostics,
+        );
+        await tester.pumpWidget(
+          app(
+            ProfileShareSheet(
+              key: UniqueKey(),
+              controller: c,
+              user: c.workspace.users.single,
+              exporter: Export(),
+            ),
+          ),
+        );
+        await tester.pump();
+      }
+
+      await show(const [
+        ProfileDiagnostic(
+          'unsupported_rule_preview',
+          DiagnosticSeverity.warning,
+        ),
+      ]);
+      expect(
+        find.text('This rule type still requires core validation.'),
+        findsNothing,
+      );
+      expect(find.text('Check config'), findsNothing);
+      await show(const [
+        ProfileDiagnostic('invalid_yaml', DiagnosticSeverity.error),
+      ]);
+      expect(find.byIcon(Icons.error_outline), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
       c.dispose();
     },

@@ -130,8 +130,7 @@ class _ExternalConnectionCheckState extends State<ExternalConnectionCheck> {
                         c.busy ||
                         widget.controller.busy ||
                         widget.runner.busy ||
-                        widget.runner.actionPending ||
-                        widget.controller.coreValidationBusy
+                        widget.runner.actionPending
                   ? null
                   : () async {
                       setState(() {

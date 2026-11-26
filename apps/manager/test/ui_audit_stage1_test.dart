@@ -806,34 +806,6 @@ void main() {
     expect(c.workspace.userById(f.alice)!.enabled, isTrue);
   });
 
-  test('UI-21 a failing core check records "unavailable"', () async {
-    final c = f.controller(
-      f.MemoryVpn(),
-      {},
-      coreValidator: _ThrowingValidator(),
-    );
-    addTearDown(c.dispose);
-    await c.load();
-    await c.saveUser(VpnUser(id: f.alice, login: 'alice', name: 'Alice'));
-    await c.validateCoreProfile(f.alice);
-    final check = c.coreCheckFor(f.alice);
-    expect(check?.status, CoreConfigStatus.unavailable);
-    expect(check?.code, 'validation_failed');
-  });
-
-  test('UI-21 an inconclusive retry keeps an "invalid" core verdict', () async {
-    final validator = _ScriptedValidator();
-    final c = f.controller(f.MemoryVpn(), {}, coreValidator: validator);
-    addTearDown(c.dispose);
-    await c.load();
-    await c.saveUser(VpnUser(id: f.alice, login: 'alice', name: 'Alice'));
-    await c.validateCoreProfile(f.alice);
-    expect(c.coreCheckFor(f.alice)?.status, CoreConfigStatus.invalid);
-    validator.fail = true;
-    await c.validateCoreProfile(f.alice);
-    expect(c.coreCheckFor(f.alice)?.status, CoreConfigStatus.invalid);
-  });
-
   testWidgets('UI-24 settings pages follow destination ids', (tester) async {
     final hub = GlobalKey<SettingsHubState>();
     SettingsDestination page(String id) => SettingsDestination(
@@ -925,26 +897,6 @@ class _GatedJournal extends MemoryRunnerJournal {
   Future<String?> readRunnerJournal(String id) async {
     await gate?.future;
     return super.readRunnerJournal(id);
-  }
-}
-
-class _ThrowingValidator implements CoreConfigValidator {
-  @override
-  Future<CoreConfigCheck> validate(String yaml, CancellationToken token) =>
-      Future.error(StateError('native'));
-}
-
-class _ScriptedValidator implements CoreConfigValidator {
-  bool fail = false;
-  @override
-  Future<CoreConfigCheck> validate(String yaml, CancellationToken token) async {
-    if (fail) throw StateError('native');
-    return CoreConfigCheck(
-      status: CoreConfigStatus.invalid,
-      code: 'core_rejected',
-      profileHash: sha256.convert(utf8.encode(yaml)).toString(),
-      checkedAt: DateTime.now().toUtc(),
-    );
   }
 }
 

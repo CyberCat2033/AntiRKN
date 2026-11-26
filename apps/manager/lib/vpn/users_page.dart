@@ -14,7 +14,6 @@ import 'server_operations_banner.dart';
 import 'vpn_controller.dart';
 import 'vpn_plan_view.dart';
 import 'vpn_strings.dart';
-import 'core_config_check.dart';
 import '../template_controller.dart';
 import '../template_settings.dart';
 
@@ -883,8 +882,6 @@ class UserTile extends StatelessWidget {
                       error: true,
                       margin: const EdgeInsets.only(top: 8),
                     ),
-                  if (!selection.active)
-                    CoreConfigCheckAction(controller: c, userId: user.id),
                 ],
               ),
               onTap: !c.canMutate

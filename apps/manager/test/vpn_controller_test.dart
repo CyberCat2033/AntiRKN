@@ -204,12 +204,10 @@ VpnController controller(
   Map<String, Remote> remotes, {
   String Function()? source,
   WorkspaceRecoveryStore? recovery,
-  CoreConfigValidator? coreValidator,
   Future<bool?> Function(String serverId)? connectForDeletion,
   String? Function(String target)? remoteIssue,
 }) => VpnController(
   repository: store,
-  coreValidator: coreValidator,
   recovery: recovery,
   connectForDeletion: connectForDeletion,
   remoteIssue: remoteIssue,

@@ -10,7 +10,6 @@ import 'package:antirkn_manager/network/network_controller.dart';
 import 'package:antirkn_manager/publication/profile_link_qr.dart';
 import 'package:antirkn_manager/ssh/server_catalog.dart';
 import 'package:antirkn_manager/ssh/server_catalog_controller.dart';
-import 'package:antirkn_manager/vpn/core_config_check.dart';
 import 'package:antirkn_manager/vpn/inbounds_panel.dart';
 import 'package:antirkn_manager/vpn/users_page.dart';
 import 'package:antirkn_manager/vpn/vpn_controller.dart';
@@ -342,10 +341,16 @@ void main() {
 
       // The client list is lazy (UI-31): only the rows in view are built,
       // not all 50.
-      final initialChecks = tester.widgetList(
-        find.byType(CoreConfigCheckAction),
+      final initialRows = tester.widgetList(
+        find.byWidgetPredicate(
+          (w) =>
+              w.key is ValueKey<String> &&
+              RegExp(
+                r'^client-(?!avatar-|toggle-|qr-)',
+              ).hasMatch((w.key! as ValueKey<String>).value),
+        ),
       );
-      expect(initialChecks.length, inInclusiveRange(1, 49));
+      expect(initialRows.length, inInclusiveRange(1, 49));
 
       // Toggling one single user's state
       final sw = Stopwatch()..start();
