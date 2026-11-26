@@ -184,6 +184,18 @@ class NativeVlessProbeTests(unittest.TestCase):
     submit = vless_fixture.VlessTests.submit
     finish = vless_fixture.VlessTests.finish
     job = vless_fixture.VlessTests.job
+    def test_native_vless_probe_accepts_list_fields_absent_from_readback(self):
+        # 3x-ui 3.11 lists inbounds with fields /get/:id lacks; the saved
+        # readback must still prove ownership, as for a VLESS apply.
+        probe_api(self.api)
+        p=vless_fixture.payload();p['resources']=p['resources'][:1]
+        self.assertEqual(self.finish(self.submit(p))['status'],'succeeded')
+        self.api.extra_list_field=True
+        req=dict(version=1,action='probe_begin',id='e'*32,payload=json.dumps(dict(protocol='vless',resource=p['resources'][0]['id'],workspace=p['workspaceId'],spec=p['resources'][0])))
+        with patch.object(probe,'arm'),patch.object(probe,'retire'):
+            self.assertEqual(self.store.request(req)['code'],'ok')
+            probe.end(self.store,req['id'])
+
     def test_native_vless_preserves_existing_and_concurrent_clients(self):
         probe_api(self.api)
         p=vless_fixture.payload();p['resources']=p['resources'][:1]

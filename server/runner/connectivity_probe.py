@@ -234,7 +234,9 @@ def prepare(store, request):
         api = vless.panel_for(store, saved['panelId'])
         rows = api.call('/panel/api/inbounds/list')
         row = vless.locate(rows, saved['workspaceId'], spec['id'])
-        if not row or vless.digest(vless.normal(row)) != saved['observedHash']:
+        # The same ownership check as a VLESS apply: the saved readback came
+        # from /get/:id, and the list of a newer panel (3.11) adds fields.
+        if not vless.matches_observation(api, row, saved['workspaceId'], spec['id'], saved['observedHash']):
             raise ProbeError('probe_changed')
         flow = 'xtls-rprx-vision' if spec['transport'] == 'raw' else ''
         client = dict(id=str(uuid.uuid4()), email='ar_probe_' + key, enable=True, flow=flow,
