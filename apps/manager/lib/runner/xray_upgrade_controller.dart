@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:antirkn_domain/antirkn_domain.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import '../vpn/adopt_resource.dart';
 import '../vpn/connection_checks.dart';
@@ -18,6 +19,13 @@ class XrayComparison {
 
 /// Only this explicit device action can submit or commit an upgrade. Reopening
 /// the view merely observes the server's durable transaction and watchdog.
+/// The device network as the server stores it: a fixed-size digest. The raw
+/// identity (all addresses and route tables) is tens of KiB on a desktop and
+/// the runner accepts at most 1024 characters (xray_check_invalid).
+@visibleForTesting
+String networkTag(String identity) =>
+    sha256.convert(utf8.encode(identity)).toString();
+
 class XrayUpgradeController extends ChangeNotifier {
   XrayUpgradeController({
     required this.runner,
@@ -362,7 +370,7 @@ class XrayUpgradeController extends ChangeNotifier {
           'panelId': panelId,
           'fingerprint': plan!['fingerprint'],
           'leases': leases,
-          'network': network,
+          'network': networkTag(network),
           'core': revision,
           'candidate': ?candidate,
           'baseline': [
@@ -403,7 +411,7 @@ class XrayUpgradeController extends ChangeNotifier {
         operation = await rpc('xray_check_commit', id!, token, {
           'nonce': nonce,
           'manifest': manifest,
-          'network': network,
+          'network': networkTag(network),
           'checks': checks,
         });
         if (operation!['phase'] != 'committed') {
@@ -457,8 +465,14 @@ class XrayUpgradeController extends ChangeNotifier {
               changed();
             }
           }
-        } catch (_) {
-          phase = 'recovery_pending';
+        } catch (error) {
+          // xray_check_missing: the server never recorded this run (begin was
+          // refused), the core was not touched and there is nothing to
+          // recover.
+          phase =
+              error is FormatException && error.message == 'xray_check_missing'
+              ? 'not_changed'
+              : 'recovery_pending';
         } finally {
           limit.cancel();
         }

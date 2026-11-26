@@ -81,9 +81,9 @@ class RunnerPanel extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if ((c.busy || c.actionPending) &&
-                !c.actionShowsOwnProgress &&
-                !active)
+            // Background reads (refresh, polling) show no page-wide bar;
+            // only an action the user started does.
+            if (c.actionPending && !c.actionShowsOwnProgress && !active)
               const LinearProgressIndicator(),
             if (c.error case final issue?)
               Semantics(

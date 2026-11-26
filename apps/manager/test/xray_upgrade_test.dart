@@ -26,6 +26,9 @@ class UpgradeRemote extends f.Remote {
 
   /// The server rolled back on its own after the restart (e.g. 3x-ui API).
   String? serverFailure;
+
+  /// The runner refuses begin with this code and records nothing.
+  String? beginRefusal;
   String currentVersion = '26.7.28';
   String candidateVersion = '26.9.9';
   String? operationId;
@@ -103,6 +106,16 @@ class UpgradeRemote extends f.Remote {
         'connectionProbe': {'closed': true, 'stable': true},
       });
     } else if (a == 'xray_check_begin') {
+      final network = (jsonDecode(r['payload'] as String) as Map)['network'];
+      // xray_transaction.begin: an opaque network string of 1..1024 chars.
+      final refusal =
+          beginRefusal ??
+          (network is! String || network.isEmpty || network.length > 1024
+              ? 'xray_check_invalid'
+              : null);
+      if (refusal != null) {
+        return RunnerResponse.fromJson({...response(), 'code': refusal});
+      }
       operationId = id;
       begun = jsonDecode(r['payload'] as String) as Map;
       phase = serverFailure == null ? 'awaiting_checks' : 'rolled_back';
@@ -121,6 +134,12 @@ class UpgradeRemote extends f.Remote {
       if (loseCommit) throw const SshFailure(SshIssue.disconnected);
       value = {'id': id, 'phase': phase, 'code': phase};
     } else if (a == 'xray_check_status' || a == 'xray_check_latest') {
+      if (a == 'xray_check_status' && operationId != id) {
+        return RunnerResponse.fromJson({
+          ...response(),
+          'code': 'xray_check_missing',
+        });
+      }
       value = {
         'id': operationId ?? id,
         'phase': phase,
@@ -342,6 +361,22 @@ void main() {
       expect(upgrade.phase, 'committed');
     },
   );
+  test('a desktop network identity of any size is accepted', () async {
+    // The raw identity carries every address and route table; the runner
+    // takes at most 1024 characters (xray_check_invalid, 2026-11-26).
+    await setup(network: _LongNet());
+    await upgrade.run();
+    expect(upgrade.phase, 'committed');
+    expect((remote.begun!['network'] as String).length, 64);
+  });
+  test('a refused begin ends unchanged, not waiting for recovery', () async {
+    await setup();
+    remote.beginRefusal = 'xray_check_busy';
+    await upgrade.run();
+    expect(upgrade.phase, 'not_changed');
+    expect(upgrade.code, 'xray_check_busy');
+    expect(remote.calls, isNot(contains('xray_check_abort')));
+  });
   test('incomplete baseline never submits replacement', () async {
     await setup();
     core.failBaseline = true;
@@ -726,4 +761,10 @@ class _VpnNet extends n.Net {
     directInterface: 'eth0',
     directSource: '192.0.2.9',
   );
+}
+
+class _LongNet extends n.Net {
+  @override
+  Future<ProbeNetwork> network() async =>
+      ProbeNetwork('eth0:192.0.2.9|${'route' * 2000}', 'system');
 }
