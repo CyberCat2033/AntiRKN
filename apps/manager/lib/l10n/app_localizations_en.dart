@@ -1576,6 +1576,25 @@ class AppLocalizationsEn extends AppLocalizations {
       'Connect to the server to load the panel and inbounds. Client management requires access to the panel API.';
 
   @override
+  String get vpnRunnerNotReady =>
+      'The server service needs an update. Open this server to update it.';
+
+  @override
+  String get vpnPanelLogin => 'Sign in to 3x-ui on this server to continue.';
+
+  @override
+  String get vpnDeletionOtherDevice =>
+      'Another device is removing this client. Open the details to continue on this device.';
+
+  @override
+  String get vpnRestoreReview =>
+      'Restored from a backup. Open the details to continue.';
+
+  @override
+  String get vpnWaitingRemoval =>
+      'Waiting for the client removal to finish on this server.';
+
+  @override
   String get vpnStorage =>
       'Could not save the encrypted client database. Retry after resolving the storage error.';
 

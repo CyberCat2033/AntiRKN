@@ -715,4 +715,56 @@ void main() {
       }
     }
   });
+
+  test(
+    'a connected server that cannot run VPN work names the blocker',
+    () async {
+      final store = f.MemoryVpn();
+      var issue = 'vpn_panel_login';
+      final c = f.controller(
+        store,
+        {},
+        connectForDeletion: (_) async => true,
+        remoteIssue: (_) => issue,
+      );
+      addTearDown(c.dispose);
+      await f.setup(c);
+
+      await c.deleteUser(user(c));
+      for (final target in (user(c).deletion!['targets'] as Map).values) {
+        expect(target['error'], 'vpn_panel_login');
+        expect(target['connectionAttempts'], 0);
+      }
+      expect(c.deletionBlocker, 'vpn_panel_login');
+
+      // A busy runner is transient: the named blocker stays.
+      issue = 'vpn_runner_busy';
+      await c.retryDeletion(f.alice);
+      expect(c.deletionBlocker, 'vpn_panel_login');
+
+      issue = 'vpn_runner_not_ready';
+      await c.retryDeletion(f.alice);
+      expect(c.deletionBlocker, 'vpn_runner_not_ready');
+    },
+  );
+
+  test('a removal owned by another device is named as such', () async {
+    final store = f.MemoryVpn();
+    final c = f.controller(store, {}, connectForDeletion: (_) async => false);
+    addTearDown(c.dispose);
+    await f.setup(c);
+    await c.deleteUser(user(c));
+    // The first controller has no device identity; this device has one.
+    final mine = VpnController(
+      repository: DeviceStore('d' * 32)
+        ..raw = store.raw
+        ..revision = store.revision,
+      template: () => f.template,
+      remote: (_) => null,
+      timer: (d, cb) => Timer(Duration.zero, () {}),
+    );
+    addTearDown(mine.dispose);
+    await mine.load();
+    expect(mine.deletionBlocker, 'vpn_deletion_other_device');
+  });
 }

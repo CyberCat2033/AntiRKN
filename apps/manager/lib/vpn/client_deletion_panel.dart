@@ -113,7 +113,10 @@ class ClientDeletionPanel extends StatelessWidget {
                           icon: Icons.person_remove_outlined,
                         ),
                         title: Text(l.uiDeletingClients(pending.length)),
-                        subtitle: Text(l.uiDeletingClientsHelp),
+                        subtitle: Text(switch (c.deletionBlocker) {
+                          final code? => vpnMessage(l, code),
+                          null => l.uiDeletingClientsHelp,
+                        }),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () => showAppDetails(
                           context,

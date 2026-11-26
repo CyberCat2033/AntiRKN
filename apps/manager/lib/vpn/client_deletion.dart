@@ -26,6 +26,21 @@ extension ClientDeletion on VpnController {
   Iterable<VpnUser> get visibleDeletions =>
       pendingDeletions.where((u) => u.deletion?['hidden'] != true);
 
+  /// The first reason a visible client removal cannot progress by itself on
+  /// this device, as a [vpnMessage] code; null while it simply runs.
+  String? get deletionBlocker {
+    for (final user in visibleDeletions) {
+      if (user.revocationSettled) continue;
+      if (!ownsDeletion(user)) return 'vpn_deletion_other_device';
+      for (final e in (user.deletion!['targets'] as Map).entries) {
+        if (vpnRevocationSettled(e.value)) continue;
+        if (_restoredTargets.contains(e.key)) return 'vpn_restore_review';
+        if ((e.value as Map)['error'] case final String error) return error;
+      }
+    }
+    return null;
+  }
+
   bool canForceDelete(VpnUser user) =>
       user.deleted &&
       !user.deletionComplete &&
@@ -94,6 +109,21 @@ extension ClientDeletion on VpnController {
           (deletion['targets'] as Map)[target.$2] as Map,
         );
         if (vpnRevocationSettled(record)) continue;
+        // A live SSH session is not enough: the runner must be current and,
+        // for VLESS, the panel login verified. Name what is missing instead
+        // of waiting silently; a busy runner is transient and not recorded.
+        final blocker = connected && remote(target.$2) == null
+            ? remoteIssue?.call(target.$2)
+            : null;
+        final error = !connected
+            ? 'vpn_connection'
+            : blocker == 'vpn_runner_busy'
+            ? record['error']
+            : blocker ??
+                  (record['error'] == 'vpn_connection' ||
+                          vpnRemoteIssues.contains(record['error'])
+                      ? null
+                      : record['error']);
         deletions[user.id] = {
           ...deletion,
           'targets': {
@@ -106,9 +136,7 @@ extension ClientDeletion on VpnController {
                             1)
                         .clamp(0, 3),
               'connectAfter': DateTime.now().millisecondsSinceEpoch + 5000,
-              if (!connected) 'error': 'vpn_connection',
-              if (connected && record['error'] == 'vpn_connection')
-                'error': null,
+              if (error != record['error']) 'error': error,
             },
           },
         };
@@ -416,6 +444,21 @@ extension ClientDeletion on VpnController {
                       await _record(target, {
                         ...server,
                         'pending': null,
+                        // Keep the drained job's real outcome, never the
+                        // queued snapshot nobody polls again.
+                        'job': old.code == 'missing'
+                            ? null
+                            : old.jobs.single
+                                  .mergeEvents(
+                                    server['job'] is Map
+                                        ? RunnerJob.fromJson(
+                                            Map<String, dynamic>.from(
+                                              server['job'] as Map,
+                                            ),
+                                          )
+                                        : null,
+                                  )
+                                  .toJson(),
                         'authorizedPayload': null,
                         'paused': true,
                         'cancelRequested': false,

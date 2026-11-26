@@ -2852,6 +2852,36 @@ abstract class AppLocalizations {
   /// **'Connect to the server to load the panel and inbounds. Client management requires access to the panel API.'**
   String get vpnPanelRequired;
 
+  /// No description provided for @vpnRunnerNotReady.
+  ///
+  /// In en, this message translates to:
+  /// **'The server service needs an update. Open this server to update it.'**
+  String get vpnRunnerNotReady;
+
+  /// No description provided for @vpnPanelLogin.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to 3x-ui on this server to continue.'**
+  String get vpnPanelLogin;
+
+  /// No description provided for @vpnDeletionOtherDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Another device is removing this client. Open the details to continue on this device.'**
+  String get vpnDeletionOtherDevice;
+
+  /// No description provided for @vpnRestoreReview.
+  ///
+  /// In en, this message translates to:
+  /// **'Restored from a backup. Open the details to continue.'**
+  String get vpnRestoreReview;
+
+  /// No description provided for @vpnWaitingRemoval.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the client removal to finish on this server.'**
+  String get vpnWaitingRemoval;
+
   /// No description provided for @vpnStorage.
   ///
   /// In en, this message translates to:

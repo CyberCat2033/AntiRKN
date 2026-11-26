@@ -1580,6 +1580,26 @@ class AppLocalizationsRu extends AppLocalizations {
       'Подключитесь к серверу для загрузки панели и inbounds. Для управления клиентами нужен доступ к API панели.';
 
   @override
+  String get vpnRunnerNotReady =>
+      'Служба на сервере требует обновления. Откройте сервер, чтобы обновить её.';
+
+  @override
+  String get vpnPanelLogin =>
+      'Войдите в 3x-ui на этом сервере, чтобы продолжить.';
+
+  @override
+  String get vpnDeletionOtherDevice =>
+      'Клиента удаляет другое устройство. Откройте подробности, чтобы продолжить на этом устройстве.';
+
+  @override
+  String get vpnRestoreReview =>
+      'Восстановлено из резервной копии. Откройте подробности, чтобы продолжить.';
+
+  @override
+  String get vpnWaitingRemoval =>
+      'Ожидает завершения удаления клиента на этом сервере.';
+
+  @override
   String get vpnStorage =>
       'Не удалось сохранить зашифрованную базу клиентов. Устраните ошибку хранилища и повторите.';
 

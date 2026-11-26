@@ -1124,7 +1124,11 @@ class _AttentionServersSection extends StatelessWidget {
                 leading: const AppIconTile(icon: Icons.pending_actions),
                 title: Text(serverName(vpnServerId(id))),
                 subtitle: Text(
-                  controller.workspace.servers[id]?['error'] != null
+                  // A client removal on this server holds every target, and
+                  // their own errors and jobs stay stale until it finishes.
+                  controller.hasPendingRevocation(vpnServerId(id))
+                      ? l.vpnWaitingRemoval
+                      : controller.workspace.servers[id]?['error'] != null
                       ? vpnMessage(
                           l,
                           controller.workspace.servers[id]!['error'] as String,

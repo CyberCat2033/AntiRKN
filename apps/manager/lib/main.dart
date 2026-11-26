@@ -28,6 +28,7 @@ import 'template_settings.dart';
 import 'appearance_settings.dart';
 import 'backup/backup_panel.dart';
 import 'runner/component_updates_controller.dart';
+import 'runner/runner_controller.dart';
 import 'runner/component_installation_view.dart';
 import 'l10n/app_localizations.dart';
 import 'language_controller.dart';
@@ -48,6 +49,24 @@ Future<void> main() async {
 
 /// The launch waits at most this long for the cloud before opening local data.
 const startupPullDeadline = Duration(seconds: 4);
+
+/// Why VPN work cannot use [target]'s server through [runner] right now, or
+/// null when it can. The single source for both the remote and its blocker.
+String? _vpnRemoteIssue(RunnerController? runner, String target) {
+  if (runner == null ||
+      runner.transport() == null ||
+      runner.identity() == null) {
+    return 'vpn_connection';
+  }
+  if (runner.busy) return 'vpn_runner_busy';
+  if (!runner.installed) return 'vpn_runner_not_ready';
+  if (!isAwgTarget(target) &&
+      !isTtTarget(target) &&
+      (runner.panelAccess == null || runner.panelVerifiedAt == null)) {
+    return 'vpn_panel_login';
+  }
+  return null;
+}
 
 class WorkspaceLauncher extends StatefulWidget {
   const WorkspaceLauncher({
@@ -593,24 +612,13 @@ class _ManagerShellState extends State<ManagerShell>
                   runner.pending == null,
             );
           }
-          final transport = runner?.transport();
-          final access = runner?.panelAccess;
-          final identity = runner?.identity();
-          if (runner == null ||
-              runner.busy ||
-              !runner.installed ||
-              transport == null ||
-              (!isAwgTarget(id) &&
-                  !isTtTarget(id) &&
-                  (access == null || runner.panelVerifiedAt == null)) ||
-              identity == null) {
-            return null;
-          }
+          if (_vpnRemoteIssue(runner, id) != null) return null;
+          final identity = runner!.identity()!;
           return VpnRemote(
-            transport: transport,
+            transport: runner.transport()!,
             panelId: (isAwgTarget(id) || isTtTarget(id))
                 ? _vpn!.workspace.id
-                : access!.id,
+                : runner.panelAccess!.id,
             observationKey:
                 '$identity|${runner.panelVerifiedAt?.toIso8601String()}|${identityHashCode(runner.installation)}',
             identity: identity,
@@ -618,6 +626,8 @@ class _ManagerShellState extends State<ManagerShell>
             onSshFailure: runner.accessFailure,
           );
         },
+        remoteIssue: (id) =>
+            _vpnRemoteIssue(_catalog?.sessionFor(vpnServerId(id))?.runner, id),
       );
       if (widget.settings case final settings? when _catalog != null) {
         final catalog = _catalog!, vpn = _vpn!;
