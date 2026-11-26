@@ -23,6 +23,29 @@ extension ClientDeletion on VpnController {
   );
   bool ownsDeletion(VpnUser user) => user.deletion?['executor'] == _deviceId;
 
+  /// Whether an unsettled revocation on [target] holds up work beyond its
+  /// own server. One on a server in service mode does not: it is retried on
+  /// its own whenever that server is reachable, while publication, the
+  /// Drive file and the other servers' plans go on. Work on the same
+  /// physical server still waits for it ([hasPendingRevocation]).
+  bool _revocationHoldsAll(String target, Object? record) =>
+      !vpnRevocationSettled(record) && !workspace.inServiceMode(target);
+
+  /// Pending revocations that are global barriers: at least one of their
+  /// unsettled targets is outside service mode.
+  Iterable<VpnUser> get _globalRevocations => pendingRevocations.where(
+    (u) => (u.deletion!['targets'] as Map).entries.any(
+      (e) => _revocationHoldsAll(e.key as String, e.value),
+    ),
+  );
+
+  /// Whether a server [record] shows the app has something there: a
+  /// readback with resources, a request sent or a payload applied.
+  bool _hasServerState(Map<String, dynamic> record) =>
+      (record['observed'] as List? ?? const []).isNotEmpty ||
+      record['pending'] != null ||
+      record['appliedPayload'] != null;
+
   Iterable<VpnUser> get visibleDeletions =>
       pendingDeletions.where((u) => u.deletion?['hidden'] != true);
 
@@ -72,9 +95,33 @@ extension ClientDeletion on VpnController {
       }
     }
     // Each physical server is contacted concurrently once per round, even with
-    // many clients and protocols.
+    // many clients and protocols. A server in service mode is connected in
+    // the background instead: it never delays the revocations of reachable
+    // servers or the removal of the published file. Its result is recorded
+    // by the next round; only a person's retry waits for it.
     final connectionResults = <String, bool?>{};
-    await _mapServersBounded(targets.keys.toList(), (serverId) async {
+    final awaited = <String>[];
+    for (final serverId in targets.keys) {
+      if (manual || !workspace.inServiceMode(serverId)) {
+        awaited.add(serverId);
+      } else if (_deletionConnected.containsKey(serverId)) {
+        connectionResults[serverId] = _deletionConnected.remove(serverId);
+      } else if (_deletionConnecting.add(serverId)) {
+        unawaited(() async {
+          bool? connected;
+          try {
+            connected = await connect(serverId);
+          } catch (_) {
+            connected = false;
+          }
+          _deletionConnecting.remove(serverId);
+          if (_disposed) return;
+          _deletionConnected[serverId] = connected;
+          _scheduleReconcile();
+        }());
+      }
+    }
+    await _mapServersBounded(awaited, (serverId) async {
       token.check();
       try {
         connectionResults[serverId] = await connect(serverId);
@@ -231,10 +278,7 @@ extension ClientDeletion on VpnController {
       final targets = {
         ...workspace.serverIds,
         for (final e in workspace.servers.entries)
-          if ((e.value['observed'] as List? ?? []).isNotEmpty ||
-              e.value['pending'] != null ||
-              e.value['appliedPayload'] != null)
-            e.key,
+          if (_hasServerState(e.value)) e.key,
       };
       final deleted = {
         for (final user in expected)
@@ -455,11 +499,11 @@ extension ClientDeletion on VpnController {
                       _stateRequest(target, r.panelId),
                       token,
                     );
-                    final payload = _revocationPayload(
+                    final payload = _observedPayload(
                       target,
                       r.panelId,
-                      original,
                       _observations(state, target),
+                      revoke: original,
                     );
                     final plan = await _request(
                       r,
@@ -694,8 +738,14 @@ extension ClientDeletion on VpnController {
 
       final user = workspace.users.singleWhere((u) => u.id == original.id);
       final file = user.deletion!['file'] as Map?;
+      // A revocation left only on servers in service mode does not hold the
+      // file: their resources are already out of every published profile,
+      // and the tombstone keeps those targets until they are revoked.
       final canCleanupFile =
-          user.revocationSettled || user.deletion?['hidden'] == true;
+          user.deletion?['hidden'] == true ||
+          !(user.deletion!['targets'] as Map).entries.any(
+            (e) => _revocationHoldsAll(e.key as String, e.value),
+          );
       if (canCleanupFile &&
           file != null &&
           file['status'] != 'deleted' &&
@@ -728,12 +778,29 @@ extension ClientDeletion on VpnController {
     if (refreshProfiles) await _profiles();
   }
 
-  Map<String, Object?> _revocationPayload(
+  /// A payload for [target] built from its [observed] state instead of from
+  /// `desired()`: every resource and client stays exactly as the server has
+  /// it, except the clients in [enabled], which get that state, and
+  /// [revoke], which is disabled and named in `revokedUsers`. Only a
+  /// deletion revokes: the runner remembers a revoked ID for good.
+  ///
+  /// A resource the server no longer has is sent as deleted: its last spec
+  /// would otherwise create it again. Its clients are not compared.
+  ///
+  /// One users list serves every resource, so nobody may gain access
+  /// through it: a client enabled on one resource must be enabled on every
+  /// one (else `vpn_conflict`). A client disabled where it exists and
+  /// absent elsewhere is sent disabled: an AmneziaWG interface keeps a
+  /// disabled record of a removed client that a newer one lacks, and
+  /// adding it there disabled grants nothing. No client is enabled where
+  /// the server lacks it. Unconfirmed access sets are refused as well.
+  Map<String, Object?> _observedPayload(
     String target,
     String panel,
-    VpnUser user,
-    List<Map<String, dynamic>>? observed,
-  ) {
+    List<Map<String, dynamic>>? observed, {
+    Map<String, bool> enabled = const {},
+    VpnUser? revoke,
+  }) {
     if (observed == null) throw const FormatException('vpn_failed');
     final owned =
         observed
@@ -745,27 +812,37 @@ extension ClientDeletion on VpnController {
     if (owned.any((o) => o['confirmed'] != true)) {
       throw const FormatException('vpn_conflict');
     }
-    List<Map<String, Object?>>? otherUsers;
+    final clients = <String, Map<String, Object?>>{};
+    final presence = <String, int>{};
+    var serving = 0;
     for (final resource in owned) {
       final spec = resource['spec'] as Map;
-      if (spec['deleted'] == true || spec['internal'] == true) continue;
-      final users = [
-        for (final c in resource['clients'] as List)
-          if (c['id'] != user.id)
-            <String, Object?>{
-              'id': c['id'],
-              'enabled': c['enabled'],
-              if (isTtTarget(target)) 'login': c['username'],
-            },
-      ]..sort((a, b) => (a['id'] as String).compareTo(b['id'] as String));
-      // A partial operation can leave different access sets. Do not broaden
-      // anyone else's access merely to fit a workspace-wide apply payload.
-      if (otherUsers != null &&
-          canonicalJson(otherUsers) != canonicalJson(users)) {
-        throw const FormatException('vpn_conflict');
+      if (observationGone(resource) || spec['internal'] == true) continue;
+      serving++;
+      for (final c in resource['clients'] as List) {
+        if (c['id'] == revoke?.id) continue;
+        final client = <String, Object?>{
+          'id': c['id'],
+          'enabled': enabled[c['id']] ?? c['enabled'],
+          if (isTtTarget(target)) 'login': c['username'],
+        };
+        // A partial operation can leave different access sets. Do not
+        // broaden anyone's access merely to fit a workspace-wide payload.
+        final seen = clients[c['id'] as String];
+        if (seen != null && canonicalJson(seen) != canonicalJson(client)) {
+          throw const FormatException('vpn_conflict');
+        }
+        clients[c['id'] as String] = client;
+        presence.update(c['id'] as String, (n) => n + 1, ifAbsent: () => 1);
       }
-      otherUsers = users;
     }
+    if (clients.values.any(
+      (c) => c['enabled'] == true && presence[c['id']] != serving,
+    )) {
+      throw const FormatException('vpn_conflict');
+    }
+    final otherUsers = clients.values.toList()
+      ..sort((a, b) => (a['id'] as String).compareTo(b['id'] as String));
     return {
       'version': 1,
       if (isAwgTarget(target)) 'protocol': 'awg',
@@ -774,16 +851,23 @@ extension ClientDeletion on VpnController {
       'panelId': isAwgTarget(target) || isTtTarget(target)
           ? workspace.resourceWorkspaceId(target)
           : panel,
-      'resources': [for (final o in owned) o['spec']],
-      'users': [
-        ...?otherUsers,
-        {
-          'id': user.id,
-          'enabled': false,
-          if (isTtTarget(target)) 'login': user.login,
-        },
+      'resources': [
+        for (final o in owned)
+          if (observationGone(o) && (o['spec'] as Map)['deleted'] != true)
+            {...o['spec'] as Map, 'deleted': true, 'enabled': false}
+          else
+            o['spec'],
       ],
-      'revokedUsers': [user.id],
+      'users': [
+        ...otherUsers,
+        if (revoke != null)
+          {
+            'id': revoke.id,
+            'enabled': false,
+            if (isTtTarget(target)) 'login': revoke.login,
+          },
+      ],
+      if (revoke != null) 'revokedUsers': [revoke.id],
     };
   }
 }

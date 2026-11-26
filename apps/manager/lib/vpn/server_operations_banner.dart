@@ -5,6 +5,7 @@ import '../l10n/app_localizations.dart';
 import '../publication/publication_panel.dart';
 import 'vpn_controller.dart';
 import 'vpn_strings.dart';
+import '../ssh/server_service_mode_view.dart';
 
 /// One summary of waiting server work above the client list (variant B).
 /// Work that runs by itself is a quiet progress line without buttons; only
@@ -147,9 +148,13 @@ class ServerOperationsBanner extends StatelessWidget {
             for (final item in items)
               for (final target in item.targets) ?target.progress,
           ];
+          // Work held on servers in service mode is not being applied.
+          final held = items.every(
+            (item) => controller.workspace.inServiceMode(item.serverId),
+          );
           banner = AppStatusBanner(
             key: const ValueKey('server-operations-banner'),
-            title: what ?? l.opsApplying,
+            title: what ?? (held ? l.serviceModeHeld : l.opsApplying),
             message: servers.length <= 2
                 ? servers.join(', ')
                 : l.opsMoreServers(
@@ -199,7 +204,11 @@ class _OperationsDetails extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         for (final item in items) ...[
-          AppSectionHeading(title: serverName(item.serverId), subheader: true),
+          AppSectionHeading(
+            title: serverName(item.serverId),
+            subheader: true,
+            action: ServiceModeBadge(mode: c.serviceModeOf(item.serverId)),
+          ),
           if (item.needsUser)
             AppNotice(
               message: vpnMessage(l, item.blocker!),

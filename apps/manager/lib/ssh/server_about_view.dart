@@ -11,6 +11,7 @@ import '../network/server_ip_diagnostics.dart';
 import '../vpn/vpn_controller.dart';
 import 'ssh_controller.dart';
 import 'client_egress_card.dart';
+import 'server_service_mode_view.dart';
 
 String serverBytes(int value) {
   const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'];
@@ -141,6 +142,14 @@ class ServerAboutView extends StatelessWidget {
               ClientEgressCard(controller: c.runner, vpn: vpn, motion: motion),
           const SizedBox(height: 12),
           ServerRebootView(controller: c),
+          if (vpn case final vpn?)
+            ServerServiceModeSection(
+              vpn: vpn,
+              serverId: c.serverId,
+              serverName: c.displayName,
+              relay: c.runner.relayInbounds.isNotEmpty,
+              motion: motion,
+            ),
           AppSettingsSection(
             title: l.uiPublicAddresses,
             child: Column(

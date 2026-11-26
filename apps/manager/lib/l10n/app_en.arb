@@ -66,6 +66,7 @@
   "diagnosticUnsupportedFilterPreview": "This regular expression cannot be previewed precisely yet.",
   "diagnosticProviderSnapshotRequired": "A proxy-provider snapshot is needed to resolve the members.",
   "diagnosticUnknownProxyReference": "The group references an unknown node or group.",
+  "diagnosticServiceModeGroupEmpty": "The group lists only nodes of servers in service mode and would be empty. The previous profile stays published; add another node to the group or bring a server back.",
   "diagnosticUnknownRuleTarget": "The rule references an unknown node or group.",
   "diagnosticUnknownRuleProvider": "A rule or DNS setting references an unknown rule-provider.",
   "diagnosticGroupCycle": "A cycle was found between proxy groups.",
@@ -628,6 +629,8 @@
   "vpnDeletionOtherDevice": "Another device is removing this client. Open the details to continue on this device.",
   "vpnRestoreReview": "Restored from a backup. Open the details to continue.",
   "vpnWaitingRemoval": "Waiting for the client removal to finish on this server.",
+  "vpnServiceMode": "The server is in service mode: clients are not added to it and its changes wait until it returns.",
+  "vpnServiceModeOtherDevice": "Another device is bringing this server back from service mode. Retry the return here to continue on this device.",
   "vpnStorage": "Could not save the encrypted client database. Retry after resolving the storage error.",
   "vpnStorageConflict": "Another application instance changed the client database. Reload before editing.",
   "vpnIdentity": "This saved server now has a different address or SSH identity. Its previous access bindings require review.",
@@ -1587,5 +1590,59 @@
   "activityServerAccess": "Access for another server",
   "activityCheck": "Check for updates",
   "activitySshHarden": "SSH hardening",
-  "activityDiagnostic": "Server check"
+  "activityDiagnostic": "Server check",
+  "serviceModeTitle": "Service mode",
+  "serviceModeHelp": "The server stays in the app and keeps running, but its proxies leave client profiles and new clients are not added to it. Turn it on while you repair or rebuild the server.",
+  "serviceModeOff": "Off",
+  "serviceModeSince": "On since {time}",
+  "@serviceModeSince": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "serviceModeReturningBadge": "Returning",
+  "serviceModeReturning": "Returning: the server is getting the current client accesses. It comes back to profiles once the server confirms them.",
+  "serviceModeReturnStalled": "The return is not finished",
+  "serviceModeRetry": "Retry",
+  "serviceModeEnter": "Turn on",
+  "serviceModeExit": "Turn off",
+  "serviceModeCancelExit": "Cancel the return",
+  "serviceModeEnterTitle": "Turn on service mode?",
+  "serviceModeEnterIntro": "{server} keeps running, and client accesses stay on it for the way back.",
+  "@serviceModeEnterIntro": {
+    "placeholders": {
+      "server": {
+        "type": "String"
+      }
+    }
+  },
+  "serviceModeEnterProfiles": "Its proxies leave client profiles: the next publication goes without them.",
+  "serviceModeEnterPublication": "Publication no longer waits for this server.",
+  "serviceModeEnterNewClients": "New clients are not added to it.",
+  "serviceModeEnterRevocations": "Disabling and deleting clients still applies on it whenever it is reachable.",
+  "serviceModeEnterEgress": "Other servers leave to the internet through this one (relay or internal inbound). Service mode does not switch them: if this server stops, their clients lose internet access.",
+  "serviceModeEnterEgressUnknown": "If other servers leave to the internet through this one, service mode does not switch them.",
+  "serviceModeExitTitle": "Turn off service mode?",
+  "serviceModeExitClients": "{count, plural, =0{By the server's last data, no new clients will be added to it.} =1{By the server's last data, 1 client will be added to it.} other{By the server's last data, {count} clients will be added to it.}}",
+  "@serviceModeExitClients": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "serviceModeExitHelp": "The server gets the current client accesses first. It returns to client profiles only after it confirms them; until then it stays out of them, as now.",
+  "serviceAccessWaiting": "{count, plural, =1{An access change for 1 client waits for this server.} other{Access changes for {count} clients wait for this server.}}",
+  "@serviceAccessWaiting": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "serviceAccessWaitingHelp": "Changes are sent automatically once the server is reachable.",
+  "serviceAccessSendNow": "Send now",
+  "serviceModeHeld": "Changes wait for servers in service mode"
 }

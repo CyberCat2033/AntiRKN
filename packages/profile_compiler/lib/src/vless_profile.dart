@@ -10,17 +10,25 @@ String vlessRevision(Map<String, Object?> payload) =>
     sha256.convert(utf8.encode(canonicalJson(payload))).toString();
 
 /// Uses observed per-client credentials, never an administrator's panel access.
+/// With [skipServiceMode], resources of servers in service mode are left out
+/// before any access check, so their pending state never blocks a profile.
+/// Proxy names are still computed over every resource.
 List<PreparedProxy> vlessUserAccesses(
   VpnWorkspace workspace,
   String userId, {
   Map<String, String> serverNames = const {},
   void Function(ProfileAccessException)? onPending,
+  bool skipServiceMode = false,
 }) {
   final user = workspace.users.where((u) => u.id == userId).firstOrNull;
   if (user == null || !user.enabled) return [];
   final proxies = <PreparedProxy>[];
   for (final inbound in workspace.inbounds.where(
-    (i) => i.enabled && !i.deleted && !i.internal,
+    (i) =>
+        i.enabled &&
+        !i.deleted &&
+        !i.internal &&
+        !(skipServiceMode && workspace.inServiceMode(i.serverId)),
   )) {
     final subject = accessDiagnosticSubject(
       'VLESS',

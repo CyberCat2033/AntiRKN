@@ -238,28 +238,50 @@ String writeProfileYaml(String template, List<Object?> proxies) =>
     writeProfileYamlPrepared(template, proxies, prepareProfileYaml(template));
 
 /// Reuses the source tree and comment locations across a client batch.
+/// [groupProxies] replaces the explicit `proxies` of groups, by index in
+/// `proxy-groups`; everything else is the template as written.
 String writeProfileYamlPrepared(
   String template,
   List<Object?> proxies,
-  ProfileYamlTemplate prepared,
-) {
+  ProfileYamlTemplate prepared, {
+  Map<int, List<String>> groupProxies = const {},
+}) {
   final original = prepared.original;
   final whole = prepared.whole;
-  final comments = prepared.comments;
+  final comments = {...prepared.comments}
+    // A comment on a dropped member must not move to another one.
+    ..removeWhere(
+      (path, _) => groupProxies.keys.any(
+        (i) => path.startsWith('/${jsonEncode('proxy-groups')}/$i/'),
+      ),
+    );
   final ordered = proxies.map(_ordered).toList();
+  final groups = original['proxy-groups'];
+  final expected = <Object?, Object?>{
+    ...original,
+    'proxies': ordered,
+    if (groupProxies.isNotEmpty && groups is List)
+      'proxy-groups': [
+        for (final (i, group) in groups.indexed)
+          if (groupProxies[i] case final members?)
+            {...group as Map, 'proxies': members}
+          else
+            group,
+      ],
+  };
   final editor = YamlEditor(whole ? '' : template);
   if (whole) {
     editor.update(
       [],
-      wrapAsYamlNode(
-        _data({...original, 'proxies': ordered}),
-        collectionStyle: CollectionStyle.BLOCK,
-      ),
+      wrapAsYamlNode(_data(expected), collectionStyle: CollectionStyle.BLOCK),
     );
   } else {
     editor.update([
       'proxies',
     ], wrapAsYamlNode(ordered, collectionStyle: CollectionStyle.BLOCK));
+    for (final entry in groupProxies.entries) {
+      editor.update(['proxy-groups', entry.key, 'proxies'], entry.value);
+    }
   }
   var output = editor.toString();
   final root = loadYamlNode(output) as YamlMap;
@@ -288,7 +310,6 @@ String writeProfileYamlPrepared(
   }
   // A presentation change must never alter a block scalar or another section.
   final actual = loadYaml(output) as Map;
-  final expected = <Object?, Object?>{...original, 'proxies': ordered};
   if (jsonEncode(_plain(actual)) != jsonEncode(_plain(expected))) {
     throw const FormatException('yaml_presentation_failed');
   }

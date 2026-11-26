@@ -494,6 +494,12 @@ abstract class AppLocalizations {
   /// **'The group references an unknown node or group.'**
   String get diagnosticUnknownProxyReference;
 
+  /// No description provided for @diagnosticServiceModeGroupEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'The group lists only nodes of servers in service mode and would be empty. The previous profile stays published; add another node to the group or bring a server back.'**
+  String get diagnosticServiceModeGroupEmpty;
+
   /// No description provided for @diagnosticUnknownRuleTarget.
   ///
   /// In en, this message translates to:
@@ -2869,6 +2875,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Waiting for the client removal to finish on this server.'**
   String get vpnWaitingRemoval;
+
+  /// No description provided for @vpnServiceMode.
+  ///
+  /// In en, this message translates to:
+  /// **'The server is in service mode: clients are not added to it and its changes wait until it returns.'**
+  String get vpnServiceMode;
+
+  /// No description provided for @vpnServiceModeOtherDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Another device is bringing this server back from service mode. Retry the return here to continue on this device.'**
+  String get vpnServiceModeOtherDevice;
 
   /// No description provided for @vpnStorage.
   ///
@@ -7525,6 +7543,162 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Server check'**
   String get activityDiagnostic;
+
+  /// No description provided for @serviceModeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Service mode'**
+  String get serviceModeTitle;
+
+  /// No description provided for @serviceModeHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'The server stays in the app and keeps running, but its proxies leave client profiles and new clients are not added to it. Turn it on while you repair or rebuild the server.'**
+  String get serviceModeHelp;
+
+  /// No description provided for @serviceModeOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get serviceModeOff;
+
+  /// No description provided for @serviceModeSince.
+  ///
+  /// In en, this message translates to:
+  /// **'On since {time}'**
+  String serviceModeSince(String time);
+
+  /// No description provided for @serviceModeReturningBadge.
+  ///
+  /// In en, this message translates to:
+  /// **'Returning'**
+  String get serviceModeReturningBadge;
+
+  /// No description provided for @serviceModeReturning.
+  ///
+  /// In en, this message translates to:
+  /// **'Returning: the server is getting the current client accesses. It comes back to profiles once the server confirms them.'**
+  String get serviceModeReturning;
+
+  /// No description provided for @serviceModeReturnStalled.
+  ///
+  /// In en, this message translates to:
+  /// **'The return is not finished'**
+  String get serviceModeReturnStalled;
+
+  /// No description provided for @serviceModeRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get serviceModeRetry;
+
+  /// No description provided for @serviceModeEnter.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn on'**
+  String get serviceModeEnter;
+
+  /// No description provided for @serviceModeExit.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn off'**
+  String get serviceModeExit;
+
+  /// No description provided for @serviceModeCancelExit.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel the return'**
+  String get serviceModeCancelExit;
+
+  /// No description provided for @serviceModeEnterTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn on service mode?'**
+  String get serviceModeEnterTitle;
+
+  /// No description provided for @serviceModeEnterIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'{server} keeps running, and client accesses stay on it for the way back.'**
+  String serviceModeEnterIntro(String server);
+
+  /// No description provided for @serviceModeEnterProfiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Its proxies leave client profiles: the next publication goes without them.'**
+  String get serviceModeEnterProfiles;
+
+  /// No description provided for @serviceModeEnterPublication.
+  ///
+  /// In en, this message translates to:
+  /// **'Publication no longer waits for this server.'**
+  String get serviceModeEnterPublication;
+
+  /// No description provided for @serviceModeEnterNewClients.
+  ///
+  /// In en, this message translates to:
+  /// **'New clients are not added to it.'**
+  String get serviceModeEnterNewClients;
+
+  /// No description provided for @serviceModeEnterRevocations.
+  ///
+  /// In en, this message translates to:
+  /// **'Disabling and deleting clients still applies on it whenever it is reachable.'**
+  String get serviceModeEnterRevocations;
+
+  /// No description provided for @serviceModeEnterEgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Other servers leave to the internet through this one (relay or internal inbound). Service mode does not switch them: if this server stops, their clients lose internet access.'**
+  String get serviceModeEnterEgress;
+
+  /// No description provided for @serviceModeEnterEgressUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'If other servers leave to the internet through this one, service mode does not switch them.'**
+  String get serviceModeEnterEgressUnknown;
+
+  /// No description provided for @serviceModeExitTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn off service mode?'**
+  String get serviceModeExitTitle;
+
+  /// No description provided for @serviceModeExitClients.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{By the server\'s last data, no new clients will be added to it.} =1{By the server\'s last data, 1 client will be added to it.} other{By the server\'s last data, {count} clients will be added to it.}}'**
+  String serviceModeExitClients(int count);
+
+  /// No description provided for @serviceModeExitHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'The server gets the current client accesses first. It returns to client profiles only after it confirms them; until then it stays out of them, as now.'**
+  String get serviceModeExitHelp;
+
+  /// No description provided for @serviceAccessWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{An access change for 1 client waits for this server.} other{Access changes for {count} clients wait for this server.}}'**
+  String serviceAccessWaiting(int count);
+
+  /// No description provided for @serviceAccessWaitingHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Changes are sent automatically once the server is reachable.'**
+  String get serviceAccessWaitingHelp;
+
+  /// No description provided for @serviceAccessSendNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Send now'**
+  String get serviceAccessSendNow;
+
+  /// No description provided for @serviceModeHeld.
+  ///
+  /// In en, this message translates to:
+  /// **'Changes wait for servers in service mode'**
+  String get serviceModeHeld;
 }
 
 class _AppLocalizationsDelegate

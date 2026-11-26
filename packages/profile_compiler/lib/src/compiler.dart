@@ -70,16 +70,29 @@ final class ProfileCompiler {
     required List<ProxyDescriptor> proxies,
   }) => _run(template, proxies, null);
 
+  /// [hiddenProxies]: names of the client's proxies left out of this
+  /// profile because their server is in service mode. A template group
+  /// listing one of them drops it instead of pointing at nothing (Mihomo
+  /// refuses such a config); a group left with no member is a blocking
+  /// error, so the previous profile stays published. A name the template
+  /// does not know otherwise keeps its warning.
   ProfileResult compile({
     required String template,
     required String userId,
     required List<PreparedProxy> accesses,
+    Set<String> hiddenProxies = const {},
   }) {
     try {
       final selected = _select(userId, accesses);
-      return _run(template, [
-        for (final node in selected) ProxyDescriptor(node.name, node.typeLabel),
-      ], selected);
+      return _run(
+        template,
+        [
+          for (final node in selected)
+            ProxyDescriptor(node.name, node.typeLabel),
+        ],
+        selected,
+        hiddenProxies,
+      );
     } on FormatException catch (e) {
       return _failure(e.message);
     }
@@ -91,16 +104,24 @@ final class ProfileCompiler {
     prepareProfileYaml(template),
   );
 
+  /// As [compile], with a template parsed once for a batch.
   ProfileResult compilePrepared({
     required PreparedProfileTemplate prepared,
     required String userId,
     required List<PreparedProxy> accesses,
+    Set<String> hiddenProxies = const {},
   }) {
     try {
       final selected = _select(userId, accesses);
-      return _runPrepared(prepared, [
-        for (final node in selected) ProxyDescriptor(node.name, node.typeLabel),
-      ], selected);
+      return _runPrepared(
+        prepared,
+        [
+          for (final node in selected)
+            ProxyDescriptor(node.name, node.typeLabel),
+        ],
+        selected,
+        hiddenProxies,
+      );
     } on FormatException catch (e) {
       return _failure(e.message);
     }
@@ -129,10 +150,11 @@ final class ProfileCompiler {
   ProfileResult _run(
     String template,
     List<ProxyDescriptor> proxies,
-    List<PreparedProxy>? selected,
-  ) {
+    List<PreparedProxy>? selected, [
+    Set<String> hiddenProxies = const {},
+  ]) {
     try {
-      return _runPrepared(prepare(template), proxies, selected);
+      return _runPrepared(prepare(template), proxies, selected, hiddenProxies);
     } on YamlException {
       return _failure('invalid_yaml');
     } on FormatException catch (e) {
@@ -143,21 +165,38 @@ final class ProfileCompiler {
   ProfileResult _runPrepared(
     PreparedProfileTemplate prepared,
     List<ProxyDescriptor> proxies,
-    List<PreparedProxy>? selected,
-  ) {
+    List<PreparedProxy>? selected, [
+    Set<String> hiddenProxies = const {},
+  ]) {
     try {
-      final root = prepared.root;
+      var root = prepared.root;
       final existing = root['proxies'] ?? <Object?>[];
       if (existing is! List) return _failure('invalid_proxies');
       if (proxies.length + existing.length > 5000) {
         return _failure('template_node_limit');
       }
+      final pruned = _pruneHidden(root, existing, proxies, hiddenProxies);
+      if (pruned.isNotEmpty) {
+        final groups = root['proxy-groups'] as List;
+        root = {
+          ...root,
+          'proxy-groups': [
+            for (final (i, group) in groups.indexed)
+              if (pruned[i] case final members?)
+                {...group as Map<String, Object?>, 'proxies': members}
+              else
+                group,
+          ],
+        };
+      }
       String? yaml;
       if (selected != null) {
-        yaml = writeProfileYamlPrepared(prepared.source, [
-          ...existing,
-          for (final node in selected) node.fields,
-        ], prepared.yamlPlan);
+        yaml = writeProfileYamlPrepared(
+          prepared.source,
+          [...existing, for (final node in selected) node.fields],
+          prepared.yamlPlan,
+          groupProxies: pruned,
+        );
       }
       final diagnostics = <ProfileDiagnostic>[];
       void warn(String code, [String? subject]) => diagnostics.add(
@@ -188,6 +227,24 @@ final class ProfileCompiler {
         // Preview limitations never prevent issuing a parseable base profile.
         warn(e.message);
       }
+      // Only the hidden proxies emptied these groups: the previous profile
+      // stays published rather than one routing into an empty group.
+      for (final i in pruned.keys) {
+        final name = ((root['proxy-groups'] as List)[i] as Map)['name'];
+        final preview = previews.where((g) => g.name == name).firstOrNull;
+        if (preview != null && preview.complete && preview.members.isEmpty) {
+          diagnostics.add(
+            ProfileDiagnostic(
+              'service_mode_group_empty',
+              DiagnosticSeverity.error,
+              subject: name as String,
+            ),
+          );
+        }
+      }
+      if (diagnostics.any((d) => d.severity == DiagnosticSeverity.error)) {
+        return ProfileResult(groups: previews, diagnostics: diagnostics);
+      }
       return ProfileResult(
         groups: previews,
         diagnostics: diagnostics,
@@ -202,6 +259,40 @@ final class ProfileCompiler {
     } on FormatException catch (e) {
       return _failure(e.message);
     }
+  }
+
+  /// Explicit group members to rewrite, by group index: [hidden] names
+  /// that are neither a proxy of this profile, a static template proxy, a
+  /// group nor a built-in policy are dropped. A malformed group is left to
+  /// [_inspect].
+  Map<int, List<String>> _pruneHidden(
+    Map<String, Object?> root,
+    List<Object?> existing,
+    List<ProxyDescriptor> proxies,
+    Set<String> hidden,
+  ) {
+    final groups = root['proxy-groups'];
+    if (hidden.isEmpty || groups is! List) return const {};
+    final known = <Object?>{
+      ..._builtins,
+      for (final p in proxies) p.name,
+      for (final p in existing)
+        if (p is Map) p['name'],
+      for (final g in groups)
+        if (g is Map) g['name'],
+    };
+    final drop = hidden.difference(known);
+    final pruned = <int, List<String>>{};
+    for (final (i, group) in groups.indexed) {
+      final members = group is Map<String, Object?> ? group['proxies'] : null;
+      if (members is! List || members.any((m) => m is! String)) continue;
+      if (!members.any(drop.contains)) continue;
+      pruned[i] = [
+        for (final m in members.cast<String>())
+          if (!drop.contains(m)) m,
+      ];
+    }
+    return pruned;
   }
 
   List<GroupPreview> _inspect(

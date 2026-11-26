@@ -19,6 +19,7 @@ import '../vpn/tt_panel.dart';
 import '../vpn/awg_existing_panel.dart';
 import '../vpn/adopt_resource.dart';
 import '../vpn/vpn_plan_view.dart';
+import 'server_service_mode_view.dart';
 import '../sync/restored_cache_refresh.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 
@@ -589,6 +590,22 @@ class _ServerCatalogState extends State<ServerCatalog> {
                                               ),
                                             ],
                                           ),
+                                          if (widget.vpn?.serviceModeOf(
+                                                server.id,
+                                              )
+                                              case final mode?)
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                top: 6,
+                                              ),
+                                              child: ServiceModeBadge(
+                                                key: ValueKey(
+                                                  'server-service-mode-'
+                                                  '${server.id}',
+                                                ),
+                                                mode: mode,
+                                              ),
+                                            ),
                                         ],
                                       ),
                                       trailing: selection.active

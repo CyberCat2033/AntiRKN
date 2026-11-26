@@ -1715,24 +1715,78 @@ Future<bool> confirmAppDanger(
   required String cancelLabel,
   Key? confirmKey,
 }) async {
+  return _confirmApp(
+    context,
+    title: title,
+    message: message,
+    content: content,
+    confirmLabel: confirmLabel,
+    cancelLabel: cancelLabel,
+    confirmKey: confirmKey,
+    danger: true,
+  );
+}
+
+/// Asks before a consequential but reversible action (a mode, an install):
+/// the same dialog as [confirmAppDanger] with a filled confirming button in
+/// the primary colours. Resolves to true only when the person chose
+/// [confirmLabel].
+Future<bool> confirmAppAction(
+  BuildContext context, {
+  required String title,
+  String? message,
+  Widget? content,
+  required String confirmLabel,
+  required String cancelLabel,
+  Key? confirmKey,
+}) => _confirmApp(
+  context,
+  title: title,
+  message: message,
+  content: content,
+  confirmLabel: confirmLabel,
+  cancelLabel: cancelLabel,
+  confirmKey: confirmKey,
+  danger: false,
+);
+
+Future<bool> _confirmApp(
+  BuildContext context, {
+  required String title,
+  String? message,
+  Widget? content,
+  required String confirmLabel,
+  required String cancelLabel,
+  Key? confirmKey,
+  required bool danger,
+}) async {
   assert((message == null) != (content == null), 'message or content');
   return await showDialog<bool>(
         context: context,
-        builder: (context) => AppFormDialog(
-          title: Text(title),
-          content: content ?? Text(message!),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(cancelLabel),
-            ),
-            AppDangerButton(
-              key: confirmKey,
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(confirmLabel),
-            ),
-          ],
-        ),
+        builder: (context) {
+          void confirm() => Navigator.pop(context, true);
+          return AppFormDialog(
+            title: Text(title),
+            content: content ?? Text(message!),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(cancelLabel),
+              ),
+              danger
+                  ? AppDangerButton(
+                      key: confirmKey,
+                      onPressed: confirm,
+                      child: Text(confirmLabel),
+                    )
+                  : FilledButton(
+                      key: confirmKey,
+                      onPressed: confirm,
+                      child: Text(confirmLabel),
+                    ),
+            ],
+          );
+        },
       ) ??
       false;
 }

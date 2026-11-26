@@ -4,16 +4,23 @@ import 'proxy_name.dart';
 import 'adopted_proxy.dart';
 import 'access_diagnostic.dart';
 
+/// With [skipServiceMode], resources of servers in service mode are left out
+/// before any access check, so their pending state never blocks a profile.
+/// Proxy names are still computed over every resource.
 List<PreparedProxy> awgUserAccesses(
   VpnWorkspace workspace,
   String userId, {
   Map<String, String> serverNames = const {},
   void Function(ProfileAccessException)? onPending,
+  bool skipServiceMode = false,
 }) {
   if (!workspace.users.any((u) => u.id == userId && u.enabled)) return [];
   final proxies = <PreparedProxy>[];
   for (final interface in workspace.awgInterfaces.where(
-    (r) => r.enabled && !r.deleted,
+    (r) =>
+        r.enabled &&
+        !r.deleted &&
+        !(skipServiceMode && workspace.inServiceMode(r.serverId)),
   )) {
     final subject = accessDiagnosticSubject(
       'AmneziaWG',
