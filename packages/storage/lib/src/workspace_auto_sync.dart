@@ -802,12 +802,21 @@ final class _SnapshotAutoSync implements AutoSyncSession {
       // Work another device started is never dropped by overwriting it.
       merged = _carryOperations(local, cloud.data, (e) => e != device);
       if (merged == null) {
-        // Over exactly the version shown; a newer one diverges again.
+        // Over exactly the version shown; a newer one diverges again. The
+        // download above may change the etag without changing the content
+        // (Drive view metadata), so the precondition is read after it.
         cancellation.check();
+        final current = await remote.findSnapshot();
+        if (current == null ||
+            current.id != stored.fileId ||
+            current.version != stored.version) {
+          await store.writeSetting('syncSnapshotDivergence', '');
+          return _exchange(apply, cancellation, true, true);
+        }
         final out = await _keepLocally(captured);
         final AutoSyncResult result;
         try {
-          result = await _writeOver(file, out, cancellation);
+          result = await _writeOver(current, out, cancellation);
         } on SyncTransportFailure catch (error) {
           if (error.issue != SyncTransportIssue.conflict) rethrow;
           return _reconcile(out, cancellation);

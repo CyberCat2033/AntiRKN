@@ -381,6 +381,18 @@ void main() {
   );
 
   test(
+    'keeping this device data survives an etag changed by the download',
+    () async {
+      final (_, phone, _) = await killedUploadThenPc();
+      final sync = await session(phone);
+      remote.etagDriftOnRead = true;
+      final result = await choose(sync, SyncDivergenceChoice.keepLocal);
+      expect(result.divergence, isNull);
+      expect(await cloudDraft(), 'edit made on the phone');
+    },
+  );
+
+  test(
     'taking the cloud version replaces unsent edits and keeps own operations',
     () async {
       late String target;

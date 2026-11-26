@@ -18,6 +18,11 @@ final class FakeSnapshotRemote implements SyncSnapshotStore {
   int version = 0, writes = 0;
   bool unavailable = false, loseResponse = false;
 
+  /// Like Drive, a download may change the etag (view metadata) while the
+  /// content and its version stay the same.
+  bool etagDriftOnRead = false;
+  int _drift = 0;
+
   /// Store calls in order. Drive cost: a key read is a list plus a download.
   final calls = <String>[];
   int get requests =>
@@ -45,13 +50,16 @@ final class FakeSnapshotRemote implements SyncSnapshotStore {
           name: syncSnapshotName,
           size: snapshot!.length,
           version: '$version',
-          etag: 'etag-$version',
+          etag: _etag,
         );
+
+  String get _etag => 'etag-$version-$_drift';
 
   @override
   Future<Uint8List> readSnapshot(String fileId) async {
     calls.add('readSnapshot');
     await holdRead?.future;
+    if (etagDriftOnRead) _drift++;
     return Uint8List.fromList(snapshot!);
   }
 
@@ -71,9 +79,7 @@ final class FakeSnapshotRemote implements SyncSnapshotStore {
     if (expected != null && snapshot == null) {
       throw const SyncTransportFailure(SyncTransportIssue.notFound);
     }
-    if (expected == null
-        ? snapshot != null
-        : expected.etag != 'etag-$version') {
+    if (expected == null ? snapshot != null : expected.etag != _etag) {
       throw const SyncTransportFailure(SyncTransportIssue.conflict);
     }
     snapshot = Uint8List.fromList(bytes);
