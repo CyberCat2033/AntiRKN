@@ -3100,9 +3100,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get uiAuthentication => 'Sign-in credentials';
 
   @override
-  String get uiInstalledComponents => 'Components installed on this server';
-
-  @override
   String get uiOtherComponents => 'Other components';
 
   @override
@@ -3603,13 +3600,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get xrayUpgradeTitle => 'Xray core update';
-
-  @override
-  String get xrayUpgradeAction => 'Check and update Xray';
-
-  @override
-  String get xrayUpgradeIntro =>
-      'All enabled inbounds are checked before and after the update. If the comparison does not finish, the server restores the previous core.';
 
   @override
   String get xrayUpgradeBaseline => 'Checking connections before updating…';

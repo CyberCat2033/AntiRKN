@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../busy_reason.dart';
 import '../l10n/app_localizations.dart';
+import '../protocol_icon.dart';
 import 'component_installation_view.dart';
 import 'component_updates_controller.dart';
 import 'component_versions_view.dart';
@@ -70,8 +71,9 @@ class SoftwareOverview extends StatelessWidget {
       final changes = [
         for (final u in updatable.entries) '${componentName(u.key)} ${u.value}',
       ];
-      // Xray is upgraded only through XrayUpgradeView, which checks the
-      // connections before and after and rolls back (UI-45).
+      // Xray is upgraded only through the checked transaction of
+      // XrayUpgradeView, which compares the connections before and after
+      // and rolls back (UI-45).
       final canUpdate = versions.entries
           .where((v) => v.key != 'xray')
           .any(
@@ -95,6 +97,11 @@ class SoftwareOverview extends StatelessWidget {
           );
       final isPanel = component == VpnComponent.panel;
       final detected = presence == ComponentPresence.detected;
+      // Only the core is behind: Update runs the checked Xray transaction.
+      final xray = isPanel && detected && !canUpdate
+          ? c.xrayVersionChoice
+          : null;
+      final xrayUpdate = xray != null && updatable.containsKey('xray');
       final name = isPanel ? '3x-ui / Xray' : vpnComponentName(component);
       final status = versions.isNotEmpty
           ? versions.entries
@@ -114,7 +121,7 @@ class SoftwareOverview extends StatelessWidget {
           : c.componentPlan?.component == key;
       // No update path for an AmneziaWG container: no Update, no version
       // choice, a note instead.
-      final applyAction = !detected || (canUpdate && !inDocker);
+      final applyAction = !detected || (canUpdate && !inDocker) || xrayUpdate;
       final installingThis =
           (c.selected?.kind == 'component_install' ||
               c.selected?.kind == 'component_upgrade' ||
@@ -157,6 +164,16 @@ class SoftwareOverview extends StatelessWidget {
                         c.actionPending ||
                         !c.canRequestAction
                     ? null
+                    : xrayUpdate
+                    ? () async {
+                        if (xray.ready()) {
+                          await xray.update();
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(l.versionsXrayUnavailable)),
+                          );
+                        }
+                      }
                     : () => c.requestAction(() async {
                         if (isPanel &&
                             detected &&
@@ -291,11 +308,7 @@ class SoftwareOverview extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: SummaryCard(
-              leading: AppIconTile(
-                icon: isPanel
-                    ? Icons.inventory_2_outlined
-                    : Icons.shield_outlined,
-              ),
+              leading: AppIconTile(icon: protocolIcon(key)),
               title: name,
               subtitle: summary,
               action: action,
@@ -311,9 +324,7 @@ class SoftwareOverview extends StatelessWidget {
         others.add(
           SummaryCard(
             embedded: true,
-            leading: AppIconTile(
-              icon: isPanel ? Icons.dns_outlined : Icons.shield_outlined,
-            ),
+            leading: AppIconTile(icon: protocolIcon(key)),
             title: name,
             subtitle: summary,
             action: action,
@@ -343,7 +354,6 @@ class SoftwareOverview extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AppPageIntro(l.uiInstalledComponents),
         if (available.isNotEmpty) ...[
           AppSectionHeading(title: l.softwareUpdateAvailable, subheader: true),
           ...available,

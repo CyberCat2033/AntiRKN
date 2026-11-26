@@ -164,7 +164,6 @@ void main() {
               ServerProtocolSection(
                 name: 'AmneziaWG',
                 count: 0,
-                mark: 'W',
                 child: Text('interfaces'),
               ),
             ],
@@ -274,7 +273,6 @@ void main() {
               ServerProtocolSection(
                 name: 'AmneziaWG',
                 count: 0,
-                mark: 'W',
                 detected: true,
                 onRemove: () => removeServerProtocol(
                   context,

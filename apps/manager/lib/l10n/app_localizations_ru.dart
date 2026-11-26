@@ -3104,9 +3104,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get uiAuthentication => 'Данные для входа';
 
   @override
-  String get uiInstalledComponents => 'Компоненты, установленные на сервере';
-
-  @override
   String get uiOtherComponents => 'Остальные компоненты';
 
   @override
@@ -3607,13 +3604,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get xrayUpgradeTitle => 'Обновление ядра Xray';
-
-  @override
-  String get xrayUpgradeAction => 'Проверить и обновить Xray';
-
-  @override
-  String get xrayUpgradeIntro =>
-      'Все включённые инбаунды проверяются до и после обновления. Если сравнение не завершится, сервер вернёт прежнее ядро.';
 
   @override
   String get xrayUpgradeBaseline => 'Проверка подключений до обновления…';

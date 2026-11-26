@@ -530,6 +530,7 @@ void main() {
       final installs = <Map<String, Object?>>[];
       versions.xrayVersionChoice = XrayVersionChoice(
         install: (a) async => installs.add(a),
+        update: () async {},
         ready: () => true,
         previous: () => '26.7.1',
       );
@@ -555,6 +556,7 @@ void main() {
       final installs = <Map<String, Object?>>[];
       versions.xrayVersionChoice = XrayVersionChoice(
         install: (a) async => installs.add(a),
+        update: () async {},
         ready: () => true,
         previous: () => '26.7.1',
       );
@@ -590,38 +592,50 @@ void main() {
     });
   });
   for (final locale in ['ru', 'en']) {
-    testWidgets('upgrade controls fit narrow screen with large text $locale', (
-      tester,
-    ) async {
+    testWidgets('no standalone block; a server-side upgrade fits a narrow '
+        'screen with large text $locale', (tester) async {
       await tester.runAsync(setup);
+      final access = runner.panelAccess;
       runner.panelAccess = null;
       tester.view.physicalSize = const Size(390, 900);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.pumpWidget(
-        MaterialApp(
-          locale: Locale(locale),
-          supportedLocales: AppLocalizations.supportedLocales,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(
-              context,
-            ).copyWith(textScaler: const TextScaler.linear(2)),
-            child: child!,
-          ),
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: XrayUpgradeView(
-                runner: runner,
-                vpn: vpn,
-                host: '192.0.2.1',
-              ),
+      Widget app(Key key) => MaterialApp(
+        locale: Locale(locale),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: const TextScaler.linear(2)),
+          child: child!,
+        ),
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: XrayUpgradeView(
+              key: key,
+              runner: runner,
+              vpn: vpn,
+              host: '192.0.2.1',
             ),
           ),
         ),
       );
+      await tester.pumpWidget(app(const ValueKey('idle')));
       await tester.pumpAndSettle();
+      final l = AppLocalizations.of(tester.element(find.byType(Scaffold)));
+      // Idle: the update starts from the 3x-ui / Xray software row.
+      expect(find.text(l.xrayUpgradeTitle), findsNothing);
+      expect(runner.xrayVersionChoice, isNotNull);
+      // The server still recovers a previous upgrade: its status is shown.
+      runner.panelAccess = access;
+      remote.phase = 'recovery_pending';
+      await tester.pumpWidget(app(const ValueKey('recovering')));
+      await tester.pumpAndSettle();
+      expect(find.text(l.xrayUpgradeTitle), findsOneWidget);
+      expect(find.text(l.xrayUpgradePending), findsOneWidget);
+      expect(find.byKey(const ValueKey('xray-upgrade-close')), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     });

@@ -254,7 +254,6 @@ class _ServerCatalogState extends State<ServerCatalog> {
                     'vless',
                     'VLESS',
                   ),
-                  mark: 'V',
                   plans: VpnPlanView(
                     controller: vpn,
                     serverName: serverName,
@@ -284,7 +283,6 @@ class _ServerCatalogState extends State<ServerCatalog> {
                     'amneziawg',
                     'AmneziaWG',
                   ),
-                  mark: 'W',
                   plans: VpnPlanView(
                     controller: vpn,
                     serverName: serverName,
@@ -326,7 +324,6 @@ class _ServerCatalogState extends State<ServerCatalog> {
                     'trusttunnel',
                     'TrustTunnel',
                   ),
-                  mark: 'T',
                   plans: VpnPlanView(
                     controller: vpn,
                     serverName: serverName,
