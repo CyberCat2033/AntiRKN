@@ -1260,6 +1260,10 @@ class AppLocalizationsRu extends AppLocalizations {
       'Контрольная сумма не совпадает. Архив не будет исполнен.';
 
   @override
+  String get componentsArchiveInvalid =>
+      'В архиве этого выпуска нет программ, которые устанавливает AntiRKN. Ничего не изменено; выберите другую версию.';
+
+  @override
   String get componentsApiFailed =>
       'Не удалось подтвердить работу панели. Проверьте журнал и состояние службы.';
 

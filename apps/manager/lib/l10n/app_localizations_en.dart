@@ -1257,6 +1257,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Checksum mismatch. The archive will not be executed.';
 
   @override
+  String get componentsArchiveInvalid =>
+      'This release\'s archive does not contain the programs AntiRKN installs. Nothing was changed; choose another version.';
+
+  @override
   String get componentsApiFailed =>
       'Panel operation could not be verified. Check the journal and service state.';
 

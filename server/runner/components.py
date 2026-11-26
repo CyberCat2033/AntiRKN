@@ -125,7 +125,18 @@ def release_for(component, payload=None):
 
 
 def names(component):
-    return ('trusttunnel_endpoint', 'setup_wizard') if component == 'trusttunnel' else ('amneziawg-go', 'awg', 'awg-quick')
+    """Programs every release of the component ships."""
+    return ('trusttunnel_endpoint',) if component == 'trusttunnel' else ('amneziawg-go', 'awg', 'awg-quick')
+
+
+def optional_names(component):
+    """Programs only some releases ship: TrustTunnel 1.3 moved setup_wizard
+    into the endpoint (`trusttunnel_endpoint --setup-wizard`)."""
+    return ('setup_wizard',) if component == 'trusttunnel' else ()
+
+
+def programs(component):
+    return tuple(names(component)) + optional_names(component)
 
 
 def unit_name(component):
@@ -249,7 +260,7 @@ def component_plan(component, payload=None):
         record = installed(component)
     except (ValueError, KeyError, TypeError, OSError, ComponentError, PanelError):
         conflict = True
-    paths = external_paths(component) + [BIN / name for name in names(component)]
+    paths = external_paths(component) + [BIN / name for name in programs(component)]
     unit = UNITS / unit_name(component)
     if unit.exists() or unit.is_symlink():
         try:
@@ -260,7 +271,7 @@ def component_plan(component, payload=None):
     observed = {str(p): snapshot(p) for p in paths}
     for path in paths:
         value = observed[str(path)]
-        own_link = path in [BIN / name for name in names(component)] and value == ['link', str(BASE / component / 'current' / path.name)]
+        own_link = path in [BIN / name for name in programs(component)] and value == ['link', str(BASE / component / 'current' / path.name)]
         if value is not None and not own_link:
             conflict = True
     containers = []
@@ -382,11 +393,14 @@ class ComponentInstaller:
                         raise ComponentError('component_checksum_failed')
                     shutil.copyfile(matches[0], output / filename)
                 if self.release.get('chosen') and self.component == 'trusttunnel' and name == 'endpoint':
-                    for filename in names(self.component):
+                    # The archive digest already matched; a missing or
+                    # ambiguous program is a layout this runner cannot use.
+                    for filename in programs(self.component):
                         matches = [m for m in (self.directory / name).rglob(filename) if m.is_file() and not m.is_symlink()]
-                        if len(matches) != 1:
-                            raise ComponentError('component_checksum_failed')
-                        shutil.copyfile(matches[0], output / filename)
+                        if len(matches) > 1 or not matches and filename in names(self.component):
+                            raise ComponentError('component_archive_invalid')
+                        if matches:
+                            shutil.copyfile(matches[0], output / filename)
             if self.component == 'amneziawg':
                 source = self.directory / 'source' / ('amneziawg-go-' + self.release['commit'])
                 (source / 'version.go').write_text('package main\nconst Version = "v' + self.release['version'] + '"\n')
@@ -457,14 +471,31 @@ class ComponentInstaller:
                 if ret != 0:
                     raise ComponentError('component_build_failed')
 
-        for name in names(self.component):
-            (output / name).chmod(0o755)
+        for name in programs(self.component):
+            if name in names(self.component) or (output / name).is_file():
+                (output / name).chmod(0o755)
         self.verify(output)
         for path in output.iterdir():
             with path.open('rb') as stream:
                 os.fsync(stream.fileno())
         sync_directory(output)
         return True
+
+    def link_programs(self, files):
+        """Public links to the programs of the current version. A program the
+        release does not ship gets no new link; an existing link of ours stays,
+        so a rollback to a version that has it works again."""
+        for name in programs(self.component):
+            if name not in names(self.component) and name not in files:
+                continue
+            link = BIN / name
+            expected = str(self.root / 'current' / name)
+            if link.exists() or link.is_symlink():
+                if not link.is_symlink() or os.readlink(link) != expected:
+                    raise ComponentError()
+            else:
+                os.symlink(expected, link)
+        sync_directory(BIN)
 
     def step(self, number):
         if number == 0:
@@ -513,7 +544,7 @@ class ComponentInstaller:
             hashes = {}
             for file in (self.directory / 'output').iterdir():
                 safe_file(file, 100 * 1024 * 1024)
-                atomic_copy(file, staging / file.name, 0o755 if file.name in names(self.component) else 0o644)
+                atomic_copy(file, staging / file.name, 0o755 if file.name in programs(self.component) else 0o644)
                 hashes[file.name] = digest(file)
             record = dict(component=self.component, version=self.release['version'],
                 toolsVersion=self.release.get('toolsVersion'), release=release_hash(self.component, self.release), files=hashes)
@@ -562,15 +593,7 @@ class ComponentInstaller:
             os.symlink('versions/' + release_hash(self.component, self.release), temp)
             os.replace(temp, pointer)
             sync_directory(self.root)
-            for name in names(self.component):
-                link = BIN / name
-                expected = str(self.root / 'current' / name)
-                if link.exists() or link.is_symlink():
-                    if not link.is_symlink() or os.readlink(link) != expected:
-                        raise ComponentError()
-                else:
-                    os.symlink(expected, link)
-            sync_directory(BIN)
+            self.link_programs(target['files'])
             CONFIG.mkdir(mode=0o700, exist_ok=True)
             safe_directory(CONFIG)
             (CONFIG / self.component).mkdir(mode=0o700, exist_ok=True)

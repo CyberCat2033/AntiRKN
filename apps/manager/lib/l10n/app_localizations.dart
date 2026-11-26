@@ -2300,6 +2300,12 @@ abstract class AppLocalizations {
   /// **'Checksum mismatch. The archive will not be executed.'**
   String get componentsChecksumFailed;
 
+  /// No description provided for @componentsArchiveInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'This release\'s archive does not contain the programs AntiRKN installs. Nothing was changed; choose another version.'**
+  String get componentsArchiveInvalid;
+
   /// No description provided for @componentsApiFailed.
   ///
   /// In en, this message translates to:

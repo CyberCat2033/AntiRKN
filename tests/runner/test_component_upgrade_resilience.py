@@ -836,8 +836,8 @@ class ComponentUpgradeResilienceTests(unittest.TestCase):
         with patch('subprocess.run', side_effect=mock_run):
             upgrader.syntax_pre_check(tt_bin)
 
-    def test_trusttunnel_syntax_check_missing_wizard(self):
-        """Archive missing setup_wizard raises upgrade_syntax_failed."""
+    def test_trusttunnel_syntax_check_without_wizard(self):
+        """TrustTunnel 1.3+ archives have no setup_wizard: only the endpoint is checked."""
         from component_upgrade import ComponentUpgrader, ComponentUpgradeError
         staging_dir = Path(self.temp_dir.name) / 'stage_no_wizard'
         staging_dir.mkdir()
@@ -848,11 +848,9 @@ class ComponentUpgradeResilienceTests(unittest.TestCase):
         upgrader.staging_dir = staging_dir
         upgrader.detection = {'component': 'trusttunnel', 'installed': True, 'binaryPath': '/usr/local/bin/trusttunnel_endpoint', 'arch': 'x86_64'}
 
-        with patch('subprocess.run', return_value=MagicMock(returncode=0, stdout='1.3.0-beta.2\n')):
-            with self.assertRaises(ComponentUpgradeError) as ctx:
-                upgrader.syntax_pre_check(tt_bin)
-            self.assertEqual(ctx.exception.code, 'upgrade_syntax_failed')
-            self.assertIn('setup_wizard binary missing', ctx.exception.detail)
+        with patch('component_upgrade.probe_staged_binary') as probe:
+            upgrader.syntax_pre_check(tt_bin)
+        self.assertEqual([c.args[1] for c in probe.call_args_list], [['--version']])
 
     def test_trusttunnel_syntax_check_rejects_symlink(self):
         """A symlinked setup_wizard is rejected as upgrade_syntax_failed without chmod or exec."""

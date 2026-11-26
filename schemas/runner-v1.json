@@ -804,6 +804,7 @@
     "component_incompatible",
     "component_download_failed",
     "component_checksum_failed",
+    "component_archive_invalid",
     "component_build_failed",
     "component_check_failed",
     "component_prerequisites",
