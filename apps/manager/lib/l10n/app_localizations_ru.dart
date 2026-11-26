@@ -1152,6 +1152,34 @@ class AppLocalizationsRu extends AppLocalizations {
       'После обновления перестали работать подключения — выполнен откат';
 
   @override
+  String get runnerUpgradeChecksRequired =>
+      'Для этого обновления нужны проверки подключений из приложения: обновите приложение и запустите обновление снова';
+
+  @override
+  String get runnerUpgradeChecksCoverage =>
+      'Проверки охватывают не все включённые подключения';
+
+  @override
+  String get runnerUpgradeChecksChanged =>
+      'Во время проверки изменились подключения или сеть устройства';
+
+  @override
+  String get runnerUpgradeChecksTimeout =>
+      'Не хватило времени на проверку подключений';
+
+  @override
+  String get runnerUpgradeChecksFailed =>
+      'После обновления подключения работают хуже, чем до него — возвращаем прежнюю версию';
+
+  @override
+  String get runnerUpgradeChecksPanelApi =>
+      'После обновления приложение не может работать с 3x-ui';
+
+  @override
+  String get runnerUpgradeAwaitingChecks =>
+      'Обновлено · проверяем подключения с устройства (без проверки — откат)';
+
+  @override
   String get runnerUpgradeDownloadMissing => 'Пакет не найден в релизе (404)';
 
   @override

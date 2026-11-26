@@ -73,7 +73,9 @@
           "relay_plan",
           "relay_link",
           "component_upgrade_check",
-          "component_upgrade_confirm"
+          "component_upgrade_confirm",
+          "component_upgrade_commit",
+          "component_upgrade_abort"
         ]
       },
       "id": {
@@ -462,6 +464,18 @@
         "version",
         "action",
         "id"
+      ],
+      "component_upgrade_commit": [
+        "version",
+        "action",
+        "id",
+        "payload"
+      ],
+      "component_upgrade_abort": [
+        "version",
+        "action",
+        "id",
+        "payload"
       ]
     },
     "submissions": {
@@ -925,7 +939,14 @@
     "upgrade_download_failed",
     "upgrade_awaiting_confirmation",
     "upgrade_confirmed",
-    "upgrade_connectivity_failed"
+    "upgrade_connectivity_failed",
+    "upgrade_checks_required",
+    "upgrade_checks_coverage",
+    "upgrade_checks_changed",
+    "upgrade_checks_timeout",
+    "upgrade_checks_failed",
+    "upgrade_checks_panel_api",
+    "upgrade_awaiting_checks"
   ],
   "codes": [
     "ok",
@@ -1045,7 +1066,13 @@
     "apt_prerequisites",
     "apt_interrupted",
     "apt_dpkg_interrupted",
-    "upgrade_connectivity_failed"
+    "upgrade_connectivity_failed",
+    "upgrade_checks_required",
+    "upgrade_checks_coverage",
+    "upgrade_checks_changed",
+    "upgrade_checks_timeout",
+    "upgrade_checks_failed",
+    "upgrade_checks_panel_api"
   ],
   "maxRequestBytes": 524288,
   "maxEvents": 256,

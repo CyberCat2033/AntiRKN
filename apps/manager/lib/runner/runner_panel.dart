@@ -358,6 +358,12 @@ String? upgradeOutcomeLabel(AppLocalizations l, String code) => switch (code) {
   'upgrade_syntax_failed' => l.runnerUpgradeSyntaxFailed,
   'upgrade_healthcheck_failed' => l.runnerUpgradeHealthcheckFailed,
   'upgrade_connectivity_failed' => l.runnerUpgradeConnectivityFailed,
+  'upgrade_checks_required' => l.runnerUpgradeChecksRequired,
+  'upgrade_checks_coverage' => l.runnerUpgradeChecksCoverage,
+  'upgrade_checks_changed' => l.runnerUpgradeChecksChanged,
+  'upgrade_checks_timeout' => l.runnerUpgradeChecksTimeout,
+  'upgrade_checks_failed' => l.runnerUpgradeChecksFailed,
+  'upgrade_checks_panel_api' => l.runnerUpgradeChecksPanelApi,
   'upgrade_download_missing' => l.runnerUpgradeDownloadMissing,
   'upgrade_download_failed' => l.runnerUpgradeDownloadFailed,
   'upgrade_checksum_failed' => l.runnerUpgradeChecksumFailed,
@@ -386,6 +392,7 @@ String? tryResolveUpgradeLabel(AppLocalizations l, String code) {
     'upgrade_rolling_back' => l.runnerUpgradeRollingBack,
     'upgrade_completed' || 'upgrade_checked' => l.runnerUpgradeCompleted,
     'upgrade_awaiting_confirmation' => l.runnerUpgradeAwaitingConfirmation,
+    'upgrade_awaiting_checks' => l.runnerUpgradeAwaitingChecks,
     'upgrade_confirmed' => l.runnerUpgradeConfirmed,
     // Safe fallback for future upgrade_* codes (never masks progress as failure)
     final String v

@@ -431,7 +431,11 @@ class Store:
                     return self.response('xray_check_busy')
                 if action=='probe_end' and upgrade.holds_lease(self,request.get('id')):
                     return self.response('xray_check_busy')
-                if request.get('action') == 'submit' and probes.active(self):
+                import upgrade_checks
+                if action == 'probe_end' and upgrade_checks.held(self, request.get('id')):
+                    return self.response('probe_busy')
+                # A checked upgrade brings the live leases as its own checks.
+                if action == 'submit' and probes.active(self) and not upgrade_checks.claims(self, request):
                     return self.response('probe_busy')
                 return self._request(request)
         except probes.ProbeError as error:
@@ -474,6 +478,24 @@ class Store:
             try:
                 confirm_upgrade(self, req['id'])
                 return self.response('ok')
+            except ComponentUpgradeError as error:
+                return self.response(error.code if error.code in SCHEMA['codes'] else 'upgrade_failed')
+            except Exception:
+                return self.response('upgrade_failed')
+        if action in ('component_upgrade_commit', 'component_upgrade_abort'):
+            import upgrade_checks
+            try:
+                (upgrade_checks.commit if action == 'component_upgrade_commit' else upgrade_checks.abort)(self, req)
+                return self.response('ok')
+            except ComponentUpgradeError as error:
+                return self.response(error.code if error.code in SCHEMA['codes'] else 'upgrade_failed')
+            except Exception:
+                return self.response('upgrade_failed')
+        if (action == 'submit' and req['kind'] == 'component_upgrade_apply' and
+                self.db.execute('SELECT 1 FROM jobs WHERE id=?', (req['id'],)).fetchone() is None):
+            import upgrade_checks
+            try:
+                upgrade_checks.admit(self, req)
             except ComponentUpgradeError as error:
                 return self.response(error.code if error.code in SCHEMA['codes'] else 'upgrade_failed')
             except Exception:

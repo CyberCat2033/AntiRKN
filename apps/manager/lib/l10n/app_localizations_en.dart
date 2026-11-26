@@ -1149,6 +1149,34 @@ class AppLocalizationsEn extends AppLocalizations {
       'Connections stopped working after the update — rolled back';
 
   @override
+  String get runnerUpgradeChecksRequired =>
+      'This update needs connection checks from the app: update the app and start the update again';
+
+  @override
+  String get runnerUpgradeChecksCoverage =>
+      'The checks do not cover every enabled connection';
+
+  @override
+  String get runnerUpgradeChecksChanged =>
+      'Connections or the device network changed during the check';
+
+  @override
+  String get runnerUpgradeChecksTimeout =>
+      'Not enough time left for the connection checks';
+
+  @override
+  String get runnerUpgradeChecksFailed =>
+      'Connections work worse after the update than before — returning the previous version';
+
+  @override
+  String get runnerUpgradeChecksPanelApi =>
+      'After the update the app cannot work with 3x-ui';
+
+  @override
+  String get runnerUpgradeAwaitingChecks =>
+      'Updated · checking connections from the device (rolled back without the checks)';
+
+  @override
   String get runnerUpgradeDownloadMissing => 'Package asset not found (404)';
 
   @override

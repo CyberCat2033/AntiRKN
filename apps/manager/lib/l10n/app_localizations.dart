@@ -2108,6 +2108,48 @@ abstract class AppLocalizations {
   /// **'Connections stopped working after the update — rolled back'**
   String get runnerUpgradeConnectivityFailed;
 
+  /// No description provided for @runnerUpgradeChecksRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'This update needs connection checks from the app: update the app and start the update again'**
+  String get runnerUpgradeChecksRequired;
+
+  /// No description provided for @runnerUpgradeChecksCoverage.
+  ///
+  /// In en, this message translates to:
+  /// **'The checks do not cover every enabled connection'**
+  String get runnerUpgradeChecksCoverage;
+
+  /// No description provided for @runnerUpgradeChecksChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'Connections or the device network changed during the check'**
+  String get runnerUpgradeChecksChanged;
+
+  /// No description provided for @runnerUpgradeChecksTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'Not enough time left for the connection checks'**
+  String get runnerUpgradeChecksTimeout;
+
+  /// No description provided for @runnerUpgradeChecksFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Connections work worse after the update than before — returning the previous version'**
+  String get runnerUpgradeChecksFailed;
+
+  /// No description provided for @runnerUpgradeChecksPanelApi.
+  ///
+  /// In en, this message translates to:
+  /// **'After the update the app cannot work with 3x-ui'**
+  String get runnerUpgradeChecksPanelApi;
+
+  /// No description provided for @runnerUpgradeAwaitingChecks.
+  ///
+  /// In en, this message translates to:
+  /// **'Updated · checking connections from the device (rolled back without the checks)'**
+  String get runnerUpgradeAwaitingChecks;
+
   /// No description provided for @runnerUpgradeDownloadMissing.
   ///
   /// In en, this message translates to:

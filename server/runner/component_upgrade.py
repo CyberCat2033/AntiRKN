@@ -1667,6 +1667,12 @@ def sync_installed_versions():
     return actual
 
 
+def upgrade_checks():
+    """The device-check module (it imports this one)."""
+    import upgrade_checks as module
+    return module
+
+
 class ComponentUpgradeJob:
     """Runner RPC Task implementing `component_upgrade_apply` with 6 checkpoints."""
 
@@ -1699,6 +1705,8 @@ class ComponentUpgradeJob:
                 if current_plan['fingerprint'] != self.request['fingerprint']:
                     raise ComponentUpgradeError(UpgradeEventCode.CONFLICT, detail='Fingerprint mismatch')
                 atomic_file(checked, b'{}')
+            if upgrade_checks().checked(self.payload):
+                upgrade_checks().before_upgrade(self.store, self.request, self.payload)
             # Starting another upgrade proves this device controls the server:
             # it closes any confirmation window that is still open. Only after
             # the plan check (also on a repeated step): a confirmation keeps a
@@ -1706,6 +1714,9 @@ class ComponentUpgradeJob:
             for other in sorted(Path(self.store.directory).glob('upgrade-*/deadman.json')):
                 other_id = other.parent.name[len('upgrade-'):]
                 if other_id != self.request['id'] and window_open(self.store.directory, other_id):
+                    if _read_window(other).get('checked'):
+                        # Only the device's checks may keep that upgrade.
+                        raise ComponentUpgradeError(UpgradeEventCode.CONFLICT)
                     confirm_upgrade(self.store, other_id)
         elif checkpoint == 1:
             # Download or use staged archive
@@ -1745,6 +1756,8 @@ class ComponentUpgradeJob:
             # Extract and syntax pre-check; the chosen binary is recorded for step 4.
             staged = self.upgrader.validate_and_stage(self.archive_path)
             self.upgrader.syntax_pre_check(staged)
+            if upgrade_checks().checked(self.payload):
+                upgrade_checks().before_switch(self.store, self.payload)
         elif checkpoint == 4:
             # Atomic switch of exactly the binary step 3 validated.
             self.upgrader._ensure_detection_and_metadata()
@@ -1756,7 +1769,11 @@ class ComponentUpgradeJob:
             self.upgrader.verify_health(timeout=15)
             self.upgrader.verify_connectivity()
             self._sync_panel_access_versions()
-            arm_deadman(self.store, self.request)
+            if upgrade_checks().checked(self.payload):
+                seconds = upgrade_checks().window(self.store, self.request, self.payload)
+                arm_deadman(self.store, self.request, seconds, checked=True)
+            else:
+                arm_deadman(self.store, self.request)
 
         done_codes = [
             'upgrade_prepared',
@@ -1770,7 +1787,8 @@ class ComponentUpgradeJob:
             self.store.db.execute('UPDATE jobs SET checkpoint=? WHERE id=?', (checkpoint + 1, self.request['id']))
             self.store.event(self.request['id'], done_codes[checkpoint], checkpoint + 1, 6)
             if checkpoint == 5:
-                self.store.event(self.request['id'], 'upgrade_awaiting_confirmation', 6, 6)
+                waiting = 'upgrade_awaiting_checks' if upgrade_checks().checked(self.payload) else 'upgrade_awaiting_confirmation'
+                self.store.event(self.request['id'], waiting, 6, 6)
 
     def _sync_panel_access_versions(self):
         """Record the versions that are actually installed after a panel/Xray switch.
@@ -1841,13 +1859,19 @@ def _stop_deadman_timer(job_id):
         pass
 
 
-def arm_deadman(store, request):
-    """Persist the window first, then start an independent systemd timer."""
+def arm_deadman(store, request, seconds=DEADMAN_SECONDS, checked=False):
+    """Persist the window first, then start an independent systemd timer.
+
+    A checked window (upgrade_checks) is confirmed only by the device's
+    connection checks, never by a plain confirmation."""
     path = _deadman_path(store.directory, request['id'])
     path.parent.mkdir(parents=True, exist_ok=True)
-    deadline = time.time() + DEADMAN_SECONDS
-    atomic_file(path, json.dumps(dict(id=request['id'], deadline=deadline, confirmed=False, rolledBack=False)).encode())
-    _start_deadman_timer(request['id'], DEADMAN_SECONDS)
+    deadline = time.time() + seconds
+    info = dict(id=request['id'], deadline=deadline, confirmed=False, rolledBack=False)
+    if checked:
+        info['checked'] = True
+    atomic_file(path, json.dumps(info).encode())
+    _start_deadman_timer(request['id'], seconds)
 
 
 def window_open(directory, job_id):
@@ -1971,11 +1995,12 @@ def snapshot_archive(directory, component, version, target):
                 tar.add(str(saved), arcname=('bin/' + name) if name.startswith('xray-linux') else name)
 
 
-def confirm_upgrade(store, job_id, timeout=10):
+def confirm_upgrade(store, job_id, timeout=10, verify=None):
     """The app confirms that it still controls the server after the upgrade.
 
     Serialized with the expiry and job rollbacks: a window whose rollback is
-    running (or failed) is never confirmed (upgrade_conflict)."""
+    running (or failed) is never confirmed (upgrade_conflict). A checked
+    window needs `verify` (upgrade_checks.commit), called under the lock."""
     path = _deadman_path(store.directory, job_id)
     if not path.exists():
         raise ComponentUpgradeError('upgrade_conflict')
@@ -1986,6 +2011,10 @@ def confirm_upgrade(store, job_id, timeout=10):
             raise ComponentUpgradeError('upgrade_rolled_back')
         if info.get('rollingBack') or info.get('rollbackFailed'):
             raise ComponentUpgradeError('upgrade_conflict')
+        if info.get('checked') and not info.get('confirmed'):
+            if verify is None:
+                raise ComponentUpgradeError('upgrade_checks_required')
+            verify(info)
         if not info.get('confirmed'):
             info['confirmed'] = True
             atomic_file(path, json.dumps(info).encode())
