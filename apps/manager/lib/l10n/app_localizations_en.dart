@@ -484,9 +484,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get networkInterfaceStateUnknown => 'Operational state is unknown';
 
   @override
-  String get sshTitle => 'SSH connection';
-
-  @override
   String get sshServerName => 'Server name (optional)';
 
   @override
@@ -494,7 +491,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sshEditHelp =>
-      'Changing the name keeps the connection open. Saving changed SSH settings disconnects the session; reconnect to apply them.';
+      'Saving will close the SSH session. Connect again to apply the changes.';
 
   @override
   String get sshOsUnknown => 'OS version will be read on connection';
@@ -505,10 +502,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get sshReplaceServerHelp =>
       'Continue only if you intentionally replaced the server or changed its address. Verify the new fingerprint through its VPS console. Confirming will replace the saved trusted key; rejecting keeps the old key. Your login details are retained.';
-
-  @override
-  String get sshReadOnly =>
-      'Connect to an Ubuntu x86_64 VPS to read its network information.';
 
   @override
   String get sshHost => 'Server address';
@@ -550,9 +543,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sshSave => 'Save connection';
-
-  @override
-  String get sshSaved => 'Connection saved on this device.';
 
   @override
   String get sshConnect => 'Connect';
@@ -880,10 +870,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sshJumpMissing => 'Server unavailable';
-
-  @override
-  String get sshJumpHelp =>
-      'Connect through another saved server. Each server uses its own login and SSH key.';
 
   @override
   String sshVia(String server) {

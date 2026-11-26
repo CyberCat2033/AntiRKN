@@ -221,7 +221,7 @@ void main() {
 
   for (final saveFirst in [false, true]) {
     test(
-      'changing host requests its own key (save first: $saveFirst)',
+      'changing host trusts its own key, not the old one (save first: $saveFirst)',
       () async {
         final vault = FakeVault();
         final connector = FakeConnector();
@@ -245,14 +245,8 @@ void main() {
         }
         connector.key = const TrustedHostKey('ssh-ed25519', 'SHA256:second');
         connector.connection = FakeConnection();
-        final second = c.connect();
-        await Future<void>.delayed(Duration.zero);
-        expect(c.stage, SshStage.verifying);
-        expect(c.challenge!.fingerprint, 'SHA256:second');
-        expect(connector.authentications, 1);
-        expect(c.observation, isNull);
-        c.decide(true);
-        await second;
+        await c.connect();
+        expect(c.challenge, isNull);
         expect(c.stage, SshStage.connected);
         expect(vault.saved!.host, 'second.example');
         expect(vault.saved!.hostKey!.fingerprint, 'SHA256:second');
@@ -441,31 +435,53 @@ void main() {
     },
   );
 
-  test(
-    'trust is persisted before auth; changed key stops auth after reconnect',
-    () async {
-      final vault = FakeVault();
-      final connector = FakeConnector();
-      final c = controller(vault, connector);
-      addTearDown(c.dispose);
-      addTearDown(c.network.dispose);
-      await prepare(c);
-      final work = c.connect();
-      await Future<void>.delayed(Duration.zero);
-      expect(c.stage, SshStage.verifying);
-      expect(connector.authentications, 0);
-      c.decide(true);
-      await work;
-      expect(vault.saved!.hostKey!.fingerprint, 'SHA256:fixture');
-      expect(connector.authentications, 1);
-      expect(c.stage, SshStage.connected);
-      c.disconnect();
-      connector.key = const TrustedHostKey('ssh-ed25519', 'SHA256:changed');
-      await c.connect();
-      expect(c.error, SshIssue.hostKeyChanged);
-      expect(connector.authentications, 1);
-    },
-  );
+  test('first key is trusted without a prompt and persisted before auth; '
+      'a changed key still stops auth', () async {
+    final vault = FakeVault();
+    final connector = FakeConnector();
+    final c = controller(vault, connector);
+    addTearDown(c.dispose);
+    addTearDown(c.network.dispose);
+    await prepare(c);
+    await c.save();
+    expect(vault.saved!.hostKey, isNull);
+    final gate = vault.writeGate = Completer<void>();
+    final work = c.connect();
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    // Waiting for the trust write, not for the person.
+    expect(c.stage, SshStage.connecting);
+    expect(c.challenge, isNull);
+    expect(connector.authentications, 0);
+    vault.writeGate = null;
+    gate.complete();
+    await work;
+    expect(vault.saved!.hostKey!.fingerprint, 'SHA256:fixture');
+    expect(c.trustedKey!.fingerprint, 'SHA256:fixture');
+    expect(connector.authentications, 1);
+    expect(c.stage, SshStage.connected);
+    c.disconnect();
+    connector.key = const TrustedHostKey('ssh-ed25519', 'SHA256:changed');
+    connector.connection = FakeConnection();
+    await c.connect();
+    expect(c.error, SshIssue.hostKeyChanged);
+    expect(c.challenge, isNull);
+    expect(c.stage, SshStage.idle);
+    expect(vault.saved!.hostKey!.fingerprint, 'SHA256:fixture');
+    expect(connector.authentications, 1);
+  });
+
+  test('a background connection never trusts a first key', () async {
+    final vault = FakeVault();
+    final connector = FakeConnector();
+    final c = controller(vault, connector);
+    addTearDown(c.dispose);
+    addTearDown(c.network.dispose);
+    await prepare(c);
+    await c.save();
+    expect(await c.connectForDeletion(), isFalse);
+    expect(vault.saved!.hostKey, isNull);
+    expect(connector.authentications, 0);
+  });
 
   test('trust write failure prevents sending authentication', () async {
     final vault = FakeVault();
@@ -474,13 +490,12 @@ void main() {
     addTearDown(c.dispose);
     addTearDown(c.network.dispose);
     await prepare(c);
-    final work = c.connect();
-    await Future<void>.delayed(Duration.zero);
+    await c.save();
     vault.failWrite = true;
-    c.decide(true);
-    await work;
+    await c.connect();
     expect(connector.authentications, 0);
     expect(c.error, SshIssue.trustSaveFailed);
+    expect(vault.saved!.hostKey, isNull);
   });
 
   test(
@@ -492,11 +507,19 @@ void main() {
       addTearDown(c.dispose);
       addTearDown(c.network.dispose);
       await prepare(c);
-      final work = c.connect();
+      await c.connect();
+      c.disconnect();
+      connector.key = const TrustedHostKey('ssh-ed25519', 'SHA256:second');
+      connector.connection = FakeConnection();
+      await c.connect();
+      expect(c.error, SshIssue.hostKeyChanged);
+      final work = c.replaceServer();
       await Future<void>.delayed(Duration.zero);
+      expect(c.challenge!.fingerprint, 'SHA256:second');
       c.lock();
       await work;
-      expect(connector.authentications, 0);
+      expect(connector.authentications, 1);
+      expect(vault.saved!.hostKey!.fingerprint, 'SHA256:fixture');
       expect(c.challenge, isNull);
       expect(c.unlocked, isFalse);
       expect(c.password.text, isEmpty);

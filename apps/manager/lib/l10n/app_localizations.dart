@@ -932,12 +932,6 @@ abstract class AppLocalizations {
   /// **'Operational state is unknown'**
   String get networkInterfaceStateUnknown;
 
-  /// No description provided for @sshTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'SSH connection'**
-  String get sshTitle;
-
   /// No description provided for @sshServerName.
   ///
   /// In en, this message translates to:
@@ -953,7 +947,7 @@ abstract class AppLocalizations {
   /// No description provided for @sshEditHelp.
   ///
   /// In en, this message translates to:
-  /// **'Changing the name keeps the connection open. Saving changed SSH settings disconnects the session; reconnect to apply them.'**
+  /// **'Saving will close the SSH session. Connect again to apply the changes.'**
   String get sshEditHelp;
 
   /// No description provided for @sshOsUnknown.
@@ -973,12 +967,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Continue only if you intentionally replaced the server or changed its address. Verify the new fingerprint through its VPS console. Confirming will replace the saved trusted key; rejecting keeps the old key. Your login details are retained.'**
   String get sshReplaceServerHelp;
-
-  /// No description provided for @sshReadOnly.
-  ///
-  /// In en, this message translates to:
-  /// **'Connect to an Ubuntu x86_64 VPS to read its network information.'**
-  String get sshReadOnly;
 
   /// No description provided for @sshHost.
   ///
@@ -1057,12 +1045,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Save connection'**
   String get sshSave;
-
-  /// No description provided for @sshSaved.
-  ///
-  /// In en, this message translates to:
-  /// **'Connection saved on this device.'**
-  String get sshSaved;
 
   /// No description provided for @sshConnect.
   ///
@@ -1651,12 +1633,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Server unavailable'**
   String get sshJumpMissing;
-
-  /// No description provided for @sshJumpHelp.
-  ///
-  /// In en, this message translates to:
-  /// **'Connect through another saved server. Each server uses its own login and SSH key.'**
-  String get sshJumpHelp;
 
   /// No description provided for @sshVia.
   ///

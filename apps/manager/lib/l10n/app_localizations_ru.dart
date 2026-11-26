@@ -484,9 +484,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get networkInterfaceStateUnknown => 'Рабочее состояние неизвестно';
 
   @override
-  String get sshTitle => 'SSH-подключение';
-
-  @override
   String get sshServerName => 'Имя сервера (необязательно)';
 
   @override
@@ -494,7 +491,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get sshEditHelp =>
-      'Переименование сохраняет подключение. Сохранение изменённых параметров SSH завершит сеанс; подключитесь снова, чтобы применить их.';
+      'Сохранение завершит SSH-сеанс. Подключитесь снова, чтобы применить изменения.';
 
   @override
   String get sshOsUnknown => 'Версия ОС появится после подключения';
@@ -505,10 +502,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get sshReplaceServerHelp =>
       'Продолжайте, только если намеренно заменили сервер или изменили его адрес. Сверьте новый отпечаток через консоль VPS. Подтверждение заменит сохранённый доверенный ключ; отказ сохранит прежний. Реквизиты входа останутся.';
-
-  @override
-  String get sshReadOnly =>
-      'Подключитесь к VPS Ubuntu x86_64 для чтения сетевых сведений.';
 
   @override
   String get sshHost => 'Адрес сервера';
@@ -550,9 +543,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get sshSave => 'Сохранить подключение';
-
-  @override
-  String get sshSaved => 'Подключение сохранено на устройстве.';
 
   @override
   String get sshConnect => 'Подключиться';
@@ -884,10 +874,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get sshJumpMissing => 'Сервер недоступен';
-
-  @override
-  String get sshJumpHelp =>
-      'Подключение через другой сохранённый сервер. Для каждого сервера используются его логин и SSH-ключ.';
 
   @override
   String sshVia(String server) {
