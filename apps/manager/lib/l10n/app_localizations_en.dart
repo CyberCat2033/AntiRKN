@@ -4150,6 +4150,20 @@ class AppLocalizationsEn extends AppLocalizations {
       'This inbound is assigned to clients. Switch it to “Internal use” first.';
 
   @override
+  String get relayMakeInternalNotice =>
+      'Turning it on switches this inbound to “Internal use”: its clients lose access.';
+
+  @override
+  String get relayMakeInternalTitle => 'Switch to “Internal use”?';
+
+  @override
+  String get relayMakeInternalHelp =>
+      'Clients of this inbound lose access: it leaves their profiles and their AntiRKN access is revoked. Then the direct exit for servers is turned on.';
+
+  @override
+  String get relayMakeInternalConfirm => 'Switch and turn on';
+
+  @override
   String get relayInboundDisabled =>
       'Enable the inbound to set up the direct exit.';
 

@@ -4157,6 +4157,20 @@ class AppLocalizationsRu extends AppLocalizations {
       'Inbound выдаётся клиентам. Сначала переведите его в «Для внутренних нужд».';
 
   @override
+  String get relayMakeInternalNotice =>
+      'При включении inbound перейдёт в «Для внутренних нужд»: его клиенты потеряют доступ.';
+
+  @override
+  String get relayMakeInternalTitle => 'Перевести в «Для внутренних нужд»?';
+
+  @override
+  String get relayMakeInternalHelp =>
+      'Клиенты этого inbound потеряют доступ: он исчезнет из их профилей, доступы AntiRKN будут отозваны. Затем включится прямой выход для серверов.';
+
+  @override
+  String get relayMakeInternalConfirm => 'Перевести и включить';
+
+  @override
   String get relayInboundDisabled =>
       'Включите inbound, чтобы настроить прямой выход.';
 

@@ -7232,6 +7232,30 @@ abstract class AppLocalizations {
   /// **'This inbound is assigned to clients. Switch it to “Internal use” first.'**
   String get relayClientFacing;
 
+  /// No description provided for @relayMakeInternalNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Turning it on switches this inbound to “Internal use”: its clients lose access.'**
+  String get relayMakeInternalNotice;
+
+  /// No description provided for @relayMakeInternalTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch to “Internal use”?'**
+  String get relayMakeInternalTitle;
+
+  /// No description provided for @relayMakeInternalHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Clients of this inbound lose access: it leaves their profiles and their AntiRKN access is revoked. Then the direct exit for servers is turned on.'**
+  String get relayMakeInternalHelp;
+
+  /// No description provided for @relayMakeInternalConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch and turn on'**
+  String get relayMakeInternalConfirm;
+
   /// No description provided for @relayInboundDisabled.
   ///
   /// In en, this message translates to:

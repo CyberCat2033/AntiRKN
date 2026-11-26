@@ -74,12 +74,14 @@ RelayTarget target({
   bool clientFacing = false,
   bool enabled = true,
   int id = 7,
+  Future<bool> Function()? makeInternal,
 }) => RelayTarget(
   inboundId: id,
   title: 'Relay',
   linkName: 'Moscow · Relay',
   row: {'id': id, 'listen': '', 'port': 443, 'enabled': enabled},
   clientFacing: clientFacing,
+  makeInternal: makeInternal,
 );
 
 void main() {
@@ -332,6 +334,60 @@ void main() {
     await settle(tester);
     expect(remote.submissions, 1);
     expect(c.selected?.kind, 'relay_apply');
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('a client inbound switches to internal use after a warning', (
+    tester,
+  ) async {
+    await tester.runAsync(ready);
+    for (final (confirm, switched) in [
+      (false, true),
+      (true, false),
+      (true, true),
+    ]) {
+      var calls = 0;
+      final before = remote.submissions;
+      await tester.pumpWidget(
+        app(
+          RelayInboundSection(
+            key: UniqueKey(),
+            controller: c,
+            target: target(
+              clientFacing: true,
+              makeInternal: () async {
+                calls++;
+                return switched;
+              },
+            ),
+            sshHost: 'ssh.example',
+            refreshOnOpen: false,
+          ),
+        ),
+      );
+      expect(switchEnabled(tester), isTrue);
+      expect(find.byKey(const ValueKey('relay-blocked')), findsNothing);
+      expect(find.byKey(const ValueKey('relay-make-internal')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('relay-switch')));
+      await settle(tester);
+      if (confirm) {
+        await tester.tap(
+          find.byKey(const ValueKey('relay-make-internal-confirm')),
+        );
+      } else {
+        await tester.tap(find.text(AppLocalizationsEn().sshCancel));
+      }
+      await settle(tester);
+      expect(calls, confirm ? 1 : 0);
+      // Only a confirmed and applied switch reaches the runner.
+      expect(remote.submissions - before, confirm && switched ? 1 : 0);
+      if (confirm && !switched) {
+        expect(
+          find.text(AppLocalizationsEn().relayClientInbound),
+          findsOneWidget,
+        );
+      }
+    }
     await tester.pumpWidget(const SizedBox());
   });
 

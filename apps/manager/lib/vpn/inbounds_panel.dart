@@ -174,6 +174,21 @@ class InboundsPanelState extends State<InboundsPanel> {
       row: row,
       resource: resource,
       clientFacing: resource != null && !resource.internal,
+      makeInternal: resource == null
+          ? null
+          : () async {
+              final c = controller;
+              if (!c.canMutate) return false;
+              await c.saveInbound(
+                VlessInbound(
+                  serverId: resource.serverId,
+                  spec: {...resource.spec, 'internal': true},
+                ),
+              );
+              if (c.error != null) return false;
+              await c.prepareAndApply(serverIds: {resource.serverId});
+              return c.error == null;
+            },
     );
   }
 

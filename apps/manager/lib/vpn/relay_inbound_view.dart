@@ -21,6 +21,7 @@ class RelayTarget {
     required this.row,
     this.resource,
     this.clientFacing = false,
+    this.makeInternal,
   });
 
   /// The 3x-ui inbound ID.
@@ -40,6 +41,11 @@ class RelayTarget {
 
   /// Given to catalog clients: the runner refuses the relay class.
   final bool clientFacing;
+
+  /// Switches a [clientFacing] inbound to "Internal use" and applies it on
+  /// the server; true when that succeeded. Null when the inbound cannot be
+  /// switched from here.
+  final Future<bool> Function()? makeInternal;
 }
 
 /// Why the direct exit cannot be turned on now; null when it can, and always
@@ -47,7 +53,7 @@ class RelayTarget {
 String? relayBlockedReason(AppLocalizations l, RelayTarget target, bool on) =>
     on
     ? null
-    : target.clientFacing
+    : target.clientFacing && target.makeInternal == null
     ? l.relayClientFacing
     : target.row['enabled'] != true
     ? l.relayInboundDisabled
@@ -156,6 +162,26 @@ class _RelayInboundSectionState extends State<RelayInboundSection> {
     });
     try {
       if (!await showPanelLogin(context, c) || !mounted) return;
+      final internal = widget.target.makeInternal;
+      if (enabled && widget.target.clientFacing && internal != null) {
+        // Clients lose this inbound: the switch is confirmed, then applied
+        // before the runner is asked (it refuses client inbounds).
+        final l = AppLocalizations.of(context);
+        final confirmed = await confirmAppDanger(
+          context,
+          title: l.relayMakeInternalTitle,
+          message: l.relayMakeInternalHelp,
+          confirmLabel: l.relayMakeInternalConfirm,
+          cancelLabel: l.sshCancel,
+          confirmKey: const ValueKey('relay-make-internal-confirm'),
+        );
+        if (!confirmed || !mounted) return;
+        if (!await internal()) {
+          if (mounted) issue = 'relay_client_inbound';
+          return;
+        }
+        if (!mounted) return;
+      }
       final ok = await c.applyRelay(
         inboundId: widget.target.inboundId,
         enabled: enabled,
@@ -237,6 +263,13 @@ class _RelayInboundSectionState extends State<RelayInboundSection> {
             AppNotice(
               key: const ValueKey('relay-blocked'),
               message: blocked,
+              margin: const EdgeInsets.only(top: 8),
+            )
+          else if (!on && target.clientFacing)
+            AppNotice(
+              key: const ValueKey('relay-make-internal'),
+              icon: Icons.warning_amber_outlined,
+              message: l.relayMakeInternalNotice,
               margin: const EdgeInsets.only(top: 8),
             )
           else if (c.egress != null && c.egress!['enabled'] != true)
