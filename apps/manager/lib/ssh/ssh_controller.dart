@@ -118,6 +118,9 @@ class SshController extends ChangeNotifier {
   final passphrase = TextEditingController();
   final sudoPassword = TextEditingController();
   PrivilegeCheck? privileges;
+
+  /// The saved account [observation] was read with.
+  SshProfile? _observedAs;
   bool needsPrivilegeInput = false;
   bool get showPrivilegePrompt => needsPrivilegeInput && !isRoot;
 
@@ -875,7 +878,12 @@ class SshController extends ChangeNotifier {
         jumps.add(current);
       }
       cancellation.check();
-      if (previous != null && !previous.hasSameConnectionSettings(profile)) {
+      // The observation belongs to the account it was read with. The
+      // hardening wizard saves the new account before reconnecting, so the
+      // vault alone cannot tell that a root observation is stale.
+      if (previous != null && !previous.hasSameConnectionSettings(profile) ||
+          _observedAs != null &&
+              !_observedAs!.hasSameConnectionSettings(profile)) {
         observation = null;
         network.clear();
       }
@@ -928,6 +936,7 @@ class SshController extends ChangeNotifier {
         return;
       }
       observation = next;
+      _observedAs = profile;
       if (next.privilegeIssue case final issue?) recordPrivilegeFailure(issue);
       network.accept(next.network);
       stage = SshStage.connected;
@@ -1147,6 +1156,7 @@ class SshController extends ChangeNotifier {
         );
         if (_disposed || generation != _generation) return;
         observation = next;
+        _observedAs = _vault?.profile;
         if (next.privilegeIssue case final issue?) {
           recordPrivilegeFailure(issue);
         }

@@ -1,8 +1,10 @@
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_manager/l10n/app_localizations.dart';
+import 'package:antirkn_manager/ssh/ssh_controller.dart';
 import 'package:antirkn_manager/ssh/ssh_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'network_support.dart';
 import 'ssh_support.dart';
 
 const pin = TrustedHostKey('ssh-ed25519', 'SHA256:fixture');
@@ -117,6 +119,54 @@ void main() {
       expect(connector.authentications, 1);
     },
   );
+  test('hardened reconnect forgets the root observation', () async {
+    final vault = FakeVault(), connector = FakeConnector();
+    var uid = '0';
+    Future<ServerObservation> reader() async => ServerObservation(
+      os: 'Ubuntu 24.04',
+      architecture: 'x86_64',
+      network: testInventory(),
+      software: ServerSoftwareInventory(
+        observedAt: DateTime.utc(2026, 11, 26),
+        facts: {ServerFact.uid: InventoryValue.ok(uid)},
+        components: const [],
+        sockets: const [],
+      ),
+    );
+    Future<PrivilegeCheck> checker(String? password, Object _) async =>
+        uid == '0'
+        ? const PrivilegeCheck(PrivilegeStatus.root)
+        : password == 'new-fixture'
+        ? const PrivilegeCheck(PrivilegeStatus.sudoWithPassword)
+        : const PrivilegeCheck(PrivilegeStatus.passwordRequired);
+    // A closed connection cannot be reused: each connect gets its own.
+    FakeConnection fresh() => connector.connection = FakeConnection()
+      ..reader = reader
+      ..privilegeChecker = checker;
+    fresh();
+    final c = controller(vault, connector);
+    addTearDown(c.dispose);
+    addTearDown(c.network.dispose);
+    await prepare(c);
+    await c.save();
+    vault.saved = vault.saved!.withHostKey(pin);
+    await c.connect();
+    expect(c.isRoot, isTrue);
+    await c.persistHardenProfile(
+      vault.saved!.withHardenedAccess(
+        user: 'mustang',
+        port: 2222,
+        sudoPassword: 'new-fixture',
+      ),
+    );
+    c.disconnect();
+    uid = '1000';
+    fresh();
+    await c.connect();
+    expect(c.stage, SshStage.connected);
+    expect(c.privileges?.status, PrivilegeStatus.sudoWithPassword);
+    expect(c.showPrivilegePrompt, isFalse);
+  });
   testWidgets(
     'root login exposes working hardening entry and root policy choice',
     (tester) async {
