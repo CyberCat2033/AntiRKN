@@ -23,13 +23,8 @@ class RunnerPanel extends StatelessWidget {
     builder: (context, _) {
       final c = controller, l = AppLocalizations.of(context), job = c.selected;
       final active = job != null && !job.terminal;
-      final failed =
-          job != null &&
-          const {
-            'failed',
-            'partially_applied',
-            'needs_attention',
-          }.contains(job.status);
+      // A closed failure stays in the activity list, not on this page.
+      final failed = job != null && identical(c.failedJob, job);
       final event = job?.events.where((e) => e.code != 'succeeded').lastOrNull;
       // ComponentInstallationView owns an active install's step, progress
       // and cancel (UI-39).
@@ -42,7 +37,27 @@ class RunnerPanel extends StatelessWidget {
               ((job.kind.startsWith('apt_') ||
                       job.kind == 'protocol_remove' ||
                       job.kind == 'ssh_harden') &&
-                  c.dismissedJobId != job.id));
+                  !c.isDismissed(job)));
+      // A failed job's event goes under its state, once (UI-43).
+      final detail =
+          failed &&
+              event != null &&
+              event.code != 'failed' &&
+              runnerEventLabel(l, event.code) != runnerStateLabel(l, job.status)
+          ? runnerEventLabel(l, event.code)
+          : null;
+      final reboot = job?.events.any((e) => e.code == 'apt_reboot_required');
+      final resumable =
+          failed &&
+          const {
+            'protocol_remove',
+            'inbound_update',
+            'inbound_remove',
+            'awg_external_edit',
+            'tt_external_edit',
+            'tt_certificate',
+          }.contains(job.kind);
+      final notes = [?detail, if (reboot == true) l.aptReboot];
       final troubled =
           c.error != null || c.installed && !c.alive || c.connectionLost;
       // One reset action per panel: either under the error row or the job.
@@ -113,30 +128,55 @@ class RunnerPanel extends StatelessWidget {
                 controller: c,
                 buttonKey: const ValueKey('runner-reset-queue-error'),
               ),
-            if (showJob) ...[
+            if (showJob && job.terminal)
+              Padding(
+                padding: const EdgeInsets.only(top: AppLayout.gap),
+                child: AppNotice(
+                  key: const ValueKey('runner-job-result'),
+                  title: notes.isEmpty ? null : runnerStateLabel(l, job.status),
+                  message: notes.isEmpty
+                      ? runnerStateLabel(l, job.status)
+                      : notes.join('\n'),
+                  error: failed,
+                  icon: job.status == 'succeeded'
+                      ? Icons.check_circle_outline
+                      : Icons.info_outline,
+                  liveRegion: true,
+                  // Retry resumes the same job; after Close it is gone from
+                  // this page, so both choices stand side by side.
+                  action: Wrap(
+                    spacing: 8,
+                    children: [
+                      if (resumable)
+                        TextButton(
+                          key: const ValueKey('runner-retry-job'),
+                          onPressed: c.canRequestAction ? c.retryJob : null,
+                          child: Text(l.runnerRetry),
+                        ),
+                      TextButton(
+                        key: const ValueKey('runner-job-close'),
+                        onPressed: c.busy ? null : c.dismissJob,
+                        child: Text(l.networkClose),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            if (showJob && active) ...[
               const SizedBox(height: AppLayout.gap),
               Semantics(
                 liveRegion: true,
-                // A failed job's event goes on the line below, once (UI-43).
                 child: Text(
-                  active && event != null
+                  event != null
                       ? runnerEventLabel(l, event.code)
                       : runnerStateLabel(l, job.status),
                 ),
               ),
-              if (active)
-                LinearProgressIndicator(value: job.checkpoint / job.count),
-              if (failed &&
-                  event != null &&
-                  event.code != 'failed' &&
-                  runnerEventLabel(l, event.code) !=
-                      runnerStateLabel(l, job.status))
-                Text(runnerEventLabel(l, event.code)),
-              if (job.events.any((e) => e.code == 'apt_reboot_required'))
-                Text(l.aptReboot),
-              if (active && job.kind.startsWith('apt_')) Text(l.aptRunningHelp),
-              if (job.cancelRequested && active) Text(l.runnerCancelRequested),
-              if (active && job.kind != 'server_reboot')
+              LinearProgressIndicator(value: job.checkpoint / job.count),
+              if (reboot == true) Text(l.aptReboot),
+              if (job.kind.startsWith('apt_')) Text(l.aptRunningHelp),
+              if (job.cancelRequested) Text(l.runnerCancelRequested),
+              if (job.kind != 'server_reboot')
                 Align(
                   alignment: AlignmentDirectional.centerStart,
                   child: Wrap(
@@ -152,14 +192,6 @@ class RunnerPanel extends StatelessWidget {
                         child: Text(l.runnerCancel),
                       ),
                     ],
-                  ),
-                ),
-              if (job.terminal)
-                Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: TextButton(
-                    onPressed: c.dismissJob,
-                    child: Text(l.networkClose),
                   ),
                 ),
             ],
@@ -183,17 +215,6 @@ class RunnerPanel extends StatelessWidget {
                 ),
               ),
             ],
-            if (failed &&
-                (job.kind == 'protocol_remove' ||
-                    job.kind == 'inbound_update' ||
-                    job.kind == 'inbound_remove' ||
-                    job.kind == 'awg_external_edit' ||
-                    job.kind == 'tt_external_edit' ||
-                    job.kind == 'tt_certificate'))
-              TextButton(
-                onPressed: c.canRequestAction ? c.retryJob : null,
-                child: Text(l.runnerRetry),
-              ),
             SoftwareOverview(controller: c, motion: motion),
             if (!softwareComponentKeys.any(
                   (k) => hostsComponentInstallation(c, k),
@@ -208,6 +229,15 @@ class RunnerPanel extends StatelessWidget {
     },
   );
 }
+
+/// What a job changes, as the activity list and the failure banner name it.
+String runnerJobTitle(AppLocalizations l, String kind) => switch (kind) {
+  'apt_update' || 'apt_upgrade' => l.aptTitle,
+  'panel_update' || 'panel_install' => '3x-ui',
+  'component_install' => l.protocolSoftware,
+  'protocol_remove' => l.uiRemoveProtocol,
+  _ => l.uiServerChanges,
+};
 
 String _shortRelease(String release) =>
     release.length > 16 ? release.substring(0, 16) : release;

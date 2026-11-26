@@ -306,9 +306,37 @@ class RunnerController extends ChangeNotifier {
   bool choosingAptUpdate = false;
   bool _systemUpdate = false;
   bool _applySystemUpgrade = false;
+
+  /// The finished job this device closed, as of its event [_dismissedAt].
+  /// Kept in the local journal only, so a closed failure does not come back
+  /// with the next refresh or start; a resumed job's new events show again.
   String? dismissedJobId;
+  int? _dismissedAt;
+  bool isDismissed(RunnerJob job) =>
+      dismissedJobId == job.id &&
+      (_dismissedAt == null || job.sequence <= _dismissedAt!);
+  void _dismiss(RunnerJob job) {
+    dismissedJobId = job.id;
+    _dismissedAt = job.sequence;
+  }
+
   List<RunnerJob> jobs = [];
   RunnerJob? selected;
+
+  /// The selected job when it ended in a failure that was not closed here.
+  RunnerJob? get failedJob {
+    final job = selected;
+    return job != null &&
+            const {
+              'failed',
+              'partially_applied',
+              'needs_attention',
+            }.contains(job.status) &&
+            !isDismissed(job)
+        ? job
+        : null;
+  }
+
   RunnerRequest? pending;
   bool get hasUnfinishedJob =>
       pending != null ||
@@ -420,6 +448,8 @@ class RunnerController extends ChangeNotifier {
     _journalSource = raw;
     operation = null;
     selected = null;
+    dismissedJobId = null;
+    _dismissedAt = null;
     jobs = [];
     pending = null;
     cursor = 0;
@@ -460,6 +490,13 @@ class RunnerController extends ChangeNotifier {
         }
         if (json['selected'] case final Map job) {
           selected = RunnerJob.fromJson(Map<String, dynamic>.from(job));
+        }
+        if (json['dismissedJob'] case {
+          'id': final String id,
+          'sequence': final int sequence,
+        }) {
+          dismissedJobId = id;
+          _dismissedAt = sequence;
         }
         if (json['pending'] case final Map request) {
           pending = RunnerRequest.fromJson(Map<String, Object?>.from(request));
@@ -512,6 +549,8 @@ class RunnerController extends ChangeNotifier {
       'cursor': observesOperation ? (previous?['cursor'] ?? 0) : cursor,
       if (operation != null) 'operation': operation!.toJson(),
       if (activeComponent != null) 'activeComponent': activeComponent,
+      if (dismissedJobId != null)
+        'dismissedJob': {'id': dismissedJobId, 'sequence': _dismissedAt},
       'egress': egress,
       'relay': relay,
       'panelDiscovery': panelDiscovery,
@@ -556,9 +595,25 @@ class RunnerController extends ChangeNotifier {
   Future<void> _run(
     Future<void> Function(RunnerTransport, CancellationToken) action, {
     bool background = false,
-  }) async {
+  }) {
     final remote = transport();
-    if (busy || backgroundBusy || remote == null || _disposed) return;
+    if (remote == null) return Future.value();
+    return _exclusive(
+      (token) => action(remote, token),
+      background: background,
+      reachesServer: true,
+    );
+  }
+
+  /// Runs [action] alone against the journal: one runner operation at a
+  /// time, with the journal loaded and failures mapped to [error]. A local
+  /// action ([reachesServer] false) needs no connection.
+  Future<void> _exclusive(
+    Future<void> Function(CancellationToken) action, {
+    bool background = false,
+    bool reachesServer = false,
+  }) async {
+    if (busy || backgroundBusy || _disposed) return;
     if (background) {
       backgroundBusy = true;
     } else {
@@ -574,9 +629,9 @@ class RunnerController extends ChangeNotifier {
     try {
       await _load();
       token.check();
-      await action(remote, token);
+      await action(token);
       token.check();
-      connectionLost = false;
+      if (reachesServer) connectionLost = false;
     } on SshFailure catch (e) {
       if (!token.isCancelled && !_disposed) {
         accessFailure(e.issue);
@@ -673,7 +728,11 @@ class RunnerController extends ChangeNotifier {
     final id =
         pending?.id ??
         jobs.where((j) => !j.terminal).firstOrNull?.id ??
-        selected?.id ??
+        // A closed job gives way to the newest one (the list is newest first).
+        switch (selected) {
+          final job? when !isDismissed(job) => job.id,
+          _ => null,
+        } ??
         jobs.firstOrNull?.id;
     if (id != null) await _readJob(remote, token, id);
     if (prepare) await _discoverPanel(remote, token);
@@ -1375,14 +1434,28 @@ class RunnerController extends ChangeNotifier {
 
   bool get canPlan =>
       connected && !busy && pending == null && !jobs.any((j) => !j.terminal);
-  void dismissJob() {
-    if (selected?.terminal == true) {
-      dismissedJobId = selected!.id;
-      if (selected?.kind == 'component_install') {
-        activeComponent = null;
-      }
-      _notify();
+
+  /// Closes the finished selected job on this device. Hidden at once;
+  /// written after the operation in flight, alone, like any journal change.
+  Future<void> dismissJob() async {
+    final job = selected;
+    if (job == null || !job.terminal || _disposed) return;
+    _dismiss(job);
+    if (job.kind == 'component_install') activeComponent = null;
+    _notify();
+    while ((busy || backgroundBusy) && !_disposed) {
+      final idle = _idle;
+      if (idle == null) return;
+      await idle.future;
     }
+    await _exclusive((_) async {
+      // A reload may have replaced the journal: close only what was shown.
+      if (selected?.id != job.id || selected?.terminal != true) return;
+      dismissedJobId = job.id;
+      _dismissedAt = job.sequence;
+      if (job.kind == 'component_install') activeComponent = null;
+      await _save();
+    });
   }
 
   void dismissApt() {
@@ -2289,7 +2362,7 @@ class RunnerController extends ChangeNotifier {
         responseCode = plan.code;
         if (plan.code == 'ok' && plan.aptPlan != null) {
           aptPlan = plan.aptPlan;
-          dismissedJobId = job.id;
+          _dismiss(job);
           _applySystemUpgrade =
               !observesOperation &&
               (aptPlan?['packages'] as List? ?? []).isNotEmpty;
