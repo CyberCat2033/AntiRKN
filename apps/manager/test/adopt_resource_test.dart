@@ -303,6 +303,64 @@ void main() {
       },
     );
   }
+  testWidgets('direct exit is offered only with the client egress on', (
+    tester,
+  ) async {
+    final store = f.MemoryVpn();
+    final c = f.controller(store, {'one': AdoptionRemote(store, 'vless')});
+    final network = NetworkController(reader: const SampleInventoryReader());
+    addTearDown(c.dispose);
+    addTearDown(network.dispose);
+    await c.load();
+    const button = ValueKey('relay-inbound-7');
+    for (final (egress, relay, shown) in [
+      (null, null, false),
+      ({'enabled': false}, null, false),
+      ({'enabled': true}, null, true),
+      // Already a direct exit: it can still be turned off.
+      (
+        {'enabled': false},
+        {
+          'inbounds': [
+            {'panelId': f.panel, 'inboundId': 7, 'tag': 'in-7', 'stale': false},
+          ],
+        },
+        true,
+      ),
+    ]) {
+      final runner = ExistingInboundRunner()
+        ..egress = egress
+        ..relay = relay;
+      await tester.pumpWidget(
+        MaterialApp(
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: InboundsPanel(
+                controller: c,
+                runner: runner,
+                serverId: 'one',
+                serverHost: 'vpn.example.com',
+                serverName: (id) => id,
+                network: network,
+                motion: MotionPreference.off,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(button),
+        shown ? findsOneWidget : findsNothing,
+        reason: '$egress $relay',
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+      runner.dispose();
+    }
+  });
+
   testWidgets('people icon opens consent and adopts without any clients', (
     tester,
   ) async {

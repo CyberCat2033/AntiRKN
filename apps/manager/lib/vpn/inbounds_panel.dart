@@ -151,14 +151,17 @@ class InboundsPanelState extends State<InboundsPanel> {
           'AntiRKN:${controller.workspace.resourceWorkspaceId(r.serverId)}:${r.id}';
 
   /// The direct exit candidate of a VLESS row of the connected panel; null
-  /// for other protocols, other panels or before the panel login.
+  /// for other protocols, other panels, before the panel login and while
+  /// the client egress is off (a direct exit only bypasses it), unless the
+  /// row already is a direct exit: it can always be turned off.
   RelayTarget? relayTarget(Map panel, Map row, [VlessInbound? resource]) {
     final r = runner, id = row['id'];
     if (r == null ||
         r.panelAccess == null ||
         panel['port'] != r.panelAccess!.port ||
         row['protocol'] != 'vless' ||
-        id is! int) {
+        id is! int ||
+        r.egress?['enabled'] != true && r.relayEntry(id) == null) {
       return null;
     }
     final name = '${row['name'] ?? ''}'.trim();

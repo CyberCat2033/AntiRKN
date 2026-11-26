@@ -141,7 +141,6 @@ class ServerAboutView extends StatelessWidget {
           clientEgress ??
               ClientEgressCard(controller: c.runner, vpn: vpn, motion: motion),
           const SizedBox(height: 12),
-          ServerRebootView(controller: c),
           if (vpn case final vpn?)
             ServerServiceModeSection(
               vpn: vpn,
@@ -288,6 +287,8 @@ class ServerAboutView extends StatelessWidget {
               ),
             ),
           ),
+          // The heaviest action of the tab goes last.
+          ServerRebootView(controller: c),
         ],
       );
     },

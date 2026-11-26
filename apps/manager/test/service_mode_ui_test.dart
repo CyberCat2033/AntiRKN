@@ -409,6 +409,16 @@ void main() {
     noOverflow(tester);
     expect(find.byKey(const ValueKey('service-mode-section')), findsOneWidget);
     expect(switchOn(tester), isTrue);
+    // The restart goes last, under every section of the tab.
+    final reboot = tester.getTopLeft(
+      find.byKey(const ValueKey('server-reboot')),
+    );
+    for (final above in [
+      find.byKey(const ValueKey('service-mode-section')),
+      find.text(lookupAppLocalizations(const Locale('ru')).uiDiskSpace),
+    ]) {
+      expect(tester.getBottomLeft(above).dy, lessThan(reboot.dy));
+    }
     await tester.pumpWidget(const SizedBox());
     session.dispose();
     session.network.dispose();
