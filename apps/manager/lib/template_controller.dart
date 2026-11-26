@@ -21,6 +21,7 @@ class TemplateController extends ChangeNotifier {
     required this.previewTemplate,
     this.pickTemplate,
     this.draftStore,
+    this.coreValidator,
   });
   final TemplateDraftStore? draftStore;
   bool savingDraft = false;
@@ -29,6 +30,17 @@ class TemplateController extends ChangeNotifier {
   Future<void> _draftWrites = Future.value();
   final PreviewTemplate previewTemplate;
   final Future<ImportedTemplate?> Function()? pickTemplate;
+
+  /// Checks an added base config with the client core before it is accepted.
+  final CoreConfigValidator? coreValidator;
+
+  /// The core's verdict on the accepted file, while it is the current source.
+  CoreConfigCheck? coreCheck;
+
+  /// Why the core rejected the last picked file; the source was kept.
+  String? coreRejection;
+  bool coreChecking = false;
+  CancellationToken? _coreToken;
   String source;
   String? importedName;
   String? importError;
@@ -42,6 +54,7 @@ class TemplateController extends ChangeNotifier {
 
   void edit(String value) {
     source = value;
+    coreCheck = null;
     persistDraft();
     _changed();
   }
@@ -50,10 +63,20 @@ class TemplateController extends ChangeNotifier {
     if (importing || busy || pickTemplate == null) return;
     importing = true;
     importError = null;
+    coreRejection = null;
     notifyListeners();
     try {
       final imported = await pickTemplate!();
       if (_disposed || imported == null) return;
+      final check = await _checkCore(imported.source);
+      if (_disposed) return;
+      // A file the core rejects never replaces the current base config: every
+      // client profile is built from it.
+      if (check?.status == CoreConfigStatus.invalid) {
+        coreRejection = check!.code;
+        return;
+      }
+      coreCheck = check;
       // The selected content becomes an independent in-memory editor draft.
       source = imported.source;
       importedName = imported.name;
@@ -73,6 +96,29 @@ class TemplateController extends ChangeNotifier {
         importing = false;
         notifyListeners();
       }
+    }
+  }
+
+  Future<CoreConfigCheck?> _checkCore(String yaml) async {
+    final validator = coreValidator;
+    if (validator == null) return null;
+    final token = _coreToken = CancellationToken();
+    coreChecking = true;
+    notifyListeners();
+    try {
+      return await validator.validate(yaml, token);
+    } catch (e) {
+      // A failed check is not a verdict on the file: it is added unchecked.
+      debugPrint('template_core_check_failed type=${e.runtimeType}');
+      return CoreConfigCheck(
+        status: CoreConfigStatus.unavailable,
+        code: 'validation_failed',
+        profileHash: '',
+        checkedAt: DateTime.now().toUtc(),
+      );
+    } finally {
+      _coreToken = null;
+      coreChecking = false;
     }
   }
 
@@ -129,6 +175,7 @@ class TemplateController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _coreToken?.cancel();
     super.dispose();
   }
 }

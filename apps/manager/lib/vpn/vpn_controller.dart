@@ -275,6 +275,7 @@ class VpnController extends ChangeNotifier {
     required this.remote,
     required this.template,
     this.pickTemplate,
+    this.templateValidator,
     this.serverIds,
     this.serverName,
     this.connectForDeletion,
@@ -325,6 +326,9 @@ class VpnController extends ChangeNotifier {
   final String? Function(String)? remoteIssue;
   final String Function() template;
   final Future<ImportedTemplate?> Function()? pickTemplate;
+
+  /// Checks an added individual base config with the client core.
+  final CoreConfigValidator? templateValidator;
   final Iterable<String> Function()? serverIds;
   final String Function(String)? serverName;
 

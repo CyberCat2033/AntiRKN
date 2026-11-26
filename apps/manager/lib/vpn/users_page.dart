@@ -89,6 +89,7 @@ class UsersPage extends StatefulWidget {
         user: user,
         publications: publications,
         pickTemplate: controller.pickTemplate,
+        coreValidator: controller.templateValidator,
         existingLogins: () => controller.workspace.users
             .where((u) => !u.deleted)
             .map((u) => u.login),
@@ -1063,6 +1064,7 @@ class _UserForm extends StatefulWidget {
     this.user,
     this.publications,
     this.pickTemplate,
+    this.coreValidator,
   });
   final Iterable<String> Function() existingLogins;
 
@@ -1071,6 +1073,7 @@ class _UserForm extends StatefulWidget {
   final VpnUser? user;
   final PublicationController? publications;
   final Future<ImportedTemplate?> Function()? pickTemplate;
+  final CoreConfigValidator? coreValidator;
   @override
   State<_UserForm> createState() => _UserFormState();
 }
@@ -1084,6 +1087,7 @@ class _UserFormState extends State<_UserForm> {
     source: widget.user?.baseTemplate ?? '',
     previewTemplate: previewInBackground,
     pickTemplate: widget.pickTemplate,
+    coreValidator: widget.coreValidator,
   )..importedName = widget.user?.baseTemplateName;
   bool picking = false, saving = false;
   String? error, saveError;

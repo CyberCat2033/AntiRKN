@@ -100,9 +100,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get incomplete => 'Additional verification is required';
 
   @override
-  String get coreNotRun => 'Mihomo: core validation has not run';
-
-  @override
   String get connectionNotRun => 'Network connection has not been tested';
 
   @override
@@ -3479,63 +3476,30 @@ class AppLocalizationsEn extends AppLocalizations {
       'Client management could not be confirmed. Check the operation status before retrying.';
 
   @override
-  String get coreCheckConfig => 'Check config';
+  String get templateCoreChecking => 'Mihomo is checking the file…';
 
   @override
-  String get coreNotChecked => 'Config not checked by the core yet';
+  String get templateCoreValid => 'Mihomo accepted the base configuration.';
 
   @override
-  String get coreValid => 'Config is valid';
+  String get templateCoreRejected =>
+      'Mihomo found an error in the file. The current base configuration was kept.';
 
   @override
-  String get coreInvalid => 'Invalid config';
+  String get templateCoreProviderRejected =>
+      'Mihomo could not read a rule set from the file. The current base configuration was kept.';
 
   @override
-  String get coreIncomplete => 'Partially checked';
+  String get templateCoreIncomplete =>
+      'The file was added, but Mihomo checked it only partially: rule sets or other external files were unavailable.';
 
   @override
-  String get coreCancelled => 'Check stopped';
+  String get templateCoreInputLimit =>
+      'The file was added without a full check: it exceeds the core check limit.';
 
   @override
-  String get coreUnavailable => 'Check unavailable';
-
-  @override
-  String get coreChecking => 'Checking config…';
-
-  @override
-  String get coreCheckingHelp =>
-      'Mihomo is checking the current YAML and available rule sets.';
-
-  @override
-  String get coreMissingResources =>
-      'The check is incomplete: external resources or the client environment are required. Retry when they are available.';
-
-  @override
-  String get coreProviderInvalid =>
-      'Mihomo could not parse the rule set content. The last publication is preserved.';
-
-  @override
-  String get coreInputLimit =>
-      'The config or its resources exceed the quick check limit.';
-
-  @override
-  String get coreRejected =>
-      'Mihomo found an error in the current config. Check its parameters and references to proxy nodes.';
-
-  @override
-  String get coreValidationScope =>
-      'Mihomo accepted the config. This test does not check connection availability.';
-
-  @override
-  String get coreCancelledHelp =>
-      'An unfinished check is not counted as successful.';
-
-  @override
-  String get coreUnavailableHelp =>
-      'The core could not start or the check did not finish. Try again.';
-
-  @override
-  String get coreStop => 'Stop';
+  String get templateCoreUnavailable =>
+      'The file was added without a core check: Mihomo could not start.';
 
   @override
   String get connectionCheck => 'Check connection';

@@ -100,9 +100,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get incomplete => 'Состав требует дополнительной проверки';
 
   @override
-  String get coreNotRun => 'Mihomo: проверка ядром не выполнена';
-
-  @override
   String get connectionNotRun => 'Сетевое соединение не проверено';
 
   @override
@@ -3484,63 +3481,30 @@ class AppLocalizationsRu extends AppLocalizations {
       'Управление доступами не подтверждено. Проверьте состояние операции перед повтором.';
 
   @override
-  String get coreCheckConfig => 'Проверить конфиг';
+  String get templateCoreChecking => 'Mihomo проверяет файл…';
 
   @override
-  String get coreNotChecked => 'Конфиг ещё не проверен ядром';
+  String get templateCoreValid => 'Базовый конфиг принят Mihomo.';
 
   @override
-  String get coreValid => 'Конфиг валиден';
+  String get templateCoreRejected =>
+      'Mihomo нашёл ошибку в файле. Текущий базовый конфиг сохранён.';
 
   @override
-  String get coreInvalid => 'Ошибка конфига';
+  String get templateCoreProviderRejected =>
+      'Mihomo не смог прочитать список правил из файла. Текущий базовый конфиг сохранён.';
 
   @override
-  String get coreIncomplete => 'Проверено частично';
+  String get templateCoreIncomplete =>
+      'Файл добавлен, но Mihomo проверил его частично: списки правил или другие внешние файлы недоступны.';
 
   @override
-  String get coreCancelled => 'Проверка остановлена';
+  String get templateCoreInputLimit =>
+      'Файл добавлен без полной проверки: он превышает лимит проверки ядром.';
 
   @override
-  String get coreUnavailable => 'Проверка недоступна';
-
-  @override
-  String get coreChecking => 'Проверяем конфиг…';
-
-  @override
-  String get coreCheckingHelp =>
-      'Mihomo проверяет текущий YAML и доступные списки правил.';
-
-  @override
-  String get coreMissingResources =>
-      'Структура проверена не полностью: нужны внешние ресурсы или параметры среды клиента. Повторите проверку после восстановления доступа.';
-
-  @override
-  String get coreProviderInvalid =>
-      'Mihomo не смог прочитать содержимое списка правил. Последняя публикация сохранена.';
-
-  @override
-  String get coreInputLimit =>
-      'Конфиг или его ресурсы превышают лимит быстрой проверки.';
-
-  @override
-  String get coreRejected =>
-      'Mihomo обнаружил ошибку в текущем конфиге. Проверьте параметры и ссылки на узлы в YAML.';
-
-  @override
-  String get coreValidationScope =>
-      'Конфиг принят Mihomo. Доступность подключений этим тестом не проверяется.';
-
-  @override
-  String get coreCancelledHelp =>
-      'Незавершённая проверка не считается успешной.';
-
-  @override
-  String get coreUnavailableHelp =>
-      'Ядро не удалось запустить или проверка не завершилась. Повторите попытку.';
-
-  @override
-  String get coreStop => 'Остановить';
+  String get templateCoreUnavailable =>
+      'Файл добавлен без проверки ядром: Mihomo не удалось запустить.';
 
   @override
   String get connectionCheck => 'Проверить';

@@ -1,4 +1,5 @@
 import 'package:antirkn_design_system/antirkn_design_system.dart';
+import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
 
 import 'app_strings.dart';
@@ -29,7 +30,9 @@ class TemplateSettings extends StatelessWidget {
             leading: const Icon(Icons.description_outlined),
             title: Text(l.source),
             subtitle: Text(
-              controller.importing
+              controller.coreChecking
+                  ? l.templateCoreChecking
+                  : controller.importing
                   ? l.templateLoading
                   : controller.importedName ??
                         (hasSource
@@ -67,6 +70,27 @@ class TemplateSettings extends StatelessWidget {
               message: controller.importError == 'template_size_limit'
                   ? l.diagnostic('template_size_limit')
                   : l.templateReadError,
+            ),
+          if (controller.coreRejection case final code?)
+            AppNotice(
+              key: const ValueKey('template-core-rejected'),
+              error: true,
+              message: code == 'provider_rejected'
+                  ? l.templateCoreProviderRejected
+                  : l.templateCoreRejected,
+            )
+          else if (controller.coreCheck case final check?)
+            AppNotice(
+              key: const ValueKey('template-core-check'),
+              icon: check.status == CoreConfigStatus.valid
+                  ? Icons.verified_outlined
+                  : Icons.info_outline,
+              message: switch (check.status) {
+                CoreConfigStatus.valid => l.templateCoreValid,
+                _ when check.code == 'input_limit' => l.templateCoreInputLimit,
+                CoreConfigStatus.incomplete => l.templateCoreIncomplete,
+                _ => l.templateCoreUnavailable,
+              },
             ),
           if (controller.failed)
             AppNotice(message: l.unexpectedError, error: true),

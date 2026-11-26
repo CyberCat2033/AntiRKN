@@ -206,6 +206,7 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher>
                 .firstOrNull ??
             MotionPreference.system,
         pickTemplate: SystemTemplateFilePicker().pick,
+        templateValidator: MihomoConfigValidator(),
         ssh: SshDependencies(
           openVault: openLocalSecretVault,
           connector: const DartSshConnector(),
@@ -292,6 +293,7 @@ class AntiRknApp extends StatefulWidget {
     required this.source,
     required this.languages,
     this.pickTemplate,
+    this.templateValidator,
     this.previewTemplate = previewInBackground,
     this.networkReader = const SampleInventoryReader(),
     this.ssh,
@@ -309,6 +311,9 @@ class AntiRknApp extends StatefulWidget {
   });
   final String? source;
   final Future<ImportedTemplate?> Function()? pickTemplate;
+
+  /// Checks an added base config with the client core.
+  final CoreConfigValidator? templateValidator;
   final LanguageController languages;
   final PreviewTemplate previewTemplate;
   final NetworkInventoryReader networkReader;
@@ -425,6 +430,7 @@ class _AntiRknAppState extends State<AntiRknApp> {
                 child: ManagerShell(
                   source: widget.source!,
                   pickTemplate: widget.pickTemplate,
+                  templateValidator: widget.templateValidator,
                   languages: widget.languages,
                   previewTemplate: widget.previewTemplate,
                   networkReader: widget.networkReader,
@@ -454,6 +460,7 @@ class ManagerShell extends StatefulWidget {
   ManagerShell({
     required this.source,
     this.pickTemplate,
+    this.templateValidator,
     required this.languages,
     required this.previewTemplate,
     required this.networkReader,
@@ -476,6 +483,7 @@ class ManagerShell extends StatefulWidget {
   final LanguageController languages;
   final String source;
   final Future<ImportedTemplate?> Function()? pickTemplate;
+  final CoreConfigValidator? templateValidator;
   final PreviewTemplate previewTemplate;
   final NetworkInventoryReader networkReader;
   final ServerRepository? servers;
@@ -575,6 +583,7 @@ class _ManagerShellState extends State<ManagerShell>
       draftStore: widget.drafts,
       pickTemplate: widget.pickTemplate,
       previewTemplate: widget.previewTemplate,
+      coreValidator: widget.templateValidator,
     );
     if (widget.source.trim().isNotEmpty) _controller.refresh();
     if (widget.servers is VpnRepository) {
@@ -599,6 +608,7 @@ class _ManagerShellState extends State<ManagerShell>
             : null,
         template: () => _controller.source,
         pickTemplate: widget.pickTemplate,
+        templateValidator: widget.templateValidator,
         serverName: (id) => _catalog?.serverDisplayName(id) ?? id,
         serverIds: () =>
             _catalog?.servers.expand(

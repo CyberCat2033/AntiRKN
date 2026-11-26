@@ -272,12 +272,6 @@ abstract class AppLocalizations {
   /// **'Additional verification is required'**
   String get incomplete;
 
-  /// No description provided for @coreNotRun.
-  ///
-  /// In en, this message translates to:
-  /// **'Mihomo: core validation has not run'**
-  String get coreNotRun;
-
   /// No description provided for @connectionNotRun.
   ///
   /// In en, this message translates to:
@@ -6164,107 +6158,47 @@ abstract class AppLocalizations {
   /// **'Client management could not be confirmed. Check the operation status before retrying.'**
   String get vpnAdoptFailed;
 
-  /// No description provided for @coreCheckConfig.
+  /// No description provided for @templateCoreChecking.
   ///
   /// In en, this message translates to:
-  /// **'Check config'**
-  String get coreCheckConfig;
+  /// **'Mihomo is checking the file…'**
+  String get templateCoreChecking;
 
-  /// No description provided for @coreNotChecked.
+  /// No description provided for @templateCoreValid.
   ///
   /// In en, this message translates to:
-  /// **'Config not checked by the core yet'**
-  String get coreNotChecked;
+  /// **'Mihomo accepted the base configuration.'**
+  String get templateCoreValid;
 
-  /// No description provided for @coreValid.
+  /// No description provided for @templateCoreRejected.
   ///
   /// In en, this message translates to:
-  /// **'Config is valid'**
-  String get coreValid;
+  /// **'Mihomo found an error in the file. The current base configuration was kept.'**
+  String get templateCoreRejected;
 
-  /// No description provided for @coreInvalid.
+  /// No description provided for @templateCoreProviderRejected.
   ///
   /// In en, this message translates to:
-  /// **'Invalid config'**
-  String get coreInvalid;
+  /// **'Mihomo could not read a rule set from the file. The current base configuration was kept.'**
+  String get templateCoreProviderRejected;
 
-  /// No description provided for @coreIncomplete.
+  /// No description provided for @templateCoreIncomplete.
   ///
   /// In en, this message translates to:
-  /// **'Partially checked'**
-  String get coreIncomplete;
+  /// **'The file was added, but Mihomo checked it only partially: rule sets or other external files were unavailable.'**
+  String get templateCoreIncomplete;
 
-  /// No description provided for @coreCancelled.
+  /// No description provided for @templateCoreInputLimit.
   ///
   /// In en, this message translates to:
-  /// **'Check stopped'**
-  String get coreCancelled;
+  /// **'The file was added without a full check: it exceeds the core check limit.'**
+  String get templateCoreInputLimit;
 
-  /// No description provided for @coreUnavailable.
+  /// No description provided for @templateCoreUnavailable.
   ///
   /// In en, this message translates to:
-  /// **'Check unavailable'**
-  String get coreUnavailable;
-
-  /// No description provided for @coreChecking.
-  ///
-  /// In en, this message translates to:
-  /// **'Checking config…'**
-  String get coreChecking;
-
-  /// No description provided for @coreCheckingHelp.
-  ///
-  /// In en, this message translates to:
-  /// **'Mihomo is checking the current YAML and available rule sets.'**
-  String get coreCheckingHelp;
-
-  /// No description provided for @coreMissingResources.
-  ///
-  /// In en, this message translates to:
-  /// **'The check is incomplete: external resources or the client environment are required. Retry when they are available.'**
-  String get coreMissingResources;
-
-  /// No description provided for @coreProviderInvalid.
-  ///
-  /// In en, this message translates to:
-  /// **'Mihomo could not parse the rule set content. The last publication is preserved.'**
-  String get coreProviderInvalid;
-
-  /// No description provided for @coreInputLimit.
-  ///
-  /// In en, this message translates to:
-  /// **'The config or its resources exceed the quick check limit.'**
-  String get coreInputLimit;
-
-  /// No description provided for @coreRejected.
-  ///
-  /// In en, this message translates to:
-  /// **'Mihomo found an error in the current config. Check its parameters and references to proxy nodes.'**
-  String get coreRejected;
-
-  /// No description provided for @coreValidationScope.
-  ///
-  /// In en, this message translates to:
-  /// **'Mihomo accepted the config. This test does not check connection availability.'**
-  String get coreValidationScope;
-
-  /// No description provided for @coreCancelledHelp.
-  ///
-  /// In en, this message translates to:
-  /// **'An unfinished check is not counted as successful.'**
-  String get coreCancelledHelp;
-
-  /// No description provided for @coreUnavailableHelp.
-  ///
-  /// In en, this message translates to:
-  /// **'The core could not start or the check did not finish. Try again.'**
-  String get coreUnavailableHelp;
-
-  /// No description provided for @coreStop.
-  ///
-  /// In en, this message translates to:
-  /// **'Stop'**
-  String get coreStop;
+  /// **'The file was added without a core check: Mihomo could not start.'**
+  String get templateCoreUnavailable;
 
   /// No description provided for @connectionCheck.
   ///
