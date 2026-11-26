@@ -675,7 +675,14 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                   color: Theme.of(context).colorScheme.error,
                 ),
                 title: Text(sshIssueLabel(l, c.error!)),
-                onTap: () => open(1),
+                // A lost connection is tried again first; the settings
+                // open only when that fails.
+                onTap: c.busy
+                    ? null
+                    : () async {
+                        if (await c.reconnect() || !mounted) return;
+                        open(1);
+                      },
               ),
             if (c.showPrivilegePrompt && index != 1)
               ListTile(

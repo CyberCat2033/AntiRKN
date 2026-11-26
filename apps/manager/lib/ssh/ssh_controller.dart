@@ -809,6 +809,20 @@ class SshController extends ChangeNotifier {
     return runner.connected;
   }
 
+  /// A tap on a lost-connection notice: the saved server is tried again
+  /// first, and only a failed attempt leads to the connection settings.
+  /// Like [ensureConnected] it never trusts a first key.
+  Future<bool> reconnect() async {
+    if (_disposed || error == null || !_retryableConnectionError) return false;
+    if (stage == SshStage.connected) return true;
+    if (!hasSavedProfile || !saved || busy || vaultBusy || picking) {
+      return false;
+    }
+    if (trustedKey == null) return false;
+    await _connect();
+    return !_disposed && stage == SshStage.connected;
+  }
+
   Future<bool?> connectForDeletion() async {
     if (_disposed || busy || vaultBusy || picking || runner.busy) return null;
     if (stage == SshStage.connected) return true;

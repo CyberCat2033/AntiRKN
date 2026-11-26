@@ -38,6 +38,38 @@ void main() {
     },
   );
 
+  test('a lost connection is tried again before the settings', () async {
+    final vault = FakeVault(), connector = FakeConnector();
+    final c = controller(vault, connector);
+    addTearDown(c.dispose);
+    addTearDown(c.network.dispose);
+    await prepare(c);
+    expect(await c.reconnect(), isFalse); // Nothing was lost yet.
+    await c.save();
+    vault.saved = vault.saved!.withHostKey(connector.key);
+    await c.connect();
+    var previous = connector.connection;
+    connector.connection = FakeConnection();
+    previous.close();
+    await Future<void>.delayed(Duration.zero);
+    expect(c.error, SshIssue.disconnected);
+    expect(connector.calls, 1); // No job: no automatic reconnect.
+    expect(await c.reconnect(), isTrue);
+    expect(c.stage, SshStage.connected);
+    expect(c.error, isNull);
+    expect(connector.calls, 2);
+    // A failed attempt is reported, and the notice then opens the settings.
+    previous = connector.connection;
+    connector.connection = FakeConnection();
+    connector.key = const TrustedHostKey('ssh-ed25519', 'SHA256:changed');
+    previous.close();
+    await Future<void>.delayed(Duration.zero);
+    expect(await c.reconnect(), isFalse);
+    expect(c.error, SshIssue.hostKeyChanged);
+    expect(await c.reconnect(), isFalse); // Not a connection to retry.
+    expect(connector.calls, 3);
+  });
+
   test('manual disconnect cancels active-job reconnect', () async {
     final vault = FakeVault(), connector = FakeConnector();
     final c = controller(
