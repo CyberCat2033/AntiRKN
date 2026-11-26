@@ -9,112 +9,150 @@ import '../runner/runner_controller.dart';
 import 'tt_dialog.dart';
 import 'vpn_strings.dart';
 
+/// The TLS certificates of a server: one compact row per certificate with
+/// its state, technical details in a sheet, and the section's actions.
 class TtCertificates extends StatelessWidget {
   const TtCertificates({
     required this.runner,
     required this.picker,
     required this.network,
     required this.motion,
-    this.showTitle = true,
     super.key,
   });
-  final bool showTitle;
   final RunnerController runner;
   final PrivateKeyFilePicker picker;
   final NetworkController network;
   final MotionPreference motion;
+
+  Future<void> _edit(BuildContext context, [Map? certificate]) =>
+      showDialog<bool>(
+        context: context,
+        builder: (_) => TtCertificateDialog(
+          runner: runner,
+          picker: picker,
+          network: network,
+          motion: motion,
+          certificate: certificate == null
+              ? null
+              : Map<String, dynamic>.from(certificate),
+        ),
+        animationStyle: AnimationStyle(
+          duration: AppMotion.duration(context, motion),
+        ),
+      );
+
+  /// Problems of [c] the person has to act on: an error of the last check
+  /// or an expiry that renewal has not moved yet.
+  static List<String> issues(AppLocalizations l, Map c) => [
+    if (c['error'] case final String error) vpnMessage(l, error),
+    if ((c['expiresAt'] as num) <
+        DateTime.now().millisecondsSinceEpoch / 1000 + 21 * 86400)
+      l.ttExpirySoon,
+  ];
+
+  void _details(BuildContext context, Map c) {
+    final l = AppLocalizations.of(context);
+    final problems = issues(l, c);
+    Widget row(IconData icon, String title, [String? value]) => ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon),
+      title: Text(title),
+      subtitle: value == null ? null : Text(value),
+    );
+    showAppDetails(
+      context,
+      title: '${c['domain']}',
+      children: [
+        if (problems.isNotEmpty)
+          AppNotice(
+            message: problems.join('\n'),
+            error: c['error'] is String,
+            margin: EdgeInsets.zero,
+          ),
+        row(
+          Icons.event_outlined,
+          l.ttExpiry,
+          l.formatEpochSeconds(c['expiresAt'] as num),
+        ),
+        row(
+          Icons.autorenew,
+          c['mode'] == 'acme'
+              ? l.ttRenewAcme
+              : c['mode'] == 'import'
+              ? l.ttRenewImport
+              : l.ttRenewExternal,
+        ),
+        if (c['lastSuccess'] case final num at)
+          row(Icons.task_alt, l.ttLastSuccess, l.formatEpochSeconds(at)),
+        if (c['nextCheck'] case final num at)
+          row(Icons.schedule, l.ttNextCheck, l.formatEpochSeconds(at)),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: runner,
     builder: (context, _) {
-      final l = AppLocalizations.of(context);
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (showTitle)
-            Text(
-              l.ttCertificates,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          for (final c
-              in (runner.ttCertificates?['certificates'] as List? ?? [])
-                  .whereType<Map>()) ...[
+      final l = AppLocalizations.of(context),
+          colors = Theme.of(context).colorScheme;
+      final certificates =
+          (runner.ttCertificates?['certificates'] as List? ?? [])
+              .whereType<Map>()
+              .toList();
+      return AppSettingsSection(
+        title: l.ttCertificates,
+        count: certificates.isEmpty ? null : certificates.length,
+        action: IconButton(
+          key: const ValueKey('tt-certificates-refresh'),
+          tooltip: l.awgRefresh,
+          onPressed: runner.busy
+              ? null
+              : () => runner.ttRequest('tt_certificates'),
+          icon: const Icon(Icons.refresh),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final c in certificates)
+              if (issues(l, c) case final problems)
+                ListTile(
+                  key: ValueKey('tt-certificate-row-${c['id']}'),
+                  leading: Icon(
+                    problems.isEmpty
+                        ? Icons.verified_outlined
+                        : Icons.error_outline,
+                    color: problems.isEmpty ? null : colors.error,
+                  ),
+                  title: Text('${c['domain']}'),
+                  subtitle: Text(
+                    problems.isEmpty
+                        ? '${l.ttExpiry}: ${l.formatEpochSeconds(c['expiresAt'] as num)}'
+                        : problems.join('\n'),
+                    style: problems.isEmpty
+                        ? null
+                        : TextStyle(color: colors.error),
+                  ),
+                  onTap: () => _details(context, c),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.edit_outlined),
+                    tooltip: l.vpnEdit,
+                    onPressed: runner.busy ? null : () => _edit(context, c),
+                  ),
+                ),
+            if (certificates.isNotEmpty) const Divider(),
             ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text('${c['domain']}'),
-              trailing: IconButton(
-                icon: const Icon(Icons.edit_outlined),
-                tooltip: l.vpnEdit,
-                onPressed: runner.busy
-                    ? null
-                    : () => showDialog<bool>(
-                        context: context,
-                        builder: (_) => TtCertificateDialog(
-                          runner: runner,
-                          picker: picker,
-                          network: network,
-                          motion: motion,
-                          certificate: Map<String, dynamic>.from(c),
-                        ),
-                        animationStyle: AnimationStyle(
-                          duration: AppMotion.duration(context, motion),
-                        ),
-                      ),
-              ),
-              subtitle: Text(
-                '${l.ttExpiry}: ${l.formatEpochSeconds(c['expiresAt'] as num)}\n${c['mode'] == 'acme'
-                    ? l.ttRenewAcme
-                    : c['mode'] == 'import'
-                    ? l.ttRenewImport
-                    : l.ttRenewExternal}',
-              ),
+              key: const ValueKey('tt-certificate-add'),
+              // An action row, not an item: primary, as a text button.
+              iconColor: colors.primary,
+              textColor: colors.primary,
+              leading: const Icon(Icons.add),
+              title: Text(l.ttAddCertificate),
+              enabled: !runner.busy && runner.installed,
+              onTap: () => _edit(context),
             ),
-            if (c['lastSuccess'] case final num at)
-              Text('${l.ttLastSuccess}: ${l.formatEpochSeconds(at)}'),
-            if (c['nextCheck'] case final num at)
-              Text('${l.ttNextCheck}: ${l.formatEpochSeconds(at)}'),
-            if ([
-                  if (c['error'] case final String error) vpnMessage(l, error),
-                  if ((c['expiresAt'] as num) <
-                      DateTime.now().millisecondsSinceEpoch / 1000 + 21 * 86400)
-                    l.ttExpirySoon,
-                ]
-                case final issues when issues.isNotEmpty)
-              AppNotice(
-                message: issues.join('\n'),
-                error: c['error'] is String,
-              ),
           ],
-          Wrap(
-            spacing: AppLayout.smallGap,
-            children: [
-              OutlinedButton.icon(
-                icon: const Icon(Icons.add),
-                label: Text(l.ttAddCertificate),
-                onPressed: runner.busy || !runner.installed
-                    ? null
-                    : () => showDialog<bool>(
-                        context: context,
-                        builder: (_) => TtCertificateDialog(
-                          runner: runner,
-                          picker: picker,
-                          network: network,
-                          motion: motion,
-                        ),
-                        animationStyle: AnimationStyle(
-                          duration: AppMotion.duration(context, motion),
-                        ),
-                      ),
-              ),
-              TextButton(
-                onPressed: runner.busy
-                    ? null
-                    : () => runner.ttRequest('tt_certificates'),
-                child: Text(l.awgRefresh),
-              ),
-            ],
-          ),
-        ],
+        ),
       );
     },
   );
@@ -257,6 +295,7 @@ class _TtCertificateState extends State<TtCertificateDialog>
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     return AppFormDialog(
+      fullscreenOnCompact: true,
       title: Text(widget.certificate == null ? l.ttAddCertificate : l.vpnEdit),
       content: SizedBox(
         width: 650,

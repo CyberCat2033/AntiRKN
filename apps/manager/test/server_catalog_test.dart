@@ -158,6 +158,28 @@ void main() {
         secrets: const {ServerSecret.sshPassword: 'test-only'},
       );
 
+  test(
+    'a restored server without a pinned key is never trusted in the background',
+    () async {
+      // E.g. after a cloud pull: saved, but never connected on this device.
+      final repo = _Repository()..servers['a'] = profile('a');
+      final connector = FakeConnector();
+      final c = ServerCatalogController(
+        repository: repo,
+        connector: connector,
+        picker: FakeKeyPicker(),
+        reader: TestInventoryReader(() async => testInventory()),
+      );
+      addTearDown(c.dispose);
+      await c.load();
+      // The background cache refresh path: non-interactive attempt, then the
+      // runner's own connect-for-action fallback.
+      expect(await c.connectForAction('a'), isFalse);
+      expect(repo.servers['a']!.hostKey, isNull);
+      expect(connector.authentications, 0);
+    },
+  );
+
   test('local forget refreshes revisions and never opens SSH', () async {
     final repo = _Repository()..servers['a'] = profile('a');
     final connector = FakeConnector();
@@ -450,62 +472,38 @@ void main() {
     expect(tester.getSize(subtitle), size);
   });
 
-  for (final outcome in ['accept', 'reject', 'cancel']) {
-    test('jump and target trust are saved separately: $outcome', () async {
-      final repo = _Repository();
-      repo.servers.addAll({'a': profile('a'), 'b': profile('b', jump: 'a')});
-      final connector = FakeConnector();
-      const jumpKey = TrustedHostKey('ssh-ed25519', 'SHA256:jump');
-      connector.jumpKeys['a'] = jumpKey;
-      final c = controller(
-        FakeVault(),
-        connector,
-        repository: repo,
-        serverId: 'b',
-      );
-      addTearDown(c.dispose);
-      addTearDown(c.network.dispose);
-      await c.initialise();
-      expect(c.showJumpPicker, isTrue);
-      expect(c.jumpOptions.map((s) => s.id), ['a']);
-      expect(c.saved, isTrue);
-      final work = c.connect();
-      await Future<void>.delayed(Duration.zero);
-      expect(c.verifyingProfile!.id, 'a');
-      expect(c.challenge, same(jumpKey));
-      expect(connector.authentications, 0);
-      if (outcome == 'cancel') {
-        c.disconnect();
-      } else {
-        c.decide(outcome == 'accept');
-      }
-      await Future<void>.delayed(Duration.zero);
-      if (outcome == 'accept') {
-        expect(repo.servers['a']!.hostKey, same(jumpKey));
-        expect(repo.servers['b']!.hostKey, isNull);
-        expect(c.verifyingProfile!.id, 'b');
-        expect(connector.lastJumps.single.id, 'a');
-        c.decide(true);
-      }
-      await work;
-      if (outcome == 'accept') {
-        expect(c.stage, SshStage.connected);
-        expect(repo.servers['b']!.hostKey, same(connector.key));
-        expect(repo.servers['b']!.jumpServerId, 'a');
-        c.disconnect();
-        c.editSettings();
-        c.setJump(null);
-        expect(c.saved, isFalse);
-        c.cancelEditing();
-        expect(c.jumpServerId, 'a');
-      } else {
-        expect(repo.servers['a']!.hostKey, isNull);
-        expect(repo.servers['b']!.hostKey, isNull);
-        expect(connector.authentications, 0);
-        expect(c.editing, isTrue);
-      }
-    });
-  }
+  test('jump and target trust are saved separately on first use', () async {
+    final repo = _Repository();
+    repo.servers.addAll({'a': profile('a'), 'b': profile('b', jump: 'a')});
+    final connector = FakeConnector();
+    const jumpKey = TrustedHostKey('ssh-ed25519', 'SHA256:jump');
+    connector.jumpKeys['a'] = jumpKey;
+    final c = controller(
+      FakeVault(),
+      connector,
+      repository: repo,
+      serverId: 'b',
+    );
+    addTearDown(c.dispose);
+    addTearDown(c.network.dispose);
+    await c.initialise();
+    expect(c.showJumpPicker, isTrue);
+    expect(c.jumpOptions.map((s) => s.id), ['a']);
+    expect(c.saved, isTrue);
+    await c.connect();
+    expect(c.challenge, isNull);
+    expect(c.stage, SshStage.connected);
+    expect(connector.lastJumps.single.id, 'a');
+    expect(repo.servers['a']!.hostKey, same(jumpKey));
+    expect(repo.servers['b']!.hostKey, same(connector.key));
+    expect(repo.servers['b']!.jumpServerId, 'a');
+    c.disconnect();
+    c.editSettings();
+    c.setJump(null);
+    expect(c.saved, isFalse);
+    c.cancelEditing();
+    expect(c.jumpServerId, 'a');
+  });
   test(
     'deleted or cyclic jump stops before connector; changed jump key identifies the intermediary',
     () async {
@@ -685,7 +683,6 @@ void main() {
         );
         await tap('ssh-save');
         await tap('ssh-connect');
-        await tap('ssh-trust-accept');
         await tap('server-list-back');
         await tap('server-list-back');
         expect(find.text('Renamed A'), findsOneWidget);

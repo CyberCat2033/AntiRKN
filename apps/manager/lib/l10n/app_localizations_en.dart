@@ -484,9 +484,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get networkInterfaceStateUnknown => 'Operational state is unknown';
 
   @override
-  String get sshTitle => 'SSH connection';
-
-  @override
   String get sshServerName => 'Server name (optional)';
 
   @override
@@ -494,7 +491,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sshEditHelp =>
-      'Changing the name keeps the connection open. Saving changed SSH settings disconnects the session; reconnect to apply them.';
+      'Saving will close the SSH session. Connect again to apply the changes.';
 
   @override
   String get sshOsUnknown => 'OS version will be read on connection';
@@ -505,10 +502,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get sshReplaceServerHelp =>
       'Continue only if you intentionally replaced the server or changed its address. Verify the new fingerprint through its VPS console. Confirming will replace the saved trusted key; rejecting keeps the old key. Your login details are retained.';
-
-  @override
-  String get sshReadOnly =>
-      'Connect to an Ubuntu x86_64 VPS to read its network information.';
 
   @override
   String get sshHost => 'Server address';
@@ -550,9 +543,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sshSave => 'Save connection';
-
-  @override
-  String get sshSaved => 'Connection saved on this device.';
 
   @override
   String get sshConnect => 'Connect';
@@ -880,10 +870,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sshJumpMissing => 'Server unavailable';
-
-  @override
-  String get sshJumpHelp =>
-      'Connect through another saved server. Each server uses its own login and SSH key.';
 
   @override
   String sshVia(String server) {
@@ -1813,11 +1799,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get xhttpHeaders => 'HTTP headers';
 
   @override
-  String get vpnRegenerateReality => 'Regenerate REALITY keys and Short ID';
-
-  @override
-  String get vpnRealityAutomatic =>
-      'REALITY keys and Short ID are generated automatically and kept when editing.';
+  String get vpnRegenerateReality => 'Regenerate keys';
 
   @override
   String get vpnRealityRegenerated =>
@@ -2073,10 +2055,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get awgExternalPort => 'External UDP port (NAT)';
 
   @override
-  String get awgEndpointHelp =>
-      'Choose the IP for client profiles. AWG listens on the UDP port on all server addresses. The port is checked again before applying.';
-
-  @override
   String get awgAdvanced => 'Advanced settings';
 
   @override
@@ -2163,11 +2141,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ttRotate => 'Replace passwords for all clients of this endpoint';
 
   @override
-  String get ttRegeneratePasswords => 'Regenerate client passwords';
-
-  @override
-  String get ttPasswordsAutomatic =>
-      'Client passwords are generated automatically and kept when editing.';
+  String get ttRegeneratePasswords => 'Regenerate passwords';
 
   @override
   String get ttPasswordsRegenerated =>
@@ -3060,16 +3034,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get uiPublicationAutoHelp => 'Save changes at the same profile links';
 
   @override
-  String get uiVlessIntro => 'VLESS connections on this server';
-
-  @override
-  String get uiAwgIntro => 'AmneziaWG interfaces on this server';
-
-  @override
   String get uiInterfaces => 'Interfaces';
-
-  @override
-  String get uiTtIntro => 'TrustTunnel connection endpoints';
 
   @override
   String get uiConnections => 'Connections';
@@ -3098,9 +3063,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get uiAuthentication => 'Sign-in credentials';
-
-  @override
-  String get uiInstalledComponents => 'Components installed on this server';
 
   @override
   String get uiOtherComponents => 'Other components';
@@ -3593,23 +3555,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get connectionNotTested => 'Not tested';
 
   @override
-  String get connectionAfterSave =>
-      'The app will check the connection after saving.';
-
-  @override
   String connectionProgress(int done, int total, int skipped) {
     return 'Checked: $done of $total. Skipped: $skipped.';
   }
 
   @override
   String get xrayUpgradeTitle => 'Xray core update';
-
-  @override
-  String get xrayUpgradeAction => 'Check and update Xray';
-
-  @override
-  String get xrayUpgradeIntro =>
-      'All enabled inbounds are checked before and after the update. If the comparison does not finish, the server restores the previous core.';
 
   @override
   String get xrayUpgradeBaseline => 'Checking connections before updating…';
@@ -4039,11 +3990,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get egressInbound => 'VLESS inbound';
-
-  @override
-  String softwareUpdateAvailableList(Object items) {
-    return 'Update available: $items';
-  }
 
   @override
   String inventoryPartialList(Object items) {

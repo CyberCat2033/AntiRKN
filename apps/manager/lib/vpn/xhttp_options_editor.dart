@@ -140,6 +140,8 @@ class _XhttpOptionsEditorState extends State<XhttpOptionsEditor> {
       children: [
         AppExpansionTile(
           expansionAnimationStyle: animation,
+          // Form rows share one 16 dp text inset.
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16),
           key: const ValueKey('xhttp-xmux'),
           title: const Text('XMUX'),
           children: [
@@ -156,6 +158,8 @@ class _XhttpOptionsEditorState extends State<XhttpOptionsEditor> {
         ),
         AppExpansionTile(
           expansionAnimationStyle: animation,
+          // Form rows share one 16 dp text inset.
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16),
           key: const ValueKey('xhttp-extra'),
           title: Text(l.xhttpAdvanced),
           children: [

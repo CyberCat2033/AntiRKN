@@ -19,135 +19,135 @@ class _Languages implements LanguagePreferenceStore {
 void main() {
   for (final language in ['ru', 'en']) {
     for (final width in [390.0, 1400.0]) {
-      testWidgets('SSH form and trust prompt at $width, $language, text x2', (
-        tester,
-      ) async {
-        tester.view.devicePixelRatio = 1;
-        tester.view.physicalSize = Size(width, 1000);
-        addTearDown(tester.view.resetDevicePixelRatio);
-        addTearDown(tester.view.resetPhysicalSize);
-        final vault = FakeVault();
-        final connector = FakeConnector();
-        final c = controller(vault, connector);
-        await prepare(c);
-        c.serverName.text =
-            'Мой сервер / My server — длинное имя для узкого окна';
-        await tester.pumpWidget(
-          MaterialApp(
-            locale: Locale(language),
-            supportedLocales: AppLocalizations.supportedLocales,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            builder: (context, child) => MediaQuery(
-              data: MediaQuery.of(context).copyWith(
-                textScaler: const TextScaler.linear(2),
-                disableAnimations: width == 1400,
+      testWidgets(
+        'SSH form and key replacement prompt at $width, $language, text x2',
+        (tester) async {
+          tester.view.devicePixelRatio = 1;
+          tester.view.physicalSize = Size(width, 1000);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          addTearDown(tester.view.resetPhysicalSize);
+          final vault = FakeVault();
+          final connector = FakeConnector();
+          final c = controller(vault, connector);
+          await prepare(c);
+          c.serverName.text =
+              'Мой сервер / My server — длинное имя для узкого окна';
+          await tester.pumpWidget(
+            MaterialApp(
+              locale: Locale(language),
+              supportedLocales: AppLocalizations.supportedLocales,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              builder: (context, child) => MediaQuery(
+                data: MediaQuery.of(context).copyWith(
+                  textScaler: const TextScaler.linear(2),
+                  disableAnimations: width == 1400,
+                ),
+                child: child!,
               ),
-              child: child!,
+              home: Scaffold(
+                body: SingleChildScrollView(child: SshPanel(controller: c)),
+              ),
             ),
-            home: Scaffold(
-              body: SingleChildScrollView(child: SshPanel(controller: c)),
-            ),
-          ),
-        );
-        await tester.pumpAndSettle();
-        expect(tester.takeException(), isNull);
-        final work = c.connect();
-        await tester.pumpAndSettle();
-        expect(c.stage, SshStage.verifying);
-        expect(connector.authentications, 0);
-        final accept = find.byKey(const ValueKey('ssh-trust-accept'));
-        await tester.ensureVisible(accept);
-        await tester.pumpAndSettle();
-        await tester.tap(accept);
-        await tester.pumpAndSettle();
-        await work;
-        expect(c.stage, SshStage.connected);
-        expect(find.byKey(const ValueKey('ssh-host')), findsNothing);
-        expect(find.byKey(const ValueKey('ssh-password')), findsNothing);
-        expect(find.text(c.serverName.text), findsOneWidget);
-        expect(find.text('Ubuntu 24.04'), findsOneWidget);
-        expect(find.textContaining('SHA256:fixture'), findsNothing);
-        final sudoField = find.byKey(const ValueKey('sudo-password'));
-        expect(sudoField, findsNothing);
-        expect(c.privileges!.granted, isTrue);
-        connector.connection.privilegeChecker = (_, _) async =>
-            const PrivilegeCheck(PrivilegeStatus.authenticationFailed);
-        await c.refresh();
-        await tester.pumpAndSettle();
-        expect(sudoField, findsOneWidget);
-        expect(tester.widget<TextField>(sudoField).obscureText, isTrue);
-        final checkAccess = find.byKey(const ValueKey('sudo-check'));
-        await tester.ensureVisible(checkAccess);
-        await tester.pumpAndSettle();
-        await tester.tap(checkAccess);
-        await tester.pumpAndSettle();
-        expect(sudoField, findsOneWidget);
-        connector.connection.privilegeChecker = (_, _) async =>
-            const PrivilegeCheck(PrivilegeStatus.sudoWithoutPassword);
-        await tester.tap(checkAccess);
-        await tester.pumpAndSettle();
-        expect(sudoField, findsNothing);
-        expect(find.byKey(const ValueKey('sudo-check')), findsNothing);
-        expect(c.privileges!.status, PrivilegeStatus.sudoWithoutPassword);
-        expect(connector.connection.lastUseSudo, isTrue);
-        expect(tester.takeException(), isNull);
+          );
+          await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull);
+          // A first key is trusted on first use, without a prompt.
+          final work = c.connect();
+          await tester.pumpAndSettle();
+          await work;
+          await tester.pumpAndSettle();
+          final accept = find.byKey(const ValueKey('ssh-trust-accept'));
+          expect(accept, findsNothing);
+          expect(c.stage, SshStage.connected);
+          expect(connector.authentications, 1);
+          expect(vault.saved!.hostKey!.fingerprint, 'SHA256:fixture');
+          expect(find.byKey(const ValueKey('ssh-host')), findsNothing);
+          expect(find.byKey(const ValueKey('ssh-password')), findsNothing);
+          expect(find.text(c.serverName.text), findsOneWidget);
+          expect(find.text('Ubuntu 24.04'), findsOneWidget);
+          expect(find.textContaining('SHA256:fixture'), findsNothing);
+          final sudoField = find.byKey(const ValueKey('sudo-password'));
+          expect(sudoField, findsNothing);
+          expect(c.privileges!.granted, isTrue);
+          connector.connection.privilegeChecker = (_, _) async =>
+              const PrivilegeCheck(PrivilegeStatus.authenticationFailed);
+          await c.refresh();
+          await tester.pumpAndSettle();
+          expect(sudoField, findsOneWidget);
+          expect(tester.widget<TextField>(sudoField).obscureText, isTrue);
+          final checkAccess = find.byKey(const ValueKey('sudo-check'));
+          await tester.ensureVisible(checkAccess);
+          await tester.pumpAndSettle();
+          await tester.tap(checkAccess);
+          await tester.pumpAndSettle();
+          expect(sudoField, findsOneWidget);
+          connector.connection.privilegeChecker = (_, _) async =>
+              const PrivilegeCheck(PrivilegeStatus.sudoWithoutPassword);
+          await tester.tap(checkAccess);
+          await tester.pumpAndSettle();
+          expect(sudoField, findsNothing);
+          expect(find.byKey(const ValueKey('sudo-check')), findsNothing);
+          expect(c.privileges!.status, PrivilegeStatus.sudoWithoutPassword);
+          expect(connector.connection.lastUseSudo, isTrue);
+          expect(tester.takeException(), isNull);
 
-        final edit = find.byKey(const ValueKey('ssh-edit'));
-        await tester.ensureVisible(edit);
-        await tester.pumpAndSettle();
-        await tester.tap(edit);
-        await tester.pumpAndSettle();
-        final name = find.byKey(const ValueKey('ssh-name'));
-        await tester.ensureVisible(name);
-        await tester.pumpAndSettle();
-        await tester.enterText(name, 'VPS 2');
-        await tester.pumpAndSettle();
-        final save = find.byKey(const ValueKey('ssh-save'));
-        await tester.ensureVisible(save);
-        await tester.pumpAndSettle();
-        await tester.tap(save);
-        await tester.pumpAndSettle();
-        expect(find.text('VPS 2'), findsOneWidget);
-        expect(find.byKey(const ValueKey('ssh-host')), findsNothing);
-        expect(connector.connection.closed, isFalse);
-        await c.refresh();
-        await tester.pumpAndSettle();
-        expect(find.byKey(const ValueKey('ssh-host')), findsNothing);
-        c.disconnect();
-        await tester.pumpAndSettle();
-        expect(find.byKey(const ValueKey('ssh-host')), findsNothing);
-        expect(find.byKey(const ValueKey('ssh-connect')), findsOneWidget);
-        connector.key = const TrustedHostKey('ssh-ed25519', 'SHA256:second');
-        connector.connection = FakeConnection();
-        await c.connect();
-        await tester.pumpAndSettle();
-        expect(c.error, SshIssue.hostKeyChanged);
-        final replace = find.byKey(const ValueKey('ssh-replace-server'));
-        await tester.ensureVisible(replace);
-        await tester.pumpAndSettle();
-        await tester.tap(replace);
-        await tester.pumpAndSettle();
-        expect(c.stage, SshStage.verifying);
-        expect(find.textContaining('SHA256:fixture'), findsOneWidget);
-        expect(find.textContaining('SHA256:second'), findsOneWidget);
-        expect(connector.authentications, 1);
-        await tester.ensureVisible(accept);
-        await tester.pumpAndSettle();
-        await tester.tap(accept);
-        await tester.pumpAndSettle();
-        expect(c.stage, SshStage.connected);
-        expect(connector.authentications, 2);
-        expect(find.text('VPS 2'), findsOneWidget);
-        expect(find.byKey(const ValueKey('ssh-host')), findsNothing);
-        expect(tester.takeException(), isNull);
-        c.lock();
-        await tester.pumpAndSettle();
-        expect(find.byKey(const ValueKey('ssh-password')), findsNothing);
-        expect(c.password.text, isEmpty);
-        await tester.pumpWidget(const SizedBox());
-        c.dispose();
-        c.network.dispose();
-      });
+          final edit = find.byKey(const ValueKey('ssh-edit'));
+          await tester.ensureVisible(edit);
+          await tester.pumpAndSettle();
+          await tester.tap(edit);
+          await tester.pumpAndSettle();
+          final name = find.byKey(const ValueKey('ssh-name'));
+          await tester.ensureVisible(name);
+          await tester.pumpAndSettle();
+          await tester.enterText(name, 'VPS 2');
+          await tester.pumpAndSettle();
+          final save = find.byKey(const ValueKey('ssh-save'));
+          await tester.ensureVisible(save);
+          await tester.pumpAndSettle();
+          await tester.tap(save);
+          await tester.pumpAndSettle();
+          expect(find.text('VPS 2'), findsOneWidget);
+          expect(find.byKey(const ValueKey('ssh-host')), findsNothing);
+          expect(connector.connection.closed, isFalse);
+          await c.refresh();
+          await tester.pumpAndSettle();
+          expect(find.byKey(const ValueKey('ssh-host')), findsNothing);
+          c.disconnect();
+          await tester.pumpAndSettle();
+          expect(find.byKey(const ValueKey('ssh-host')), findsNothing);
+          expect(find.byKey(const ValueKey('ssh-connect')), findsOneWidget);
+          connector.key = const TrustedHostKey('ssh-ed25519', 'SHA256:second');
+          connector.connection = FakeConnection();
+          await c.connect();
+          await tester.pumpAndSettle();
+          expect(c.error, SshIssue.hostKeyChanged);
+          final replace = find.byKey(const ValueKey('ssh-replace-server'));
+          await tester.ensureVisible(replace);
+          await tester.pumpAndSettle();
+          await tester.tap(replace);
+          await tester.pumpAndSettle();
+          expect(c.stage, SshStage.verifying);
+          expect(find.textContaining('SHA256:fixture'), findsOneWidget);
+          expect(find.textContaining('SHA256:second'), findsOneWidget);
+          expect(connector.authentications, 1);
+          await tester.ensureVisible(accept);
+          await tester.pumpAndSettle();
+          await tester.tap(accept);
+          await tester.pumpAndSettle();
+          expect(c.stage, SshStage.connected);
+          expect(connector.authentications, 2);
+          expect(find.text('VPS 2'), findsOneWidget);
+          expect(find.byKey(const ValueKey('ssh-host')), findsNothing);
+          expect(tester.takeException(), isNull);
+          c.lock();
+          await tester.pumpAndSettle();
+          expect(find.byKey(const ValueKey('ssh-password')), findsNothing);
+          expect(c.password.text, isEmpty);
+          await tester.pumpWidget(const SizedBox());
+          c.dispose();
+          c.network.dispose();
+        },
+      );
     }
   }
 

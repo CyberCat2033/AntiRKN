@@ -437,7 +437,6 @@ void main() {
                 ServerProtocolSection(
                   name: 'VLESS',
                   count: 2,
-                  mark: 'V',
                   detected: true,
                   selection: selection,
                   selectionActions: () =>

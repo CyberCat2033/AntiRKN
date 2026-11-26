@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../busy_reason.dart';
 import '../l10n/app_localizations.dart';
+import '../protocol_icon.dart';
 import 'component_installation_view.dart';
 import 'component_updates_controller.dart';
 import 'component_versions_view.dart';
@@ -67,11 +68,9 @@ class SoftwareOverview extends StatelessWidget {
       final updatable = updates == null
           ? const <String, String>{}
           : availableUpdates(updates, versions);
-      final changes = [
-        for (final u in updatable.entries) '${componentName(u.key)} ${u.value}',
-      ];
-      // Xray is upgraded only through XrayUpgradeView, which checks the
-      // connections before and after and rolls back (UI-45).
+      // Xray is upgraded only through the checked transaction of
+      // XrayUpgradeView, which compares the connections before and after
+      // and rolls back (UI-45).
       final canUpdate = versions.entries
           .where((v) => v.key != 'xray')
           .any(
@@ -95,13 +94,22 @@ class SoftwareOverview extends StatelessWidget {
           );
       final isPanel = component == VpnComponent.panel;
       final detected = presence == ComponentPresence.detected;
+      // Only the core is behind: Update runs the checked Xray transaction.
+      final xray = isPanel && detected && !canUpdate
+          ? c.xrayVersionChoice
+          : null;
+      final xrayUpdate = xray != null && updatable.containsKey('xray');
       final name = isPanel ? '3x-ui / Xray' : vpnComponentName(component);
+      // One line: each installed version and, when newer, its update
+      // ("3x-ui 3.7.0 → 3.11.0 · Xray 26.7.28 → 26.11.9").
       final status = versions.isNotEmpty
           ? versions.entries
                 .map(
-                  (v) => versions.length > 1
-                      ? '${componentName(v.key)} ${v.value}'
-                      : v.value,
+                  (v) => [
+                    if (versions.length > 1) componentName(v.key),
+                    v.value,
+                    if (updatable[v.key] case final target?) '→ $target',
+                  ].join(' '),
                 )
                 .join(' · ')
           : switch (presence) {
@@ -114,7 +122,7 @@ class SoftwareOverview extends StatelessWidget {
           : c.componentPlan?.component == key;
       // No update path for an AmneziaWG container: no Update, no version
       // choice, a note instead.
-      final applyAction = !detected || (canUpdate && !inDocker);
+      final applyAction = !detected || (canUpdate && !inDocker) || xrayUpdate;
       final installingThis =
           (c.selected?.kind == 'component_install' ||
               c.selected?.kind == 'component_upgrade' ||
@@ -145,7 +153,7 @@ class SoftwareOverview extends StatelessWidget {
           ? null
           : AppDisabledReason(
               reason: busyReason(l, runner: c),
-              child: OutlinedButton(
+              child: FilledButton.tonal(
                 key: ValueKey(
                   isPanel
                       ? (detected ? 'panel-update' : 'components-choose')
@@ -157,6 +165,16 @@ class SoftwareOverview extends StatelessWidget {
                         c.actionPending ||
                         !c.canRequestAction
                     ? null
+                    : xrayUpdate
+                    ? () async {
+                        if (xray.ready()) {
+                          await xray.update(updatable['xray']!);
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(l.versionsXrayUnavailable)),
+                          );
+                        }
+                      }
                     : () => c.requestAction(() async {
                         if (isPanel &&
                             detected &&
@@ -240,40 +258,41 @@ class SoftwareOverview extends StatelessWidget {
           for (final k in versions.keys)
             if (choosableComponents.contains(k)) k,
       ];
+      final versionsAction = detected && updates != null && choosable.isNotEmpty
+          ? AppDisabledReason(
+              reason: busyReason(l, runner: c),
+              child: TextButton.icon(
+                key: ValueKey('component-versions-$key'),
+                onPressed: c.busy || !c.canRequestAction
+                    ? null
+                    : () => showComponentVersions(
+                        context,
+                        controller: c,
+                        updates: updates,
+                        title: name,
+                        installed: {for (final k in choosable) k: versions[k]!},
+                      ),
+                icon: const Icon(Icons.history),
+                label: Text(l.versionsChoose),
+              ),
+            )
+          : null;
+      // Versions and the main action share one row: beside the summary on
+      // wide cards, below it on narrow ones.
+      final actions = versionsAction == null && action == null
+          ? null
+          : Wrap(
+              alignment: WrapAlignment.end,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: AppLayout.smallGap,
+              runSpacing: AppLayout.smallGap,
+              children: [?versionsAction, ?action],
+            );
       final summary = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(status),
-          if (detected && updates != null && choosable.isNotEmpty)
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: AppDisabledReason(
-                reason: busyReason(l, runner: c),
-                child: TextButton.icon(
-                  key: ValueKey('component-versions-$key'),
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  onPressed: c.busy || !c.canRequestAction
-                      ? null
-                      : () => showComponentVersions(
-                          context,
-                          controller: c,
-                          updates: updates,
-                          title: name,
-                          installed: {
-                            for (final k in choosable) k: versions[k]!,
-                          },
-                        ),
-                  icon: const Icon(Icons.history, size: 18),
-                  label: Text(l.versionsChoose),
-                ),
-              ),
-            ),
-          if (changes.isNotEmpty)
-            Text(l.softwareUpdateAvailableList(changes.join(', '))),
-          if (inDocker && detected && (changes.isNotEmpty || canUpdate))
+          if (inDocker && detected && (updatable.isNotEmpty || canUpdate))
             Text(
               key: ValueKey('software-docker-$key'),
               l.softwareAwgDockerUpdate,
@@ -286,19 +305,16 @@ class SoftwareOverview extends StatelessWidget {
             ),
         ],
       );
-      if (changes.isNotEmpty || canUpdate) {
+      if (updatable.isNotEmpty || canUpdate) {
         available.add(
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: SummaryCard(
-              leading: AppIconTile(
-                icon: isPanel
-                    ? Icons.inventory_2_outlined
-                    : Icons.shield_outlined,
-              ),
+              leading: AppIconTile(icon: protocolIcon(key)),
+              leadingAtTop: true,
               title: name,
               subtitle: summary,
-              action: action,
+              action: actions,
             ),
           ),
         );
@@ -311,12 +327,11 @@ class SoftwareOverview extends StatelessWidget {
         others.add(
           SummaryCard(
             embedded: true,
-            leading: AppIconTile(
-              icon: isPanel ? Icons.dns_outlined : Icons.shield_outlined,
-            ),
+            leading: AppIconTile(icon: protocolIcon(key)),
+            leadingAtTop: true,
             title: name,
             subtitle: summary,
-            action: action,
+            action: actions,
           ),
         );
       }
@@ -343,7 +358,6 @@ class SoftwareOverview extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AppPageIntro(l.uiInstalledComponents),
         if (available.isNotEmpty) ...[
           AppSectionHeading(title: l.softwareUpdateAvailable, subheader: true),
           ...available,

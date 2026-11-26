@@ -485,6 +485,32 @@ void main() {
     },
   );
 
+  test(
+    'the same intent back in a readable format clears the refusal',
+    () async {
+      final a = open('a', 41);
+      await a.writeDraft('shared');
+      await _exchange(await session(a));
+      final b = await pull('b', 42);
+      final cloud = await openFakeSnapshot(remote);
+      await sealFakeSnapshot(remote, {...cloud, 'version': 6});
+      await expectLater(
+        b.pullCurrentSnapshot(tokens, remote: remote),
+        throwsA(isA<SyncTransportFailure>()),
+      );
+      // The cloud is readable again, with the intent this device holds: it
+      // is only remembered, and sync works again.
+      await sealFakeSnapshot(remote, cloud);
+      expect(await b.pullCurrentSnapshot(tokens, remote: remote), isFalse);
+      final sync = await session(b);
+      expect((await _exchange(sync)).received, isFalse);
+      await b.writeDraft('edited after');
+      final writes = remote.writes;
+      await _exchange(sync);
+      expect(remote.writes, writes + 1);
+    },
+  );
+
   test('a reader of format 4 refuses v5 as a version, not as damage', () async {
     final a = open('a', 41);
     await a.writeDraft('v5 only');

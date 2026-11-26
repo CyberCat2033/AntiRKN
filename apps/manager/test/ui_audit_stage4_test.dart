@@ -395,7 +395,6 @@ void main() {
               ServerProtocolSection(
                 name: 'AmneziaWG',
                 count: 0,
-                mark: 'W',
                 detected: true,
                 onRemove: () => removeServerProtocol(
                   context,
@@ -409,7 +408,6 @@ void main() {
               ServerProtocolSection(
                 name: 'TrustTunnel',
                 count: 0,
-                mark: 'T',
                 detected: false,
                 child: const Text('endpoints'),
               ),

@@ -10,6 +10,7 @@ import 'settings_hub.dart';
 import 'desktop_back_gesture.dart';
 import 'catalog_selection.dart';
 import 'dart:async';
+import 'dart:ui' as ui show Image;
 import 'dart:ui' show AppExitResponse;
 import 'package:antirkn_integrations/antirkn_integrations.dart';
 import 'publication/publication_controller.dart';
@@ -23,6 +24,7 @@ import 'package:antirkn_storage/antirkn_storage.dart';
 import 'package:antirkn_ssh_transport/antirkn_ssh_transport.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 
 import 'template_settings.dart';
 import 'appearance_settings.dart';
@@ -43,11 +45,42 @@ import 'vpn/users_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const WorkspaceLauncher());
+  // The Linux window appears with the first frame and Android keeps its
+  // launch background until then: the frame waits for the saved theme, so a
+  // dark app on a light system does not open with a light screen.
+  WidgetsBinding.instance.deferFirstFrame();
+  runApp(const WorkspaceLauncher(firstFrameDeferred: true));
 }
 
 /// The launch waits at most this long for the cloud before opening local data.
 const startupPullDeadline = Duration(seconds: 4);
+
+/// The first frame waits at most this long for the saved theme.
+const launchThemeWait = Duration(seconds: 1);
+
+ThemeMode _themeMode(String? name) =>
+    ThemeMode.values.where((e) => e.name == name).firstOrNull ??
+    ThemeMode.system;
+
+/// The app's light and dark themes, with the platform's dynamic color where
+/// it has one. The launch screen and the app use the same ones.
+Widget _appThemes(Widget Function(ThemeData light, ThemeData dark) builder) =>
+    DynamicColorBuilder(
+      builder: (light, dark) => builder(
+        AppTheme.create(Brightness.light, dynamicScheme: light),
+        AppTheme.create(Brightness.dark, dynamicScheme: dark),
+      ),
+    );
+
+/// Where the user is in the shell. Kept by [WorkspaceLauncher], so a reopen
+/// of the workspace (a received cloud version, a restored backup) returns to
+/// the same page.
+class ShellPlacement {
+  int destination = 0;
+
+  /// The open settings page; null is the settings menu.
+  String? settingsPage;
+}
 
 /// Why VPN work cannot use [target]'s server through [session] right now,
 /// or null when it can. The single source for both the remote and its
@@ -79,23 +112,45 @@ class WorkspaceLauncher extends StatefulWidget {
   const WorkspaceLauncher({
     this.openWorkspace = openLocalWorkspace,
     this.backupFiles,
+    this.firstFrameDeferred = false,
     super.key,
   });
   final Future<WorkspaceDatabase> Function() openWorkspace;
   final BackupFileStore? backupFiles;
+
+  /// The caller deferred the first frame; the launcher allows it once the
+  /// saved theme is known, or after [launchThemeWait].
+  final bool firstFrameDeferred;
   @override
   State<WorkspaceLauncher> createState() => _WorkspaceLauncherState();
 }
 
 class _WorkspaceLauncherState extends State<WorkspaceLauncher>
     with WidgetsBindingObserver {
-  late Future<Widget> _app = _load();
+  late Future<Widget> _app = _load().whenComplete(_allowFirstFrame);
   WorkspaceDatabase? _database;
   AutoSyncController? _sync;
   GoogleSyncAccountService? _google;
   LanguageController? _languages;
   int _generation = 0;
-  bool _retrying = false;
+  bool _retrying = false, _reopening = false;
+
+  /// The saved theme, for the screens shown before the app opens.
+  ThemeMode _theme = ThemeMode.system;
+  final _placement = ShellPlacement();
+  final _surface = GlobalKey();
+
+  /// The last frame of the previous shell, shown while a reopen runs.
+  ui.Image? _frozen;
+  Timer? _firstFrameWait;
+  late bool _firstFrameHeld = widget.firstFrameDeferred;
+
+  void _allowFirstFrame() {
+    if (!_firstFrameHeld) return;
+    _firstFrameHeld = false;
+    _firstFrameWait?.cancel();
+    WidgetsBinding.instance.allowFirstFrame();
+  }
 
   /// Reopens the workspace after an open error. One attempt at a time: a
   /// parallel attempt would open a second database and sync controller.
@@ -111,6 +166,9 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    if (_firstFrameHeld) {
+      _firstFrameWait = Timer(launchThemeWait, _allowFirstFrame);
+    }
   }
 
   @override
@@ -119,11 +177,49 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher>
     return AppExitResponse.exit;
   }
 
+  /// The shell as it was last painted, or null when there is none.
+  ui.Image? _capture() {
+    final boundary = _surface.currentContext?.findRenderObject();
+    if (boundary is! RenderRepaintBoundary || !boundary.hasSize) return null;
+    var painted = true;
+    assert(() {
+      painted = !boundary.debugNeedsPaint;
+      return true;
+    }());
+    if (!painted) return null;
+    try {
+      return boundary.toImageSync(
+        pixelRatio: View.of(context).devicePixelRatio,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Replaces the shell over newly opened data: after a received cloud
+  /// version or a restored backup. The last frame of the shell stays on
+  /// screen with a progress bar until the new shell replaces it, on the same
+  /// page; nothing blinks to a loading screen.
+  ///
+  /// One reopen at a time: a request while one runs is answered by it, since
+  /// that reopen reads the data after the request's change.
   Future<void> _reopen() async {
+    if (_reopening) return;
+    _reopening = true;
+    // The frame being captured must be painted.
+    await WidgetsBinding.instance.endOfFrame;
+    // Unmounted meanwhile: dispose closed everything.
+    if (!mounted) return;
+    // The restart owns the previous workspace from here on.
     final old = _database,
         languages = _languages,
         sync = _sync,
         google = _google;
+    _database = null;
+    _languages = null;
+    _sync = null;
+    _google = null;
+    final frozen = _capture();
     Future<Widget> restart() async {
       // Dispose the previous shell and its SSH sessions before reopening data.
       await WidgetsBinding.instance.endOfFrame;
@@ -134,20 +230,41 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher>
       }
       await old?.close();
       languages?.dispose();
-      return _load();
+      if (!mounted) throw StateError('launcher disposed');
+      // This shell's sync checks the cloud as soon as it starts.
+      return _load(pull: false);
     }
 
     setState(() {
       _generation++;
-      _app = restart();
+      _frozen?.dispose();
+      _frozen = frozen;
+      _app = restart().whenComplete(() {
+        _reopening = false;
+        // The next frame shows the new shell (or the error); the image is
+        // released after it, unless dispose already released it.
+        if (frozen == null || !identical(_frozen, frozen)) return;
+        _frozen = null;
+        WidgetsBinding.instance.addPostFrameCallback((_) => frozen.dispose());
+      });
     });
   }
 
-  Future<Widget> _load() async {
+  /// Opens the workspace for the shell of the current generation. A result
+  /// that arrives after the launcher was disposed or moved on is closed, not
+  /// installed.
+  Future<Widget> _load({bool pull = true}) async {
+    final generation = _generation;
+    bool stale() => !mounted || generation != _generation;
     final database = await widget.openWorkspace();
     try {
+      if (stale()) throw StateError('stale workspace load');
+      final theme = _themeMode(await database.readSetting('theme'));
+      if (mounted && theme != _theme) setState(() => _theme = theme);
+      _allowFirstFrame();
       final google = localGoogleAccountService(database);
-      if (google.supported &&
+      if (pull &&
+          google.supported &&
           await database.readSetting('googleAutoSync') != 'false') {
         try {
           // Unreachable Google or a slow link must not hold the launch: past
@@ -171,8 +288,14 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher>
       final languages = LanguageController(database);
       await languages.load();
       final source = await database.readDraft() ?? '';
-      final theme = await database.readSetting('theme');
       final motion = await database.readSetting('motion');
+      if (stale()) {
+        languages.dispose();
+        if (google case final CancelableGoogleSignIn lifecycle) {
+          await lifecycle.close();
+        }
+        throw StateError('stale workspace load');
+      }
       _database = database;
       _languages = languages;
       _google = google;
@@ -197,9 +320,9 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher>
         backups: database,
         backupFiles: widget.backupFiles ?? SystemBackupFileStore(),
         onRestored: _reopen,
-        initialTheme:
-            ThemeMode.values.where((e) => e.name == theme).firstOrNull ??
-            ThemeMode.system,
+        placement: _placement,
+        initialTheme: theme,
+        onThemeChanged: (value) => _theme = value,
         initialMotion:
             MotionPreference.values
                 .where((e) => e.name == motion)
@@ -223,6 +346,9 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _allowFirstFrame();
+    _frozen?.dispose();
+    _frozen = null;
     final sync = _sync,
         database = _database,
         languages = _languages,
@@ -239,52 +365,84 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher>
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) => FutureBuilder<Widget>(
-    key: ValueKey(_generation),
-    future: _app,
-    builder: (context, snapshot) =>
-        snapshot.data ??
-        // Themed like the app: an unthemed MaterialApp flashed a light
-        // default scheme on dark systems while storage opened (UI-64).
-        MaterialApp(
-          theme: AppTheme.create(Brightness.light),
-          darkTheme: AppTheme.create(Brightness.dark),
-          supportedLocales: AppLocalizations.supportedLocales,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          home: Builder(
-            builder: (context) => Scaffold(
-              body: Center(
-                // A retry keeps the previous error in the snapshot while it
-                // runs; show progress instead of a second Retry button.
-                child:
-                    snapshot.hasError &&
-                        snapshot.connectionState == ConnectionState.done
-                    ? Padding(
-                        padding: const EdgeInsets.all(AppLayout.gap),
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 560),
-                          child: AppNotice(
-                            message: AppLocalizations.of(
-                              context,
-                            ).databaseOpenError,
-                            error: true,
-                            margin: EdgeInsets.zero,
-                            action: FilledButton(
-                              key: const ValueKey('database-open-retry'),
-                              onPressed: _retryLoad,
-                              child: Text(
-                                AppLocalizations.of(context).vaultRetry,
-                              ),
+  /// What shows until the app opens: themed like the app (saved theme mode,
+  /// dynamic color), so a dark app never shows a light screen (UI-64).
+  Widget _placeholder(AsyncSnapshot<Widget> snapshot) => _appThemes(
+    (light, dark) => MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: light,
+      darkTheme: dark,
+      themeMode: _theme,
+      supportedLocales: AppLocalizations.supportedLocales,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      home: Builder(
+        builder: (context) {
+          final failed =
+              snapshot.hasError &&
+              snapshot.connectionState == ConnectionState.done;
+          final frozen = _frozen;
+          if (frozen != null && !failed) {
+            // A reopen: the previous shell as it was, not a blank screen.
+            return Scaffold(
+              key: const ValueKey('workspace-reopening'),
+              body: Stack(
+                fit: StackFit.expand,
+                children: [
+                  RawImage(
+                    image: frozen,
+                    scale: View.of(context).devicePixelRatio,
+                    fit: BoxFit.none,
+                    alignment: Alignment.topLeft,
+                  ),
+                  const Align(
+                    alignment: Alignment.topCenter,
+                    child: LinearProgressIndicator(),
+                  ),
+                ],
+              ),
+            );
+          }
+          return Scaffold(
+            body: Center(
+              // A retry keeps the previous error in the snapshot while it
+              // runs; show progress instead of a second Retry button.
+              child: failed
+                  ? Padding(
+                      padding: const EdgeInsets.all(AppLayout.gap),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 560),
+                        child: AppNotice(
+                          message: AppLocalizations.of(
+                            context,
+                          ).databaseOpenError,
+                          error: true,
+                          margin: EdgeInsets.zero,
+                          action: FilledButton(
+                            key: const ValueKey('database-open-retry'),
+                            onPressed: _retryLoad,
+                            child: Text(
+                              AppLocalizations.of(context).vaultRetry,
                             ),
                           ),
                         ),
-                      )
-                    : const CircularProgressIndicator(),
-              ),
+                      ),
+                    )
+                  : const CircularProgressIndicator(),
             ),
-          ),
-        ),
+          );
+        },
+      ),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) => RepaintBoundary(
+    key: _surface,
+    child: FutureBuilder<Widget>(
+      key: ValueKey(_generation),
+      future: _app,
+      builder: (context, snapshot) => snapshot.data ?? _placeholder(snapshot),
+    ),
   );
 }
 
@@ -305,7 +463,9 @@ class AntiRknApp extends StatefulWidget {
     this.backups,
     this.backupFiles,
     this.onRestored,
+    this.placement,
     this.initialTheme = ThemeMode.system,
+    this.onThemeChanged,
     this.initialMotion = MotionPreference.system,
     super.key,
   });
@@ -325,7 +485,11 @@ class AntiRknApp extends StatefulWidget {
   final WorkspaceBackupStore? backups;
   final BackupFileStore? backupFiles;
   final Future<void> Function()? onRestored;
+  final ShellPlacement? placement;
   final ThemeMode initialTheme;
+
+  /// A newly saved theme mode.
+  final ValueChanged<ThemeMode>? onThemeChanged;
   final MotionPreference initialMotion;
   final SshDependencies? ssh;
   @override
@@ -377,8 +541,8 @@ class _AntiRknAppState extends State<AntiRknApp> {
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.languages,
-    builder: (context, _) => DynamicColorBuilder(
-      builder: (light, dark) => MaterialApp(
+    builder: (context, _) => _appThemes(
+      (light, dark) => MaterialApp(
         navigatorKey: _navigatorKey,
         builder: (context, child) => Listener(
           behavior: HitTestBehavior.translucent,
@@ -396,8 +560,8 @@ class _AntiRknAppState extends State<AntiRknApp> {
             : Locale(widget.languages.language.name),
         supportedLocales: AppLocalizations.supportedLocales,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
-        theme: AppTheme.create(Brightness.light, dynamicScheme: light),
-        darkTheme: AppTheme.create(Brightness.dark, dynamicScheme: dark),
+        theme: light,
+        darkTheme: dark,
         themeMode: _theme,
         themeAnimationDuration:
             _motion == MotionPreference.off ||
@@ -440,14 +604,17 @@ class _AntiRknAppState extends State<AntiRknApp> {
                   backups: widget.backups,
                   backupFiles: widget.backupFiles,
                   onRestored: widget.onRestored,
+                  placement: widget.placement,
                   settingsError: _settingsError,
                   googleAccount: widget.googleAccount,
                   autoSync: widget.autoSync,
                   settings: widget.settings,
                   theme: _theme,
                   motion: _motion,
-                  onTheme: (value) =>
-                      _saveSetting('theme', value.name, () => _theme = value),
+                  onTheme: (value) => _saveSetting('theme', value.name, () {
+                    _theme = value;
+                    widget.onThemeChanged?.call(value);
+                  }),
                   onMotion: (_) {},
                 ),
               ),
@@ -470,6 +637,7 @@ class ManagerShell extends StatefulWidget {
     this.backups,
     this.backupFiles,
     this.onRestored,
+    this.placement,
     this.settingsError = false,
     this.googleAccount,
     this.autoSync,
@@ -491,6 +659,9 @@ class ManagerShell extends StatefulWidget {
   final WorkspaceBackupStore? backups;
   final BackupFileStore? backupFiles;
   final Future<void> Function()? onRestored;
+
+  /// Updated as the user navigates; the shell opens where it says.
+  final ShellPlacement? placement;
   final bool settingsError;
   final GoogleAccountService? googleAccount;
   final AutoSyncController? autoSync;
@@ -507,7 +678,7 @@ class ManagerShell extends StatefulWidget {
 
 class _ManagerShellState extends State<ManagerShell>
     with WidgetsBindingObserver {
-  int _index = 0;
+  late int _index = (widget.placement?.destination ?? 0).clamp(0, 2);
   final _settingsKey = GlobalKey<SettingsHubState>();
   final _serverSelection = CatalogSelection();
   final _clientSelection = CatalogSelection();
@@ -958,6 +1129,7 @@ class _ManagerShellState extends State<ManagerShell>
       _serverSelection.exit();
       _clientSelection.exit();
     }
+    widget.placement?.destination = value;
     setState(() => _index = value);
   }
 
@@ -1160,6 +1332,9 @@ class _ManagerShellState extends State<ManagerShell>
                             SettingsHub(
                               key: _settingsKey,
                               motion: widget.motion,
+                              initialId: widget.placement?.settingsPage,
+                              onOpened: (id) =>
+                                  widget.placement?.settingsPage = id,
                               error: widget.settingsError
                                   ? AppNotice(
                                       message: l.settingsSaveError,

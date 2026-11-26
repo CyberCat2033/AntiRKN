@@ -107,7 +107,6 @@ void main() {
                   ServerProtocolSection(
                     name: 'VLESS',
                     count: 3,
-                    mark: 'V',
                     detected: true,
                     child: TextField(
                       key: const ValueKey('protocol-draft'),
@@ -117,14 +116,12 @@ void main() {
                   const ServerProtocolSection(
                     name: 'AmneziaWG',
                     count: 1,
-                    mark: 'W',
                     detected: true,
                     child: Text('interface'),
                   ),
                   const ServerProtocolSection(
                     name: 'TrustTunnel',
                     count: 0,
-                    mark: 'T',
                     child: Text('endpoint'),
                   ),
                 ],

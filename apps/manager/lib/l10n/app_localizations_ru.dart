@@ -484,9 +484,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get networkInterfaceStateUnknown => 'Рабочее состояние неизвестно';
 
   @override
-  String get sshTitle => 'SSH-подключение';
-
-  @override
   String get sshServerName => 'Имя сервера (необязательно)';
 
   @override
@@ -494,7 +491,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get sshEditHelp =>
-      'Переименование сохраняет подключение. Сохранение изменённых параметров SSH завершит сеанс; подключитесь снова, чтобы применить их.';
+      'Сохранение завершит SSH-сеанс. Подключитесь снова, чтобы применить изменения.';
 
   @override
   String get sshOsUnknown => 'Версия ОС появится после подключения';
@@ -505,10 +502,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get sshReplaceServerHelp =>
       'Продолжайте, только если намеренно заменили сервер или изменили его адрес. Сверьте новый отпечаток через консоль VPS. Подтверждение заменит сохранённый доверенный ключ; отказ сохранит прежний. Реквизиты входа останутся.';
-
-  @override
-  String get sshReadOnly =>
-      'Подключитесь к VPS Ubuntu x86_64 для чтения сетевых сведений.';
 
   @override
   String get sshHost => 'Адрес сервера';
@@ -550,9 +543,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get sshSave => 'Сохранить подключение';
-
-  @override
-  String get sshSaved => 'Подключение сохранено на устройстве.';
 
   @override
   String get sshConnect => 'Подключиться';
@@ -884,10 +874,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get sshJumpMissing => 'Сервер недоступен';
-
-  @override
-  String get sshJumpHelp =>
-      'Подключение через другой сохранённый сервер. Для каждого сервера используются его логин и SSH-ключ.';
 
   @override
   String sshVia(String server) {
@@ -1819,12 +1805,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get xhttpHeaders => 'HTTP-заголовки';
 
   @override
-  String get vpnRegenerateReality =>
-      'Перегенерировать ключи REALITY и Short ID';
-
-  @override
-  String get vpnRealityAutomatic =>
-      'Ключи REALITY и Short ID создаются автоматически и сохраняются при редактировании.';
+  String get vpnRegenerateReality => 'Пересоздать ключи';
 
   @override
   String get vpnRealityRegenerated =>
@@ -2078,10 +2059,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get awgExternalPort => 'Внешний UDP-порт (NAT)';
 
   @override
-  String get awgEndpointHelp =>
-      'Выберите IP для клиентских профилей. AWG слушает UDP-порт на всех адресах сервера. Свободный порт проверяется повторно при применении.';
-
-  @override
   String get awgAdvanced => 'Дополнительные настройки';
 
   @override
@@ -2169,11 +2146,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get ttRotate => 'Заменить пароли всех клиентов этого endpoint';
 
   @override
-  String get ttRegeneratePasswords => 'Перегенерировать пароли клиентов';
-
-  @override
-  String get ttPasswordsAutomatic =>
-      'Пароли клиентов создаются автоматически и сохраняются при редактировании.';
+  String get ttRegeneratePasswords => 'Пересоздать пароли';
 
   @override
   String get ttPasswordsRegenerated =>
@@ -3064,16 +3037,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get uiPublicationAutoHelp => 'Сохранять изменения по прежним ссылкам';
 
   @override
-  String get uiVlessIntro => 'Подключения VLESS на этом сервере';
-
-  @override
-  String get uiAwgIntro => 'Интерфейсы AmneziaWG на этом сервере';
-
-  @override
   String get uiInterfaces => 'Интерфейсы';
-
-  @override
-  String get uiTtIntro => 'Точки подключения TrustTunnel';
 
   @override
   String get uiConnections => 'Подключения';
@@ -3102,9 +3066,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get uiAuthentication => 'Данные для входа';
-
-  @override
-  String get uiInstalledComponents => 'Компоненты, установленные на сервере';
 
   @override
   String get uiOtherComponents => 'Остальные компоненты';
@@ -3597,23 +3558,12 @@ class AppLocalizationsRu extends AppLocalizations {
   String get connectionNotTested => 'Не проверено';
 
   @override
-  String get connectionAfterSave =>
-      'После сохранения приложение проверит соединение.';
-
-  @override
   String connectionProgress(int done, int total, int skipped) {
     return 'Проверено: $done из $total. Пропущено: $skipped.';
   }
 
   @override
   String get xrayUpgradeTitle => 'Обновление ядра Xray';
-
-  @override
-  String get xrayUpgradeAction => 'Проверить и обновить Xray';
-
-  @override
-  String get xrayUpgradeIntro =>
-      'Все включённые инбаунды проверяются до и после обновления. Если сравнение не завершится, сервер вернёт прежнее ядро.';
 
   @override
   String get xrayUpgradeBaseline => 'Проверка подключений до обновления…';
@@ -4046,11 +3996,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get egressInbound => 'VLESS inbound';
-
-  @override
-  String softwareUpdateAvailableList(Object items) {
-    return 'Доступно обновление: $items';
-  }
 
   @override
   String inventoryPartialList(Object items) {

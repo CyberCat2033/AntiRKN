@@ -932,12 +932,6 @@ abstract class AppLocalizations {
   /// **'Operational state is unknown'**
   String get networkInterfaceStateUnknown;
 
-  /// No description provided for @sshTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'SSH connection'**
-  String get sshTitle;
-
   /// No description provided for @sshServerName.
   ///
   /// In en, this message translates to:
@@ -953,7 +947,7 @@ abstract class AppLocalizations {
   /// No description provided for @sshEditHelp.
   ///
   /// In en, this message translates to:
-  /// **'Changing the name keeps the connection open. Saving changed SSH settings disconnects the session; reconnect to apply them.'**
+  /// **'Saving will close the SSH session. Connect again to apply the changes.'**
   String get sshEditHelp;
 
   /// No description provided for @sshOsUnknown.
@@ -973,12 +967,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Continue only if you intentionally replaced the server or changed its address. Verify the new fingerprint through its VPS console. Confirming will replace the saved trusted key; rejecting keeps the old key. Your login details are retained.'**
   String get sshReplaceServerHelp;
-
-  /// No description provided for @sshReadOnly.
-  ///
-  /// In en, this message translates to:
-  /// **'Connect to an Ubuntu x86_64 VPS to read its network information.'**
-  String get sshReadOnly;
 
   /// No description provided for @sshHost.
   ///
@@ -1057,12 +1045,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Save connection'**
   String get sshSave;
-
-  /// No description provided for @sshSaved.
-  ///
-  /// In en, this message translates to:
-  /// **'Connection saved on this device.'**
-  String get sshSaved;
 
   /// No description provided for @sshConnect.
   ///
@@ -1651,12 +1633,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Server unavailable'**
   String get sshJumpMissing;
-
-  /// No description provided for @sshJumpHelp.
-  ///
-  /// In en, this message translates to:
-  /// **'Connect through another saved server. Each server uses its own login and SSH key.'**
-  String get sshJumpHelp;
 
   /// No description provided for @sshVia.
   ///
@@ -3245,14 +3221,8 @@ abstract class AppLocalizations {
   /// No description provided for @vpnRegenerateReality.
   ///
   /// In en, this message translates to:
-  /// **'Regenerate REALITY keys and Short ID'**
+  /// **'Regenerate keys'**
   String get vpnRegenerateReality;
-
-  /// No description provided for @vpnRealityAutomatic.
-  ///
-  /// In en, this message translates to:
-  /// **'REALITY keys and Short ID are generated automatically and kept when editing.'**
-  String get vpnRealityAutomatic;
 
   /// No description provided for @vpnRealityRegenerated.
   ///
@@ -3692,12 +3662,6 @@ abstract class AppLocalizations {
   /// **'External UDP port (NAT)'**
   String get awgExternalPort;
 
-  /// No description provided for @awgEndpointHelp.
-  ///
-  /// In en, this message translates to:
-  /// **'Choose the IP for client profiles. AWG listens on the UDP port on all server addresses. The port is checked again before applying.'**
-  String get awgEndpointHelp;
-
   /// No description provided for @awgAdvanced.
   ///
   /// In en, this message translates to:
@@ -3857,14 +3821,8 @@ abstract class AppLocalizations {
   /// No description provided for @ttRegeneratePasswords.
   ///
   /// In en, this message translates to:
-  /// **'Regenerate client passwords'**
+  /// **'Regenerate passwords'**
   String get ttRegeneratePasswords;
-
-  /// No description provided for @ttPasswordsAutomatic.
-  ///
-  /// In en, this message translates to:
-  /// **'Client passwords are generated automatically and kept when editing.'**
-  String get ttPasswordsAutomatic;
 
   /// No description provided for @ttPasswordsRegenerated.
   ///
@@ -5426,29 +5384,11 @@ abstract class AppLocalizations {
   /// **'Save changes at the same profile links'**
   String get uiPublicationAutoHelp;
 
-  /// No description provided for @uiVlessIntro.
-  ///
-  /// In en, this message translates to:
-  /// **'VLESS connections on this server'**
-  String get uiVlessIntro;
-
-  /// No description provided for @uiAwgIntro.
-  ///
-  /// In en, this message translates to:
-  /// **'AmneziaWG interfaces on this server'**
-  String get uiAwgIntro;
-
   /// No description provided for @uiInterfaces.
   ///
   /// In en, this message translates to:
   /// **'Interfaces'**
   String get uiInterfaces;
-
-  /// No description provided for @uiTtIntro.
-  ///
-  /// In en, this message translates to:
-  /// **'TrustTunnel connection endpoints'**
-  String get uiTtIntro;
 
   /// No description provided for @uiConnections.
   ///
@@ -5497,12 +5437,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sign-in credentials'**
   String get uiAuthentication;
-
-  /// No description provided for @uiInstalledComponents.
-  ///
-  /// In en, this message translates to:
-  /// **'Components installed on this server'**
-  String get uiInstalledComponents;
 
   /// No description provided for @uiOtherComponents.
   ///
@@ -6350,12 +6284,6 @@ abstract class AppLocalizations {
   /// **'Not tested'**
   String get connectionNotTested;
 
-  /// No description provided for @connectionAfterSave.
-  ///
-  /// In en, this message translates to:
-  /// **'The app will check the connection after saving.'**
-  String get connectionAfterSave;
-
   /// No description provided for @connectionProgress.
   ///
   /// In en, this message translates to:
@@ -6367,18 +6295,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Xray core update'**
   String get xrayUpgradeTitle;
-
-  /// No description provided for @xrayUpgradeAction.
-  ///
-  /// In en, this message translates to:
-  /// **'Check and update Xray'**
-  String get xrayUpgradeAction;
-
-  /// No description provided for @xrayUpgradeIntro.
-  ///
-  /// In en, this message translates to:
-  /// **'All enabled inbounds are checked before and after the update. If the comparison does not finish, the server restores the previous core.'**
-  String get xrayUpgradeIntro;
 
   /// No description provided for @xrayUpgradeBaseline.
   ///
@@ -7087,12 +7003,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'VLESS inbound'**
   String get egressInbound;
-
-  /// No description provided for @softwareUpdateAvailableList.
-  ///
-  /// In en, this message translates to:
-  /// **'Update available: {items}'**
-  String softwareUpdateAvailableList(Object items);
 
   /// No description provided for @inventoryPartialList.
   ///

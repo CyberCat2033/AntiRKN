@@ -536,17 +536,32 @@ class _AppAnimatedCollectionState extends State<AppAnimatedCollection>
 
 /// Named settings groups with a visible boundary, without nested disclosures.
 class AppSettingsSection extends StatelessWidget {
-  const AppSettingsSection({this.title, required this.child, super.key});
+  const AppSettingsSection({
+    this.title,
+    required this.child,
+    this.count,
+    this.action,
+    super.key,
+  });
 
   /// Null when the section is the page's only one: the page title already
   /// names it.
   final String? title;
   final Widget child;
+
+  /// Shown beside [title], as in [AppSectionHeading].
+  final int? count;
+  final Widget? action;
   @override
   Widget build(BuildContext context) => _CardSection(
     heading: title == null
         ? null
-        : AppSectionHeading(title: title!, subheader: true),
+        : AppSectionHeading(
+            title: title!,
+            subheader: true,
+            count: count,
+            action: action,
+          ),
     child: child,
   );
 }
@@ -655,6 +670,17 @@ abstract final class AppTheme {
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(AppLayout.radius),
     );
+    final menuShape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+    );
+    final menuStyle = MenuStyle(
+      backgroundColor: WidgetStatePropertyAll(colors.surfaceContainerHighest),
+      surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+      shadowColor: WidgetStatePropertyAll(colors.shadow),
+      elevation: const WidgetStatePropertyAll(3),
+      padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(vertical: 8)),
+      shape: WidgetStatePropertyAll(menuShape),
+    );
     return ThemeData(
       useMaterial3: true,
       colorScheme: colors,
@@ -758,6 +784,19 @@ abstract final class AppTheme {
         surfaceTintColor: Colors.transparent,
         shape: shape,
       ),
+      // Menus are temporary surfaces above filled cards: the highest
+      // container tone and an M3 level-2 shadow keep them apart from the
+      // card under them in both themes.
+      menuTheme: MenuThemeData(style: menuStyle),
+      dropdownMenuTheme: DropdownMenuThemeData(menuStyle: menuStyle),
+      popupMenuTheme: PopupMenuThemeData(
+        color: colors.surfaceContainerHighest,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: colors.shadow,
+        elevation: 3,
+        shape: menuShape,
+        menuPadding: const EdgeInsets.symmetric(vertical: 8),
+      ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         shape: shape,
@@ -837,6 +876,7 @@ class SummaryCard extends StatelessWidget {
     this.onTap,
     this.selected = false,
     this.embedded = false,
+    this.leadingAtTop = false,
     super.key,
   });
   final String title;
@@ -844,6 +884,10 @@ class SummaryCard extends StatelessWidget {
   final Widget? leading, action;
   final VoidCallback? onTap;
   final bool selected;
+
+  /// Aligns [leading] and a trailing [action] with the title instead of
+  /// centring them on a summary of several lines.
+  final bool leadingAtTop;
 
   /// A row inside a section card: no card of its own, so there is no card
   /// in a card (UI-58).
@@ -895,7 +939,9 @@ class SummaryCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+                crossAxisAlignment: leadingAtTop
+                    ? CrossAxisAlignment.start
+                    : CrossAxisAlignment.center,
                 children: [
                   if (leading != null) ...[
                     leading!,
@@ -1180,7 +1226,9 @@ class SettingsGroup extends StatelessWidget {
   );
 }
 
-/// Short option sets use M3 segments; large text uses a vertical arrangement.
+/// Short option sets use M3 segments. When the segments do not fit the width
+/// at the current text scale, the same choice is a list of radio rows: a
+/// vertical segmented button fills only part of each row.
 class AppChoice<T> extends StatelessWidget {
   const AppChoice({
     required this.value,
@@ -1198,7 +1246,8 @@ class AppChoice<T> extends StatelessWidget {
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, size) {
       final style = Theme.of(context).textTheme.labelLarge!;
-      final requiredWidth = options.fold<double>(0, (total, option) {
+      // Segments share one width, that of the widest label plus padding.
+      final widest = options.fold<double>(0, (widest, option) {
         final text = TextPainter(
           text: TextSpan(text: option.$2, style: style),
           textDirection: Directionality.of(context),
@@ -1206,8 +1255,41 @@ class AppChoice<T> extends StatelessWidget {
         )..layout();
         final width = text.width;
         text.dispose();
-        return total + width + 32;
+        return width > widest ? width : widest;
       });
+      final requiredWidth = options.length * (widest + 32);
+      Text label(T option, String text) => Text(
+        text,
+        key: keyPrefix == null
+            ? null
+            : ValueKey('$keyPrefix-${option is Enum ? option.name : option}'),
+      );
+      if (requiredWidth > size.maxWidth) {
+        return RadioGroup<T>(
+          groupValue: value,
+          onChanged: (selected) {
+            if (selected != null) onChanged?.call(selected);
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final option in options)
+                RadioListTile<T>(
+                  value: option.$1,
+                  enabled: onChanged != null,
+                  contentPadding: const EdgeInsetsDirectional.only(
+                    start: 4,
+                    end: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  title: label(option.$1, option.$2),
+                ),
+            ],
+          ),
+        );
+      }
       return SegmentedButton<T>(
         showSelectedIcon: false,
         style: ButtonStyle(
@@ -1218,21 +1300,11 @@ class AppChoice<T> extends StatelessWidget {
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),
-        direction: requiredWidth > size.maxWidth
-            ? Axis.vertical
-            : Axis.horizontal,
         segments: [
           for (final option in options)
             ButtonSegment<T>(
               value: option.$1,
-              label: Text(
-                option.$2,
-                key: keyPrefix == null
-                    ? null
-                    : ValueKey(
-                        '$keyPrefix-${option.$1 is Enum ? (option.$1 as Enum).name : option.$1}',
-                      ),
-              ),
+              label: label(option.$1, option.$2),
             ),
         ],
         selected: {value},
@@ -1514,13 +1586,140 @@ class AppNotice extends StatelessWidget {
 }
 
 /// Form body scrolls independently while the existing action buttons stay visible.
+/// A low-emphasis destructive action ([AppDangerButton.text], e.g. "Delete")
+/// sits at the leading edge, apart from Cancel and Save at the end.
 class AppFormDialog extends StatelessWidget {
-  const AppFormDialog({this.title, this.content, this.actions, super.key});
+  const AppFormDialog({
+    this.title,
+    this.content,
+    this.actions,
+    this.icon,
+    this.subtitle,
+    this.fullscreenOnCompact = false,
+    super.key,
+  });
   final Widget? title, content;
   final List<Widget>? actions;
+
+  /// Shown before [title], e.g. the protocol of the edited resource.
+  final IconData? icon;
+
+  /// A short line under the title, e.g. whether a resource is new.
+  final String? subtitle;
+
+  /// A long form fills a compact screen (M3 full-screen dialog), so it is not
+  /// a card in a card on a phone. Short dialogs stay basic.
+  final bool fullscreenOnCompact;
+
+  Widget _title(BuildContext context) {
+    final theme = Theme.of(context);
+    Widget heading = DefaultTextStyle(
+      style: theme.textTheme.headlineSmall!,
+      child: title!,
+    );
+    if (icon != null) {
+      heading = Row(
+        children: [
+          Icon(icon, color: theme.colorScheme.primary),
+          const SizedBox(width: 12),
+          Expanded(child: heading),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // The title names the dialog route for screen readers, as in
+        // AlertDialog (UI-73).
+        Semantics(
+          container: true,
+          header: true,
+          namesRoute: true,
+          child: heading,
+        ),
+        if (subtitle != null)
+          Padding(
+            padding: EdgeInsetsDirectional.only(
+              top: 4,
+              start: icon == null ? 0 : 36,
+            ),
+            child: Text(
+              subtitle!,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _actions(BuildContext context) {
+    final leading = [
+      for (final a in actions!)
+        if (a is AppDangerButton && a._text) a,
+    ];
+    final trailing = Wrap(
+      alignment: WrapAlignment.end,
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final a in actions!)
+          if (!leading.contains(a)) a,
+      ],
+    );
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(
+            color: Theme.of(
+              context,
+            ).colorScheme.outlineVariant.withValues(alpha: .5),
+          ),
+        ),
+      ),
+      child: leading.isEmpty
+          ? trailing
+          : Row(
+              children: [
+                ...leading,
+                const SizedBox(width: 8),
+                Expanded(child: trailing),
+              ],
+            ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
+    final fullscreen =
+        fullscreenOnCompact && media.size.width < AppLayout.compact;
+    final inset = fullscreen ? 16.0 : 22.0;
+    final body = Column(
+      mainAxisSize: fullscreen ? MainAxisSize.max : MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (title != null)
+          Padding(
+            padding: EdgeInsets.fromLTRB(inset, 22, inset, 18),
+            child: _title(context),
+          ),
+        if (content != null)
+          Flexible(
+            fit: fullscreen ? FlexFit.tight : FlexFit.loose,
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(inset, 4, inset, 20),
+              child: content,
+            ),
+          ),
+        if (actions?.isNotEmpty == true) _actions(context),
+      ],
+    );
+    if (fullscreen) {
+      return Dialog.fullscreen(child: SafeArea(child: body));
+    }
     return Dialog(
       clipBehavior: Clip.antiAlias,
       insetPadding: const EdgeInsets.all(16),
@@ -1534,61 +1733,251 @@ class AppFormDialog extends StatelessWidget {
                       32)
                   .clamp(120.0, double.infinity),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (title != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
-                // The title names the dialog route for screen readers, as in
-                // AlertDialog (UI-73).
-                child: Semantics(
-                  container: true,
-                  header: true,
-                  namesRoute: true,
-                  child: DefaultTextStyle(
-                    style: Theme.of(context).textTheme.headlineSmall!,
-                    child: title!,
-                  ),
-                ),
-              ),
-            if (content != null)
-              Flexible(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(22, 4, 22, 20),
-                  child: content,
-                ),
-              ),
-            if (actions?.isNotEmpty == true)
-              Container(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                decoration: BoxDecoration(
-                  border: Border(
-                    top: BorderSide(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.outlineVariant.withValues(alpha: .5),
-                    ),
-                  ),
-                ),
-                child: Wrap(
-                  alignment: WrapAlignment.end,
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: actions!,
-                ),
-              ),
-          ],
-        ),
+        child: body,
       ),
+    );
+  }
+}
+
+/// The body of a form: one gap between every field, section, action and
+/// hint, so supporting text never touches the next field's floating label.
+/// An [AppFormHint] sits closer to the field it belongs to, as M3 supporting
+/// text does.
+class AppFormFields extends StatelessWidget {
+  const AppFormFields({required this.children, super.key});
+  final List<Widget> children;
+
+  static const double hintGap = 4;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      for (var i = 0; i < children.length; i++) ...[
+        if (i > 0)
+          SizedBox(
+            height: children[i] is AppFormHint
+                ? hintGap
+                // Switch rows carry their own padding, like list rows.
+                : children[i] is AppFormSwitch &&
+                      children[i - 1] is AppFormSwitch
+                ? 0
+                : AppLayout.gap,
+          ),
+        children[i],
+      ],
+    ],
+  );
+}
+
+/// A named group of form fields on a tonal surface: forms read as a few
+/// groups, not one flat wall of fields. With [expandable] the group stays
+/// closed under its title (e.g. "Advanced settings") and keeps its draft.
+class AppFormSection extends StatelessWidget {
+  const AppFormSection({
+    required this.children,
+    this.title,
+    this.expandable = false,
+    this.rows = false,
+    super.key,
+  }) : assert(!expandable || title != null);
+  final String? title;
+  final List<Widget> children;
+  final bool expandable;
+
+  /// The children are list rows (switches, disclosures) running edge to
+  /// edge, with their text on the same 16 dp inset as an expandable
+  /// section's title.
+  final bool rows;
+
+  @override
+  Widget build(BuildContext context) {
+    final surface = Material(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(AppLayout.radius),
+      clipBehavior: Clip.antiAlias,
+      child: expandable
+          ? AppExpansionTile(
+              maintainState: true,
+              title: Text(title!),
+              tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+              shape: const RoundedRectangleBorder(),
+              collapsedShape: const RoundedRectangleBorder(),
+              childrenPadding: rows
+                  ? const EdgeInsets.only(bottom: 4)
+                  : const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                rows
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: children,
+                      )
+                    : AppFormFields(children: children),
+              ],
+            )
+          : rows
+          ? Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: children,
+              ),
+            )
+          : Padding(
+              padding: const EdgeInsets.all(12),
+              child: AppFormFields(children: children),
+            ),
+    );
+    if (expandable || title == null) return surface;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 0, 4, AppLayout.smallGap),
+          child: Text(
+            title!,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+        ),
+        surface,
+      ],
+    );
+  }
+}
+
+/// Short supporting text under a field or form action; it never repeats
+/// what the form already shows.
+class AppFormHint extends StatelessWidget {
+  const AppFormHint(this.text, {this.error = false, super.key});
+  final String text;
+  final bool error;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16),
+    child: Text(
+      text,
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+        color: error
+            ? Theme.of(context).colorScheme.error
+            : Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+    ),
+  );
+}
+
+/// A secondary action inside a form (scan, regenerate, issue): one tonal
+/// button at the start of the row, as wide as its label.
+class AppFormAction extends StatelessWidget {
+  const AppFormAction({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+    this.busy = false,
+    this.tooltip,
+    this.buttonKey,
+    super.key,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback? onPressed;
+
+  /// Work started by the action runs: a progress ring replaces the icon.
+  final bool busy;
+  final String? tooltip;
+  final Key? buttonKey;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget button = FilledButton.tonalIcon(
+      key: buttonKey,
+      onPressed: busy ? null : onPressed,
+      icon: busy
+          ? const SizedBox.square(
+              dimension: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(icon),
+      label: Text(label),
+    );
+    if (tooltip case final message?) {
+      button = Tooltip(message: message, child: button);
+    }
+    return Align(alignment: AlignmentDirectional.centerStart, child: button);
+  }
+}
+
+/// An on/off setting inside a form section. Its text lines up with the text
+/// of the fields above, and its ink keeps the field shape.
+class AppFormSwitch extends StatelessWidget {
+  const AppFormSwitch({
+    required this.title,
+    required this.value,
+    required this.onChanged,
+    this.subtitle,
+    this.secondary,
+    this.switchKey,
+    super.key,
+  });
+  final String title;
+  final String? subtitle;
+  final Widget? secondary;
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+  final Key? switchKey;
+
+  @override
+  Widget build(BuildContext context) {
+    const padding = EdgeInsets.symmetric(horizontal: 16);
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+    );
+    // Large text puts the switch under the text, so a description is not
+    // squeezed into a narrow column beside it.
+    if (MediaQuery.textScalerOf(context).scale(14) > 20) {
+      return MergeSemantics(
+        child: ListTile(
+          key: switchKey,
+          contentPadding: padding,
+          shape: shape,
+          leading: secondary,
+          enabled: onChanged != null,
+          onTap: onChanged == null ? null : () => onChanged!(!value),
+          title: Text(title),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (subtitle != null) Text(subtitle!),
+              Switch(value: value, onChanged: onChanged),
+            ],
+          ),
+        ),
+      );
+    }
+    return SwitchListTile(
+      key: switchKey,
+      contentPadding: padding,
+      shape: shape,
+      title: Text(title),
+      subtitle: subtitle == null ? null : Text(subtitle!),
+      secondary: secondary,
+      value: value,
+      onChanged: onChanged,
     );
   }
 }
 
 /// A "more" (⋮) button with a menu of actions, reachable by mouse, touch
 /// and keyboard: the button owns the focus node the menu needs to move focus
-/// into its items with the arrow keys.
+/// into its items with the arrow keys. The menu opens below the button and
+/// grows towards the start side, so it stays over the card that owns the
+/// button instead of covering its neighbour.
 class AppMoreMenu extends StatefulWidget {
   const AppMoreMenu({
     required this.tooltip,
@@ -1612,17 +2001,65 @@ class _AppMoreMenuState extends State<AppMoreMenu> {
   }
 
   @override
-  Widget build(BuildContext context) => MenuAnchor(
-    childFocusNode: _focus,
-    menuChildren: widget.children,
-    builder: (context, menu, _) => IconButton(
-      key: widget.buttonKey,
-      focusNode: _focus,
-      tooltip: widget.tooltip,
-      onPressed: () => menu.isOpen ? menu.close() : menu.open(),
-      icon: const Icon(Icons.more_vert),
-    ),
-  );
+  Widget build(BuildContext context) {
+    // MenuAnchor places its menu from the anchor's start edge towards the
+    // end in the anchor's text direction. The anchor gets the opposite
+    // direction, so the menu's end edge lines up with the button's; the
+    // button and the items keep the real direction.
+    final direction = Directionality.of(context);
+    Widget keep(Widget child) =>
+        Directionality(textDirection: direction, child: child);
+    return Directionality(
+      textDirection: direction == TextDirection.ltr
+          ? TextDirection.rtl
+          : TextDirection.ltr,
+      child: MenuAnchor(
+        childFocusNode: _focus,
+        menuChildren: [for (final child in widget.children) keep(child)],
+        builder: (context, menu, _) => keep(
+          IconButton(
+            key: widget.buttonKey,
+            focusNode: _focus,
+            tooltip: widget.tooltip,
+            onPressed: () => menu.isOpen ? menu.close() : menu.open(),
+            icon: const Icon(Icons.more_vert),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// An item of an [AppMoreMenu]. A [destructive] item (remove, delete) takes
+/// the error role for its icon, label and highlight.
+class AppMenuItem extends StatelessWidget {
+  const AppMenuItem({
+    required this.label,
+    required this.onPressed,
+    this.icon,
+    this.destructive = false,
+    super.key,
+  });
+  final String label;
+  final IconData? icon;
+  final VoidCallback? onPressed;
+  final bool destructive;
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return MenuItemButton(
+      style: destructive
+          ? MenuItemButton.styleFrom(
+              foregroundColor: colors.error,
+              iconColor: colors.error,
+              overlayColor: colors.error,
+            )
+          : null,
+      leadingIcon: icon == null ? null : Icon(icon),
+      onPressed: onPressed,
+      child: Text(label),
+    );
+  }
 }
 
 /// Says why a control is unavailable: a tooltip present only while [reason]

@@ -3,6 +3,7 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../network/ip_diagnostics_controller.dart';
+import '../protocol_icon.dart';
 import '../catalog_selection.dart';
 import '../runner/component_installation_view.dart';
 import '../runner/component_updates_controller.dart';
@@ -19,7 +20,6 @@ class ServerProtocolSection {
   const ServerProtocolSection({
     required this.name,
     required this.count,
-    required this.mark,
     required this.child,
     this.detected = false,
     this.onRemove,
@@ -28,7 +28,7 @@ class ServerProtocolSection {
     this.selectionActions,
     this.plans,
   });
-  final String name, mark;
+  final String name;
 
   /// The plan and error view of this tab; replaces [ServerDetailView.plans]
   /// so its progress yields to the tab's own job view (UI-40).
@@ -314,10 +314,8 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                                 : c.busy
                                 ? l.sshConnecting
                                 : l.uiOffline,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
+                            // A status, not a link: the secondary role.
+                            style: Theme.of(context).textTheme.bodySmall,
                           ),
                           if (widget.vpn case final vpn?)
                             ListenableBuilder(
@@ -344,7 +342,11 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                 const SizedBox(height: 20),
                 AppActionRow(
                   children: [
-                    FilledButton.tonalIcon(
+                    // Connect is the only primary action of a disconnected
+                    // server; Disconnect and Cancel stay tonal.
+                    (c.busy || connected
+                        ? FilledButton.tonalIcon
+                        : FilledButton.icon)(
                       style: FilledButton.styleFrom(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,
@@ -857,11 +859,9 @@ class _ProtocolTile extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(
-                      section.mark,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.labelLarge?.copyWith(color: colors.primary),
+                    Icon(
+                      protocolIcon(protocolComponent(section.name)),
+                      color: colors.primary,
                     ),
                     const Spacer(),
                     if (busy)
@@ -874,15 +874,12 @@ class _ProtocolTile extends StatelessWidget {
                         buttonKey: ValueKey('protocol-menu-${section.name}'),
                         tooltip: l.uiProtocolActions,
                         children: [
-                          MenuItemButton(
+                          AppMenuItem(
                             key: ValueKey('protocol-remove-${section.name}'),
-                            style: MenuItemButton.styleFrom(
-                              foregroundColor: colors.error,
-                              iconColor: colors.error,
-                            ),
-                            leadingIcon: const Icon(Icons.delete_outline),
+                            destructive: true,
+                            icon: Icons.delete_outline,
+                            label: l.uiRemoveProtocol,
                             onPressed: onRemove,
-                            child: Text(l.uiRemoveProtocol),
                           ),
                         ],
                       )
