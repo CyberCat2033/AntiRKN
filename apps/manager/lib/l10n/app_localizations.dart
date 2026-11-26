@@ -7004,12 +7004,6 @@ abstract class AppLocalizations {
   /// **'VLESS inbound'**
   String get egressInbound;
 
-  /// No description provided for @softwareUpdateAvailableList.
-  ///
-  /// In en, this message translates to:
-  /// **'Update available: {items}'**
-  String softwareUpdateAvailableList(Object items);
-
   /// No description provided for @inventoryPartialList.
   ///
   /// In en, this message translates to:

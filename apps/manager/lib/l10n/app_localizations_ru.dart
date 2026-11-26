@@ -3999,11 +3999,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get egressInbound => 'VLESS inbound';
 
   @override
-  String softwareUpdateAvailableList(Object items) {
-    return 'Доступно обновление: $items';
-  }
-
-  @override
   String inventoryPartialList(Object items) {
     return 'Часть проверок не выполнена: $items';
   }

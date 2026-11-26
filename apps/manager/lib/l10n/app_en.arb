@@ -1497,7 +1497,6 @@
   "inboundDeleteReadFailed": "The selected inbounds could not be read on the server. Nothing was deleted; try again after refreshing the list.",
   "egressCheckedAt": "TCP and UDP checked · {ms} ms · {date}",
   "egressInbound": "VLESS inbound",
-  "softwareUpdateAvailableList": "Update available: {items}",
   "inventoryPartialList": "Some checks were incomplete: {items}",
   "inventoryVersionUnknownReason": "Version unknown: {reason}",
   "xrayUpgradeProblemAfter": "{reason} The check did not finish. Review the connection results and retry when connectivity is restored.",

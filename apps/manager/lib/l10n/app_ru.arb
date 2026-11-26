@@ -1452,7 +1452,6 @@
   "inboundDeleteReadFailed": "Не удалось прочитать выбранные inbounds на сервере. Ничего не удалено; повторите после обновления списка.",
   "egressCheckedAt": "TCP и UDP проверены · {ms} мс · {date}",
   "egressInbound": "VLESS inbound",
-  "softwareUpdateAvailableList": "Доступно обновление: {items}",
   "inventoryPartialList": "Часть проверок не выполнена: {items}",
   "inventoryVersionUnknownReason": "Версия неизвестна: {reason}",
   "xrayUpgradeProblemAfter": "{reason} Проверка не завершена. Посмотрите результаты подключений и повторите после восстановления связи.",

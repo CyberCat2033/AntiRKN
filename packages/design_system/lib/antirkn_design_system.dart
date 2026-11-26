@@ -876,6 +876,7 @@ class SummaryCard extends StatelessWidget {
     this.onTap,
     this.selected = false,
     this.embedded = false,
+    this.leadingAtTop = false,
     super.key,
   });
   final String title;
@@ -883,6 +884,10 @@ class SummaryCard extends StatelessWidget {
   final Widget? leading, action;
   final VoidCallback? onTap;
   final bool selected;
+
+  /// Aligns [leading] and a trailing [action] with the title instead of
+  /// centring them on a summary of several lines.
+  final bool leadingAtTop;
 
   /// A row inside a section card: no card of its own, so there is no card
   /// in a card (UI-58).
@@ -934,7 +939,9 @@ class SummaryCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+                crossAxisAlignment: leadingAtTop
+                    ? CrossAxisAlignment.start
+                    : CrossAxisAlignment.center,
                 children: [
                   if (leading != null) ...[
                     leading!,
@@ -1886,6 +1893,38 @@ class _AppMoreMenuState extends State<AppMoreMenu> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// An item of an [AppMoreMenu]. A [destructive] item (remove, delete) takes
+/// the error role for its icon, label and highlight.
+class AppMenuItem extends StatelessWidget {
+  const AppMenuItem({
+    required this.label,
+    required this.onPressed,
+    this.icon,
+    this.destructive = false,
+    super.key,
+  });
+  final String label;
+  final IconData? icon;
+  final VoidCallback? onPressed;
+  final bool destructive;
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return MenuItemButton(
+      style: destructive
+          ? MenuItemButton.styleFrom(
+              foregroundColor: colors.error,
+              iconColor: colors.error,
+              overlayColor: colors.error,
+            )
+          : null,
+      leadingIcon: icon == null ? null : Icon(icon),
+      onPressed: onPressed,
+      child: Text(label),
     );
   }
 }

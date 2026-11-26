@@ -159,6 +159,17 @@ void main() {
         Directionality.of(tester.element(find.text('Remove protocol'))),
         TextDirection.ltr,
       );
+      // A destructive item: label and icon in the error role.
+      expect(
+        DefaultTextStyle.of(
+          tester.element(find.text('Remove protocol')),
+        ).style.color,
+        colors.error,
+      );
+      expect(
+        IconTheme.of(tester.element(find.byIcon(Icons.delete_outline))).color,
+        colors.error,
+      );
       expect(tester.takeException(), isNull);
       await _evidence(tester, key, 'server-protocols-menu-${width.toInt()}');
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
@@ -275,6 +286,27 @@ void main() {
           protocolIcon('trusttunnel'),
           protocolIcon('amneziawg'),
         ]);
+        // One supporting line with the updates; no repeated
+        // "Update available: …" under the section's heading.
+        expect(
+          find.text('3x-ui 3.7.0 → 3.11.0 · Xray 26.7.28 → 26.11.9'),
+          findsOneWidget,
+        );
+        expect(find.text('1.1.0 → 1.3.1'), findsOneWidget);
+        expect(find.textContaining('Update available:'), findsNothing);
+        // Versions and Update share one action row.
+        for (final key in ['panel', 'trusttunnel', 'amneziawg']) {
+          final versions = tester.getRect(
+            find.byKey(ValueKey('component-versions-$key')),
+          );
+          final update = tester.getRect(
+            find.byKey(
+              ValueKey(key == 'panel' ? 'panel-update' : 'component-$key'),
+            ),
+          );
+          expect(versions.center.dy, closeTo(update.center.dy, 1));
+          expect(versions.right, lessThan(update.left));
+        }
         // No standalone Xray block and no orphaned caption.
         expect(find.text(l.xrayUpgradeTitle), findsNothing);
         expect(find.text('Components installed on this server'), findsNothing);
@@ -287,7 +319,7 @@ void main() {
             ...find
                 .descendant(
                   of: find.byWidget(card),
-                  matching: find.byType(OutlinedButton),
+                  matching: find.byType(FilledButton),
                 )
                 .evaluate(),
             ...find
