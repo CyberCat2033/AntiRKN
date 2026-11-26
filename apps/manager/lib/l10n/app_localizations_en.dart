@@ -1936,10 +1936,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aptUpgrading => 'Upgrading Ubuntu packages…';
 
   @override
-  String get aptRunningHelp =>
-      'The job continues after the app closes. Cancellation waits for the current APT command to finish.';
-
-  @override
   String get aptFailed =>
       'APT did not complete the command. Check repositories, disk space and package manager locks, then prepare a new plan.';
 

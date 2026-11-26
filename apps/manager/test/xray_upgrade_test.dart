@@ -692,9 +692,13 @@ void main() {
       runner.panelAccess = access;
       remote.phase = 'recovery_pending';
       await tester.pumpWidget(app(const ValueKey('recovering')));
-      await tester.pumpAndSettle();
-      expect(find.text(l.xrayUpgradeTitle), findsOneWidget);
-      expect(find.text(l.xrayUpgradePending), findsOneWidget);
+      // The indeterminate bar never settles.
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      // Inline like a component install: the step and one bar, no card.
+      expect(find.textContaining(l.xrayUpgradePending), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsOneWidget);
       expect(find.byKey(const ValueKey('xray-upgrade-close')), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());

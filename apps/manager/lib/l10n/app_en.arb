@@ -758,7 +758,6 @@
   "aptReboot": "The server requires a reboot. Restart it when convenient.",
   "aptUpdating": "Refreshing APT indexes…",
   "aptUpgrading": "Upgrading Ubuntu packages…",
-  "aptRunningHelp": "The job continues after the app closes. Cancellation waits for the current APT command to finish.",
   "aptFailed": "APT did not complete the command. Check repositories, disk space and package manager locks, then prepare a new plan.",
   "aptConflict": "The package state changed. Prepare a new upgrade plan.",
   "aptInterrupted": "The upgrade may be partially applied. Check APT on the server before preparing a new plan; an interrupted command is not repeated automatically.",

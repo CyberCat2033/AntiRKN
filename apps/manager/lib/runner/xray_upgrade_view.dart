@@ -177,8 +177,8 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: Listenable.merge([c, widget.runner, widget.vpn]),
     builder: (context, _) {
-      // Started from the 3x-ui / Xray row (Update or Versions); nothing to
-      // show until a transaction runs or the server reports one.
+      // Shown under the 3x-ui / Xray software row like a component install:
+      // nothing until a transaction runs here or the server reports one.
       if (!_shown && !c.running && !_active.contains(c.phase)) {
         return const SizedBox.shrink();
       }
@@ -217,66 +217,58 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
       String check(ConnectionCheck? result) => result == null
           ? l.xrayUpgradeNotTested
           : connectionCheckMessage(l, result);
-      return SectionCard(
-        key: const ValueKey('xray-upgrade'),
-        title: l.xrayUpgradeTitle,
-        trailing: c.running || c.busy || !_shown
-            ? null
-            : IconButton(
-                key: const ValueKey('xray-upgrade-close'),
-                tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
-                onPressed: () => setState(() => _shown = false),
-                icon: const Icon(Icons.close),
-              ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (offer.candidate != null && offer.current != null)
-              Text('Xray ${offer.current} → ${offer.candidate}'),
-            if (c.plan != null && offer.candidate == null)
-              Text(l.xrayUpgradeNoStable),
-            if (c.busy)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
-                child: LinearProgressIndicator(),
-              ),
-            if (message.isNotEmpty) Text(message),
-            if (problem.isNotEmpty)
-              AppNotice(
-                message: problem,
-                error: true,
-                margin: const EdgeInsets.only(top: 8),
-              ),
-            for (final row in c.rows)
-              Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      row.name.isEmpty ? 'VLESS · ${row.id}' : row.name,
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                    if (!row.enabled) Text(l.xrayUpgradeDisabled),
-                    if (row.enabled) ...[
-                      Text('${l.xrayUpgradeBefore}: ${check(row.before)}'),
-                      Text('${l.xrayUpgradeAfter}: ${check(row.after)}'),
-                      if (c.phase == 'rolled_back' || row.restored != null)
-                        Text(
-                          '${l.xrayUpgradeRecovery}: ${check(row.restored)}',
-                        ),
-                    ],
-                  ],
+      final title = offer.candidate != null && offer.current != null
+          ? 'Xray ${offer.current} → ${offer.candidate}'
+          : l.xrayUpgradeTitle;
+      // Before/after of each inbound: technical, so in the details sheet.
+      final details = [
+        for (final row in c.rows)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  row.name.isEmpty ? 'VLESS · ${row.id}' : row.name,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                if (!row.enabled) Text(l.xrayUpgradeDisabled),
+                if (row.enabled) ...[
+                  Text('${l.xrayUpgradeBefore}: ${check(row.before)}'),
+                  Text('${l.xrayUpgradeAfter}: ${check(row.after)}'),
+                  if (c.phase == 'rolled_back' || row.restored != null)
+                    Text('${l.xrayUpgradeRecovery}: ${check(row.restored)}'),
+                ],
+              ],
+            ),
+          ),
+      ];
+      final inProgress =
+          c.running ||
+          c.busy ||
+          (_active.contains(c.phase) && c.phase != 'recovery_required');
+      if (inProgress) {
+        return Padding(
+          key: const ValueKey('xray-upgrade'),
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Semantics(
+                liveRegion: true,
+                child: Text(
+                  message.isEmpty ? title : '$title · $message',
+                  style: Theme.of(context).textTheme.titleSmall,
                 ),
               ),
-            if (c.running)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Align(
+              const SizedBox(height: 6),
+              const LinearProgressIndicator(),
+              if (c.running)
+                Align(
                   alignment: AlignmentDirectional.centerStart,
                   // Stopping aborts the upgrade and rolls the core back on
                   // the server: confirm in error colours (UI-55).
-                  child: OutlinedButton.icon(
+                  child: TextButton(
                     key: const ValueKey('xray-stop'),
                     onPressed: () async {
                       final stop = await confirmAppDanger(
@@ -289,10 +281,43 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
                       );
                       if (stop && c.running) c.cancel();
                     },
-                    icon: const Icon(Icons.stop_circle_outlined),
-                    label: Text(l.connectionStop),
+                    child: Text(l.connectionStop),
                   ),
                 ),
+            ],
+          ),
+        );
+      }
+      final text = [
+        if (message.isNotEmpty) message,
+        if (problem.isNotEmpty) problem,
+        if (c.plan != null && offer.candidate == null) l.xrayUpgradeNoStable,
+      ];
+      return AppNotice(
+        key: const ValueKey('xray-upgrade'),
+        title: title,
+        message: text.isEmpty ? l.xrayUpgradeTitle : text.join('\n'),
+        error: problem.isNotEmpty || c.phase == 'recovery_required',
+        icon: c.phase == 'committed'
+            ? Icons.check_circle_outline
+            : Icons.info_outline,
+        liveRegion: true,
+        action: Wrap(
+          spacing: 8,
+          children: [
+            if (details.isNotEmpty)
+              TextButton(
+                key: const ValueKey('xray-upgrade-details'),
+                onPressed: () =>
+                    showAppDetails(context, title: title, children: details),
+                child: Text(l.componentsDetails),
+              ),
+            // A transaction the server still has to recover stays shown.
+            if (c.phase != 'recovery_required')
+              TextButton(
+                key: const ValueKey('xray-upgrade-close'),
+                onPressed: () => setState(() => _shown = false),
+                child: Text(l.networkClose),
               ),
           ],
         ),

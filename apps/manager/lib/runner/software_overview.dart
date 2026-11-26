@@ -17,16 +17,28 @@ class SoftwareOverview extends StatelessWidget {
   const SoftwareOverview({
     required this.controller,
     required this.motion,
+    this.coreUpgrade,
     super.key,
   });
   final RunnerController controller;
   final MotionPreference motion;
+
+  /// The checked Xray core transaction ([XrayUpgradeView]): under the
+  /// 3x-ui / Xray row, and mounted even without one, since it owns the
+  /// runner's Xray version choice.
+  final Widget? coreUpgrade;
   @override
   Widget build(BuildContext context) {
     final c = controller, l = AppLocalizations.of(context);
     final updates = ComponentUpdatesScope.of(context);
     final inventory = c.software?.call();
     final content = <Widget>[];
+    final core = coreUpgrade == null
+        ? null
+        : KeyedSubtree(
+            key: const ValueKey('software-xray-upgrade'),
+            child: coreUpgrade!,
+          );
     final available = <Widget>[];
     final others = <Widget>[];
     var installationShown = false;
@@ -339,6 +351,7 @@ class SoftwareOverview extends StatelessWidget {
         content.addAll([
           PanelInstallationView(controller: c, motion: motion),
           PanelUpdateView(controller: c),
+          ?core,
         ]);
       }
       if (!installationShown && hostsComponentInstallation(c, key)) {
@@ -346,6 +359,7 @@ class SoftwareOverview extends StatelessWidget {
         content.add(ComponentInstallationView(controller: c));
       }
     }
+    if (core != null && !content.contains(core)) content.add(core);
     if (updates != null) {
       if (updates.busy) content.add(const LinearProgressIndicator());
       if (updates.failed) {

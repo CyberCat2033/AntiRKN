@@ -1941,10 +1941,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get aptUpgrading => 'Обновление пакетов Ubuntu…';
 
   @override
-  String get aptRunningHelp =>
-      'Задание продолжится при закрытии приложения. Отмена дождётся завершения текущей команды APT.';
-
-  @override
   String get aptFailed =>
       'APT не завершил команду. Проверьте доступность репозиториев, свободное место и блокировку пакетного менеджера, затем подготовьте новый план.';
 

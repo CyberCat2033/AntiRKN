@@ -3458,12 +3458,6 @@ abstract class AppLocalizations {
   /// **'Upgrading Ubuntu packages…'**
   String get aptUpgrading;
 
-  /// No description provided for @aptRunningHelp.
-  ///
-  /// In en, this message translates to:
-  /// **'The job continues after the app closes. Cancellation waits for the current APT command to finish.'**
-  String get aptRunningHelp;
-
   /// No description provided for @aptFailed.
   ///
   /// In en, this message translates to:

@@ -13,10 +13,14 @@ class RunnerPanel extends StatelessWidget {
   const RunnerPanel({
     required this.controller,
     required this.motion,
+    this.coreUpgrade,
     super.key,
   });
   final RunnerController controller;
   final MotionPreference motion;
+
+  /// The checked Xray core transaction, shown under the 3x-ui / Xray row.
+  final Widget? coreUpgrade;
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: controller,
@@ -164,38 +168,52 @@ class RunnerPanel extends StatelessWidget {
               ),
             if (showJob && active) ...[
               const SizedBox(height: AppLayout.gap),
+              // One compact block like a component install: the step, one
+              // bar, and the actions in one row (no standing help text).
               Semantics(
                 liveRegion: true,
                 child: Text(
                   event != null
                       ? runnerEventLabel(l, event.code)
                       : runnerStateLabel(l, job.status),
+                  style: Theme.of(context).textTheme.titleSmall,
                 ),
               ),
-              LinearProgressIndicator(value: job.checkpoint / job.count),
+              const SizedBox(height: 6),
+              LinearProgressIndicator(
+                value: job.count > 0 && job.checkpoint > 0
+                    ? job.checkpoint / job.count
+                    : null,
+              ),
               if (reboot == true) Text(l.aptReboot),
-              if (job.kind.startsWith('apt_')) Text(l.aptRunningHelp),
               if (job.cancelRequested) Text(l.runnerCancelRequested),
-              if (job.kind != 'server_reboot')
-                Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: Wrap(
-                    spacing: 8,
-                    children: [
+              if (job.kind != 'server_reboot' || resetAfterJob)
+                Wrap(
+                  spacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    if (job.kind != 'server_reboot')
                       TextButton(
                         key: const ValueKey('runner-cancel'),
-                        onPressed: !c.busy && !c.actionPending
+                        onPressed:
+                            !c.busy && !c.actionPending && !job.cancelRequested
                             ? () async {
                                 await c.cancelJob();
                               }
                             : null,
                         child: Text(l.runnerCancel),
                       ),
-                    ],
-                  ),
+                    if (resetAfterJob)
+                      RunnerResetQueueButton(
+                        controller: c,
+                        buttonKey: const ValueKey('runner-reset-queue'),
+                        inline: true,
+                      ),
+                  ],
                 ),
             ],
-            if (resetAfterJob)
+            // A job shown elsewhere (a component install) keeps the reset.
+            if (resetAfterJob && !showJob)
               RunnerResetQueueButton(
                 controller: c,
                 buttonKey: const ValueKey('runner-reset-queue'),
@@ -215,7 +233,11 @@ class RunnerPanel extends StatelessWidget {
                 ),
               ),
             ],
-            SoftwareOverview(controller: c, motion: motion),
+            SoftwareOverview(
+              controller: c,
+              motion: motion,
+              coreUpgrade: coreUpgrade,
+            ),
             if (!softwareComponentKeys.any(
                   (k) => hostsComponentInstallation(c, k),
                 ) &&
@@ -446,41 +468,44 @@ class RunnerResetQueueButton extends StatelessWidget {
   const RunnerResetQueueButton({
     required this.controller,
     this.buttonKey,
+    this.inline = false,
     super.key,
   });
   final RunnerController controller;
   final Key? buttonKey;
+
+  /// Only the button, for a row of job actions.
+  final bool inline;
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context), c = controller;
+    final button = TextButton.icon(
+      key: buttonKey,
+      style: TextButton.styleFrom(
+        foregroundColor: Theme.of(context).colorScheme.error,
+      ),
+      onPressed: !c.busy && !c.actionPending
+          ? () async {
+              final confirmed = await confirmAppDanger(
+                context,
+                title: l.runnerResetQueueTitle,
+                message: l.runnerResetQueueHelp,
+                confirmLabel: l.runnerResetQueue,
+                cancelLabel: l.sshCancel,
+                confirmKey: const ValueKey('runner-reset-queue-confirm'),
+              );
+              if (confirmed && !c.busy && !c.actionPending) {
+                await c.resetJobQueue();
+              }
+            }
+          : null,
+      icon: const Icon(Icons.restart_alt),
+      label: Text(l.runnerResetQueue),
+    );
+    if (inline) return button;
     return Padding(
       padding: const EdgeInsets.only(top: AppLayout.gap / 2),
-      child: Align(
-        alignment: AlignmentDirectional.centerStart,
-        child: TextButton.icon(
-          key: buttonKey,
-          style: TextButton.styleFrom(
-            foregroundColor: Theme.of(context).colorScheme.error,
-          ),
-          onPressed: !c.busy && !c.actionPending
-              ? () async {
-                  final confirmed = await confirmAppDanger(
-                    context,
-                    title: l.runnerResetQueueTitle,
-                    message: l.runnerResetQueueHelp,
-                    confirmLabel: l.runnerResetQueue,
-                    cancelLabel: l.sshCancel,
-                    confirmKey: const ValueKey('runner-reset-queue-confirm'),
-                  );
-                  if (confirmed && !c.busy && !c.actionPending) {
-                    await c.resetJobQueue();
-                  }
-                }
-              : null,
-          icon: const Icon(Icons.restart_alt),
-          label: Text(l.runnerResetQueue),
-        ),
-      ),
+      child: Align(alignment: AlignmentDirectional.centerStart, child: button),
     );
   }
 }

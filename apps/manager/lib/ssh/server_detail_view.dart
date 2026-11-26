@@ -728,10 +728,10 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                       : const SizedBox.shrink(),
                   built.contains(2)
                       ? page('updates', [
-                          ?widget.coreUpgrade,
                           RunnerPanel(
                             controller: c.runner,
                             motion: widget.motion,
+                            coreUpgrade: widget.coreUpgrade,
                           ),
                         ])
                       : const SizedBox.shrink(),
