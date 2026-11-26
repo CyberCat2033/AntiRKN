@@ -6512,11 +6512,11 @@ abstract class AppLocalizations {
   /// **'Another Xray update is still running on this server.'**
   String get xrayUpgradeBusy;
 
-  /// No description provided for @xrayUpgradeCode.
+  /// No description provided for @technicalCode.
   ///
   /// In en, this message translates to:
   /// **'Code: {code}'**
-  String xrayUpgradeCode(String code);
+  String technicalCode(String code);
 
   /// No description provided for @xrayUpgradeAttention.
   ///

@@ -3700,7 +3700,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Another Xray update is still running on this server.';
 
   @override
-  String xrayUpgradeCode(String code) {
+  String technicalCode(String code) {
     return 'Code: $code';
   }
 

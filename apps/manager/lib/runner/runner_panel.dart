@@ -102,11 +102,21 @@ class RunnerPanel extends StatelessWidget {
                       _shortRelease(bundled),
                     ),
                   ),
-            if (c.responseCode != null && c.responseCode != 'ok')
+            if (c.responseCode != null && c.responseCode != 'ok') ...[
               AppNotice(
                 message: runnerCodeLabel(l, c.responseCode!),
                 error: true,
               ),
+              // A code without its own text: the code itself is the only
+              // lead for support, so it is shown as a technical detail.
+              if (runnerCodeLabel(l, c.responseCode!) ==
+                  l.runnerInvalidResponse)
+                SelectableText(
+                  key: const ValueKey('runner-response-code'),
+                  l.technicalCode(c.responseCode!),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+            ],
             if (c.connectionLost || !c.connected && active)
               AppNotice(message: l.runnerConnectionLost),
             if (c.panelDiscovery?['failed'] == true)

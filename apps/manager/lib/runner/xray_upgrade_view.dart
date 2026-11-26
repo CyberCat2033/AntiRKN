@@ -233,7 +233,7 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
         if (c.code.isNotEmpty && c.code != 'committed')
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
-            child: SelectableText(l.xrayUpgradeCode(c.code)),
+            child: SelectableText(l.technicalCode(c.code)),
           ),
         for (final row in c.rows)
           Padding(

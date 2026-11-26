@@ -3705,7 +3705,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get xrayUpgradeBusy => 'На сервере ещё идёт другое обновление Xray.';
 
   @override
-  String xrayUpgradeCode(String code) {
+  String technicalCode(String code) {
     return 'Код: $code';
   }
 
