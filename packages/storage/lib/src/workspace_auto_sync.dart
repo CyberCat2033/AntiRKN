@@ -122,6 +122,11 @@ extension WorkspaceAutomaticSync on WorkspaceDatabase {
         await readSetting('syncSnapshotIntent') == snapshot.intent &&
         await _snapshotReplaceable(state)) {
       commit?.call();
+      // As a restore of this version would: it is readable and answers any
+      // waiting divergence. The version last, so an interrupted write is
+      // simply repeated.
+      await writeSetting('syncSnapshotUnsupported', '');
+      await writeSetting('syncSnapshotDivergence', '');
       await writeSetting('syncSnapshotRemoteFileId', file.id);
       await writeSetting('syncSnapshotRemoteVersion', file.version);
       await writeSetting('syncSnapshotRemoteEtag', file.etag);
