@@ -133,7 +133,7 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher>
   GoogleSyncAccountService? _google;
   LanguageController? _languages;
   int _generation = 0;
-  bool _retrying = false;
+  bool _retrying = false, _reopening = false;
 
   /// The saved theme, for the screens shown before the app opens.
   ThemeMode _theme = ThemeMode.system;
@@ -200,14 +200,25 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher>
   /// version or a restored backup. The last frame of the shell stays on
   /// screen with a progress bar until the new shell replaces it, on the same
   /// page; nothing blinks to a loading screen.
+  ///
+  /// One reopen at a time: a request while one runs is answered by it, since
+  /// that reopen reads the data after the request's change.
   Future<void> _reopen() async {
+    if (_reopening) return;
+    _reopening = true;
+    // The frame being captured must be painted.
+    await WidgetsBinding.instance.endOfFrame;
+    // Unmounted meanwhile: dispose closed everything.
+    if (!mounted) return;
+    // The restart owns the previous workspace from here on.
     final old = _database,
         languages = _languages,
         sync = _sync,
         google = _google;
-    // The frame being captured must be painted.
-    await WidgetsBinding.instance.endOfFrame;
-    if (!mounted) return;
+    _database = null;
+    _languages = null;
+    _sync = null;
+    _google = null;
     final frozen = _capture();
     Future<Widget> restart() async {
       // Dispose the previous shell and its SSH sessions before reopening data.
@@ -219,6 +230,7 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher>
       }
       await old?.close();
       languages?.dispose();
+      if (!mounted) throw StateError('launcher disposed');
       // This shell's sync checks the cloud as soon as it starts.
       return _load(pull: false);
     }
@@ -228,20 +240,25 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher>
       _frozen?.dispose();
       _frozen = frozen;
       _app = restart().whenComplete(() {
+        _reopening = false;
         // The next frame shows the new shell (or the error); the image is
-        // released after it.
-        final image = _frozen;
+        // released after it, unless dispose already released it.
+        if (frozen == null || !identical(_frozen, frozen)) return;
         _frozen = null;
-        if (image != null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) => image.dispose());
-        }
+        WidgetsBinding.instance.addPostFrameCallback((_) => frozen.dispose());
       });
     });
   }
 
+  /// Opens the workspace for the shell of the current generation. A result
+  /// that arrives after the launcher was disposed or moved on is closed, not
+  /// installed.
   Future<Widget> _load({bool pull = true}) async {
+    final generation = _generation;
+    bool stale() => !mounted || generation != _generation;
     final database = await widget.openWorkspace();
     try {
+      if (stale()) throw StateError('stale workspace load');
       final theme = _themeMode(await database.readSetting('theme'));
       if (mounted && theme != _theme) setState(() => _theme = theme);
       _allowFirstFrame();
@@ -272,6 +289,13 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher>
       await languages.load();
       final source = await database.readDraft() ?? '';
       final motion = await database.readSetting('motion');
+      if (stale()) {
+        languages.dispose();
+        if (google case final CancelableGoogleSignIn lifecycle) {
+          await lifecycle.close();
+        }
+        throw StateError('stale workspace load');
+      }
       _database = database;
       _languages = languages;
       _google = google;
