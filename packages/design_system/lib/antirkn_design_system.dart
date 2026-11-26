@@ -1219,7 +1219,9 @@ class SettingsGroup extends StatelessWidget {
   );
 }
 
-/// Short option sets use M3 segments; large text uses a vertical arrangement.
+/// Short option sets use M3 segments. When the segments do not fit the width
+/// at the current text scale, the same choice is a list of radio rows: a
+/// vertical segmented button fills only part of each row.
 class AppChoice<T> extends StatelessWidget {
   const AppChoice({
     required this.value,
@@ -1237,7 +1239,8 @@ class AppChoice<T> extends StatelessWidget {
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, size) {
       final style = Theme.of(context).textTheme.labelLarge!;
-      final requiredWidth = options.fold<double>(0, (total, option) {
+      // Segments share one width, that of the widest label plus padding.
+      final widest = options.fold<double>(0, (widest, option) {
         final text = TextPainter(
           text: TextSpan(text: option.$2, style: style),
           textDirection: Directionality.of(context),
@@ -1245,8 +1248,41 @@ class AppChoice<T> extends StatelessWidget {
         )..layout();
         final width = text.width;
         text.dispose();
-        return total + width + 32;
+        return width > widest ? width : widest;
       });
+      final requiredWidth = options.length * (widest + 32);
+      Text label(T option, String text) => Text(
+        text,
+        key: keyPrefix == null
+            ? null
+            : ValueKey('$keyPrefix-${option is Enum ? option.name : option}'),
+      );
+      if (requiredWidth > size.maxWidth) {
+        return RadioGroup<T>(
+          groupValue: value,
+          onChanged: (selected) {
+            if (selected != null) onChanged?.call(selected);
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final option in options)
+                RadioListTile<T>(
+                  value: option.$1,
+                  enabled: onChanged != null,
+                  contentPadding: const EdgeInsetsDirectional.only(
+                    start: 4,
+                    end: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  title: label(option.$1, option.$2),
+                ),
+            ],
+          ),
+        );
+      }
       return SegmentedButton<T>(
         showSelectedIcon: false,
         style: ButtonStyle(
@@ -1257,21 +1293,11 @@ class AppChoice<T> extends StatelessWidget {
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),
-        direction: requiredWidth > size.maxWidth
-            ? Axis.vertical
-            : Axis.horizontal,
         segments: [
           for (final option in options)
             ButtonSegment<T>(
               value: option.$1,
-              label: Text(
-                option.$2,
-                key: keyPrefix == null
-                    ? null
-                    : ValueKey(
-                        '$keyPrefix-${option.$1 is Enum ? (option.$1 as Enum).name : option.$1}',
-                      ),
-              ),
+              label: label(option.$1, option.$2),
             ),
         ],
         selected: {value},
