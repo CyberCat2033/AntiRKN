@@ -3271,6 +3271,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sshHardenRandomUser => 'Pick a random character';
 
   @override
+  String get sshHardenRandomPassword => 'Generate random password';
+
+  @override
   String get uiServerDataNotCached =>
       'Connect to the server once to save its data on this device.';
 

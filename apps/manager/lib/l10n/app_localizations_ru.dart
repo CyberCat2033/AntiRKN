@@ -3278,6 +3278,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get sshHardenRandomUser => 'Выбрать случайного персонажа';
 
   @override
+  String get sshHardenRandomPassword => 'Создать случайный пароль';
+
+  @override
   String get uiServerDataNotCached =>
       'Подключитесь к серверу один раз, чтобы сохранить его данные на этом устройстве.';
 

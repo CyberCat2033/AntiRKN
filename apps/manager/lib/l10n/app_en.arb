@@ -1262,6 +1262,7 @@
   "sshHardenPortBusy": "The selected port is already in use.",
   "sshHardenFailed": "Could not complete SSH protection. Check the connection and recovery status.",
   "sshHardenRandomUser": "Pick a random character",
+  "sshHardenRandomPassword": "Generate random password",
   "uiServerDataNotCached": "Connect to the server once to save its data on this device.",
   "inboundDeleteSelectionHelp": "Delete the selected inbounds and their connections? Orphaned server client records will also be deleted. Clients in this app remain, and affected profiles will be updated.",
   "inboundDeleteIncomplete": "Deletion is incomplete. Check the job in server maintenance; unfinished jobs can be resumed.",

@@ -162,4 +162,75 @@ void main() {
       c.network.dispose();
     },
   );
+  test('randomSudoPassword generates valid mixed-class passwords', () {
+    final first = randomSudoPassword();
+    final second = randomSudoPassword();
+    expect(first.length, 20);
+    expect(second.length, 20);
+    expect(first, isNot(second));
+    for (final p in [first, second]) {
+      expect(validSudoPassword(p), isTrue);
+      expect(RegExp(r'[\x00-\x1f\x7f]').hasMatch(p), isFalse);
+      expect(RegExp(r'[a-z]').hasMatch(p), isTrue);
+      expect(RegExp(r'[A-Z]').hasMatch(p), isTrue);
+      expect(RegExp(r'[0-9]').hasMatch(p), isTrue);
+      expect(RegExp(r'[-_@#%^&*+=]').hasMatch(p), isTrue);
+    }
+  });
+  testWidgets(
+    'random password dice button fills password and confirmation fields',
+    (tester) async {
+      final vault = FakeVault(), connector = FakeConnector();
+      connector.connection.privilegeChecker = (_, _) async =>
+          const PrivilegeCheck(PrivilegeStatus.root);
+      final c = controller(vault, connector);
+      await prepare(c);
+      await c.save();
+      vault.saved = vault.saved!.withHostKey(pin);
+      await c.connect();
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: SingleChildScrollView(child: SshPanel(controller: c)),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final button = find.widgetWithIcon(FilledButton, Icons.shield_outlined);
+      await tester.ensureVisible(button);
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+
+      final l = AppLocalizations.of(
+        tester.element(find.byType(CheckboxListTile)),
+      );
+      final diceButtons = find.widgetWithIcon(
+        IconButton,
+        Icons.casino_outlined,
+      );
+      expect(diceButtons, findsNWidgets(2));
+
+      final passwordDice = find.byTooltip(l.sshHardenRandomPassword);
+      expect(passwordDice, findsOneWidget);
+      await tester.ensureVisible(passwordDice);
+      await tester.tap(passwordDice);
+      await tester.pump();
+
+      final fields = tester
+          .widgetList<TextField>(find.byType(TextField))
+          .toList();
+      expect(fields.length, 4);
+      final password = fields[2].controller!.text;
+      final confirm = fields[3].controller!.text;
+      expect(password.length, 20);
+      expect(confirm, password);
+      expect(validSudoPassword(password), isTrue);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      c.dispose();
+      c.network.dispose();
+    },
+  );
 }

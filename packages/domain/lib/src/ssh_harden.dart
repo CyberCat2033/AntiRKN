@@ -25,6 +25,33 @@ String randomFmaUsername([Random? random]) {
   return fmaUsernames[r.nextInt(fmaUsernames.length)];
 }
 
+/// Generates a random ASCII sudo password satisfying [validSudoPassword].
+String randomSudoPassword([Random? random, int length = 20]) {
+  if (length < 4 || length > 1024) {
+    throw RangeError.range(length, 4, 1024, 'length');
+  }
+  const lower = 'abcdefghijkmnopqrstuvwxyz';
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const digits = '23456789';
+  const symbols = '-_@#%^&*+=';
+  const all = '$lower$upper$digits$symbols';
+  final r = random ?? Random.secure();
+  final chars = <String>[
+    lower[r.nextInt(lower.length)],
+    upper[r.nextInt(upper.length)],
+    digits[r.nextInt(digits.length)],
+    symbols[r.nextInt(symbols.length)],
+    for (var i = 4; i < length; i++) all[r.nextInt(all.length)],
+  ];
+  for (var i = chars.length - 1; i > 0; i--) {
+    final j = r.nextInt(i + 1);
+    final tmp = chars[i];
+    chars[i] = chars[j];
+    chars[j] = tmp;
+  }
+  return chars.join();
+}
+
 /// Plan returned by runner RPC `ssh_harden_plan`.
 final class SshHardenPlan {
   const SshHardenPlan({

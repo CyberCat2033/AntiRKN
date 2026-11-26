@@ -100,6 +100,19 @@ class _SshHardenDialogState extends State<_SshHardenDialog> {
   void _pickRandomUsername() =>
       setState(() => _usernameCtrl.text = randomFmaUsername());
 
+  void _pickRandomPassword() {
+    final l = AppLocalizations.of(context);
+    final password = randomSudoPassword();
+    setState(() {
+      _passwordCtrl.text = password;
+      _confirmCtrl.text = password;
+      if (_inputError == l.sshHardenPasswordRequired ||
+          _inputError == l.sshHardenPasswordMismatch) {
+        _inputError = null;
+      }
+    });
+  }
+
   Future<void> _startHardening() async {
     final l = AppLocalizations.of(context);
     final username = _usernameCtrl.text.trim();
@@ -194,25 +207,41 @@ class _SshHardenDialogState extends State<_SshHardenDialog> {
                 onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 12),
-              TextField(
-                controller: _passwordCtrl,
-                obscureText: _obscurePassword,
-                decoration: InputDecoration(
-                  labelText: l.sshHardenSudoPassword,
-                  prefixIcon: const Icon(Icons.lock_outline),
-                  // Same icon and tooltip as the SSH form: the eye shows
-                  // what tapping does (UI-73).
-                  suffixIcon: IconButton(
-                    tooltip: _obscurePassword ? l.showPassword : l.hidePassword,
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _passwordCtrl,
+                      obscureText: _obscurePassword,
+                      decoration: InputDecoration(
+                        labelText: l.sshHardenSudoPassword,
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        // Same icon and tooltip as the SSH form: the eye shows
+                        // what tapping does (UI-73).
+                        suffixIcon: IconButton(
+                          tooltip: _obscurePassword
+                              ? l.showPassword
+                              : l.hidePassword,
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                          onPressed: () => setState(
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
+                        ),
+                      ),
                     ),
-                    onPressed: () =>
-                        setState(() => _obscurePassword = !_obscurePassword),
                   ),
-                ),
+                  const SizedBox(width: 8),
+                  IconButton.filledTonal(
+                    tooltip: l.sshHardenRandomPassword,
+                    onPressed: _pickRandomPassword,
+                    icon: const Icon(Icons.casino_outlined),
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
               TextField(

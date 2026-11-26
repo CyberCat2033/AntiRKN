@@ -5774,6 +5774,12 @@ abstract class AppLocalizations {
   /// **'Pick a random character'**
   String get sshHardenRandomUser;
 
+  /// No description provided for @sshHardenRandomPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Generate random password'**
+  String get sshHardenRandomPassword;
+
   /// No description provided for @uiServerDataNotCached.
   ///
   /// In en, this message translates to:
