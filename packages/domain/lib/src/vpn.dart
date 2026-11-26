@@ -409,12 +409,32 @@ final class VpnWorkspace {
     profiles: profiles ?? this.profiles,
     serviceMode: serviceMode ?? this.serviceMode,
   );
+
+  /// The resource specs [target] should have, deleted ones included, in
+  /// the order of its desired payload.
+  List<Map<String, Object?>> desiredResources(String target) {
+    final server = vpnServerId(target);
+    final resources = isTtTarget(target)
+        ? [
+            for (final r in ttEndpoints)
+              if (r.serverId == server) (id: r.id, spec: r.spec),
+          ]
+        : isAwgTarget(target)
+        ? [
+            for (final r in awgInterfaces)
+              if (r.serverId == server) (id: r.id, spec: r.spec),
+          ]
+        : [
+            for (final r in inbounds)
+              if (r.serverId == target) (id: r.id, spec: r.spec),
+          ];
+    resources.sort((a, b) => a.id.compareTo(b.id));
+    return [for (final r in resources) r.spec];
+  }
+
   Map<String, Object?> desired(String serverId, String panelId) {
     final owner = resourceWorkspaceId(serverId);
     if (isTtTarget(serverId)) {
-      final resources =
-          ttEndpoints.where((r) => r.serverId == vpnServerId(serverId)).toList()
-            ..sort((a, b) => a.id.compareTo(b.id));
       final clients = users.where((u) => !u.deleted).toList()
         ..sort((a, b) => a.id.compareTo(b.id));
       final result = <String, Object?>{
@@ -422,7 +442,7 @@ final class VpnWorkspace {
         'protocol': 'tt',
         'workspaceId': owner,
         'panelId': owner,
-        'resources': resources.map((r) => r.spec).toList(),
+        'resources': desiredResources(serverId),
         'users': clients
             .map(
               (u) => <String, Object?>{
@@ -437,11 +457,6 @@ final class VpnWorkspace {
       return result;
     }
     if (isAwgTarget(serverId)) {
-      final resources =
-          awgInterfaces
-              .where((r) => r.serverId == vpnServerId(serverId))
-              .toList()
-            ..sort((a, b) => a.id.compareTo(b.id));
       final clients = users.where((u) => !u.deleted).toList()
         ..sort((a, b) => a.id.compareTo(b.id));
       final result = <String, Object?>{
@@ -449,7 +464,7 @@ final class VpnWorkspace {
         'protocol': 'awg',
         'workspaceId': owner,
         'panelId': owner,
-        'resources': resources.map((r) => r.spec).toList(),
+        'resources': desiredResources(serverId),
         'users': clients
             .map((u) => <String, Object?>{'id': u.id, 'enabled': u.enabled})
             .toList(),
@@ -457,15 +472,13 @@ final class VpnWorkspace {
       validateAwgPayload(result);
       return result;
     }
-    final resources = inbounds.where((i) => i.serverId == serverId).toList()
-      ..sort((a, b) => a.id.compareTo(b.id));
     final clients = users.where((u) => !u.deleted).toList()
       ..sort((a, b) => a.id.compareTo(b.id));
     final result = <String, Object?>{
       'version': 1,
       'workspaceId': owner,
       'panelId': panelId,
-      'resources': resources.map((r) => r.spec).toList(),
+      'resources': desiredResources(serverId),
       'users': clients
           .map((u) => <String, Object?>{'id': u.id, 'enabled': u.enabled})
           .toList(),

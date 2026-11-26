@@ -1244,6 +1244,16 @@ class VpnController extends ChangeNotifier {
     Set<String>? serverIds,
     bool background = false,
   }) async {
+    // A person's apply of a server in service mode sends its protocols
+    // there at once, without adding clients (see [ServiceModeFlow]).
+    final held = serverIds == null || background
+        ? const <String>{}
+        : serverIds.where(_provisioningHeld).toSet();
+    if (held.isNotEmpty) {
+      await _applyServiceTargets(held);
+      serverIds = serverIds!.difference(held);
+      if (serverIds.isEmpty || error != null) return;
+    }
     await prepare(serverIds: serverIds, background: background);
     final issue = background ? serverSyncIssue : error;
     if (issue == null && plans.isNotEmpty) {

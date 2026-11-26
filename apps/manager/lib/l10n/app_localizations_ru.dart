@@ -1584,7 +1584,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get vpnServiceMode =>
-      'Сервер в сервисном режиме: клиенты на него не добавляются, изменения ждут его возвращения.';
+      'Сервер в сервисном режиме: новые клиенты на него не добавляются до возвращения.';
 
   @override
   String get vpnServiceModeOtherDevice =>
@@ -4329,7 +4329,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get serviceModeHelp =>
-      'Сервер остаётся в приложении и продолжает работать, но его узлы убираются из профилей клиентов, а новые клиенты на него не добавляются. Включайте на время ремонта или перенастройки сервера.';
+      'Сервер остаётся в приложении и продолжает работать, но его узлы убираются из профилей клиентов, а новые клиенты на него не добавляются. Включайте на время тестирования, ремонта или перенастройки сервера.';
 
   @override
   String get serviceModeOff => 'Выключен';
@@ -4379,7 +4379,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get serviceModeEnterNewClients =>
-      'Новые клиенты на него не добавляются.';
+      'Новые клиенты на него не добавляются. Изменения протоколов применяются сразу, проверка соединения работает.';
 
   @override
   String get serviceModeEnterRevocations =>

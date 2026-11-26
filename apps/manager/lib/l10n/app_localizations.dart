@@ -2855,7 +2855,7 @@ abstract class AppLocalizations {
   /// No description provided for @vpnServiceMode.
   ///
   /// In en, this message translates to:
-  /// **'The server is in service mode: clients are not added to it and its changes wait until it returns.'**
+  /// **'The server is in service mode: new clients are not added to it until it returns.'**
   String get vpnServiceMode;
 
   /// No description provided for @vpnServiceModeOtherDevice.
@@ -7529,7 +7529,7 @@ abstract class AppLocalizations {
   /// No description provided for @serviceModeHelp.
   ///
   /// In en, this message translates to:
-  /// **'The server stays in the app and keeps running, but its proxies leave client profiles and new clients are not added to it. Turn it on while you repair or rebuild the server.'**
+  /// **'The server stays in the app and keeps running, but its proxies leave client profiles and new clients are not added to it. Turn it on while you test, repair or rebuild the server.'**
   String get serviceModeHelp;
 
   /// No description provided for @serviceModeOff.
@@ -7613,7 +7613,7 @@ abstract class AppLocalizations {
   /// No description provided for @serviceModeEnterNewClients.
   ///
   /// In en, this message translates to:
-  /// **'New clients are not added to it.'**
+  /// **'New clients are not added to it. Protocol changes apply at once, and connection checks work.'**
   String get serviceModeEnterNewClients;
 
   /// No description provided for @serviceModeEnterRevocations.

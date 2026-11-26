@@ -3,12 +3,16 @@ part of 'vpn_controller.dart';
 /// Service mode of physical servers: entering and leaving it, and the client
 /// access changes a server in it still receives.
 ///
-/// Nothing from `desired()` reaches a server in service mode. A client
-/// disabled (or enabled again) meanwhile reaches it as an access change built
-/// from a fresh readback: only that client's state changes, nobody is added.
-/// The intent needs no record of its own: it is the client's synced
-/// `enabled` flag against what the server last showed, so a restart or
-/// another device picks it up from the first readback. A deletion still goes
+/// Service mode is for testing and repair: no client is added to a server
+/// in it, but its protocols still change at once. What reaches it is built
+/// from a fresh readback: the desired resources with only the clients the
+/// server already has, each in its current `enabled` state. So a protocol
+/// set up there applies right away (a new server gets it without clients,
+/// and its connection check uses the runner's temporary probe client), and
+/// a client disabled (or enabled again) meanwhile changes only its own
+/// state. The intent needs no record of its own: it is the synced
+/// workspace against what the server last showed, so a restart or another
+/// device picks it up from the first readback. A deletion still goes
 /// through the revocation flow. None of this holds up publication or the
 /// other servers.
 extension ServiceModeFlow on VpnController {
@@ -137,6 +141,23 @@ extension ServiceModeFlow on VpnController {
     }
   });
 
+  /// A person's apply of [targets] held by service mode: their resources
+  /// are sent now, as [_syncServiceAccess] builds them, and the first issue
+  /// becomes [error]. Work still in flight there is left to finish first;
+  /// the automatic round sends the rest after it.
+  Future<void> _applyServiceTargets(Set<String> targets) => _run((token) async {
+    if (!loaded) return;
+    for (final target in targets.toList()..sort()) {
+      _serviceAccessSent.remove(target);
+      await ensureConnected(target);
+      token.check();
+      await _syncServiceAccess(target, token);
+      if (_serviceAccessIssues[target] case final issue?) {
+        throw FormatException(issue);
+      }
+    }
+  });
+
   /// Whether the way back of [serverId] is being applied on this device.
   bool serviceModeExiting(String serverId) =>
       workspace.serviceModeOf(serverId)?.state ==
@@ -190,6 +211,40 @@ extension ServiceModeFlow on VpnController {
       }
     }
     return added.length;
+  }
+
+  /// Whether [target] in service mode lacks a resource as the workspace
+  /// has it, per [observed] (its last readback when omitted): one never
+  /// sent or changed since, or one deleted that the server still runs.
+  /// With no readback yet, any resource the person keeps is due.
+  bool _serviceResourcesDue(
+    String target, [
+    List<Map<String, dynamic>>? observed,
+  ]) {
+    final record = workspace.servers[target];
+    final rows =
+        observed ??
+        (record?['verifiedAt'] == null
+                ? null
+                : (record!['observed'] as List? ?? const []))
+            ?.whereType<Map>()
+            .toList();
+    final owner = workspace.resourceWorkspaceId(target);
+    for (final spec in workspace.desiredResources(target)) {
+      final row = rows?.where((r) => r['id'] == spec['id']).firstOrNull;
+      if (spec['deleted'] == true) {
+        if (row != null && !observationGone(row)) return true;
+        continue;
+      }
+      if (row == null ||
+          row['confirmed'] != true ||
+          row['workspaceId'] != owner ||
+          observationGone(row) ||
+          canonicalJson(row['spec']) != canonicalJson(spec)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /// Clients whose access change still waits for [serverId] in service
@@ -551,7 +606,7 @@ extension ServiceModeFlow on VpnController {
     final due = <String>[];
     for (final target in _serviceAccessTargets()) {
       final changes = _serviceAccessChanges(target);
-      if (changes.isEmpty) {
+      if (changes.isEmpty && !_serviceResourcesDue(target)) {
         _serviceAccessSent.remove(target);
         _serviceAccessIssues.remove(target);
         continue;
@@ -560,7 +615,7 @@ extension ServiceModeFlow on VpnController {
       if (r != null && !_serviceAccessReady(target)) continue;
       // A new connection is a new attempt, even without an observation key.
       final key =
-          '${canonicalJson(changes)}|${r == null ? 'offline' : 'online:${r.observationKey}'}';
+          '${canonicalJson([changes, workspace.desiredResources(target)])}|${r == null ? 'offline' : 'online:${r.observationKey}'}';
       final last = _serviceAccessSent[target];
       if (last != null &&
           last.key == key &&
@@ -593,9 +648,11 @@ extension ServiceModeFlow on VpnController {
   }
 
   /// Reads [target] and, when it shows a client in another `enabled` state
-  /// than the workspace, applies just that change from the readback. The
-  /// request is durable before it is submitted and then followed by ID like
-  /// any other operation; success is the readback after the job.
+  /// than the workspace or lacks a resource as the workspace has it,
+  /// applies the desired resources with the clients the readback shows
+  /// (see the class comment). The request is durable before it is
+  /// submitted and then followed by ID like any other operation; success
+  /// is the readback after the job.
   Future<void> _syncServiceAccess(
     String target,
     CancellationToken token,
@@ -623,16 +680,14 @@ extension ServiceModeFlow on VpnController {
       if (observed == null) throw const FormatException('vpn_failed');
       await _applyServerObservations(target, r, observed);
       final changes = _serviceAccessChanges(target, observed);
-      if (changes.isEmpty) {
+      if (changes.isEmpty && !_serviceResourcesDue(target, observed)) {
         _serviceAccessIssues.remove(target);
         return;
       }
-      final payload = _observedPayload(
-        target,
-        r.panelId,
-        observed,
-        enabled: changes,
-      );
+      final payload = {
+        ..._observedPayload(target, r.panelId, observed, enabled: changes),
+        'resources': workspace.desiredResources(target),
+      };
       final plan = await _request(
         r,
         _planRequest(target, r.panelId, payload),

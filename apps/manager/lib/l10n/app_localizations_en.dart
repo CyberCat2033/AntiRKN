@@ -1579,7 +1579,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get vpnServiceMode =>
-      'The server is in service mode: clients are not added to it and its changes wait until it returns.';
+      'The server is in service mode: new clients are not added to it until it returns.';
 
   @override
   String get vpnServiceModeOtherDevice =>
@@ -4319,7 +4319,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get serviceModeHelp =>
-      'The server stays in the app and keeps running, but its proxies leave client profiles and new clients are not added to it. Turn it on while you repair or rebuild the server.';
+      'The server stays in the app and keeps running, but its proxies leave client profiles and new clients are not added to it. Turn it on while you test, repair or rebuild the server.';
 
   @override
   String get serviceModeOff => 'Off';
@@ -4368,7 +4368,8 @@ class AppLocalizationsEn extends AppLocalizations {
       'Publication no longer waits for this server.';
 
   @override
-  String get serviceModeEnterNewClients => 'New clients are not added to it.';
+  String get serviceModeEnterNewClients =>
+      'New clients are not added to it. Protocol changes apply at once, and connection checks work.';
 
   @override
   String get serviceModeEnterRevocations =>

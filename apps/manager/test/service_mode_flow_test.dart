@@ -236,6 +236,94 @@ void main() {
     );
   });
 
+  group('protocols change at once, without new clients', () {
+    test('a new inbound reaches the server with its clients only', () async {
+      final (c, _, remotes) = await applied();
+      final two = remotes['two']!;
+      await c.enterServiceMode('two');
+      final submitted = two.submissions.length;
+      await c.saveUser(client(carol));
+      await c.prepareAndApply();
+      expect(two.submissions, hasLength(submitted));
+
+      final added = f.inbound('two', '5' * 32);
+      await c.saveInbound(added);
+      await c.prepareAndApply(serverIds: {'two'});
+
+      expect(c.error, isNull);
+      expect(two.submissions, hasLength(submitted + 1));
+      final sent = two.submissions.values.last;
+      expect((sent['resources'] as List).map((r) => r['id']), [
+        '3' * 32,
+        '4' * 32,
+        '5' * 32,
+      ]);
+      expect(sentUsers(two), [
+        {'id': f.alice, 'enabled': true},
+        {'id': f.bob, 'enabled': true},
+      ]);
+      expect(c.adoptionConfirmed('two', '5' * 32), isTrue);
+      expect(c.serviceModeOf('two'), isNotNull);
+      expect(proxyNames(c, f.alice, 'two'), isEmpty);
+
+      // Nothing more to send: a second apply only reads the server.
+      await c.prepareAndApply(serverIds: {'two'});
+      await c.reconcile();
+      expect(c.error, isNull);
+      expect(two.submissions, hasLength(submitted + 1));
+    });
+
+    test('an AmneziaWG change applies with the clients it has', () async {
+      final (c, _, remotes) = await applied(withAwg: true);
+      final awgRemote = remotes[awgTarget('two')]!;
+      await c.enterServiceMode('two');
+      await c.saveUser(client(carol));
+      await c.prepareAndApply();
+      final submitted = awgRemote.submissions.length;
+
+      await c.saveAwg(
+        AwgInterface(serverId: 'two', spec: {...awg.spec(), 'mtu': 1300}),
+      );
+      await c.prepareAndApply(serverIds: {awgTarget('two')});
+
+      expect(c.error, isNull);
+      expect(awgRemote.submissions, hasLength(submitted + 1));
+      final sent = awgRemote.submissions.values.last;
+      expect((sent['resources'] as List).single['mtu'], 1300);
+      expect(sentUsers(awgRemote).map((u) => (u as Map)['id']), [
+        f.alice,
+        f.bob,
+      ]);
+      expect(c.adoptionConfirmed(awgTarget('two'), 'd' * 32), isTrue);
+    });
+
+    test('a new server gets its protocol without any client', () async {
+      final store = f.MemoryVpn();
+      final remotes = {'one': f.Remote(store), 'two': f.Remote(store)};
+      final c = f.controller(store, remotes);
+      addTearDown(c.dispose);
+      await c.load();
+      await c.saveUser(client(f.alice));
+      await c.saveInbound(f.inbound('one', '1' * 32));
+      await c.prepareAndApply();
+      await c.enterServiceMode('two');
+
+      // Saved, not applied: the automatic round sends it.
+      await c.saveInbound(f.inbound('two', '3' * 32));
+      await c.reconcile();
+
+      final two = remotes['two']!;
+      expect(c.error, isNull);
+      expect(two.submissions, hasLength(1));
+      expect(
+        (two.submissions.values.single['resources'] as List).single['id'],
+        '3' * 32,
+      );
+      expect(sentUsers(two), isEmpty);
+      expect(c.adoptionConfirmed('two', '3' * 32), isTrue);
+    });
+  });
+
   test(
     'a disable reaches a reachable target while the way back stalls',
     () async {

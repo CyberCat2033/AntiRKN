@@ -1306,10 +1306,11 @@ void main() {
         expect(c.hasCurrentVerifiedProfiles, isTrue);
         expect(c.serverSyncIssue, isNull);
 
-        // A person's explicit plan for it is refused with its own code.
+        // A person's explicit apply reads it and finds nothing to send:
+        // carol is never added there.
         await c.prepareAndApply(serverIds: {'two'});
-        expect(c.error, 'vpn_service_mode');
-        expect(remotes['two']!.actions, hasLength(actions));
+        expect(c.error, isNull);
+        expect(remotes['two']!.submissions, hasLength(submitted));
       },
     );
 
