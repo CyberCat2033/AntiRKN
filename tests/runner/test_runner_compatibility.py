@@ -51,6 +51,16 @@ class RunnerCompatibilityTests(unittest.TestCase):
             with patch.object(Path, 'lstat', root_owned):
                 return scope['inspect_runner']()
 
+    def test_the_current_release_reads_back_as_installed(self):
+        # install.py confirms an upgrade by this read-back. A stale manifest
+        # path (v75 reading v74/manifest.json, 2026-11-26) made every upgrade
+        # time out and roll back, then showed the server as incompatible.
+        lock = json.loads((ROOT / 'schemas/runner-release-lock.json').read_text())
+        manifest = dict(release=lock['release'], hashes=lock['hashes'])
+        actual = self._inspect(manifest, version='v%d' % lock['version'])
+        self.assertEqual(actual['state'], 'installed')
+        self.assertEqual(actual['release'], lock['release'])
+
     def test_both_released_v44_variants_are_upgradeable(self):
         self.assertEqual(len(MANIFESTS), 2)
         for index, manifest in enumerate(MANIFESTS):

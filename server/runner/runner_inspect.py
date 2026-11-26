@@ -81,7 +81,7 @@ def inspect_runner():
                 predecessors.append(manifest)
             unit_hash = hashes[str(UNIT)]
         if hashes[str(BASE / 'v75')]:
-            manifest = json.loads((BASE / 'v74/manifest.json').read_text())
+            manifest = json.loads((BASE / 'v75/manifest.json').read_text())
             if set(manifest) != {'release','hashes'} or set(manifest['hashes']) != set(PROGRAMS) | {'antirkn-runner.service'}: raise ValueError()
             for name in PROGRAMS:
                 if hashes[str(BASE / 'v75' / name)] != manifest['hashes'][name]: raise ValueError()
