@@ -171,7 +171,7 @@ fi
 print_success "Все обязательные утилиты и библиотеки найдены."
 
 # Проверка версий
-FLUTTER_VER="$(flutter --version | head -n 1)"
+FLUTTER_VER="$(flutter --version | sed -n '1p')"
 GO_VER="$(go version)"
 PYTHON_VER="$(python3 --version)"
 echo "  Flutter: $FLUTTER_VER"
