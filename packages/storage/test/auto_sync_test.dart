@@ -362,6 +362,45 @@ void main() {
   );
 
   test(
+    'a new cloud version of the same intent is remembered, not applied',
+    () async {
+      final first = open('first', 11);
+      await first.writeDraft('version one');
+      await _upload(await session(first));
+      // Drive moved the version on without new content (or a device sent
+      // the same data again).
+      remote.version++;
+      var applied = 0;
+      Future<AutoSyncResult> enter(AutoSyncSession sync) => sync.exchange(
+        apply: (receive) async {
+          applied++;
+          await receive();
+          return true;
+        },
+        cancellation: SyncCancellation(),
+        enter: true,
+      );
+      final sync = await session(first);
+      final result = await enter(sync);
+      expect(result.received, isFalse);
+      expect(applied, 0);
+      expect(await first.pullCurrentSnapshot(tokens, remote: remote), isFalse);
+      // The version is remembered: the next entry costs one metadata read.
+      remote.calls.clear();
+      expect((await enter(sync)).received, isFalse);
+      expect(remote.calls, ['findSnapshot']);
+      // The device stays clean and its next edit writes over that version.
+      await first.writeDraft('version two');
+      final writes = remote.writes;
+      await _upload(sync);
+      expect(remote.writes, writes + 1);
+      // Another intent is still received.
+      final second = open('second', 22);
+      expect(await second.pullCurrentSnapshot(tokens, remote: remote), isTrue);
+    },
+  );
+
+  test(
     'unconfirmed snapshot of a clean device does not block a later pull',
     () async {
       final first = open('first', 11);

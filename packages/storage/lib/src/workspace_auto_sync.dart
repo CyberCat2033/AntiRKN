@@ -77,7 +77,11 @@ extension WorkspaceAutomaticSync on WorkspaceDatabase {
         await _unsentSnapshotPending(localState)) {
       return false;
     }
-    final received = await _newerCloudSnapshot(cloud, localState);
+    final received = await _newerCloudSnapshot(
+      cloud,
+      localState,
+      commit: deadline?.commit,
+    );
     if (received == null) return false;
     await _applyCloudSnapshot(received, commit: deadline?.commit);
     return true;
@@ -87,10 +91,16 @@ extension WorkspaceAutomaticSync on WorkspaceDatabase {
   /// uploaded or received, validated. [held] is reused instead of another
   /// download while it is still the cloud version. One metadata request when
   /// nothing changed.
+  ///
+  /// A new cloud version with the intent this unchanged device already holds
+  /// (Drive moved the version on, or a device sent the same data again) is
+  /// only remembered: replacing data with itself would reopen the whole app.
+  /// [commit] runs synchronously right before that local write.
   Future<_ReceivedSnapshot?> _newerCloudSnapshot(
     SyncSnapshotStore cloud,
     ({bool empty, int sequence, String workspaceId}) state, {
     _ReceivedSnapshot? held,
+    void Function()? commit,
   }) async {
     final file = await cloud.findSnapshot();
     if (file == null) return null;
@@ -107,6 +117,15 @@ extension WorkspaceAutomaticSync on WorkspaceDatabase {
     final snapshot = await _validateCloudSnapshot(source);
     if (!state.empty && snapshot.summary.workspaceId != state.workspaceId) {
       throw const SyncTransportFailure(SyncTransportIssue.conflict);
+    }
+    if (!state.empty &&
+        await readSetting('syncSnapshotIntent') == snapshot.intent &&
+        await _snapshotReplaceable(state)) {
+      commit?.call();
+      await writeSetting('syncSnapshotRemoteFileId', file.id);
+      await writeSetting('syncSnapshotRemoteVersion', file.version);
+      await writeSetting('syncSnapshotRemoteEtag', file.etag);
+      return null;
     }
     return (file: file, snapshot: snapshot);
   }

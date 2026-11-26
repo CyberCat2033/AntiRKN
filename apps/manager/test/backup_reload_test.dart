@@ -100,6 +100,10 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('backup-proceed')));
       await settle();
       expect(opened.length, 3);
+      // The new shell opens on the page the restore was made from.
+      expect(find.byKey(const ValueKey('backup-import')), findsOneWidget);
+      await tester.tap(find.text('Servers').last);
+      await settle();
       expect(find.text('restored.example'), findsWidgets);
       expect(
         await tester.runAsync(() => opened.last.readDraft()),
