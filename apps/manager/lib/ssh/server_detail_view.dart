@@ -667,17 +667,23 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => open(1),
               ),
+            // Closing the failure on its page removes this banner (UI-43).
             if (index != 2 &&
-                (c.runner.error != null ||
-                    c.runner.selected != null &&
-                        [
-                          'failed',
-                          'partially_applied',
-                          'needs_attention',
-                        ].contains(c.runner.selected!.status)))
+                (c.runner.error != null || c.runner.failedJob != null))
               ListTile(
-                leading: const Icon(Icons.error_outline),
-                title: Text(l.runnerAttention),
+                key: const ValueKey('runner-attention'),
+                leading: Icon(
+                  Icons.error_outline,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                title: Text(switch (c.runner.failedJob) {
+                  final job? => runnerJobTitle(l, job.kind),
+                  null => l.runnerAttention,
+                }),
+                subtitle: Text(switch (c.runner.failedJob) {
+                  final job? => runnerStateLabel(l, job.status),
+                  null => runnerIssueLabel(l, c.runner.error!),
+                }),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => open(2),
               ),

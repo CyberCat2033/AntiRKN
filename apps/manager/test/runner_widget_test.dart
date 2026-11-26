@@ -156,4 +156,103 @@ void main() {
       c.dispose();
     },
   );
+
+  testWidgets('a closed failure stays closed after refresh and restart', (
+    tester,
+  ) async {
+    final store = MemoryRunnerJournal();
+    final remote = FakeRunnerTransport(store)
+      ..installed = true
+      ..job = runnerJob(
+        '4' * 32,
+        kind: 'apt_update',
+        status: 'failed',
+        events: [
+          {
+            'sequence': 2,
+            'timestamp': 1789340000,
+            'code': 'apt_failed',
+            'progress': 1,
+            'total': 10,
+          },
+        ],
+      );
+    RunnerController controller() => RunnerController(
+      serverId: 'fixture',
+      transport: () => remote,
+      identity: () => 'fixture|key',
+      password: () => null,
+      accessFailure: (_) {},
+      store: store,
+    );
+    final c = controller();
+    await c.refresh();
+    expect(c.failedJob?.id, '4' * 32);
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: RunnerPanel(controller: c, motion: MotionPreference.system),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final l = await AppLocalizations.delegate.load(const Locale('en'));
+    final result = find.byKey(const ValueKey('runner-job-result'));
+    expect(result, findsOneWidget);
+    expect(
+      find.descendant(of: result, matching: find.text(l.runnerFailed)),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: result, matching: find.text(l.aptFailed)),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('runner-job-close')));
+    await tester.pumpAndSettle();
+    expect(result, findsNothing);
+    expect(c.failedJob, isNull);
+
+    await c.refresh();
+    await tester.pumpAndSettle();
+    expect(c.selected?.id, '4' * 32);
+    expect(c.failedJob, isNull);
+    expect(result, findsNothing);
+
+    final restarted = controller();
+    await restarted.refresh();
+    expect(restarted.selected?.id, '4' * 32);
+    expect(restarted.failedJob, isNull);
+
+    // The same job resumed and failed again: its new events show again.
+    remote.job = runnerJob(
+      '4' * 32,
+      kind: 'apt_update',
+      status: 'failed',
+      sequence: 5,
+    );
+    await c.refresh();
+    await tester.pumpAndSettle();
+    expect(c.failedJob?.id, '4' * 32);
+    expect(result, findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('runner-job-close')));
+    await tester.pumpAndSettle();
+    expect(result, findsNothing);
+
+    // A newer job's failure is not hidden behind the closed one.
+    remote.job = runnerJob('5' * 32, kind: 'apt_upgrade', status: 'failed');
+    await c.refresh();
+    await tester.pumpAndSettle();
+    expect(c.failedJob?.id, '5' * 32);
+    expect(result, findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    c.dispose();
+    restarted.dispose();
+  });
 }
