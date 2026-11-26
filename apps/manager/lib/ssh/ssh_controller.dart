@@ -211,6 +211,15 @@ class SshController extends ChangeNotifier {
         );
   }
 
+  /// Saving the draft would close the open session: an SSH setting, not only
+  /// the name, differs from the saved profile (see [save]).
+  bool get saveDisconnects {
+    final profile = unlocked ? _vault!.profile : null;
+    return stage == SshStage.connected &&
+        profile != null &&
+        !profile.hasSameConnectionSettings(_draft());
+  }
+
   bool settingsExpanded = true;
   bool replacingServer = false;
   VaultIssue? vaultError;
@@ -956,17 +965,22 @@ class SshController extends ChangeNotifier {
       return true;
     }
     if (!interactive) throw const SshFailure(SshIssue.hostKeyRejected);
-    stage = SshStage.verifying;
-    verifyingProfile = profile;
-    challenge = key;
-    _decision = Completer<bool>();
-    _notify();
-    final accepted = await cancellation.bind(_decision!.future);
-    cancellation.check();
-    challenge = null;
-    verifyingProfile = null;
-    _decision = null;
-    if (!accepted) return false;
+    // No key is pinned for this address yet: trust on first use (owner
+    // decision 2026-11-26). Replacing an already trusted key, the only other
+    // way here, still waits for the person's confirmation.
+    if (replaceServer) {
+      stage = SshStage.verifying;
+      verifyingProfile = profile;
+      challenge = key;
+      _decision = Completer<bool>();
+      _notify();
+      final accepted = await cancellation.bind(_decision!.future);
+      cancellation.check();
+      challenge = null;
+      verifyingProfile = null;
+      _decision = null;
+      if (!accepted) return false;
+    }
     try {
       await vault.saveProfile(profile.withHostKey(key));
     } catch (_) {
