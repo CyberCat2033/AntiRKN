@@ -422,6 +422,75 @@ void main() {
     },
   );
   test(
+    'a busy runner makes a revocation wait, not fail, and it finishes on the next pass',
+    () async {
+      final store = f.MemoryVpn();
+      final actual = awg.AwgRemote(store)..busyOnce = false;
+      final c = f.controller(store, {awgTarget('one'): actual});
+      addTearDown(c.dispose);
+      await c.load();
+      await c.saveUser(VpnUser(id: f.alice, login: 'alice', name: 'Alice'));
+      await c.saveUser(VpnUser(id: f.bob, login: 'bob', name: 'Bob'));
+      await c.saveAwg(AwgInterface(serverId: 'one', spec: awg.spec()));
+      await c.prepare();
+      await c.apply();
+      // Another job runs on the server when the revocation is submitted.
+      actual.busyOnce = true;
+      await c.deleteUser(user(c));
+      final waiting =
+          (user(c).deletion!['targets'] as Map)[awgTarget('one')] as Map;
+      expect(waiting['status'], 'waiting');
+      expect(waiting['error'], isNull);
+      expect(waiting['retryAt'], 0);
+      expect(user(c).deletionComplete, false);
+
+      await c.reconcile();
+      expect(user(c).deletionComplete, true);
+      final clients = actual.state.single['clients'] as List;
+      expect(clients.singleWhere((u) => u['id'] == f.alice)['enabled'], false);
+    },
+  );
+
+  test(
+    'a revocation waits while another target of the same server runs its job',
+    () async {
+      final store = f.MemoryVpn();
+      final vless = f.Remote(store);
+      final amnezia = awg.AwgRemote(store)..busyOnce = false;
+      final c = f.controller(store, {'one': vless, awgTarget('one'): amnezia});
+      addTearDown(c.dispose);
+      await f.setup(c);
+      await c.saveAwg(AwgInterface(serverId: 'one', spec: awg.spec()));
+      await c.prepare();
+      await c.apply();
+      expect(c.error, isNull);
+      // Both runners keep a submitted job running.
+      vless.running = true;
+      amnezia.busyOnce = false;
+      vless.actions.clear();
+      amnezia.actions.clear();
+      final submitsBefore = amnezia.submissions.length;
+      await c.deleteUser(user(c));
+      final targets = user(c).deletion!['targets'] as Map;
+      final vlessTarget = targets['one'] as Map;
+      final awgRecord = targets[awgTarget('one')] as Map;
+      // Exactly one target of the server was submitted; the other waits
+      // without an error and without a refused submission.
+      final submitted = [
+        if (vless.actions.contains('submit')) 'one',
+        if (amnezia.submissions.length > submitsBefore) awgTarget('one'),
+      ];
+      expect(submitted, hasLength(1));
+      final other = submitted.single == 'one' ? awgRecord : vlessTarget;
+      expect(other['status'], 'waiting');
+      expect(other['error'], isNull);
+      for (final record in [vlessTarget, awgRecord]) {
+        expect(record['error'], isNull);
+      }
+    },
+  );
+
+  test(
     'proxy names append inbound only for multiple VLESS and keep stable duplicate suffixes',
     () async {
       final store = f.MemoryVpn();

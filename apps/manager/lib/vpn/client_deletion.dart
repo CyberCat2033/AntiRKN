@@ -569,6 +569,10 @@ extension ClientDeletion on VpnController {
               while (nextGroupIndex < groupList.length) {
                 token.check();
                 final targets = groupList[nextGroupIndex++];
+                // The runner runs one job per server: while one target's job
+                // runs, the next target of the server waits for a later pass
+                // instead of being refused as busy.
+                var serverRunning = false;
                 for (final target in targets) {
                   token.check();
                   var record = Map<String, dynamic>.from(
@@ -609,6 +613,15 @@ extension ClientDeletion on VpnController {
                       allowMissing: true,
                     );
                     if (response.code == 'missing') {
+                      if (serverRunning) {
+                        phase2Updates[target] = {
+                          ...record,
+                          'status': 'waiting',
+                          'error': null,
+                          'retryAt': 0,
+                        };
+                        continue;
+                      }
                       await _deletionGuard(original.id, deletionId);
                       response = await _request(r, request, token);
                     }
@@ -617,6 +630,7 @@ extension ClientDeletion on VpnController {
                       throw const FormatException('vpn_failed');
                     }
                     final job = response.jobs.single;
+                    if (!job.terminal) serverRunning = true;
                     record = {
                       ...record,
                       'job': job.toJson(),
@@ -719,12 +733,24 @@ extension ClientDeletion on VpnController {
                         : e is SshFailure
                         ? 'vpn_connection'
                         : 'vpn_runner';
-                    phase2Updates[target] = {
-                      ...record,
-                      'status': 'error',
-                      'error': issue,
-                      'retryAt': DateTime.now().millisecondsSinceEpoch + 30000,
-                    };
+                    // Another job on the server (another device's, or one
+                    // this pass could not see) only delays the request: it
+                    // waits and is submitted again on the next pass.
+                    phase2Updates[target] = issue == 'vpn_busy'
+                        ? {
+                            ...record,
+                            'status': 'waiting',
+                            'error': null,
+                            'retryAt': 0,
+                          }
+                        : {
+                            ...record,
+                            'status': 'error',
+                            'error': issue,
+                            'retryAt':
+                                DateTime.now().millisecondsSinceEpoch + 30000,
+                          };
+                    if (issue == 'vpn_busy') serverRunning = true;
                   }
                 }
               }
