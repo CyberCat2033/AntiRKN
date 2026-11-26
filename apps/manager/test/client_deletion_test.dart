@@ -715,4 +715,116 @@ void main() {
       }
     }
   });
+
+  test(
+    'a connected server that cannot run VPN work names the blocker',
+    () async {
+      final store = f.MemoryVpn();
+      var issue = 'vpn_panel_login';
+      final c = f.controller(
+        store,
+        {},
+        connectForDeletion: (_) async => true,
+        remoteIssue: (_) => issue,
+      );
+      addTearDown(c.dispose);
+      await f.setup(c);
+
+      await c.deleteUser(user(c));
+      for (final target in (user(c).deletion!['targets'] as Map).values) {
+        expect(target['error'], 'vpn_panel_login');
+        expect(target['connectionAttempts'], 0);
+      }
+      expect(c.attention.first.blocker, 'vpn_panel_login');
+
+      // A busy runner is transient: the named blocker stays.
+      issue = 'vpn_runner_busy';
+      await c.retryDeletion(f.alice);
+      expect(c.attention.first.blocker, 'vpn_panel_login');
+
+      issue = 'vpn_runner_not_ready';
+      await c.retryDeletion(f.alice);
+      expect(c.attention.first.blocker, 'vpn_runner_not_ready');
+    },
+  );
+
+  test('a removal owned by another device is named as such', () async {
+    final store = f.MemoryVpn();
+    final c = f.controller(store, {}, connectForDeletion: (_) async => false);
+    addTearDown(c.dispose);
+    await f.setup(c);
+    await c.deleteUser(user(c));
+    // The first controller has no device identity; this device has one.
+    final mine = VpnController(
+      repository: DeviceStore('d' * 32)
+        ..raw = store.raw
+        ..revision = store.revision,
+      template: () => f.template,
+      remote: (_) => null,
+      timer: (d, cb) => Timer(Duration.zero, () {}),
+    );
+    addTearDown(mine.dispose);
+    await mine.load();
+    expect(mine.attention.first.blocker, 'vpn_deletion_other_device');
+  });
+
+  test('a refused SSH connection keeps its own reason', () async {
+    final store = f.MemoryVpn();
+    var issue = 'ssh:authentication';
+    final c = f.controller(
+      store,
+      {},
+      connectForDeletion: (_) async => false,
+      remoteIssue: (_) => issue,
+    );
+    addTearDown(c.dispose);
+    await f.setup(c);
+    await c.deleteUser(user(c));
+    for (final target in (user(c).deletion!['targets'] as Map).values) {
+      expect(target['error'], 'ssh:authentication');
+    }
+    expect(c.attention.first.blocker, 'ssh:authentication');
+    expect(c.attention.first.action, VpnAttentionAction.openServer);
+
+    // A network failure is retried quietly until the third attempt.
+    issue = 'ssh:network';
+    await c.retryDeletion(f.alice);
+    expect(c.attention.every((a) => !a.needsUser), true);
+    expect(c.attention.first.removing.single.id, f.alice);
+  });
+
+  test(
+    'an unreachable removal offers force deletion after three attempts',
+    () async {
+      final store = f.MemoryVpn();
+      final c = f.controller(
+        store,
+        {},
+        connectForDeletion: (_) async => false,
+        remoteIssue: (_) => 'ssh:timeout',
+      );
+      await f.setup(c);
+      await c.deleteUser(user(c));
+      expect(c.attention.first.needsUser, false);
+      c.dispose();
+      final saved = jsonDecode(store.raw!) as Map<String, dynamic>;
+      for (final deleted in saved['users'] as List) {
+        if (deleted['deletion'] == null) continue;
+        for (final target in (deleted['deletion']['targets'] as Map).values) {
+          target['connectionAttempts'] = 3;
+        }
+      }
+      store.raw = jsonEncode(saved);
+      final later = f.controller(
+        store,
+        {},
+        connectForDeletion: (_) async => false,
+        remoteIssue: (_) => 'ssh:timeout',
+      );
+      addTearDown(later.dispose);
+      await later.load();
+      expect(later.attention.first.needsUser, true);
+      expect(later.attention.first.action, VpnAttentionAction.forceDelete);
+    },
+  );
 }

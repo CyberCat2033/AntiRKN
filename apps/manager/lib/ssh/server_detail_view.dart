@@ -8,6 +8,7 @@ import '../runner/component_installation_view.dart';
 import '../runner/component_updates_controller.dart';
 import '../runner/runner_panel.dart';
 import 'server_about_view.dart';
+import 'server_activity.dart';
 import 'ssh_controller.dart';
 import 'ssh_harden_wizard.dart';
 import 'ssh_panel.dart';
@@ -50,7 +51,6 @@ class ServerDetailView extends StatefulWidget {
     this.protocols,
     this.sections = const [],
     this.plans,
-    this.activity,
     this.coreUpgrade,
     this.clientEgress,
     this.clientCount = 0,
@@ -61,12 +61,16 @@ class ServerDetailView extends StatefulWidget {
   final VpnController? vpn;
   final VoidCallback? onBack;
   final IpDiagnosticsController? diagnostics;
-  final Widget? protocols, plans, activity, coreUpgrade, clientEgress;
+  final Widget? protocols, plans, coreUpgrade, clientEgress;
   final List<ServerProtocolSection> sections;
   final int clientCount;
   @override
   State<ServerDetailView> createState() => _ServerDetailViewState();
 }
+
+/// Pages: 0 overview, 1 SSH access, 2 updates, 3 about, then one per
+/// protocol section. Recent activity lives on the overview (no page).
+const _aboutPage = 3, _firstProtocolPage = 4;
 
 class _ServerDetailViewState extends State<ServerDetailView> {
   int selected = 0;
@@ -126,7 +130,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
   Future<void> openProtocol(int index) async {
     final section = widget.sections[index];
     if (section.detected) {
-      open(5 + index);
+      open(_firstProtocolPage + index);
       return;
     }
     final l = AppLocalizations.of(context);
@@ -450,88 +454,45 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                 widget.protocols!,
             ],
           ),
-          second: AppSettingsSection(
-            title: l.uiMaintenance,
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.system_update_alt),
-                  title: Text(l.uiUpdatesShort),
-                  subtitle: Text(
-                    updates > 0 ? l.softwareUpdateAvailable : l.uiUpdatesHelp,
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => open(2),
+          second: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AppSettingsSection(
+                title: l.uiMaintenance,
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.system_update_alt),
+                      title: Text(l.uiUpdatesShort),
+                      subtitle: Text(
+                        updates > 0
+                            ? l.softwareUpdateAvailable
+                            : l.uiUpdatesHelp,
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => open(2),
+                    ),
+                    const Divider(height: 1, indent: 16, endIndent: 16),
+                    ListTile(
+                      key: const ValueKey('server-about'),
+                      leading: const Icon(Icons.info_outline),
+                      title: Text(l.uiServerAbout),
+                      subtitle: Text(l.uiServerAboutSummary),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => open(_aboutPage),
+                    ),
+                  ],
                 ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
-                ListTile(
-                  leading: const Icon(Icons.history),
-                  title: Text(l.uiActivity),
-                  subtitle: Text(l.uiActivityHelp),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => open(3),
-                ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
-                ListTile(
-                  key: const ValueKey('server-about'),
-                  leading: const Icon(Icons.info_outline),
-                  title: Text(l.uiServerAbout),
-                  subtitle: Text(l.uiServerAboutSummary),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => open(4),
-                ),
-              ],
-            ),
+              ),
+              ServerActivitySection(
+                runner: widget.session.runner,
+                motion: widget.motion,
+              ),
+            ],
           ),
         ),
         if (widget.plans != null)
           AppAnimatedSize(motion: widget.motion, child: widget.plans!),
-      ],
-    );
-  }
-
-  Widget history(BuildContext context) {
-    final c = widget.session.runner, l = AppLocalizations.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        AppPageIntro(l.uiActivityHelp),
-        if (c.jobs.isEmpty && widget.activity == null)
-          AppEmptyState(title: l.uiNoActivity, icon: Icons.history),
-        if (c.jobs.isNotEmpty)
-          Card.filled(
-            child: Column(
-              children: [
-                for (final job in c.jobs)
-                  ListTile(
-                    leading: Icon(
-                      job.status == 'succeeded'
-                          ? Icons.check_circle_outline
-                          : job.terminal
-                          ? Icons.info_outline
-                          : Icons.pending_outlined,
-                    ),
-                    title: Text(switch (job.kind) {
-                      'apt_update' || 'apt_upgrade' => l.aptTitle,
-                      'panel_update' || 'panel_install' => '3x-ui',
-                      'component_install' => l.protocolSoftware,
-                      'protocol_remove' => l.uiRemoveProtocol,
-                      _ => l.uiServerChanges,
-                    }),
-                    subtitle: Text(
-                      !job.terminal && job.kind == 'component_install'
-                          ? componentStepProgressText(
-                              l,
-                              job.checkpoint,
-                              job.count,
-                            )
-                          : runnerStateLabel(l, job.status),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ?widget.activity,
       ],
     );
   }
@@ -589,7 +550,9 @@ class _ServerDetailViewState extends State<ServerDetailView> {
       }
       final requiresConnection = !c.hasSavedProfile || c.challenge != null;
       final index = requiresConnection ? 1 : selected;
-      final section = index >= 5 ? widget.sections[index - 5] : null;
+      final section = index >= _firstProtocolPage
+          ? widget.sections[index - _firstProtocolPage]
+          : null;
       final selecting = section?.selection?.active == true;
       // Pages built so far plus the shown one; build itself never mutates
       // [visited].
@@ -598,7 +561,6 @@ class _ServerDetailViewState extends State<ServerDetailView> {
         c.displayName,
         l.uiSshAccess,
         l.uiComponentUpdates,
-        l.uiActivity,
         l.uiServerAbout,
         ...widget.sections.map((s) => s.name),
       ];
@@ -606,8 +568,8 @@ class _ServerDetailViewState extends State<ServerDetailView> {
         canPop: !active,
         onPopInvokedWithResult: (didPop, _) {
           if (didPop || !active || c.vaultSaving || c.picking) return;
-          final selection = index >= 5
-              ? widget.sections[index - 5].selection
+          final selection = index >= _firstProtocolPage
+              ? widget.sections[index - _firstProtocolPage].selection
               : null;
           if (selection?.active == true) {
             selection!.exit();
@@ -645,8 +607,10 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                       ? widget.onBack
                       : () {
                           if (_cancelDiagnostics()) return;
-                          final selection = index >= 5
-                              ? widget.sections[index - 5].selection
+                          final selection = index >= _firstProtocolPage
+                              ? widget
+                                    .sections[index - _firstProtocolPage]
+                                    .selection
                               : null;
                           if (selection?.active == true) {
                             selection!.exit();
@@ -658,14 +622,24 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                 ),
                 title: Text(titles[index]),
                 actions: [
-                  if (index >= 5 &&
-                      widget.sections[index - 5].selection != null &&
-                      !widget.sections[index - 5].selection!.active)
+                  if (index >= _firstProtocolPage &&
+                      widget.sections[index - _firstProtocolPage].selection !=
+                          null &&
+                      !widget
+                          .sections[index - _firstProtocolPage]
+                          .selection!
+                          .active)
                     IconButton(
                       key: const ValueKey('inbound-edit'),
                       tooltip: l.catalogEdit,
-                      onPressed: widget.sections[index - 5].selectionEnabled
-                          ? widget.sections[index - 5].selection!.start
+                      onPressed:
+                          widget
+                              .sections[index - _firstProtocolPage]
+                              .selectionEnabled
+                          ? widget
+                                .sections[index - _firstProtocolPage]
+                                .selection!
+                                .start
                           : null,
                       icon: const Icon(Icons.edit_outlined),
                     ),
@@ -735,10 +709,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                           ),
                         ])
                       : const SizedBox.shrink(),
-                  built.contains(3)
-                      ? page('activity', [history(context)])
-                      : const SizedBox.shrink(),
-                  built.contains(4)
+                  built.contains(_aboutPage)
                       ? page('about', [
                           ServerAboutView(
                             controller: c,
@@ -750,7 +721,7 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                         ])
                       : const SizedBox.shrink(),
                   for (var i = 0; i < widget.sections.length; i++)
-                    built.contains(5 + i)
+                    built.contains(_firstProtocolPage + i)
                         ? page('protocol-$i', [
                             widget.sections[i].child,
                             ?(widget.sections[i].plans ?? widget.plans),

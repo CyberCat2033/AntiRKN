@@ -229,6 +229,18 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(self.store.request({**req, 'count': 4})['code'], 'conflict')
         self.assertGreater(second['jobs'][0]['sequence'], first['jobs'][0]['sequence'])
 
+    def test_list_returns_only_the_last_event_of_each_job(self):
+        self.store.request(submit(1, count=2))
+        self.store.tick()
+        self.store.tick()
+        status = self.store.request(dict(version=1, action='status', id=submit(1)['id'], cursor=0))['jobs'][0]
+        self.assertGreater(len(status['events']), 1)
+        listed = self.store.request(dict(version=1, action='list'))['jobs']
+        self.assertEqual(len(listed), 1)
+        self.assertEqual(listed[0]['events'], status['events'][-1:])
+        self.assertEqual(listed[0]['events'][0]['sequence'], listed[0]['sequence'])
+        self.assertIn('timestamp', listed[0]['events'][0])
+
     def test_two_connections_admit_one_job(self):
         def request(number):
             store = Store(self.directory)

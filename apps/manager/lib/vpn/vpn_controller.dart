@@ -7,6 +7,7 @@ import 'package:antirkn_profile_compiler/antirkn_profile_compiler.dart';
 import 'package:flutter/foundation.dart';
 
 part 'client_deletion.dart';
+part 'vpn_attention.dart';
 
 /// Starts at most four independent physical-server operations at a time.
 /// The input order is retained for callers that apply results to the workspace.
@@ -320,6 +321,13 @@ bool observationGone(Map o) =>
     o['exists'] == false ||
     o['spec'] is Map && (o['spec'] as Map)['deleted'] == true;
 
+/// Codes that say why a connected server cannot run VPN work yet.
+const vpnRemoteIssues = {
+  'vpn_runner_busy',
+  'vpn_runner_not_ready',
+  'vpn_panel_login',
+};
+
 /// A single workspace coordinator owns client -> all resources reconciliation.
 /// Polling resumes only persisted, explicitly approved intentions.
 class VpnController extends ChangeNotifier {
@@ -332,6 +340,7 @@ class VpnController extends ChangeNotifier {
     this.serverName,
     this.connectForDeletion,
     this.connectForAction,
+    this.remoteIssue,
     this.recovery,
     this.coreValidator,
     ConnectionProbeEngine? connectionProbe,
@@ -373,6 +382,10 @@ class VpnController extends ChangeNotifier {
   }
 
   final VpnRemote? Function(String) remote;
+
+  /// Why [remote] is null for a target while its SSH session may be up: one
+  /// of [vpnRemoteIssues] or `vpn_connection`; null when [remote] is ready.
+  final String? Function(String)? remoteIssue;
   final String Function() template;
   final Future<ImportedTemplate?> Function()? pickTemplate;
   final Iterable<String> Function()? serverIds;
@@ -1695,6 +1708,13 @@ class VpnController extends ChangeNotifier {
         (record['paused'] != true && record['pending'] != null)) {
       return true;
     }
+    // An unfinished job snapshot whose request is gone is read again by ID.
+    final job = record['job'];
+    if (record['pending'] == null &&
+        job is Map &&
+        !runnerStatusTerminal(job['status'])) {
+      return true;
+    }
     final authorized = record['authorizedPayload'];
     if (record['paused'] == true ||
         authorized == null ||
@@ -1817,6 +1837,31 @@ class VpnController extends ChangeNotifier {
       return false;
     }
     try {
+      // A job snapshot left without its request (a client removal drains the
+      // request first) is never polled by the pending path below: read the
+      // job by ID until it is terminal, or drop it once the runner forgot it.
+      if (record['pending'] == null && record['job'] is Map) {
+        final stale = RunnerJob.fromJson(
+          Map<String, dynamic>.from(record['job'] as Map),
+        );
+        if (!stale.terminal) {
+          final status = await _request(
+            connection,
+            RunnerRequest.status(stale.id, 0),
+            token,
+            allowMissing: true,
+          );
+          if (status.code == 'missing' ||
+              status.jobs.length == 1 && status.jobs.single.id == stale.id) {
+            final fresh = status.code == 'missing'
+                ? null
+                : status.jobs.single.mergeEvents(stale);
+            record = {...record, 'job': fresh?.toJson()};
+            await _record(id, record);
+            changed = true;
+          }
+        }
+      }
       if (_canAutoResume(id, record)) {
         final requestId = (record['pending'] as Map)['id'] as String;
         final status = await _request(

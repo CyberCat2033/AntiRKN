@@ -147,7 +147,8 @@ class VpnJobView extends StatelessWidget {
             record['paused'] != true &&
             record['authorizedPayload'] != null &&
             record['authorizedPayload'] != record['appliedPayload'])
-          Text(l.vpnOfflinePlan),
+          // The real reason (removal, connection, sign-in), never a guess.
+          Text(vpnMessage(l, c.targetState(serverId)?.code ?? 'vpn_applying')),
         if (record['pending'] != null ||
             (record['paused'] != true &&
                 record['authorizedPayload'] != null &&

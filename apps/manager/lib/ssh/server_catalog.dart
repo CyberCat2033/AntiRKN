@@ -211,17 +211,6 @@ class _ServerCatalogState extends State<ServerCatalog> {
               )
               .toList();
       String serverName(String id) => c.serverDisplayName(vpnServerId(id));
-      final activityTargets = vpn == null
-          ? <String>[]
-          : vpn.workspace.serverIds
-                .where(
-                  (id) =>
-                      vpnServerId(id) == c.selectedId &&
-                      (vpn.currentJob(id) != null ||
-                          vpn.workspace.servers[id]?['pending'] != null ||
-                          vpn.observationErrors[id] != null),
-                )
-                .toList();
       return ServerDetailView(
         key: ObjectKey(session),
         session: session,
@@ -242,23 +231,6 @@ class _ServerCatalogState extends State<ServerCatalog> {
         plans: vpn == null
             ? null
             : VpnPlanView(controller: vpn, serverName: serverName),
-        activity: vpn == null || activityTargets.isEmpty
-            ? null
-            : Column(
-                children: [
-                  for (final id in activityTargets)
-                    Card.filled(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: VpnJobView(
-                          controller: vpn,
-                          serverId: id,
-                          showSnapshot: false,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
         sections: vpn == null
             ? const []
             : [

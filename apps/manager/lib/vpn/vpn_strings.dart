@@ -1,7 +1,20 @@
 import '../l10n/app_localizations.dart';
+import 'package:antirkn_domain/antirkn_domain.dart';
 import '../app_strings.dart';
+import '../ssh/ssh_panel.dart';
 
 String vpnMessage(AppLocalizations l, String code) => switch (code) {
+  // An SSH refusal recorded for VPN work keeps the connection's own wording.
+  final ssh when ssh.startsWith('ssh:') => switch (SshIssue.values
+      .where((i) => 'ssh:${i.name}' == ssh)
+      .firstOrNull) {
+    final issue? => sshIssueLabel(l, issue),
+    null => l.vpnConnection,
+  },
+  'vpn_not_connected' => l.vpnNotConnected,
+  'vpn_observing' => l.operationObserving,
+  'vpn_applying' => l.vpnApplying,
+  'vpn_revocation_pending' => l.vpnRevocationPending,
   'vpn_adoption_invalid' => l.vpnInvalid,
   'vpn_adoption_unsupported' => l.vpnAdoptUnsupported,
   'vpn_adoption_conflict' => l.vpnAdoptConflict,
@@ -50,6 +63,12 @@ String vpnMessage(AppLocalizations l, String code) => switch (code) {
   'awg_port_mapping' => l.awgDockerPortHelp,
   'awg_invalid' || 'vpn_user_invalid' || 'vless_invalid' => l.vpnInvalid,
   'vpn_connection' => l.vpnConnection,
+  'vpn_runner_busy' => l.runnerBusy,
+  'vpn_runner_not_ready' => l.vpnRunnerNotReady,
+  'vpn_panel_login' => l.vpnPanelLogin,
+  'vpn_deletion_other_device' => l.vpnDeletionOtherDevice,
+  'vpn_restore_review' => l.vpnRestoreReview,
+  'vpn_waiting_removal' => l.vpnWaitingRemoval,
   'vpn_identity' => l.vpnIdentity,
   'vpn_storage' => l.vpnStorage,
   'vpn_storage_conflict' => l.vpnStorageConflict,

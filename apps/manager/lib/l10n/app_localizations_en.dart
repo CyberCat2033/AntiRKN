@@ -1486,10 +1486,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get vpnApply => 'Apply plan to all listed servers';
 
   @override
-  String get vpnOfflinePlan =>
-      'Server offline. The approved changes will run after reconnection and precondition checks.';
-
-  @override
   String get vpnPending =>
       'Access changes are pending on one or more servers. A complete current profile is not ready yet.';
 
@@ -1574,6 +1570,25 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get vpnPanelRequired =>
       'Connect to the server to load the panel and inbounds. Client management requires access to the panel API.';
+
+  @override
+  String get vpnRunnerNotReady =>
+      'The server service needs an update. Open this server to update it.';
+
+  @override
+  String get vpnPanelLogin => 'Sign in to 3x-ui on this server to continue.';
+
+  @override
+  String get vpnDeletionOtherDevice =>
+      'Another device is removing this client. Open the details to continue on this device.';
+
+  @override
+  String get vpnRestoreReview =>
+      'Restored from a backup. Open the details to continue.';
+
+  @override
+  String get vpnWaitingRemoval =>
+      'Waiting for the client removal to finish on this server.';
 
   @override
   String get vpnStorage =>
@@ -3067,23 +3082,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String uiDeletingClients(int count) {
-    return 'Deleting clients: $count';
-  }
-
-  @override
-  String get uiDeletingClientsHelp =>
-      'Connecting to servers and revoking access';
-
-  @override
-  String get uiDeletionProgress => 'Client removal';
-
-  @override
-  String uiForceDeleteOffer(String name) {
-    return 'Could not connect to a server after 3 attempts. You can remove “$name” without waiting for the server.';
-  }
-
-  @override
   String get uiClashImport => 'Connection profile for Clash Mi';
 
   @override
@@ -4246,4 +4244,104 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get relayFailed =>
       'Could not configure the direct exit. See the operation history for details.';
+
+  @override
+  String get vpnNotConnected =>
+      'Not connected. The changes will be applied after connecting.';
+
+  @override
+  String opsRemoving(String names) {
+    return 'Removing $names';
+  }
+
+  @override
+  String get opsApplying => 'Applying changes on servers';
+
+  @override
+  String opsMoreServers(String servers, int count) {
+    return '$servers and $count more';
+  }
+
+  @override
+  String get opsOpenServer => 'Open server';
+
+  @override
+  String get opsContinueHere => 'Continue here';
+
+  @override
+  String get opsDetailsTitle => 'Server changes';
+
+  @override
+  String opsRemovalOf(String name) {
+    return 'Revoke access · $name';
+  }
+
+  @override
+  String get uiRecentActivity => 'Recent activity';
+
+  @override
+  String get uiViewAll => 'View all';
+
+  @override
+  String get uiActivityToday => 'Today';
+
+  @override
+  String get uiActivityYesterday => 'Yesterday';
+
+  @override
+  String get uiActivityEarlier => 'Earlier';
+
+  @override
+  String uiActivityStep(int current, int total) {
+    return 'Step $current of $total';
+  }
+
+  @override
+  String get uiActivitySteps => 'Steps';
+
+  @override
+  String get uiActivityStepsUnavailable =>
+      'The full list of steps could not be loaded. The last step is shown.';
+
+  @override
+  String get uiTechnicalDetails => 'Technical details';
+
+  @override
+  String get uiActivityJobId => 'Job ID';
+
+  @override
+  String get activityApply => 'Apply configuration';
+
+  @override
+  String get activityInstall => 'Install';
+
+  @override
+  String get activityUpdate => 'Update';
+
+  @override
+  String get activityEditExisting => 'Edit existing setup';
+
+  @override
+  String get activityCertificate => 'Certificate';
+
+  @override
+  String get activityComponents => 'Components';
+
+  @override
+  String get activityEditInbound => 'Edit inbound';
+
+  @override
+  String get activityRemoveInbound => 'Remove inbound';
+
+  @override
+  String get activityServerAccess => 'Access for another server';
+
+  @override
+  String get activityCheck => 'Check for updates';
+
+  @override
+  String get activitySshHarden => 'SSH hardening';
+
+  @override
+  String get activityDiagnostic => 'Server check';
 }

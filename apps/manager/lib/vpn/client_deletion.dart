@@ -94,6 +94,21 @@ extension ClientDeletion on VpnController {
           (deletion['targets'] as Map)[target.$2] as Map,
         );
         if (vpnRevocationSettled(record)) continue;
+        // A live SSH session is not enough: the runner must be current and,
+        // for VLESS, the panel login verified. Name what is missing (or why
+        // SSH refused) instead of waiting silently; a busy runner is
+        // transient and keeps the previous reason.
+        final issue = remote(target.$2) == null
+            ? remoteIssue?.call(target.$2)
+            : null;
+        final error = !connected
+            ? (issue != null && issue.startsWith('ssh:')
+                  ? issue
+                  : 'vpn_connection')
+            : issue == 'vpn_runner_busy'
+            ? record['error']
+            : issue ??
+                  (isVpnRemoteIssue(record['error']) ? null : record['error']);
         deletions[user.id] = {
           ...deletion,
           'targets': {
@@ -106,9 +121,7 @@ extension ClientDeletion on VpnController {
                             1)
                         .clamp(0, 3),
               'connectAfter': DateTime.now().millisecondsSinceEpoch + 5000,
-              if (!connected) 'error': 'vpn_connection',
-              if (connected && record['error'] == 'vpn_connection')
-                'error': null,
+              if (error != record['error']) 'error': error,
             },
           },
         };
@@ -416,6 +429,21 @@ extension ClientDeletion on VpnController {
                       await _record(target, {
                         ...server,
                         'pending': null,
+                        // Keep the drained job's real outcome, never the
+                        // queued snapshot nobody polls again.
+                        'job': old.code == 'missing'
+                            ? null
+                            : old.jobs.single
+                                  .mergeEvents(
+                                    server['job'] is Map
+                                        ? RunnerJob.fromJson(
+                                            Map<String, dynamic>.from(
+                                              server['job'] as Map,
+                                            ),
+                                          )
+                                        : null,
+                                  )
+                                  .toJson(),
                         'authorizedPayload': null,
                         'paused': true,
                         'cancelRequested': false,

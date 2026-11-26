@@ -206,11 +206,13 @@ VpnController controller(
   WorkspaceRecoveryStore? recovery,
   CoreConfigValidator? coreValidator,
   Future<bool?> Function(String serverId)? connectForDeletion,
+  String? Function(String target)? remoteIssue,
 }) => VpnController(
   repository: store,
   coreValidator: coreValidator,
   recovery: recovery,
   connectForDeletion: connectForDeletion,
+  remoteIssue: remoteIssue,
   template: source ?? () => template,
   serverName: (id) => switch (id) {
     'one' => 'Server one',
@@ -1175,4 +1177,41 @@ void main() {
       );
     },
   );
+  group('a job snapshot without its request', () {
+    Future<(VpnController, MemoryVpn, Remote, String)> stale() async {
+      final store = MemoryVpn();
+      final remote = Remote(store);
+      final remotes = {'one': remote, 'two': Remote(store)};
+      final c = controller(store, remotes);
+      await setup(c);
+      await c.prepare();
+      await c.apply();
+      final doc = jsonDecode(store.raw!) as Map<String, dynamic>;
+      final record = (doc['servers'] as Map)['one'] as Map;
+      expect(record['pending'], isNull);
+      final job = Map<String, dynamic>.from(record['job'] as Map);
+      record['job'] = {...job, 'status': 'planned', 'checkpoint': 0};
+      store.raw = jsonEncode(doc);
+      c.dispose();
+      final reloaded = controller(store, remotes);
+      await reloaded.load();
+      expect(reloaded.currentJob('one')!.status, 'planned');
+      return (reloaded, store, remote, job['id'] as String);
+    }
+
+    test('takes the real outcome from the runner', () async {
+      final (c, _, _, _) = await stale();
+      addTearDown(c.dispose);
+      await c.reconcile();
+      expect(c.currentJob('one')!.status, 'succeeded');
+    });
+
+    test('is dropped once the runner no longer knows the job', () async {
+      final (c, _, remote, id) = await stale();
+      addTearDown(c.dispose);
+      remote.jobs.remove(id);
+      await c.reconcile();
+      expect(c.currentJob('one'), isNull);
+    });
+  });
 }

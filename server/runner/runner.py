@@ -638,7 +638,11 @@ class Store:
                 with self.db:
                     self.reap_stale_jobs()
             rows = self.db.execute('SELECT * FROM jobs ORDER BY created DESC LIMIT ?', (SCHEMA['pageSize'],)).fetchall()
-            return self.response('ok', [self.job(row, row['sequence']) for row in rows])
+            # Each listed job carries only its last event: when it last
+            # changed and its outcome code, so a history shows time and
+            # reason without a status read per job. The full timeline stays
+            # with status. pageSize x 1 event keeps the reply small.
+            return self.response('ok', [self.job(row, max(row['sequence'] - 1, 0)) for row in rows])
         self.db.execute('BEGIN IMMEDIATE')
         try:
             stopped = self.daemon_stopped()

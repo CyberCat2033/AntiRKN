@@ -193,7 +193,7 @@ void main() {
   }
 
   testWidgets(
-    'UsersPage isolates publication queue updates and displays attention server cards',
+    'UsersPage isolates publication queue updates and summarises server work in one banner',
     (tester) async {
       final store = f.MemoryVpn();
       final remotes = {'srv1': f.Remote(store)};
@@ -242,7 +242,10 @@ void main() {
         find.byKey(const ValueKey('client-avatar-${f.alice}')),
         findsOneWidget,
       );
-      expect(find.byIcon(Icons.pending_actions), findsNothing);
+      expect(
+        find.byKey(const ValueKey('server-operations-banner')),
+        findsNothing,
+      );
 
       // Now set publication error in queue for Alice and notify publications
       c.queues[f.alice] = {'status': 'error', 'issue': 'linkUnavailable'};
@@ -260,7 +263,10 @@ void main() {
         },
       );
       await tester.pump();
-      expect(find.byIcon(Icons.pending_actions), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('server-operations-banner')),
+        findsOneWidget,
+      );
       expect(find.text('Server srv1'), findsOneWidget);
 
       expect(tester.takeException(), isNull);
@@ -381,4 +387,111 @@ void main() {
       await c.suspend();
     },
   );
+
+  for (final (width, scale) in [(390.0, 2.0), (1000.0, 1.0)]) {
+    testWidgets('a removal blocked on sign-in asks once with one action at '
+        '$width ×$scale', (tester) async {
+      tester.view.physicalSize = Size(width, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final store = f.MemoryVpn();
+      final vpn = f.controller(
+        store,
+        {},
+        connectForDeletion: (_) async => true,
+        remoteIssue: (_) => 'vpn_panel_login',
+      );
+      addTearDown(vpn.dispose);
+      await tester.runAsync(() async {
+        await f.setup(vpn);
+        await vpn.deleteUser(
+          vpn.workspace.users.singleWhere((u) => u.id == f.alice),
+        );
+      });
+      String? opened;
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(scale)),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: UsersPage(
+              controller: vpn,
+              serverName: (id) => 'Server $id',
+              exporter: Export(),
+              motion: MotionPreference.off,
+              onOpenServer: (id) => opened = id,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('server-operations-banner')),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Sign in to 3x-ui on this server to continue.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Removing Alice'), findsOneWidget);
+      expect(find.text('Open server'), findsOneWidget);
+      await tester.tap(find.text('Open server'));
+      await tester.pumpAndSettle();
+      expect(opened, isNotNull);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('work that runs by itself is one quiet line without buttons', (
+    tester,
+  ) async {
+    final store = f.MemoryVpn();
+    final vpn = f.controller(
+      store,
+      {},
+      connectForDeletion: (_) async => false,
+      remoteIssue: (_) => 'ssh:network',
+    );
+    await tester.runAsync(() async {
+      await f.setup(vpn);
+      await vpn.deleteUser(
+        vpn.workspace.users.singleWhere((u) => u.id == f.alice),
+      );
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('en'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        home: Scaffold(
+          body: UsersPage(
+            controller: vpn,
+            serverName: (id) => 'Server $id',
+            exporter: Export(),
+            motion: MotionPreference.off,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    final banner = find.byKey(const ValueKey('server-operations-banner'));
+    expect(banner, findsOneWidget);
+    expect(find.text('Removing Alice'), findsOneWidget);
+    expect(
+      find.descendant(of: banner, matching: find.byType(ButtonStyleButton)),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+    // Let the controller's quiet retry timers run out with the tree gone.
+    await tester.pumpWidget(const SizedBox.shrink());
+    vpn.dispose();
+    await tester.pump(const Duration(minutes: 1));
+  });
 }

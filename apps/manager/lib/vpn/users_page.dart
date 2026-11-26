@@ -7,11 +7,10 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
 import '../busy_reason.dart';
 import '../l10n/app_localizations.dart';
-import '../runner/runner_panel.dart';
 import '../publication/publication_controller.dart';
 import '../publication/publication_panel.dart';
 import 'profile_share_sheet.dart';
-import 'client_deletion_panel.dart';
+import 'server_operations_banner.dart';
 import 'vpn_controller.dart';
 import 'vpn_plan_view.dart';
 import 'vpn_strings.dart';
@@ -62,10 +61,14 @@ class UsersPage extends StatefulWidget {
     this.publications,
     this.showAddAction = true,
     this.selection,
+    this.onOpenServer,
     super.key,
   });
   final VpnController controller;
   final PublicationController? publications;
+
+  /// Opens a server page from a summary that needs the person there.
+  final void Function(String serverId)? onOpenServer;
   final String Function(String) serverName;
   final ProfileExporter exporter;
   final MotionPreference motion;
@@ -487,6 +490,11 @@ class _UsersPageState extends State<UsersPage> {
                   SliverList.list(
                     children: [
                       AppPageIntro(l.uiClientsIntro),
+                      ServerOperationsBanner(
+                        controller: c,
+                        serverName: serverName,
+                        onOpenServer: widget.onOpenServer,
+                      ),
                       CatalogNormalContent(
                         selection: selection,
                         child: Column(
@@ -749,18 +757,6 @@ class _UsersPageState extends State<UsersPage> {
                         },
                       },
                     ),
-                  SliverList.list(
-                    children: [
-                      ClientDeletionPanel(
-                        controller: c,
-                        serverName: serverName,
-                      ),
-                      _AttentionServersSection(
-                        controller: c,
-                        serverName: serverName,
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),
@@ -1061,96 +1057,6 @@ class _PublicationSelectorState<T> extends State<_PublicationSelector<T>> {
 
   @override
   Widget build(BuildContext context) => widget.builder(context);
-}
-
-class _AttentionServersSection extends StatelessWidget {
-  const _AttentionServersSection({
-    required this.controller,
-    required this.serverName,
-  });
-
-  final VpnController controller;
-  final String Function(String) serverName;
-
-  static bool needsAttention(VpnController c, String id) {
-    final record = c.workspace.servers[id], job = c.currentJob(id);
-    // A shared job is observed automatically. Only an actual failure needs
-    // attention here; a restored pending marker alone is not a warning.
-    if (c.observesOperation(id)) {
-      return c.observationErrors[id] != null ||
-          job != null &&
-              [
-                'failed',
-                'partially_applied',
-                'needs_attention',
-              ].contains(job.status);
-    }
-    return record != null &&
-        record['forgottenLocallyAt'] == null &&
-        (record['error'] != null ||
-            record['pending'] != null &&
-                (!c.observesOperation(id) || job?.terminal != true) ||
-            c.needsRestoreReview(id) && !c.observesOperation(id) ||
-            c.observationErrors[id] != null ||
-            job != null &&
-                (!job.terminal ||
-                    [
-                      'failed',
-                      'partially_applied',
-                      'needs_attention',
-                    ].contains(job.status)) ||
-            !c.observesOperation(id) &&
-                record['paused'] != true &&
-                record['authorizedPayload'] != null &&
-                record['authorizedPayload'] != record['appliedPayload']);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l = AppLocalizations.of(context);
-    final attentionIds = controller.workspace.serverIds
-        .where((id) => needsAttention(controller, id))
-        .toList(growable: false);
-    if (attentionIds.isEmpty) return const SizedBox.shrink();
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final id in attentionIds)
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: Card.filled(
-              child: ListTile(
-                leading: const AppIconTile(icon: Icons.pending_actions),
-                title: Text(serverName(vpnServerId(id))),
-                subtitle: Text(
-                  controller.workspace.servers[id]?['error'] != null
-                      ? vpnMessage(
-                          l,
-                          controller.workspace.servers[id]!['error'] as String,
-                        )
-                      : controller.currentJob(id) != null
-                      ? runnerStateLabel(l, controller.currentJob(id)!.status)
-                      : l.uiOperationPending,
-                ),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => showAppDetails(
-                  context,
-                  title: serverName(vpnServerId(id)),
-                  children: [
-                    ListenableBuilder(
-                      listenable: controller,
-                      builder: (context, _) =>
-                          VpnJobView(controller: controller, serverId: id),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
 }
 
 class _UserForm extends StatefulWidget {

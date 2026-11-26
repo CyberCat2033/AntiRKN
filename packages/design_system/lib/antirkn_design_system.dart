@@ -1926,6 +1926,158 @@ class AppSelectField<T> extends StatelessWidget {
   }
 }
 
+/// How loud an [AppStatusBanner] is.
+enum AppStatusTone {
+  /// Work runs by itself; nothing is asked of the person.
+  progress,
+
+  /// Work waits for the person.
+  attention,
+
+  /// Work failed and waits for the person.
+  error,
+}
+
+/// One-line summary of background work above a list. It appears only while
+/// there is something to report and carries at most a couple of actions;
+/// the details open from [onTap].
+class AppStatusBanner extends StatelessWidget {
+  const AppStatusBanner({
+    required this.title,
+    this.message,
+    this.tone = AppStatusTone.progress,
+    this.icon,
+    this.actions = const [],
+    this.progress,
+    this.onTap,
+    this.tooltip,
+    super.key,
+  });
+  final String title;
+  final String? message;
+  final AppStatusTone tone;
+  final IconData? icon;
+  final List<Widget> actions;
+
+  /// Determinate progress 0..1; [AppStatusTone.progress] without a value
+  /// shows an indeterminate bar.
+  final double? progress;
+  final VoidCallback? onTap;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    final error = tone == AppStatusTone.error;
+    final background = error
+        ? colors.errorContainer
+        : colors.surfaceContainerHigh;
+    final foreground = error ? colors.onErrorContainer : colors.onSurface;
+    final accent = switch (tone) {
+      AppStatusTone.progress => colors.primary,
+      AppStatusTone.attention => colors.tertiary,
+      AppStatusTone.error => colors.onErrorContainer,
+    };
+    final leading =
+        icon ??
+        switch (tone) {
+          AppStatusTone.progress => Icons.sync,
+          AppStatusTone.attention => Icons.pending_actions,
+          AppStatusTone.error => Icons.error_outline,
+        };
+    final body = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(title, style: text.titleSmall?.copyWith(color: foreground)),
+        if (message case final message?)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              message,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: text.bodyMedium?.copyWith(
+                color: error
+                    ? colors.onErrorContainer
+                    : colors.onSurfaceVariant,
+              ),
+            ),
+          ),
+      ],
+    );
+    final content = LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked =
+            actions.isNotEmpty &&
+            (constraints.maxWidth < AppLayout.compact ||
+                MediaQuery.textScalerOf(context).scale(14) > 20);
+        final row = Row(
+          children: [
+            Icon(leading, color: accent, size: 22),
+            const SizedBox(width: 14),
+            Expanded(child: body),
+            if (!stacked)
+              for (final action in actions) ...[
+                const SizedBox(width: 8),
+                action,
+              ],
+            if (actions.isEmpty && onTap != null) ...[
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right, color: colors.onSurfaceVariant),
+            ],
+          ],
+        );
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                12,
+                actions.isEmpty || stacked ? 16 : 12,
+                stacked ? 4 : 12,
+              ),
+              child: row,
+            ),
+            if (stacked)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 12, 8),
+                child: Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: actions,
+                ),
+              ),
+            if (tone == AppStatusTone.progress)
+              LinearProgressIndicator(value: progress, minHeight: 3),
+          ],
+        );
+      },
+    );
+    return Semantics(
+      container: true,
+      liveRegion: tone != AppStatusTone.progress,
+      child: Material(
+        color: background,
+        borderRadius: BorderRadius.circular(AppLayout.radius),
+        clipBehavior: Clip.antiAlias,
+        child: onTap == null
+            ? content
+            : InkWell(
+                onTap: onTap,
+                child: tooltip == null
+                    ? content
+                    : Tooltip(message: tooltip!, child: content),
+              ),
+      ),
+    );
+  }
+}
+
 class AppActionRow extends StatelessWidget {
   const AppActionRow({required this.children, super.key});
   final List<Widget> children;
