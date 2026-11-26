@@ -143,6 +143,9 @@ class TtCertificates extends StatelessWidget {
             if (certificates.isNotEmpty) const Divider(),
             ListTile(
               key: const ValueKey('tt-certificate-add'),
+              // An action row, not an item: primary, as a text button.
+              iconColor: colors.primary,
+              textColor: colors.primary,
               leading: const Icon(Icons.add),
               title: Text(l.ttAddCertificate),
               enabled: !runner.busy && runner.installed,
@@ -292,6 +295,7 @@ class _TtCertificateState extends State<TtCertificateDialog>
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     return AppFormDialog(
+      fullscreenOnCompact: true,
       title: Text(widget.certificate == null ? l.ttAddCertificate : l.vpnEdit),
       content: SizedBox(
         width: 650,

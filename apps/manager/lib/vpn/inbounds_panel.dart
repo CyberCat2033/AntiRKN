@@ -19,6 +19,7 @@ import '../runner/panel_login_view.dart';
 import 'vpn_plan_view.dart';
 import 'reality_scan_result.dart';
 import 'relay_inbound_view.dart';
+import '../protocol_icon.dart';
 
 class InboundsPanel extends StatefulWidget {
   const InboundsPanel({
@@ -1090,7 +1091,12 @@ class _InboundFormState extends State<InboundForm> {
     super.dispose();
   }
 
-  Widget field(String key, String label, {bool number = false}) => TextField(
+  Widget field(
+    String key,
+    String label, {
+    bool number = false,
+    String? error,
+  }) => TextField(
     key: ValueKey('vpn-inbound-$key'),
     controller: fields[key],
     onChanged: (value) {
@@ -1114,7 +1120,11 @@ class _InboundFormState extends State<InboundForm> {
     maxLines: key == 'sni' ? null : 1,
     autocorrect: false,
     enableSuggestions: false,
-    decoration: InputDecoration(labelText: label),
+    decoration: InputDecoration(
+      labelText: label,
+      errorText: error,
+      errorMaxLines: 4,
+    ),
   );
   @override
   Widget build(BuildContext context) {
@@ -1122,7 +1132,10 @@ class _InboundFormState extends State<InboundForm> {
         xhttp = spec['transport'] == 'xhttp',
         tls = spec['security'] == 'tls';
     return AppFormDialog(
-      title: Text(widget.inbound == null ? l.vpnAddInbound : l.vpnEdit),
+      title: const Text('VLESS'),
+      icon: protocolIcon('xray'),
+      subtitle: widget.inbound == null ? l.vpnAddInbound : l.vpnEdit,
+      fullscreenOnCompact: true,
       content: AppFormFields(
         children: [
           AppFormSection(
@@ -1209,7 +1222,13 @@ class _InboundFormState extends State<InboundForm> {
             title: tls ? 'TLS' : 'REALITY',
             children: [
               if (!tls) ...[
-                field('target', l.vpnTarget),
+                // A failed scan is a quiet field error, not the loudest
+                // element of the form.
+                field(
+                  'target',
+                  l.vpnTarget,
+                  error: scanFailed ? l.realityScanFailed : null,
+                ),
                 AppFormAction(
                   buttonKey: const ValueKey('vpn-reality-scan'),
                   icon: Icons.radar,
@@ -1222,12 +1241,6 @@ class _InboundFormState extends State<InboundForm> {
                       ? null
                       : scan,
                 ),
-                if (scanFailed)
-                  AppNotice(
-                    message: l.realityScanFailed,
-                    error: true,
-                    margin: EdgeInsets.zero,
-                  ),
                 if (scanResult case final result?)
                   RealityScanResultView(
                     result: result,
@@ -1260,6 +1273,7 @@ class _InboundFormState extends State<InboundForm> {
           ),
           if (xhttp)
             AppFormSection(
+              rows: true,
               children: [
                 XhttpOptionsEditor(
                   motion: widget.motion,
@@ -1277,6 +1291,7 @@ class _InboundFormState extends State<InboundForm> {
               ],
             ),
           AppFormSection(
+            rows: true,
             children: [
               AppFormSwitch(
                 title: l.vpnEnabled,
@@ -1288,7 +1303,6 @@ class _InboundFormState extends State<InboundForm> {
                 subtitle: widget.internalLocked
                     ? l.relayInternalLocked
                     : l.vpnInternalHelp,
-                secondary: const Icon(Icons.lock_outline),
                 value: spec['internal'] == true,
                 onChanged: widget.internalLocked
                     ? null
@@ -1328,6 +1342,7 @@ class _InboundFormState extends State<InboundForm> {
                 ),
               );
             },
+            icon: const Icon(Icons.delete_outline),
             child: Text(l.vpnDelete),
           ),
         TextButton(

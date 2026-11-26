@@ -12,6 +12,7 @@ import 'adopt_resource.dart';
 import 'vpn_plan_view.dart';
 import 'awg_existing_panel.dart';
 import '../runner/runner_controller.dart';
+import '../protocol_icon.dart';
 
 class AwgPanel extends StatelessWidget {
   const AwgPanel({
@@ -248,7 +249,10 @@ class _AwgFormState extends State<AwgForm> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     return AppFormDialog(
-      title: Text('AmneziaWG 3.1'),
+      title: const Text('AmneziaWG'),
+      icon: protocolIcon('amneziawg'),
+      subtitle: widget.existing ? l.vpnEdit : l.awgAdd,
+      fullscreenOnCompact: true,
       content: AppFormFields(
         children: [
           AppFormSection(
@@ -305,6 +309,7 @@ class _AwgFormState extends State<AwgForm> {
             ],
           ),
           AppFormSection(
+            rows: true,
             children: [
               AppFormSwitch(
                 title: l.vpnEnabled,
@@ -344,6 +349,7 @@ class _AwgFormState extends State<AwgForm> {
                 ),
               );
             },
+            icon: const Icon(Icons.delete_outline),
             child: Text(l.vpnDelete),
           ),
         TextButton(

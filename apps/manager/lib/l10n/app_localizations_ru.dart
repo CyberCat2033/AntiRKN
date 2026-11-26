@@ -1805,8 +1805,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get xhttpHeaders => 'HTTP-заголовки';
 
   @override
-  String get vpnRegenerateReality =>
-      'Перегенерировать ключи REALITY и Short ID';
+  String get vpnRegenerateReality => 'Пересоздать ключи';
 
   @override
   String get vpnRealityRegenerated =>
@@ -2147,7 +2146,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get ttRotate => 'Заменить пароли всех клиентов этого endpoint';
 
   @override
-  String get ttRegeneratePasswords => 'Перегенерировать пароли клиентов';
+  String get ttRegeneratePasswords => 'Пересоздать пароли';
 
   @override
   String get ttPasswordsRegenerated =>

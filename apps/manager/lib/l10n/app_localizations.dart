@@ -3221,7 +3221,7 @@ abstract class AppLocalizations {
   /// No description provided for @vpnRegenerateReality.
   ///
   /// In en, this message translates to:
-  /// **'Regenerate REALITY keys and Short ID'**
+  /// **'Regenerate keys'**
   String get vpnRegenerateReality;
 
   /// No description provided for @vpnRealityRegenerated.
@@ -3821,7 +3821,7 @@ abstract class AppLocalizations {
   /// No description provided for @ttRegeneratePasswords.
   ///
   /// In en, this message translates to:
-  /// **'Regenerate client passwords'**
+  /// **'Regenerate passwords'**
   String get ttRegeneratePasswords;
 
   /// No description provided for @ttPasswordsRegenerated.
