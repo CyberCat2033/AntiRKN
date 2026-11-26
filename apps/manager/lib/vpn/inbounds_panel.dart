@@ -472,28 +472,27 @@ class InboundsPanelState extends State<InboundsPanel> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  AppPageIntro(l.uiVlessIntro),
-                  if (runner != null &&
-                      (runner!.panelAccess == null ||
-                          runner!.panelLoginRequired)) ...[
-                    FilledButton.icon(
-                      key: const ValueKey('vless-panel-login'),
-                      onPressed: runner!.busy || runner!.actionPending
-                          ? null
-                          : () => showPanelLogin(context, runner!),
-                      icon: const Icon(Icons.login),
-                      label: Text(l.panelConnectTitle),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  FilledButton.icon(
-                    key: const ValueKey('vpn-inbound-add'),
-                    onPressed: !c.canMutate ? null : () => _edit(context),
-                    icon: const Icon(Icons.add),
-                    label: Text(l.vpnAddInbound),
-                  ),
                   ConnectionCheckAll(
                     controller: c,
+                    actions: [
+                      if (runner != null &&
+                          (runner!.panelAccess == null ||
+                              runner!.panelLoginRequired))
+                        FilledButton.icon(
+                          key: const ValueKey('vless-panel-login'),
+                          onPressed: runner!.busy || runner!.actionPending
+                              ? null
+                              : () => showPanelLogin(context, runner!),
+                          icon: const Icon(Icons.login),
+                          label: Text(l.panelConnectTitle),
+                        ),
+                      FilledButton.icon(
+                        key: const ValueKey('vpn-inbound-add'),
+                        onPressed: !c.canMutate ? null : () => _edit(context),
+                        icon: const Icon(Icons.add),
+                        label: Text(l.vpnAddInbound),
+                      ),
+                    ],
                     readOthers: runner == null
                         ? null
                         : () async {
@@ -1091,34 +1090,31 @@ class _InboundFormState extends State<InboundForm> {
     super.dispose();
   }
 
-  Widget field(String key, String label, {bool number = false}) => Padding(
-    padding: const EdgeInsets.only(bottom: AppLayout.gap),
-    child: TextField(
-      key: ValueKey('vpn-inbound-$key'),
-      controller: fields[key],
-      onChanged: (value) {
-        if (key == 'target' || key == 'sni') {
-          setState(() {
-            scanResult = null;
-            scanFailed = false;
-            if (key == 'sni') {
-              automaticSni =
-                  value.isEmpty ||
-                  value == realityTargetHost(fields['target']!.text);
-            }
-            if (key == 'target' && automaticSni) {
-              fields['sni']!.text = realityTargetHost(value);
-            }
-          });
-        }
-      },
-      keyboardType: number ? TextInputType.number : TextInputType.text,
-      minLines: 1,
-      maxLines: key == 'sni' ? null : 1,
-      autocorrect: false,
-      enableSuggestions: false,
-      decoration: InputDecoration(labelText: label),
-    ),
+  Widget field(String key, String label, {bool number = false}) => TextField(
+    key: ValueKey('vpn-inbound-$key'),
+    controller: fields[key],
+    onChanged: (value) {
+      if (key == 'target' || key == 'sni') {
+        setState(() {
+          scanResult = null;
+          scanFailed = false;
+          if (key == 'sni') {
+            automaticSni =
+                value.isEmpty ||
+                value == realityTargetHost(fields['target']!.text);
+          }
+          if (key == 'target' && automaticSni) {
+            fields['sni']!.text = realityTargetHost(value);
+          }
+        });
+      }
+    },
+    keyboardType: number ? TextInputType.number : TextInputType.text,
+    minLines: 1,
+    maxLines: key == 'sni' ? null : 1,
+    autocorrect: false,
+    enableSuggestions: false,
+    decoration: InputDecoration(labelText: label),
   );
   @override
   Widget build(BuildContext context) {
@@ -1127,15 +1123,25 @@ class _InboundFormState extends State<InboundForm> {
         tls = spec['security'] == 'tls';
     return AppFormDialog(
       title: Text(widget.inbound == null ? l.vpnAddInbound : l.vpnEdit),
-      content: SizedBox(
-        width: 650,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.only(top: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+      content: AppFormFields(
+        children: [
+          AppFormSection(
+            title: l.uiConnection,
             children: [
               field('name', l.vpnName),
+              ServerAddressField(
+                label: l.vpnListen,
+                fieldKey: const ValueKey('vpn-inbound-listen'),
+                network: widget.network,
+                controller: fields['listen']!,
+                motion: widget.motion,
+              ),
+              field('port', l.vpnPort, number: true),
+            ],
+          ),
+          AppFormSection(
+            title: l.vpnTransport,
+            children: [
               AppSelectField<String>(
                 key: ValueKey('transport-${spec['transport']}'),
                 value: spec['transport'] as String,
@@ -1155,8 +1161,7 @@ class _InboundFormState extends State<InboundForm> {
                   }
                 }),
               ),
-              const SizedBox(height: AppLayout.gap),
-              if (xhttp) ...[
+              if (xhttp)
                 AppSelectField<String>(
                   key: ValueKey('security-${spec['security']}'),
                   value: spec['security'] as String,
@@ -1168,17 +1173,6 @@ class _InboundFormState extends State<InboundForm> {
                     spec['mode'] = 'auto';
                   }),
                 ),
-                const SizedBox(height: AppLayout.gap),
-              ],
-              ServerAddressField(
-                label: l.vpnListen,
-                fieldKey: const ValueKey('vpn-inbound-listen'),
-                network: widget.network,
-                controller: fields['listen']!,
-                motion: widget.motion,
-              ),
-              const SizedBox(height: AppLayout.gap),
-              field('port', l.vpnPort, number: true),
               AppSelectField<String>(
                 key: const ValueKey('vpn-inbound-utls'),
                 value: spec['fingerprint'] as String? ?? 'chrome',
@@ -1189,52 +1183,6 @@ class _InboundFormState extends State<InboundForm> {
                   setState(() => spec['fingerprint'] = value);
                 },
               ),
-              const SizedBox(height: AppLayout.gap),
-              if (!tls) ...[
-                field('target', l.vpnTarget),
-                OutlinedButton.icon(
-                  key: const ValueKey('vpn-reality-scan'),
-                  onPressed:
-                      scanning ||
-                          widget.scanReality == null ||
-                          fields['target']!.text.trim().isEmpty
-                      ? null
-                      : scan,
-                  icon: scanning
-                      ? const SizedBox.square(
-                          dimension: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.radar),
-                  label: Text(l.realityScan),
-                ),
-                Text(l.realityScanHelp),
-                if (scanFailed) Text(l.realityScanFailed),
-                if (scanResult case final result?)
-                  RealityScanResultView(
-                    result: result,
-                    onSni: (name) => setState(() {
-                      fields['sni']!.text = name;
-                      automaticSni = false;
-                      scanResult = null;
-                    }),
-                  ),
-              ],
-              field('sni', l.vpnSni),
-              if (!tls) ...[
-                OutlinedButton.icon(
-                  key: const ValueKey('vpn-reality-regenerate'),
-                  onPressed: () => setState(() {
-                    spec['realitySeed'] = newVpnId();
-                    regenerated = true;
-                  }),
-                  icon: const Icon(Icons.refresh),
-                  label: Text(l.vpnRegenerateReality),
-                ),
-                Text(
-                  regenerated ? l.vpnRealityRegenerated : l.vpnRealityAutomatic,
-                ),
-              ],
               if (xhttp) ...[
                 field('path', l.vpnPath),
                 field('host', l.vpnHost),
@@ -1254,9 +1202,65 @@ class _InboundFormState extends State<InboundForm> {
                   ],
                   onChanged: (v) => setState(() => spec['mode'] = v),
                 ),
-                const SizedBox(height: AppLayout.gap),
               ],
-              if (xhttp)
+            ],
+          ),
+          AppFormSection(
+            title: tls ? 'TLS' : 'REALITY',
+            children: [
+              if (!tls) ...[
+                field('target', l.vpnTarget),
+                AppFormAction(
+                  buttonKey: const ValueKey('vpn-reality-scan'),
+                  icon: Icons.radar,
+                  label: l.realityScan,
+                  tooltip: l.realityScanHelp,
+                  busy: scanning,
+                  onPressed:
+                      widget.scanReality == null ||
+                          fields['target']!.text.trim().isEmpty
+                      ? null
+                      : scan,
+                ),
+                if (scanFailed)
+                  AppNotice(
+                    message: l.realityScanFailed,
+                    error: true,
+                    margin: EdgeInsets.zero,
+                  ),
+                if (scanResult case final result?)
+                  RealityScanResultView(
+                    result: result,
+                    onSni: (name) => setState(() {
+                      fields['sni']!.text = name;
+                      automaticSni = false;
+                      scanResult = null;
+                    }),
+                  ),
+              ],
+              field('sni', l.vpnSni),
+              if (!tls) ...[
+                AppFormAction(
+                  buttonKey: const ValueKey('vpn-reality-regenerate'),
+                  icon: Icons.refresh,
+                  label: l.vpnRegenerateReality,
+                  onPressed: () => setState(() {
+                    spec['realitySeed'] = newVpnId();
+                    regenerated = true;
+                  }),
+                ),
+                if (regenerated) AppFormHint(l.vpnRealityRegenerated),
+              ],
+              if (tls) ...[
+                field('certificate', l.vpnCertificate),
+                field('certificateKey', l.vpnCertificateKey),
+                AppFormHint(l.vpnTlsHelp),
+              ],
+            ],
+          ),
+          if (xhttp)
+            AppFormSection(
+              children: [
                 XhttpOptionsEditor(
                   motion: widget.motion,
                   initial: Map<String, Object?>.from(
@@ -1270,41 +1274,35 @@ class _InboundFormState extends State<InboundForm> {
                     }
                   },
                 ),
-              if (tls) ...[
-                Text(l.vpnTlsHelp),
-                field('certificate', l.vpnCertificate),
-                field('certificateKey', l.vpnCertificateKey),
               ],
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(l.vpnEnabled),
+            ),
+          AppFormSection(
+            children: [
+              AppFormSwitch(
+                title: l.vpnEnabled,
                 value: spec['enabled'] as bool,
                 onChanged: (v) => setState(() => spec['enabled'] = v),
               ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(l.vpnInternal),
-                subtitle: Text(
-                  widget.internalLocked
-                      ? l.relayInternalLocked
-                      : l.vpnInternalHelp,
-                ),
+              AppFormSwitch(
+                title: l.vpnInternal,
+                subtitle: widget.internalLocked
+                    ? l.relayInternalLocked
+                    : l.vpnInternalHelp,
                 secondary: const Icon(Icons.lock_outline),
                 value: spec['internal'] == true,
                 onChanged: widget.internalLocked
                     ? null
                     : (v) => setState(() => spec['internal'] = v),
               ),
-              Text(l.connectionAfterSave),
-              if (invalid)
-                AppNotice(
-                  message: l.vpnInvalid,
-                  error: true,
-                  margin: const EdgeInsets.only(top: 12),
-                ),
             ],
           ),
-        ),
+          if (invalid)
+            AppNotice(
+              message: l.vpnInvalid,
+              error: true,
+              margin: EdgeInsets.zero,
+            ),
+        ],
       ),
       actions: [
         // Deleting is its own confirmed action, not a form field applied by

@@ -141,17 +141,19 @@ class _TtPanelState extends State<TtPanel> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          AppPageIntro(l.uiTtIntro),
-          AppDisabledReason(
-            reason: busyReason(l, vpn: c, runner: r),
-            child: FilledButton.icon(
-              onPressed: !c.canMutate || r.busy ? null : () => edit(),
-              icon: const Icon(Icons.add),
-              label: Text(l.ttAdd),
-            ),
-          ),
           ConnectionCheckAll(
             controller: c,
+            actions: [
+              AppDisabledReason(
+                reason: busyReason(l, vpn: c, runner: r),
+                child: FilledButton.icon(
+                  key: const ValueKey('tt-add'),
+                  onPressed: !c.canMutate || r.busy ? null : () => edit(),
+                  icon: const Icon(Icons.add),
+                  label: Text(l.ttAdd),
+                ),
+              ),
+            ],
             readOthers: external.isEmpty
                 ? null
                 : () async {
@@ -236,18 +238,11 @@ class _TtPanelState extends State<TtPanel> {
               // TtCertificates below (UI-48).
               VpnJobView(showSnapshot: false, controller: c, serverId: target),
               const SizedBox(height: 20),
-              AppSettingsSection(
-                title: l.ttCertificates,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: TtCertificates(
-                    runner: r,
-                    picker: widget.picker,
-                    network: widget.network,
-                    motion: widget.motion,
-                    showTitle: false,
-                  ),
-                ),
+              TtCertificates(
+                runner: r,
+                picker: widget.picker,
+                network: widget.network,
+                motion: widget.motion,
               ),
               if ((r.ttDiscovery?['issues'] as List? ?? []).isNotEmpty ||
                   external.isNotEmpty) ...[
@@ -381,6 +376,7 @@ class TtSettingsEditor extends StatelessWidget {
     this.inheritedEgress = false,
     this.onIssueCertificate,
     this.issueWaiting = false,
+    this.certificateStatus = const [],
     super.key,
   });
   final Map<String, TextEditingController> fields;
@@ -393,22 +389,22 @@ class TtSettingsEditor extends StatelessWidget {
 
   /// The server is running another job; issuing starts after it.
   final bool issueWaiting;
+
+  /// The progress of a certificate being issued, under the TLS fields.
+  final List<Widget> certificateStatus;
   final bool external, enabled, inheritedEgress;
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    Widget field(String k, String label, {bool number = false}) => Padding(
-      padding: const EdgeInsets.only(bottom: AppLayout.gap),
-      child: TextField(
-        key: ValueKey('tt-$k'),
-        controller: fields[k],
-        enabled: enabled,
-        autocorrect: false,
-        enableSuggestions: false,
-        keyboardType: number ? TextInputType.number : TextInputType.text,
-        decoration: InputDecoration(labelText: label),
-        onChanged: (_) => onChanged(),
-      ),
+    Widget field(String k, String label, {bool number = false}) => TextField(
+      key: ValueKey('tt-$k'),
+      controller: fields[k],
+      enabled: enabled,
+      autocorrect: false,
+      enableSuggestions: false,
+      keyboardType: number ? TextInputType.number : TextInputType.text,
+      decoration: InputDecoration(labelText: label),
+      onChanged: (_) => onChanged(),
     );
     final id = spec['certificateId'] as String? ?? '';
     final hasMatching = certificates.any((c) => c['id'] == id);
@@ -419,108 +415,114 @@ class TtSettingsEditor extends StatelessWidget {
               : '');
     // The owner stores this default with [applyDefaultTtCertificate]; build
     // only displays it.
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return AppFormFields(
       children: [
-        if (!external) field('name', l.vpnNodeName),
-        ServerAddressField(
-          label: l.networkListener,
-          fieldKey: const ValueKey('tt-listen'),
-          network: network,
-          controller: fields['listen']!,
-          motion: motion,
-          enabled: enabled,
-          onChanged: (_) => onChanged(),
-        ),
-        const SizedBox(height: AppLayout.gap),
-        field('port', l.ttPort, number: true),
-        field('domain', l.ttDomain),
-        AppSelectField<String>(
-          key: ValueKey('tt-certificate-$effectiveId-${certificates.length}'),
-          value: effectiveId,
-          label: l.ttCertificates,
-          motion: motion,
-          options: [
-            if (certificates.isEmpty || external)
-              ('', external ? l.ttKeepCertificate : l.ttChooseCertificate),
-            for (final c in certificates) (c['id'] as String, '${c['domain']}'),
-          ],
-          onChanged: enabled
-              ? (v) {
-                  spec['certificateId'] = v;
-                  final c = certificates.where((c) => c['id'] == v).firstOrNull;
-                  if (c != null) fields['domain']!.text = c['domain'] as String;
-                  onChanged();
-                }
-              : null,
-        ),
-        if (certificates.isEmpty && !external) ...[
-          const SizedBox(height: 8),
-          Text(l.ttNeedCertificate),
-        ],
-        if (onIssueCertificate != null) ...[
-          const SizedBox(height: 8),
-          Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: OutlinedButton.icon(
-              key: const ValueKey('tt-issue-certificate'),
-              onPressed:
-                  enabled &&
-                      !issueWaiting &&
-                      fields['domain']!.text.trim().isNotEmpty
-                  ? onIssueCertificate
-                  : null,
-              icon: const Icon(Icons.add_moderator_outlined),
-              label: Text(l.ttIssueAcme),
-            ),
-          ),
-          if (issueWaiting) ...[
-            const SizedBox(height: 4),
-            Text(
-              l.ttIssueWaiting,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ],
-        const SizedBox(height: AppLayout.gap),
-        if (inheritedEgress)
-          Text(l.egressTtInherited)
-        else
-          AppSelectField<String>(
-            key: const ValueKey('tt-outbound'),
-            value: spec['outbound'] == 'socks5' ? 'socks5' : 'direct',
-            label: l.ttOutbound,
-            motion: motion,
-            options: [('direct', l.ttDirect), ('socks5', 'SOCKS5')],
-            onChanged: enabled
-                ? (v) {
-                    spec['outbound'] = v;
-                    onChanged();
-                  }
-                : null,
-          ),
-        const SizedBox(height: AppLayout.gap),
-        if (!inheritedEgress && spec['outbound'] == 'socks5') ...[
-          field('socksAddress', l.ttSocksAddress),
-          Text(l.ttSocksHelp),
-        ],
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text(l.ttQuic),
-          value: spec['quic'] == true,
-          onChanged: enabled
-              ? (v) {
-                  spec['quic'] = v;
-                  onChanged();
-                }
-              : null,
-        ),
-        AppExpansionTile(
-          key: ValueKey('tt-options-$external'),
-          title: Text(l.awgAdvanced),
+        AppFormSection(
+          title: l.uiConnection,
           children: [
-            SwitchListTile(
-              title: Text(l.ttIpv6),
+            if (!external) field('name', l.vpnNodeName),
+            ServerAddressField(
+              label: l.networkListener,
+              fieldKey: const ValueKey('tt-listen'),
+              network: network,
+              controller: fields['listen']!,
+              motion: motion,
+              enabled: enabled,
+              onChanged: (_) => onChanged(),
+            ),
+            field('port', l.ttPort, number: true),
+            if (inheritedEgress)
+              AppNotice(
+                message: l.egressTtInherited,
+                icon: Icons.alt_route,
+                margin: EdgeInsets.zero,
+              )
+            else
+              AppSelectField<String>(
+                key: const ValueKey('tt-outbound'),
+                value: spec['outbound'] == 'socks5' ? 'socks5' : 'direct',
+                label: l.ttOutbound,
+                motion: motion,
+                options: [('direct', l.ttDirect), ('socks5', 'SOCKS5')],
+                onChanged: enabled
+                    ? (v) {
+                        spec['outbound'] = v;
+                        onChanged();
+                      }
+                    : null,
+              ),
+            if (!inheritedEgress && spec['outbound'] == 'socks5') ...[
+              field('socksAddress', l.ttSocksAddress),
+              AppFormHint(l.ttSocksHelp),
+            ],
+            AppFormSwitch(
+              title: l.ttQuic,
+              value: spec['quic'] == true,
+              onChanged: enabled
+                  ? (v) {
+                      spec['quic'] = v;
+                      onChanged();
+                    }
+                  : null,
+            ),
+          ],
+        ),
+        AppFormSection(
+          title: 'TLS',
+          children: [
+            field('domain', l.ttDomain),
+            AppSelectField<String>(
+              key: ValueKey(
+                'tt-certificate-$effectiveId-${certificates.length}',
+              ),
+              value: effectiveId,
+              label: l.ttCertificates,
+              motion: motion,
+              options: [
+                if (certificates.isEmpty || external)
+                  ('', external ? l.ttKeepCertificate : l.ttChooseCertificate),
+                for (final c in certificates)
+                  (c['id'] as String, '${c['domain']}'),
+              ],
+              onChanged: enabled
+                  ? (v) {
+                      spec['certificateId'] = v;
+                      final c = certificates
+                          .where((c) => c['id'] == v)
+                          .firstOrNull;
+                      if (c != null) {
+                        fields['domain']!.text = c['domain'] as String;
+                      }
+                      onChanged();
+                    }
+                  : null,
+            ),
+            if (certificates.isEmpty && !external)
+              AppFormHint(l.ttNeedCertificate),
+            if (onIssueCertificate != null) ...[
+              AppFormAction(
+                buttonKey: const ValueKey('tt-issue-certificate'),
+                icon: Icons.add_moderator_outlined,
+                label: l.ttIssueAcme,
+                onPressed:
+                    enabled &&
+                        !issueWaiting &&
+                        fields['domain']!.text.trim().isNotEmpty
+                    ? onIssueCertificate
+                    : null,
+              ),
+              if (issueWaiting) AppFormHint(l.ttIssueWaiting),
+            ],
+            ...certificateStatus,
+          ],
+        ),
+        AppFormSection(
+          key: ValueKey('tt-options-$external'),
+          title: l.awgAdvanced,
+          expandable: true,
+          children: [
+            AppFormSwitch(
+              title: l.ttIpv6,
               value: spec['ipv6'] == true,
               onChanged: enabled
                   ? (v) {
@@ -529,8 +531,8 @@ class TtSettingsEditor extends StatelessWidget {
                     }
                   : null,
             ),
-            SwitchListTile(
-              title: Text(l.ttAllowPrivate),
+            AppFormSwitch(
+              title: l.ttAllowPrivate,
               value: spec['allowPrivate'] == true,
               onChanged: enabled
                   ? (v) {
@@ -668,70 +670,65 @@ class _ManagedTtState extends State<ManagedTtDialog> {
     final l = AppLocalizations.of(context);
     return AppFormDialog(
       title: const Text('TrustTunnel'),
-      content: SizedBox(
-        width: 650,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.only(top: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TtSettingsEditor(
-                fields: fields,
-                spec: spec,
-                certificates:
-                    (widget.runner.ttCertificates?['certificates'] as List? ??
-                            [])
-                        .whereType<Map>()
-                        .toList(),
-                network: widget.network,
-                motion: widget.motion,
-                enabled: !certificateDialogOpen && !widget.runner.busy,
-                inheritedEgress: widget.runner.egress?['enabled'] == true,
-                onIssueCertificate: widget.runner.installed
-                    ? issueCertificate
-                    : null,
-                issueWaiting: !widget.runner.canStart,
-                onChanged: () => setState(() => invalid = false),
-              ),
+      content: AppFormFields(
+        children: [
+          TtSettingsEditor(
+            fields: fields,
+            spec: spec,
+            certificates: _certificates,
+            network: widget.network,
+            motion: widget.motion,
+            enabled: !certificateDialogOpen && !widget.runner.busy,
+            inheritedEgress: widget.runner.egress?['enabled'] == true,
+            onIssueCertificate: widget.runner.installed
+                ? issueCertificate
+                : null,
+            issueWaiting: !widget.runner.canStart,
+            onChanged: () => setState(() => invalid = false),
+            certificateStatus: [
               if (pendingCertificateId != null) ...[
-                Text(l.ttCertificatePending),
+                AppFormHint(l.ttCertificatePending),
                 if (widget.runner.selected case final job?) ...[
-                  Text(vpnMessage(l, job.status)),
+                  AppFormHint(vpnMessage(l, job.status)),
                   if (job.events.lastOrNull case final event?)
-                    Text(vpnMessage(l, event.code)),
+                    AppFormHint(vpnMessage(l, event.code)),
                 ],
-                TextButton(
+                AppFormAction(
+                  icon: Icons.refresh,
+                  label: l.awgRefresh,
                   onPressed: widget.runner.busy
                       ? null
                       : () async {
                           await widget.runner.refresh();
                           await widget.runner.ttRequest('tt_certificates');
                         },
-                  child: Text(l.awgRefresh),
                 ),
               ],
-              SwitchListTile(
-                title: Text(l.vpnEnabled),
+            ],
+          ),
+          AppFormSection(
+            children: [
+              AppFormSwitch(
+                title: l.vpnEnabled,
                 value: spec['enabled'] as bool,
                 onChanged: (v) => setState(() => spec['enabled'] = v),
               ),
-              OutlinedButton.icon(
-                key: const ValueKey('tt-regenerate-passwords'),
+              AppFormAction(
+                buttonKey: const ValueKey('tt-regenerate-passwords'),
+                icon: Icons.refresh,
+                label: l.ttRegeneratePasswords,
                 onPressed: () => setState(() => rotate = true),
-                icon: const Icon(Icons.refresh),
-                label: Text(l.ttRegeneratePasswords),
               ),
-              Text(rotate ? l.ttPasswordsRegenerated : l.ttPasswordsAutomatic),
-              if (invalid)
-                AppNotice(
-                  message: l.vpnInvalid,
-                  error: true,
-                  margin: const EdgeInsets.only(top: 12),
-                ),
+              if (rotate) AppFormHint(l.ttPasswordsRegenerated),
             ],
           ),
-        ),
+          if (invalid)
+            AppNotice(
+              message: l.vpnInvalid,
+              error: true,
+              margin: EdgeInsets.zero,
+            ),
+        ],
       ),
       actions: [
         // Deleting is its own confirmed action, not a form field (UI-54).
@@ -866,18 +863,17 @@ class _ExistingTtState extends State<_ExistingTtDialog>
     final l = AppLocalizations.of(context);
     return AppFormDialog(
       title: Text('${l.vpnEdit} · ${widget.snapshot['name']}'),
-      content: SizedBox(
-        width: 650,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.only(top: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+      content: AppFormFields(
+        children: [
+          AppFormSection(
+            title: l.vpnUsers,
             children: [
-              Text(l.ttPreserveUsers),
-              Text((widget.snapshot['users'] as List).join(', ')),
-              if (hosts.length > 1) ...[
-                const SizedBox(height: AppLayout.gap),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text((widget.snapshot['users'] as List).join(', ')),
+              ),
+              AppFormHint(l.ttPreserveUsers),
+              if (hosts.length > 1)
                 AppSelectField<int>(
                   key: const ValueKey('tt-adopt-host'),
                   value: (spec['hostIndex'] as int?) ?? 0,
@@ -896,26 +892,28 @@ class _ExistingTtState extends State<_ExistingTtDialog>
                           changed();
                         },
                 ),
-                const SizedBox(height: AppLayout.gap),
-              ],
-              TtSettingsEditor(
-                fields: fields,
-                spec: spec,
-                certificates:
-                    (runner.ttCertificates?['certificates'] as List? ?? [])
-                        .whereType<Map>()
-                        .toList(),
-                network: widget.network,
-                motion: widget.motion,
-                external: true,
-                enabled: !busy && preview == null,
-                inheritedEgress: runner.egress?['enabled'] == true,
-                onChanged: changed,
-              ),
-              ...status(l),
             ],
           ),
-        ),
+          TtSettingsEditor(
+            fields: fields,
+            spec: spec,
+            certificates:
+                (runner.ttCertificates?['certificates'] as List? ?? [])
+                    .whereType<Map>()
+                    .toList(),
+            network: widget.network,
+            motion: widget.motion,
+            external: true,
+            enabled: !busy && preview == null,
+            inheritedEgress: runner.egress?['enabled'] == true,
+            onChanged: changed,
+          ),
+          if (status(l) case final status when status.isNotEmpty)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: status,
+            ),
+        ],
       ),
       actions: actions(l),
     );

@@ -536,17 +536,32 @@ class _AppAnimatedCollectionState extends State<AppAnimatedCollection>
 
 /// Named settings groups with a visible boundary, without nested disclosures.
 class AppSettingsSection extends StatelessWidget {
-  const AppSettingsSection({this.title, required this.child, super.key});
+  const AppSettingsSection({
+    this.title,
+    required this.child,
+    this.count,
+    this.action,
+    super.key,
+  });
 
   /// Null when the section is the page's only one: the page title already
   /// names it.
   final String? title;
   final Widget child;
+
+  /// Shown beside [title], as in [AppSectionHeading].
+  final int? count;
+  final Widget? action;
   @override
   Widget build(BuildContext context) => _CardSection(
     heading: title == null
         ? null
-        : AppSectionHeading(title: title!, subheader: true),
+        : AppSectionHeading(
+            title: title!,
+            subheader: true,
+            count: count,
+            action: action,
+          ),
     child: child,
   );
 }
@@ -1584,6 +1599,188 @@ class AppFormDialog extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The body of a form: one gap between every field, section, action and
+/// hint, so supporting text never touches the next field's floating label.
+/// An [AppFormHint] sits closer to the field it belongs to, as M3 supporting
+/// text does.
+class AppFormFields extends StatelessWidget {
+  const AppFormFields({required this.children, super.key});
+  final List<Widget> children;
+
+  static const double hintGap = 4;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      for (var i = 0; i < children.length; i++) ...[
+        if (i > 0)
+          SizedBox(
+            height: children[i] is AppFormHint
+                ? hintGap
+                // Switch rows carry their own padding, like list rows.
+                : children[i] is AppFormSwitch &&
+                      children[i - 1] is AppFormSwitch
+                ? 0
+                : AppLayout.gap,
+          ),
+        children[i],
+      ],
+    ],
+  );
+}
+
+/// A named group of form fields on a tonal surface: forms read as a few
+/// groups, not one flat wall of fields. With [expandable] the group stays
+/// closed under its title (e.g. "Advanced settings") and keeps its draft.
+class AppFormSection extends StatelessWidget {
+  const AppFormSection({
+    required this.children,
+    this.title,
+    this.expandable = false,
+    super.key,
+  }) : assert(!expandable || title != null);
+  final String? title;
+  final List<Widget> children;
+  final bool expandable;
+
+  @override
+  Widget build(BuildContext context) {
+    final surface = Material(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(AppLayout.radius),
+      clipBehavior: Clip.antiAlias,
+      child: expandable
+          ? AppExpansionTile(
+              maintainState: true,
+              title: Text(title!),
+              tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+              shape: const RoundedRectangleBorder(),
+              collapsedShape: const RoundedRectangleBorder(),
+              childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [AppFormFields(children: children)],
+            )
+          : Padding(
+              padding: const EdgeInsets.all(12),
+              child: AppFormFields(children: children),
+            ),
+    );
+    if (expandable || title == null) return surface;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 0, 4, AppLayout.smallGap),
+          child: Text(
+            title!,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+        ),
+        surface,
+      ],
+    );
+  }
+}
+
+/// Short supporting text under a field or form action; it never repeats
+/// what the form already shows.
+class AppFormHint extends StatelessWidget {
+  const AppFormHint(this.text, {this.error = false, super.key});
+  final String text;
+  final bool error;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16),
+    child: Text(
+      text,
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+        color: error
+            ? Theme.of(context).colorScheme.error
+            : Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+    ),
+  );
+}
+
+/// A secondary action inside a form (scan, regenerate, issue): one tonal
+/// button at the start of the row, as wide as its label.
+class AppFormAction extends StatelessWidget {
+  const AppFormAction({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+    this.busy = false,
+    this.tooltip,
+    this.buttonKey,
+    super.key,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback? onPressed;
+
+  /// Work started by the action runs: a progress ring replaces the icon.
+  final bool busy;
+  final String? tooltip;
+  final Key? buttonKey;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget button = FilledButton.tonalIcon(
+      key: buttonKey,
+      onPressed: busy ? null : onPressed,
+      icon: busy
+          ? const SizedBox.square(
+              dimension: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(icon),
+      label: Text(label),
+    );
+    if (tooltip case final message?) {
+      button = Tooltip(message: message, child: button);
+    }
+    return Align(alignment: AlignmentDirectional.centerStart, child: button);
+  }
+}
+
+/// An on/off setting inside a form section. Its text lines up with the text
+/// of the fields above, and its ink keeps the field shape.
+class AppFormSwitch extends StatelessWidget {
+  const AppFormSwitch({
+    required this.title,
+    required this.value,
+    required this.onChanged,
+    this.subtitle,
+    this.secondary,
+    this.switchKey,
+    super.key,
+  });
+  final String title;
+  final String? subtitle;
+  final Widget? secondary;
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+  final Key? switchKey;
+
+  @override
+  Widget build(BuildContext context) => SwitchListTile(
+    key: switchKey,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    title: Text(title),
+    subtitle: subtitle == null ? null : Text(subtitle!),
+    secondary: secondary,
+    value: value,
+    onChanged: onChanged,
+  );
 }
 
 /// A "more" (⋮) button with a menu of actions, reachable by mouse, touch

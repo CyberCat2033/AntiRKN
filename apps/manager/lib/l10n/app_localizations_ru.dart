@@ -1823,10 +1823,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'Перегенерировать ключи REALITY и Short ID';
 
   @override
-  String get vpnRealityAutomatic =>
-      'Ключи REALITY и Short ID создаются автоматически и сохраняются при редактировании.';
-
-  @override
   String get vpnRealityRegenerated =>
       'Новые ключи REALITY и Short ID применятся вместе с планом. Клиентские профили будут пересобраны.';
 
@@ -2078,10 +2074,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get awgExternalPort => 'Внешний UDP-порт (NAT)';
 
   @override
-  String get awgEndpointHelp =>
-      'Выберите IP для клиентских профилей. AWG слушает UDP-порт на всех адресах сервера. Свободный порт проверяется повторно при применении.';
-
-  @override
   String get awgAdvanced => 'Дополнительные настройки';
 
   @override
@@ -2170,10 +2162,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get ttRegeneratePasswords => 'Перегенерировать пароли клиентов';
-
-  @override
-  String get ttPasswordsAutomatic =>
-      'Пароли клиентов создаются автоматически и сохраняются при редактировании.';
 
   @override
   String get ttPasswordsRegenerated =>
@@ -3064,16 +3052,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get uiPublicationAutoHelp => 'Сохранять изменения по прежним ссылкам';
 
   @override
-  String get uiVlessIntro => 'Подключения VLESS на этом сервере';
-
-  @override
-  String get uiAwgIntro => 'Интерфейсы AmneziaWG на этом сервере';
-
-  @override
   String get uiInterfaces => 'Интерфейсы';
-
-  @override
-  String get uiTtIntro => 'Точки подключения TrustTunnel';
 
   @override
   String get uiConnections => 'Подключения';
@@ -3595,10 +3574,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get connectionNotTested => 'Не проверено';
-
-  @override
-  String get connectionAfterSave =>
-      'После сохранения приложение проверит соединение.';
 
   @override
   String connectionProgress(int done, int total, int skipped) {

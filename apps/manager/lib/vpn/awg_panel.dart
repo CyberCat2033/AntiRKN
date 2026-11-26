@@ -90,18 +90,19 @@ class AwgPanel extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          AppPageIntro(l.uiAwgIntro),
-          AppDisabledReason(
-            reason: busyReason(l, vpn: c),
-            child: FilledButton.icon(
-              key: const ValueKey('awg-add'),
-              onPressed: !c.canMutate ? null : () => edit(context),
-              icon: const Icon(Icons.add),
-              label: Text(l.awgAdd),
-            ),
-          ),
           ConnectionCheckAll(
             controller: c,
+            actions: [
+              AppDisabledReason(
+                reason: busyReason(l, vpn: c),
+                child: FilledButton.icon(
+                  key: const ValueKey('awg-add'),
+                  onPressed: !c.canMutate ? null : () => edit(context),
+                  icon: const Icon(Icons.add),
+                  label: Text(l.awgAdd),
+                ),
+              ),
+            ],
             targets: [
               for (final r in interfaces) (target: target, resource: r.id),
             ],
@@ -226,38 +227,32 @@ class _AwgFormState extends State<AwgForm> {
     super.dispose();
   }
 
-  Widget field(String key, String label, {bool number = false}) => Padding(
-    padding: const EdgeInsets.only(bottom: AppLayout.gap),
-    child: TextField(
-      key: ValueKey('awg-$key'),
-      controller: fields[key],
-      keyboardType: number ? TextInputType.number : TextInputType.text,
-      autocorrect: false,
-      enableSuggestions: false,
-      decoration: InputDecoration(labelText: label),
-      onChanged: (value) {
-        if (key == 'port' && automaticPort) {
-          fields['externalPort']!.text = value;
-        }
-        if (key == 'externalPort') {
-          automaticPort = value == fields['port']!.text;
-        }
-        if (key == 'endpoint') setState(() {});
-      },
-    ),
+  Widget field(String key, String label, {bool number = false}) => TextField(
+    key: ValueKey('awg-$key'),
+    controller: fields[key],
+    keyboardType: number ? TextInputType.number : TextInputType.text,
+    autocorrect: false,
+    enableSuggestions: false,
+    decoration: InputDecoration(labelText: label),
+    onChanged: (value) {
+      if (key == 'port' && automaticPort) {
+        fields['externalPort']!.text = value;
+      }
+      if (key == 'externalPort') {
+        automaticPort = value == fields['port']!.text;
+      }
+      if (key == 'endpoint') setState(() {});
+    },
   );
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     return AppFormDialog(
       title: Text('AmneziaWG 3.1'),
-      content: SizedBox(
-        width: 650,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.only(top: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+      content: AppFormFields(
+        children: [
+          AppFormSection(
+            title: l.uiConnection,
             children: [
               field('name', l.vpnNodeName),
               ServerAddressField(
@@ -269,60 +264,62 @@ class _AwgFormState extends State<AwgForm> {
                 role: AddressRole.endpoint,
                 onChanged: (_) => setState(() {}),
               ),
-              const SizedBox(height: AppLayout.gap),
               field('port', l.awgPort, number: true),
-              Text(l.awgEndpointHelp),
-              AppExpansionTile(
-                key: const ValueKey<String>('awg-advanced'),
-                title: Text(l.awgAdvanced),
-                children: [
-                  field('externalPort', l.awgExternalPort, number: true),
-                  field('pool', l.awgPool),
-                  field('pool6', l.awgPool6),
-                  field('mtu', 'MTU', number: true),
-                  field('keepalive', 'PersistentKeepalive', number: true),
-                  Text(l.awgDefaultsHelp),
-                  for (final e in awgOptionRules.entries)
-                    if ((e.value as Map)['type'] == 'boolean')
-                      SwitchListTile(
-                        title: Text('${e.value['config']}'),
-                        value: options[e.key] as bool,
-                        onChanged: (v) =>
-                            setState(() => options[e.key as String] = v),
-                      )
-                    else if (e.key == 'i1')
-                      SwitchListTile(
-                        title: Text(l.awgCps),
-                        value: fields['i1']!.text.isNotEmpty,
-                        onChanged: (v) => setState(
-                          () => fields['i1']!.text = v
-                              ? e.value['default'] as String
-                              : '',
-                        ),
-                      )
-                    else
-                      field(
-                        e.key as String,
-                        '${e.value['config']}',
-                        number: e.value['type'] == 'integer',
-                      ),
-                ],
-              ),
-              SwitchListTile(
-                title: Text(l.vpnEnabled),
+            ],
+          ),
+          AppFormSection(
+            key: const ValueKey<String>('awg-advanced'),
+            title: l.awgAdvanced,
+            expandable: true,
+            children: [
+              AppFormHint(l.awgDefaultsHelp),
+              field('externalPort', l.awgExternalPort, number: true),
+              field('pool', l.awgPool),
+              field('pool6', l.awgPool6),
+              field('mtu', 'MTU', number: true),
+              field('keepalive', 'PersistentKeepalive', number: true),
+              for (final e in awgOptionRules.entries)
+                if ((e.value as Map)['type'] == 'boolean')
+                  AppFormSwitch(
+                    title: '${e.value['config']}',
+                    value: options[e.key] as bool,
+                    onChanged: (v) =>
+                        setState(() => options[e.key as String] = v),
+                  )
+                else if (e.key == 'i1')
+                  AppFormSwitch(
+                    title: l.awgCps,
+                    value: fields['i1']!.text.isNotEmpty,
+                    onChanged: (v) => setState(
+                      () => fields['i1']!.text = v
+                          ? e.value['default'] as String
+                          : '',
+                    ),
+                  )
+                else
+                  field(
+                    e.key as String,
+                    '${e.value['config']}',
+                    number: e.value['type'] == 'integer',
+                  ),
+            ],
+          ),
+          AppFormSection(
+            children: [
+              AppFormSwitch(
+                title: l.vpnEnabled,
                 value: spec['enabled'] as bool,
                 onChanged: (v) => setState(() => spec['enabled'] = v),
               ),
-              Text(l.connectionAfterSave),
-              if (invalid)
-                AppNotice(
-                  message: l.vpnInvalid,
-                  error: true,
-                  margin: const EdgeInsets.only(top: 12),
-                ),
             ],
           ),
-        ),
+          if (invalid)
+            AppNotice(
+              message: l.vpnInvalid,
+              error: true,
+              margin: EdgeInsets.zero,
+            ),
+        ],
       ),
       actions: [
         // Deleting is its own confirmed action, not a form field (UI-54).

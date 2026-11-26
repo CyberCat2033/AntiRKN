@@ -136,16 +136,21 @@ class ConnectionCheckView extends StatelessWidget {
   }
 }
 
+/// The action row of a protocol page: its own actions ([actions], e.g.
+/// "Add") and "Check all", sized to their labels and wrapping on narrow
+/// screens, with the check progress under them. One row for every protocol.
 class ConnectionCheckAll extends StatefulWidget {
   const ConnectionCheckAll({
     required this.controller,
     required this.targets,
     this.readOthers,
+    this.actions = const [],
     super.key,
   });
   final VpnController controller;
   final List<ConnectionTarget> targets;
   final Future<List<ConnectionTarget>> Function()? readOthers;
+  final List<Widget> actions;
   @override
   State<ConnectionCheckAll> createState() => _ConnectionCheckAllState();
 }
@@ -189,40 +194,55 @@ class _ConnectionCheckAllState extends State<ConnectionCheckAll> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        OutlinedButton.icon(
-          onPressed: c.queueRunning
-              ? c.cancel
-              : reading ||
-                    widget.controller.busy ||
-                    widget.targets.isEmpty && widget.readOthers == null
-              ? null
-              : () => _run(c),
-          icon: Icon(
-            c.queueRunning ? Icons.stop_circle_outlined : Icons.network_check,
-          ),
-          label: Text(
-            c.queueRunning
-                ? l.connectionStop
-                : reading
-                ? l.connectionChecking
-                : l.connectionCheckAll,
-          ),
+        Wrap(
+          spacing: AppLayout.smallGap,
+          runSpacing: AppLayout.smallGap,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [...widget.actions, _checkAll(l, c)],
         ),
         if (readFailed)
           Padding(
-            padding: const EdgeInsets.only(top: 8),
+            padding: const EdgeInsets.only(top: AppLayout.smallGap),
             child: Semantics(
               liveRegion: true,
               child: AppNotice(
                 key: const ValueKey('connection-check-all-failed'),
                 message: l.connectionTargetsFailed,
                 error: true,
+                margin: EdgeInsets.zero,
               ),
             ),
           )
         else if (ran && !reading && c.total > 0)
-          Text(l.connectionProgress(c.completed, c.total, c.skipped.length)),
+          Padding(
+            padding: const EdgeInsets.only(top: AppLayout.smallGap),
+            child: Text(
+              l.connectionProgress(c.completed, c.total, c.skipped.length),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
       ],
     );
   }
+
+  Widget _checkAll(AppLocalizations l, ConnectionChecks c) =>
+      OutlinedButton.icon(
+        onPressed: c.queueRunning
+            ? c.cancel
+            : reading ||
+                  widget.controller.busy ||
+                  widget.targets.isEmpty && widget.readOthers == null
+            ? null
+            : () => _run(c),
+        icon: Icon(
+          c.queueRunning ? Icons.stop_circle_outlined : Icons.network_check,
+        ),
+        label: Text(
+          c.queueRunning
+              ? l.connectionStop
+              : reading
+              ? l.connectionChecking
+              : l.connectionCheckAll,
+        ),
+      );
 }
