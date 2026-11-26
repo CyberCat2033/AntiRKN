@@ -158,6 +158,28 @@ void main() {
         secrets: const {ServerSecret.sshPassword: 'test-only'},
       );
 
+  test(
+    'a restored server without a pinned key is never trusted in the background',
+    () async {
+      // E.g. after a cloud pull: saved, but never connected on this device.
+      final repo = _Repository()..servers['a'] = profile('a');
+      final connector = FakeConnector();
+      final c = ServerCatalogController(
+        repository: repo,
+        connector: connector,
+        picker: FakeKeyPicker(),
+        reader: TestInventoryReader(() async => testInventory()),
+      );
+      addTearDown(c.dispose);
+      await c.load();
+      // The background cache refresh path: non-interactive attempt, then the
+      // runner's own connect-for-action fallback.
+      expect(await c.connectForAction('a'), isFalse);
+      expect(repo.servers['a']!.hostKey, isNull);
+      expect(connector.authentications, 0);
+    },
+  );
+
   test('local forget refreshes revisions and never opens SSH', () async {
     final repo = _Repository()..servers['a'] = profile('a');
     final connector = FakeConnector();

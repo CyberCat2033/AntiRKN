@@ -483,6 +483,61 @@ void main() {
     expect(connector.authentications, 0);
   });
 
+  test('actions and refreshes never trust a first key; Connect does', () async {
+    final vault = FakeVault();
+    final connector = FakeConnector();
+    final c = controller(vault, connector);
+    addTearDown(c.dispose);
+    addTearDown(c.network.dispose);
+    await prepare(c);
+    await c.save();
+    expect(await c.ensureConnected(), isFalse);
+    expect(connector.calls, 0);
+    expect(vault.saved!.hostKey, isNull);
+    expect(c.stage, SshStage.idle);
+    await c.connect();
+    expect(c.stage, SshStage.connected);
+    expect(vault.saved!.hostKey!.fingerprint, 'SHA256:fixture');
+    c.disconnect();
+    // Once pinned, an action may reconnect by itself.
+    connector.connection = FakeConnection();
+    await c.ensureConnected();
+    expect(connector.calls, 2);
+    expect(c.stage, SshStage.connected);
+  });
+
+  for (final edit in [
+    'FIXTURE.Example',
+    'fixture.example.',
+    ' Fixture.EXAMPLE. ',
+  ]) {
+    test(
+      'a case or trailing-dot edit of the host keeps the pin: "$edit"',
+      () async {
+        final vault = FakeVault();
+        final connector = FakeConnector();
+        final c = controller(vault, connector);
+        addTearDown(c.dispose);
+        addTearDown(c.network.dispose);
+        await prepare(c);
+        await c.connect();
+        final pinned = vault.saved!.hostKey;
+        c.disconnect();
+        c.editSettings();
+        c.host.text = edit;
+        expect(c.trustedKey, same(pinned));
+        expect(await c.save(), isTrue);
+        expect(vault.saved!.hostKey, same(pinned));
+        connector.key = const TrustedHostKey('ssh-ed25519', 'SHA256:rotated');
+        connector.connection = FakeConnection();
+        await c.connect();
+        expect(c.error, SshIssue.hostKeyChanged);
+        expect(vault.saved!.hostKey, same(pinned));
+        expect(connector.authentications, 1);
+      },
+    );
+  }
+
   test('trust write failure prevents sending authentication', () async {
     final vault = FakeVault();
     final connector = FakeConnector();

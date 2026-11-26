@@ -372,9 +372,24 @@ class SshController extends ChangeNotifier {
   }
 
   TrustedHostKey? get trustedKey =>
-      unlocked && _vault!.profile?.host == host.text.trim()
+      unlocked && _sameHost(_vault!.profile?.host, host.text)
       ? _vault!.profile?.hostKey
       : null;
+
+  /// Host names are case-insensitive and a trailing dot names the same
+  /// host, so neither edit drops the pinned key; any other address change
+  /// does (a new address trusts its own key on first use).
+  static bool _sameHost(String? saved, String draft) {
+    if (saved == null) return false;
+    String canonical(String host) {
+      final trimmed = host.trim().toLowerCase();
+      return trimmed.endsWith('.')
+          ? trimmed.substring(0, trimmed.length - 1)
+          : trimmed;
+    }
+
+    return canonical(saved) == canonical(draft);
+  }
 
   void _notify() {
     if (_disposed) return;
@@ -571,7 +586,7 @@ class SshController extends ChangeNotifier {
     keyName: keyName,
     jumpServerId: jumpServerId,
     hostKey: trustedKey,
-    lastInfo: _vault!.profile?.host == host.text.trim() ? lastInfo : null,
+    lastInfo: _sameHost(_vault!.profile?.host, host.text) ? lastInfo : null,
     secrets: {
       ...?_vault!.profile?.secrets,
       ServerSecret.sshPassword: password.text,
@@ -771,12 +786,18 @@ class SshController extends ChangeNotifier {
     return false;
   }
 
-  Future<void> connect() => _connect();
+  /// The person's own Connect: the only path that trusts a first key.
+  Future<void> connect() => _connect(trustFirstKey: true);
 
+  /// A connection an action or a refresh needs. It never trusts a first
+  /// key: a server without a pinned key stays disconnected until the person
+  /// connects it (background paths reach here too, e.g. a cache refresh).
   Future<bool> ensureConnected() async {
     if (_disposed || vaultBusy || picking) return false;
     if (stage != SshStage.connected) {
-      if (!hasSavedProfile || !saved || busy) return false;
+      if (!hasSavedProfile || !saved || busy || trustedKey == null) {
+        return false;
+      }
       await _connect();
     }
     if (_disposed || stage != SshStage.connected) return false;
@@ -811,6 +832,7 @@ class SshController extends ChangeNotifier {
   Future<void> _connect({
     bool replaceServer = false,
     bool interactive = true,
+    bool trustFirstKey = false,
   }) async {
     if (!editing || _connection != null) return;
     _reconnectTimer?.cancel();
@@ -868,6 +890,7 @@ class SshController extends ChangeNotifier {
           cancellation,
           isJump: true,
           interactive: interactive,
+          trustFirstKey: trustFirstKey,
         ),
         verifyHostKey: (key) => _verifyKey(
           profile,
@@ -876,6 +899,7 @@ class SshController extends ChangeNotifier {
           cancellation,
           replaceServer: replaceServer,
           interactive: interactive,
+          trustFirstKey: trustFirstKey,
         ),
       );
       if (_disposed || generation != _generation || cancellation.isCancelled) {
@@ -954,6 +978,7 @@ class SshController extends ChangeNotifier {
     bool replaceServer = false,
     bool isJump = false,
     bool interactive = true,
+    bool trustFirstKey = false,
   }) async {
     cancellation.check();
     if (profile.hostKey != null && !replaceServer) {
@@ -964,10 +989,12 @@ class SshController extends ChangeNotifier {
       }
       return true;
     }
-    if (!interactive) throw const SshFailure(SshIssue.hostKeyRejected);
     // No key is pinned for this address yet: trust on first use (owner
-    // decision 2026-11-26). Replacing an already trusted key, the only other
-    // way here, still waits for the person's confirmation.
+    // decision 2026-11-26), only on the person's own Connect. Replacing an
+    // already trusted key still waits for the person's confirmation.
+    if (!interactive || (!replaceServer && !trustFirstKey)) {
+      throw const SshFailure(SshIssue.hostKeyRejected);
+    }
     if (replaceServer) {
       stage = SshStage.verifying;
       verifyingProfile = profile;
