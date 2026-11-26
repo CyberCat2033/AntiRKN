@@ -1802,10 +1802,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get vpnRegenerateReality => 'Regenerate REALITY keys and Short ID';
 
   @override
-  String get vpnRealityAutomatic =>
-      'REALITY keys and Short ID are generated automatically and kept when editing.';
-
-  @override
   String get vpnRealityRegenerated =>
       'New REALITY keys and Short ID will be applied with the plan. Client profiles will be rebuilt.';
 
@@ -2059,10 +2055,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get awgExternalPort => 'External UDP port (NAT)';
 
   @override
-  String get awgEndpointHelp =>
-      'Choose the IP for client profiles. AWG listens on the UDP port on all server addresses. The port is checked again before applying.';
-
-  @override
   String get awgAdvanced => 'Advanced settings';
 
   @override
@@ -2150,10 +2142,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get ttRegeneratePasswords => 'Regenerate client passwords';
-
-  @override
-  String get ttPasswordsAutomatic =>
-      'Client passwords are generated automatically and kept when editing.';
 
   @override
   String get ttPasswordsRegenerated =>
@@ -3046,16 +3034,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get uiPublicationAutoHelp => 'Save changes at the same profile links';
 
   @override
-  String get uiVlessIntro => 'VLESS connections on this server';
-
-  @override
-  String get uiAwgIntro => 'AmneziaWG interfaces on this server';
-
-  @override
   String get uiInterfaces => 'Interfaces';
-
-  @override
-  String get uiTtIntro => 'TrustTunnel connection endpoints';
 
   @override
   String get uiConnections => 'Connections';
@@ -3574,10 +3553,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get connectionNotTested => 'Not tested';
-
-  @override
-  String get connectionAfterSave =>
-      'The app will check the connection after saving.';
 
   @override
   String connectionProgress(int done, int total, int skipped) {

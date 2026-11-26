@@ -187,7 +187,8 @@ void main() {
         final regen = find.byKey(const ValueKey('tt-regenerate-passwords'));
         await tester.ensureVisible(regen);
         expect(find.text(l.vpnDeleteHelp), findsNothing);
-        expect(find.text(l.ttPasswordsAutomatic), findsOneWidget);
+        // Kept passwords need no note; only a pending rotation is stated.
+        expect(find.text(l.ttPasswordsRegenerated), findsNothing);
         if (language == 'ru') {
           await tester.tap(regen);
           await tester.pumpAndSettle();

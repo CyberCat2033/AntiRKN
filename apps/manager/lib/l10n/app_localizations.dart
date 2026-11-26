@@ -3224,12 +3224,6 @@ abstract class AppLocalizations {
   /// **'Regenerate REALITY keys and Short ID'**
   String get vpnRegenerateReality;
 
-  /// No description provided for @vpnRealityAutomatic.
-  ///
-  /// In en, this message translates to:
-  /// **'REALITY keys and Short ID are generated automatically and kept when editing.'**
-  String get vpnRealityAutomatic;
-
   /// No description provided for @vpnRealityRegenerated.
   ///
   /// In en, this message translates to:
@@ -3668,12 +3662,6 @@ abstract class AppLocalizations {
   /// **'External UDP port (NAT)'**
   String get awgExternalPort;
 
-  /// No description provided for @awgEndpointHelp.
-  ///
-  /// In en, this message translates to:
-  /// **'Choose the IP for client profiles. AWG listens on the UDP port on all server addresses. The port is checked again before applying.'**
-  String get awgEndpointHelp;
-
   /// No description provided for @awgAdvanced.
   ///
   /// In en, this message translates to:
@@ -3835,12 +3823,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Regenerate client passwords'**
   String get ttRegeneratePasswords;
-
-  /// No description provided for @ttPasswordsAutomatic.
-  ///
-  /// In en, this message translates to:
-  /// **'Client passwords are generated automatically and kept when editing.'**
-  String get ttPasswordsAutomatic;
 
   /// No description provided for @ttPasswordsRegenerated.
   ///
@@ -5402,29 +5384,11 @@ abstract class AppLocalizations {
   /// **'Save changes at the same profile links'**
   String get uiPublicationAutoHelp;
 
-  /// No description provided for @uiVlessIntro.
-  ///
-  /// In en, this message translates to:
-  /// **'VLESS connections on this server'**
-  String get uiVlessIntro;
-
-  /// No description provided for @uiAwgIntro.
-  ///
-  /// In en, this message translates to:
-  /// **'AmneziaWG interfaces on this server'**
-  String get uiAwgIntro;
-
   /// No description provided for @uiInterfaces.
   ///
   /// In en, this message translates to:
   /// **'Interfaces'**
   String get uiInterfaces;
-
-  /// No description provided for @uiTtIntro.
-  ///
-  /// In en, this message translates to:
-  /// **'TrustTunnel connection endpoints'**
-  String get uiTtIntro;
 
   /// No description provided for @uiConnections.
   ///
@@ -6319,12 +6283,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Not tested'**
   String get connectionNotTested;
-
-  /// No description provided for @connectionAfterSave.
-  ///
-  /// In en, this message translates to:
-  /// **'The app will check the connection after saving.'**
-  String get connectionAfterSave;
 
   /// No description provided for @connectionProgress.
   ///
