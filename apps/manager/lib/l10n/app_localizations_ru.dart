@@ -4365,4 +4365,115 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get activityDiagnostic => 'Проверка сервера';
+
+  @override
+  String get serviceModeTitle => 'Сервисный режим';
+
+  @override
+  String get serviceModeHelp =>
+      'Сервер остаётся в приложении и продолжает работать, но его узлы убираются из профилей клиентов, а новые клиенты на него не добавляются. Включайте на время ремонта или перенастройки сервера.';
+
+  @override
+  String get serviceModeOff => 'Выключен';
+
+  @override
+  String serviceModeSince(String time) {
+    return 'Включён с $time';
+  }
+
+  @override
+  String get serviceModeReturningBadge => 'Возвращается';
+
+  @override
+  String get serviceModeReturning =>
+      'Возвращение: сервер получает актуальные доступы клиентов. В профили он вернётся, когда сервер их подтвердит.';
+
+  @override
+  String get serviceModeReturnStalled => 'Возвращение не завершено';
+
+  @override
+  String get serviceModeRetry => 'Повторить';
+
+  @override
+  String get serviceModeEnter => 'Включить';
+
+  @override
+  String get serviceModeExit => 'Выключить';
+
+  @override
+  String get serviceModeCancelExit => 'Отменить выход';
+
+  @override
+  String get serviceModeEnterTitle => 'Включить сервисный режим?';
+
+  @override
+  String serviceModeEnterIntro(String server) {
+    return 'Сервер «$server» продолжит работать, а доступы клиентов останутся на нём для возвращения.';
+  }
+
+  @override
+  String get serviceModeEnterProfiles =>
+      'Его узлы уберутся из профилей клиентов: следующая публикация пройдёт без них.';
+
+  @override
+  String get serviceModeEnterPublication =>
+      'Публикация больше не ждёт этот сервер.';
+
+  @override
+  String get serviceModeEnterNewClients =>
+      'Новые клиенты на него не добавляются.';
+
+  @override
+  String get serviceModeEnterRevocations =>
+      'Отключение и удаление клиентов по-прежнему применяются на нём, когда он доступен.';
+
+  @override
+  String get serviceModeEnterEgress =>
+      'Через этот сервер выходят в интернет другие серверы (relay или внутренний inbound). Сервисный режим их не переключает: если сервер остановится, их клиенты потеряют доступ в интернет.';
+
+  @override
+  String get serviceModeEnterEgressUnknown =>
+      'Если через этот сервер выходят в интернет другие серверы, сервисный режим их не переключает.';
+
+  @override
+  String get serviceModeExitTitle => 'Выключить сервисный режим?';
+
+  @override
+  String serviceModeExitClients(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'По последним данным сервера на него добавятся $count клиентов.',
+      few: 'По последним данным сервера на него добавятся $count клиента.',
+      one: 'По последним данным сервера на него добавится $count клиент.',
+      zero: 'По последним данным сервера новые клиенты на него не добавятся.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get serviceModeExitHelp =>
+      'Сначала сервер получит актуальные доступы клиентов. В профили он вернётся только после того, как сервер их подтвердит, а до этого остаётся вне профилей, как сейчас.';
+
+  @override
+  String serviceAccessWaiting(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Изменения доступа $count клиентов ждут этот сервер.',
+      few: 'Изменения доступа $count клиентов ждут этот сервер.',
+      one: 'Изменение доступа $count клиента ждёт этот сервер.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get serviceAccessWaitingHelp =>
+      'Изменения отправятся автоматически, когда сервер станет доступен.';
+
+  @override
+  String get serviceAccessSendNow => 'Отправить сейчас';
+
+  @override
+  String get serviceModeHeld => 'Изменения ждут серверов в сервисном режиме';
 }

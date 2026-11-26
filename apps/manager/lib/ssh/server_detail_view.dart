@@ -9,6 +9,7 @@ import '../runner/component_updates_controller.dart';
 import '../runner/runner_panel.dart';
 import 'server_about_view.dart';
 import 'server_activity.dart';
+import 'server_service_mode_view.dart';
 import 'ssh_controller.dart';
 import 'ssh_harden_wizard.dart';
 import 'ssh_panel.dart';
@@ -318,6 +319,23 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                                   color: Theme.of(context).colorScheme.primary,
                                 ),
                           ),
+                          if (widget.vpn case final vpn?)
+                            ListenableBuilder(
+                              listenable: vpn,
+                              builder: (context, _) =>
+                                  switch (vpn.serviceModeOf(c.serverId)) {
+                                    null => const SizedBox.shrink(),
+                                    final mode => Padding(
+                                      padding: const EdgeInsets.only(top: 8),
+                                      child: ServiceModeBadge(
+                                        key: const ValueKey(
+                                          'server-overview-service-mode',
+                                        ),
+                                        mode: mode,
+                                      ),
+                                    ),
+                                  },
+                            ),
                         ],
                       ),
                     ),

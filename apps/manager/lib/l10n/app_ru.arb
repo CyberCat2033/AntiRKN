@@ -1556,5 +1556,59 @@
   "activityServerAccess": "Доступ для другого сервера",
   "activityCheck": "Проверка обновлений",
   "activitySshHarden": "Защита SSH",
-  "activityDiagnostic": "Проверка сервера"
+  "activityDiagnostic": "Проверка сервера",
+  "serviceModeTitle": "Сервисный режим",
+  "serviceModeHelp": "Сервер остаётся в приложении и продолжает работать, но его узлы убираются из профилей клиентов, а новые клиенты на него не добавляются. Включайте на время ремонта или перенастройки сервера.",
+  "serviceModeOff": "Выключен",
+  "serviceModeSince": "Включён с {time}",
+  "@serviceModeSince": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "serviceModeReturningBadge": "Возвращается",
+  "serviceModeReturning": "Возвращение: сервер получает актуальные доступы клиентов. В профили он вернётся, когда сервер их подтвердит.",
+  "serviceModeReturnStalled": "Возвращение не завершено",
+  "serviceModeRetry": "Повторить",
+  "serviceModeEnter": "Включить",
+  "serviceModeExit": "Выключить",
+  "serviceModeCancelExit": "Отменить выход",
+  "serviceModeEnterTitle": "Включить сервисный режим?",
+  "serviceModeEnterIntro": "Сервер «{server}» продолжит работать, а доступы клиентов останутся на нём для возвращения.",
+  "@serviceModeEnterIntro": {
+    "placeholders": {
+      "server": {
+        "type": "String"
+      }
+    }
+  },
+  "serviceModeEnterProfiles": "Его узлы уберутся из профилей клиентов: следующая публикация пройдёт без них.",
+  "serviceModeEnterPublication": "Публикация больше не ждёт этот сервер.",
+  "serviceModeEnterNewClients": "Новые клиенты на него не добавляются.",
+  "serviceModeEnterRevocations": "Отключение и удаление клиентов по-прежнему применяются на нём, когда он доступен.",
+  "serviceModeEnterEgress": "Через этот сервер выходят в интернет другие серверы (relay или внутренний inbound). Сервисный режим их не переключает: если сервер остановится, их клиенты потеряют доступ в интернет.",
+  "serviceModeEnterEgressUnknown": "Если через этот сервер выходят в интернет другие серверы, сервисный режим их не переключает.",
+  "serviceModeExitTitle": "Выключить сервисный режим?",
+  "serviceModeExitClients": "{count, plural, =0{По последним данным сервера новые клиенты на него не добавятся.} one{По последним данным сервера на него добавится {count} клиент.} few{По последним данным сервера на него добавятся {count} клиента.} other{По последним данным сервера на него добавятся {count} клиентов.}}",
+  "@serviceModeExitClients": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "serviceModeExitHelp": "Сначала сервер получит актуальные доступы клиентов. В профили он вернётся только после того, как сервер их подтвердит, а до этого остаётся вне профилей, как сейчас.",
+  "serviceAccessWaiting": "{count, plural, one{Изменение доступа {count} клиента ждёт этот сервер.} few{Изменения доступа {count} клиентов ждут этот сервер.} other{Изменения доступа {count} клиентов ждут этот сервер.}}",
+  "@serviceAccessWaiting": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "serviceAccessWaitingHelp": "Изменения отправятся автоматически, когда сервер станет доступен.",
+  "serviceAccessSendNow": "Отправить сейчас",
+  "serviceModeHeld": "Изменения ждут серверов в сервисном режиме"
 }

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_manager/language_controller.dart';
 import 'package:antirkn_manager/l10n/app_localizations.dart';
@@ -278,6 +279,80 @@ void main() {
     expect(vpn.workspace.inbounds.single.deleted, isTrue);
     expect(connector.calls, 0);
   });
+
+  for (final (width, scale, locale) in [
+    (390.0, 2.0, 'ru'),
+    (700.0, 1.0, 'en'),
+    (1000.0, 2.0, 'en'),
+    (1400.0, 1.0, 'ru'),
+  ]) {
+    testWidgets('a server in service mode is marked in the catalog: '
+        '$width x$scale $locale', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = Size(width, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final repository = _Repository()
+        ..servers.addAll({'a': profile('a'), 'b': profile('b')});
+      final catalog = ServerCatalogController(
+        repository: repository,
+        connector: FakeConnector(),
+        picker: FakeKeyPicker(),
+        reader: TestInventoryReader(() async => testInventory()),
+      );
+      final vpn = _vpnController(_MemoryVpn());
+      addTearDown(() {
+        catalog.dispose();
+        vpn.dispose();
+      });
+      await catalog.load();
+      await tester.runAsync(() async {
+        await vpn.load();
+        await vpn.saveInbound(_inbound('a', '1' * 32));
+        await vpn.enterServiceMode('a');
+      });
+      expect(vpn.serviceModeOf('a'), isNotNull);
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: Locale(locale),
+          theme: AppTheme.create(Brightness.light),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              textScaler: TextScaler.linear(scale),
+              disableAnimations: true,
+            ),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: ServerCatalog(
+              controller: catalog,
+              vpn: vpn,
+              motion: MotionPreference.off,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      final l = lookupAppLocalizations(Locale(locale));
+      final badge = find.byKey(const ValueKey('server-service-mode-a'));
+      expect(badge, findsOneWidget);
+      expect(
+        find.descendant(of: badge, matching: find.text(l.serviceModeTitle)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('server-a')),
+          matching: badge,
+        ),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('server-service-mode-b')), findsNothing);
+    });
+  }
 
   testWidgets('startup retires VPN resources whose SSH server is gone', (
     tester,

@@ -4356,4 +4356,112 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get activityDiagnostic => 'Server check';
+
+  @override
+  String get serviceModeTitle => 'Service mode';
+
+  @override
+  String get serviceModeHelp =>
+      'The server stays in the app and keeps running, but its proxies leave client profiles and new clients are not added to it. Turn it on while you repair or rebuild the server.';
+
+  @override
+  String get serviceModeOff => 'Off';
+
+  @override
+  String serviceModeSince(String time) {
+    return 'On since $time';
+  }
+
+  @override
+  String get serviceModeReturningBadge => 'Returning';
+
+  @override
+  String get serviceModeReturning =>
+      'Returning: the server is getting the current client accesses. It comes back to profiles once the server confirms them.';
+
+  @override
+  String get serviceModeReturnStalled => 'The return is not finished';
+
+  @override
+  String get serviceModeRetry => 'Retry';
+
+  @override
+  String get serviceModeEnter => 'Turn on';
+
+  @override
+  String get serviceModeExit => 'Turn off';
+
+  @override
+  String get serviceModeCancelExit => 'Cancel the return';
+
+  @override
+  String get serviceModeEnterTitle => 'Turn on service mode?';
+
+  @override
+  String serviceModeEnterIntro(String server) {
+    return '$server keeps running, and client accesses stay on it for the way back.';
+  }
+
+  @override
+  String get serviceModeEnterProfiles =>
+      'Its proxies leave client profiles: the next publication goes without them.';
+
+  @override
+  String get serviceModeEnterPublication =>
+      'Publication no longer waits for this server.';
+
+  @override
+  String get serviceModeEnterNewClients => 'New clients are not added to it.';
+
+  @override
+  String get serviceModeEnterRevocations =>
+      'Disabling and deleting clients still applies on it whenever it is reachable.';
+
+  @override
+  String get serviceModeEnterEgress =>
+      'Other servers leave to the internet through this one (relay or internal inbound). Service mode does not switch them: if this server stops, their clients lose internet access.';
+
+  @override
+  String get serviceModeEnterEgressUnknown =>
+      'If other servers leave to the internet through this one, service mode does not switch them.';
+
+  @override
+  String get serviceModeExitTitle => 'Turn off service mode?';
+
+  @override
+  String serviceModeExitClients(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'By the server\'s last data, $count clients will be added to it.',
+      one: 'By the server\'s last data, 1 client will be added to it.',
+      zero: 'By the server\'s last data, no new clients will be added to it.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get serviceModeExitHelp =>
+      'The server gets the current client accesses first. It returns to client profiles only after it confirms them; until then it stays out of them, as now.';
+
+  @override
+  String serviceAccessWaiting(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Access changes for $count clients wait for this server.',
+      one: 'An access change for 1 client waits for this server.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get serviceAccessWaitingHelp =>
+      'Changes are sent automatically once the server is reachable.';
+
+  @override
+  String get serviceAccessSendNow => 'Send now';
+
+  @override
+  String get serviceModeHeld => 'Changes wait for servers in service mode';
 }
