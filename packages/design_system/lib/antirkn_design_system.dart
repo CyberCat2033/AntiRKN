@@ -1927,10 +1927,10 @@ class AppFormFields extends StatelessWidget {
   );
 }
 
-/// A named group of form fields: a section title over the fields, straight
-/// on the dialog surface as in M3 forms, with no card around them. With
-/// [expandable] the group stays closed under its title (e.g. "Advanced
-/// settings") and keeps its draft.
+/// A named group of form fields on a soft tonal surface, so a form reads as
+/// a few groups rather than one flat wall of fields. The title sits above the
+/// surface; with [expandable] it is the surface's own disclosure row (e.g.
+/// "Advanced settings"), and the closed group keeps its draft.
 class AppFormSection extends StatelessWidget {
   const AppFormSection({
     required this.children,
@@ -1943,12 +1943,13 @@ class AppFormSection extends StatelessWidget {
   final List<Widget> children;
   final bool expandable;
 
-  /// The children are list rows (switches, disclosures) whose text keeps the
-  /// 16 dp inset of the text inside the fields.
+  /// The children are list rows (switches, disclosures) running edge to edge
+  /// of the surface, their text on the 16 dp inset of the section title.
   final bool rows;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final body = rows
         ? Column(
             mainAxisSize: MainAxisSize.min,
@@ -1956,24 +1957,31 @@ class AppFormSection extends StatelessWidget {
             children: children,
           )
         : AppFormFields(children: children);
-    if (expandable) {
-      // The ink of the disclosure row keeps a field-like shape.
-      const shape = RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(12)),
-      );
-      return AppExpansionTile(
-        maintainState: true,
-        title: Text(title!),
-        tilePadding: const EdgeInsets.symmetric(horizontal: 16),
-        shape: shape,
-        collapsedShape: shape,
-        childrenPadding: EdgeInsets.only(top: rows ? 0 : AppLayout.smallGap),
-        expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [body],
-      );
-    }
-    if (title == null) return body;
-    final theme = Theme.of(context);
+    final surface = Material(
+      color: theme.colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(AppLayout.radius),
+      clipBehavior: Clip.antiAlias,
+      child: expandable
+          ? AppExpansionTile(
+              maintainState: true,
+              title: Text(title!),
+              tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+              shape: const RoundedRectangleBorder(),
+              collapsedShape: const RoundedRectangleBorder(),
+              childrenPadding: rows
+                  ? const EdgeInsets.only(bottom: 4)
+                  : const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [body],
+            )
+          : Padding(
+              padding: rows
+                  ? const EdgeInsets.symmetric(vertical: 4)
+                  : const EdgeInsets.all(12),
+              child: body,
+            ),
+    );
+    if (expandable || title == null) return surface;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1987,7 +1995,7 @@ class AppFormSection extends StatelessWidget {
             ),
           ),
         ),
-        body,
+        surface,
       ],
     );
   }

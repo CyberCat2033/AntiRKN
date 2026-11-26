@@ -118,25 +118,6 @@ class ServerAboutView extends StatelessWidget {
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
-          if (diagnostics != null) ...[
-            OutlinedButton.icon(
-              key: const ValueKey('server-ip-diagnostics'),
-              onPressed: running
-                  ? diagnostics!.stop
-                  : !canDiagnose || diagnostics!.busy
-                  ? null
-                  : () =>
-                        showServerIpDiagnostics(context, diagnostics!, server),
-              icon: Icon(running ? Icons.stop : Icons.network_check),
-              label: Text(
-                running
-                    ? '${l.diagStop} · ${diagnostics!.current?.completed ?? 0}/${diagnostics!.current?.targets.length ?? 0}'
-                    : l.diagTitle,
-              ),
-            ),
-            if (!canDiagnose)
-              Text(l.diagNoIpv4, style: Theme.of(context).textTheme.bodySmall),
-          ],
           const SizedBox(height: 12),
           clientEgress ??
               ClientEgressCard(controller: c.runner, vpn: vpn, motion: motion),
@@ -151,6 +132,28 @@ class ServerAboutView extends StatelessWidget {
             ),
           AppSettingsSection(
             title: l.uiPublicAddresses,
+            // Diagnostics check these addresses and show the result under
+            // each of them, so the action sits on this section.
+            action: diagnostics == null
+                ? null
+                : TextButton.icon(
+                    key: const ValueKey('server-ip-diagnostics'),
+                    onPressed: running
+                        ? diagnostics!.stop
+                        : !canDiagnose || diagnostics!.busy
+                        ? null
+                        : () => showServerIpDiagnostics(
+                            context,
+                            diagnostics!,
+                            server,
+                          ),
+                    icon: Icon(running ? Icons.stop : Icons.network_check),
+                    label: Text(
+                      running
+                          ? '${l.diagStop} · ${diagnostics!.current?.completed ?? 0}/${diagnostics!.current?.targets.length ?? 0}'
+                          : l.diagTitle,
+                    ),
+                  ),
             child: Column(
               children: [
                 if (addresses.isEmpty)
@@ -182,6 +185,12 @@ class ServerAboutView extends StatelessWidget {
                         }
                       },
                     ),
+                  ),
+                // Shown where the diagnostics action is, not at the page top.
+                if (diagnostics != null && !canDiagnose && addresses.isNotEmpty)
+                  ListTile(
+                    leading: const Icon(Icons.info_outline),
+                    title: Text(l.diagNoIpv4),
                   ),
               ],
             ),

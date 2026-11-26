@@ -289,6 +289,18 @@ void main() {
           expect(find.text(l.diagTitle), findsOneWidget);
           expect(probes.calls, 0);
           final button = find.byKey(const ValueKey('server-ip-diagnostics'));
+          // The action sits on the addresses it checks.
+          expect(
+            tester
+                .widget<AppSettingsSection>(
+                  find.ancestor(
+                    of: button,
+                    matching: find.byType(AppSettingsSection),
+                  ),
+                )
+                .title,
+            l.uiPublicAddresses,
+          );
           await tester.tap(button);
           await tester.pumpAndSettle();
           expect(find.byType(TextField), findsNothing);

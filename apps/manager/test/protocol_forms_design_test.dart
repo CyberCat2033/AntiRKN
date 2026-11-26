@@ -154,14 +154,6 @@ void _expectFrame(WidgetTester tester, double width, String delete) {
   );
 }
 
-/// Row texts of the bottom groups start on one inset.
-void _expectRowInset(WidgetTester tester, String a, String b) {
-  expect(
-    tester.getRect(find.text(a)).left,
-    closeTo(tester.getRect(find.text(b)).left, 0.5),
-  );
-}
-
 void main() {
   for (final (width, scale) in [(390.0, 1.0), (1000.0, 1.0), (390.0, 2.0)]) {
     final shot = 'r2-%s-${width.toInt()}${scale == 1 ? '' : '-x2'}';
@@ -197,7 +189,9 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.byType(AppFormSection), findsNWidgets(5));
+      expect(find.byType(AppFormSection), findsNWidgets(4));
+      // On/off lives on the resource card, not in the editor.
+      expect(find.text(_l.vpnEnabled), findsNothing);
       expect(find.text(_l.realityScanHelp), findsNothing);
       expect(find.byTooltip(_l.realityScanHelp), findsOneWidget);
       // Secondary actions share one style.
@@ -235,8 +229,6 @@ void main() {
         find.byType(XhttpOptionsEditor),
       );
       _expectFrame(tester, width, 'vpn-inbound-delete');
-      _expectRowInset(tester, 'XMUX', _l.vpnEnabled);
-      _expectRowInset(tester, _l.vpnInternal, _l.vpnEnabled);
       await _capture(tester, shot.replaceFirst('%s', 'vless'));
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
@@ -262,10 +254,12 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.byType(AppFormSection), findsNWidgets(3));
-      expect(find.byType(AppFormSwitch), findsOneWidget);
+      expect(find.byType(AppFormSection), findsNWidgets(2));
+      // On/off lives on the resource card, not in the editor.
+      expect(find.text(_l.vpnEnabled), findsNothing);
+      // Collapsed Advanced settings hide all the switches.
+      expect(find.byType(AppFormSwitch), findsNothing);
       _expectFrame(tester, width, 'awg-delete');
-      _expectRowInset(tester, _l.awgAdvanced, _l.vpnEnabled);
       await _capture(tester, shot.replaceFirst('%s', 'awg'));
       await tester.tap(find.text(_l.awgAdvanced));
       await tester.pumpAndSettle();
@@ -299,7 +293,9 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.byType(AppFormSection), findsNWidgets(5));
+      expect(find.byType(AppFormSection), findsNWidgets(4));
+      // On/off lives on the resource card, not in the editor.
+      expect(find.text(_l.vpnEnabled), findsNothing);
       expect(
         tester.widget(find.byKey(const ValueKey('tt-issue-certificate'))),
         isA<FilledButton>(),
@@ -323,7 +319,6 @@ void main() {
         findsNothing,
       );
       _expectFrame(tester, width, 'tt-delete');
-      _expectRowInset(tester, _l.awgAdvanced, _l.vpnEnabled);
       await _capture(tester, shot.replaceFirst('%s', 'tt'));
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
@@ -395,6 +390,8 @@ void main() {
       if (width >= AppLayout.compact) {
         expect(add.center.dy, closeTo(check.center.dy, 1));
       }
+      // Each card turns its interface on and off, as a VLESS card does.
+      expect(find.text(_l.vpnEnabled), findsNWidgets(2));
       await _capture(tester, 'awg-page-${width.toInt()}');
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());

@@ -34,6 +34,22 @@ class AwgPanel extends StatelessWidget {
   final RunnerController? runner;
   final String serverHost;
 
+  /// The card's switch: the interface is turned on or off without the
+  /// editor, as a VLESS inbound is.
+  Future<void> toggle(AwgInterface current) async {
+    if (!await controller.ensureConnected(awgTarget(serverId))) return;
+    await saveAndApply(
+      controller,
+      target: awgTarget(serverId),
+      save: () => controller.saveAwg(
+        AwgInterface(
+          serverId: serverId,
+          spec: {...current.spec, 'enabled': !current.enabled},
+        ),
+      ),
+    );
+  }
+
   Future<void> edit(BuildContext context, [AwgInterface? current]) async {
     if (!await controller.ensureConnected(awgTarget(serverId)) ||
         !context.mounted) {
@@ -157,8 +173,9 @@ class AwgPanel extends StatelessWidget {
                     ),
                     title: r.name,
                     subtitle: '${r.spec['pool']}',
-                    // Only the non-default states are labelled.
-                    badge: r.enabled ? null : l.vpnDisabled,
+                    badge: l.vpnEnabled,
+                    switchValue: r.enabled,
+                    onBadgeTap: !c.canMutate ? null : () => toggle(r),
                     note: r.spec.containsKey('adoption')
                         ? c.adoptionConfirmed(target, r.id)
                               ? null
@@ -310,16 +327,6 @@ class _AwgFormState extends State<AwgForm> {
                     '${e.value['config']}',
                     number: e.value['type'] == 'integer',
                   ),
-            ],
-          ),
-          AppFormSection(
-            rows: true,
-            children: [
-              AppFormSwitch(
-                title: l.vpnEnabled,
-                value: spec['enabled'] as bool,
-                onChanged: (v) => setState(() => spec['enabled'] = v),
-              ),
             ],
           ),
           if (invalid)

@@ -1842,10 +1842,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get vpnClientAccess => 'Выдавать клиентам';
 
   @override
-  String get vpnInternalHelp =>
-      'Сохранить inbound включённым, исключить его из профилей и отозвать доступы клиентов AntiRKN через план.';
-
-  @override
   String get vpnObserved => 'Существующий · вне управления клиентами';
 
   @override
@@ -2210,9 +2206,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get ttSocksHelp =>
       'Например, 127.0.0.1:1080 на этом сервере. Поддерживается локальный SOCKS5 без авторизации; для UDP нужна его поддержка в SOCKS5 и дальнейшем маршруте.';
-
-  @override
-  String get ttQuic => 'QUIC / HTTP/3';
 
   @override
   String get ttIpv6 => 'Разрешить выход по IPv6';

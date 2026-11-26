@@ -995,7 +995,6 @@ class InboundsPanelState extends State<InboundsPanel> {
         network: network,
         motion: motion,
         inbound: inbound,
-        internalLocked: inbound != null && relayOf(inbound) != null,
         defaultEndpoint: serverHost,
         scanReality: runner?.scanReality,
       ),
@@ -1022,7 +1021,6 @@ class InboundForm extends StatefulWidget {
     this.inbound,
     this.defaultEndpoint = '',
     this.scanReality,
-    this.internalLocked = false,
     super.key,
   });
   final String serverId;
@@ -1030,8 +1028,6 @@ class InboundForm extends StatefulWidget {
   final MotionPreference motion;
   final VlessInbound? inbound;
 
-  /// The direct exit is on: the inbound stays internal until it is off.
-  final bool internalLocked;
   final String defaultEndpoint;
   final Future<Map<String, dynamic>?> Function(String target, String sni)?
   scanReality;
@@ -1321,26 +1317,6 @@ class _InboundFormState extends State<InboundForm> {
                 ),
               ],
             ),
-          AppFormSection(
-            rows: true,
-            children: [
-              AppFormSwitch(
-                title: l.vpnEnabled,
-                value: spec['enabled'] as bool,
-                onChanged: (v) => setState(() => spec['enabled'] = v),
-              ),
-              AppFormSwitch(
-                title: l.vpnInternal,
-                subtitle: widget.internalLocked
-                    ? l.relayInternalLocked
-                    : l.vpnInternalHelp,
-                value: spec['internal'] == true,
-                onChanged: widget.internalLocked
-                    ? null
-                    : (v) => setState(() => spec['internal'] = v),
-              ),
-            ],
-          ),
           if (invalid)
             AppNotice(
               message: l.vpnInvalid,

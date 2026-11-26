@@ -362,12 +362,6 @@ class _ObservedInboundDialogState extends State<ObservedInboundDialog> {
                     ),
                   ),
                 ],
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l.vpnEnabled),
-                  value: enabled,
-                  onChanged: (v) => setState(() => enabled = v),
-                ),
                 AppExpansionTile(
                   title: Text(l.observedTransportJson),
                   onExpansionChanged: (open) {
