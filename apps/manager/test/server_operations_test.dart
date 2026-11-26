@@ -163,7 +163,12 @@ void main() {
       );
       server.actions.clear();
       await owner.reconcile();
-      expect(owner.error, anyOf('sync_conflict', 'vpn_storage_conflict'));
+      // Reconcile runs in the background: its conflict is a server sync
+      // issue, not an error over the page (fd60255).
+      expect(
+        owner.serverSyncIssue,
+        anyOf('sync_conflict', 'vpn_storage_conflict'),
+      );
       expect(server.actions, isNot(contains('submit')));
       expect(
         VpnWorkspace.decode((await a.readVpn()).source!).users.single.enabled,
