@@ -39,7 +39,9 @@ class _SshHardenDialogState extends State<_SshHardenDialog> {
   bool _closing = false;
   SshHardenStage get _stage => _flow.stage;
   int get _remainingSeconds => _flow.remainingSeconds;
-  bool get _testInProgress => _flow.busy;
+  // A background status poll can start the test, so the stage, not only a
+  // pressed button, says that a test is running.
+  bool get _testInProgress => _flow.busy || _stage == SshHardenStage.testing;
   String? get _error {
     final l = AppLocalizations.of(context);
     return _inputError ??
@@ -358,7 +360,7 @@ class _SshHardenDialogState extends State<_SshHardenDialog> {
           if (_stage == SshHardenStage.testing ||
               _stage == SshHardenStage.testFailed) ...[
             TextButton(
-              onPressed: _flow.busy ? null : _abortHardening,
+              onPressed: _testInProgress ? null : _abortHardening,
               child: Text(l.sshHardenAbortAction),
             ),
             FilledButton(

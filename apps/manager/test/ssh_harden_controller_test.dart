@@ -271,6 +271,33 @@ void main() {
       expect(session.current.hardenRecovery, isNull);
     },
   );
+  test('background status poll never marks the dialog busy', () async {
+    await flow.retry();
+    expect(flow.stage, SshHardenStage.tested);
+    final busyStates = <bool>[];
+    flow.addListener(() => busyStates.add(flow.busy));
+    await flow.poll();
+    expect(flow.stage, SshHardenStage.tested);
+    expect(busyStates, isNotEmpty);
+    expect(busyStates, everyElement(isFalse));
+  });
+  test('background status poll keeps the last test error', () async {
+    session.privilege = PrivilegeStatus.root;
+    await flow.retry();
+    expect(flow.stage, SshHardenStage.testFailed);
+    await flow.poll();
+    expect(flow.stage, SshHardenStage.testFailed);
+    expect(flow.errorCode, 'ssh_harden_sudo_required');
+  });
+  test('an action waits for a running status poll', () async {
+    await flow.retry();
+    session.remotePhase = 'committed';
+    final polling = flow.poll();
+    await flow.confirm();
+    await polling;
+    expect(flow.stage, SshHardenStage.done);
+    expect(session.calls, isNot(contains('ssh_harden_confirm')));
+  });
   test('cancellation closes a late verification connection', () async {
     session.connectGate = Completer<void>();
     final pending = flow.retry();
