@@ -309,15 +309,9 @@ class _ServerDetailViewState extends State<ServerDetailView> {
                                 ),
                           ),
                           const SizedBox(height: 6),
-                          Text(
-                            connected
-                                ? l.sshConnected
-                                : c.busy
-                                ? l.sshConnecting
-                                : l.uiOffline,
-                            // A status, not a link: the secondary role.
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
+                          // The same stage as the collapsed card, so a
+                          // connection shows what it is doing now.
+                          SshStageStatus(c.stage),
                           if (widget.vpn case final vpn?)
                             ListenableBuilder(
                               listenable: vpn,

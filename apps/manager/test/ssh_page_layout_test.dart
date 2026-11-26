@@ -59,6 +59,52 @@ void main() {
     });
   }
 
+  testWidgets('the opened server card shows the connection stage', (
+    tester,
+  ) async {
+    final c = ssh.controller(ssh.FakeVault(), ssh.FakeConnector());
+    await tester.runAsync(() async {
+      await c.initialise();
+      c.serverName.text = 'NL';
+      c.host.text = '203.0.113.10';
+      c.username.text = 'admin';
+      c.password.text = 'fixture-password-only';
+      await c.connect();
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('en'),
+        theme: AppTheme.create(Brightness.dark),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        home: Scaffold(
+          body: ServerDetailView(
+            session: c,
+            motion: MotionPreference.off,
+            onBack: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final l = AppLocalizations.of(tester.element(find.byType(Scaffold)));
+    expect(find.text(l.sshConnected), findsOneWidget);
+    // Not a bare "Connecting": what the connection is doing right now.
+    for (final (stage, label) in [
+      (SshStage.reading, l.sshReading),
+      (SshStage.checkingPrivileges, l.privilegesChecking),
+      (SshStage.connecting, l.sshConnecting),
+      (SshStage.idle, l.uiOffline),
+    ]) {
+      c.stage = stage;
+      c.notifyListeners();
+      await tester.pump();
+      expect(find.text(label), findsOneWidget, reason: '$stage');
+    }
+    await tester.pumpWidget(const SizedBox());
+    c.dispose();
+  });
+
   for (final width in [390.0, 1000.0]) {
     for (final connected in [false, true]) {
       final state = connected ? 'connected' : 'new';

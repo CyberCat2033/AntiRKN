@@ -105,14 +105,7 @@ class _SshPanelState extends State<SshPanel> {
       };
 
   static String _stageLabel(AppLocalizations l, SshStage stage) =>
-      switch (stage) {
-        SshStage.idle => l.sshIdle,
-        SshStage.connecting => l.sshConnecting,
-        SshStage.verifying => l.sshTrustTitle,
-        SshStage.reading => l.sshReading,
-        SshStage.checkingPrivileges => l.privilegesChecking,
-        SshStage.connected => l.sshConnected,
-      };
+      stage == SshStage.idle ? l.sshIdle : sshStageLabel(l, stage);
 
   bool _showsProgress(SshController c) =>
       c.busy && c.stage != SshStage.verifying && !c.vaultSaving && !_wizardOpen;
@@ -642,6 +635,46 @@ String vaultIssueLabel(AppLocalizations l, VaultIssue issue) => switch (issue) {
   VaultIssue.alreadyExists => l.vaultExists,
   VaultIssue.weakPassword => l.vaultWeakPassword,
 };
+
+/// What a server's SSH connection is doing now, one word or phrase.
+String sshStageLabel(AppLocalizations l, SshStage stage) => switch (stage) {
+  SshStage.idle => l.uiOffline,
+  SshStage.connecting => l.sshConnecting,
+  SshStage.verifying => l.sshTrustTitle,
+  SshStage.reading => l.sshReading,
+  SshStage.checkingPrivileges => l.privilegesChecking,
+  SshStage.connected => l.sshConnected,
+};
+
+/// The connection stage of a server card, collapsed or opened: a status in
+/// the secondary role, the primary color only once connected.
+class SshStageStatus extends StatelessWidget {
+  const SshStageStatus(this.stage, {super.key});
+  final SshStage stage;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final connected = stage == SshStage.connected;
+    return Row(
+      children: [
+        Icon(
+          connected ? Icons.check_circle_outline : Icons.circle_outlined,
+          size: 13,
+          color: connected ? scheme.primary : scheme.onSurfaceVariant,
+        ),
+        const SizedBox(width: 5),
+        Flexible(
+          child: Text(
+            sshStageLabel(AppLocalizations.of(context), stage),
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 String sshIssueLabel(AppLocalizations l, SshIssue issue) => switch (issue) {
   SshIssue.invalidSettings => l.sshInvalidSettings,
   SshIssue.invalidKey => l.sshInvalidKey,

@@ -548,51 +548,7 @@ class _ServerCatalogState extends State<ServerCatalog> {
                                             ].join(' · '),
                                           ),
                                           const SizedBox(height: 5),
-                                          Row(
-                                            children: [
-                                              Icon(
-                                                c.stageFor(server.id) ==
-                                                        SshStage.connected
-                                                    ? Icons.check_circle_outline
-                                                    : Icons.circle_outlined,
-                                                size: 13,
-                                                color:
-                                                    c.stageFor(server.id) ==
-                                                        SshStage.connected
-                                                    ? Theme.of(
-                                                        context,
-                                                      ).colorScheme.primary
-                                                    : Theme.of(context)
-                                                          .colorScheme
-                                                          .onSurfaceVariant,
-                                              ),
-                                              const SizedBox(width: 5),
-                                              Flexible(
-                                                child: Text(
-                                                  switch (c.stageFor(
-                                                    server.id,
-                                                  )) {
-                                                    SshStage.connected =>
-                                                      l.sshConnected,
-                                                    SshStage.connecting =>
-                                                      l.sshConnecting,
-                                                    SshStage.verifying =>
-                                                      l.sshTrustTitle,
-                                                    SshStage.reading =>
-                                                      l.sshReading,
-                                                    SshStage
-                                                        .checkingPrivileges =>
-                                                      l.privilegesChecking,
-                                                    SshStage.idle =>
-                                                      l.uiOffline,
-                                                  },
-                                                  style: Theme.of(
-                                                    context,
-                                                  ).textTheme.bodySmall,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
+                                          SshStageStatus(c.stageFor(server.id)),
                                           if (widget.vpn?.serviceModeOf(
                                                 server.id,
                                               )
