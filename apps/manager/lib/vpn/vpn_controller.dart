@@ -7,6 +7,7 @@ import 'package:antirkn_profile_compiler/antirkn_profile_compiler.dart';
 import 'package:flutter/foundation.dart';
 
 part 'client_deletion.dart';
+part 'service_mode_flow.dart';
 part 'vpn_attention.dart';
 
 /// Starts at most four independent physical-server operations at a time.
@@ -62,7 +63,9 @@ Set<String>? _changedProfileClients(
       canonicalJson(before.awgInterfaces.map((r) => r.toJson()).toList()) !=
           canonicalJson(after.awgInterfaces.map((r) => r.toJson()).toList()) ||
       canonicalJson(before.ttEndpoints.map((r) => r.toJson()).toList()) !=
-          canonicalJson(after.ttEndpoints.map((r) => r.toJson()).toList())) {
+          canonicalJson(after.ttEndpoints.map((r) => r.toJson()).toList()) ||
+      // Service mode decides which servers' resources a profile carries.
+      !mapEquals(before.serviceMode, after.serviceMode)) {
     return null;
   }
 
@@ -172,18 +175,21 @@ ProfileResult _compile(
         input.$3,
         serverNames: input.$4,
         onPending: pending.add,
+        skipServiceMode: true,
       ),
       ...awgUserAccesses(
         workspace,
         input.$3,
         serverNames: input.$4,
         onPending: pending.add,
+        skipServiceMode: true,
       ),
       ...ttUserAccesses(
         workspace,
         input.$3,
         serverNames: input.$4,
         onPending: pending.add,
+        skipServiceMode: true,
       ),
     ];
     if (pending.isNotEmpty) {
@@ -205,6 +211,11 @@ ProfileResult _compile(
           .profileTemplate(input.$2),
       userId: input.$3,
       accesses: accesses,
+      hiddenProxies: serviceModeProxyNames(
+        workspace,
+        input.$3,
+        serverNames: input.$4,
+      ),
     );
   } on ProfileAccessException catch (e) {
     return ProfileResult(
@@ -251,18 +262,21 @@ Map<String, ProfileResult> _compileBatch(
           userId,
           serverNames: serverNames,
           onPending: pending.add,
+          skipServiceMode: true,
         ),
         ...awgUserAccesses(
           workspace,
           userId,
           serverNames: serverNames,
           onPending: pending.add,
+          skipServiceMode: true,
         ),
         ...ttUserAccesses(
           workspace,
           userId,
           serverNames: serverNames,
           onPending: pending.add,
+          skipServiceMode: true,
         ),
       ];
       if (pending.isNotEmpty) {
@@ -279,16 +293,23 @@ Map<String, ProfileResult> _compileBatch(
         );
         continue;
       }
+      final hidden = serviceModeProxyNames(
+        workspace,
+        userId,
+        serverNames: serverNames,
+      );
       results[userId] = prepared == null
           ? compiler.compile(
               template: template,
               userId: userId,
               accesses: accesses,
+              hiddenProxies: hidden,
             )
           : compiler.compilePrepared(
               prepared: prepared,
               userId: userId,
               accesses: accesses,
+              hiddenProxies: hidden,
             );
     } on ProfileAccessException catch (e) {
       results[userId] = ProfileResult(
@@ -479,7 +500,31 @@ class VpnController extends ChangeNotifier {
   String? error;
 
   /// Blocks publication of retained profiles after a failed server check.
-  String? serverSyncIssue;
+  String? get serverSyncIssue => _serverSyncIssue;
+  set serverSyncIssue(String? issue) => _setServerSyncIssue(issue, null);
+  String? _serverSyncIssue;
+
+  /// The physical servers [serverSyncIssue] came from, when that is known.
+  /// An issue caused only by servers now in service mode is dropped
+  /// ([_dropServiceModeSyncIssue]); one of unknown origin stays.
+  Set<String>? _serverSyncIssueServers;
+
+  void _setServerSyncIssue(String? issue, Set<String>? servers) {
+    _serverSyncIssue = issue;
+    _serverSyncIssueServers = issue == null || servers == null
+        ? null
+        : servers.map(vpnServerId).toSet();
+  }
+
+  void _dropServiceModeSyncIssue() {
+    final servers = _serverSyncIssueServers;
+    if (servers != null &&
+        servers.isNotEmpty &&
+        servers.every(workspace.inServiceMode)) {
+      _setServerSyncIssue(null, null);
+    }
+  }
+
   Timer? _identityNoticeTimer;
   bool _identityNoticeExpired = false;
   String? get visibleError =>
@@ -719,6 +764,7 @@ class VpnController extends ChangeNotifier {
         : await _decodeWorkspace(saved.source!);
     token.check();
     if (saved.source == null) await _write(workspace);
+    _resumeServiceModeExits();
     loaded = true;
     plans = [];
     await _profiles();
@@ -737,24 +783,75 @@ class VpnController extends ChangeNotifier {
     return record['pending'] != null && record['error'] == null;
   }
 
-  bool get hasObservedRunning => workspace.servers.keys.any(
-    (id) => observesOperation(id) && currentJob(id)?.terminal == false,
-  );
+  bool get hasObservedRunning => _observedRunning(includeServiceMode: true);
+  bool get hasRunning => _running(includeServiceMode: true);
 
-  bool get hasRunning =>
+  /// Without [includeServiceMode], targets of servers in service mode are
+  /// left out: their work never holds up publication or the other servers.
+  /// Global gates (sync replacement, diagnostics, server removal) use the
+  /// public getters, which keep every target.
+  bool _observedRunning({required bool includeServiceMode}) =>
+      workspace.servers.keys.any(
+        (id) =>
+            (includeServiceMode || !workspace.inServiceMode(id)) &&
+            observesOperation(id) &&
+            currentJob(id)?.terminal == false,
+      );
+
+  bool _running({required bool includeServiceMode}) =>
       pendingRevocations.any(
         (u) =>
             ownsDeletion(u) &&
-            (u.deletion!['targets'] as Map).values.any(
-              (t) => t['status'] == 'running',
+            (u.deletion!['targets'] as Map).entries.any(
+              (e) =>
+                  e.value['status'] == 'running' &&
+                  (includeServiceMode ||
+                      !workspace.inServiceMode(e.key as String)),
             ),
       ) ||
       workspace.servers.entries.any(
         (e) =>
+            (includeServiceMode || !workspace.inServiceMode(e.key)) &&
             !observesOperation(e.key) &&
             !_restoredTargets.contains(e.key) &&
             _isTargetBusy(e.value),
       );
+
+  /// Physical servers whose way back from service mode is being applied,
+  /// with when this device started (or resumed) it: only a readback taken
+  /// since then brings a server back. Only the exit flow adds to it: while
+  /// a server is listed here, provisioning reaches it again, but profiles
+  /// and publication still leave it out until its service mode entry is
+  /// removed.
+  final _serviceModeExits = <String, DateTime>{};
+
+  /// Why the exit of a physical server did not finish yet, and when its
+  /// last step ran; an exit with an issue is retried after a pause.
+  final _serviceModeExitIssues = <String, String>{};
+  final _serviceModeExitTried = <String, DateTime>{};
+
+  /// Access changes (a client disabled or enabled again) sent to targets in
+  /// service mode, per target: what was sent and how often, as [_autoSent].
+  final _serviceAccessSent =
+      <String, ({String key, int attempts, DateTime at})>{};
+  final _serviceAccessIssues = <String, String>{};
+
+  /// Connections to servers in service mode that a client removal started
+  /// without waiting for them, and their results, which the next round
+  /// records as it records the others.
+  final _deletionConnecting = <String>{};
+  final _deletionConnected = <String, bool?>{};
+
+  /// The service mode of [serverId] (a catalog id or any target form).
+  ServerServiceMode? serviceModeOf(String serverId) =>
+      workspace.serviceModeOf(serverId);
+
+  /// Whether nothing may be provisioned on [target]: no `desired()` payload
+  /// is planned, sent, resent or resumed there while its server is in
+  /// service mode, unless its exit flow is running.
+  bool _provisioningHeld(String target) =>
+      workspace.inServiceMode(target) &&
+      !_serviceModeExits.containsKey(vpnServerId(target));
 
   bool hasLocalServerState(String serverId) {
     if (workspace.inbounds.any(
@@ -802,6 +899,7 @@ class VpnController extends ChangeNotifier {
             entry.value['appliedPayload'] != null ||
             (entry.value['observed'] as List? ?? []).isNotEmpty)
           vpnServerId(entry.key),
+      ...workspace.serviceMode.keys,
     };
     return referenced.difference(available);
   }
@@ -833,6 +931,7 @@ class VpnController extends ChangeNotifier {
     for (final resource in workspace.inbounds.where(
       (resource) => resource.enabled && !resource.deleted && !resource.internal,
     )) {
+      if (workspace.inServiceMode(resource.serverId)) continue;
       if (missing(
         (workspace.servers[resource.serverId]?['observed'] as List? ?? const [])
             .whereType<Map>(),
@@ -844,6 +943,7 @@ class VpnController extends ChangeNotifier {
     for (final resource in workspace.awgInterfaces.where(
       (resource) => resource.enabled && !resource.deleted,
     )) {
+      if (workspace.inServiceMode(resource.serverId)) continue;
       if (missing(
         (workspace.servers[awgTarget(resource.serverId)]?['observed']
                     as List? ??
@@ -857,6 +957,7 @@ class VpnController extends ChangeNotifier {
     for (final resource in workspace.ttEndpoints.where(
       (resource) => resource.enabled && !resource.deleted,
     )) {
+      if (workspace.inServiceMode(resource.serverId)) continue;
       if (missing(
         (workspace.servers[ttTarget(resource.serverId)]?['observed'] as List? ??
                 const [])
@@ -1229,6 +1330,10 @@ class VpnController extends ChangeNotifier {
               else
                 resource,
           ],
+          serviceMode: {
+            for (final entry in workspace.serviceMode.entries)
+              if (!physical.contains(entry.key)) entry.key: entry.value,
+          },
           servers: {
             for (final entry in workspace.servers.entries)
               entry.key: !targets.contains(entry.key)
@@ -1430,8 +1535,11 @@ class VpnController extends ChangeNotifier {
   }) async {
     var prepared = false;
     await _run((token) async {
-      if (!loaded || hasRunning || pendingRevocations.isNotEmpty) {
+      if (!loaded || hasRunning || _globalRevocations.isNotEmpty) {
         throw const FormatException('vpn_busy');
+      }
+      if (_provisioningHeld(target)) {
+        throw const FormatException('vpn_service_mode');
       }
       await ensureConnected(target);
       token.check();
@@ -1496,23 +1604,41 @@ class VpnController extends ChangeNotifier {
     if (prepared && error == null) await apply();
   }
 
-  Future<void> prepare({
+  Future<void> prepare({Set<String>? serverIds, bool background = false}) =>
+      _run(
+        (token) =>
+            _prepare(token, serverIds: serverIds, background: background),
+        background: background,
+      );
+
+  Future<void> _prepare(
+    CancellationToken token, {
     Set<String>? serverIds,
     bool background = false,
-  }) => _run((token) async {
+  }) async {
     plans = [];
     await _adoptIdentities();
     final availableTargets = serverIds ?? workspace.serverIds;
     final selected = availableTargets.where((id) {
       if (serverIds != null && !serverIds.contains(id)) return false;
+      // Nothing is provisioned on a server in service mode: a bulk or
+      // background plan leaves it out (also while it returns: its exit
+      // flow plans it alone), a person's explicit one is refused.
+      if ((serverIds == null || background) && workspace.inServiceMode(id)) {
+        return false;
+      }
       final server = vpnServerId(id);
       return this.serverIds == null ||
           this.serverIds!().map(vpnServerId).contains(server);
     }).toList();
+    if (selected.any(_provisioningHeld)) {
+      throw const FormatException('vpn_service_mode');
+    }
     // A hidden revocation is retained honestly, but it must not become an
     // invisible permanent blocker. Once this explicit access change reconnects
     // the server, finish the old revocation before planning the current state.
-    if (pendingRevocations.isNotEmpty) {
+    // One left only on servers in service mode finishes on its own.
+    if (_globalRevocations.isNotEmpty) {
       final selectedServers = selected.map(vpnServerId).toSet().toList();
       await _mapServersBounded(
         selectedServers,
@@ -1568,7 +1694,7 @@ class VpnController extends ChangeNotifier {
       return VpnPlan(id, payload, connection.identity, _preview(response, id));
     }, cancellation: token);
     plans = plansList;
-  }, background: background);
+  }
 
   void dismissPlans() {
     if (!busy) {
@@ -1577,7 +1703,10 @@ class VpnController extends ChangeNotifier {
     }
   }
 
-  Future<void> apply({bool background = false}) => _run((token) async {
+  Future<void> apply({bool background = false}) =>
+      _run(_apply, background: background);
+
+  Future<void> _apply(CancellationToken token) async {
     if (plans.any(
       (p) =>
           p.preview != null && hasBlockingRevocation(vpnServerId(p.serverId)),
@@ -1585,6 +1714,9 @@ class VpnController extends ChangeNotifier {
       throw const FormatException('vpn_busy');
     }
     if (plans.isEmpty) return;
+    if (plans.any((p) => _provisioningHeld(p.serverId))) {
+      throw const FormatException('vpn_service_mode');
+    }
     final records = {...workspace.servers};
     for (final plan in plans) {
       if (canonicalJson(plan.payload) !=
@@ -1593,7 +1725,8 @@ class VpnController extends ChangeNotifier {
           )) {
         throw const FormatException('vpn_conflict');
       }
-      final previous = records[plan.serverId] ?? <String, dynamic>{};
+      // A desired payload is not an access change from a readback.
+      final previous = {...?records[plan.serverId]}..remove('serviceAccess');
       final operationId = newVpnId();
       records[plan.serverId] = {
         ...previous,
@@ -1627,7 +1760,8 @@ class VpnController extends ChangeNotifier {
     plans = [];
     await _reconcile(token);
     _scheduleReconcile();
-  }, background: background);
+  }
+
   bool diagnosticsPaused = false;
 
   bool get _hasServerReconcileWork => workspace.servers.entries.any(
@@ -1674,6 +1808,7 @@ class VpnController extends ChangeNotifier {
         template() == _lastTemplate &&
         pendingDeletions.isEmpty) {
       await _sendMissing();
+      await _serviceModeWork();
       return;
     }
     await _run((token) async {
@@ -1698,6 +1833,7 @@ class VpnController extends ChangeNotifier {
     }, background: true);
     _scheduleReconcile();
     await _sendMissing();
+    await _serviceModeWork();
   }
 
   bool _needsReconcile(String id, Map<String, dynamic> record) {
@@ -1718,7 +1854,8 @@ class VpnController extends ChangeNotifier {
     final authorized = record['authorizedPayload'];
     if (record['paused'] == true ||
         authorized == null ||
-        authorized == record['appliedPayload']) {
+        authorized == record['appliedPayload'] ||
+        _provisioningHeld(id)) {
       return false;
     }
     try {
@@ -1738,6 +1875,7 @@ class VpnController extends ChangeNotifier {
         observesOperation(id) ||
         _restoredTargets.contains(id) ||
         hasPendingRevocation(vpnServerId(id)) ||
+        _provisioningHeld(id) ||
         connection == null ||
         record['identity'] != connection.identity ||
         pending is! Map ||
@@ -1891,7 +2029,8 @@ class VpnController extends ChangeNotifier {
       if (record['pending'] == null &&
           record['paused'] != true &&
           authorized != null &&
-          record['appliedPayload'] != authorized) {
+          record['appliedPayload'] != authorized &&
+          !_provisioningHeld(id)) {
         final payload = Map<String, Object?>.from(
           jsonDecode(authorized) as Map,
         );
@@ -1962,6 +2101,23 @@ class VpnController extends ChangeNotifier {
           token,
           allowMissing: true,
         );
+        if (response.code == 'missing' &&
+            record['observingCancel'] != true &&
+            _provisioningHeld(id)) {
+          // Never submitted, and its server is in service mode now: the
+          // request waits, paused, for the exit flow to plan afresh. An
+          // access change built from a readback is dropped instead: the
+          // next round reads the server again and builds it anew.
+          await _record(id, {
+            ...record,
+            'paused': true,
+            if (record['serviceAccess'] == true) ...{
+              'pending': null,
+              'authorizedPayload': null,
+            },
+          });
+          return true;
+        }
         if (response.code == 'missing' && record['observingCancel'] != true) {
           final payload = Map<String, Object?>.from(
             jsonDecode(request.json['payload'] as String) as Map,
@@ -2173,10 +2329,15 @@ class VpnController extends ChangeNotifier {
   /// resource, a lost deletion or a reinstalled server heals without the
   /// person having to find a button.
   Future<void> _sendMissing() async {
-    if (_disposed || !loaded || busy || hasRunning) return;
+    if (_disposed || !loaded || busy || _running(includeServiceMode: false)) {
+      return;
+    }
     final now = DateTime.now();
     for (final id in workspace.servers.keys.toList()) {
-      if (missingOnServer(id) == 0 && unappliedDeletions(id) == 0) {
+      // A server in service mode, even on its way back, gets only its own
+      // flows and never feeds the shared background issue.
+      if (workspace.inServiceMode(id) ||
+          missingOnServer(id) == 0 && unappliedDeletions(id) == 0) {
         _sendIssues.remove(id);
         continue;
       }
@@ -2201,11 +2362,16 @@ class VpnController extends ChangeNotifier {
       );
       // The background issue is shared by every server; an old refusal for
       // another target must neither block this send nor be blamed on it.
-      final previous = serverSyncIssue;
+      final previous = serverSyncIssue,
+          previousServers = _serverSyncIssueServers;
       serverSyncIssue = null;
       await prepareAndApply(serverIds: {id}, background: true);
       final issue = serverSyncIssue;
-      serverSyncIssue = issue ?? previous;
+      if (issue != null) {
+        _setServerSyncIssue(issue, {id});
+      } else {
+        _setServerSyncIssue(previous, previousServers);
+      }
       if (issue != null) {
         _sendIssues[id] = issue;
       } else {
@@ -2220,6 +2386,8 @@ class VpnController extends ChangeNotifier {
   /// once its state was read and nothing is being applied: never sent, lost
   /// with a reinstalled server or removed outside the app.
   int missingOnServer(String target) {
+    // A server in service mode is not offered resources until it returns.
+    if (workspace.inServiceMode(target)) return 0;
     final observed = _settledObservations(target);
     if (observed == null) return 0;
     return _resourceIds(target, deleted: false)
@@ -2624,7 +2792,13 @@ class VpnController extends ChangeNotifier {
   }
 
   Future<void> resume(String id) => _run((token) async {
-    if (pendingRevocations.isNotEmpty) throw const FormatException('vpn_busy');
+    // A revocation on the same physical server always goes first, also one
+    // on a server returning from service mode.
+    if (_globalRevocations.isNotEmpty ||
+        hasPendingRevocation(vpnServerId(id))) {
+      throw const FormatException('vpn_busy');
+    }
+    if (_provisioningHeld(id)) throw const FormatException('vpn_service_mode');
     final r = remote(id), record = workspace.servers[id];
     if (r == null || record == null) {
       throw const FormatException('vpn_connection');
@@ -2682,6 +2856,8 @@ class VpnController extends ChangeNotifier {
   /// client-facing protocol, so a server without one serves nobody (UI-75).
   int clientCountOn(String serverId) {
     final w = workspace;
+    // A server in service mode serves nobody through client profiles.
+    if (w.inServiceMode(serverId)) return 0;
     final serves =
         w.inbounds.any(
           (r) =>
@@ -2714,8 +2890,8 @@ class VpnController extends ChangeNotifier {
         if (resource.enabled && !resource.deleted) awgTarget(resource.serverId),
       for (final resource in workspace.ttEndpoints)
         if (resource.enabled && !resource.deleted) ttTarget(resource.serverId),
-    }.toList()..sort();
-    error = await _refreshTargets(targets, token);
+    }.where((target) => !workspace.inServiceMode(target)).toList()..sort();
+    error = (await _refreshTargets(targets, token)).issue;
   });
 
   /// A saved verification may be reused only while every desired target and
@@ -2726,16 +2902,18 @@ class VpnController extends ChangeNotifier {
         serverSyncIssue != null ||
         _lastTemplate != template() ||
         _restoredTargets.isNotEmpty ||
-        pendingRevocations.isNotEmpty ||
-        hasRunning ||
-        hasObservedRunning ||
+        _globalRevocations.isNotEmpty ||
+        _running(includeServiceMode: false) ||
+        _observedRunning(includeServiceMode: false) ||
         hasUnappliedActiveAccess) {
       return false;
     }
     // A target removed from the desired catalog may still have an applied
     // resource to retire. Do not treat its absence from serverIds as success.
+    // Servers in service mode are not in profiles and are not verified here.
     if (workspace.servers.keys.any(
       (target) =>
+          !workspace.inServiceMode(target) &&
           !workspace.serverIds.contains(target) &&
           (workspace.servers[target]?['appliedPayload'] != null ||
               workspace.servers[target]?['authorizedPayload'] != null),
@@ -2743,28 +2921,8 @@ class VpnController extends ChangeNotifier {
       return false;
     }
     for (final target in workspace.serverIds) {
-      final record = workspace.servers[target];
-      final connection = remote(target);
-      final panelId = record?['panelId'];
-      final applied = record?['appliedPayload'];
-      if (record == null ||
-          panelId is! String ||
-          applied is! String ||
-          record['verifiedAt'] == null ||
-          record['observed'] is! List ||
-          record['identity'] == null ||
-          record['pending'] != null ||
-          record['paused'] == true ||
-          record['error'] != null ||
-          record['cancelRequested'] == true ||
-          record['observingCancel'] == true ||
-          (connection != null && connection.identity != record['identity']) ||
-          record['authorizedPayload'] != applied) {
-        return false;
-      }
-      if (!_readbackMatchesDesired(target, panelId, applied, record)) {
-        return false;
-      }
+      if (workspace.inServiceMode(target)) continue;
+      if (!_targetVerified(target)) return false;
     }
     for (final user in workspace.users.where((u) => u.enabled && !u.deleted)) {
       final result = results[user.id];
@@ -2778,6 +2936,32 @@ class VpnController extends ChangeNotifier {
       }
     }
     return true;
+  }
+
+  /// Whether [target] settled on the desired state: nothing in flight, the
+  /// applied payload is the approved one and its confirmed readback equals
+  /// the desired payload.
+  bool _targetVerified(String target) {
+    final record = workspace.servers[target];
+    final connection = remote(target);
+    final panelId = record?['panelId'];
+    final applied = record?['appliedPayload'];
+    if (record == null ||
+        panelId is! String ||
+        applied is! String ||
+        record['verifiedAt'] == null ||
+        record['observed'] is! List ||
+        record['identity'] == null ||
+        record['pending'] != null ||
+        record['paused'] == true ||
+        record['error'] != null ||
+        record['cancelRequested'] == true ||
+        record['observingCancel'] == true ||
+        (connection != null && connection.identity != record['identity']) ||
+        record['authorizedPayload'] != applied) {
+      return false;
+    }
+    return _readbackMatchesDesired(target, panelId, applied, record);
   }
 
   /// Whether [target]'s applied payload and confirmed readback equal the
@@ -2871,6 +3055,7 @@ class VpnController extends ChangeNotifier {
     } catch (_) {
       applyIssue = 'vpn_failed';
     }
+    Set<String>? refreshFailed;
     await _run((token) async {
       final targets = <String>{
         for (final resource in workspace.inbounds)
@@ -2889,12 +3074,16 @@ class VpnController extends ChangeNotifier {
           if (workspace.ttEndpoints.any((i) => i.serverId == serverId))
             ttTarget(serverId),
         ],
-      }.toList()..sort();
-      error = await _refreshTargets(targets, token);
+        // A server in service mode is neither read nor blamed here.
+      }.where((target) => !workspace.inServiceMode(target)).toList()..sort();
+      final refreshed = await _refreshTargets(targets, token);
+      error = refreshed.issue;
+      refreshFailed = refreshed.failed;
     });
     final issue = applyIssue ?? error;
     error = issue;
-    serverSyncIssue = issue;
+    // Only a failed read names its servers; a plan or apply issue does not.
+    _setServerSyncIssue(issue, applyIssue == null ? refreshFailed : null);
     _notify();
     return ServerProfileSyncResult(revision: revision, issue: issue);
   }
@@ -2934,13 +3123,16 @@ class VpnController extends ChangeNotifier {
     }
   }
 
-  Future<String?> _refreshTargets(
+  /// Reads [targets] and rebuilds profiles. The first issue is returned
+  /// with every target that failed.
+  Future<({String? issue, Set<String> failed})> _refreshTargets(
     List<String> targets,
     CancellationToken token,
   ) async {
+    const none = (issue: null, failed: <String>{});
     if (targets.isEmpty) {
       await _profiles();
-      return null;
+      return none;
     }
 
     // 1. Pre-connect all distinct physical servers concurrently
@@ -2950,14 +3142,14 @@ class VpnController extends ChangeNotifier {
         await ensureConnected(serverId);
       } catch (_) {}
     }, cancellation: token);
-    if (_disposed) return null;
+    if (_disposed) return none;
     token.check();
 
     // 2. Poll all targets concurrently
     final results = await Future.wait(
       targets.map((target) => _pollTarget(target, token)),
     );
-    if (_disposed) return null;
+    if (_disposed) return none;
 
     // 3. Rethrow fatal merge/storage failures
     for (final res in results) {
@@ -2971,11 +3163,13 @@ class VpnController extends ChangeNotifier {
     final recoveredAwg = <AwgInterface>[];
     final recoveredTt = <TrustTunnelEndpoint>[];
     String? firstIssue;
+    final failed = <String>{};
     var serverChanges = false;
 
     for (final res in results) {
       if (res.error != null) {
         firstIssue ??= res.error;
+        failed.add(res.target);
         continue;
       }
       final id = res.target;
@@ -3046,7 +3240,7 @@ class VpnController extends ChangeNotifier {
 
     // 5. Rebuild client profiles once for all refreshed servers
     await _profiles();
-    return firstIssue;
+    return (issue: firstIssue, failed: failed);
   }
 
   Future<void> _profiles({String? onlyUserId}) async {

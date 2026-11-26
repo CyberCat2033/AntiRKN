@@ -341,6 +341,30 @@ void main() {
     },
   );
 
+  test('a file backup keeps the service mode of servers', () async {
+    final db = open('service-mode');
+    final mode = ServerServiceMode(
+      state: ServerServiceState.returning,
+      since: DateTime.utc(2026, 11, 26, 9, 30),
+    );
+    final saved = await db.readVpn();
+    await db.writeVpnWorkspace(
+      VpnWorkspace(
+        id: saved.workspaceId ?? newVpnId(),
+        serviceMode: {'server-a': mode},
+      ),
+      expectedRevision: saved.revision,
+    );
+    final bytes = await db.createBackup(password);
+    final other = open('service-mode-restored');
+    await other.restoreBackup(await other.prepareRestore(bytes, password));
+    await other.close();
+    final restored = VpnWorkspace.decode(
+      (await open('service-mode-restored').readVpn()).source!,
+    );
+    expect(restored.serviceModeOf('tt/server-a'), mode);
+  });
+
   test(
     'empty workspace is portable and input limits fail before expensive decryption',
     () async {

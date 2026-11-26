@@ -72,3 +72,34 @@ String clientProxyName(
   }
   throw ProfileAccessException('vpn_pending_resource', null);
 }
+
+/// The names [userId]'s proxies on servers in service mode would have. Those
+/// resources are left out of the profile; a template group listing one of
+/// them drops the reference (`hiddenProxies` of the profile compiler).
+Set<String> serviceModeProxyNames(
+  VpnWorkspace workspace,
+  String userId, {
+  Map<String, String> serverNames = const {},
+}) {
+  if (workspace.serviceMode.isEmpty ||
+      !workspace.users.any((u) => u.id == userId)) {
+    return const {};
+  }
+  return {
+    for (final id in [
+      for (final r in workspace.inbounds)
+        if (r.enabled &&
+            !r.deleted &&
+            !r.internal &&
+            workspace.inServiceMode(r.serverId))
+          r.id,
+      for (final r in workspace.awgInterfaces)
+        if (r.enabled && !r.deleted && workspace.inServiceMode(r.serverId))
+          r.id,
+      for (final r in workspace.ttEndpoints)
+        if (r.enabled && !r.deleted && workspace.inServiceMode(r.serverId))
+          r.id,
+    ])
+      clientProxyName(workspace, userId, id, serverNames),
+  };
+}

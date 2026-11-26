@@ -71,9 +71,15 @@
       "not": {"required": ["lastInfo"]}
     },
     "vpnWorkspace": {
-      "description": "Document vpn-workspace-v1: workspace id, clients, deleted clients until fully revoked, resource specifications set by the user, per-target server bindings and unfinished operations.",
+      "description": "Document vpn-workspace-v1: workspace id, clients, deleted clients until fully revoked, resource specifications set by the user, per-target server bindings, unfinished operations and the service mode of physical servers.",
       "type": "object",
       "properties": {
+        "serviceMode": {
+          "description": "Physical servers in service mode, by catalog id (never a target form). Intent: it travels whole and is never local cache. Present only when not empty; then the document version is 6.",
+          "type": "object",
+          "maxProperties": 1000,
+          "additionalProperties": {"$ref": "#/$defs/vpnServiceMode"}
+        },
         "servers": {
           "type": "object",
           "additionalProperties": {"$ref": "#/$defs/vpnServerRecord"}
@@ -81,6 +87,21 @@
         "profiles": {
           "type": "object",
           "additionalProperties": {"$ref": "#/$defs/vpnProfile"}
+        }
+      }
+    },
+    "vpnServiceMode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "state", "since"],
+      "properties": {
+        "version": {"const": 1},
+        "state": {"enum": ["active", "returning"]},
+        "since": {"type": "string", "format": "date-time"},
+        "executor": {
+          "description": "Device applying the way back; only while returning. Only it resumes and retries the exit; another device takes it over only on an explicit retry.",
+          "type": "string",
+          "pattern": "^[a-f0-9]{32}$"
         }
       }
     },

@@ -142,7 +142,10 @@ extension VpnAttention on VpnController {
         }
         final record = e.value as Map;
         final error = record['error'] as String?;
-        if (!ownsDeletion(user)) {
+        if (workspace.inServiceMode(target)) {
+          // Retried on its own whenever the server is reachable: it is
+          // shown, but it holds nothing and asks nothing of the person.
+        } else if (!ownsDeletion(user)) {
           need('vpn_deletion_other_device', VpnAttentionAction.continueHere);
         } else if (needsRestoreReview(target)) {
           need('vpn_restore_review', VpnAttentionAction.continueHere);
@@ -173,6 +176,20 @@ extension VpnAttention on VpnController {
       if (observesOperation(id)) {
         targets.add(
           VpnTargetState(id, observationErrors[id] ?? 'vpn_observing'),
+        );
+        continue;
+      }
+      // Work left on a server in service mode is held there, never blocking:
+      // a job already running still shows its progress.
+      if (workspace.inServiceMode(id)) {
+        targets.add(
+          job != null && !job.terminal
+              ? VpnTargetState(
+                  id,
+                  job.status,
+                  progress: job.count > 0 ? job.checkpoint / job.count : null,
+                )
+              : VpnTargetState(id, 'vpn_service_mode'),
         );
         continue;
       }

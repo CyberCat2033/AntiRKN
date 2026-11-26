@@ -61,7 +61,10 @@ String vpnMessage(AppLocalizations l, String code) => switch (code) {
   'awg_pool_conflict' => l.awgPoolConflict,
   'awg_pool_full' => l.awgPoolFull,
   'awg_port_mapping' => l.awgDockerPortHelp,
-  'awg_invalid' || 'vpn_user_invalid' || 'vless_invalid' => l.vpnInvalid,
+  'awg_invalid' ||
+  'vpn_user_invalid' ||
+  'vpn_service_mode_invalid' ||
+  'vless_invalid' => l.vpnInvalid,
   'vpn_connection' => l.vpnConnection,
   'vpn_runner_busy' => l.runnerBusy,
   'vpn_runner_not_ready' => l.vpnRunnerNotReady,
@@ -69,6 +72,8 @@ String vpnMessage(AppLocalizations l, String code) => switch (code) {
   'vpn_deletion_other_device' => l.vpnDeletionOtherDevice,
   'vpn_restore_review' => l.vpnRestoreReview,
   'vpn_waiting_removal' => l.vpnWaitingRemoval,
+  'vpn_service_mode' => l.vpnServiceMode,
+  'vpn_service_mode_other_device' => l.vpnServiceModeOtherDevice,
   'vpn_identity' => l.vpnIdentity,
   'vpn_storage' => l.vpnStorage,
   'vpn_storage_conflict' => l.vpnStorageConflict,

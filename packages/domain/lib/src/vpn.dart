@@ -6,6 +6,7 @@ import 'dart:math';
 import 'network/ip_address.dart';
 import 'vless_contract.g.dart';
 import 'runner.dart';
+import 'service_mode.dart';
 
 String newVpnId() => List.generate(
   16,
@@ -257,7 +258,9 @@ final class VpnWorkspace {
     List<TrustTunnelEndpoint> ttEndpoints = const [],
     Map<String, Map<String, dynamic>> servers = const {},
     Map<String, Map<String, dynamic>> profiles = const {},
+    Map<String, ServerServiceMode> serviceMode = const {},
   }) : users = List.unmodifiable(users),
+       serviceMode = Map.unmodifiable(serviceMode),
        inbounds = List.unmodifiable(inbounds),
        awgInterfaces = List.unmodifiable(awgInterfaces),
        ttEndpoints = List.unmodifiable(ttEndpoints),
@@ -285,12 +288,20 @@ final class VpnWorkspace {
             inbounds.length + awgInterfaces.length + ttEndpoints.length) {
       throw const FormatException('vpn_duplicate');
     }
+    if (serviceMode.length > 1000 ||
+        !serviceMode.keys.every(validServiceModeServerId)) {
+      throw const FormatException('vpn_service_mode_invalid');
+    }
   }
   factory VpnWorkspace.empty() => VpnWorkspace(id: newVpnId());
   factory VpnWorkspace.decode(String raw) {
     final j = jsonDecode(raw) as Map;
-    if (![1, 2, 3, 4, 5].contains(j['version'])) {
+    if (![1, 2, 3, 4, 5, 6].contains(j['version'])) {
       throw const FormatException('vpn_version');
+    }
+    final serviceMode = j['serviceMode'];
+    if (serviceMode != null && serviceMode is! Map) {
+      throw const FormatException('vpn_service_mode_invalid');
     }
     return VpnWorkspace(
       id: j['id'] as String,
@@ -314,6 +325,9 @@ final class VpnWorkspace {
       servers: (j['servers'] as Map).map(
         (k, v) => MapEntry(k as String, Map<String, dynamic>.from(v as Map)),
       ),
+      serviceMode: (serviceMode as Map? ?? const {}).map(
+        (k, v) => MapEntry(k as String, ServerServiceMode.fromJson(v)),
+      ),
     );
   }
   final String id;
@@ -322,6 +336,18 @@ final class VpnWorkspace {
   final List<AwgInterface> awgInterfaces;
   final List<TrustTunnelEndpoint> ttEndpoints;
   final Map<String, Map<String, dynamic>> servers, profiles;
+
+  /// Physical servers in service mode, by catalog id. Absent: not in it.
+  final Map<String, ServerServiceMode> serviceMode;
+
+  /// The service mode of the physical server behind [target], which may be
+  /// a catalog id or any target form (`awg/<id>`, `tt/<id>`).
+  ServerServiceMode? serviceModeOf(String target) =>
+      serviceMode[vpnServerId(target)];
+
+  /// Whether [target]'s physical server is in service mode, `active` or
+  /// `returning`: either way it stays out of profiles and provisioning.
+  bool inServiceMode(String target) => serviceModeOf(target) != null;
 
   late final Map<String, VpnUser> _userMap = {for (final u in users) u.id: u};
 
@@ -338,14 +364,17 @@ final class VpnWorkspace {
   }
 
   String encode() => jsonEncode({
-    'version':
-        users.any(
-          (user) =>
-              user.deleted &&
-              (user.deletion!['targets'] as Map).values.any(
-                (target) => target['status'] == 'abandoned',
-              ),
-        )
+    // A newer version only when the document holds what an older reader
+    // would misread; older readers then refuse it instead of dropping it.
+    'version': serviceMode.isNotEmpty
+        ? 6
+        : users.any(
+            (user) =>
+                user.deleted &&
+                (user.deletion!['targets'] as Map).values.any(
+                  (target) => target['status'] == 'abandoned',
+                ),
+          )
         ? 5
         : users.any((u) => u.deleted)
         ? 4
@@ -357,6 +386,10 @@ final class VpnWorkspace {
     'ttEndpoints': ttEndpoints.map((e) => e.toJson()).toList(),
     'servers': servers,
     'profiles': profiles,
+    if (serviceMode.isNotEmpty)
+      'serviceMode': {
+        for (final e in serviceMode.entries) e.key: e.value.toJson(),
+      },
   });
   VpnWorkspace copy({
     List<VpnUser>? users,
@@ -365,6 +398,7 @@ final class VpnWorkspace {
     List<TrustTunnelEndpoint>? ttEndpoints,
     Map<String, Map<String, dynamic>>? servers,
     Map<String, Map<String, dynamic>>? profiles,
+    Map<String, ServerServiceMode>? serviceMode,
   }) => VpnWorkspace(
     id: id,
     users: users ?? this.users,
@@ -373,6 +407,7 @@ final class VpnWorkspace {
     ttEndpoints: ttEndpoints ?? this.ttEndpoints,
     servers: servers ?? this.servers,
     profiles: profiles ?? this.profiles,
+    serviceMode: serviceMode ?? this.serviceMode,
   );
   Map<String, Object?> desired(String serverId, String panelId) {
     final owner = resourceWorkspaceId(serverId);

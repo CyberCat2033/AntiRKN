@@ -500,6 +500,12 @@ abstract class AppLocalizations {
   /// **'The group references an unknown node or group.'**
   String get diagnosticUnknownProxyReference;
 
+  /// No description provided for @diagnosticServiceModeGroupEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'The group lists only nodes of servers in service mode and would be empty. The previous profile stays published; add another node to the group or bring a server back.'**
+  String get diagnosticServiceModeGroupEmpty;
+
   /// No description provided for @diagnosticUnknownRuleTarget.
   ///
   /// In en, this message translates to:
@@ -2875,6 +2881,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Waiting for the client removal to finish on this server.'**
   String get vpnWaitingRemoval;
+
+  /// No description provided for @vpnServiceMode.
+  ///
+  /// In en, this message translates to:
+  /// **'The server is in service mode: clients are not added to it and its changes wait until it returns.'**
+  String get vpnServiceMode;
+
+  /// No description provided for @vpnServiceModeOtherDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Another device is bringing this server back from service mode. Retry the return here to continue on this device.'**
+  String get vpnServiceModeOtherDevice;
 
   /// No description provided for @vpnStorage.
   ///

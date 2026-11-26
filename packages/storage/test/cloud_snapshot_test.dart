@@ -359,6 +359,52 @@ void main() {
     },
   );
 
+  test(
+    'service mode is intent: it survives a v5 pull and its change uploads',
+    () async {
+      final a = open('a', 41);
+      final fixture = await fillSyntheticWorkspace(a);
+      final server = fixture.serverIds[0];
+      final mode = ServerServiceMode(
+        state: ServerServiceState.active,
+        since: DateTime.utc(2026, 11, 26, 10),
+      );
+      final (stored, revision) = await _readVpn(a);
+      final workspace = VpnWorkspace.decode(jsonEncode(stored));
+      await a.writeVpnWorkspace(
+        workspace.copy(serviceMode: {server: mode}),
+        expectedRevision: revision,
+      );
+      await _exchange(await session(a));
+      final uploaded = _vpnOf(await openFakeSnapshot(remote));
+      expect(uploaded['version'], 6);
+      expect(uploaded['serviceMode'], {server: mode.toJson()});
+
+      final b = await pull('b', 42);
+      final pulled = VpnWorkspace.decode((await b.readVpn()).source!);
+      expect(pulled.serviceModeOf(server), mode);
+      expect(pulled.inServiceMode(awgTarget(server)), isTrue);
+      expect(pulled.inServiceMode(fixture.serverIds[1]), isFalse);
+
+      // Leaving service mode on one device is intent for the others too.
+      final writes = remote.writes;
+      final (current, next) = await _readVpn(b);
+      await b.writeVpnWorkspace(
+        VpnWorkspace.decode(jsonEncode(current)).copy(serviceMode: const {}),
+        expectedRevision: next,
+      );
+      await _exchange(await session(b));
+      expect(remote.writes, writes + 1);
+      final cleared = _vpnOf(await openFakeSnapshot(remote));
+      expect(cleared.containsKey('serviceMode'), isFalse);
+      final restored = await pull('a', 41, db: a);
+      expect(
+        VpnWorkspace.decode((await restored.readVpn()).source!).serviceMode,
+        isEmpty,
+      );
+    },
+  );
+
   test('a v4 cloud snapshot is read and the next upload writes v5', () async {
     const userId = fixtureUserId;
     await sealFakeSnapshot(remote, {

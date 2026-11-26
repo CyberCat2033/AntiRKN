@@ -29,6 +29,7 @@ extension DiagnosticMessages on AppLocalizations {
     'unsupported_filter_preview' => diagnosticUnsupportedFilterPreview,
     'provider_snapshot_required' => diagnosticProviderSnapshotRequired,
     'unknown_proxy_reference' => diagnosticUnknownProxyReference,
+    'service_mode_group_empty' => diagnosticServiceModeGroupEmpty,
     'unknown_rule_target' => diagnosticUnknownRuleTarget,
     'unknown_rule_provider' ||
     'unknown_dns_rule_provider' => diagnosticUnknownRuleProvider,

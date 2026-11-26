@@ -15,6 +15,7 @@ export 'src/runner.dart';
 export 'src/server_operation.dart';
 export 'src/component_updates.dart';
 export 'src/vpn.dart';
+export 'src/service_mode.dart';
 export 'src/client_login.dart';
 export 'src/privileges.dart';
 export 'src/workspace.dart';

@@ -4,18 +4,27 @@ import 'proxy_name.dart';
 import 'adopted_proxy.dart';
 import 'access_diagnostic.dart';
 
+/// With [skipServiceMode], resources of servers in service mode are left out
+/// before any access check, so their pending state never blocks a profile.
+/// Proxy names are still computed over every resource.
 List<PreparedProxy> ttUserAccesses(
   VpnWorkspace workspace,
   String userId, {
   Map<String, String> serverNames = const {},
   void Function(ProfileAccessException)? onPending,
+  bool skipServiceMode = false,
 }) {
   final user = workspace.users
       .where((u) => u.id == userId && u.enabled)
       .firstOrNull;
   if (user == null) return [];
   final result = <PreparedProxy>[];
-  for (final r in workspace.ttEndpoints.where((r) => r.enabled && !r.deleted)) {
+  for (final r in workspace.ttEndpoints.where(
+    (r) =>
+        r.enabled &&
+        !r.deleted &&
+        !(skipServiceMode && workspace.inServiceMode(r.serverId)),
+  )) {
     final subject = accessDiagnosticSubject(
       'TrustTunnel',
       r.serverId,

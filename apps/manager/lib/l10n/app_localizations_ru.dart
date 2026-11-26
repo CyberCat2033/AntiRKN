@@ -237,6 +237,10 @@ class AppLocalizationsRu extends AppLocalizations {
       'Группа ссылается на неизвестный узел или группу.';
 
   @override
+  String get diagnosticServiceModeGroupEmpty =>
+      'В группе только узлы серверов в сервисном режиме, она осталась бы пустой. Опубликованным остаётся прежний профиль; добавьте в группу другой узел или верните сервер.';
+
+  @override
   String get diagnosticUnknownRuleTarget =>
       'Правило ссылается на неизвестный узел или группу.';
 
@@ -1594,6 +1598,14 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get vpnWaitingRemoval =>
       'Ожидает завершения удаления клиента на этом сервере.';
+
+  @override
+  String get vpnServiceMode =>
+      'Сервер в сервисном режиме: клиенты на него не добавляются, изменения ждут его возвращения.';
+
+  @override
+  String get vpnServiceModeOtherDevice =>
+      'Сервер возвращает из сервисного режима другое устройство. Повторите возврат здесь, чтобы продолжить на этом устройстве.';
 
   @override
   String get vpnStorage =>

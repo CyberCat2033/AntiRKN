@@ -1214,4 +1214,416 @@ void main() {
       expect(c.currentJob('one'), isNull);
     });
   });
+
+  group('service mode', () {
+    const carol = 'cccccccccccccccccccccccccccccccc';
+    Iterable<String> proxyNames(VpnController c, String user, String server) =>
+        RegExp(
+          'VLESS-[A-Za-z]+_Server $server[^\\s"\',}]*',
+        ).allMatches(c.results[user]!.yaml!).map((m) => m.group(0)!);
+
+    Future<(VpnController, MemoryVpn, Map<String, Remote>)> applied() async {
+      final store = MemoryVpn();
+      final remotes = {'one': Remote(store), 'two': Remote(store)};
+      final c = controller(store, remotes);
+      addTearDown(c.dispose);
+      await setup(c);
+      await c.prepareAndApply();
+      expect(c.error, isNull);
+      expect(c.hasCurrentVerifiedProfiles, isTrue);
+      return (c, store, remotes);
+    }
+
+    test(
+      'entering leaves profiles at once and keeps other proxy names',
+      () async {
+        final (c, store, remotes) = await applied();
+        final names = proxyNames(c, alice, 'one').toList();
+        expect(names, hasLength(2));
+        expect(proxyNames(c, alice, 'two'), hasLength(2));
+        final actions = remotes['two']!.actions.length;
+
+        await c.enterServiceMode('two');
+
+        expect(c.error, isNull);
+        expect(remotes['two']!.actions, hasLength(actions));
+        expect(c.serviceModeOf('awg/two')?.state, ServerServiceState.active);
+        expect(c.results[alice]!.hasBlockingErrors, isFalse);
+        expect(proxyNames(c, alice, 'two'), isEmpty);
+        expect(proxyNames(c, alice, 'one'), names);
+        expect(
+          c.workspace.profiles[alice]!['yaml'],
+          isNot(contains('Server two')),
+        );
+        expect(c.clientCountOn('two'), 0);
+        expect(c.clientCountOn('one'), 2);
+        expect(c.hasCurrentVerifiedProfiles, isTrue);
+        // The change is saved and synced with the workspace.
+        final saved = VpnWorkspace.decode(store.raw!);
+        expect(saved.serviceModeOf('two')?.state, ServerServiceState.active);
+        final reloaded = controller(store, remotes);
+        addTearDown(reloaded.dispose);
+        await reloaded.load();
+        expect(reloaded.serviceModeOf('two'), saved.serviceModeOf('two'));
+        expect(proxyNames(reloaded, alice, 'two'), isEmpty);
+      },
+    );
+
+    test(
+      'a new client is provisioned only outside it and its profile compiles',
+      () async {
+        final (c, _, remotes) = await applied();
+        await c.enterServiceMode('two');
+        final submitted = remotes['two']!.submissions.length;
+        final actions = remotes['two']!.actions.length;
+
+        await c.saveUser(VpnUser(id: carol, login: 'carol', name: 'Carol'));
+        await c.prepareAndApply();
+
+        expect(c.error, isNull);
+        expect(remotes['two']!.actions, hasLength(actions));
+        expect(remotes['two']!.submissions, hasLength(submitted));
+        expect(
+          remotes['one']!.submissions.values.last['users'],
+          contains(containsPair('id', carol)),
+        );
+        // Server two never saw carol, yet nothing waits for it.
+        final result = c.results[carol]!;
+        expect(result.hasBlockingErrors, isFalse);
+        expect(result.yaml, contains('cccccccc-0000'));
+        expect(proxyNames(c, carol, 'two'), isEmpty);
+        expect(c.hasUnappliedActiveAccess, isFalse);
+        expect(c.missingOnServer('two'), 0);
+        expect(c.hasCurrentVerifiedProfiles, isTrue);
+        expect(c.serverSyncIssue, isNull);
+
+        // A person's explicit plan for it is refused with its own code.
+        await c.prepareAndApply(serverIds: {'two'});
+        expect(c.error, 'vpn_service_mode');
+        expect(remotes['two']!.actions, hasLength(actions));
+      },
+    );
+
+    test('an approved payload left for it is not sent on reconnect', () async {
+      final (c, _, remotes) = await applied();
+      final two = remotes.remove('two')!;
+      await c.saveUser(VpnUser(id: carol, login: 'carol', name: 'Carol'));
+      await c.prepareAndApply();
+      final record = c.workspace.servers['two']!;
+      expect(record['authorizedPayload'], isNot(record['appliedPayload']));
+      expect(c.hasCurrentVerifiedProfiles, isFalse);
+
+      await c.enterServiceMode('two');
+      expect(c.hasCurrentVerifiedProfiles, isTrue);
+      remotes['two'] = two;
+      final actions = two.actions.length;
+      await c.reconcile();
+      await c.syncAllServersAndProfiles();
+
+      expect(two.actions, hasLength(actions));
+      expect(c.serverSyncIssue, isNull);
+      expect(c.results[carol]!.hasBlockingErrors, isFalse);
+      expect(c.attention.every((item) => !item.needsUser), isTrue);
+      expect(
+        c.attention.expand((item) => item.targets).map((t) => t.code),
+        everyElement('vpn_service_mode'),
+      );
+    });
+
+    VpnUser client(String id, {bool enabled = true}) => VpnUser(
+      id: id,
+      login: {alice: 'alice', bob: 'bob', carol: 'carol'}[id]!,
+      name: {alice: 'Alice', bob: 'Bob', carol: 'Carol'}[id]!,
+      enabled: enabled,
+    );
+    Matcher hasClient(String id, bool enabled) =>
+        contains(equals({'id': id, 'enabled': enabled}));
+    List<Object?> sentUsers(Remote remote) =>
+        remote.submissions.values.last['users'] as List;
+    void finishJobs(Remote remote) {
+      remote.running = false;
+      for (final job in remote.jobs.values) {
+        job['status'] = 'succeeded';
+        job['checkpoint'] = job['count'];
+      }
+    }
+
+    test(
+      'a disabled client reaches it from a readback that adds nobody',
+      () async {
+        final (c, _, remotes) = await applied();
+        final two = remotes['two']!;
+        await c.enterServiceMode('two');
+        // Carol exists only outside service mode.
+        await c.saveUser(client(carol));
+        await c.prepareAndApply();
+        final submitted = two.submissions.length;
+
+        await c.saveUser(client(alice, enabled: false));
+        await c.prepareAndApply();
+        expect(c.serviceAccessWaiting('two'), 1);
+        await c.reconcile();
+
+        expect(c.error, isNull);
+        expect(c.serverSyncIssue, isNull);
+        expect(two.submissions, hasLength(submitted + 1));
+        final sent = two.submissions.values.last;
+        expect(sent.containsKey('revokedUsers'), isFalse);
+        expect(sentUsers(two), [
+          {'id': alice, 'enabled': false},
+          {'id': bob, 'enabled': true},
+        ]);
+        expect(
+          two.state.expand((r) => r['clients'] as List).map((u) => u['id']),
+          isNot(contains(carol)),
+        );
+        expect(c.serviceAccessWaiting('two'), 0);
+        expect(c.serviceAccessIssue('two'), isNull);
+        expect(c.serviceModeOf('two')?.state, ServerServiceState.active);
+        expect(c.hasCurrentVerifiedProfiles, isTrue);
+        expect(c.attention.every((item) => !item.needsUser), isTrue);
+
+        // Enabled again: the same way, still without carol.
+        await c.saveUser(client(alice));
+        await c.prepareAndApply();
+        await c.reconcile();
+        expect(two.submissions, hasLength(submitted + 2));
+        expect(sentUsers(two), [
+          {'id': alice, 'enabled': true},
+          {'id': bob, 'enabled': true},
+        ]);
+        expect(c.serviceAccessWaiting('two'), 0);
+      },
+    );
+
+    test('re-enabling a client it lacks sends nothing there', () async {
+      final (c, _, remotes) = await applied();
+      final two = remotes['two']!;
+      await c.enterServiceMode('two');
+      await c.saveUser(client(carol, enabled: false));
+      await c.prepareAndApply();
+      final actions = two.actions.length;
+
+      await c.saveUser(client(carol));
+      await c.prepareAndApply();
+      await c.reconcile();
+
+      expect(c.error, isNull);
+      expect(two.actions, hasLength(actions));
+      expect(c.serviceAccessWaiting('two'), 0);
+      expect(sentUsers(remotes['one']!), hasClient(carol, true));
+    });
+
+    test(
+      'a disable for it offline blocks nothing and is retried on reconnect',
+      () async {
+        final (c, store, remotes) = await applied();
+        await c.enterServiceMode('two');
+        final two = remotes.remove('two')!;
+        final submitted = two.submissions.length;
+
+        await c.saveUser(client(alice, enabled: false));
+        await c.prepareAndApply();
+        await c.reconcile();
+
+        expect(c.error, isNull);
+        expect(c.serverSyncIssue, isNull);
+        expect(sentUsers(remotes['one']!), hasClient(alice, false));
+        expect(c.serviceAccessWaiting('two'), 1);
+        expect(c.serviceAccessIssue('two'), 'vpn_connection');
+        expect(c.hasCurrentVerifiedProfiles, isTrue);
+        expect((await c.syncAllServersAndProfiles()).issue, isNull);
+        expect(c.attention.every((item) => !item.needsUser), isTrue);
+
+        // A restart keeps the intent: it is the client's own saved state.
+        final restarted = controller(store, remotes);
+        addTearDown(restarted.dispose);
+        await restarted.load();
+        expect(restarted.serviceAccessWaiting('two'), 1);
+        remotes['two'] = two;
+        await restarted.reconcile();
+
+        expect(restarted.serverSyncIssue, isNull);
+        expect(two.submissions, hasLength(submitted + 1));
+        expect(sentUsers(two), [
+          {'id': alice, 'enabled': false},
+          {'id': bob, 'enabled': true},
+        ]);
+        expect(restarted.serviceAccessWaiting('two'), 0);
+        expect(restarted.serviceAccessIssue('two'), isNull);
+      },
+    );
+
+    test(
+      'a deletion revokes it later without holding the file or other servers',
+      () async {
+        final (c, _, remotes) = await applied();
+        await c.enterServiceMode('two');
+        final two = remotes.remove('two')!;
+        final removedFiles = <String>[];
+        c.deletePublishedFile = (user, guard) async {
+          await guard();
+          removedFiles.add(user.id);
+        };
+        VpnUser deleted() =>
+            c.workspace.users.singleWhere((u) => u.id == alice);
+
+        await c.deleteUser(
+          deleted(),
+          file: {
+            'accountKey': 'account',
+            'fileId': 'file',
+            'registryId': 'registry',
+            'folderId': 'folder',
+          },
+        );
+
+        expect(c.error, isNull);
+        // Server two still owes the revocation; the Drive file is gone.
+        expect(removedFiles, [alice]);
+        expect(deleted().deletion!['file']['status'], 'deleted');
+        expect(deleted().deletionComplete, isFalse);
+        expect(c.hasPendingRevocation('two'), isTrue);
+        expect(c.hasPendingRevocation('one'), isFalse);
+        expect(c.hasRunning, isFalse);
+
+        // Other servers' plans go on and publication is not held.
+        await c.saveUser(client(carol));
+        await c.prepareAndApply();
+        expect(c.error, isNull);
+        expect(sentUsers(remotes['one']!), hasClient(carol, true));
+        expect(c.hasCurrentVerifiedProfiles, isTrue);
+        expect(c.attention.every((item) => !item.needsUser), isTrue);
+
+        remotes['two'] = two;
+        await c.reconcile();
+
+        expect(c.error, isNull);
+        expect(deleted().deletionComplete, isTrue);
+        expect(two.submissions.values.last['revokedUsers'], [alice]);
+        expect(
+          two.state
+              .expand((r) => r['clients'] as List)
+              .where((u) => u['id'] == alice)
+              .map((u) => u['enabled']),
+          everyElement(false),
+        );
+        // Carol is still not provisioned there.
+        expect(
+          sentUsers(two).map((u) => (u as Map)['id']),
+          isNot(contains(carol)),
+        );
+        expect(removedFiles, [alice]);
+      },
+    );
+
+    test(
+      'the way back adds missing clients and ends only after readback',
+      () async {
+        final (c, _, remotes) = await applied();
+        final two = remotes['two']!;
+        await c.enterServiceMode('two');
+        await c.saveUser(client(carol));
+        await c.prepareAndApply();
+        expect(c.serviceModeExitNewClients('two'), 1);
+        two.running = true;
+
+        await c.exitServiceMode('two');
+
+        expect(c.error, isNull);
+        expect(c.serviceModeOf('two')?.state, ServerServiceState.returning);
+        expect(c.serviceModeExiting('two'), isTrue);
+        expect(c.serviceModeExitIssue('two'), isNull);
+        expect(sentUsers(two), hasClient(carol, true));
+        // Until its readback confirms it, it stays out of profiles and
+        // holds nothing.
+        expect(proxyNames(c, carol, 'two'), isEmpty);
+        expect(c.hasCurrentVerifiedProfiles, isTrue);
+        expect(c.serverSyncIssue, isNull);
+
+        finishJobs(two);
+        await c.reconcile();
+
+        expect(c.serverSyncIssue, isNull);
+        expect(c.serviceModeOf('two'), isNull);
+        expect(c.serviceModeExiting('two'), isFalse);
+        expect(proxyNames(c, carol, 'two'), hasLength(2));
+        expect(proxyNames(c, alice, 'two'), hasLength(2));
+        expect(c.clientCountOn('two'), 3);
+        expect(c.hasCurrentVerifiedProfiles, isTrue);
+      },
+    );
+
+    test(
+      'a failed way back stays returning and resumes after a restart',
+      () async {
+        final (c, store, remotes) = await applied();
+        final two = remotes.remove('two')!;
+        await c.enterServiceMode('two');
+
+        // Offline: the readback it has from before is not enough.
+        await c.exitServiceMode('two');
+        expect(c.serviceModeOf('two')?.state, ServerServiceState.returning);
+        expect(c.serviceModeExitIssue('two'), 'vpn_connection');
+        expect(proxyNames(c, alice, 'two'), isEmpty);
+
+        // Reachable, but its plan fails: still returning, nothing global.
+        remotes['two'] = two;
+        await c.saveUser(client(carol));
+        await c.prepareAndApply();
+        two.failPlan = true;
+        await c.exitServiceMode('two');
+        expect(c.error, isNull);
+        expect(c.serviceModeOf('two')?.state, ServerServiceState.returning);
+        expect(c.serviceModeExitIssue('two'), 'vpn_connection');
+        expect(c.serverSyncIssue, isNull);
+        expect(c.hasCurrentVerifiedProfiles, isTrue);
+        expect(proxyNames(c, carol, 'two'), isEmpty);
+
+        two.failPlan = false;
+        final restarted = controller(store, remotes);
+        addTearDown(restarted.dispose);
+        await restarted.load();
+        expect(restarted.serviceModeExiting('two'), isTrue);
+        await restarted.reconcile();
+
+        expect(restarted.serverSyncIssue, isNull);
+        expect(restarted.serviceModeOf('two'), isNull);
+        expect(sentUsers(two), hasClient(carol, true));
+        expect(proxyNames(restarted, carol, 'two'), hasLength(2));
+      },
+    );
+
+    test('the way back can be cancelled', () async {
+      final (c, _, remotes) = await applied();
+      remotes.remove('two');
+      await c.enterServiceMode('two');
+      await c.exitServiceMode('two');
+      expect(c.serviceModeOf('two')?.state, ServerServiceState.returning);
+
+      await c.cancelServiceModeExit('two');
+
+      expect(c.error, isNull);
+      expect(c.serviceModeOf('two')?.state, ServerServiceState.active);
+      expect(c.serviceModeExiting('two'), isFalse);
+      expect(c.serviceModeExitIssue('two'), isNull);
+    });
+
+    test('entering waits for a job running on a reachable server', () async {
+      final (c, _, remotes) = await applied();
+      remotes['two']!.running = true;
+      await c.saveUser(client(carol));
+      await c.prepareAndApply();
+
+      await c.enterServiceMode('two');
+      expect(c.error, 'vpn_busy');
+      expect(c.serviceModeOf('two'), isNull);
+
+      // Unreachable, the job cannot be observed: entering is allowed.
+      remotes.remove('two');
+      await c.enterServiceMode('two');
+      expect(c.error, isNull);
+      expect(c.serviceModeOf('two')?.state, ServerServiceState.active);
+    });
+  });
 }

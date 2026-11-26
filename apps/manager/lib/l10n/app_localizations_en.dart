@@ -236,6 +236,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'The group references an unknown node or group.';
 
   @override
+  String get diagnosticServiceModeGroupEmpty =>
+      'The group lists only nodes of servers in service mode and would be empty. The previous profile stays published; add another node to the group or bring a server back.';
+
+  @override
   String get diagnosticUnknownRuleTarget =>
       'The rule references an unknown node or group.';
 
@@ -1589,6 +1593,14 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get vpnWaitingRemoval =>
       'Waiting for the client removal to finish on this server.';
+
+  @override
+  String get vpnServiceMode =>
+      'The server is in service mode: clients are not added to it and its changes wait until it returns.';
+
+  @override
+  String get vpnServiceModeOtherDevice =>
+      'Another device is bringing this server back from service mode. Retry the return here to continue on this device.';
 
   @override
   String get vpnStorage =>
