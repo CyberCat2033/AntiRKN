@@ -110,6 +110,17 @@ void main() {
       }))!;
       final c = setup.$1, held = setup.$2;
       addTearDown(c.dispose);
+      // A running server job has its own bar in the operations summary;
+      // background polling itself must add no other progress indicator.
+      int globalProgress() =>
+          find.byType(LinearProgressIndicator).evaluate().length -
+          find
+              .descendant(
+                of: find.byKey(const ValueKey('server-operations-banner')),
+                matching: find.byType(LinearProgressIndicator),
+              )
+              .evaluate()
+              .length;
       Widget page() => MaterialApp(
         supportedLocales: AppLocalizations.supportedLocales,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -135,14 +146,14 @@ void main() {
         await tester.pumpWidget(page());
         expect(c.busy, isTrue);
         expect(tester.widget<FilledButton>(button).onPressed, isNotNull);
-        expect(find.byType(LinearProgressIndicator), findsNothing);
+        expect(globalProgress(), 0);
       } finally {
         held.release.complete();
         await tester.runAsync(() => polling!);
       }
       await tester.pump();
       expect(tester.widget<FilledButton>(button).onPressed, isNotNull);
-      expect(find.byType(LinearProgressIndicator), findsNothing);
+      expect(globalProgress(), 0);
       expect(tester.takeException(), isNull);
     },
   );

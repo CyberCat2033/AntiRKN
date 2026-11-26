@@ -1,5 +1,4 @@
 import 'package:antirkn_design_system/antirkn_design_system.dart';
-import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../app_strings.dart';
@@ -148,13 +147,8 @@ class VpnJobView extends StatelessWidget {
             record['paused'] != true &&
             record['authorizedPayload'] != null &&
             record['authorizedPayload'] != record['appliedPayload'])
-          // Every target of a server waits while a client removal runs
-          // there; that is the reason, not a lost connection.
-          Text(
-            c.hasPendingRevocation(vpnServerId(serverId))
-                ? l.vpnWaitingRemoval
-                : l.vpnOfflinePlan,
-          ),
+          // The real reason (removal, connection, sign-in), never a guess.
+          Text(vpnMessage(l, c.targetState(serverId)?.code ?? 'vpn_applying')),
         if (record['pending'] != null ||
             (record['paused'] != true &&
                 record['authorizedPayload'] != null &&

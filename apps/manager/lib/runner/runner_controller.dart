@@ -690,6 +690,27 @@ class RunnerController extends ChangeNotifier {
     if (id != null) await _readJob(remote, token, id);
   }, background: true);
 
+  /// The full event timeline of one job, for its details sheet: the list
+  /// carries only each job's last event. Reading an old job is not acting
+  /// on it, so [selected], [jobs], the cursor and the error state stay as
+  /// they are. Null when offline, the runner forgot the job or the read
+  /// failed.
+  Future<RunnerJob?> readJobHistory(String id) async {
+    final remote = transport();
+    if (remote == null || _disposed) return null;
+    try {
+      final response = await remote.request(
+        RunnerRequest.status(id, 0),
+        CancellationToken(),
+        sudoPassword: password(),
+      );
+      final job = response.jobs.firstOrNull;
+      return response.code == 'ok' && job?.id == id ? job : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<bool> connectPanel(int port, String username, String password) async {
     var success = false;
     await _run((remote, token) async {

@@ -28,7 +28,6 @@ import 'template_settings.dart';
 import 'appearance_settings.dart';
 import 'backup/backup_panel.dart';
 import 'runner/component_updates_controller.dart';
-import 'runner/runner_controller.dart';
 import 'runner/component_installation_view.dart';
 import 'l10n/app_localizations.dart';
 import 'language_controller.dart';
@@ -50,12 +49,20 @@ Future<void> main() async {
 /// The launch waits at most this long for the cloud before opening local data.
 const startupPullDeadline = Duration(seconds: 4);
 
-/// Why VPN work cannot use [target]'s server through [runner] right now, or
-/// null when it can. The single source for both the remote and its blocker.
-String? _vpnRemoteIssue(RunnerController? runner, String target) {
-  if (runner == null ||
+/// Why VPN work cannot use [target]'s server through [session] right now,
+/// or null when it can. The single source for both the remote and its
+/// blocker; SSH failures keep their own issue as `ssh:<issue>`.
+String? _vpnRemoteIssue(SshController? session, String target) {
+  final runner = session?.runner;
+  if (session == null ||
+      runner == null ||
       runner.transport() == null ||
       runner.identity() == null) {
+    if (session?.challenge != null) return 'ssh:hostKeyChanged';
+    if (session?.needsPrivilegeInput == true) {
+      return 'ssh:sudoPasswordRequired';
+    }
+    if (session?.error case final issue?) return 'ssh:${issue.name}';
     return 'vpn_connection';
   }
   if (runner.busy) return 'vpn_runner_busy';
@@ -612,7 +619,9 @@ class _ManagerShellState extends State<ManagerShell>
                   runner.pending == null,
             );
           }
-          if (_vpnRemoteIssue(runner, id) != null) return null;
+          if (_vpnRemoteIssue(_catalog?.sessionFor(server), id) != null) {
+            return null;
+          }
           final identity = runner!.identity()!;
           return VpnRemote(
             transport: runner.transport()!,
@@ -627,7 +636,7 @@ class _ManagerShellState extends State<ManagerShell>
           );
         },
         remoteIssue: (id) =>
-            _vpnRemoteIssue(_catalog?.sessionFor(vpnServerId(id))?.runner, id),
+            _vpnRemoteIssue(_catalog?.sessionFor(vpnServerId(id)), id),
       );
       if (widget.settings case final settings? when _catalog != null) {
         final catalog = _catalog!, vpn = _vpn!;
@@ -1131,6 +1140,10 @@ class _ManagerShellState extends State<ManagerShell>
                                           _catalog?.serverDisplayName(id) ?? id,
                                       exporter: SystemProfileExporter(),
                                       motion: widget.motion,
+                                      onOpenServer: (id) {
+                                        _navigate(0);
+                                        _catalog?.select(id);
+                                      },
                                     )
                                   : Center(child: Text(l.vpnNoUsers)),
                               selection: _vpn != null ? _clientSelection : null,

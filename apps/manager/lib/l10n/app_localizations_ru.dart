@@ -1490,10 +1490,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get vpnApply => 'Применить план на всех указанных серверах';
 
   @override
-  String get vpnOfflinePlan =>
-      'Сервер недоступен. Подтверждённые изменения выполнятся после подключения и проверки предусловий.';
-
-  @override
   String get vpnPending =>
       'Изменения доступов ожидают выполнения на одном или нескольких серверах. Полный актуальный профиль пока не готов.';
 
@@ -3090,23 +3086,6 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
-  String uiDeletingClients(int count) {
-    return 'Удаление клиентов: $count';
-  }
-
-  @override
-  String get uiDeletingClientsHelp =>
-      'Приложение подключается к серверам и отзывает доступ';
-
-  @override
-  String get uiDeletionProgress => 'Удаление клиентов';
-
-  @override
-  String uiForceDeleteOffer(String name) {
-    return 'Не удалось подключиться к серверу за 3 попытки. Клиента «$name» можно удалить, не дожидаясь сервера.';
-  }
-
-  @override
   String get uiClashImport => 'Профиль подключения для Clash Mi';
 
   @override
@@ -4274,4 +4253,104 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get relayFailed =>
       'Не удалось настроить прямой выход. Подробности — в истории операций.';
+
+  @override
+  String get vpnNotConnected =>
+      'Нет подключения. Изменения применятся после подключения.';
+
+  @override
+  String opsRemoving(String names) {
+    return 'Удаление: $names';
+  }
+
+  @override
+  String get opsApplying => 'Применение изменений на серверах';
+
+  @override
+  String opsMoreServers(String servers, int count) {
+    return '$servers и ещё $count';
+  }
+
+  @override
+  String get opsOpenServer => 'Открыть сервер';
+
+  @override
+  String get opsContinueHere => 'Продолжить здесь';
+
+  @override
+  String get opsDetailsTitle => 'Изменения на серверах';
+
+  @override
+  String opsRemovalOf(String name) {
+    return 'Отзыв доступа · $name';
+  }
+
+  @override
+  String get uiRecentActivity => 'Последние действия';
+
+  @override
+  String get uiViewAll => 'Показать все';
+
+  @override
+  String get uiActivityToday => 'Сегодня';
+
+  @override
+  String get uiActivityYesterday => 'Вчера';
+
+  @override
+  String get uiActivityEarlier => 'Ранее';
+
+  @override
+  String uiActivityStep(int current, int total) {
+    return 'Шаг $current из $total';
+  }
+
+  @override
+  String get uiActivitySteps => 'Шаги';
+
+  @override
+  String get uiActivityStepsUnavailable =>
+      'Не удалось загрузить все шаги. Показан последний.';
+
+  @override
+  String get uiTechnicalDetails => 'Технические сведения';
+
+  @override
+  String get uiActivityJobId => 'ID задания';
+
+  @override
+  String get activityApply => 'Применение настроек';
+
+  @override
+  String get activityInstall => 'Установка';
+
+  @override
+  String get activityUpdate => 'Обновление';
+
+  @override
+  String get activityEditExisting => 'Изменение существующей установки';
+
+  @override
+  String get activityCertificate => 'Сертификат';
+
+  @override
+  String get activityComponents => 'Компоненты';
+
+  @override
+  String get activityEditInbound => 'Изменение inbound';
+
+  @override
+  String get activityRemoveInbound => 'Удаление inbound';
+
+  @override
+  String get activityServerAccess => 'Доступ для другого сервера';
+
+  @override
+  String get activityCheck => 'Проверка обновлений';
+
+  @override
+  String get activitySshHarden => 'Защита SSH';
+
+  @override
+  String get activityDiagnostic => 'Проверка сервера';
 }

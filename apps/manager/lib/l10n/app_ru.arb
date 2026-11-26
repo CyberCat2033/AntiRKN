@@ -568,7 +568,6 @@
   "vpnPlanHelp": "Применить перечисленные inbounds и персональные доступы через 3x-ui. На каждом сервере сохраняется закрытая резервная копия конфигурации. В конце Xray перезапускается; соединения могут ненадолго прерваться. Реквизиты существующих клиентов сохраняются.",
   "vpnPrepare": "Подготовить план доступов",
   "vpnApply": "Применить план на всех указанных серверах",
-  "vpnOfflinePlan": "Сервер недоступен. Подтверждённые изменения выполнятся после подключения и проверки предусловий.",
   "vpnPending": "Изменения доступов ожидают выполнения на одном или нескольких серверах. Полный актуальный профиль пока не готов.",
   "vpnPendingReadback": "Сервер ещё не подтвердил этот ресурс.",
   "vpnPendingSettings": "Сервер вернул другие настройки этого ресурса.",
@@ -1136,24 +1135,6 @@
       }
     }
   },
-  "uiDeletingClients": "Удаление клиентов: {count}",
-  "@uiDeletingClients": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "uiDeletingClientsHelp": "Приложение подключается к серверам и отзывает доступ",
-  "uiDeletionProgress": "Удаление клиентов",
-  "uiForceDeleteOffer": "Не удалось подключиться к серверу за 3 попытки. Клиента «{name}» можно удалить, не дожидаясь сервера.",
-  "@uiForceDeleteOffer": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      }
-    }
-  },
   "uiClashImport": "Профиль подключения для Clash Mi",
   "uiConnectionSettings": "Подключение",
   "uiAuthentication": "Данные для входа",
@@ -1538,5 +1519,39 @@
   "relayConfigFailed": "Xray отклонил настройки маршрутизации. Ничего не изменено.",
   "relayDisableFirst": "Для этого inbound включён прямой выход для серверов. Сначала выключите его.",
   "relayMissing": "Inbound или его служебный доступ не найден на сервере. Обновите список.",
-  "relayFailed": "Не удалось настроить прямой выход. Подробности — в истории операций."
+  "relayFailed": "Не удалось настроить прямой выход. Подробности — в истории операций.",
+  "vpnNotConnected": "Нет подключения. Изменения применятся после подключения.",
+  "opsRemoving": "Удаление: {names}",
+  "@opsRemoving": {"placeholders": {"names": {"type": "String"}}},
+  "opsApplying": "Применение изменений на серверах",
+  "opsMoreServers": "{servers} и ещё {count}",
+  "@opsMoreServers": {"placeholders": {"servers": {"type": "String"}, "count": {"type": "int"}}},
+  "opsOpenServer": "Открыть сервер",
+  "opsContinueHere": "Продолжить здесь",
+  "opsDetailsTitle": "Изменения на серверах",
+  "opsRemovalOf": "Отзыв доступа · {name}",
+  "@opsRemovalOf": {"placeholders": {"name": {"type": "String"}}},
+  "uiRecentActivity": "Последние действия",
+  "uiViewAll": "Показать все",
+  "uiActivityToday": "Сегодня",
+  "uiActivityYesterday": "Вчера",
+  "uiActivityEarlier": "Ранее",
+  "uiActivityStep": "Шаг {current} из {total}",
+  "@uiActivityStep": {"placeholders": {"current": {"type": "int"}, "total": {"type": "int"}}},
+  "uiActivitySteps": "Шаги",
+  "uiActivityStepsUnavailable": "Не удалось загрузить все шаги. Показан последний.",
+  "uiTechnicalDetails": "Технические сведения",
+  "uiActivityJobId": "ID задания",
+  "activityApply": "Применение настроек",
+  "activityInstall": "Установка",
+  "activityUpdate": "Обновление",
+  "activityEditExisting": "Изменение существующей установки",
+  "activityCertificate": "Сертификат",
+  "activityComponents": "Компоненты",
+  "activityEditInbound": "Изменение inbound",
+  "activityRemoveInbound": "Удаление inbound",
+  "activityServerAccess": "Доступ для другого сервера",
+  "activityCheck": "Проверка обновлений",
+  "activitySshHarden": "Защита SSH",
+  "activityDiagnostic": "Проверка сервера"
 }

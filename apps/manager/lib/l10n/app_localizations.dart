@@ -2708,12 +2708,6 @@ abstract class AppLocalizations {
   /// **'Apply plan to all listed servers'**
   String get vpnApply;
 
-  /// No description provided for @vpnOfflinePlan.
-  ///
-  /// In en, this message translates to:
-  /// **'Server offline. The approved changes will run after reconnection and precondition checks.'**
-  String get vpnOfflinePlan;
-
   /// No description provided for @vpnPending.
   ///
   /// In en, this message translates to:
@@ -5474,30 +5468,6 @@ abstract class AppLocalizations {
   /// **'“{name}” will disappear from the app. Access may still work on unavailable servers ({servers}). Revocation will finish when they reconnect.'**
   String uiForceDeleteWarning(String name, String servers);
 
-  /// No description provided for @uiDeletingClients.
-  ///
-  /// In en, this message translates to:
-  /// **'Deleting clients: {count}'**
-  String uiDeletingClients(int count);
-
-  /// No description provided for @uiDeletingClientsHelp.
-  ///
-  /// In en, this message translates to:
-  /// **'Connecting to servers and revoking access'**
-  String get uiDeletingClientsHelp;
-
-  /// No description provided for @uiDeletionProgress.
-  ///
-  /// In en, this message translates to:
-  /// **'Client removal'**
-  String get uiDeletionProgress;
-
-  /// No description provided for @uiForceDeleteOffer.
-  ///
-  /// In en, this message translates to:
-  /// **'Could not connect to a server after 3 attempts. You can remove “{name}” without waiting for the server.'**
-  String uiForceDeleteOffer(String name);
-
   /// No description provided for @uiClashImport.
   ///
   /// In en, this message translates to:
@@ -7441,6 +7411,186 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not configure the direct exit. See the operation history for details.'**
   String get relayFailed;
+
+  /// No description provided for @vpnNotConnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Not connected. The changes will be applied after connecting.'**
+  String get vpnNotConnected;
+
+  /// No description provided for @opsRemoving.
+  ///
+  /// In en, this message translates to:
+  /// **'Removing {names}'**
+  String opsRemoving(String names);
+
+  /// No description provided for @opsApplying.
+  ///
+  /// In en, this message translates to:
+  /// **'Applying changes on servers'**
+  String get opsApplying;
+
+  /// No description provided for @opsMoreServers.
+  ///
+  /// In en, this message translates to:
+  /// **'{servers} and {count} more'**
+  String opsMoreServers(String servers, int count);
+
+  /// No description provided for @opsOpenServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Open server'**
+  String get opsOpenServer;
+
+  /// No description provided for @opsContinueHere.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue here'**
+  String get opsContinueHere;
+
+  /// No description provided for @opsDetailsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Server changes'**
+  String get opsDetailsTitle;
+
+  /// No description provided for @opsRemovalOf.
+  ///
+  /// In en, this message translates to:
+  /// **'Revoke access · {name}'**
+  String opsRemovalOf(String name);
+
+  /// No description provided for @uiRecentActivity.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent activity'**
+  String get uiRecentActivity;
+
+  /// No description provided for @uiViewAll.
+  ///
+  /// In en, this message translates to:
+  /// **'View all'**
+  String get uiViewAll;
+
+  /// No description provided for @uiActivityToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get uiActivityToday;
+
+  /// No description provided for @uiActivityYesterday.
+  ///
+  /// In en, this message translates to:
+  /// **'Yesterday'**
+  String get uiActivityYesterday;
+
+  /// No description provided for @uiActivityEarlier.
+  ///
+  /// In en, this message translates to:
+  /// **'Earlier'**
+  String get uiActivityEarlier;
+
+  /// No description provided for @uiActivityStep.
+  ///
+  /// In en, this message translates to:
+  /// **'Step {current} of {total}'**
+  String uiActivityStep(int current, int total);
+
+  /// No description provided for @uiActivitySteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Steps'**
+  String get uiActivitySteps;
+
+  /// No description provided for @uiActivityStepsUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The full list of steps could not be loaded. The last step is shown.'**
+  String get uiActivityStepsUnavailable;
+
+  /// No description provided for @uiTechnicalDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Technical details'**
+  String get uiTechnicalDetails;
+
+  /// No description provided for @uiActivityJobId.
+  ///
+  /// In en, this message translates to:
+  /// **'Job ID'**
+  String get uiActivityJobId;
+
+  /// No description provided for @activityApply.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply configuration'**
+  String get activityApply;
+
+  /// No description provided for @activityInstall.
+  ///
+  /// In en, this message translates to:
+  /// **'Install'**
+  String get activityInstall;
+
+  /// No description provided for @activityUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'Update'**
+  String get activityUpdate;
+
+  /// No description provided for @activityEditExisting.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit existing setup'**
+  String get activityEditExisting;
+
+  /// No description provided for @activityCertificate.
+  ///
+  /// In en, this message translates to:
+  /// **'Certificate'**
+  String get activityCertificate;
+
+  /// No description provided for @activityComponents.
+  ///
+  /// In en, this message translates to:
+  /// **'Components'**
+  String get activityComponents;
+
+  /// No description provided for @activityEditInbound.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit inbound'**
+  String get activityEditInbound;
+
+  /// No description provided for @activityRemoveInbound.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove inbound'**
+  String get activityRemoveInbound;
+
+  /// No description provided for @activityServerAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Access for another server'**
+  String get activityServerAccess;
+
+  /// No description provided for @activityCheck.
+  ///
+  /// In en, this message translates to:
+  /// **'Check for updates'**
+  String get activityCheck;
+
+  /// No description provided for @activitySshHarden.
+  ///
+  /// In en, this message translates to:
+  /// **'SSH hardening'**
+  String get activitySshHarden;
+
+  /// No description provided for @activityDiagnostic.
+  ///
+  /// In en, this message translates to:
+  /// **'Server check'**
+  String get activityDiagnostic;
 }
 
 class _AppLocalizationsDelegate

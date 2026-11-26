@@ -601,7 +601,6 @@
   "vpnPlanHelp": "Apply the listed inbounds and personal access through 3x-ui. A private configuration backup is saved on each server. Xray restarts at completion; connections may briefly pause. Existing clients keep their credentials.",
   "vpnPrepare": "Prepare access plan",
   "vpnApply": "Apply plan to all listed servers",
-  "vpnOfflinePlan": "Server offline. The approved changes will run after reconnection and precondition checks.",
   "vpnPending": "Access changes are pending on one or more servers. A complete current profile is not ready yet.",
   "vpnPendingReadback": "The server has not confirmed this resource yet.",
   "vpnPendingSettings": "The server reported different settings for this resource.",
@@ -1174,24 +1173,6 @@
       }
     }
   },
-  "uiDeletingClients": "Deleting clients: {count}",
-  "@uiDeletingClients": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "uiDeletingClientsHelp": "Connecting to servers and revoking access",
-  "uiDeletionProgress": "Client removal",
-  "uiForceDeleteOffer": "Could not connect to a server after 3 attempts. You can remove “{name}” without waiting for the server.",
-  "@uiForceDeleteOffer": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      }
-    }
-  },
   "uiClashImport": "Connection profile for Clash Mi",
   "uiConnectionSettings": "Connection",
   "uiAuthentication": "Sign-in credentials",
@@ -1583,5 +1564,39 @@
   "relayConfigFailed": "Xray rejected the routing settings. Nothing was changed.",
   "relayDisableFirst": "The direct exit for servers is on for this inbound. Turn it off first.",
   "relayMissing": "The inbound or its service access was not found on the server. Refresh the list.",
-  "relayFailed": "Could not configure the direct exit. See the operation history for details."
+  "relayFailed": "Could not configure the direct exit. See the operation history for details.",
+  "vpnNotConnected": "Not connected. The changes will be applied after connecting.",
+  "opsRemoving": "Removing {names}",
+  "@opsRemoving": {"placeholders": {"names": {"type": "String"}}},
+  "opsApplying": "Applying changes on servers",
+  "opsMoreServers": "{servers} and {count} more",
+  "@opsMoreServers": {"placeholders": {"servers": {"type": "String"}, "count": {"type": "int"}}},
+  "opsOpenServer": "Open server",
+  "opsContinueHere": "Continue here",
+  "opsDetailsTitle": "Server changes",
+  "opsRemovalOf": "Revoke access · {name}",
+  "@opsRemovalOf": {"placeholders": {"name": {"type": "String"}}},
+  "uiRecentActivity": "Recent activity",
+  "uiViewAll": "View all",
+  "uiActivityToday": "Today",
+  "uiActivityYesterday": "Yesterday",
+  "uiActivityEarlier": "Earlier",
+  "uiActivityStep": "Step {current} of {total}",
+  "@uiActivityStep": {"placeholders": {"current": {"type": "int"}, "total": {"type": "int"}}},
+  "uiActivitySteps": "Steps",
+  "uiActivityStepsUnavailable": "The full list of steps could not be loaded. The last step is shown.",
+  "uiTechnicalDetails": "Technical details",
+  "uiActivityJobId": "Job ID",
+  "activityApply": "Apply configuration",
+  "activityInstall": "Install",
+  "activityUpdate": "Update",
+  "activityEditExisting": "Edit existing setup",
+  "activityCertificate": "Certificate",
+  "activityComponents": "Components",
+  "activityEditInbound": "Edit inbound",
+  "activityRemoveInbound": "Remove inbound",
+  "activityServerAccess": "Access for another server",
+  "activityCheck": "Check for updates",
+  "activitySshHarden": "SSH hardening",
+  "activityDiagnostic": "Server check"
 }

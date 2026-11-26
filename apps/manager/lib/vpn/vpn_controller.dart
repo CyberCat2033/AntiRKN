@@ -7,6 +7,7 @@ import 'package:antirkn_profile_compiler/antirkn_profile_compiler.dart';
 import 'package:flutter/foundation.dart';
 
 part 'client_deletion.dart';
+part 'vpn_attention.dart';
 
 /// Starts at most four independent physical-server operations at a time.
 /// The input order is retained for callers that apply results to the workspace.
