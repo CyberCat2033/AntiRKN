@@ -177,11 +177,16 @@ def install_runner(request):
             raise
 
 
+# The request is the whole runner bundle (base64 files); tool/generate_runner.py
+# refuses a bundle that does not fit with room to spare.
+MAX_INPUT = 4 * 1024 * 1024
+
+
 def installer_main():
     os.umask(0o077)
     print('__ANTIRKN_RUNNER_INPUT__', file=sys.stderr, flush=True)
-    raw = sys.stdin.buffer.read(1048577)
-    if len(raw) > 1048576:
+    raw = sys.stdin.buffer.read(MAX_INPUT + 1)
+    if len(raw) > MAX_INPUT:
         raise ValueError('bundle')
     print(json.dumps(install_runner(json.loads(raw))), flush=True)
 

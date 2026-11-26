@@ -3,6 +3,7 @@
 import base64
 import hashlib
 import json
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -145,6 +146,14 @@ if all((ROOT / 'server/runner' / p).exists() for p in paths):
         raise SystemExit('Unexpected runner service command')
     rpc_command = command.removesuffix(' daemon') + ' rpc'
     bundle = json.dumps({'release': release, 'files': payload, 'hashes': hashes}, sort_keys=True)
+    # install.py reads the bundle from stdin up to MAX_INPUT; v73 first crossed
+    # the old 1 MiB cap and every runner update failed as "not confirmed".
+    limit = re.search(r'^MAX_INPUT = (.+)$', (ROOT / 'server/runner/install.py').read_text(), re.M)
+    maximum = 1
+    for factor in (limit.group(1).split('*') if limit else ['0']):
+        maximum *= int(factor)
+    if len(bundle) + 4096 > maximum * 3 // 4:
+        sys.exit('runner bundle too large for install.py MAX_INPUT (keep 25% headroom)')
     installer = (ROOT / 'server/runner/install.py').read_text()
     probe = (ROOT / 'server/runner/runner_inspect.py').read_text()
     import zlib
