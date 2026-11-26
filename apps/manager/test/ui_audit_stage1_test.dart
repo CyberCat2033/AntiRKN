@@ -18,6 +18,7 @@ import 'package:antirkn_manager/ssh/server_detail_view.dart';
 import 'package:antirkn_manager/ssh/server_inventory_panel.dart';
 import 'package:antirkn_manager/ssh/ssh_controller.dart';
 import 'package:antirkn_manager/vpn/connection_check_view.dart';
+import 'package:antirkn_manager/vpn/connection_checks.dart' show ConnectionTarget;
 import 'package:antirkn_manager/vpn/observed_inbound_dialog.dart';
 import 'package:antirkn_manager/vpn/tt_panel.dart';
 import 'package:antirkn_manager/vpn/users_page.dart';
@@ -372,6 +373,7 @@ void main() {
         ConnectionCheckAll(
           controller: c,
           targets: const [],
+          others: 2,
           readOthers: () async => throw TypeError(),
         ),
       ),
@@ -384,6 +386,33 @@ void main() {
       find.byKey(const ValueKey('connection-check-all-failed')),
       findsOneWidget,
     );
+    await tester.pumpWidget(const SizedBox.shrink());
+    c.dispose();
+  });
+
+  testWidgets('"Check all" appears only from two connections', (tester) async {
+    final c = f.controller(f.MemoryVpn(), {});
+    await tester.runAsync(c.load);
+    const one = (target: 'one', resource: 'a');
+    for (final (targets, others, shown) in [
+      (const <ConnectionTarget>[], 0, false),
+      (const [one], 0, false),
+      (const <ConnectionTarget>[], 1, false),
+      (const [one], 1, true),
+      (const [one, (target: 'one', resource: 'b')], 0, true),
+    ]) {
+      await tester.pumpWidget(
+        _app(
+          ConnectionCheckAll(
+            controller: c,
+            targets: targets,
+            others: others,
+            readOthers: others == 0 ? null : () async => const [],
+          ),
+        ),
+      );
+      expect(find.text('Check all'), shown ? findsOneWidget : findsNothing);
+    }
     await tester.pumpWidget(const SizedBox.shrink());
     c.dispose();
   });

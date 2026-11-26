@@ -144,17 +144,22 @@ class ConnectionCheckView extends StatelessWidget {
 /// The action row of a protocol page: its own actions ([actions], e.g.
 /// "Add") and "Check all", sized to their labels and wrapping on narrow
 /// screens, with the check progress under them. One row for every protocol.
+/// "Check all" appears from two connections: a single one has its own check.
 class ConnectionCheckAll extends StatefulWidget {
   const ConnectionCheckAll({
     required this.controller,
     required this.targets,
     this.readOthers,
+    this.others = 0,
     this.actions = const [],
     super.key,
   });
   final VpnController controller;
   final List<ConnectionTarget> targets;
   final Future<List<ConnectionTarget>> Function()? readOthers;
+
+  /// How many connections [readOthers] adds to [targets].
+  final int others;
   final List<Widget> actions;
   @override
   State<ConnectionCheckAll> createState() => _ConnectionCheckAllState();
@@ -203,7 +208,12 @@ class _ConnectionCheckAllState extends State<ConnectionCheckAll> {
           spacing: AppLayout.smallGap,
           runSpacing: AppLayout.smallGap,
           crossAxisAlignment: WrapCrossAlignment.center,
-          children: [...widget.actions, _checkAll(l, c)],
+          children: [
+            ...widget.actions,
+            // A running check keeps its stop even if the list shrank.
+            if (c.queueRunning || widget.targets.length + widget.others > 1)
+              _checkAll(l, c),
+          ],
         ),
         if (readFailed)
           Padding(
@@ -234,9 +244,7 @@ class _ConnectionCheckAllState extends State<ConnectionCheckAll> {
       OutlinedButton.icon(
         onPressed: c.queueRunning
             ? c.cancel
-            : reading ||
-                  widget.controller.busy ||
-                  widget.targets.isEmpty && widget.readOthers == null
+            : reading || widget.controller.busy
             ? null
             : () => _run(c),
         icon: Icon(

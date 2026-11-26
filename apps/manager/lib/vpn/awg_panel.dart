@@ -107,6 +107,7 @@ class AwgPanel extends StatelessWidget {
             targets: [
               for (final r in interfaces) (target: target, resource: r.id),
             ],
+            others: external.length,
             readOthers: r == null || external.isEmpty
                 ? null
                 : () => readAwgExternal(

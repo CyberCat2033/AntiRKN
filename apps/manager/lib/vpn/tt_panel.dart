@@ -181,6 +181,7 @@ class _TtPanelState extends State<TtPanel> {
                 ),
               ),
             ],
+            others: external.length,
             readOthers: external.isEmpty
                 ? null
                 : () async {

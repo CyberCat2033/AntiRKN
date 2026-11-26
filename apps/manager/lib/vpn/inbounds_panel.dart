@@ -446,6 +446,12 @@ class InboundsPanelState extends State<InboundsPanel> {
               for (final row in panel['inbounds'] as List)
                 if (!ownsRow(panel, row as Map)) (panel: panel, row: row),
           ],
+          // Rows come from the server panel: skip ones that cannot be
+          // addressed.
+          checkableExternal = [
+            for (final e in externalInbounds)
+              if (e.panel['port'] is int && e.row['id'] is int) e,
+          ],
           pendingDeleted = pendingDeletions;
       return DragSelectList(
         selection: selection,
@@ -504,56 +510,36 @@ class InboundsPanelState extends State<InboundsPanel> {
                         label: Text(l.vpnAddInbound),
                       ),
                     ],
+                    others: checkableExternal.length,
                     readOthers: runner == null
                         ? null
                         : () async {
                             final keys = <({String target, String resource})>[];
-                            for (final panel in runner!.panels) {
-                              if (panel['port'] is! int) continue;
-                              for (final row
-                                  in (panel['inbounds'] as List? ?? const [])
-                                      .whereType<Map>()) {
-                                // Rows come from the server panel: skip ones
-                                // that cannot be addressed.
-                                if (row['id'] is! int) continue;
-                                if (inbounds.any(
-                                  (r) =>
-                                      (r.spec['adoption']
-                                                  as Map?)?['sourceId'] ==
-                                              '${row['id']}' &&
-                                          (r.spec['adoption']
-                                                  as Map?)?['panelPort'] ==
-                                              panel['port'] ||
-                                      row['name'] ==
-                                          'AntiRKN:${c.workspace.resourceWorkspaceId(r.serverId)}:${r.id}',
-                                )) {
-                                  continue;
-                                }
-                                if (!context.mounted) {
-                                  break;
-                                }
-                                final key = row['protocol'] != 'vless'
-                                    ? null
-                                    : await prepareExternalConnection(
-                                        context,
-                                        controller: c,
-                                        runner: runner!,
-                                        serverId: serverId,
-                                        protocol: 'vless',
-                                        source: row['id'] as int,
-                                        panelPort: panel['port'] as int,
-                                        host: serverHost,
-                                      );
-                                keys.add(
-                                  key ??
-                                      externalConnectionTarget(
-                                        serverId,
-                                        'vless',
-                                        row['id'] as int,
-                                        panel['port'] as int,
-                                      ),
-                                );
-                              }
+                            for (final (:panel, :row) in checkableExternal) {
+                              if (!context.mounted) break;
+                              final id = row['id'] as int,
+                                  port = panel['port'] as int;
+                              final key = row['protocol'] != 'vless'
+                                  ? null
+                                  : await prepareExternalConnection(
+                                      context,
+                                      controller: c,
+                                      runner: runner!,
+                                      serverId: serverId,
+                                      protocol: 'vless',
+                                      source: id,
+                                      panelPort: port,
+                                      host: serverHost,
+                                    );
+                              keys.add(
+                                key ??
+                                    externalConnectionTarget(
+                                      serverId,
+                                      'vless',
+                                      id,
+                                      port,
+                                    ),
+                              );
                             }
                             return keys;
                           },

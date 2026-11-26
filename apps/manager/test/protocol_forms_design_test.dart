@@ -339,6 +339,24 @@ void main() {
       await _fonts(tester);
       final vpn = f.controller(f.MemoryVpn(), {});
       await tester.runAsync(vpn.load);
+      // "Check all" appears from two connections.
+      await tester.runAsync(() async {
+        for (final i in [0, 1]) {
+          await vpn.saveAwg(
+            AwgInterface(
+              serverId: 'one',
+              spec: {
+                ...awg.spec(),
+                'id': '$i' * 32,
+                'name': 'AWG $i',
+                'port': 51820 + i,
+                'externalPort': 51820 + i,
+                'pool': '10.1$i.0.0/20',
+              },
+            ),
+          );
+        }
+      });
       final network = NetworkController(reader: const SampleInventoryReader());
       addTearDown(network.dispose);
       await tester.pumpWidget(
