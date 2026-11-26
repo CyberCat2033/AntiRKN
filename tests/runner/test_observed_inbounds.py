@@ -21,6 +21,7 @@ class Api:
         if path.endswith('/list'):
             self.list_calls += 1
             return [copy.deepcopy(self.row)]
+        if path == '/panel/api/inbounds/get/%d' % self.row['id']: return copy.deepcopy(self.row)
         if '/update/' in path:
             self.row = copy.deepcopy(data); self.effects += 1
             if self.lose: self.lose = False; raise OSError('response lost')

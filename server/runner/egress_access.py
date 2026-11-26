@@ -10,6 +10,7 @@ import vless
 from observed_inbounds import object_field
 from egress_config import EgressError, parse_link
 from panel import atomic_file, safe_file
+from panel_clients import converge, differs, in_transition
 
 ROOT = Path('/var/lib/antirkn-runner/egress-access')
 
@@ -118,9 +119,9 @@ def ensure_inbound(api, inbound_id, before, after):
     a foreign change. Returns the panel's readback."""
     current = api.call('/panel/api/inbounds/get/%d' % inbound_id)
     if not vless.subset(vless.normal(after), vless.normal(current)):
-        if vless.normal(current) != vless.normal(before): raise EgressError('egress_conflict')
-        api.call('/panel/api/inbounds/update/%d' % inbound_id, after)
-        current = api.call('/panel/api/inbounds/get/%d' % inbound_id)
+        if vless.normal(current) != vless.normal(before) and not in_transition(before, after, current):
+            raise EgressError('egress_conflict')
+        current = converge(api, inbound_id, after, before=before)
         if not vless.subset(vless.normal(after), vless.normal(current)):
             raise EgressError('egress_config_failed')
     return current
@@ -137,12 +138,12 @@ def restore_client(api, inbound_id, client, before, readd=False):
     original = object_field(before['settings']).get('clients', [])
     prior = [x for x in original if x.get('id') == client['id']]
     if matches != prior:
-        if not (len(matches) == 1 and vless.subset(client, matches[0]) or readd and not matches):
+        # 3x-ui 3.9+ fills in the subId we leave empty.
+        if not (len(matches) == 1 and not differs(client, matches[0]) or readd and not matches):
             raise EgressError('egress_conflict')
         settings['clients'] = [x for x in entries if x not in matches] + prior
-        current['settings'] = vless.canonical(settings)
-        api.call('/panel/api/inbounds/update/%d' % inbound_id, current)
-        current = api.call('/panel/api/inbounds/get/%d' % inbound_id)
+        observed, current = current, dict(current, settings=vless.canonical(settings))
+        current = converge(api, inbound_id, current, before=observed)
         if not vless.subset(settings, object_field(current['settings'])):
             raise EgressError('egress_conflict')
     return current
