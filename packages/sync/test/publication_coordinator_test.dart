@@ -118,13 +118,48 @@ class Remote implements PublicationRemoteStore {
   String? pauseContent;
   final paused = Completer<void>(), release = Completer<void>();
   final shared = <String>{};
+
+  /// Remote calls in order, one per round trip, as `method:kind`.
+  final calls = <String>[];
+
+  /// Simulated round-trip time of getFile, download and writes.
+  Duration latency = Duration.zero;
+  int inFlight = 0, maxInFlight = 0;
+  Future<void> _rtt() async {
+    if (latency == Duration.zero) return Future<void>.value();
+    inFlight++;
+    if (inFlight > maxInFlight) maxInFlight = inFlight;
+    try {
+      await Future<void>.delayed(latency);
+    } finally {
+      inFlight--;
+    }
+  }
+
+  String _kind(String id) {
+    final b = blobs[id];
+    if (b == null) return 'missing';
+    if (b.folder) return 'folder';
+    return b.properties['antirknUser'] == 'registry' ? 'registry' : 'profile';
+  }
+
+  void _call(String method, String id) => calls.add('$method:${_kind(id)}');
   @override
   String get accountKey => 'account';
   @override
-  Future<String> generateFileId() async => 'id-${++ids}';
+  Future<String> generateFileId() async {
+    calls.add('generateFileId');
+    return 'id-${++ids}';
+  }
+
   @override
   Future<PublicationFile> getFile(String id) async {
-    await Future<void>.value();
+    _call('getFile', id);
+    await _rtt();
+    return _read(id);
+  }
+
+  PublicationFile _read(String id) {
     final b = blobs[id];
     if (b == null) throw const PublicationFailure(PublicationIssue.missing);
     return PublicationFile(
@@ -142,9 +177,7 @@ class Remote implements PublicationRemoteStore {
   }
 
   @override
-  Future<List<PublicationFile>> listFolders() async => [
-    await getFile('folder'),
-  ];
+  Future<List<PublicationFile>> listFolders() async => [_read('folder')];
   @override
   Future<void> createFolder(String id, String name) async {
     if (blobs.containsKey(id)) {
@@ -164,6 +197,8 @@ class Remote implements PublicationRemoteStore {
     required String executorId,
     required Uint8List bytes,
   }) async {
+    calls.add('createYaml');
+    await _rtt();
     final digest = await hash(bytes);
     if (blobs.containsKey(fileId)) {
       throw const PublicationFailure(PublicationIssue.conflict);
@@ -182,7 +217,7 @@ class Remote implements PublicationRemoteStore {
         throw const PublicationFailure(PublicationIssue.network);
       }
     }
-    return getFile(fileId);
+    return _read(fileId);
   }
 
   @override
@@ -218,14 +253,15 @@ class Remote implements PublicationRemoteStore {
     PublicationFile expected,
     Map<String, String> properties,
   ) async {
-    await Future<void>.value();
+    _call('updateProperties', expected.id);
+    await _rtt();
     final b = _check(expected);
     b.properties = {...b.properties, ...properties};
     b.version++;
     if (!b.folder && b.properties['antirknUser'] != 'registry') {
       profilePropertyWrites++;
     }
-    return getFile(expected.id);
+    return _read(expected.id);
   }
 
   @override
@@ -234,6 +270,8 @@ class Remote implements PublicationRemoteStore {
     Uint8List data, {
     required Map<String, String> properties,
   }) async {
+    _call('updateFile', expected.id);
+    await _rtt();
     final digest = await hash(data);
     if (pauseContent == utf8.decode(data)) {
       pauseContent = null;
@@ -251,11 +289,13 @@ class Remote implements PublicationRemoteStore {
         throw const PublicationFailure(PublicationIssue.network);
       }
     }
-    return getFile(expected.id);
+    return _read(expected.id);
   }
 
   @override
   Future<Uint8List> download(String id) async {
+    _call('download', id);
+    await _rtt();
     downloadCalls++;
     if (blobs[id]?.properties['antirknUser'] == 'registry') {
       registryDownloadCalls++;
@@ -267,6 +307,8 @@ class Remote implements PublicationRemoteStore {
 
   @override
   Future<void> checkPrivate(String id) async {
+    calls.add('checkPrivate');
+    await _rtt();
     if (shared.contains(id)) {
       throw const PublicationFailure(PublicationIssue.conflict);
     }
@@ -274,6 +316,7 @@ class Remote implements PublicationRemoteStore {
 
   @override
   Future<String> enableLink(String id) async {
+    calls.add('enableLink');
     enableLinkCalls++;
     shared.add(id);
     return 'anyoneWithLink';
@@ -281,11 +324,13 @@ class Remote implements PublicationRemoteStore {
 
   @override
   Future<void> removeLink(String id, String permissionId) async {
+    calls.add('removeLink');
     shared.remove(id);
   }
 
   @override
   Future<void> verifyPublicLink(String url, Uint8List expected) async {
+    calls.add('verifyPublicLink');
     verifyPublicLinkCalls++;
     final id = Uri.parse(url).queryParameters['id'];
     if (linkBroken ||
@@ -757,4 +802,179 @@ void main() {
       expect(usersMap.containsKey(user3), isTrue);
     },
   );
+
+  group('round trips', () {
+    const user2 = '22222222222222222222222222222222';
+    Future<(Repository, Remote, PublicationCoordinator)> warm({
+      PublicationAccess access = PublicationAccess.link,
+    }) async {
+      final repo = Repository(await draft('head-1')), remote = Remote();
+      repo.documents['settings'] = canonicalJson(
+        PublicationSettings(
+          accountKey: 'account',
+          folderId: 'folder',
+          folderName: 'Test',
+          access: access,
+        ).toJson(),
+      );
+      final coord = coordinator(repo, remote);
+      expect((await coord.publish(user, force: true))?['status'], 'published');
+      remote.calls.clear();
+      return (repo, remote, coord);
+    }
+
+    test(
+      'unchanged profile with force reads registry and profile only',
+      () async {
+        final (_, remote, coord) = await warm();
+        expect(
+          (await coord.publish(user, force: true))?['status'],
+          'published',
+        );
+        expect(remote.calls, ['getFile:registry', 'getFile:profile']);
+      },
+    );
+    test('changed existing profile adds only the conditional write', () async {
+      final (repo, remote, coord) = await warm();
+      repo.current = await draft('head-2', ancestors: {'head-1'});
+      expect((await coord.publish(user, force: true))?['status'], 'published');
+      expect(remote.calls, [
+        'getFile:registry',
+        'getFile:profile',
+        'updateFile:profile',
+      ]);
+    });
+    test('first publication with a link reads the created file back once and '
+        'verifies the public bytes', () async {
+      final (repo, remote, coord) = await warm();
+      repo.drafts[user2] = await draft('head-1', user: user2);
+      expect((await coord.publish(user2, force: true))?['status'], 'published');
+      expect(remote.calls, [
+        'getFile:registry',
+        'generateFileId',
+        'updateFile:registry',
+        'getFile:missing',
+        'createYaml',
+        'getFile:registry',
+        'updateFile:registry',
+        'enableLink',
+        'getFile:profile',
+        'verifyPublicLink',
+      ]);
+      expect(remote.profileDownloadCalls, 0);
+    });
+    test('first private publication downloads the created file while the '
+        'permissions are checked', () async {
+      final (repo, remote, coord) = await warm(
+        access: PublicationAccess.private,
+      );
+      remote.latency = const Duration(milliseconds: 2);
+      repo.drafts[user2] = await draft('head-1', user: user2);
+      expect((await coord.publish(user2, force: true))?['status'], 'published');
+      expect(remote.calls, [
+        'getFile:registry',
+        'generateFileId',
+        'updateFile:registry',
+        'getFile:missing',
+        'createYaml',
+        'checkPrivate',
+        'download:profile',
+        'getFile:profile',
+        'getFile:registry',
+        'updateFile:registry',
+      ]);
+      expect(remote.maxInFlight, 2);
+    });
+    test('a publicly shared file still fails the private policy', () async {
+      final (_, remote, coord) = await warm(access: PublicationAccess.private);
+      remote.shared.add(remote.profileId);
+      expect((await coord.publish(user, force: true))?['issue'], 'conflict');
+      expect(remote.calls.where((c) => c.startsWith('update')), isEmpty);
+    });
+    test('parallel workers share one registry read', () async {
+      final users = [for (var i = 1; i <= 4; i++) '$i' * 32];
+      final repo = Repository(null), remote = Remote();
+      for (final id in users) {
+        repo.drafts[id] = await draft('head-1', user: id);
+      }
+      final coord = coordinator(repo, remote);
+      for (final id in users) {
+        expect((await coord.publish(id, force: true))?['status'], 'published');
+      }
+      remote
+        ..calls.clear()
+        ..latency = const Duration(milliseconds: 5);
+      final results = await Future.wait([
+        for (final id in users) coord.publish(id, force: true),
+      ]);
+      expect(results.map((r) => r?['status']), everyElement('published'));
+      expect(remote.calls.where((c) => c == 'getFile:registry'), hasLength(1));
+      expect(remote.calls.where((c) => c == 'getFile:profile'), hasLength(4));
+      expect(remote.calls, hasLength(5));
+    });
+    test('parallel first publications keep every reservation', () async {
+      final users = [for (var i = 1; i <= 4; i++) '$i' * 32];
+      final repo = Repository(null), remote = Remote();
+      for (final id in users) {
+        repo.drafts[id] = await draft('head-1', user: id);
+      }
+      final coord = coordinator(repo, remote);
+      remote.latency = const Duration(milliseconds: 2);
+      final results = await Future.wait([
+        for (final id in users) coord.publish(id, force: true),
+      ]);
+      expect(results.map((r) => r?['status']), everyElement('published'));
+      final registry = remote.blobs.values.singleWhere(
+        (b) => b.properties['antirknUser'] == 'registry',
+      );
+      final entries =
+          (jsonDecode(utf8.decode(registry.content)) as Map)['users'] as Map;
+      expect(entries.keys, unorderedEquals(users));
+      expect(entries.values.map((e) => e['created']), everyElement(true));
+      expect(remote.createdProfiles, 4);
+    });
+    test('a registry write response that does not match the bytes sent is '
+        'read back in full', () async {
+      final repo = Repository(await draft('head-1')),
+          remote = UntrustedWriteRemote();
+      final coord = coordinator(repo, remote);
+      expect((await coord.publish(user, force: true))?['status'], 'published');
+      remote.calls.clear();
+      repo.drafts[user2] = await draft('head-1', user: user2);
+      expect((await coord.publish(user2, force: true))?['status'], 'published');
+      final afterWrite = remote.calls.indexOf('updateFile:registry');
+      expect(remote.calls.sublist(afterWrite + 1, afterWrite + 4), [
+        'getFile:registry',
+        'download:registry',
+        'getFile:registry',
+      ]);
+    });
+  });
+}
+
+/// Returns the written registry with a hash that is not of the bytes sent.
+class UntrustedWriteRemote extends Remote {
+  @override
+  Future<PublicationFile> updateFile(
+    PublicationFile expected,
+    Uint8List data, {
+    required Map<String, String> properties,
+  }) async {
+    final written = await super.updateFile(
+      expected,
+      data,
+      properties: properties,
+    );
+    if (written.properties['antirknUser'] != 'registry') return written;
+    return PublicationFile(
+      id: written.id,
+      name: written.name,
+      mimeType: written.mimeType,
+      version: written.version,
+      etag: written.etag,
+      editable: written.editable,
+      properties: {...written.properties, 'antirknHash': 'unrelated'},
+      downloadUrl: written.downloadUrl,
+    );
+  }
 }

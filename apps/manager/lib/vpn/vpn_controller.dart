@@ -750,68 +750,53 @@ class VpnController extends ChangeNotifier {
 
   /// Derived from the immutable [workspace] alone, so it is computed once per
   /// workspace instance instead of on every notification.
-  bool get hasUnappliedActiveAccess =>
-      _unappliedAccess[workspace] ??= _computeUnappliedActiveAccess();
-  final _unappliedAccess = Expando<bool>('hasUnappliedActiveAccess');
+  bool get hasUnappliedActiveAccess => _unappliedAccessTargets.isNotEmpty;
 
-  bool _computeUnappliedActiveAccess() {
+  /// The targets whose confirmed readback lacks an active client.
+  Set<String> get _unappliedAccessTargets =>
+      _unappliedAccess[workspace] ??= _computeUnappliedAccessTargets();
+  final _unappliedAccess = Expando<Set<String>>('unappliedAccessTargets');
+
+  Set<String> _computeUnappliedAccessTargets() {
     final users = workspace.users
         .where((user) => !user.deleted && user.enabled)
         .map((user) => user.id)
         .toSet();
-    if (users.isEmpty) return false;
-    bool missing(Iterable<Map> observations, String resourceId) {
-      final clients = observations
-          .where((row) => row['id'] == resourceId && row['confirmed'] == true)
-          .expand(
-            (row) => (row['clients'] as List? ?? const []).whereType<Map>(),
-          )
-          .where((client) => client['enabled'] == true)
-          .map((client) => client['id'])
-          .toSet();
-      return !clients.containsAll(users);
+    final targets = <String>{};
+    if (users.isEmpty) return targets;
+    void check(String serverId, String target, String resourceId) {
+      if (workspace.inServiceMode(serverId)) return;
+      final clients =
+          (workspace.servers[target]?['observed'] as List? ?? const [])
+              .whereType<Map>()
+              .where(
+                (row) => row['id'] == resourceId && row['confirmed'] == true,
+              )
+              .expand(
+                (row) => (row['clients'] as List? ?? const []).whereType<Map>(),
+              )
+              .where((client) => client['enabled'] == true)
+              .map((client) => client['id'])
+              .toSet();
+      if (!clients.containsAll(users)) targets.add(target);
     }
 
     for (final resource in workspace.inbounds.where(
       (resource) => resource.enabled && !resource.deleted && !resource.internal,
     )) {
-      if (workspace.inServiceMode(resource.serverId)) continue;
-      if (missing(
-        (workspace.servers[resource.serverId]?['observed'] as List? ?? const [])
-            .whereType<Map>(),
-        resource.id,
-      )) {
-        return true;
-      }
+      check(resource.serverId, resource.serverId, resource.id);
     }
     for (final resource in workspace.awgInterfaces.where(
       (resource) => resource.enabled && !resource.deleted,
     )) {
-      if (workspace.inServiceMode(resource.serverId)) continue;
-      if (missing(
-        (workspace.servers[awgTarget(resource.serverId)]?['observed']
-                    as List? ??
-                const [])
-            .whereType<Map>(),
-        resource.id,
-      )) {
-        return true;
-      }
+      check(resource.serverId, awgTarget(resource.serverId), resource.id);
     }
     for (final resource in workspace.ttEndpoints.where(
       (resource) => resource.enabled && !resource.deleted,
     )) {
-      if (workspace.inServiceMode(resource.serverId)) continue;
-      if (missing(
-        (workspace.servers[ttTarget(resource.serverId)]?['observed'] as List? ??
-                const [])
-            .whereType<Map>(),
-        resource.id,
-      )) {
-        return true;
-      }
+      check(resource.serverId, ttTarget(resource.serverId), resource.id);
     }
-    return false;
+    return targets;
   }
 
   /// Repairs the legacy state where a force-hidden revocation prevented a
@@ -2889,46 +2874,103 @@ class VpnController extends ChangeNotifier {
         usedSavedVerification: true,
       );
     }
-    String? applyIssue;
-    try {
-      if (workspace.serverIds.isNotEmpty) {
-        await prepareAndApply();
-        applyIssue = error;
-      }
-    } catch (_) {
-      applyIssue = 'vpn_failed';
-    }
-    Set<String>? refreshFailed;
+    // Read every target first and apply only to those whose confirmed
+    // readback differs from the desired state: an apply of an unchanged
+    // server still restarts its core and drops live sessions.
+    Set<String> refreshFailed = const {};
     await _run((token) async {
-      final targets = <String>{
-        for (final resource in workspace.inbounds)
-          if (resource.enabled && !resource.deleted && !resource.internal)
-            resource.serverId,
-        for (final resource in workspace.awgInterfaces)
-          if (resource.enabled && !resource.deleted)
-            awgTarget(resource.serverId),
-        for (final resource in workspace.ttEndpoints)
-          if (resource.enabled && !resource.deleted)
-            ttTarget(resource.serverId),
-        for (final serverId in workspace.serverIds) ...[
-          serverId,
-          if (workspace.awgInterfaces.any((i) => i.serverId == serverId))
-            awgTarget(serverId),
-          if (workspace.ttEndpoints.any((i) => i.serverId == serverId))
-            ttTarget(serverId),
-        ],
-        // A server in service mode is neither read nor blamed here.
-      }.where((target) => !workspace.inServiceMode(target)).toList()..sort();
-      final refreshed = await _refreshTargets(targets, token);
+      final refreshed = await _refreshTargets(_syncReadTargets(), token);
       error = refreshed.issue;
       refreshFailed = refreshed.failed;
     });
-    final issue = applyIssue ?? error;
+    final readIssue = error;
+    String? applyIssue;
+    final unsettled = _unsettledTargets(refreshFailed);
+    final applied =
+        unsettled ??
+        workspace.serverIds.where((t) => !workspace.inServiceMode(t)).toSet();
+    if (applied.isNotEmpty) {
+      try {
+        await prepareAndApply(serverIds: unsettled);
+        applyIssue = error ?? await _awaitApplied(applied);
+      } catch (_) {
+        applyIssue = 'vpn_failed';
+      }
+    }
+    final issue = applyIssue ?? readIssue;
     error = issue;
     // Only a failed read names its servers; a plan or apply issue does not.
     _setServerSyncIssue(issue, applyIssue == null ? refreshFailed : null);
     _notify();
     return ServerProfileSyncResult(revision: revision, issue: issue);
+  }
+
+  /// Every target a full server check reads. A server in service mode is
+  /// neither read nor blamed here.
+  List<String> _syncReadTargets() => <String>{
+    for (final resource in workspace.inbounds)
+      if (resource.enabled && !resource.deleted && !resource.internal)
+        resource.serverId,
+    for (final resource in workspace.awgInterfaces)
+      if (resource.enabled && !resource.deleted) awgTarget(resource.serverId),
+    for (final resource in workspace.ttEndpoints)
+      if (resource.enabled && !resource.deleted) ttTarget(resource.serverId),
+    for (final serverId in workspace.serverIds) ...[
+      serverId,
+      if (workspace.awgInterfaces.any((i) => i.serverId == serverId))
+        awgTarget(serverId),
+      if (workspace.ttEndpoints.any((i) => i.serverId == serverId))
+        ttTarget(serverId),
+    ],
+  }.where((target) => !workspace.inServiceMode(target)).toList()..sort();
+
+  /// The targets a full server check must apply after a fresh read: those
+  /// not settled on the desired state or missing an active client. A target
+  /// whose read just failed is left out: it cannot be planned now and its
+  /// failure is reported. Null means every target, as before this check:
+  /// pending revocations and restored targets are planned all together.
+  Set<String>? _unsettledTargets(Set<String> unreadable) {
+    if (_globalRevocations.isNotEmpty) return null;
+    final missingAccess = _unappliedAccessTargets;
+    return {
+      for (final target in workspace.serverIds)
+        if (!workspace.inServiceMode(target) &&
+            !unreadable.contains(target) &&
+            (_restoredTargets.contains(target) ||
+                missingAccess.contains(target) ||
+                !_targetVerified(target)))
+          target,
+    };
+  }
+
+  /// How long a full server check waits for its submitted jobs.
+  static const _appliedWait = Duration(seconds: 90);
+
+  /// Follows the jobs submitted for [targets] until they finish, so the
+  /// check reports the confirmed readback the finished job read instead of
+  /// a read taken while the job (or its core restart) is still running.
+  /// Null when no job failed.
+  Future<String?> _awaitApplied(Set<String> targets) async {
+    bool running() => targets.any(
+      (target) =>
+          remote(target) != null && _isTargetBusy(workspace.servers[target]),
+    );
+    final deadline = DateTime.now().add(_appliedWait);
+    while (running() && !_disposed) {
+      if (DateTime.now().isAfter(deadline)) return 'vpn_busy';
+      await Future<void>.delayed(const Duration(seconds: 1));
+      await _run(_reconcile);
+      if (error != null) return error;
+    }
+    // A job that failed or paused names its issue; an unreachable target
+    // is reported by its failed read.
+    for (final target in targets) {
+      final record = workspace.servers[target];
+      if (remote(target) == null || record == null) continue;
+      if (record['error'] case final String issue) return issue;
+      if (record['paused'] == true) return 'vpn_failed';
+    }
+    return null;
   }
 
   Future<_TargetPollResult> _pollTarget(

@@ -1016,8 +1016,15 @@ void main() {
       expect(remotes.values.every((remote) => remote.actions.isEmpty), isTrue);
 
       final fresh = await c.syncAllServersAndProfiles();
+      expect(fresh.verified, isTrue);
       expect(fresh.usedSavedVerification, isFalse);
       expect(remotes['one']!.actions, contains('vless_state'));
+      // Settled servers are read, never planned or applied again: an apply
+      // would restart their core and drop live sessions.
+      for (final remote in remotes.values) {
+        expect(remote.actions, isNot(contains('vless_plan')));
+        expect(remote.actions, isNot(contains('submit')));
+      }
 
       await c.saveUser(
         VpnUser(id: alice, login: 'alice', name: 'Alice', enabled: false),
@@ -1103,6 +1110,10 @@ void main() {
       await setup(c);
       await c.prepare();
       await c.apply();
+      // A changed client needs a plan; settled servers are only read.
+      await c.saveUser(
+        VpnUser(id: alice, login: 'alice', name: 'Alice', enabled: false),
+      );
       remotes['one']!.failPlan = true;
 
       final failed = await c.syncAllServersAndProfiles();

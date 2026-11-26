@@ -239,8 +239,6 @@ final class WorkspaceDatabase
   bool _restored = false;
   bool _initialized = false;
   final _documentCache = <String, (int, String)>{};
-  int? _cachedWorkspaceRevision;
-  VpnWorkspace? _cachedWorkspace;
   Future<_VpnWriteWorker>? _vpnWriter;
   @override
   bool needsLegacyPassword = false;
@@ -668,17 +666,11 @@ final class WorkspaceDatabase
           );
         });
 
-  Future<VpnWorkspace> _getVpnWorkspace() async {
-    final projection = await _vpnOverlay.read();
-    final rev = projection.revision;
-    if (rev == _cachedWorkspaceRevision && _cachedWorkspace != null) {
-      return _cachedWorkspace!;
-    }
-    final workspace = VpnWorkspace.decode(projection.source!);
-    _cachedWorkspaceRevision = rev;
-    _cachedWorkspace = workspace;
-    return workspace;
-  }
+  Future<VpnWorkspace> _getVpnWorkspace() => _vpnOverlay.workspace();
+
+  /// How many times the VPN projection was decrypted on this connection.
+  @visibleForTesting
+  int get debugVpnProjectionLoads => _vpnOverlay.loads;
 
   @override
   Future<PublicationDraft?> readPublicationDraft(String userId) =>
@@ -686,10 +678,12 @@ final class WorkspaceDatabase
       ? _remoteCall('readPublicationDraft', [userId])
       : _serial(() async {
           _publicationId('queue/$userId');
-          final row = _db.select('SELECT * FROM documents WHERE id=?', [
+          // Existence only: the payload is the whole encrypted workspace.
+          if (_db.select('SELECT 1 FROM documents WHERE id=?', [
             'vpn-workspace-v1',
-          ]).firstOrNull;
-          if (row == null) return null;
+          ]).isEmpty) {
+            return null;
+          }
           final workspace = await _getVpnWorkspace();
           final user = workspace.users
               .where((u) => u.id == userId && u.enabled)
@@ -837,8 +831,7 @@ final class WorkspaceDatabase
         try {
           final updated = await writer.write(input, expectedRevision);
           _documentCache.remove('vpn-workspace-v1');
-          _cachedWorkspaceRevision = null;
-          _cachedWorkspace = null;
+          _vpnOverlay.invalidate();
           if (updated != expectedRevision) _localChanges.add(null);
           return updated;
         } catch (_) {
@@ -917,8 +910,7 @@ final class WorkspaceDatabase
       _db.execute('DELETE FROM vpn_overlay_state');
       _journal.record(before, after);
       _documentCache[id] = (revision, source);
-      _cachedWorkspaceRevision = null;
-      _cachedWorkspace = null;
+      _vpnOverlay.invalidate();
       return revision;
     });
   }
@@ -1007,10 +999,7 @@ final class WorkspaceDatabase
       );
       _journal.record(before, after);
       _documentCache[id] = (revision, source);
-      if (id == 'vpn-workspace-v1') {
-        _cachedWorkspaceRevision = null;
-        _cachedWorkspace = null;
-      }
+      if (id == 'vpn-workspace-v1') _vpnOverlay.invalidate();
     });
   });
 

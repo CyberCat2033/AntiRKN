@@ -265,8 +265,34 @@ final class GoogleDrivePublisher
     );
   }
 
+  /// The v3 create response carries only kind/id/name/mimeType: no v2 ETag,
+  /// private properties or capabilities. The created file is therefore read
+  /// back through v2, which is also the confirmation of the remote state.
   @override
   Future<PublicationFile> createYaml({
+    required String fileId,
+    required String folderId,
+    required String name,
+    required String workspaceId,
+    required String userId,
+    required String headId,
+    required String executorId,
+    required Uint8List bytes,
+  }) async {
+    await _create(
+      fileId: fileId,
+      folderId: folderId,
+      name: name,
+      workspaceId: workspaceId,
+      userId: userId,
+      headId: headId,
+      executorId: executorId,
+      bytes: bytes,
+    );
+    return getFile(fileId);
+  }
+
+  Future<void> _create({
     required String fileId,
     required String folderId,
     required String name,
@@ -305,30 +331,17 @@ final class GoogleDrivePublisher
       )
       ..add(bytes)
       ..add(utf8.encode('\r\n--$boundary--\r\n'));
-    final response = await _send(
-      'POST',
-      _uri('files', {'uploadType': 'multipart'}, true),
-      body: body.takeBytes(),
-      headers: {'Content-Type': 'multipart/related; boundary=$boundary'},
+    final created = _json(
+      await _send(
+        'POST',
+        _uri('files', {'uploadType': 'multipart', 'fields': 'id'}, true),
+        body: body.takeBytes(),
+        headers: {'Content-Type': 'multipart/related; boundary=$boundary'},
+      ),
     );
-    final json = _json(response);
-    return json['id'] is String
-        ? _file(json)
-        : PublicationFile(
-            id: fileId,
-            name: name,
-            mimeType: 'application/yaml',
-            version: '1',
-            etag: json['etag'] as String? ?? '',
-            editable: true,
-            properties: {
-              'antirknWorkspace': workspaceId,
-              'antirknUser': userId,
-              'antirknHead': headId,
-              'antirknExecutor': executorId,
-              'antirknHash': hashDigest,
-            },
-          );
+    if (created['id'] != fileId) {
+      throw const PublicationFailure(PublicationIssue.invalid);
+    }
   }
 
   Map<String, Object?> _propertyBody(Map<String, String> properties) => {
@@ -434,35 +447,28 @@ final class GoogleDrivePublisher
       )
       ..add(bytes)
       ..add(utf8.encode('\r\n--$boundary--\r\n'));
-    final response = await _send(
-      'PUT',
-      _v2('files/${_id(expected.id)}', {'uploadType': 'multipart'}, true),
-      body: body.takeBytes(),
-      headers: {
-        'Content-Type': 'multipart/related; boundary=$boundary',
-        ..._ifMatch(expected),
-      },
+    // The response is the file as the server stored it, with the new ETag
+    // and properties; no field is guessed from the request.
+    final written = _file(
+      _json(
+        await _send(
+          'PUT',
+          _v2('files/${_id(expected.id)}', {
+            'uploadType': 'multipart',
+            'fields': _v2Fields,
+          }, true),
+          body: body.takeBytes(),
+          headers: {
+            'Content-Type': 'multipart/related; boundary=$boundary',
+            ..._ifMatch(expected),
+          },
+        ),
+      ),
     );
-    final json = _json(response);
-    return json['id'] is String
-        ? _file(json)
-        : PublicationFile(
-            id: expected.id,
-            name: expected.name,
-            mimeType: expected.mimeType,
-            version: json['version'] as String? ?? expected.version,
-            etag: json['etag'] as String? ?? expected.etag,
-            editable: expected.editable,
-            properties: {
-              ...expected.properties,
-              ...properties,
-              'antirknHash': hashDigest,
-            },
-            shared: expected.shared,
-            trashed: expected.trashed,
-            downloadUrl: expected.downloadUrl,
-            resourceKey: expected.resourceKey,
-          );
+    if (written.id != expected.id) {
+      throw const PublicationFailure(PublicationIssue.invalid);
+    }
+    return written;
   }
 
   @override
@@ -472,7 +478,8 @@ final class GoogleDrivePublisher
     String workspaceId,
     Uint8List bytes,
   ) async {
-    await createYaml(
+    // The coordinator reads the registry back with a hash-checked snapshot.
+    await _create(
       fileId: fileId,
       folderId: folderId,
       name: '.antirkn-publications-$workspaceId.json',

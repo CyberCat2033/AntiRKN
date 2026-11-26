@@ -268,6 +268,7 @@ Future<void> _restoreBackup(
         store._db.execute('DELETE FROM vpn_overlay_state');
         store._db.execute('DELETE FROM servers');
         store._db.execute('DELETE FROM documents');
+        store._vpnOverlay.invalidate();
         for (final table in ['servers', 'documents']) {
           for (final row in records[table]!) {
             store._db.execute(

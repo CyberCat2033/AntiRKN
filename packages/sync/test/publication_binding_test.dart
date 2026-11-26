@@ -78,6 +78,34 @@ class FaultRemote extends f.Remote {
 }
 
 void main() {
+  test('a bound client checks the registry fence only before writes and the '
+      'result', () async {
+    final repo = f.Repository(await f.draft('one')), remote = f.Remote();
+    await f.publish(repo, remote);
+    remote.blobs['legacy'] = f.Blob(f.bytes('external'), {});
+    await accept(repo, remote, 'legacy');
+    final coord = f.coordinator(repo, remote);
+    expect((await coord.publish(f.user, force: true))?['status'], 'published');
+    remote.calls.clear();
+    expect((await coord.publish(f.user, force: true))?['status'], 'published');
+    expect(remote.calls, [
+      'getFile:registry',
+      'getFile:registry',
+      'getFile:profile',
+      'getFile:registry',
+    ]);
+    remote.calls.clear();
+    repo.current = await f.draft('two', ancestors: {'one'});
+    expect((await coord.publish(f.user, force: true))?['status'], 'published');
+    expect(remote.calls, [
+      'getFile:registry',
+      'getFile:registry',
+      'getFile:profile',
+      'getFile:registry',
+      'updateFile:profile',
+      'getFile:registry',
+    ]);
+  });
   test(
     'changed access policy cannot apply an earlier public-link consent',
     () async {

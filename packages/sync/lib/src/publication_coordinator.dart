@@ -28,7 +28,11 @@ final class PublicationCoordinator {
   String? _cachedRegistryId;
   Future<String>? _registryFuture;
   (PublicationFile, Map<String, dynamic>)? _cachedRegistry;
-  Future<(PublicationFile, Map<String, dynamic>)>? _registrySnapshotFuture;
+  (int, Future<(PublicationFile, Map<String, dynamic>)>)? _registrySnapshot;
+
+  /// Bumped by every registry write of this coordinator. A read started
+  /// before a write is neither shared with later readers nor cached.
+  int _registryGeneration = 0;
   Future<void> _registryLock = Future.value();
 
   Future<T> _lockRegistry<T>(Future<T> Function() action) {
@@ -40,36 +44,76 @@ final class PublicationCoordinator {
     return next;
   }
 
+  /// Concurrent readers share one request. A matching ETag validates the
+  /// cached registry; a changed one gets a full hash-checked snapshot.
   Future<(PublicationFile, Map<String, dynamic>)> _fetchRegistry(
     String registryId,
     String workspaceId,
   ) {
-    return _registrySnapshotFuture ??=
+    final generation = _registryGeneration;
+    if (_registrySnapshot case (final g, final pending) when g == generation) {
+      return pending;
+    }
+    late final Future<(PublicationFile, Map<String, dynamic>)> future;
+    future =
         () async {
           final cached = _cachedRegistry;
+          PublicationFile? current;
           if (cached != null && cached.$1.id == registryId) {
-            final current = await remote.getFile(registryId);
+            current = await remote.getFile(registryId);
             if (current.etag == cached.$1.etag) {
               return cached;
             }
-            final snapshot = await _snapshot(registryId, file: current);
-            final decoded = _decodeRegistry(snapshot.$2, workspaceId);
-            final result = (snapshot.$1, decoded);
-            _cachedRegistry = result;
-            return result;
           }
-          final snapshot = await _snapshot(registryId);
-          final decoded = _decodeRegistry(snapshot.$2, workspaceId);
-          final result = (snapshot.$1, decoded);
-          _cachedRegistry = result;
+          final snapshot = await _snapshot(registryId, file: current);
+          final result = (
+            snapshot.$1,
+            _decodeRegistry(snapshot.$2, workspaceId),
+          );
+          if (generation == _registryGeneration) _cachedRegistry = result;
           return result;
         }().whenComplete(() {
-          _registrySnapshotFuture = null;
+          if (identical(_registrySnapshot?.$2, future)) {
+            _registrySnapshot = null;
+          }
         });
+    _registrySnapshot = (generation, future);
+    return future;
   }
 
   void _invalidateRegistryCache() {
+    _registryGeneration++;
     _cachedRegistry = null;
+  }
+
+  /// Writes [next] over [expected] with If-Match. The write response is the
+  /// server state: its ETag and the hash of the bytes sent become the cached
+  /// snapshot, so the next read only compares ETags. Anything else is read
+  /// back with a full hash-checked snapshot.
+  Future<void> _writeRegistry(
+    PublicationFile expected,
+    Map<String, dynamic> next,
+    String workspaceId,
+  ) async {
+    final data = _bytes(next);
+    _invalidateRegistryCache();
+    final written = await remote.updateFile(
+      expected,
+      data,
+      properties: const {},
+    );
+    _invalidateRegistryCache();
+    if (written.id == expected.id &&
+        written.etag.isNotEmpty &&
+        written.etag != expected.etag &&
+        written.binary &&
+        !written.trashed &&
+        written.properties['antirknHash'] == await _hash(data)) {
+      _cachedRegistry = (written, next);
+      return;
+    }
+    final snapshot = await _snapshot(expected.id);
+    _cachedRegistry = (snapshot.$1, _decodeRegistry(snapshot.$2, workspaceId));
   }
 
   Future<Map<String, dynamic>?> publish(
@@ -185,8 +229,12 @@ final class PublicationCoordinator {
           : null;
 
       PublicationFile? file;
+      // A file created in this run whose bytes are not downloaded again: the
+      // public link check below compares the exact published bytes instead.
+      var unverifiedCreate = false;
       for (var attempt = 0; attempt < 4; attempt++) {
         try {
+          var createdNow = false;
           try {
             file = await remote.getFile(fileId);
           } on PublicationFailure catch (e) {
@@ -223,6 +271,7 @@ final class PublicationCoordinator {
                 executorId: draft.deviceId,
                 bytes: draft.bytes,
               );
+              createdNow = true;
             } on PublicationFailure catch (e) {
               if (e.issue != PublicationIssue.conflict) rethrow;
             }
@@ -237,29 +286,47 @@ final class PublicationCoordinator {
               f.trashed) {
             throw const PublicationFailure(PublicationIssue.invalid);
           }
-          if (settings.access == PublicationAccess.private) {
-            await remote.checkPrivate(fileId);
-          }
-          final head = f.properties['antirknHead'];
-          if (!force &&
-              head != draft.headId &&
-              !draft.ancestors.contains(head)) {
-            throw const PublicationFailure(PublicationIssue.conflict);
-          }
+          // The permission check runs alongside the content read and is
+          // awaited before any write; its failure is reported first, as
+          // when it ran alone.
+          final privacy = settings.access == PublicationAccess.private
+              ? remote.checkPrivate(fileId)
+              : null;
+          privacy?.then<void>((_) {}, onError: (Object _) {});
           final remoteHash = f.properties['antirknHash'];
-          final canSkipDownload =
-              forceUpload ||
-              (previousEtag != null &&
-                  previousEtag == f.etag &&
-                  remoteHash != null);
           final String hash;
-          if (canSkipDownload) {
-            hash = remoteHash ?? '';
-          } else {
-            final snapshot = await _snapshot(fileId, file: f);
-            file = snapshot.$1;
-            hash = await _hash(snapshot.$2);
+          try {
+            final head = f.properties['antirknHead'];
+            if (!force &&
+                head != draft.headId &&
+                !draft.ancestors.contains(head)) {
+              throw const PublicationFailure(PublicationIssue.conflict);
+            }
+            final skipCreatedLink =
+                createdNow &&
+                settings.access == PublicationAccess.link &&
+                f.etag.isNotEmpty &&
+                head == draft.headId &&
+                remoteHash == draft.hash;
+            final canSkipDownload =
+                forceUpload ||
+                skipCreatedLink ||
+                (previousEtag != null &&
+                    previousEtag == f.etag &&
+                    remoteHash != null);
+            if (canSkipDownload) {
+              hash = remoteHash ?? '';
+              unverifiedCreate = skipCreatedLink;
+            } else {
+              final snapshot = await _snapshot(fileId, file: f);
+              file = snapshot.$1;
+              hash = await _hash(snapshot.$2);
+            }
+          } catch (_) {
+            await privacy;
+            rethrow;
           }
+          await privacy;
           // Drive decides what is current: the content hash the publisher
           // wrote. A file whose content already matches is not written again,
           // even under another journal head (a device that pulled the
@@ -282,7 +349,7 @@ final class PublicationCoordinator {
           await guard();
         }
       }
-      await guard();
+      // _markCreated guards its own registry write.
       if (entry['created'] != true) {
         await _markCreated(
           registryId,
@@ -299,8 +366,8 @@ final class PublicationCoordinator {
           ? previous['url'] as String?
           : null;
       if (settings.access == PublicationAccess.link) {
-        await guard();
-        if (permissionId == null || url == null) {
+        if (permissionId == null || url == null || unverifiedCreate) {
+          await guard();
           permissionId = await remote.enableLink(fileId);
           file = await remote.getFile(fileId);
           url = file.downloadUrl;
@@ -519,49 +586,64 @@ final class PublicationCoordinator {
     throw const PublicationFailure(PublicationIssue.conflict);
   }
 
+  /// An existing final entry is only read, without the registry lock, so
+  /// parallel publications share one registry read. Changes run under the
+  /// lock and are written with If-Match.
   Future<Map<String, dynamic>> _reserve(
     String registryId,
     PublicationDraft draft,
     Future<void> Function() guard,
-  ) => _lockRegistry(() async {
-    String? candidate;
-    for (var attempt = 0; attempt < 8; attempt++) {
-      final (file, value) = await _fetchRegistry(registryId, draft.workspaceId);
-      final users = value['users'] as Map<String, dynamic>;
-      if (users[draft.userId] case final Map existing) {
-        if (existing['pending'] == true) {
-          await _finishBinding(
-            registryId,
-            draft,
-            Map<String, dynamic>.from(existing),
-            guard,
-          );
-          _invalidateRegistryCache();
-          continue;
-        }
-        return Map<String, dynamic>.from(existing);
-      }
-      candidate ??= await remote.generateFileId();
-      final next = {
-        ...value,
-        'users': {
-          ...users,
-          draft.userId: {'fileId': candidate, 'created': false},
-        },
-      };
-      await guard();
-      try {
-        await remote.updateFile(file, _bytes(next), properties: const {});
-        final freshSnapshot = await _snapshot(registryId);
-        _cachedRegistry = (freshSnapshot.$1, next);
-        return {'fileId': candidate, 'created': false};
-      } on PublicationFailure catch (e) {
-        _invalidateRegistryCache();
-        if (e.issue != PublicationIssue.conflict) rethrow;
-      }
+  ) async {
+    final generation = _registryGeneration;
+    final read = await _fetchRegistry(registryId, draft.workspaceId);
+    if ((read.$2['users'] as Map)[draft.userId] case final Map existing
+        when existing['pending'] != true) {
+      return Map<String, dynamic>.from(existing);
     }
-    throw const PublicationFailure(PublicationIssue.conflict);
-  });
+    return _lockRegistry(() async {
+      // The read above stays usable while no local write happened since:
+      // the conditional write still rejects any remote change.
+      var reuse = generation == _registryGeneration;
+      String? candidate;
+      for (var attempt = 0; attempt < 8; attempt++) {
+        final (file, value) = reuse
+            ? read
+            : await _fetchRegistry(registryId, draft.workspaceId);
+        reuse = false;
+        final users = value['users'] as Map<String, dynamic>;
+        if (users[draft.userId] case final Map existing) {
+          if (existing['pending'] == true) {
+            await _finishBinding(
+              registryId,
+              draft,
+              Map<String, dynamic>.from(existing),
+              guard,
+            );
+            _invalidateRegistryCache();
+            continue;
+          }
+          return Map<String, dynamic>.from(existing);
+        }
+        candidate ??= await remote.generateFileId();
+        final next = {
+          ...value,
+          'users': {
+            ...users,
+            draft.userId: {'fileId': candidate, 'created': false},
+          },
+        };
+        await guard();
+        try {
+          await _writeRegistry(file, next, draft.workspaceId);
+          return {'fileId': candidate, 'created': false};
+        } on PublicationFailure catch (e) {
+          _invalidateRegistryCache();
+          if (e.issue != PublicationIssue.conflict) rethrow;
+        }
+      }
+      throw const PublicationFailure(PublicationIssue.conflict);
+    });
+  }
 
   Future<void> _markCreated(
     String registryId,
@@ -586,9 +668,7 @@ final class PublicationCoordinator {
       };
       final next = {...value, 'users': nextUsers};
       try {
-        await remote.updateFile(file, _bytes(next), properties: const {});
-        final freshSnapshot = await _snapshot(registryId);
-        _cachedRegistry = (freshSnapshot.$1, next);
+        await _writeRegistry(file, next, workspaceId);
         return;
       } on PublicationFailure catch (e) {
         _invalidateRegistryCache();
@@ -627,9 +707,7 @@ final class PublicationCoordinator {
       };
       final next = {...value, 'users': nextUsers};
       try {
-        await remote.updateFile(file, _bytes(next), properties: const {});
-        final freshSnapshot = await _snapshot(registryId);
-        _cachedRegistry = (freshSnapshot.$1, next);
+        await _writeRegistry(file, next, workspaceId);
         return newFileId;
       } on PublicationFailure catch (e) {
         _invalidateRegistryCache();

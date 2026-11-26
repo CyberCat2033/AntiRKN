@@ -61,11 +61,74 @@ final class _VpnOverlay {
     }
   }
 
+  // Every publication check reads the projection; decrypting the whole
+  // document and each patch again is the dominant cost, so the last result is
+  // kept while [_stamp] proves the stored rows did not change.
+  (String, _VpnProjection)? _cached;
+  (_VpnProjection, VpnWorkspace)? _decoded;
+  var _generation = 0;
+  var loads = 0;
+
+  /// Called by every write of this connection that can change the projection.
+  void invalidate() {
+    _generation++;
+    _cached = null;
+    _decoded = null;
+  }
+
+  /// Revisions and payload sizes change with every write of this connection
+  /// (each one bumps the document or overlay revision); `data_version`
+  /// changes with every commit of any other connection — the VPN write
+  /// worker or another process — including a restore that reuses revisions.
+  /// Reads no payload bytes. Call inside the read transaction of the rows.
+  String _stamp() {
+    final version = db.select('PRAGMA data_version').single.values.single;
+    final row = db
+        .select(
+          "SELECT (SELECT revision||':'||length(payload) FROM documents WHERE id='vpn-workspace-v1') AS document, "
+          "(SELECT base_revision||':'||revision FROM vpn_overlay_state WHERE singleton=1) AS state, "
+          "(SELECT group_concat(entry, ',') FROM (SELECT user_id||':'||revision||':'||length(payload) AS entry FROM vpn_user_overlay ORDER BY user_id)) AS users, "
+          "(SELECT group_concat(entry, ',') FROM (SELECT user_id||':'||revision||':'||length(payload) AS entry FROM vpn_profile_overlay ORDER BY user_id)) AS profiles",
+        )
+        .single;
+    return jsonEncode([
+      version,
+      row['document'],
+      row['state'],
+      row['users'],
+      row['profiles'],
+    ]);
+  }
+
+  /// The decoded workspace of the current projection; requires the document.
+  Future<VpnWorkspace> workspace() async {
+    final projection = await read();
+    if (_decoded case (
+      final cached,
+      final workspace,
+    ) when identical(cached, projection)) {
+      return workspace;
+    }
+    final workspace = VpnWorkspace.decode(projection.source!);
+    _decoded = (projection, workspace);
+    return workspace;
+  }
+
   Future<_VpnProjection> read() async {
+    final generation = _generation;
+    late final String stamp;
     Row? row, state;
     late final List<Row> userPatches, profilePatches;
     db.execute('BEGIN');
     try {
+      stamp = _stamp();
+      if (_cached case (
+        final cachedStamp,
+        final projection,
+      ) when cachedStamp == stamp) {
+        db.execute('COMMIT');
+        return projection;
+      }
       row = db
           .select("SELECT * FROM documents WHERE id='vpn-workspace-v1'")
           .firstOrNull;
@@ -83,19 +146,39 @@ final class _VpnOverlay {
       db.execute('ROLLBACK');
       rethrow;
     }
+    final (projection, workspace) = await _project(
+      row,
+      state,
+      userPatches,
+      profilePatches,
+    );
+    if (generation == _generation) {
+      _cached = (stamp, projection);
+      _decoded = workspace == null ? null : (projection, workspace);
+    }
+    return projection;
+  }
+
+  Future<(_VpnProjection, VpnWorkspace?)> _project(
+    Row? row,
+    Row? state,
+    List<Row> userPatches,
+    List<Row> profilePatches,
+  ) async {
     if (row == null) {
       if (state != null ||
           userPatches.isNotEmpty ||
           profilePatches.isNotEmpty) {
         throw const VaultFailure(VaultIssue.corrupt);
       }
-      return const _VpnProjection(null, 0, 0, false);
+      return (const _VpnProjection(null, 0, 0, false), null);
     }
     final base = row['revision'] as int;
     if (state != null && state['base_revision'] != base) {
       throw const VaultFailure(VaultIssue.busy);
     }
     final logical = state?['revision'] as int? ?? base;
+    loads++;
     final source = await store._decrypt(
       'vpn-workspace-v1',
       base,
@@ -105,7 +188,7 @@ final class _VpnOverlay {
       if (userPatches.isNotEmpty || profilePatches.isNotEmpty) {
         throw const VaultFailure(VaultIssue.corrupt);
       }
-      return _VpnProjection(source, base, base, false);
+      return (_VpnProjection(source, base, base, false), null);
     }
     if (!userPatches.any((patch) => patch['revision'] == logical) &&
         !profilePatches.any((patch) => patch['revision'] == logical)) {
@@ -157,8 +240,10 @@ final class _VpnOverlay {
               as Map<String, dynamic>;
     }
     final projected = jsonEncode(value);
-    VpnWorkspace.decode(projected);
-    return _VpnProjection(projected, logical, base, true);
+    return (
+      _VpnProjection(projected, logical, base, true),
+      VpnWorkspace.decode(projected),
+    );
   }
 
   Future<int> upsertUser(VpnUser user, int expectedRevision) async {
@@ -242,8 +327,7 @@ final class _VpnOverlay {
       );
       store._journal.record(before, after);
       store._documentCache.remove('vpn-workspace-v1');
-      store._cachedWorkspaceRevision = null;
-      store._cachedWorkspace = null;
+      invalidate();
       return revision;
     });
   }
@@ -315,8 +399,7 @@ final class _VpnOverlay {
       );
       store._journal.record(before, after);
       store._documentCache.remove('vpn-workspace-v1');
-      store._cachedWorkspaceRevision = null;
-      store._cachedWorkspace = null;
+      invalidate();
       return revision;
     });
   }
@@ -343,6 +426,7 @@ final class _VpnOverlay {
       db.execute('DELETE FROM vpn_profile_overlay');
       db.execute('DELETE FROM vpn_overlay_state');
       store._documentCache.remove('vpn-workspace-v1');
+      invalidate();
     });
   }
 }

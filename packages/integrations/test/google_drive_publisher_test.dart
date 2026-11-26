@@ -71,6 +71,12 @@ void main() {
   test(
     'metadata and bytes use v2 real ETag; stale write never falls back',
     () async {
+      http.reply = (_) async => response(200, {
+        'id': 'fixture',
+        'title': 'a.yml',
+        'mimeType': 'application/yaml',
+        'etag': '"next-etag"',
+      });
       await drive.updateFile(
         file,
         Uint8List.fromList(utf8.encode('mode: rule\n')),
@@ -94,6 +100,115 @@ void main() {
       expect(http.requests.last.uri.path, '/drive/v2/files/fixture');
     },
   );
+  test(
+    'created YAML is read back through v2 instead of trusting the v3 reply',
+    () async {
+      http.reply = (uri) async => uri.path == '/upload/drive/v3/files'
+          // The real v3 create reply: no ETag, properties or capabilities.
+          ? response(200, {
+              'kind': 'drive#file',
+              'id': 'fixture',
+              'name': 'alice.yml',
+              'mimeType': 'application/yaml',
+            })
+          : response(200, {
+              'id': 'fixture',
+              'title': 'alice.yml',
+              'mimeType': 'application/yaml',
+              'version': '2',
+              'etag': '"created-etag"',
+              'labels': {'trashed': false},
+              'webContentLink': 'https://drive.google.com/uc?id=fixture',
+              'capabilities': {'canEdit': true},
+              'properties': [
+                for (final p in {
+                  'antirknWorkspace': 'w',
+                  'antirknUser': 'u',
+                  'antirknHead': 'h',
+                  'antirknExecutor': 'e',
+                  'antirknHash': 'x',
+                }.entries)
+                  {'key': p.key, 'value': p.value, 'visibility': 'PRIVATE'},
+                {'key': 'foreign', 'value': 'v', 'visibility': 'PUBLIC'},
+              ],
+            });
+      final created = await drive.createYaml(
+        fileId: 'fixture',
+        folderId: 'folder',
+        name: 'alice.yml',
+        workspaceId: 'w',
+        userId: 'u',
+        headId: 'h',
+        executorId: 'e',
+        bytes: Uint8List.fromList(utf8.encode('mode: rule\n')),
+      );
+      expect(http.requests.map((r) => '${r.method} ${r.uri.path}'), [
+        'POST /upload/drive/v3/files',
+        'GET /drive/v2/files/fixture',
+      ]);
+      expect(
+        http.requests.last.uri.queryParameters['fields'],
+        contains('etag'),
+      );
+      expect(created.editable, isTrue);
+      expect(created.etag, '"created-etag"');
+      expect(created.properties['antirknUser'], 'u');
+      expect(created.properties['antirknHash'], 'x');
+      expect(created.properties.containsKey('foreign'), isFalse);
+
+      http.requests.clear();
+      await drive.createRegistry(
+        'fixture',
+        'folder',
+        'w',
+        Uint8List.fromList(utf8.encode('{}')),
+      );
+      expect(http.requests.single.method, 'POST');
+
+      http.reply = (_) async => response(200, {'kind': 'drive#file'});
+      await expectLater(
+        drive.createYaml(
+          fileId: 'fixture',
+          folderId: 'folder',
+          name: 'alice.yml',
+          workspaceId: 'w',
+          userId: 'u',
+          headId: 'h',
+          executorId: 'e',
+          bytes: Uint8List(1),
+        ),
+        throwsA(issue(PublicationIssue.invalid)),
+      );
+    },
+  );
+  test('update returns the stored file and never a guessed one', () async {
+    http.reply = (_) async => response(200, {
+      'id': 'fixture',
+      'title': 'a.yml',
+      'mimeType': 'application/yaml',
+      'etag': '"next-etag"',
+      'capabilities': {'canEdit': true},
+      'properties': [
+        {'key': 'antirknHash', 'value': 'stored', 'visibility': 'PRIVATE'},
+      ],
+    });
+    final written = await drive.updateFile(
+      file,
+      Uint8List.fromList(utf8.encode('mode: rule\n')),
+      properties: const {},
+    );
+    expect(written.etag, '"next-etag"');
+    expect(written.properties['antirknHash'], 'stored');
+    expect(
+      http.requests.single.uri.queryParameters['fields'],
+      contains('properties'),
+    );
+    http.reply = (_) async => response(200, {});
+    await expectLater(
+      drive.updateFile(file, Uint8List(1), properties: const {}),
+      throwsA(issue(PublicationIssue.invalid)),
+    );
+  });
   test('missing validators and oversized bytes fail before network', () async {
     const missing = PublicationFile(
       id: 'fixture',
