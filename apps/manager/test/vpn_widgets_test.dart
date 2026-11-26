@@ -333,4 +333,51 @@ void main() {
       });
     }
   }
+
+  testWidgets('REALITY offers only fingerprints current Xray accepts', (
+    tester,
+  ) async {
+    final network = NetworkController(reader: const SampleInventoryReader());
+    addTearDown(network.dispose);
+    final inbound = VlessInbound(
+      serverId: 'fixture',
+      spec: {
+        ...VlessInbound.defaults(),
+        'endpoint': 'vpn.example',
+        'sni': 'example.com',
+        'target': 'example.com:443',
+        'fingerprint': 'ios',
+      },
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        theme: AppTheme.create(Brightness.light),
+        home: Scaffold(
+          body: InboundForm(
+            serverId: 'fixture',
+            network: network,
+            motion: MotionPreference.off,
+            inbound: inbound,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final utls = find.byKey(const ValueKey('vpn-inbound-utls'));
+    List<String> offered() => tester
+        .widget<AppSelectField<String>>(utls)
+        .options
+        .map((o) => o.$1)
+        .toList();
+    expect(offered(), ['chrome', 'firefox', 'safari', 'ios']);
+    final notice = find.byKey(const ValueKey('vpn-inbound-utls-reality'));
+    expect(notice, findsOneWidget);
+    tester.widget<AppSelectField<String>>(utls).onChanged!('chrome');
+    await tester.pumpAndSettle();
+    expect(notice, findsNothing);
+    expect(offered(), ['chrome', 'firefox', 'safari']);
+    expect(tester.takeException(), isNull);
+  });
 }

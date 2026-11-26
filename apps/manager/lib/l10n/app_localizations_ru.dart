@@ -1260,6 +1260,10 @@ class AppLocalizationsRu extends AppLocalizations {
       'Контрольная сумма не совпадает. Архив не будет исполнен.';
 
   @override
+  String get vpnRealityFingerprint =>
+      'REALITY в текущем Xray принимает от клиентов Mihomo только Chrome, Firefox или Safari. С этим отпечатком клиенты Clash Meta и проверка приложения не подключатся; выберите один из них.';
+
+  @override
   String get componentsArchiveInvalid =>
       'В архиве этого выпуска нет программ, которые устанавливает AntiRKN. Ничего не изменено; выберите другую версию.';
 

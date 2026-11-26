@@ -83,7 +83,7 @@ public class MihomoRuntimeTest extends Instrumentation {
             assertNotNull("JNI returned no result", response.get());
             assertTrue("worker must exit after every request", died.await(3, TimeUnit.SECONDS));
             JSONObject result = new JSONObject(response.get());
-            assertEquals("1.19.30", result.getString("version"));
+            assertEquals("1.19.34", result.getString("version"));
             return result;
         } finally {
             if (bound) context.unbindService(connection);

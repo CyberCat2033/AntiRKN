@@ -1146,7 +1146,9 @@ class _InboundFormState extends State<InboundForm> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context),
         xhttp = spec['transport'] == 'xhttp',
-        tls = spec['security'] == 'tls';
+        tls = spec['security'] == 'tls',
+        reality = spec['security'] == 'reality',
+        fingerprint = spec['fingerprint'] as String? ?? 'chrome';
     return AppFormDialog(
       title: const Text('VLESS'),
       icon: protocolIcon('xray'),
@@ -1204,14 +1206,26 @@ class _InboundFormState extends State<InboundForm> {
                 ),
               AppSelectField<String>(
                 key: const ValueKey('vpn-inbound-utls'),
-                value: spec['fingerprint'] as String? ?? 'chrome',
+                value: fingerprint,
                 label: 'uTLS',
                 motion: widget.motion,
-                options: [for (final name in vlessFingerprints) (name, name)],
+                options: [
+                  for (final name in vlessFingerprints)
+                    if (!reality ||
+                        realityFingerprints.contains(name) ||
+                        name == fingerprint)
+                      (name, name),
+                ],
                 onChanged: (value) {
                   setState(() => spec['fingerprint'] = value);
                 },
               ),
+              if (reality && !realityFingerprints.contains(fingerprint))
+                AppNotice(
+                  key: const ValueKey('vpn-inbound-utls-reality'),
+                  message: l.vpnRealityFingerprint,
+                  error: true,
+                ),
               if (xhttp) ...[
                 field('path', l.vpnPath),
                 field('host', l.vpnHost),

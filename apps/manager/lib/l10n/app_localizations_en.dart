@@ -1257,6 +1257,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Checksum mismatch. The archive will not be executed.';
 
   @override
+  String get vpnRealityFingerprint =>
+      'REALITY on current Xray accepts only Chrome, Firefox or Safari from Mihomo clients. With this fingerprint Clash Meta clients and the app\'s check cannot connect; choose one of them.';
+
+  @override
   String get componentsArchiveInvalid =>
       'This release\'s archive does not contain the programs AntiRKN installs. Nothing was changed; choose another version.';
 

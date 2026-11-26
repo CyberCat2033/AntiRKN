@@ -1,6 +1,6 @@
 # AntiRKN Mihomo runtime
 
-Pinned upstream: https://github.com/MetaCubeX/mihomo/tree/v1.19.30
+Pinned upstream: https://github.com/MetaCubeX/mihomo/tree/v1.19.34
 Revision: ac017cdd246ce8bd547653d927e7bf77d7ee73d5.
 This native wrapper is distributed under GPL-3.0, see LICENSE.
 The pinned module sources, checksums and replacement are in go.mod/go.sum;

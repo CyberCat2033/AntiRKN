@@ -603,6 +603,12 @@ Map<String, Object?> xhttpMihomoOptions(Map options, [Map? schema]) {
   return result;
 }
 
+/// uTLS fingerprints a REALITY inbound can use with Mihomo clients. The
+/// REALITY server since Xray 26.9 refuses a Client Hello without an
+/// X25519MLKEM768 key share, and only these Mihomo fingerprints send one
+/// (measured with Mihomo 1.19.34; `random` may pick `ios`, which does not).
+const realityFingerprints = ['chrome', 'firefox', 'safari'];
+
 List<String> get vlessFingerprints => List<String>.from(
   ((vlessSchema['properties']
           as Map)['resources']['items']['properties']['fingerprint']['enum'])

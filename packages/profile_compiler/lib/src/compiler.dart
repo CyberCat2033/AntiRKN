@@ -63,7 +63,7 @@ final class ProfileResult {
 final class ProfileCompiler {
   const ProfileCompiler();
   static const version = '0.3.0';
-  static const targetCore = 'mihomo-v1.19.30';
+  static const targetCore = 'mihomo-v1.19.34';
 
   ProfileResult preview({
     required String template,
