@@ -79,6 +79,22 @@ class _TtPanelState extends State<TtPanel> {
     }
   }
 
+  /// The card's switch: the endpoint is turned on or off without the
+  /// editor, as a VLESS inbound is.
+  Future<void> toggle(TrustTunnelEndpoint current) async {
+    if (!await widget.runner.ensureReady() || !mounted) return;
+    await saveAndApply(
+      widget.controller,
+      target: ttTarget(widget.serverId),
+      save: () => widget.controller.saveTt(
+        TrustTunnelEndpoint(
+          serverId: widget.serverId,
+          spec: {...current.spec, 'enabled': !current.enabled},
+        ),
+      ),
+    );
+  }
+
   Future<void> edit([TrustTunnelEndpoint? current]) async {
     if (!await widget.runner.ensureReady() || !mounted) return;
     if (current?.spec.containsKey('adoption') == true) {
@@ -251,13 +267,14 @@ class _TtPanelState extends State<TtPanel> {
                     ),
                     title: e.name,
                     subtitle: '${e.spec['domain']}',
-                    // Only the non-default states are labelled.
                     note:
                         e.spec.containsKey('adoption') &&
                             !c.adoptionConfirmed(target, e.id)
                         ? l.vpnAdopting
                         : null,
-                    badge: e.enabled ? null : l.vpnDisabled,
+                    badge: l.vpnEnabled,
+                    switchValue: e.enabled,
+                    onBadgeTap: !c.canMutate || r.busy ? null : () => toggle(e),
                     actions: IconButton(
                       onPressed: !c.canMutate || r.busy ? null : () => edit(e),
                       icon: const Icon(Icons.edit_outlined),
@@ -463,16 +480,8 @@ class TtSettingsEditor extends StatelessWidget {
               field('socksAddress', l.ttSocksAddress),
               AppFormHint(l.ttSocksHelp),
             ],
-            AppFormSwitch(
-              title: l.ttQuic,
-              value: spec['quic'] == true,
-              onChanged: enabled
-                  ? (v) {
-                      spec['quic'] = v;
-                      onChanged();
-                    }
-                  : null,
-            ),
+            // No QUIC switch: QUIC is blocked in the target networks, and an
+            // endpoint keeps whatever value it already has.
           ],
         ),
         AppFormSection(
@@ -728,16 +737,6 @@ class _ManagedTtState extends State<ManagedTtDialog> {
                 onPressed: () => setState(() => rotate = true),
               ),
               if (rotate) AppFormHint(l.ttPasswordsRegenerated),
-            ],
-          ),
-          AppFormSection(
-            rows: true,
-            children: [
-              AppFormSwitch(
-                title: l.vpnEnabled,
-                value: spec['enabled'] as bool,
-                onChanged: (v) => setState(() => spec['enabled'] = v),
-              ),
             ],
           ),
           if (invalid)

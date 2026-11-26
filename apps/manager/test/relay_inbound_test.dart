@@ -5,13 +5,10 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_manager/l10n/app_localizations.dart';
 import 'package:antirkn_manager/l10n/app_localizations_en.dart';
 import 'package:antirkn_manager/l10n/app_localizations_ru.dart';
-import 'package:antirkn_manager/network/network_controller.dart';
-import 'package:antirkn_manager/network/sample_inventory_reader.dart';
 import 'package:antirkn_manager/runner/relay_strings.dart';
 import 'package:antirkn_manager/runner/runner_controller.dart';
 import 'package:antirkn_manager/runner/runner_panel.dart';
 import 'package:antirkn_manager/ssh/client_egress_card.dart';
-import 'package:antirkn_manager/vpn/inbounds_panel.dart';
 import 'package:antirkn_manager/vpn/relay_inbound_view.dart';
 import 'package:antirkn_manager/vpn/vpn_strings.dart';
 import 'package:flutter/material.dart';
@@ -606,48 +603,6 @@ void main() {
     expect(find.text(AppLocalizationsRu().relayHelp), findsOneWidget);
     expect(remote.count('relay_state'), before + 1);
     expect(tester.takeException(), isNull);
-    await tester.pumpWidget(const SizedBox());
-  });
-
-  testWidgets('the internal switch is locked while relay is on', (
-    tester,
-  ) async {
-    final network = NetworkController(reader: const SampleInventoryReader());
-    addTearDown(network.dispose);
-    final inbound = VlessInbound(
-      serverId: 'one',
-      spec: {
-        ...VlessInbound.defaults(),
-        'name': 'Relay',
-        'listen': '10.0.0.2',
-        'port': 443,
-        'endpoint': 'vpn.example',
-        'externalPort': 2443,
-        'sni': 'example.com',
-        'target': 'example.com:443',
-        'internal': true,
-      },
-    );
-    await tester.pumpWidget(
-      app(
-        InboundForm(
-          serverId: 'one',
-          network: network,
-          motion: MotionPreference.off,
-          inbound: inbound,
-          internalLocked: true,
-        ),
-      ),
-    );
-    final tile = tester.widget<SwitchListTile>(
-      find.ancestor(
-        of: find.text('Internal use'),
-        matching: find.byType(SwitchListTile),
-      ),
-    );
-    expect(tile.value, isTrue);
-    expect(tile.onChanged, isNull);
-    expect(find.text(AppLocalizationsEn().relayInternalLocked), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 

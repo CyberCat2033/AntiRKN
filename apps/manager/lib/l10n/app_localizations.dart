@@ -3158,12 +3158,6 @@ abstract class AppLocalizations {
   /// **'Assign to clients'**
   String get vpnClientAccess;
 
-  /// No description provided for @vpnInternalHelp.
-  ///
-  /// In en, this message translates to:
-  /// **'Keep the inbound enabled, exclude it from client profiles and revoke AntiRKN client access through the plan.'**
-  String get vpnInternalHelp;
-
   /// No description provided for @vpnObserved.
   ///
   /// In en, this message translates to:
@@ -3805,12 +3799,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'For example, 127.0.0.1:1080 on this server. A local SOCKS5 proxy without authentication is supported; UDP also requires UDP support in SOCKS5 and its upstream route.'**
   String get ttSocksHelp;
-
-  /// No description provided for @ttQuic.
-  ///
-  /// In en, this message translates to:
-  /// **'QUIC / HTTP/3'**
-  String get ttQuic;
 
   /// No description provided for @ttIpv6.
   ///

@@ -1765,10 +1765,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get vpnClientAccess => 'Assign to clients';
 
   @override
-  String get vpnInternalHelp =>
-      'Keep the inbound enabled, exclude it from client profiles and revoke AntiRKN client access through the plan.';
-
-  @override
   String get vpnObserved => 'Existing · outside client management';
 
   @override
@@ -2135,9 +2131,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get ttSocksHelp =>
       'For example, 127.0.0.1:1080 on this server. A local SOCKS5 proxy without authentication is supported; UDP also requires UDP support in SOCKS5 and its upstream route.';
-
-  @override
-  String get ttQuic => 'QUIC / HTTP/3';
 
   @override
   String get ttIpv6 => 'Allow outgoing IPv6';
