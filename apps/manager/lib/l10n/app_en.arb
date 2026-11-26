@@ -1178,7 +1178,6 @@
   "uiClashImport": "Connection profile for Clash Mi",
   "uiConnectionSettings": "Connection",
   "uiAuthentication": "Sign-in credentials",
-  "uiInstalledComponents": "Components installed on this server",
   "uiOtherComponents": "Other components",
   "uiRemoveProtocol": "Remove protocol",
   "uiRemoveProtocolHelp": "The services and all connections for this protocol will be removed from the server, including connections created outside AntiRKN. Clients will lose access through this protocol.",
@@ -1384,8 +1383,6 @@
     }
   },
   "xrayUpgradeTitle": "Xray core update",
-  "xrayUpgradeAction": "Check and update Xray",
-  "xrayUpgradeIntro": "All enabled inbounds are checked before and after the update. If the comparison does not finish, the server restores the previous core.",
   "xrayUpgradeBaseline": "Checking connections before updating…",
   "xrayUpgradePreparing": "Preparing recovery and updating Xray…",
   "xrayUpgradeComparison": "Comparing connections after updating…",

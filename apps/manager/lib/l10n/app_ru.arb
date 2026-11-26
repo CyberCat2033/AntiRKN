@@ -1140,7 +1140,6 @@
   "uiClashImport": "Профиль подключения для Clash Mi",
   "uiConnectionSettings": "Подключение",
   "uiAuthentication": "Данные для входа",
-  "uiInstalledComponents": "Компоненты, установленные на сервере",
   "uiOtherComponents": "Остальные компоненты",
   "uiRemoveProtocol": "Удалить протокол",
   "uiRemoveProtocolHelp": "Службы и все подключения этого протокола будут удалены с сервера, включая созданные вне AntiRKN. Клиенты потеряют доступ через этот протокол.",
@@ -1346,8 +1345,6 @@
     }
   },
   "xrayUpgradeTitle": "Обновление ядра Xray",
-  "xrayUpgradeAction": "Проверить и обновить Xray",
-  "xrayUpgradeIntro": "Все включённые инбаунды проверяются до и после обновления. Если сравнение не завершится, сервер вернёт прежнее ядро.",
   "xrayUpgradeBaseline": "Проверка подключений до обновления…",
   "xrayUpgradePreparing": "Подготовка восстановления и обновление Xray…",
   "xrayUpgradeComparison": "Сравнение подключений после обновления…",

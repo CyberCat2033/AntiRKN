@@ -8,18 +8,23 @@ import 'package:flutter/foundation.dart';
 /// One controller per server. Connection setup prepares the runner; polling
 /// observes jobs. Persist each job request before submitting it.
 /// The one way to change the Xray core (UI-45): the safe transaction of the
-/// visible `XrayUpgradeView`. Connections are compared before and after the
+/// server's `XrayUpgradeView`. Connections are compared before and after the
 /// switch and the app must still work with 3x-ui; otherwise the server keeps
 /// or restores the current core.
 class XrayVersionChoice {
   const XrayVersionChoice({
     required this.install,
+    required this.update,
     required this.ready,
     required this.previous,
   });
 
   /// Installs a release asset (`ComponentReleaseSource.resolveAsset`).
   final Future<void> Function(Map<String, Object?> asset) install;
+
+  /// Updates to the newer core the server offers: its pinned candidate or
+  /// the newest upstream release.
+  final Future<void> Function() update;
 
   /// Whether a transaction can start now (connection checks are available).
   final bool Function() ready;
@@ -220,7 +225,7 @@ class RunnerController extends ChangeNotifier {
 
   final void Function()? refreshSoftware;
 
-  /// Registered while the server's `XrayUpgradeView` is shown.
+  /// Registered while the server's `XrayUpgradeView` is mounted.
   XrayVersionChoice? xrayVersionChoice;
   bool _softwareRefreshPending = false;
   final ServerSoftwareInventory? Function()? software;

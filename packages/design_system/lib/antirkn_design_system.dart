@@ -655,6 +655,17 @@ abstract final class AppTheme {
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(AppLayout.radius),
     );
+    final menuShape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+    );
+    final menuStyle = MenuStyle(
+      backgroundColor: WidgetStatePropertyAll(colors.surfaceContainerHighest),
+      surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+      shadowColor: WidgetStatePropertyAll(colors.shadow),
+      elevation: const WidgetStatePropertyAll(3),
+      padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(vertical: 8)),
+      shape: WidgetStatePropertyAll(menuShape),
+    );
     return ThemeData(
       useMaterial3: true,
       colorScheme: colors,
@@ -757,6 +768,19 @@ abstract final class AppTheme {
         backgroundColor: colors.surfaceContainerLow,
         surfaceTintColor: Colors.transparent,
         shape: shape,
+      ),
+      // Menus are temporary surfaces above filled cards: the highest
+      // container tone and an M3 level-2 shadow keep them apart from the
+      // card under them in both themes.
+      menuTheme: MenuThemeData(style: menuStyle),
+      dropdownMenuTheme: DropdownMenuThemeData(menuStyle: menuStyle),
+      popupMenuTheme: PopupMenuThemeData(
+        color: colors.surfaceContainerHighest,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: colors.shadow,
+        elevation: 3,
+        shape: menuShape,
+        menuPadding: const EdgeInsets.symmetric(vertical: 8),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
@@ -1588,7 +1612,9 @@ class AppFormDialog extends StatelessWidget {
 
 /// A "more" (⋮) button with a menu of actions, reachable by mouse, touch
 /// and keyboard: the button owns the focus node the menu needs to move focus
-/// into its items with the arrow keys.
+/// into its items with the arrow keys. The menu opens below the button and
+/// grows towards the start side, so it stays over the card that owns the
+/// button instead of covering its neighbour.
 class AppMoreMenu extends StatefulWidget {
   const AppMoreMenu({
     required this.tooltip,
@@ -1612,17 +1638,33 @@ class _AppMoreMenuState extends State<AppMoreMenu> {
   }
 
   @override
-  Widget build(BuildContext context) => MenuAnchor(
-    childFocusNode: _focus,
-    menuChildren: widget.children,
-    builder: (context, menu, _) => IconButton(
-      key: widget.buttonKey,
-      focusNode: _focus,
-      tooltip: widget.tooltip,
-      onPressed: () => menu.isOpen ? menu.close() : menu.open(),
-      icon: const Icon(Icons.more_vert),
-    ),
-  );
+  Widget build(BuildContext context) {
+    // MenuAnchor places its menu from the anchor's start edge towards the
+    // end in the anchor's text direction. The anchor gets the opposite
+    // direction, so the menu's end edge lines up with the button's; the
+    // button and the items keep the real direction.
+    final direction = Directionality.of(context);
+    Widget keep(Widget child) =>
+        Directionality(textDirection: direction, child: child);
+    return Directionality(
+      textDirection: direction == TextDirection.ltr
+          ? TextDirection.rtl
+          : TextDirection.ltr,
+      child: MenuAnchor(
+        childFocusNode: _focus,
+        menuChildren: [for (final child in widget.children) keep(child)],
+        builder: (context, menu, _) => keep(
+          IconButton(
+            key: widget.buttonKey,
+            focusNode: _focus,
+            tooltip: widget.tooltip,
+            onPressed: () => menu.isOpen ? menu.close() : menu.open(),
+            icon: const Icon(Icons.more_vert),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Says why a control is unavailable: a tooltip present only while [reason]

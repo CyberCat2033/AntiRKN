@@ -32,8 +32,13 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
     host: widget.host,
   );
   Timer? _poll;
+
+  /// A transaction was asked for here: its progress and result stay shown
+  /// until dismissed.
+  bool _shown = false;
   late final XrayVersionChoice _choice = XrayVersionChoice(
     install: _install,
+    update: _update,
     ready: () => c.ready,
     previous: () => c.previousVersion,
   );
@@ -43,8 +48,78 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
     if (!mounted || !await showPanelLogin(context, widget.runner) || !mounted) {
       return;
     }
+    setState(() => _shown = true);
     await c.install(asset);
   }
+
+  /// The Update action of the 3x-ui / Xray software row when only the core
+  /// is behind: the runner's pinned candidate, else the newest upstream
+  /// release, through the same checked transaction.
+  Future<void> _update() async {
+    if (!mounted || !await showPanelLogin(context, widget.runner) || !mounted) {
+      return;
+    }
+    setState(() => _shown = true);
+    if (c.plan == null) await c.inspect();
+    if (!mounted) return;
+    final updates = ComponentUpdatesScope.of(context);
+    final offer = _offer(updates);
+    if (offer.pinned) {
+      await c.run();
+    } else if (offer.upstream && updates != null) {
+      final asset = await updates.source.resolveAsset(
+        component: 'xray',
+        version: offer.candidate!,
+      );
+      if (mounted) await c.install(asset);
+    } else if (c.code.isEmpty) {
+      c.phase = 'not_changed';
+      c.changed();
+    }
+  }
+
+  /// The core this server can move to: [pinned] by the runner, or a newer
+  /// [upstream] release the panel accepts.
+  ({String? current, String? candidate, bool newer, bool pinned, bool upstream})
+  _offer(ComponentUpdatesController? updates) {
+    final current =
+        c.plan?['current'] as String? ?? widget.runner.panelAccess?.xrayVersion;
+    bool newer(String? version) =>
+        version != null &&
+        current != null &&
+        (componentIsNewer(version, current) == true ||
+            componentIsNewer(version, current, allowPreview: true) == true);
+    final dynamicXray = updates?.latest['xray'];
+    final planned = newer(c.plan?['candidate'] as String?);
+    final upstream = newer(dynamicXray);
+    return (
+      current: current,
+      candidate:
+          c.chosen?['version'] as String? ??
+          (planned
+              ? c.plan!['candidate'] as String
+              : (upstream ? dynamicXray : null)),
+      newer: planned || upstream,
+      pinned: c.available && c.plan?['available'] == true && planned,
+      upstream:
+          c.available &&
+          upstream &&
+          updates != null &&
+          c.plan?['choosable'] == true,
+    );
+  }
+
+  /// Phases of a transaction the server still runs or recovers.
+  static const _active = {
+    'baseline',
+    'preparing',
+    'replacing',
+    'comparison',
+    'awaiting_checks',
+    'recovery_required',
+    'recovery_pending',
+    'rolling_back',
+  };
 
   @override
   void initState() {
@@ -97,43 +172,13 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: Listenable.merge([c, widget.runner, widget.vpn]),
     builder: (context, _) {
+      // Started from the 3x-ui / Xray row (Update or Versions); nothing to
+      // show until a transaction runs or the server reports one.
+      if (!_shown && !c.running && !_active.contains(c.phase)) {
+        return const SizedBox.shrink();
+      }
       final l = AppLocalizations.of(context);
-      final updates = ComponentUpdatesScope.of(context);
-      final currentXray =
-          c.plan?['current'] as String? ??
-          widget.runner.panelAccess?.xrayVersion;
-      final dynamicXray = updates?.latest['xray'];
-      final hasDynamicCandidate =
-          dynamicXray != null &&
-          currentXray != null &&
-          (componentIsNewer(dynamicXray, currentXray) == true ||
-              componentIsNewer(dynamicXray, currentXray, allowPreview: true) ==
-                  true);
-      final hasPlanCandidate =
-          c.plan?['candidate'] != null &&
-          currentXray != null &&
-          (componentIsNewer(c.plan!['candidate'] as String, currentXray) ==
-                  true ||
-              componentIsNewer(
-                    c.plan!['candidate'] as String,
-                    currentXray,
-                    allowPreview: true,
-                  ) ==
-                  true);
-      final effectiveCandidate =
-          c.chosen?['version'] as String? ??
-          (hasPlanCandidate
-              ? c.plan!['candidate'] as String
-              : (hasDynamicCandidate ? dynamicXray : null));
-      final isCandidateNewer = hasPlanCandidate || hasDynamicCandidate;
-      // Every path is the checked transaction: the pinned candidate, or a
-      // newer upstream release chosen explicitly (UI-45).
-      final canRun =
-          c.available &&
-          ((c.plan?['available'] == true && hasPlanCandidate) ||
-              (hasDynamicCandidate &&
-                  updates != null &&
-                  c.plan?['choosable'] == true));
+      final offer = _offer(ComponentUpdatesScope.of(context));
       final message = switch (c.phase) {
         'baseline' => l.xrayUpgradeBaseline,
         'preparing' || 'replacing' => l.xrayUpgradePreparing,
@@ -147,7 +192,7 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
       };
       final problem = switch (c.code) {
         'xray_check_coverage' => l.xrayUpgradeCoverage,
-        'xray_check_layout' => isCandidateNewer ? '' : l.xrayUpgradeLayout,
+        'xray_check_layout' => offer.newer ? '' : l.xrayUpgradeLayout,
         'xray_check_changed' => l.xrayUpgradeConflict,
         'xray_check_rollback' => l.xrayUpgradeAttention,
         'xray_check_panel_api' => l.xrayUpgradePanelApi,
@@ -167,115 +212,84 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
       String check(ConnectionCheck? result) => result == null
           ? l.xrayUpgradeNotTested
           : connectionCheckMessage(l, result);
-      return Card.filled(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                l.xrayUpgradeTitle,
-                style: Theme.of(context).textTheme.titleMedium,
+      return SectionCard(
+        key: const ValueKey('xray-upgrade'),
+        title: l.xrayUpgradeTitle,
+        trailing: c.running || c.busy || !_shown
+            ? null
+            : IconButton(
+                key: const ValueKey('xray-upgrade-close'),
+                tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+                onPressed: () => setState(() => _shown = false),
+                icon: const Icon(Icons.close),
               ),
-              const SizedBox(height: 8),
-              Text(l.xrayUpgradeIntro),
-              if (effectiveCandidate != null && currentXray != null)
-                Text('Xray $currentXray → $effectiveCandidate'),
-              if (c.plan != null && effectiveCandidate == null)
-                Text(l.xrayUpgradeNoStable),
-              if (c.busy)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8),
-                  child: LinearProgressIndicator(),
-                ),
-              if (message.isNotEmpty) Text(message),
-              if (problem.isNotEmpty)
-                AppNotice(
-                  message: problem,
-                  error: true,
-                  margin: const EdgeInsets.only(top: 8),
-                ),
-              for (final row in c.rows)
-                Padding(
-                  padding: const EdgeInsets.only(top: 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        row.name.isEmpty ? 'VLESS · ${row.id}' : row.name,
-                        style: Theme.of(context).textTheme.titleSmall,
-                      ),
-                      if (!row.enabled) Text(l.xrayUpgradeDisabled),
-                      if (row.enabled) ...[
-                        Text('${l.xrayUpgradeBefore}: ${check(row.before)}'),
-                        Text('${l.xrayUpgradeAfter}: ${check(row.after)}'),
-                        if (c.phase == 'rolled_back' || row.restored != null)
-                          Text(
-                            '${l.xrayUpgradeRecovery}: ${check(row.restored)}',
-                          ),
-                      ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (offer.candidate != null && offer.current != null)
+              Text('Xray ${offer.current} → ${offer.candidate}'),
+            if (c.plan != null && offer.candidate == null)
+              Text(l.xrayUpgradeNoStable),
+            if (c.busy)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: LinearProgressIndicator(),
+              ),
+            if (message.isNotEmpty) Text(message),
+            if (problem.isNotEmpty)
+              AppNotice(
+                message: problem,
+                error: true,
+                margin: const EdgeInsets.only(top: 8),
+              ),
+            for (final row in c.rows)
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      row.name.isEmpty ? 'VLESS · ${row.id}' : row.name,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    if (!row.enabled) Text(l.xrayUpgradeDisabled),
+                    if (row.enabled) ...[
+                      Text('${l.xrayUpgradeBefore}: ${check(row.before)}'),
+                      Text('${l.xrayUpgradeAfter}: ${check(row.after)}'),
+                      if (c.phase == 'rolled_back' || row.restored != null)
+                        Text(
+                          '${l.xrayUpgradeRecovery}: ${check(row.restored)}',
+                        ),
                     ],
+                  ],
+                ),
+              ),
+            if (c.running)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  // Stopping aborts the upgrade and rolls the core back on
+                  // the server: confirm in error colours (UI-55).
+                  child: OutlinedButton.icon(
+                    key: const ValueKey('xray-stop'),
+                    onPressed: () async {
+                      final stop = await confirmAppDanger(
+                        context,
+                        title: l.xrayUpgradeStopTitle,
+                        message: l.xrayUpgradeStopHelp,
+                        confirmLabel: l.connectionStop,
+                        cancelLabel: l.runnerNotNow,
+                        confirmKey: const ValueKey('xray-stop-confirm'),
+                      );
+                      if (stop && c.running) c.cancel();
+                    },
+                    icon: const Icon(Icons.stop_circle_outlined),
+                    label: Text(l.connectionStop),
                   ),
                 ),
-              const SizedBox(height: 8),
-              FilledButton.icon(
-                key: const ValueKey('xray-check-update'),
-                onPressed: c.running
-                    // Stopping aborts the upgrade and rolls the core back on
-                    // the server: confirm in error colours (UI-55).
-                    ? () async {
-                        final stop = await confirmAppDanger(
-                          context,
-                          title: l.xrayUpgradeStopTitle,
-                          message: l.xrayUpgradeStopHelp,
-                          confirmLabel: l.connectionStop,
-                          cancelLabel: l.runnerNotNow,
-                          confirmKey: const ValueKey('xray-stop-confirm'),
-                        );
-                        if (stop && c.running) c.cancel();
-                      }
-                    : c.busy ||
-                          widget.vpn.busy ||
-                          !widget.runner.canRequestAction ||
-                          !canRun
-                    ? null
-                    : () async {
-                        if (!await showPanelLogin(context, widget.runner) ||
-                            !context.mounted) {
-                          return;
-                        }
-                        if (c.available &&
-                            c.plan?['available'] == true &&
-                            hasPlanCandidate) {
-                          await c.run();
-                        } else if (effectiveCandidate != null &&
-                            updates != null) {
-                          final asset = await updates.source.resolveAsset(
-                            component: 'xray',
-                            version: effectiveCandidate,
-                          );
-                          if (context.mounted) await c.install(asset);
-                        }
-                      },
-                icon: Icon(
-                  c.running
-                      ? Icons.stop_circle_outlined
-                      : Icons.system_update_alt,
-                ),
-                label: Text(c.running ? l.connectionStop : l.xrayUpgradeAction),
               ),
-              TextButton(
-                onPressed: c.busy
-                    ? null
-                    : () async {
-                        if (await showPanelLogin(context, widget.runner)) {
-                          await c.inspect();
-                        }
-                      },
-                child: Text(l.uiCheck),
-              ),
-            ],
-          ),
+          ],
         ),
       );
     },

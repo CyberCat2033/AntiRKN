@@ -3,6 +3,7 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../network/ip_diagnostics_controller.dart';
+import '../protocol_icon.dart';
 import '../catalog_selection.dart';
 import '../runner/component_installation_view.dart';
 import '../runner/component_updates_controller.dart';
@@ -19,7 +20,6 @@ class ServerProtocolSection {
   const ServerProtocolSection({
     required this.name,
     required this.count,
-    required this.mark,
     required this.child,
     this.detected = false,
     this.onRemove,
@@ -28,7 +28,7 @@ class ServerProtocolSection {
     this.selectionActions,
     this.plans,
   });
-  final String name, mark;
+  final String name;
 
   /// The plan and error view of this tab; replaces [ServerDetailView.plans]
   /// so its progress yields to the tab's own job view (UI-40).
@@ -857,11 +857,9 @@ class _ProtocolTile extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(
-                      section.mark,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.labelLarge?.copyWith(color: colors.primary),
+                    Icon(
+                      protocolIcon(protocolComponent(section.name)),
+                      color: colors.primary,
                     ),
                     const Spacer(),
                     if (busy)

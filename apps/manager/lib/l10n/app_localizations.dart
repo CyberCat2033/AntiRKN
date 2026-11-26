@@ -5498,12 +5498,6 @@ abstract class AppLocalizations {
   /// **'Sign-in credentials'**
   String get uiAuthentication;
 
-  /// No description provided for @uiInstalledComponents.
-  ///
-  /// In en, this message translates to:
-  /// **'Components installed on this server'**
-  String get uiInstalledComponents;
-
   /// No description provided for @uiOtherComponents.
   ///
   /// In en, this message translates to:
@@ -6367,18 +6361,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Xray core update'**
   String get xrayUpgradeTitle;
-
-  /// No description provided for @xrayUpgradeAction.
-  ///
-  /// In en, this message translates to:
-  /// **'Check and update Xray'**
-  String get xrayUpgradeAction;
-
-  /// No description provided for @xrayUpgradeIntro.
-  ///
-  /// In en, this message translates to:
-  /// **'All enabled inbounds are checked before and after the update. If the comparison does not finish, the server restores the previous core.'**
-  String get xrayUpgradeIntro;
 
   /// No description provided for @xrayUpgradeBaseline.
   ///
