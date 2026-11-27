@@ -3,6 +3,7 @@ import 'dart:math';
 import 'dart:ui' show AppLifecycleState;
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/foundation.dart';
+import 'sync_diag.dart';
 
 enum AutoSyncPhase {
   disconnected,
@@ -320,6 +321,12 @@ class AutoSyncController extends ChangeNotifier {
           ? AutoSyncPhase.remoteNewer
           : AutoSyncPhase.synced;
       if (phase == AutoSyncPhase.synced) syncedAt = _clock();
+      syncDiag(
+        'autosync exchange enter=$enter choice=${choice?.name} '
+        'received=${next.received} waiting=${next.waitingForEditor} '
+        'remoteNewer=${next.remoteNewer} diverged=${divergence != null} '
+        'phase=${phase.name}',
+      );
       _consecutiveFailures = 0;
       _failureBackoff = Duration.zero;
     } on GoogleAccountFailure catch (error) {
@@ -350,6 +357,9 @@ class AutoSyncController extends ChangeNotifier {
     GoogleAccountIssue? account,
     Duration? retryAfter,
   }) {
+    syncDiag(
+      'autosync failed transport=${transport?.name} account=${account?.name}',
+    );
     _consecutiveFailures++;
     if (_transient(transport: transport, account: account)) {
       phase = AutoSyncPhase.retrying;

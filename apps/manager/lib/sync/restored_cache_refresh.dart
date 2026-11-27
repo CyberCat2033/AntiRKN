@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../l10n/app_localizations.dart';
 import '../vpn/vpn_strings.dart';
+import 'sync_diag.dart';
 
 /// Setting written by a cloud pull: servers whose observations this device
 /// does not have (a new device, a replaced server, another workspace).
@@ -26,6 +27,7 @@ class RestoredCacheRefresh extends ChangeNotifier {
     required this.observedAt,
     required this.known,
     this.serverName,
+    this.diagnose,
     this.retryDelay = const Duration(seconds: 2),
   });
   final SettingsStore settings;
@@ -37,6 +39,9 @@ class RestoredCacheRefresh extends ChangeNotifier {
   final DateTime? Function(String serverId) observedAt;
   final bool Function(String serverId) known;
   final String Function(String serverId)? serverName;
+
+  /// Connection and runner flags of a server for [syncDiag]; no secrets.
+  final String Function(String serverId)? diagnose;
   final Duration retryDelay;
 
   /// Servers still to be read; [failed] were not read in this attempt.
@@ -73,6 +78,7 @@ class RestoredCacheRefresh extends ChangeNotifier {
     } catch (_) {
       return;
     }
+    syncDiag('cache_refresh start listed=${listed.length}');
     if (listed.isEmpty || _disposed) return;
     pending
       ..clear()
@@ -86,7 +92,9 @@ class RestoredCacheRefresh extends ChangeNotifier {
     Future<void> worker() async {
       while (queue.isNotEmpty && !_disposed) {
         final id = queue.removeAt(0);
-        final issue = known(id) ? await _read(id, since) : null;
+        final isKnown = known(id);
+        final issue = isKnown ? await _read(id, since) : null;
+        syncDiag('cache_refresh done server=$id known=$isKnown issue=$issue');
         if (issue == null) {
           pending.remove(id);
           await _save();
@@ -108,13 +116,27 @@ class RestoredCacheRefresh extends ChangeNotifier {
   Future<String?> _read(String id, DateTime since) async {
     var issue = 'vpn_connection';
     try {
-      if (!await connect(id)) return issue;
+      final connected = await connect(id);
+      syncDiag(
+        'cache_refresh connect server=$id ok=$connected '
+        '${diagnose?.call(id) ?? ''}',
+      );
+      if (!connected) return issue;
       for (var attempt = 0; attempt < 3 && !_disposed; attempt++) {
-        issue = (await refresh([id]))[id] ?? 'vpn_connection';
-        if (observedSince(id, since)) return null;
+        final reported = (await refresh([id]))[id];
+        issue = reported ?? 'vpn_connection';
+        final observed = observedSince(id, since);
+        syncDiag(
+          'cache_refresh read server=$id attempt=$attempt '
+          'reported=$reported observed=$observed '
+          '${diagnose?.call(id) ?? ''}',
+        );
+        if (observed) return null;
         await Future<void>.delayed(retryDelay);
       }
-    } catch (_) {}
+    } catch (e) {
+      syncDiag('cache_refresh error server=$id type=${e.runtimeType}');
+    }
     return issue;
   }
 

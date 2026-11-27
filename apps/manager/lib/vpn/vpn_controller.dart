@@ -5,6 +5,7 @@ import 'dart:isolate';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_profile_compiler/antirkn_profile_compiler.dart';
 import 'package:flutter/foundation.dart';
+import '../sync/sync_diag.dart';
 
 part 'client_deletion.dart';
 part 'service_mode_flow.dart';
@@ -1724,6 +1725,14 @@ class VpnController extends ChangeNotifier {
       await _serviceModeWork();
       return;
     }
+    syncDiag(
+      'vpn_reconcile work=$work fresh=$fresh '
+      'restored=${_restoredTargets.where((id) => remote(id) != null).toList()} '
+      'template=${template() != _lastTemplate} '
+      'deletions=${pendingDeletions.length} '
+      'workTargets=${[for (final e in workspace.servers.entries)
+        if (e.value['pending'] != null || e.value['job'] != null) e.key]}',
+    );
     await _run((token) async {
       await _reconcileDeletions(token);
       var anyServerRefreshed = false;
@@ -2395,26 +2404,50 @@ class VpnController extends ChangeNotifier {
     final ids = serverIds.toSet();
     final issues = <String, String>{};
     await _waitUntilIdle();
+    var ran = false;
+    syncDiag(
+      'vpn_refresh wait_done busy=$busy workspaceBusy=$workspaceBusy '
+      'checks=${connections.busy} upgrade=$_upgradeBusy',
+    );
     await _run((token) async {
+      ran = true;
       final targets = <String>[];
       for (final target in workspace.servers.keys) {
         final server = vpnServerId(target);
         if (!ids.contains(server)) continue;
         if (_followsRunningOperation(target)) {
           issues[server] ??= 'vpn_observing';
+          syncDiag('vpn_refresh target=$target skip=observing');
         } else if (remote(target) == null) {
-          issues[server] ??= remoteIssue?.call(target) ?? 'vpn_connection';
+          final why = remoteIssue?.call(target);
+          issues[server] ??= why ?? 'vpn_connection';
+          syncDiag('vpn_refresh target=$target skip=no_remote issue=$why');
         } else {
           targets.add(target);
         }
       }
       targets.sort();
+      syncDiag('vpn_refresh read targets=$targets');
       if (targets.isEmpty) return;
       final read = await _refreshTargets(targets, token);
       for (final MapEntry(key: target, value: issue) in read.issues.entries) {
         issues[vpnServerId(target)] ??= issue;
+        syncDiag('vpn_refresh target=$target read_issue=$issue');
       }
     }, background: true);
+    if (!ran) syncDiag('vpn_refresh dropped busy=$busy disposed=$_disposed');
+    for (final id in ids) {
+      for (final entry in _physicalRecords(id)) {
+        syncDiag(
+          'vpn_refresh record=${entry.key} '
+          'verifiedAt=${entry.value['verifiedAt'] != null} '
+          'error=${entry.value['error']} paused=${entry.value['paused']} '
+          'pending=${entry.value['pending'] != null} '
+          'job=${entry.value['job'] != null} '
+          'operation=${entry.value['operation'] != null}',
+        );
+      }
+    }
     return issues;
   }
 
@@ -3080,11 +3113,16 @@ class VpnController extends ChangeNotifier {
   ) async {
     try {
       if (!await ensureConnected(target)) {
+        syncDiag('vpn_poll target=$target fail=ensure_connected');
         return _TargetPollResult.error(target, 'vpn_connection');
       }
       token.check();
       final r = remote(target);
       if (r == null) {
+        syncDiag(
+          'vpn_poll target=$target fail=no_remote '
+          'issue=${remoteIssue?.call(target)}',
+        );
         return _TargetPollResult.error(target, 'vpn_connection');
       }
       final current = workspace.servers[target] ?? {};
@@ -3098,13 +3136,20 @@ class VpnController extends ChangeNotifier {
       return _TargetPollResult.fatal(target, e);
     } on VaultFailure catch (e) {
       return _TargetPollResult.fatal(target, e);
-    } on SshFailure {
+    } on SshFailure catch (e) {
+      syncDiag('vpn_poll target=$target fail=ssh issue=${e.issue.name}');
       return _TargetPollResult.error(target, 'vpn_connection');
-    } on RunnerFailure {
+    } on RunnerFailure catch (e) {
+      syncDiag('vpn_poll target=$target fail=runner issue=${e.issue.name}');
       return _TargetPollResult.error(target, 'vpn_runner');
     } on FormatException catch (e) {
+      syncDiag(
+        'vpn_poll target=$target fail=format '
+        'code=${RegExp(r'^[a-z_:]+$').hasMatch(e.message) ? e.message : 'non_code'}',
+      );
       return _TargetPollResult.error(target, e.message);
-    } catch (_) {
+    } catch (e) {
+      syncDiag('vpn_poll target=$target fail=other type=${e.runtimeType}');
       return _TargetPollResult.error(target, 'vpn_connection');
     }
   }

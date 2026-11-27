@@ -28,6 +28,7 @@ import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 
 import 'template_settings.dart';
 import 'appearance_settings.dart';
+import 'sync/sync_diag.dart';
 import 'backup/backup_panel.dart';
 import 'runner/component_updates_controller.dart';
 import 'l10n/app_localizations.dart';
@@ -109,6 +110,23 @@ String? _vpnRemoteIssue(SshController? session, String target) {
     return 'vpn_panel_login';
   }
   return null;
+}
+
+/// Connection and runner flags of a server for [syncDiag]; no secrets.
+String _sessionDiag(SshController? session) {
+  final runner = session?.runner;
+  if (session == null) return 'session=none';
+  return 'stage=${session.stage.name} ssh=${session.error?.name} '
+      'challenge=${session.challenge != null} '
+      'sudo=${session.needsPrivilegeInput} '
+      'transport=${runner?.transport() != null} '
+      'identity=${runner?.identity() != null} '
+      'installed=${runner?.installed} alive=${runner?.alive} '
+      'runnerBusy=${runner?.busy} runnerError=${runner?.error?.name} '
+      'release=${runner?.installation?.release} '
+      'bundled=${runner?.bundledRelease} '
+      'panel=${runner?.panelAccess != null} '
+      'panelVerified=${runner?.panelVerifiedAt != null}';
 }
 
 class WorkspaceLauncher extends StatefulWidget {
@@ -897,6 +915,7 @@ class _ManagerShellState extends State<ManagerShell>
           observedAt: vpn.serverObservedAt,
           known: (id) => catalog.servers.any((server) => server.id == id),
           serverName: catalog.serverDisplayName,
+          diagnose: (id) => _sessionDiag(catalog.sessionFor(id)),
         );
       }
       unawaited(_loadVpnAfterCatalog(catalogReady));
@@ -1139,24 +1158,37 @@ class _ManagerShellState extends State<ManagerShell>
     );
   }
 
+  String? _lastApplyBlockers;
+
   Future<bool> _applyReceived(Future<void> Function() receive) async {
-    if (!mounted ||
-        _applyingSync ||
-        _diagnosing ||
-        _clientSelection.active ||
-        _serverSelection.active ||
-        _catalog?.selectedId != null ||
-        (_catalog?.hasActiveWork ?? false) ||
-        (_catalog?.hasUnsavedEdits ?? false) ||
-        (_vpn?.busy ?? false) ||
-        (_publications?.busy ?? false) ||
-        (_vpn?.hasRunning ?? false) ||
-        _controller.savingDraft ||
-        _controller.draftSaveFailed ||
-        _controller.importing ||
-        ModalRoute.of(context)?.isCurrent != true) {
-      return false;
+    if (!mounted) return false;
+    final vpn = _vpn;
+    final blockers = [
+      if (_applyingSync) 'applyingSync',
+      if (_diagnosing) 'diagnosing',
+      if (_clientSelection.active) 'clientSelection',
+      if (_serverSelection.active) 'serverSelection',
+      if (_catalog?.selectedId != null) 'serverOpen',
+      if (_catalog?.loading ?? false) 'catalogLoading',
+      if (_catalog?.hasActiveWork ?? false) 'catalogActiveWork',
+      if (_catalog?.hasUnsavedEdits ?? false) 'catalogUnsaved',
+      if (vpn?.workspaceBusy ?? false) 'vpnWorkspaceBusy',
+      if (vpn?.upgradeBusy ?? false) 'vpnUpgradeBusy',
+      if (vpn?.connections.busy ?? false) 'vpnConnectionChecks',
+      if (_publications?.editing ?? false) 'publicationEditing',
+      if (_publications?.busy ?? false) 'publicationBusy',
+      if (vpn?.hasRunning ?? false) 'vpnRunning',
+      if (_controller.savingDraft) 'savingDraft',
+      if (_controller.draftSaveFailed) 'draftSaveFailed',
+      if (_controller.importing) 'importing',
+      if (ModalRoute.of(context)?.isCurrent != true) 'routeNotCurrent',
+    ];
+    final summary = blockers.join(',');
+    if (summary != _lastApplyBlockers) {
+      _lastApplyBlockers = summary;
+      syncDiag('apply_gate blockers=[$summary]');
     }
+    if (blockers.isNotEmpty) return false;
     setState(() => _applyingSync = true);
     var replacing = false;
     try {
