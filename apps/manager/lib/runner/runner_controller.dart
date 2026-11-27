@@ -299,6 +299,10 @@ class RunnerController extends ChangeNotifier {
   RunnerInstallation? componentRunnerPlan;
   String? activeComponent;
 
+  /// Version the last component or 3x-ui job started on this device moves
+  /// to: the title of its progress card. Not stored; null after a restart.
+  String? componentTarget, panelTarget;
+
   Map<String, dynamic>? egress;
 
   /// Public relay state of this server: `{inbounds: [{panelId, inboundId,
@@ -1762,6 +1766,7 @@ class RunnerController extends ChangeNotifier {
         16,
         (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
       ).join();
+      panelTarget = plan.panelVersion;
       pending = RunnerRequest.panelUpdate(id, plan);
       selected = null;
       cursor = 0;
@@ -2033,6 +2038,7 @@ class RunnerController extends ChangeNotifier {
         16,
         (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
       ).join();
+      componentTarget = plan.version;
       pending = RunnerRequest.componentInstall(
         id,
         plan,
@@ -2399,6 +2405,7 @@ class RunnerController extends ChangeNotifier {
       16,
       (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
     ).join();
+    componentTarget = candidate['version'] as String?;
     pending = RunnerRequest.componentUpgradeApply(
       id,
       candidate: candidate,

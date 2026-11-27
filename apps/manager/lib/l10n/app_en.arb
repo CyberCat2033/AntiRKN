@@ -509,20 +509,6 @@
   "componentsStarting": "Starting service",
   "componentsChecking": "Checking state and API",
   "componentsBuilding": "Building executables on server",
-  "componentStepProgress": "Step {current} of {total}: {step}",
-  "@componentStepProgress": {
-    "placeholders": {
-      "current": {
-        "type": "int"
-      },
-      "total": {
-        "type": "int"
-      },
-      "step": {
-        "type": "String"
-      }
-    }
-  },
   "componentsPlanSummary": "Install the panel and Xray with automatic startup. Panel access is through SSH.",
   "componentsRunnerSummary": "The server job service will also be set up.",
   "componentsDetails": "Details",
@@ -762,6 +748,9 @@
   "softwareTitle": "Server components",
   "softwareInstall": "Install",
   "softwareInspect": "Inspect installation",
+  "softwarePreparing": "Preparing…",
+  "softwareStop": "Stop",
+  "softwareFailed": "The update did not complete. Retry checks what is already done on the server.",
   "softwareUpdate": "Update",
   "softwareUpdateAvailable": "Update available",
   "softwarePanelAccess": "Panel access",
@@ -1688,6 +1677,6 @@
   "serviceTestLinkPending": "The test client is not on the server yet. The link appears here once the server confirms it.",
   "serviceTestLinkUnsupported": "These resource settings have no standard link. You can still check the connection in the app.",
   "serviceTestLinkGone": "The server is not in service mode: there is no test client.",
-  "serviceTestLinkQr": "Test link QR code",
+  "linkQr": "Link QR code",
   "serviceTestCopyConfig": "Copy config"
 }

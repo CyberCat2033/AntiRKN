@@ -135,8 +135,9 @@ void main() {
       await c.preparePanelUpdate();
       await tester.drag(find.byType(ListView), const Offset(0, -250));
       await tester.pumpAndSettle();
+      // A short notice titled with the move, no plan text.
       expect(find.text('3x-ui 3.7.0 → 3.8.0'), findsOneWidget);
-      expect(find.text('Xray 26.7.28 → 26.7.28'), findsOneWidget);
+      expect(find.text('Xray 26.7.28 → 26.7.28'), findsNothing);
       expect(find.byKey(const ValueKey('panel-access')), findsNothing);
       expect(remote.submissions, 0);
       c.dismissPanelUpdate();

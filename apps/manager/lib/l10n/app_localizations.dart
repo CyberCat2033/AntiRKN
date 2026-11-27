@@ -2492,12 +2492,6 @@ abstract class AppLocalizations {
   /// **'Building executables on server'**
   String get componentsBuilding;
 
-  /// No description provided for @componentStepProgress.
-  ///
-  /// In en, this message translates to:
-  /// **'Step {current} of {total}: {step}'**
-  String componentStepProgress(int current, int total, String step);
-
   /// No description provided for @componentsPlanSummary.
   ///
   /// In en, this message translates to:
@@ -3481,6 +3475,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Inspect installation'**
   String get softwareInspect;
+
+  /// No description provided for @softwarePreparing.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing…'**
+  String get softwarePreparing;
+
+  /// No description provided for @softwareStop.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop'**
+  String get softwareStop;
+
+  /// No description provided for @softwareFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The update did not complete. Retry checks what is already done on the server.'**
+  String get softwareFailed;
 
   /// No description provided for @softwareUpdate.
   ///
@@ -7904,11 +7916,11 @@ abstract class AppLocalizations {
   /// **'The server is not in service mode: there is no test client.'**
   String get serviceTestLinkGone;
 
-  /// No description provided for @serviceTestLinkQr.
+  /// No description provided for @linkQr.
   ///
   /// In en, this message translates to:
-  /// **'Test link QR code'**
-  String get serviceTestLinkQr;
+  /// **'Link QR code'**
+  String get linkQr;
 
   /// No description provided for @serviceTestCopyConfig.
   ///

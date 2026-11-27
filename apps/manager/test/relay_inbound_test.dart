@@ -545,6 +545,10 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('relay-link-reveal')));
     await tester.pumpAndSettle();
     expect(find.text(named), findsOneWidget);
+    // The same view as the test link: the QR code shows with the link.
+    expect(find.byKey(const ValueKey('relay-link-qr')), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const ValueKey('relay-link-copy')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('relay-link-copy')));
     await tester.pumpAndSettle();
     expect(clipboard, [named]);
@@ -570,7 +574,7 @@ void main() {
       ),
     );
     await settle(tester);
-    expect(find.byKey(const ValueKey('relay-link-issue')), findsOneWidget);
+    expect(find.byKey(const ValueKey('relay-link-notice')), findsOneWidget);
     expect(find.text(AppLocalizationsEn().relayMissing), findsOneWidget);
     expect(find.byKey(const ValueKey('relay-link-copy')), findsNothing);
     await tester.pumpWidget(const SizedBox());

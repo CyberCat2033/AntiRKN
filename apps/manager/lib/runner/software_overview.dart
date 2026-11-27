@@ -152,14 +152,9 @@ class SoftwareOverview extends StatelessWidget {
                   (c.activeComponent == 'panel' ||
                       c.activeComponent == 'xray')));
       final activeOnThisComponent = installingThis || isPanelJob;
-      // The job's progress bar lives in its own view; the card keeps a
-      // compact step count (UI-39).
+      // The job's progress lives in the card body, like the Xray one.
       final action = activeOnThisComponent
-          ? Text(
-              key: ValueKey('software-progress-$key'),
-              '${c.selected!.checkpoint}/${c.selected!.count}',
-              style: Theme.of(context).textTheme.labelSmall,
-            )
+          ? null
           : hasPlan || !applyAction
           // The one update check is the page's button (UI-45).
           ? null
@@ -300,6 +295,9 @@ class SoftwareOverview extends StatelessWidget {
               runSpacing: AppLayout.smallGap,
               children: [?versionsAction, ?action],
             );
+      final hostsInstallation =
+          !installationShown && hostsComponentInstallation(c, key);
+      if (hostsInstallation) installationShown = true;
       final summary = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -315,7 +313,10 @@ class SoftwareOverview extends StatelessWidget {
                   ? l.panelUpdateCompatibility
                   : l.componentUpdateUnverified,
             ),
-          // The core move belongs to this row, like an install's progress.
+          // Installs and updates belong to their card, like the Xray move.
+          if (isPanel) PanelUpdateView(controller: c, installed: versions),
+          if (hostsInstallation)
+            ComponentInstallationView(controller: c, installed: versions),
           if (isPanel && core != null) ...[
             const SizedBox(height: AppLayout.smallGap),
             core,
@@ -354,14 +355,7 @@ class SoftwareOverview extends StatelessWidget {
         );
       }
       if (isPanel) {
-        content.addAll([
-          PanelInstallationView(controller: c, motion: motion),
-          PanelUpdateView(controller: c),
-        ]);
-      }
-      if (!installationShown && hostsComponentInstallation(c, key)) {
-        installationShown = true;
-        content.add(ComponentInstallationView(controller: c));
+        content.add(PanelInstallationView(controller: c, motion: motion));
       }
     }
     if (core != null && !coreShown) content.add(core);

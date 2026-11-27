@@ -73,31 +73,37 @@ Map<String, Object?> _job(String status) => {
 void main() {
   group('UI-39 component install', () {
     for (final host in ['trusttunnel', null]) {
-      testWidgets('one bar, one step text and one cancel (card: $host)', (
-        tester,
-      ) async {
-        final c = _runner();
-        c.selected = runnerJob(
-          'a' * 32,
-          kind: 'component_install',
-          progress: 2,
-          count: 6,
-        );
-        c.activeComponent = host;
-        await tester.pumpWidget(
-          _app(RunnerPanel(controller: c, motion: MotionPreference.system)),
-        );
-        final l = AppLocalizations.of(tester.element(find.byType(RunnerPanel)));
-        expect(find.byType(LinearProgressIndicator), findsOneWidget);
-        expect(find.byKey(const ValueKey('component-cancel')), findsOneWidget);
-        expect(find.byKey(const ValueKey('runner-cancel')), findsNothing);
-        expect(find.text(componentStepProgressText(l, 2, 6)), findsOneWidget);
-        if (host != null) {
-          // The card keeps a compact step count, without a bar of its own.
-          expect(find.text('2/6'), findsOneWidget);
-        }
-        await _release(tester, [c]);
-      });
+      testWidgets(
+        'one progress card, one step text and one cancel (card: $host)',
+        (tester) async {
+          final c = _runner();
+          c.selected = runnerJob(
+            'a' * 32,
+            kind: 'component_install',
+            progress: 2,
+            count: 6,
+          );
+          c.activeComponent = host;
+          await tester.pumpWidget(
+            _app(RunnerPanel(controller: c, motion: MotionPreference.system)),
+          );
+          final l = AppLocalizations.of(
+            tester.element(find.byType(RunnerPanel)),
+          );
+          // One progress card like the Xray one: the step in words, no
+          // step counter and no runner bar.
+          expect(find.byKey(const ValueKey('software-job')), findsOneWidget);
+          expect(find.byType(LinearProgressIndicator), findsNothing);
+          expect(
+            find.byKey(const ValueKey('component-cancel')),
+            findsOneWidget,
+          );
+          expect(find.byKey(const ValueKey('runner-cancel')), findsNothing);
+          expect(find.text(componentActiveStepLabel(l, 2)), findsOneWidget);
+          expect(find.text('2/6'), findsNothing);
+          await _release(tester, [c]);
+        },
+      );
     }
   });
 

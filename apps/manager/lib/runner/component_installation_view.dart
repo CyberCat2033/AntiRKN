@@ -5,100 +5,137 @@ import '../l10n/app_localizations.dart';
 import 'runner_controller.dart';
 import 'component_updates_controller.dart';
 import 'component_upgrade_checks_view.dart';
+import 'runner_panel.dart' show runnerEventLabel;
+import '../ssh/server_activity.dart' show runnerJobTitle;
 
+/// The install or update of TrustTunnel or AmneziaWG on its software card,
+/// drawn like the Xray transaction: a progress card while it runs, a short
+/// notice when it cannot start or failed (UI-39).
 class ComponentInstallationView extends StatelessWidget {
-  const ComponentInstallationView({required this.controller, super.key});
+  const ComponentInstallationView({
+    required this.controller,
+    this.installed = const {},
+    super.key,
+  });
   final RunnerController controller;
+
+  /// Installed versions of the card, by release key.
+  final Map<String, String> installed;
   @override
   Widget build(BuildContext context) {
     final c = controller, l = AppLocalizations.of(context);
-    final updates = ComponentUpdatesScope.of(context);
     final plan = c.componentPlan;
+    final job = c.selected;
+    final title = softwareJobTitle(
+      c.activeComponent ?? plan?.component,
+      installed[c.activeComponent ?? plan?.component] ?? plan?.installedVersion,
+      plan?.version ?? c.componentTarget,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ComponentUpgradeChecksView(controller: c),
-        if (plan != null) ...[
-          Text(
-            '${componentName(plan.component)} · ${plan.installedVersion ?? '—'} → ${plan.version}',
+        if (plan != null)
+          plan.canApply && c.busy
+              // Every caller applies the plan at once: no plan text.
+              ? AppProgressCard(
+                  key: const ValueKey('component-plan'),
+                  icon: Icons.system_update_alt,
+                  title: title,
+                  status: l.softwarePreparing,
+                )
+              : AppNotice(
+                  key: const ValueKey('component-plan'),
+                  title: title,
+                  message: plan.canApply
+                      // Prepared but not started (the start was refused).
+                      ? l.protocolPrepared
+                      : !plan.supported
+                      ? l.protocolPrerequisites
+                      : switch (plan.state) {
+                          'conflict' => l.protocolExisting,
+                          'current' => l.protocolCurrent,
+                          _ => l.runnerIncompatible,
+                        },
+                  action: TextButton(
+                    onPressed: c.busy ? null : c.dismissComponent,
+                    child: Text(l.networkClose),
+                  ),
+                ),
+        if (!c.upgradeChecking)
+          SoftwareJobCard(
+            controller: c,
+            title: title,
+            kinds: const {'component_install', 'component_upgrade_apply'},
           ),
-          if (plan.toolsVersion != null)
-            Text('amneziawg-tools · ${plan.toolsVersion}'),
-          if (!plan.supported) Text(l.protocolPrerequisites),
-          if (plan.state == 'conflict') Text(l.protocolExisting),
-          if (plan.state == 'incompatible') Text(l.runnerIncompatible),
-          if (plan.state == 'current') Text(l.protocolCurrent),
-          if (updates?.latest[plan.component] case final String latest)
-            if (componentIsNewer(latest, plan.version) == true)
-              Text(l.updatesCompatibility),
-          if (plan.canApply) ...[
-            Text(
-              plan.state == 'update'
-                  ? l.protocolUpdatePlan
-                  : l.protocolInstallPlan,
-            ),
-            Text(l.protocolConfigurationSeparate),
-            if (plan.activeUnits.isNotEmpty)
-              Text(l.protocolRestart(plan.activeUnits.join(', '))),
-          ],
-          TextButton(
-            onPressed: c.busy ? null : c.dismissComponent,
-            child: Text(l.runnerNotNow),
-          ),
-        ],
-        if (c.selected?.kind == 'component_install' &&
-            c.selected?.terminal == false) ...[
-          const SizedBox(height: 8),
-          Semantics(
-            liveRegion: true,
-            child: Text(
-              componentStepProgressText(
-                l,
-                c.selected!.checkpoint,
-                c.selected!.count,
-              ),
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
-          ),
-          const SizedBox(height: 6),
-          LinearProgressIndicator(
-            value: c.selected!.count > 0 && c.selected!.checkpoint > 0
-                ? c.selected!.checkpoint / c.selected!.count
-                : null,
-          ),
-          if (c.selected!.cancelRequested) ...[
-            const SizedBox(height: 4),
-            Text(l.runnerCancelRequested),
-          ],
-          const SizedBox(height: 4),
-          Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: TextButton(
-              key: const ValueKey('component-cancel'),
-              onPressed:
-                  !c.busy && !c.actionPending && !c.selected!.cancelRequested
-                  ? () async {
-                      await c.cancelJob();
-                    }
-                  : null,
-              child: Text(l.runnerCancel),
+        if (job?.kind == 'component_install' &&
+            const {'failed', 'partially_applied'}.contains(job?.status))
+          AppNotice(
+            title: title,
+            message: job?.status == 'partially_applied'
+                ? l.componentsPartial
+                : l.softwareFailed,
+            error: true,
+            action: TextButton(
+              key: const ValueKey('component-retry'),
+              onPressed: c.canRequestAction ? c.retryJob : null,
+              child: Text(l.runnerRetry),
             ),
           ),
-        ],
-        if (c.selected?.kind == 'component_install' &&
-            const {
-              'failed',
-              'partially_applied',
-            }.contains(c.selected?.status)) ...[
-          const SizedBox(height: 8),
-          if (c.selected?.status == 'partially_applied')
-            Text(l.componentsPartial),
-          TextButton(
-            key: const ValueKey('component-retry'),
-            onPressed: c.canRequestAction ? c.retryJob : null,
-            child: Text(l.runnerRetry),
-          ),
-        ],
+      ],
+    );
+  }
+}
+
+/// "AmneziaWG Go 3.1.1 → 3.1.2": the title of a software job.
+String softwareJobTitle(String? key, String? from, String? to) => [
+  key == null ? '' : componentName(key),
+  ?from,
+  if (to != null && to != from) '→ $to',
+].where((p) => p.isNotEmpty).join(' ');
+
+/// A running software job ([kinds]) of [RunnerController.selected], drawn
+/// like the Xray transaction: its step in words and a progress ring, no
+/// step counter.
+class SoftwareJobCard extends StatelessWidget {
+  const SoftwareJobCard({
+    required this.controller,
+    required this.title,
+    required this.kinds,
+    super.key,
+  });
+  final RunnerController controller;
+  final String title;
+  final Set<String> kinds;
+  @override
+  Widget build(BuildContext context) {
+    final c = controller, l = AppLocalizations.of(context);
+    final job = c.selected;
+    if (job == null || job.terminal || !kinds.contains(job.kind)) {
+      return const SizedBox.shrink();
+    }
+    final code = job.events.lastOrNull?.code;
+    return AppProgressCard(
+      key: const ValueKey('software-job'),
+      icon: Icons.system_update_alt,
+      title: title.isEmpty ? runnerJobTitle(l, job.kind) : title,
+      status: job.kind == 'component_install'
+          ? componentActiveStepLabel(l, job.checkpoint)
+          : code == null || const {'planned', 'running'}.contains(code)
+          ? l.upgradeChecksUpgrading
+          : runnerEventLabel(l, code),
+      value: job.count > 0 && job.checkpoint > 0
+          ? job.checkpoint / job.count
+          : null,
+      notes: [if (job.cancelRequested) l.runnerCancelRequested],
+      actions: [
+        TextButton(
+          key: const ValueKey('component-cancel'),
+          onPressed: !c.busy && !c.actionPending && !job.cancelRequested
+              ? c.cancelJob
+              : null,
+          child: Text(l.softwareStop),
+        ),
       ],
     );
   }
@@ -114,16 +151,6 @@ String componentActiveStepLabel(AppLocalizations l, int checkpoint) =>
       5 => l.componentsChecking,
       _ => l.uiOperationPending,
     };
-
-String componentStepProgressText(
-  AppLocalizations l,
-  int checkpoint,
-  int total,
-) {
-  final current = (checkpoint + 1).clamp(1, total > 0 ? total : 1);
-  final stepLabel = componentActiveStepLabel(l, checkpoint);
-  return l.componentStepProgress(current, total > 0 ? total : 6, stepLabel);
-}
 
 class ComponentUpdateSettings extends StatelessWidget {
   const ComponentUpdateSettings({super.key});

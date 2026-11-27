@@ -509,20 +509,6 @@
   "componentsStarting": "Запуск службы",
   "componentsChecking": "Проверка состояния и API",
   "componentsBuilding": "Сборка исполняемых файлов на сервере",
-  "componentStepProgress": "Шаг {current} из {total}: {step}",
-  "@componentStepProgress": {
-    "placeholders": {
-      "current": {
-        "type": "int"
-      },
-      "total": {
-        "type": "int"
-      },
-      "step": {
-        "type": "String"
-      }
-    }
-  },
   "componentsPlanSummary": "Установить панель и Xray с автозапуском. Доступ к панели — через SSH.",
   "componentsRunnerSummary": "Также будет настроен сервис серверных заданий.",
   "componentsDetails": "Подробности",
@@ -724,6 +710,9 @@
   "softwareTitle": "Компоненты сервера",
   "softwareInstall": "Установить",
   "softwareInspect": "Проверить наличие",
+  "softwarePreparing": "Подготовка…",
+  "softwareStop": "Остановить",
+  "softwareFailed": "Обновление не завершено. Повтор проверит, что уже сделано на сервере.",
   "softwareUpdate": "Обновить",
   "softwareUpdateAvailable": "Доступно обновление",
   "softwarePanelAccess": "Доступ к панели",
@@ -1635,6 +1624,6 @@
   "serviceTestLinkPending": "Тестовый клиент ещё не появился на сервере. Ссылка будет здесь, когда сервер его подтвердит.",
   "serviceTestLinkUnsupported": "Для настроек этого ресурса нет стандартной ссылки. Соединение можно проверить в приложении.",
   "serviceTestLinkGone": "Сервер не в сервисном режиме: тестового клиента нет.",
-  "serviceTestLinkQr": "QR-код ссылки для теста",
+  "linkQr": "QR-код ссылки",
   "serviceTestCopyConfig": "Копировать конфигурацию"
 }

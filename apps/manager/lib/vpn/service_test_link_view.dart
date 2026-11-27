@@ -71,34 +71,20 @@ class ServiceTestLinkView extends StatelessWidget {
           : link == null
           ? l.serviceTestLinkUnsupported
           : null;
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(l.serviceTestLinkHelp),
-          if (link != null) ...[
-            const SizedBox(height: 8),
-            Text(switch (link.kind) {
-              ShareLinkKind.vless => l.serviceTestLinkVless,
-              ShareLinkKind.awg => l.serviceTestLinkAwg,
-              ShareLinkKind.trustTunnel => l.serviceTestLinkTt,
-            }, style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 12),
-            SecretLinkBox(
-              text: link.text,
-              keyPrefix: 'service-test-link',
-              qr: true,
-              copyLabel: link.kind == ShareLinkKind.awg
-                  ? l.serviceTestCopyConfig
-                  : null,
-            ),
-          ],
-          if (notice != null)
-            AppNotice(
-              key: const ValueKey('service-test-link-notice'),
-              message: notice,
-              margin: const EdgeInsets.only(top: 12),
-            ),
-        ],
+      return AccessLinkView(
+        help: l.serviceTestLinkHelp,
+        keyPrefix: 'service-test-link',
+        link: link?.text,
+        hint: switch (link?.kind) {
+          ShareLinkKind.vless => l.serviceTestLinkVless,
+          ShareLinkKind.awg => l.serviceTestLinkAwg,
+          ShareLinkKind.trustTunnel => l.serviceTestLinkTt,
+          null => null,
+        },
+        copyLabel: link?.kind == ShareLinkKind.awg
+            ? l.serviceTestCopyConfig
+            : null,
+        notice: notice,
       );
     },
   );

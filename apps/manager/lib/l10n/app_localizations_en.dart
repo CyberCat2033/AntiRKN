@@ -1371,11 +1371,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get componentsBuilding => 'Building executables on server';
 
   @override
-  String componentStepProgress(int current, int total, String step) {
-    return 'Step $current of $total: $step';
-  }
-
-  @override
   String get componentsPlanSummary =>
       'Install the panel and Xray with automatic startup. Panel access is through SSH.';
 
@@ -1950,6 +1945,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get softwareInspect => 'Inspect installation';
+
+  @override
+  String get softwarePreparing => 'Preparing…';
+
+  @override
+  String get softwareStop => 'Stop';
+
+  @override
+  String get softwareFailed =>
+      'The update did not complete. Retry checks what is already done on the server.';
 
   @override
   String get softwareUpdate => 'Update';
@@ -4568,7 +4573,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'The server is not in service mode: there is no test client.';
 
   @override
-  String get serviceTestLinkQr => 'Test link QR code';
+  String get linkQr => 'Link QR code';
 
   @override
   String get serviceTestCopyConfig => 'Copy config';
