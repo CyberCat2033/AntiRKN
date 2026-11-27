@@ -58,6 +58,13 @@ exec "$@"
         VpnComponent.amneziaWg,
       );
     },
-    skip: !Platform.isLinux || Platform.environment['USER'] == 'root',
+    // uid 0 (also inside a user namespace, where USER is unchanged) reads a
+    // mode-000 socket, so the denial cannot be staged.
+    skip: !Platform.isLinux || _effectiveRoot(),
   );
+}
+
+bool _effectiveRoot() {
+  final id = Process.runSync('id', ['-u']);
+  return id.exitCode != 0 || (id.stdout as String).trim() == '0';
 }
