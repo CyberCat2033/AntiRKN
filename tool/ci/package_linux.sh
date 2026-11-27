@@ -40,6 +40,7 @@ image="$out/$(python3 "$root/tool/ci/package.py" name --version "$version" --kin
 ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 timeout 600 \
   "$work/appimagetool" --no-appstream --runtime-file "$work/runtime-x86_64" "$appdir" "$image"
 chmod 0755 "$image"
+image="$(cd "$(dirname "$image")" && pwd)/$(basename "$image")"  # the smoke check runs elsewhere
 
 # Smoke check: the image unpacks and carries the marker and the core.
 (
