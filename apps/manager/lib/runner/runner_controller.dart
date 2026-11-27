@@ -970,27 +970,6 @@ class RunnerController extends ChangeNotifier {
     });
   });
 
-  Future<void> checkEgress() => requestAction(() async {
-    if (panelAccess == null) return;
-    await _run((remote, token) async {
-      final result = await remote.request(
-        RunnerRequest.fromJson({
-          'version': 1,
-          'action': 'egress_check',
-          'id': panelAccess!.id,
-        }),
-        token,
-        sudoPassword: password(),
-      );
-      token.check();
-      responseCode = result.code;
-      if (result.code == 'ok' && result.egress != null) {
-        egress = result.egress;
-        await _save();
-      }
-    });
-  });
-
   Future<bool> applyEgress({
     required bool enabled,
     required String uri,

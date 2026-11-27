@@ -3811,17 +3811,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get egressDirect => 'Direct';
 
   @override
-  String get egressClientTraffic =>
-      'Client traffic only: VLESS, TrustTunnel and AmneziaWG.';
-
-  @override
-  String get egressChecked => 'TCP and UDP checked';
-
-  @override
   String get egressConfigure => 'Configure';
-
-  @override
-  String get egressCheck => 'Check';
 
   @override
   String get egressInstallPanel => 'Install 3x-ui';
@@ -4133,11 +4123,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get inboundDeleteReadFailed =>
       'The selected inbounds could not be read on the server. Nothing was deleted; try again after refreshing the list.';
-
-  @override
-  String egressCheckedAt(Object date, Object ms) {
-    return 'TCP and UDP checked · $ms ms · $date';
-  }
 
   @override
   String get egressInbound => 'VLESS inbound';

@@ -220,4 +220,36 @@ void main() {
       },
     );
   }
+
+  testWidgets('the egress card names the egress only, without a check', (
+    tester,
+  ) async {
+    c.egress = {
+      'enabled': true,
+      'observedHash': 'a' * 64,
+      'name': 'NL · VLESS',
+      'host': '192.0.2.10',
+      'port': 443,
+      'lastCheck': {'tcpMs': 15, 'checkedAt': 1700000000},
+    };
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: SingleChildScrollView(child: ClientEgressCard(controller: c)),
+        ),
+      ),
+    );
+    expect(find.text('NL · VLESS'), findsOneWidget);
+    expect(find.textContaining('192.0.2.10'), findsNothing);
+    expect(find.textContaining('ms'), findsNothing);
+    expect(find.byKey(const ValueKey('client-egress-check')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('client-egress-configure')),
+      findsOneWidget,
+    );
+    await tester.pumpWidget(const SizedBox());
+  });
 }

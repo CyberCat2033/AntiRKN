@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../l10n/app_localizations.dart';
-import '../app_strings.dart';
 import '../runner/panel_login_view.dart';
 import '../runner/egress_strings.dart';
 import '../runner/runner_controller.dart';
@@ -95,7 +94,6 @@ class _ClientEgressCardState extends State<ClientEgressCard> {
           c.busy ||
           c.actionPending ||
           job?.terminal == false;
-      final check = info?['lastCheck'] as Map?;
       final failure =
           issue ??
           (c.responseCode?.startsWith('egress_') == true
@@ -146,7 +144,7 @@ class _ClientEgressCardState extends State<ClientEgressCard> {
                 info == null
                     ? l.egressUnknown
                     : enabled
-                    ? '${info['name']} · ${info['host']}:${info['port']}'
+                    ? '${info['name']}'
                     : l.egressDirect,
               ),
               // Relay inbounds leave directly whatever the egress is.
@@ -155,27 +153,12 @@ class _ClientEgressCardState extends State<ClientEgressCard> {
                   l.relayDirectCount(c.relayInbounds.length),
                   key: const ValueKey('client-egress-relay'),
                 ),
-              const SizedBox(height: 4),
-              Text(
-                l.egressClientTraffic,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              if (check != null && enabled)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Text(
-                    l.egressCheckedAt(
-                      '${check['tcpMs']}',
-                      l.formatEpochSeconds(check['checkedAt'] as num),
-                    ),
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-              if (job != null)
+              // A finished apply needs no line; a running or failed one does.
+              if (job != null && job.status != 'succeeded')
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
-                    job.events.isNotEmpty && job.status != 'succeeded'
+                    job.events.isNotEmpty
                         ? runnerEventLabel(l, job.events.last.code)
                         : runnerStateLabel(l, job.status),
                   ),
@@ -202,19 +185,6 @@ class _ClientEgressCardState extends State<ClientEgressCard> {
                     icon: const Icon(Icons.settings_outlined),
                     label: Text(l.egressConfigure),
                   ),
-                  if (enabled)
-                    TextButton.icon(
-                      key: const ValueKey('client-egress-check'),
-                      onPressed: busy || !c.canRequestAction
-                          ? null
-                          : () async {
-                              setState(() => issue = null);
-                              await c.checkEgress();
-                              if (mounted) setState(() {});
-                            },
-                      icon: const Icon(Icons.network_check),
-                      label: Text(l.egressCheck),
-                    ),
                   if (issue == 'egress_panel_required')
                     TextButton(
                       onPressed: busy ? null : () => c.installOrUpdate('panel'),

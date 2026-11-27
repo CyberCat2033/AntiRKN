@@ -6704,29 +6704,11 @@ abstract class AppLocalizations {
   /// **'Direct'**
   String get egressDirect;
 
-  /// No description provided for @egressClientTraffic.
-  ///
-  /// In en, this message translates to:
-  /// **'Client traffic only: VLESS, TrustTunnel and AmneziaWG.'**
-  String get egressClientTraffic;
-
-  /// No description provided for @egressChecked.
-  ///
-  /// In en, this message translates to:
-  /// **'TCP and UDP checked'**
-  String get egressChecked;
-
   /// No description provided for @egressConfigure.
   ///
   /// In en, this message translates to:
   /// **'Configure'**
   String get egressConfigure;
-
-  /// No description provided for @egressCheck.
-  ///
-  /// In en, this message translates to:
-  /// **'Check'**
-  String get egressCheck;
 
   /// No description provided for @egressInstallPanel.
   ///
@@ -7231,12 +7213,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The selected inbounds could not be read on the server. Nothing was deleted; try again after refreshing the list.'**
   String get inboundDeleteReadFailed;
-
-  /// No description provided for @egressCheckedAt.
-  ///
-  /// In en, this message translates to:
-  /// **'TCP and UDP checked · {ms} ms · {date}'**
-  String egressCheckedAt(Object date, Object ms);
 
   /// No description provided for @egressInbound.
   ///

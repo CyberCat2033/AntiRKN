@@ -3817,17 +3817,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get egressDirect => 'Напрямую';
 
   @override
-  String get egressClientTraffic =>
-      'Только трафик клиентов: VLESS, TrustTunnel и AmneziaWG.';
-
-  @override
-  String get egressChecked => 'TCP и UDP проверены';
-
-  @override
   String get egressConfigure => 'Настроить';
-
-  @override
-  String get egressCheck => 'Проверить';
 
   @override
   String get egressInstallPanel => 'Установить 3x-ui';
@@ -4141,11 +4131,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get inboundDeleteReadFailed =>
       'Не удалось прочитать выбранные inbounds на сервере. Ничего не удалено; повторите после обновления списка.';
-
-  @override
-  String egressCheckedAt(Object date, Object ms) {
-    return 'TCP и UDP проверены · $ms мс · $date';
-  }
 
   @override
   String get egressInbound => 'VLESS inbound';

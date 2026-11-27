@@ -66,8 +66,6 @@ void main() {
         ru.formatEpochSeconds(at.millisecondsSinceEpoch / 1000),
         ru.formatDateTime(at),
       );
-      expect(ru.egressCheckedAt('12', 'x'), contains('мс'));
-      expect(en.egressCheckedAt('12', 'x'), contains('ms'));
     });
   });
 
