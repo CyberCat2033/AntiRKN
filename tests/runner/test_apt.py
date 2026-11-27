@@ -16,6 +16,8 @@ class AptTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup); self.addCleanup(self.store.close)
         self.prereq = patch('apt.prerequisites'); self.prereq.start(); self.addCleanup(self.prereq.stop)
         self.dpkg = patch('apt.dpkg_interrupted', return_value=False); self.dpkg.start(); self.addCleanup(self.dpkg.stop)
+        # Hermetic: never ask the host's systemd (CI runners have a real one).
+        self.units = patch('apt.unit_properties', return_value={}); self.units.start(); self.addCleanup(self.units.stop)
     def request(self, kind='apt_update', number=1):
         r = dict(version=1, action='submit', id=f'{number:032x}', kind=kind, count=2, interval=1)
         if kind == 'apt_upgrade': r['fingerprint'] = 'a' * 64

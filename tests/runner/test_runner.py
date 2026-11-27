@@ -389,6 +389,7 @@ class RunnerTests(unittest.TestCase):
         row = self.store.db.execute('SELECT data FROM tt_resources WHERE id=?', ('res1',)).fetchone()[0]
         self.assertEqual(json.loads(row)['clients'], [{'id': 'u1', 'username': 'user1'}])
 
+    @patch('apt.unit_properties', new=lambda unit: {})  # hermetic: no host systemd
     def test_unconditional_queue_cancellation_when_daemon_is_dead(self):
         job_id = 'c' * 32
         apt_req = dict(version=1, action='submit', id=job_id, kind='apt_update', count=2, interval=1)
