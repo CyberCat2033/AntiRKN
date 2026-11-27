@@ -35,8 +35,13 @@ jobs:
       - name: Changelog has an [Unreleased] section
         run: python3 tool/ci/changelog_check.py --unreleased --soft
 
+      # Runner tests require root-owned files: run as uid 0 inside a user
+      # namespace (as locally), which Ubuntu 24.04 AppArmor blocks by default.
+      - name: Allow unprivileged user namespaces
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+
       - name: Verify domain, templates, translations and UI
-        run: bash tool/verify.sh
+        run: unshare -r bash tool/verify.sh
 
   build:
     name: Build
