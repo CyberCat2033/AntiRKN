@@ -106,7 +106,7 @@ void main() {
         ),
       );
 
-      // 1. Running job: Reset job queue should be available
+      // 1. Running job: it has its own Stop, no reset
       c.selected = runnerJob(
         '1' * 32,
         kind: 'component_install',
@@ -115,9 +115,9 @@ void main() {
       );
       c.notifyListeners();
       await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('runner-reset-queue')), findsOneWidget);
+      expect(find.byKey(const ValueKey('runner-reset-queue')), findsNothing);
 
-      // 2. Planned job: Reset job queue should be available
+      // 2. Planned job: no reset either
       c.selected = runnerJob(
         '2' * 32,
         kind: 'panel_update',
@@ -126,7 +126,7 @@ void main() {
       );
       c.notifyListeners();
       await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('runner-reset-queue')), findsOneWidget);
+      expect(find.byKey(const ValueKey('runner-reset-queue')), findsNothing);
 
       // 3. cancelRequested: Reset job queue should be available
       final cancelJob = RunnerJob.fromJson({
@@ -202,18 +202,12 @@ void main() {
     );
     await tester.pumpAndSettle();
     final l = await AppLocalizations.delegate.load(const Locale('en'));
-    final result = find.byKey(const ValueKey('runner-job-result'));
+    // An Ubuntu job fails on the Ubuntu card.
+    final result = find.byKey(const ValueKey('apt-failed'));
     expect(result, findsOneWidget);
-    expect(
-      find.descendant(of: result, matching: find.text(l.runnerFailed)),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(of: result, matching: find.text(l.aptFailed)),
-      findsOneWidget,
-    );
+    expect(tester.widget<Text>(result).data, l.aptFailed);
 
-    await tester.tap(find.byKey(const ValueKey('runner-job-close')));
+    await tester.tap(find.byKey(const ValueKey('apt-close')));
     await tester.pumpAndSettle();
     expect(result, findsNothing);
     expect(c.failedJob, isNull);
@@ -240,7 +234,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(c.failedJob?.id, '4' * 32);
     expect(result, findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('runner-job-close')));
+    await tester.tap(find.byKey(const ValueKey('apt-close')));
     await tester.pumpAndSettle();
     expect(result, findsNothing);
 

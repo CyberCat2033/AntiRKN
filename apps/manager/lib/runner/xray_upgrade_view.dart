@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/scheduler.dart';
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import 'panel_login_view.dart';
 import 'device_upgrade_checks.dart';
 import 'runner_controller.dart';
 import 'component_updates_controller.dart';
+import 'component_installation_view.dart' show SoftwareProgress;
 import 'xray_upgrade_controller.dart';
 
 class XrayUpgradeView extends StatefulWidget {
@@ -55,7 +57,31 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
     update: _update,
     ready: () => c.ready,
     previous: () => c.previousVersion,
+    runningPhase: () =>
+        _inProgress ? (_active.contains(c.phase) ? c.phase : 'baseline') : null,
+    stoppable: () => c.running,
+    cancel: c.cancel,
   );
+
+  /// The server runs or recovers a transaction, or this device drives one.
+  bool get _inProgress =>
+      c.running ||
+      c.busy ||
+      (_active.contains(c.phase) && c.phase != 'recovery_required');
+
+  /// The card that draws the progress listens to the runner, not to [c].
+  void _bump() {
+    void bump() {
+      if (mounted) widget.runner.xrayRevision.value++;
+    }
+
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) => bump());
+    } else {
+      bump();
+    }
+  }
 
   /// A version chosen in the component versions dialog (UI-45).
   Future<void> _install(Map<String, Object?> asset) async {
@@ -146,6 +172,8 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
     WidgetsBinding.instance.addObserver(this);
     widget.runner.xrayVersionChoice = _choice;
     widget.runner.deviceChecks = _deviceChecks;
+    c.addListener(_bump);
+    _bump();
     unawaited(c.inspect());
     _poll = Timer.periodic(const Duration(seconds: 5), (_) {
       if (mounted &&
@@ -188,6 +216,7 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
       widget.runner.deviceChecks = null;
     }
     _poll?.cancel();
+    c.removeListener(_bump);
     c.dispose();
     super.dispose();
   }
@@ -203,17 +232,7 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
       }
       final l = AppLocalizations.of(context);
       final offer = _offer(ComponentUpdatesScope.of(context));
-      final message = switch (c.phase) {
-        'baseline' => l.xrayUpgradeBaseline,
-        'preparing' || 'replacing' => l.xrayUpgradePreparing,
-        'comparison' || 'awaiting_checks' => l.xrayUpgradeComparison,
-        'committed' => l.xrayUpgradeCommitted,
-        'rolled_back' => l.xrayUpgradeRestored,
-        'not_changed' => l.xrayUpgradeUnchanged,
-        'recovery_required' => l.xrayUpgradeAttention,
-        'recovery_pending' || 'rolling_back' => l.xrayUpgradePending,
-        _ => '',
-      };
+      final message = xrayPhaseMessage(l, c.phase);
       final problem = switch (c.code) {
         'xray_check_coverage' => l.xrayUpgradeCoverage,
         'xray_check_layout' => offer.newer ? '' : l.xrayUpgradeLayout,
@@ -275,40 +294,8 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
             ),
           ),
       ];
-      final inProgress =
-          c.running ||
-          c.busy ||
-          (_active.contains(c.phase) && c.phase != 'recovery_required');
-      if (inProgress) {
-        return AppProgressCard(
-          key: const ValueKey('xray-upgrade'),
-          icon: Icons.memory,
-          title: title,
-          // A new run starts with the baseline check; the previous run's
-          // outcome must not show while it is in progress.
-          status: _active.contains(c.phase) ? message : l.xrayUpgradeBaseline,
-          actions: [
-            if (c.running)
-              // Stopping aborts the upgrade and rolls the core back on the
-              // server: confirm in error colours (UI-55).
-              TextButton(
-                key: const ValueKey('xray-stop'),
-                onPressed: () async {
-                  final stop = await confirmAppDanger(
-                    context,
-                    title: l.xrayUpgradeStopTitle,
-                    message: l.xrayUpgradeStopHelp,
-                    confirmLabel: l.connectionStop,
-                    cancelLabel: l.runnerNotNow,
-                    confirmKey: const ValueKey('xray-stop-confirm'),
-                  );
-                  if (stop && c.running) c.cancel();
-                },
-                child: Text(l.connectionStop),
-              ),
-          ],
-        );
-      }
+      // The 3x-ui / Xray card draws the run ([xrayProgress]).
+      if (_inProgress) return const SizedBox.shrink();
       final text = [
         if (message.isNotEmpty) message,
         if (problem.isNotEmpty) problem,
@@ -344,5 +331,49 @@ class _XrayUpgradeViewState extends State<XrayUpgradeView>
         ),
       );
     },
+  );
+}
+
+/// The words for a transaction [phase] of [XrayUpgradeController].
+String xrayPhaseMessage(AppLocalizations l, String phase) => switch (phase) {
+  'baseline' => l.xrayUpgradeBaseline,
+  'preparing' || 'replacing' => l.xrayUpgradePreparing,
+  'comparison' || 'awaiting_checks' => l.xrayUpgradeComparison,
+  'committed' => l.xrayUpgradeCommitted,
+  'rolled_back' => l.xrayUpgradeRestored,
+  'not_changed' => l.xrayUpgradeUnchanged,
+  'recovery_required' => l.xrayUpgradeAttention,
+  'recovery_pending' || 'rolling_back' => l.xrayUpgradePending,
+  _ => '',
+};
+
+/// The running Xray core transaction for the 3x-ui / Xray card. Stopping
+/// aborts it and rolls the core back on the server: confirm in error
+/// colours (UI-55).
+SoftwareProgress? xrayProgress(BuildContext context, XrayVersionChoice? x) {
+  final phase = x?.runningPhase();
+  if (x == null || phase == null) return null;
+  final l = AppLocalizations.of(context);
+  return (
+    step: xrayPhaseMessage(l, phase),
+    note: null,
+    value: null,
+    stop: x.stoppable()
+        ? FilledButton.tonal(
+            key: const ValueKey('xray-stop'),
+            onPressed: () async {
+              final stop = await confirmAppDanger(
+                context,
+                title: l.xrayUpgradeStopTitle,
+                message: l.xrayUpgradeStopHelp,
+                confirmLabel: l.connectionStop,
+                cancelLabel: l.runnerNotNow,
+                confirmKey: const ValueKey('xray-stop-confirm'),
+              );
+              if (stop && x.stoppable()) x.cancel();
+            },
+            child: Text(l.connectionStop),
+          )
+        : null,
   );
 }

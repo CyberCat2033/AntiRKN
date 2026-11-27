@@ -18,7 +18,8 @@ import 'package:antirkn_manager/ssh/server_detail_view.dart';
 import 'package:antirkn_manager/ssh/server_inventory_panel.dart';
 import 'package:antirkn_manager/ssh/ssh_controller.dart';
 import 'package:antirkn_manager/vpn/connection_check_view.dart';
-import 'package:antirkn_manager/vpn/connection_checks.dart' show ConnectionTarget;
+import 'package:antirkn_manager/vpn/connection_checks.dart'
+    show ConnectionTarget;
 import 'package:antirkn_manager/vpn/observed_inbound_dialog.dart';
 import 'package:antirkn_manager/vpn/tt_panel.dart';
 import 'package:antirkn_manager/vpn/users_page.dart';
@@ -297,7 +298,13 @@ void main() {
       store: store,
     );
     await tester.runAsync(c.refresh);
-    c.selected = runnerJob('1' * 32, kind: 'diagnostic', status: 'running');
+    // Offered only once a Stop is not honoured.
+    c.selected = runnerJob(
+      '1' * 32,
+      kind: 'diagnostic',
+      status: 'running',
+      cancelRequested: true,
+    );
     await tester.pumpWidget(
       _app(
         SingleChildScrollView(

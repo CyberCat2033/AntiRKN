@@ -3524,6 +3524,30 @@ abstract class AppLocalizations {
   /// **'A new version is available. Applying 3x-ui/Xray updates in the app is not supported yet; use the x-ui command on the server.'**
   String get panelUpdateManual;
 
+  /// No description provided for @aptNotChecked.
+  ///
+  /// In en, this message translates to:
+  /// **'Not checked'**
+  String get aptNotChecked;
+
+  /// No description provided for @aptUpToDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Up to date'**
+  String get aptUpToDate;
+
+  /// No description provided for @aptRestartRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Restart required'**
+  String get aptRestartRequired;
+
+  /// No description provided for @aptPackages.
+  ///
+  /// In en, this message translates to:
+  /// **'Packages'**
+  String get aptPackages;
+
   /// No description provided for @aptTitle.
   ///
   /// In en, this message translates to:

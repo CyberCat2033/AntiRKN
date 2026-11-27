@@ -181,7 +181,7 @@ void main() {
       );
       expect(find.text(l.runnerCancelRequested), findsOneWidget);
 
-      final cancelBtn = tester.widget<TextButton>(
+      final cancelBtn = tester.widget<ButtonStyleButton>(
         find.byKey(const ValueKey('component-cancel')),
       );
       expect(cancelBtn.onPressed, isNull);
@@ -333,9 +333,7 @@ void main() {
       return c;
     }
 
-    testWidgets('a running apt job is one card with its step and cancel', (
-      tester,
-    ) async {
+    testWidgets('a running apt job runs on the Ubuntu card', (tester) async {
       final c = await pump(
         tester,
         runnerJob(
@@ -346,9 +344,19 @@ void main() {
           count: 2,
         ),
       );
-      expect(find.byType(AppProgressCard), findsOneWidget);
-      expect(find.text('1/2'), findsOneWidget);
-      expect(find.byKey(const ValueKey('runner-cancel')), findsOneWidget);
+      // Like a component update: a ring around its icon, the step in
+      // words and Stop; no separate card and no step counter.
+      expect(find.byType(AppProgressCard), findsNothing);
+      expect(find.text('1/2'), findsNothing);
+      expect(find.byKey(const ValueKey('apt-step')), findsOneWidget);
+      expect(find.byKey(const ValueKey('apt-cancel')), findsOneWidget);
+      expect(find.byKey(const ValueKey('runner-cancel')), findsNothing);
+      expect(
+        tester
+            .widgetList<AppIconTile>(find.byType(AppIconTile))
+            .where((t) => t.busy),
+        hasLength(1),
+      );
       expect(find.text('reboot-action'), findsNothing);
       await tester.pumpWidget(const SizedBox());
       c.dispose();

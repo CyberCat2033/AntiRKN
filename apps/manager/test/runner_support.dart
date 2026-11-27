@@ -12,6 +12,7 @@ RunnerJob runnerJob(
   int count = 10,
   int interval = 2,
   List<Map<String, Object?>>? events,
+  bool? cancelRequested,
 }) => RunnerJob.fromJson({
   'id': id,
   'kind': kind,
@@ -20,7 +21,7 @@ RunnerJob runnerJob(
   'count': count,
   'interval': interval,
   'sequence': sequence,
-  'cancelRequested': status == 'cancelled',
+  'cancelRequested': cancelRequested ?? status == 'cancelled',
   'events':
       events ??
       [

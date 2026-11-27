@@ -1443,14 +1443,44 @@ class AppIconTile extends StatelessWidget {
     this.text,
     this.size = 44,
     this.round = false,
+    this.busy = false,
+    this.value,
     super.key,
   });
   final IconData? icon;
   final String? text;
   final double size;
   final bool round;
+
+  /// A process of this item runs: a progress ring around a round tile, in
+  /// the same space, so the row does not move.
+  final bool busy;
+
+  /// Completed share 0..1 of the [busy] ring; null while unknown.
+  final double? value;
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) {
+    if (!busy) return _tile(context, size, round);
+    final still = MediaQuery.disableAnimationsOf(context);
+    return SizedBox.square(
+      dimension: size,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Positioned.fill(
+            child: CircularProgressIndicator(
+              // Reduced motion: a still ring, not a spinner.
+              value: value ?? (still ? 0.25 : null),
+              strokeWidth: 3,
+            ),
+          ),
+          _tile(context, size - 12, true),
+        ],
+      ),
+    );
+  }
+
+  Widget _tile(BuildContext context, double size, bool round) => Container(
     width: size,
     height: size,
     alignment: Alignment.center,
@@ -1461,7 +1491,11 @@ class AppIconTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(round ? size / 2 : 15),
     ),
     child: text == null
-        ? Icon(icon, color: Theme.of(context).colorScheme.primary, size: 23)
+        ? Icon(
+            icon,
+            color: Theme.of(context).colorScheme.primary,
+            size: size < 40 ? 18 : 23,
+          )
         : Text(
             text!,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(

@@ -285,6 +285,7 @@ void main() {
           protocolIcon('panel'),
           protocolIcon('trusttunnel'),
           protocolIcon('amneziawg'),
+          Icons.dns_outlined,
         ]);
         // One supporting line with the updates; no repeated
         // "Update available: …" under the section's heading.

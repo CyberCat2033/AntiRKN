@@ -90,9 +90,25 @@ void main() {
           final l = AppLocalizations.of(
             tester.element(find.byType(RunnerPanel)),
           );
-          // One progress card like the Xray one: the step in words, no
-          // step counter and no runner bar.
-          expect(find.byKey(const ValueKey('software-job')), findsOneWidget);
+          // Its own card shows the run (a ring around the icon, the step in
+          // words, Stop); without one, a progress card does. No step
+          // counter and no runner bar.
+          expect(
+            find.byKey(const ValueKey('software-job')),
+            host == null ? findsOneWidget : findsNothing,
+          );
+          if (host != null) {
+            expect(find.byKey(ValueKey('software-step-$host')), findsOneWidget);
+            expect(
+              find.byKey(ValueKey('component-versions-$host')),
+              findsNothing,
+            );
+            final ring = tester
+                .widgetList<AppIconTile>(find.byType(AppIconTile))
+                .where((t) => t.busy);
+            expect(ring, hasLength(1));
+            expect(ring.single.value, closeTo(2 / 6, 0.001));
+          }
           expect(find.byType(LinearProgressIndicator), findsNothing);
           expect(
             find.byKey(const ValueKey('component-cancel')),
@@ -107,7 +123,7 @@ void main() {
     }
   });
 
-  testWidgets('UI-41 an action with its own progress adds no runner bar', (
+  testWidgets('UI-41 a pending action adds no page-wide runner bar', (
     tester,
   ) async {
     final c = _runner();
@@ -116,15 +132,9 @@ void main() {
     );
     c
       ..actionPending = true
-      ..actionShowsOwnProgress = true
       ..notifyListeners();
     await tester.pump();
     expect(find.byType(LinearProgressIndicator), findsNothing);
-    c
-      ..actionShowsOwnProgress = false
-      ..notifyListeners();
-    await tester.pump();
-    expect(find.byType(LinearProgressIndicator), findsOneWidget);
     await _release(tester, [c]);
   });
 
@@ -141,7 +151,9 @@ void main() {
     );
     final l = AppLocalizations.of(tester.element(find.byType(RunnerPanel)));
     // No per-card "Check" next to the page's button.
-    expect(find.text(l.uiCheck), findsNothing);
+    // Only the Ubuntu card has its own Check (package lists).
+    expect(find.text(l.uiCheck), findsOneWidget);
+    expect(find.byKey(const ValueKey('system-update')), findsOneWidget);
     expect(find.byKey(const ValueKey('updates-check')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('updates-check')));
     await tester.pump();

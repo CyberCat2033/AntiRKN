@@ -20,7 +20,13 @@ class XrayVersionChoice {
     required this.update,
     required this.ready,
     required this.previous,
+    this.runningPhase = _idle,
+    this.stoppable = _never,
+    this.cancel = _nothing,
   });
+  static String? _idle() => null;
+  static bool _never() => false;
+  static void _nothing() {}
 
   /// Installs a release asset (`ComponentReleaseSource.resolveAsset`).
   final Future<void> Function(Map<String, Object?> asset) install;
@@ -34,6 +40,16 @@ class XrayVersionChoice {
 
   /// The version that ran before the last committed core change.
   final String? Function() previous;
+
+  /// Phase of the transaction in progress (`baseline`, `replacing`…), null
+  /// when none runs; the 3x-ui / Xray card draws it.
+  final String? Function() runningPhase;
+
+  /// Whether this device drives the run, so Stop can abort it.
+  final bool Function() stoppable;
+
+  /// Aborts the run; the server rolls the core back.
+  final void Function() cancel;
 }
 
 class RunnerController extends ChangeNotifier {
@@ -64,9 +80,6 @@ class RunnerController extends ChangeNotifier {
   Completer<void>? _idle;
   bool actionPending = false;
 
-  /// The pending action's initiator shows its own progress, so the runner
-  /// panel does not add a second bar (UI-41).
-  bool actionShowsOwnProgress = false;
   bool get canRequestAction =>
       !busy &&
       !actionPending &&
@@ -101,19 +114,14 @@ class RunnerController extends ChangeNotifier {
     return connected && installed && alive && error == null;
   }
 
-  Future<void> requestAction(
-    Future<void> Function() action, {
-    bool ownProgress = false,
-  }) async {
+  Future<void> requestAction(Future<void> Function() action) async {
     if (!canRequestAction) return;
     actionPending = true;
-    actionShowsOwnProgress = ownProgress;
     _notify();
     try {
       if (await ensureReady()) await action();
     } finally {
       actionPending = false;
-      actionShowsOwnProgress = false;
       _notify();
     }
   }
@@ -230,6 +238,10 @@ class RunnerController extends ChangeNotifier {
 
   /// Registered while the server's `XrayUpgradeView` is mounted.
   XrayVersionChoice? xrayVersionChoice;
+
+  /// Bumped when the transaction of [xrayVersionChoice] changes, so the
+  /// 3x-ui / Xray software card redraws its progress.
+  final xrayRevision = ValueNotifier<int>(0);
 
   /// The device's connection checks around a 3x-ui, TrustTunnel or
   /// AmneziaWG upgrade; registered with [xrayVersionChoice], which has the
@@ -348,6 +360,10 @@ class RunnerController extends ChangeNotifier {
   Map<String, dynamic>? aptPlan;
   bool choosingAptUpdate = false;
   bool _systemUpdate = false;
+
+  /// The system update installs the refreshed package set at once; without
+  /// it (Check), the plan is only shown.
+  bool _systemUpgrade = true;
   bool _applySystemUpgrade = false;
 
   /// The finished job this device closed, as of its event [_dismissedAt].
@@ -1563,12 +1579,14 @@ class RunnerController extends ChangeNotifier {
   }
 
   /// The explicit system-update action refreshes indexes and installs the
-  /// resulting, fingerprinted package set without a second confirmation.
-  Future<void> updateSystem() async {
+  /// resulting, fingerprinted package set without a second confirmation;
+  /// with [upgrade] false it stops at the plan ([aptPlan]), for Upgrade.
+  Future<void> updateSystem({bool upgrade = true}) async {
     if (!canStart) return;
     await prepareApt(upgrade: false);
     if (!choosingAptUpdate || !canStart) return;
     _systemUpdate = true;
+    _systemUpgrade = upgrade;
     final before = selected?.id;
     await applyApt();
     // Only a submitted (or possibly submitted) index refresh continues with
@@ -2712,6 +2730,7 @@ class RunnerController extends ChangeNotifier {
           aptPlan = plan.aptPlan;
           _dismiss(job);
           _applySystemUpgrade =
+              _systemUpgrade &&
               !observesOperation &&
               (aptPlan?['packages'] as List? ?? []).isNotEmpty;
         }
@@ -2836,7 +2855,6 @@ class RunnerController extends ChangeNotifier {
     busy = false;
     backgroundBusy = false;
     actionPending = false;
-    actionShowsOwnProgress = false;
     pending = null;
     resumePlan = null;
     choosingAptUpdate = false;
@@ -2905,6 +2923,7 @@ class RunnerController extends ChangeNotifier {
     _disposed = true;
     _timer?.cancel();
     _token?.cancel();
+    xrayRevision.dispose();
     super.dispose();
   }
 }
