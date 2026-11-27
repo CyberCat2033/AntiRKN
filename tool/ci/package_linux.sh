@@ -22,8 +22,11 @@ python3 "$root/tool/ci/package.py" appdir --bundle "$bundle" --out "$appdir"
 
 tarball="$out/$(python3 "$root/tool/ci/package.py" name --version "$version" --kind linux-tarball)"
 top="AntiRKN-v$version-linux-x64"
-tar -tzf "$tarball" | grep -qx "$top/install-kind" || { echo "::error::tarball has no install-kind"; exit 1; }
-tar -tzf "$tarball" | grep -qx "$top/lib/antirkn-mihomo" || { echo "::error::tarball has no Mihomo core"; exit 1; }
+# List once: `tar | grep -q` exits early, tar then fails on SIGPIPE and
+# pipefail turns a found entry into a failure.
+listing="$(tar -tzf "$tarball")"
+grep -qx "$top/install-kind" <<<"$listing" || { echo "::error::tarball has no install-kind"; exit 1; }
+grep -qx "$top/lib/antirkn-mihomo" <<<"$listing" || { echo "::error::tarball has no Mihomo core"; exit 1; }
 
 if [ "${SKIP_APPIMAGE:-0}" = 1 ]; then
   echo "package_linux: AppImage skipped"
