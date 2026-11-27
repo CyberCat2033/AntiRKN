@@ -150,8 +150,8 @@ void main() {
       expect(verified, 0);
       expect(out.trim(), 'ok v1.2.3 build 10203 6 artifacts');
       final (embedded, _, embeddedErr) = await run(verifyArgs);
-      expect(embedded, 1, reason: 'no committed keys yet');
-      expect(embeddedErr.trim(), 'app_update_manifest: update_unavailable');
+      expect(embedded, 1, reason: 'a throwaway k1 is not the release k1');
+      expect(embeddedErr.trim(), 'app_update_manifest: update_signature');
       final (wrong, _, wrongErr) = await run([
         ...verifyArgs,
         '--trusted-key',
