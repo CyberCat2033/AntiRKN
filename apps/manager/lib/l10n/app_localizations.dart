@@ -7958,48 +7958,6 @@ abstract class AppLocalizations {
   /// **'Uploaded'**
   String get trafficUploaded;
 
-  /// No description provided for @trafficDetails.
-  ///
-  /// In en, this message translates to:
-  /// **'Details'**
-  String get trafficDetails;
-
-  /// No description provided for @trafficUpdatedMinutes.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =0{Updated just now} one{Updated {count} minute ago} other{Updated {count} minutes ago}}'**
-  String trafficUpdatedMinutes(int count);
-
-  /// No description provided for @trafficUpdatedAt.
-  ///
-  /// In en, this message translates to:
-  /// **'Updated {time}'**
-  String trafficUpdatedAt(String time);
-
-  /// No description provided for @trafficUpdating.
-  ///
-  /// In en, this message translates to:
-  /// **'Updating…'**
-  String get trafficUpdating;
-
-  /// No description provided for @trafficReading.
-  ///
-  /// In en, this message translates to:
-  /// **'Reading from servers…'**
-  String get trafficReading;
-
-  /// No description provided for @trafficNotRead.
-  ///
-  /// In en, this message translates to:
-  /// **'Not read from the servers yet'**
-  String get trafficNotRead;
-
-  /// No description provided for @trafficServersUnavailable.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, one{{count} server unavailable} other{{count} servers unavailable}}'**
-  String trafficServersUnavailable(int count);
-
   /// No description provided for @trafficByMonth.
   ///
   /// In en, this message translates to:
@@ -8024,22 +7982,16 @@ abstract class AppLocalizations {
   /// **'{month}: downloaded {down}, uploaded {up}'**
   String trafficBarLabel(String month, String down, String up);
 
-  /// No description provided for @trafficIssueNotConnected.
-  ///
-  /// In en, this message translates to:
-  /// **'Not connected — figures from the last reading'**
-  String get trafficIssueNotConnected;
-
   /// No description provided for @trafficIssueOutdated.
   ///
   /// In en, this message translates to:
-  /// **'The AntiRKN runner on this server does not count traffic yet: update it'**
+  /// **'Update the runner on this server to count traffic'**
   String get trafficIssueOutdated;
 
   /// No description provided for @trafficIssueFailed.
   ///
   /// In en, this message translates to:
-  /// **'Could not read the traffic — figures from the last reading'**
+  /// **'Could not read now'**
   String get trafficIssueFailed;
 
   /// No description provided for @trafficStateOff.

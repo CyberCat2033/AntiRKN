@@ -4592,46 +4592,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get trafficUploaded => 'Uploaded';
 
   @override
-  String get trafficDetails => 'Details';
-
-  @override
-  String trafficUpdatedMinutes(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: 'Updated $count minutes ago',
-      one: 'Updated $count minute ago',
-      zero: 'Updated just now',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String trafficUpdatedAt(String time) {
-    return 'Updated $time';
-  }
-
-  @override
-  String get trafficUpdating => 'Updating…';
-
-  @override
-  String get trafficReading => 'Reading from servers…';
-
-  @override
-  String get trafficNotRead => 'Not read from the servers yet';
-
-  @override
-  String trafficServersUnavailable(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count servers unavailable',
-      one: '$count server unavailable',
-    );
-    return '$_temp0';
-  }
-
-  @override
   String get trafficByMonth => 'By month';
 
   @override
@@ -4646,16 +4606,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get trafficIssueNotConnected =>
-      'Not connected — figures from the last reading';
-
-  @override
   String get trafficIssueOutdated =>
-      'The AntiRKN runner on this server does not count traffic yet: update it';
+      'Update the runner on this server to count traffic';
 
   @override
-  String get trafficIssueFailed =>
-      'Could not read the traffic — figures from the last reading';
+  String get trafficIssueFailed => 'Could not read now';
 
   @override
   String get trafficStateOff => 'Per-client statistics are off on this server';

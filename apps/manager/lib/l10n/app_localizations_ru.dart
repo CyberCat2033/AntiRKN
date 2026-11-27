@@ -4604,50 +4604,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get trafficUploaded => 'Отправлено';
 
   @override
-  String get trafficDetails => 'Подробнее';
-
-  @override
-  String trafficUpdatedMinutes(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: 'Обновлено $count минуты назад',
-      many: 'Обновлено $count минут назад',
-      few: 'Обновлено $count минуты назад',
-      one: 'Обновлено $count минуту назад',
-      zero: 'Обновлено только что',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String trafficUpdatedAt(String time) {
-    return 'Обновлено $time';
-  }
-
-  @override
-  String get trafficUpdating => 'Обновляется…';
-
-  @override
-  String get trafficReading => 'Читаем с серверов…';
-
-  @override
-  String get trafficNotRead => 'Ещё не прочитано с серверов';
-
-  @override
-  String trafficServersUnavailable(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count сервера недоступно',
-      many: '$count серверов недоступно',
-      few: '$count сервера недоступны',
-      one: '$count сервер недоступен',
-    );
-    return '$_temp0';
-  }
-
-  @override
   String get trafficByMonth => 'По месяцам';
 
   @override
@@ -4663,16 +4619,11 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
-  String get trafficIssueNotConnected =>
-      'Нет подключения — цифры по последнему чтению';
-
-  @override
   String get trafficIssueOutdated =>
-      'Runner AntiRKN на сервере пока не считает трафик: обновите его';
+      'Обновите runner на сервере, чтобы считать трафик';
 
   @override
-  String get trafficIssueFailed =>
-      'Не удалось прочитать трафик — цифры по последнему чтению';
+  String get trafficIssueFailed => 'Сейчас не удалось прочитать';
 
   @override
   String get trafficStateOff => 'Статистика по клиентам на сервере выключена';

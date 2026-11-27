@@ -361,11 +361,16 @@ class VpnController extends ChangeNotifier {
   };
 
   /// Physical servers holding client resources: where traffic is counted.
-  Set<String> get trafficServerIds => {
-    ...workspace.inbounds.map((resource) => resource.serverId),
-    ...workspace.awgInterfaces.map((resource) => resource.serverId),
-    ...workspace.ttEndpoints.map((resource) => resource.serverId),
-  };
+  /// Resources may still name servers gone from the catalog; those have no
+  /// runner to read.
+  Set<String> get trafficServerIds {
+    final known = serverIds?.call().map(vpnServerId).toSet();
+    return {
+      ...workspace.inbounds.map((resource) => resource.serverId),
+      ...workspace.awgInterfaces.map((resource) => resource.serverId),
+      ...workspace.ttEndpoints.map((resource) => resource.serverId),
+    }.where((id) => known?.contains(id) ?? true).toSet();
+  }
 
   /// The per-client traffic counted by [serverId]'s runner. [connect]
   /// opens the connection when there is none; otherwise only an existing one

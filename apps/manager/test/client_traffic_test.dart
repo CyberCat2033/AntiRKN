@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_manager/l10n/app_localizations.dart';
 import 'package:antirkn_manager/vpn/client_traffic_controller.dart';
@@ -161,6 +162,22 @@ void main() {
       },
     );
 
+    test('a fresh reading is not read again on reopening', () async {
+      var reads = 0;
+      final c = controller(
+        servers: {'s1'},
+        read: (id, _) async {
+          reads++;
+          return ServerTrafficReading.fromRunner(runnerAnswer());
+        },
+      );
+      await c.refresh(maxAge: const Duration(minutes: 1));
+      await c.refresh(maxAge: const Duration(minutes: 1));
+      expect(reads, 1);
+      await c.refresh(connect: true); // An explicit refresh always reads.
+      expect(reads, 2);
+    });
+
     test('a removed server leaves the cache', () async {
       final store = MemorySettings();
       await controller(store: store).refresh(connect: true);
@@ -201,6 +218,7 @@ void main() {
             ClientTrafficCards(
               controller: c,
               userId: alice,
+              userName: 'Alice',
               serverName: (id) => 'Server $id',
             ),
           ),
@@ -213,8 +231,9 @@ void main() {
         expect(find.text('12.0 GiB'), findsOneWidget); // All time: 10 + 2.
         expect(find.text('All time'), findsOneWidget);
 
-        await tester.tap(find.byKey(const ValueKey('client-traffic-details')));
+        await tester.tap(find.byKey(const ValueKey('client-traffic-month')));
         await tester.pumpAndSettle();
+        expect(find.text('Traffic · Alice'), findsOneWidget);
         expect(
           find.byKey(const ValueKey('client-traffic-details-sheet')),
           findsOneWidget,
@@ -260,6 +279,35 @@ void main() {
       },
     );
 
+    testWidgets('only a failed read is named, on its server row', (
+      tester,
+    ) async {
+      final store = MemorySettings();
+      await controller(store: store).refresh(connect: true);
+      final c = controller(
+        store: store,
+        read: (id, _) async => throw FormatException(
+          id == 's1' ? 'traffic_failed' : 'traffic_not_connected',
+        ),
+      );
+      await tester.runAsync(c.refresh);
+      await tester.pumpWidget(
+        app(
+          ClientTrafficDetails(
+            controller: c,
+            userId: alice,
+            serverName: (id) => 'Server $id',
+            month: current,
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('Could not read now'), findsOneWidget);
+      expect(find.byType(AppNotice), findsNothing);
+      expect(find.text('Server s1'), findsOneWidget);
+      expect(find.text('Server s2'), findsOneWidget);
+    });
+
     for (final (width, scale) in [
       (390.0, 2.0),
       (700.0, 1.0),
@@ -300,6 +348,7 @@ void main() {
           ClientTrafficCards(
             controller: c,
             userId: alice,
+            userName: 'Alice',
             serverName: (id) => id,
           ),
           scale: 2,

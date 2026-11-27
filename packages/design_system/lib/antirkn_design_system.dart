@@ -883,6 +883,7 @@ class SummaryCard extends StatelessWidget {
     this.selected = false,
     this.embedded = false,
     this.leadingAtTop = false,
+    this.color,
     super.key,
   });
   final String title;
@@ -890,6 +891,10 @@ class SummaryCard extends StatelessWidget {
   final Widget? leading, action;
   final VoidCallback? onTap;
   final bool selected;
+
+  /// A `ColorScheme` role standing the card out from a surface of the
+  /// card theme's own colour, such as a bottom sheet; [selected] wins.
+  final Color? color;
 
   /// Aligns [leading] and a trailing [action] with the title instead of
   /// centring them on a summary of several lines.
@@ -908,7 +913,7 @@ class SummaryCard extends StatelessWidget {
       );
     }
     return Card.filled(
-      color: selected ? colors.secondaryContainer : null,
+      color: selected ? colors.secondaryContainer : color,
       clipBehavior: Clip.antiAlias,
       child: _content(context),
     );
@@ -2442,10 +2447,12 @@ Future<bool> _confirmApp(
       false;
 }
 
+/// [actions] go in the title row before the close button.
 Future<void> showAppDetails(
   BuildContext context, {
   required String title,
   required List<Widget> children,
+  List<Widget> actions = const [],
 }) => showModalBottomSheet<void>(
   context: context,
   isScrollControlled: true,
@@ -2473,6 +2480,7 @@ Future<void> showAppDetails(
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
               ),
+              ...actions,
               IconButton(
                 tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                 onPressed: () => Navigator.pop(context),

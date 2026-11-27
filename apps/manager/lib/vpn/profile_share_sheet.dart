@@ -319,6 +319,7 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                   ClientTrafficCards(
                     controller: traffic,
                     userId: widget.user.id,
+                    userName: user.name,
                     serverName: widget.serverName ?? (id) => id,
                   ),
                 const SizedBox(height: 20),

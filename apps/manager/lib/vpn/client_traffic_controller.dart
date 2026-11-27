@@ -36,6 +36,9 @@ class ClientTrafficController extends ChangeNotifier {
   /// `traffic_runner_outdated`, `traffic_failed`); cleared by a good read.
   final Map<String, String> issues = {};
   final Set<String> refreshing = {};
+
+  /// When this device last read each server successfully.
+  final Map<String, DateTime> _readLocally = {};
   bool _loaded = false, _disposed = false;
   Future<void>? _loading;
 
@@ -73,23 +76,31 @@ class ClientTrafficController extends ChangeNotifier {
   }
 
   /// Reads every server again, in parallel. [connect]: open connections
-  /// that are not open yet (a person's explicit refresh).
-  Future<void> refresh({bool connect = false}) async {
+  /// that are not open yet (a person's explicit refresh). [maxAge]: skip
+  /// servers this device read more recently, so reopening a sheet does not
+  /// read the same counters again.
+  Future<void> refresh({bool connect = false, Duration? maxAge}) async {
     await load();
-    final ids = servers().difference(refreshing);
+    final now = DateTime.now();
+    final ids = servers().difference(refreshing).where((id) {
+      final at = _readLocally[id];
+      return maxAge == null || at == null || now.difference(at) >= maxAge;
+    }).toSet();
     if (ids.isEmpty || _disposed) return;
     refreshing.addAll(ids);
     _notify();
-    await Future.wait(ids.map((id) => _readOne(id, connect)));
-    await _save();
+    final read = await Future.wait(ids.map((id) => _readOne(id, connect)));
+    if (read.contains(true)) await _save();
   }
 
-  Future<void> _readOne(String id, bool connect) async {
+  Future<bool> _readOne(String id, bool connect) async {
     final token = CancellationToken();
     final timer = Timer(timeout, token.cancel);
     try {
       readings[id] = await read(id, token, connect: connect);
+      _readLocally[id] = DateTime.now();
       issues.remove(id);
+      return true;
     } on FormatException catch (e) {
       issues[id] = e.message.startsWith('traffic_')
           ? e.message
@@ -101,6 +112,7 @@ class ClientTrafficController extends ChangeNotifier {
       refreshing.remove(id);
       _notify();
     }
+    return false;
   }
 
   Future<void> _save() async {

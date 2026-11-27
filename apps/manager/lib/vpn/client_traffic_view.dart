@@ -27,75 +27,49 @@ String trafficMonthName(AppLocalizations l, String month, DateTime now) {
   return year == now.toUtc().year ? label : '$label $year';
 }
 
-String _issueText(AppLocalizations l, String issue) => switch (issue) {
-  'traffic_not_connected' => l.trafficIssueNotConnected,
+/// Why a server's latest read failed, when it is worth saying: a server
+/// merely not connected keeps its cached figures without comment.
+String? _issueText(AppLocalizations l, String? issue) => switch (issue) {
+  null || 'traffic_not_connected' => null,
   'traffic_runner_outdated' => l.trafficIssueOutdated,
   _ => l.trafficIssueFailed,
 };
 
-/// Servers of the summary whose latest read failed.
-Iterable<String> _failed(ClientTrafficController c) =>
-    c.issues.keys.where(c.servers().contains);
-
-String _status(AppLocalizations l, ClientTrafficController c, String userId) {
-  final readAt = c.summary(userId).readAt;
-  if (c.busy) return c.readings.isEmpty ? l.trafficReading : l.trafficUpdating;
-  if (readAt == null) return l.trafficNotRead;
-  final minutes = DateTime.now().toUtc().difference(readAt).inMinutes;
-  return minutes < 60
-      ? l.trafficUpdatedMinutes(minutes < 0 ? 0 : minutes)
-      : l.trafficUpdatedAt(l.formatDateTime(readAt));
-}
-
-class _StatusLine extends StatelessWidget {
-  const _StatusLine({required this.controller, required this.userId});
+/// Reads the servers again; spins while they are being read.
+class _RefreshButton extends StatelessWidget {
+  const _RefreshButton({required this.controller});
   final ClientTrafficController controller;
-  final String userId;
   @override
-  Widget build(BuildContext context) {
-    final l = AppLocalizations.of(context), theme = Theme.of(context);
-    // Only a server that answered badly counts here; one merely not
-    // connected is named in the details.
-    final failed = _failed(
-      controller,
-    ).where((id) => controller.issues[id] != 'traffic_not_connected').length;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text.rich(
-          TextSpan(
-            children: [
-              TextSpan(text: _status(l, controller, userId)),
-              if (failed > 0 && !controller.busy)
-                TextSpan(
-                  text: ' · ${l.trafficServersUnavailable(failed)}',
-                  style: TextStyle(color: theme.colorScheme.error),
-                ),
-            ],
-          ),
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        if (controller.busy) ...[
-          const SizedBox(height: AppLayout.smallGap),
-          const LinearProgressIndicator(),
-        ],
-      ],
-    );
-  }
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: controller,
+    builder: (context, _) => IconButton(
+      key: const ValueKey('traffic-refresh'),
+      tooltip: AppLocalizations.of(context).trafficRefresh,
+      onPressed: controller.busy
+          ? null
+          : () => controller.refresh(connect: true),
+      icon: controller.busy
+          ? const SizedBox.square(
+              dimension: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.refresh),
+    ),
+  );
 }
 
 class _UsageCard extends StatelessWidget {
   const _UsageCard({
     required this.title,
     required this.usage,
+    required this.color,
     this.selected = false,
     this.onTap,
     super.key,
   });
   final String title;
   final TrafficUsage? usage;
+  final Color color;
   final bool selected;
   final VoidCallback? onTap;
   @override
@@ -107,6 +81,7 @@ class _UsageCard extends StatelessWidget {
       child: SummaryCard(
         title: title,
         selected: selected,
+        color: color,
         onTap: onTap,
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -176,33 +151,64 @@ class _CardPair extends StatelessWidget {
   );
 }
 
-/// This month and all the time, in the client's profile sheet. Opening it
-/// reads the already connected servers again in the background.
+/// This month and all the time, in the client's profile sheet; either
+/// card opens the details. Opening the sheet reads the already connected
+/// servers again in the background once it has slid in.
 class ClientTrafficCards extends StatefulWidget {
   const ClientTrafficCards({
     required this.controller,
     required this.userId,
+    required this.userName,
     required this.serverName,
     super.key,
   });
   final ClientTrafficController controller;
-  final String userId;
+  final String userId, userName;
   final String Function(String) serverName;
+
+  /// Counters read this recently are not read again on opening.
+  static const freshFor = Duration(minutes: 1);
+
   @override
   State<ClientTrafficCards> createState() => _ClientTrafficCardsState();
 }
 
 class _ClientTrafficCardsState extends State<ClientTrafficCards> {
+  Animation<double>? _route;
+
   @override
-  void initState() {
-    super.initState();
-    unawaited(widget.controller.refresh());
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_route != null) return;
+    // Reading over SSH while the sheet slides in makes the slide stutter.
+    _route = ModalRoute.of(context)?.animation ?? kAlwaysCompleteAnimation;
+    if (_route!.isCompleted) {
+      _refresh();
+    } else {
+      _route!.addStatusListener(_routeStatus);
+    }
+  }
+
+  void _routeStatus(AnimationStatus status) {
+    if (!status.isCompleted) return;
+    _route?.removeStatusListener(_routeStatus);
+    if (mounted) _refresh();
+  }
+
+  void _refresh() =>
+      unawaited(widget.controller.refresh(maxAge: ClientTrafficCards.freshFor));
+
+  @override
+  void dispose() {
+    _route?.removeStatusListener(_routeStatus);
+    super.dispose();
   }
 
   void _details(String? month) => showClientTrafficDetails(
     context,
     controller: widget.controller,
     userId: widget.userId,
+    userName: widget.userName,
     serverName: widget.serverName,
     month: month,
   );
@@ -217,42 +223,26 @@ class _ClientTrafficCardsState extends State<ClientTrafficCards> {
       final now = DateTime.now();
       final month = trafficMonth(now);
       final known = !summary.isEmpty;
-      return Column(
+      final color = Theme.of(context).colorScheme.surfaceContainerHighest;
+      return Padding(
         key: const ValueKey('client-traffic'),
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SizedBox(height: AppLayout.gap),
-          _CardPair(
-            first: _UsageCard(
-              key: const ValueKey('client-traffic-month'),
-              title: trafficMonthName(l, month, now),
-              usage: known ? summary.usage(month) : null,
-              onTap: () => _details(month),
-            ),
-            second: _UsageCard(
-              key: const ValueKey('client-traffic-all'),
-              title: l.trafficAllTime,
-              usage: known ? summary.usage(null) : null,
-              onTap: () => _details(null),
-            ),
+        padding: const EdgeInsets.only(top: AppLayout.gap),
+        child: _CardPair(
+          first: _UsageCard(
+            key: const ValueKey('client-traffic-month'),
+            title: trafficMonthName(l, month, now),
+            usage: known ? summary.usage(month) : null,
+            color: color,
+            onTap: () => _details(month),
           ),
-          const SizedBox(height: AppLayout.smallGap),
-          Row(
-            children: [
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsetsDirectional.only(start: 8),
-                  child: _StatusLine(controller: c, userId: widget.userId),
-                ),
-              ),
-              TextButton(
-                key: const ValueKey('client-traffic-details'),
-                onPressed: () => _details(month),
-                child: Text(l.trafficDetails),
-              ),
-            ],
+          second: _UsageCard(
+            key: const ValueKey('client-traffic-all'),
+            title: l.trafficAllTime,
+            usage: known ? summary.usage(null) : null,
+            color: color,
+            onTap: () => _details(null),
           ),
-        ],
+        ),
       );
     },
   );
@@ -262,11 +252,13 @@ Future<void> showClientTrafficDetails(
   BuildContext context, {
   required ClientTrafficController controller,
   required String userId,
+  required String userName,
   required String Function(String) serverName,
   String? month,
 }) => showAppDetails(
   context,
-  title: AppLocalizations.of(context).trafficTitle,
+  title: '${AppLocalizations.of(context).trafficTitle} · $userName',
+  actions: [_RefreshButton(controller: controller)],
   children: [
     ClientTrafficDetails(
       controller: controller,
@@ -328,6 +320,7 @@ class _ClientTrafficDetailsState extends State<ClientTrafficDetails> {
               key: const ValueKey('traffic-details-month'),
               title: trafficMonthName(l, lastMonth, now),
               usage: known ? summary.usage(lastMonth) : null,
+              color: colors.surfaceContainerHigh,
               selected: selected != null,
               onTap: () => _select(lastMonth),
             ),
@@ -335,36 +328,11 @@ class _ClientTrafficDetailsState extends State<ClientTrafficDetails> {
               key: const ValueKey('traffic-details-all'),
               title: l.trafficAllTime,
               usage: known ? summary.usage(null) : null,
+              color: colors.surfaceContainerHigh,
               selected: selected == null,
               onTap: () => _select(null),
             ),
           ),
-          const SizedBox(height: AppLayout.smallGap),
-          Row(
-            children: [
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsetsDirectional.only(start: 8),
-                  child: _StatusLine(controller: c, userId: widget.userId),
-                ),
-              ),
-              IconButton(
-                key: const ValueKey('traffic-refresh'),
-                tooltip: l.trafficRefresh,
-                onPressed: c.busy ? null : () => c.refresh(connect: true),
-                icon: const Icon(Icons.refresh),
-              ),
-            ],
-          ),
-          for (final id in _failed(c))
-            AppNotice(
-              key: ValueKey('traffic-issue-$id'),
-              icon: Icons.cloud_off_outlined,
-              error: c.issues[id] == 'traffic_runner_outdated',
-              message:
-                  '${widget.serverName(id)}: ${_issueText(l, c.issues[id]!)}',
-              margin: const EdgeInsets.only(top: AppLayout.smallGap),
-            ),
           const SizedBox(height: AppLayout.gap),
           Text(l.trafficByMonth, style: theme.textTheme.titleSmall),
           Text(
@@ -400,7 +368,7 @@ class _ClientTrafficDetailsState extends State<ClientTrafficDetails> {
               server: server,
               name: widget.serverName(server.serverId),
               month: selected,
-              failed: c.issues.containsKey(server.serverId),
+              issue: _issueText(l, c.issues[server.serverId]),
             ),
           const SizedBox(height: AppLayout.gap),
           Text(
@@ -469,65 +437,108 @@ class _ServerRow extends StatelessWidget {
     required this.server,
     required this.name,
     required this.month,
-    required this.failed,
+    this.issue,
     super.key,
   });
   final ServerClientTraffic server;
   final String name;
   final String? month;
-  final bool failed;
+
+  /// Why this server could not be read now; its cached figures stay.
+  final String? issue;
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context), theme = Theme.of(context);
+    final colors = theme.colorScheme;
     final muted = theme.textTheme.bodySmall?.copyWith(
-      color: theme.colorScheme.onSurfaceVariant,
+      color: colors.onSurfaceVariant,
     );
-    // The sums go under the name: beside it they would not fit a narrow
-    // screen with large text.
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppLayout.smallGap),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            failed ? Icons.cloud_off_outlined : Icons.dns_outlined,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(width: AppLayout.gap),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(name, style: theme.textTheme.titleMedium),
-                _UsageText(
-                  server.usage(month),
-                  style: theme.textTheme.bodyMedium,
-                ),
-                for (final p in server.protocols)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Wrap(
-                      spacing: AppLayout.smallGap,
-                      runSpacing: 4,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        AppBadge(label: _protocolName(p.protocol)),
-                        if (p.state == TrafficSourceState.off)
-                          Text(l.trafficStateOff, style: muted)
-                        else ...[
-                          if (server.protocols.length > 1)
-                            _UsageText(p.usage(month), style: muted),
-                          if (p.state == TrafficSourceState.unavailable)
-                            Text(l.trafficStateUnavailable, style: muted),
+    final several = server.protocols.length > 1;
+    String? note(ProtocolTraffic p) => switch (p.state) {
+      TrafficSourceState.off => l.trafficStateOff,
+      TrafficSourceState.unavailable => l.trafficStateUnavailable,
+      _ => null,
+    };
+    bool counts(ProtocolTraffic p) => p.state != TrafficSourceState.off;
+    return LayoutBuilder(
+      builder: (context, size) {
+        // Sums beside the name, as on a wide row; under it when they would
+        // not fit a narrow screen with large text.
+        final stacked =
+            size.maxWidth < 360 ||
+            MediaQuery.textScalerOf(context).scale(14) > 21;
+        Widget line(Widget start, Widget? end) => stacked || end == null
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [start, ?end],
+              )
+            : Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: start),
+                  const SizedBox(width: AppLayout.gap),
+                  end,
+                ],
+              );
+        final total = server.protocols.any(counts)
+            ? _UsageText(server.usage(month), style: theme.textTheme.bodyMedium)
+            : Text('—', style: theme.textTheme.bodyMedium);
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: AppLayout.smallGap),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                issue == null ? Icons.dns_outlined : Icons.cloud_off_outlined,
+                color: colors.onSurfaceVariant,
+              ),
+              const SizedBox(width: AppLayout.gap),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    line(
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(name, style: theme.textTheme.titleMedium),
+                          if (issue != null)
+                            Text(
+                              issue!,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colors.error,
+                              ),
+                            ),
                         ],
-                      ],
+                      ),
+                      total,
                     ),
-                  ),
-              ],
-            ),
+                    for (final p in server.protocols)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: line(
+                          Wrap(
+                            spacing: AppLayout.smallGap,
+                            runSpacing: 4,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              AppBadge(label: _protocolName(p.protocol)),
+                              if (note(p) case final text?)
+                                Text(text, style: muted),
+                            ],
+                          ),
+                          several && counts(p)
+                              ? _UsageText(p.usage(month), style: muted)
+                              : null,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

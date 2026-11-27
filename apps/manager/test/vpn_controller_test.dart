@@ -206,8 +206,10 @@ VpnController controller(
   WorkspaceRecoveryStore? recovery,
   Future<bool?> Function(String serverId)? connectForDeletion,
   String? Function(String target)? remoteIssue,
+  Iterable<String> Function()? serverIds,
 }) => VpnController(
   repository: store,
+  serverIds: serverIds,
   recovery: recovery,
   connectForDeletion: connectForDeletion,
   remoteIssue: remoteIssue,
@@ -680,6 +682,20 @@ void main() {
       expect(remotes['one']!.submissions, isEmpty);
     },
   );
+  test('traffic is read only from servers still in the catalog', () async {
+    final store = MemoryVpn();
+    final remotes = <String, Remote>{
+      'one': Remote(store),
+      'two': Remote(store),
+    };
+    var catalog = <String>['one', 'two'];
+    final c = controller(store, remotes, serverIds: () => catalog);
+    addTearDown(c.dispose);
+    await setup(c);
+    expect(c.trafficServerIds, {'one', 'two'});
+    catalog = ['two', awgTarget('two')];
+    expect(c.trafficServerIds, {'two'});
+  });
   test(
     'forget inaccessible server retires local resources without claiming revocation',
     () async {
