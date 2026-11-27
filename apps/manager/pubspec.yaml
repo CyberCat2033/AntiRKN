@@ -32,6 +32,10 @@ dependencies:
     path: ../../packages/network_inventory
   antirkn_profile_compiler:
     path: ../../packages/profile_compiler
+  antirkn_app_update:
+    path: ../../packages/app_update
+  path_provider: ^2.1.6
+  url_launcher: 6.3.2
 dev_dependencies:
   yaml: ^3.1.2
   cryptography: 2.9.0

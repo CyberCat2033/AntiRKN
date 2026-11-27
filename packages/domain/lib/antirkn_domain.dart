@@ -1,3 +1,6 @@
+export 'src/app_update.dart';
+export 'src/app_update_changelog.dart';
+export 'src/app_update_contract.g.dart';
 export 'src/core_probe.dart';
 export 'src/core_validation.dart';
 export 'src/network/ip_diagnostics.dart';

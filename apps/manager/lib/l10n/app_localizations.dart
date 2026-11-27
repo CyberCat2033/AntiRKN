@@ -5327,7 +5327,7 @@ abstract class AppLocalizations {
   /// No description provided for @uiUpdatesHelp.
   ///
   /// In en, this message translates to:
-  /// **'Check component versions'**
+  /// **'New versions of the app'**
   String get uiUpdatesHelp;
 
   /// No description provided for @uiAppSettings.
@@ -5549,13 +5549,13 @@ abstract class AppLocalizations {
   /// No description provided for @uiUpdatesAutomaticHelp.
   ///
   /// In en, this message translates to:
-  /// **'New versions of server components'**
+  /// **'Look for new AntiRKN releases on GitHub at start and from time to time'**
   String get uiUpdatesAutomaticHelp;
 
   /// No description provided for @uiUpdatesSuggestionsHelp.
   ///
   /// In en, this message translates to:
-  /// **'Notify about available updates'**
+  /// **'Show an available app update on the home screen'**
   String get uiUpdatesSuggestionsHelp;
 
   /// No description provided for @uiSyncAutomaticHelp.
@@ -8083,6 +8083,360 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Enter a name without line breaks, up to 100 characters.'**
   String get publicationFolderNameInvalid;
+
+  /// No description provided for @appUpdateSection.
+  ///
+  /// In en, this message translates to:
+  /// **'App'**
+  String get appUpdateSection;
+
+  /// No description provided for @appUpdateUpToDate.
+  ///
+  /// In en, this message translates to:
+  /// **'{version} · the latest version is installed'**
+  String appUpdateUpToDate(String version);
+
+  /// No description provided for @appUpdateInstalledVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'{version} · installed'**
+  String appUpdateInstalledVersion(String version);
+
+  /// No description provided for @appUpdateVersions.
+  ///
+  /// In en, this message translates to:
+  /// **'{current} → {next} · {size}'**
+  String appUpdateVersions(String current, String next, String size);
+
+  /// No description provided for @appUpdateMegabytes.
+  ///
+  /// In en, this message translates to:
+  /// **'{value} MB'**
+  String appUpdateMegabytes(String value);
+
+  /// No description provided for @appUpdateWhatsNew.
+  ///
+  /// In en, this message translates to:
+  /// **'What\'s new in {version}'**
+  String appUpdateWhatsNew(String version);
+
+  /// No description provided for @appUpdateSkip.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip this version'**
+  String get appUpdateSkip;
+
+  /// No description provided for @appUpdateUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'Update'**
+  String get appUpdateUpdate;
+
+  /// No description provided for @appUpdateDownloadingStep.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading · {received} of {total}'**
+  String appUpdateDownloadingStep(String received, String total);
+
+  /// No description provided for @appUpdateStop.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop'**
+  String get appUpdateStop;
+
+  /// No description provided for @appUpdateVerifyingStep.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking the signature and checksum…'**
+  String get appUpdateVerifyingStep;
+
+  /// No description provided for @appUpdateReadyStep.
+  ///
+  /// In en, this message translates to:
+  /// **'{version} is downloaded and verified.'**
+  String appUpdateReadyStep(String version);
+
+  /// No description provided for @appUpdateHowAndroid.
+  ///
+  /// In en, this message translates to:
+  /// **'The Android installer opens. AntiRKN starts again after the install.'**
+  String get appUpdateHowAndroid;
+
+  /// No description provided for @appUpdateHowWindows.
+  ///
+  /// In en, this message translates to:
+  /// **'The Windows installer runs. AntiRKN closes and opens again after the install.'**
+  String get appUpdateHowWindows;
+
+  /// No description provided for @appUpdateHowAppImage.
+  ///
+  /// In en, this message translates to:
+  /// **'The AppImage file is replaced, then AntiRKN restarts.'**
+  String get appUpdateHowAppImage;
+
+  /// No description provided for @appUpdateHowTarball.
+  ///
+  /// In en, this message translates to:
+  /// **'The files in the app folder are replaced, then AntiRKN restarts.'**
+  String get appUpdateHowTarball;
+
+  /// No description provided for @appUpdateHowPortable.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace the files in the app folder with the downloaded archive yourself.'**
+  String get appUpdateHowPortable;
+
+  /// No description provided for @appUpdateRestartWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'AntiRKN closes for the restart: running Mihomo checks stop and can be repeated afterwards.'**
+  String get appUpdateRestartWarning;
+
+  /// No description provided for @appUpdateLater.
+  ///
+  /// In en, this message translates to:
+  /// **'Later'**
+  String get appUpdateLater;
+
+  /// No description provided for @appUpdateInstall.
+  ///
+  /// In en, this message translates to:
+  /// **'Install'**
+  String get appUpdateInstall;
+
+  /// No description provided for @appUpdateInstallRestart.
+  ///
+  /// In en, this message translates to:
+  /// **'Install and restart'**
+  String get appUpdateInstallRestart;
+
+  /// No description provided for @appUpdateRestart.
+  ///
+  /// In en, this message translates to:
+  /// **'Restart'**
+  String get appUpdateRestart;
+
+  /// No description provided for @appUpdateShowFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Show file'**
+  String get appUpdateShowFile;
+
+  /// No description provided for @appUpdateInstalling.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing…'**
+  String get appUpdateInstalling;
+
+  /// No description provided for @appUpdateRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get appUpdateRetry;
+
+  /// No description provided for @appUpdateDownloadAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Download again'**
+  String get appUpdateDownloadAgain;
+
+  /// No description provided for @appUpdatePermissionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow installs'**
+  String get appUpdatePermissionTitle;
+
+  /// No description provided for @appUpdatePermission.
+  ///
+  /// In en, this message translates to:
+  /// **'Android asks once to allow AntiRKN to install apps.'**
+  String get appUpdatePermission;
+
+  /// No description provided for @appUpdatePermissionStep1.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap “Open settings”.'**
+  String get appUpdatePermissionStep1;
+
+  /// No description provided for @appUpdatePermissionStep2.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn on “Allow from this source”.'**
+  String get appUpdatePermissionStep2;
+
+  /// No description provided for @appUpdatePermissionStep3.
+  ///
+  /// In en, this message translates to:
+  /// **'Return to AntiRKN and tap “Install” again.'**
+  String get appUpdatePermissionStep3;
+
+  /// No description provided for @appUpdatePermissionWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the Android permission'**
+  String get appUpdatePermissionWaiting;
+
+  /// No description provided for @appUpdateOpenSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Open settings'**
+  String get appUpdateOpenSettings;
+
+  /// No description provided for @appUpdateAvailableTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Version {version} is available'**
+  String appUpdateAvailableTitle(String version);
+
+  /// No description provided for @appUpdateBannerText.
+  ///
+  /// In en, this message translates to:
+  /// **'Now {current} · {size}'**
+  String appUpdateBannerText(String current, String size);
+
+  /// No description provided for @appUpdateMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Details'**
+  String get appUpdateMore;
+
+  /// No description provided for @appUpdateDownloadingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading {version} · {percent} %'**
+  String appUpdateDownloadingTitle(String version, String percent);
+
+  /// No description provided for @appUpdateVerifyingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking the update'**
+  String get appUpdateVerifyingTitle;
+
+  /// No description provided for @appUpdateReadyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Update {version} is ready'**
+  String appUpdateReadyTitle(String version);
+
+  /// No description provided for @appUpdateReleasePage.
+  ///
+  /// In en, this message translates to:
+  /// **'Release page'**
+  String get appUpdateReleasePage;
+
+  /// No description provided for @appUpdateNotifyOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'This installation cannot be updated from the app. Download the new version from the release page.'**
+  String get appUpdateNotifyOnly;
+
+  /// No description provided for @appUpdateMandatory.
+  ///
+  /// In en, this message translates to:
+  /// **'This version is no longer supported: update the app.'**
+  String get appUpdateMandatory;
+
+  /// No description provided for @appUpdateUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Updates are not available in this build.'**
+  String get appUpdateUnavailable;
+
+  /// No description provided for @appUpdateChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking for a new version…'**
+  String get appUpdateChecking;
+
+  /// No description provided for @appUpdateDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Details'**
+  String get appUpdateDetails;
+
+  /// No description provided for @appUpdateDetailCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Error code'**
+  String get appUpdateDetailCode;
+
+  /// No description provided for @appUpdateDetailBuild.
+  ///
+  /// In en, this message translates to:
+  /// **'Build'**
+  String get appUpdateDetailBuild;
+
+  /// No description provided for @appUpdateDetailCommit.
+  ///
+  /// In en, this message translates to:
+  /// **'Commit'**
+  String get appUpdateDetailCommit;
+
+  /// No description provided for @appUpdateDetailFile.
+  ///
+  /// In en, this message translates to:
+  /// **'File'**
+  String get appUpdateDetailFile;
+
+  /// No description provided for @appUpdateDetailChecksum.
+  ///
+  /// In en, this message translates to:
+  /// **'SHA-256'**
+  String get appUpdateDetailChecksum;
+
+  /// No description provided for @appUpdateErrorVerificationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'The update failed verification'**
+  String get appUpdateErrorVerificationTitle;
+
+  /// No description provided for @appUpdateErrorVerification.
+  ///
+  /// In en, this message translates to:
+  /// **'The signature or checksum did not match the manifest. The downloaded file is removed; the installed version is unchanged.'**
+  String get appUpdateErrorVerification;
+
+  /// No description provided for @appUpdateErrorNetwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not reach GitHub. Try again later.'**
+  String get appUpdateErrorNetwork;
+
+  /// No description provided for @appUpdateErrorNetworkTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Download interrupted'**
+  String get appUpdateErrorNetworkTitle;
+
+  /// No description provided for @appUpdateErrorStorage.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save the update file. Check free space and try again.'**
+  String get appUpdateErrorStorage;
+
+  /// No description provided for @appUpdateErrorCoreBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'A Mihomo check is still running. Wait for it to finish and install again.'**
+  String get appUpdateErrorCoreBusy;
+
+  /// No description provided for @appUpdateErrorInstall.
+  ///
+  /// In en, this message translates to:
+  /// **'The update could not be installed. The installed version is unchanged.'**
+  String get appUpdateErrorInstall;
+
+  /// No description provided for @appUpdateErrorAborted.
+  ///
+  /// In en, this message translates to:
+  /// **'The installation was cancelled.'**
+  String get appUpdateErrorAborted;
+
+  /// No description provided for @appUpdateErrorPermission.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing apps is not allowed for AntiRKN.'**
+  String get appUpdateErrorPermission;
 }
 
 class _AppLocalizationsDelegate

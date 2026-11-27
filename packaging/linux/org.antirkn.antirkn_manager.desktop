@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=AntiRKN
+Comment=Manage AntiRKN servers and client profiles
+Comment[ru]=Управление серверами и клиентскими профилями AntiRKN
+Exec=antirkn_manager
+Icon=org.antirkn.antirkn_manager
+Terminal=false
+Categories=Network;

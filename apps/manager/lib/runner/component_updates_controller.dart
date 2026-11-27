@@ -3,16 +3,19 @@ import 'dart:convert';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/widgets.dart';
 
+/// Server component release checks: always on, and their offers always
+/// shown on the server cards. The two update switches in Settings govern
+/// the app updater since UI-61; [automatic] is only a test seam.
 class ComponentUpdatesController extends ChangeNotifier {
-  ComponentUpdatesController({required this.source, this.settings});
+  ComponentUpdatesController({
+    required this.source,
+    this.settings,
+    this.automatic = true,
+  });
   final ComponentReleaseSource source;
   final SettingsStore? settings;
-  bool automatic = true,
-      suggestions = true,
-      busy = false,
-      failed = false,
-      storageFailed = false;
-  bool manualResults = false;
+  final bool automatic;
+  bool busy = false, failed = false, storageFailed = false;
   bool diagnosticsPaused = false;
   bool _disposed = false;
   Timer? _timer;
@@ -24,10 +27,6 @@ class ComponentUpdatesController extends ChangeNotifier {
 
   Future<void> load() async {
     try {
-      automatic =
-          await settings?.readSetting('componentUpdatesAutomatic') != 'false';
-      suggestions =
-          await settings?.readSetting('componentUpdatesSuggestions') != 'false';
       final cache = await settings?.readSetting('componentUpdatesCache');
       if (cache != null) {
         final data = jsonDecode(cache) as Map;
@@ -59,28 +58,6 @@ class ComponentUpdatesController extends ChangeNotifier {
     }
   }
 
-  Future<void> setPreference({bool? automatic, bool? suggestions}) async {
-    try {
-      if (automatic != null) {
-        await settings?.writeSetting('componentUpdatesAutomatic', '$automatic');
-      }
-      if (suggestions != null) {
-        await settings?.writeSetting(
-          'componentUpdatesSuggestions',
-          '$suggestions',
-        );
-      }
-      if (_disposed) return;
-      this.automatic = automatic ?? this.automatic;
-      this.suggestions = suggestions ?? this.suggestions;
-      storageFailed = false;
-    } catch (_) {
-      storageFailed = true;
-    }
-    _notify();
-    maybeCheck();
-  }
-
   /// A repeated check within 30 seconds is skipped; [throttled] tells the
   /// person the shown result is that fresh one instead of doing nothing.
   bool throttled = false;
@@ -97,7 +74,6 @@ class ComponentUpdatesController extends ChangeNotifier {
       return;
     }
     throttled = false;
-    manualResults = !automaticRequest;
     _attemptedAt = now;
     busy = true;
     failed = false;

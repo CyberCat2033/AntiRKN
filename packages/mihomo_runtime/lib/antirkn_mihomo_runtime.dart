@@ -9,6 +9,8 @@ import 'package:crypto/crypto.dart';
 import 'package:yaml/yaml.dart';
 import 'src/native_worker.dart';
 
+export 'src/worker_gate.dart' show MihomoWorkerGate;
+
 const mihomoVersion = '1.19.34';
 const _revision = 'ac017cdd246ce8bd547653d927e7bf77d7ee73d5';
 

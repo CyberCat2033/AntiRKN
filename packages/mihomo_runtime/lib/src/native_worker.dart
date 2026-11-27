@@ -6,6 +6,8 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'worker_gate.dart';
+
 /// The child handles exactly one private request and is gone before returning.
 final class NativeWorker {
   NativeWorker({this.path});
@@ -18,6 +20,7 @@ final class NativeWorker {
     Process? process;
     Directory? directory;
     final id = '${DateTime.now().microsecondsSinceEpoch}';
+    MihomoWorkerGate.instance.enter();
     try {
       token.check();
       if (Platform.isAndroid) {
@@ -81,6 +84,7 @@ final class NativeWorker {
       try {
         await directory?.delete(recursive: true);
       } catch (_) {}
+      MihomoWorkerGate.instance.leave();
     }
   }
 }

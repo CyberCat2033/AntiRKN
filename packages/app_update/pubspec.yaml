@@ -1,0 +1,12 @@
+name: antirkn_app_update
+description: Signed application update adapters (feed, download, Ed25519, desktop install). No Flutter.
+publish_to: none
+resolution: workspace
+environment:
+  sdk: '>=3.11.0 <4.0.0'
+dependencies:
+  antirkn_domain:
+    path: ../domain
+  cryptography: 2.9.0
+dev_dependencies:
+  test: ^1.29.0

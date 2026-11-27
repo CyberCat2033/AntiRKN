@@ -35,6 +35,7 @@ class MainActivity : FlutterActivity() {
         SelectionHaptics(this, flutterEngine.dartExecutor.binaryMessenger)
         ipDiagnostics = IpDiagnosticsBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         mihomoValidation = MihomoValidationBridge(this, flutterEngine.dartExecutor.binaryMessenger)
+        AppUpdateBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "org.antirkn/template_picker")
             .setMethodCallHandler { call, result ->
                 if (call.method == "cancelKey") {

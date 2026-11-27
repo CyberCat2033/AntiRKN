@@ -51,7 +51,6 @@ void main() {
         backup = await source.createBackup('fixture-backup-password');
         await source.close();
         final current = await open();
-        await current.writeSetting('componentUpdatesAutomatic', 'false');
         await current.writeLanguage(AppLanguage.en);
         await current.writeDraft('old-template-fixture');
         await current.close();
@@ -78,6 +77,7 @@ void main() {
         WorkspaceLauncher(
           openWorkspace: open,
           backupFiles: SelectedBackup(backup),
+          backgroundChecks: false,
         ),
       );
       await settle();

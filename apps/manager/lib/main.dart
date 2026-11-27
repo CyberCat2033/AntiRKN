@@ -30,7 +30,6 @@ import 'template_settings.dart';
 import 'appearance_settings.dart';
 import 'backup/backup_panel.dart';
 import 'runner/component_updates_controller.dart';
-import 'runner/component_installation_view.dart';
 import 'l10n/app_localizations.dart';
 import 'language_controller.dart';
 import 'network/network_controller.dart';
@@ -43,6 +42,9 @@ import 'ssh/server_catalog_controller.dart';
 import 'vpn/client_traffic_controller.dart';
 import 'vpn/vpn_controller.dart';
 import 'vpn/users_page.dart';
+import 'update/app_update_controller.dart';
+import 'update/app_update_platform.dart';
+import 'update/app_update_view.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -114,10 +116,15 @@ class WorkspaceLauncher extends StatefulWidget {
     this.openWorkspace = openLocalWorkspace,
     this.backupFiles,
     this.firstFrameDeferred = false,
+    this.backgroundChecks = true,
     super.key,
   });
   final Future<WorkspaceDatabase> Function() openWorkspace;
   final BackupFileStore? backupFiles;
+
+  /// Release checks of the app and the server components at start and
+  /// periodically; widget tests turn them off.
+  final bool backgroundChecks;
 
   /// The caller deferred the first frame; the launcher allows it once the
   /// saved theme is known, or after [launchThemeWait].
@@ -176,6 +183,25 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher>
   Future<AppExitResponse> didRequestAppExit() async {
     await _sync?.flushOnExit();
     return AppExitResponse.exit;
+  }
+
+  /// Before an app update restarts the process: the same flush as a window
+  /// close, then the sync session, Google sign-in and workspace database are
+  /// closed so no write is cut off by the exit. Each step is independent.
+  Future<void> _prepareExit() async {
+    final sync = _sync, google = _google, database = _database;
+    Future<void> step(Future<void> Function() work) async {
+      try {
+        await work();
+      } catch (_) {}
+    }
+
+    await step(() async => sync?.flushOnExit());
+    await step(() async => sync?.stop());
+    if (google case final CancelableGoogleSignIn lifecycle) {
+      await step(lifecycle.close);
+    }
+    await step(() async => database?.close());
   }
 
   /// The shell as it was last painted, or null when there is none.
@@ -331,6 +357,11 @@ class _WorkspaceLauncherState extends State<WorkspaceLauncher>
             MotionPreference.system,
         pickTemplate: SystemTemplateFilePicker().pick,
         templateValidator: MihomoConfigValidator(),
+        backgroundChecks: widget.backgroundChecks,
+        appUpdates: widget.backgroundChecks
+            ? (settings) =>
+                  createAppUpdateController(settings, prepareExit: _prepareExit)
+            : null,
         ssh: SshDependencies(
           openVault: openLocalSecretVault,
           connector: const DartSshConnector(),
@@ -468,9 +499,18 @@ class AntiRknApp extends StatefulWidget {
     this.initialTheme = ThemeMode.system,
     this.onThemeChanged,
     this.initialMotion = MotionPreference.system,
+    this.backgroundChecks = false,
+    this.appUpdates,
     super.key,
   });
   final String? source;
+
+  /// Component release checks at start and periodically.
+  final bool backgroundChecks;
+
+  /// Creates the app updater for [settings]; null hides app updates.
+  final Future<AppUpdateController> Function(SettingsStore settings)?
+  appUpdates;
   final Future<ImportedTemplate?> Function()? pickTemplate;
 
   /// Checks an added base config with the client core.
@@ -503,6 +543,8 @@ class _AntiRknAppState extends State<AntiRknApp> {
   final MotionPreference _motion = MotionPreference.system;
   bool _settingsError = false;
   late final ComponentUpdatesController _updates;
+  AppUpdateController? _appUpdates;
+  bool _disposed = false;
   @override
   void initState() {
     super.initState();
@@ -511,13 +553,26 @@ class _AntiRknAppState extends State<AntiRknApp> {
         sha256Hex: (bytes) => sha256.convert(bytes).toString(),
       ),
       settings: widget.settings,
+      automatic: widget.backgroundChecks,
     );
     _updates.load();
+    final settings = widget.settings, create = widget.appUpdates;
+    if (settings != null && create != null) {
+      unawaited(
+        create(settings).then((controller) async {
+          if (_disposed) return controller.dispose();
+          setState(() => _appUpdates = controller);
+          await controller.load();
+        }),
+      );
+    }
   }
 
   @override
   void dispose() {
+    _disposed = true;
     _updates.dispose();
+    _appUpdates?.dispose();
     super.dispose();
   }
 
@@ -592,36 +647,42 @@ class _AntiRknAppState extends State<AntiRknApp> {
               )
             : ComponentUpdatesScope(
                 controller: _updates,
-                child: ManagerShell(
-                  source: widget.source!,
-                  pickTemplate: widget.pickTemplate,
-                  templateValidator: widget.templateValidator,
-                  languages: widget.languages,
-                  previewTemplate: widget.previewTemplate,
-                  networkReader: widget.networkReader,
-                  ssh: widget.ssh,
-                  servers: widget.servers,
-                  drafts: widget.drafts,
-                  backups: widget.backups,
-                  backupFiles: widget.backupFiles,
-                  onRestored: widget.onRestored,
-                  placement: widget.placement,
-                  settingsError: _settingsError,
-                  googleAccount: widget.googleAccount,
-                  autoSync: widget.autoSync,
-                  settings: widget.settings,
-                  theme: _theme,
-                  motion: _motion,
-                  onTheme: (value) => _saveSetting('theme', value.name, () {
-                    _theme = value;
-                    widget.onThemeChanged?.call(value);
-                  }),
-                  onMotion: (_) {},
+                child: _withAppUpdates(
+                  ManagerShell(
+                    source: widget.source!,
+                    pickTemplate: widget.pickTemplate,
+                    templateValidator: widget.templateValidator,
+                    languages: widget.languages,
+                    previewTemplate: widget.previewTemplate,
+                    networkReader: widget.networkReader,
+                    ssh: widget.ssh,
+                    servers: widget.servers,
+                    drafts: widget.drafts,
+                    backups: widget.backups,
+                    backupFiles: widget.backupFiles,
+                    onRestored: widget.onRestored,
+                    placement: widget.placement,
+                    settingsError: _settingsError,
+                    googleAccount: widget.googleAccount,
+                    autoSync: widget.autoSync,
+                    settings: widget.settings,
+                    theme: _theme,
+                    motion: _motion,
+                    onTheme: (value) => _saveSetting('theme', value.name, () {
+                      _theme = value;
+                      widget.onThemeChanged?.call(value);
+                    }),
+                    onMotion: (_) {},
+                  ),
                 ),
               ),
       ),
     ),
   );
+
+  Widget _withAppUpdates(Widget child) => _appUpdates == null
+      ? child
+      : AppUpdateScope(controller: _appUpdates!, child: child);
 }
 
 class ManagerShell extends StatefulWidget {
@@ -1164,6 +1225,20 @@ class _ManagerShellState extends State<ManagerShell>
   );
 
   Widget _catalogHeader(String title) => Builder(
+    builder: (context) => Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _catalogTitle(title),
+        Padding(
+          padding: AppLayout.screenPadding(context).copyWith(top: 0, bottom: 0),
+          child: const AppUpdateBanner(),
+        ),
+      ],
+    ),
+  );
+
+  Widget _catalogTitle(String title) => Builder(
     builder: (context) => AppPageHeader(
       title: CatalogTitle(selection: _serverSelection, title: title),
       actions: [
@@ -1474,7 +1549,7 @@ class _ManagerShellState extends State<ManagerShell>
                                   title: l.uiUpdatesShort,
                                   subtitle: l.uiUpdatesHelp,
                                   icon: Icons.system_update_alt,
-                                  content: const ComponentUpdateSettings(),
+                                  content: const AppUpdateSettings(),
                                 ),
                               ],
                             ),

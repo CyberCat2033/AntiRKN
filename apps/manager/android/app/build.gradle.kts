@@ -1,4 +1,5 @@
 import java.util.Base64
+import java.util.Properties
 
 plugins {
     id("com.android.application")
@@ -29,6 +30,36 @@ val verifyGoogleConfiguration by tasks.registering {
                     "See docs/google-drive-setup.md; never include Desktop client secrets."
             )
         }
+    }
+}
+
+// Release signing for local builds: android/key.properties (storeFile,
+// storePassword, keyAlias, keyPassword) or the ANTIRKN_ANDROID_* variables
+// below. Without either, release builds fall back to the debug key so local
+// `flutter build apk` keeps working. CI never signs here: the release workflow
+// re-signs APKs with apksigner in its protected `release` environment.
+val releaseSigning: Map<String, String>? = run {
+    val file = rootProject.file("key.properties")
+    val values = if (file.isFile) {
+        val properties = Properties()
+        file.inputStream().use { properties.load(it) }
+        listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+            .associateWith { properties.getProperty(it).orEmpty() }
+    } else {
+        mapOf(
+            "storeFile" to "ANTIRKN_ANDROID_KEYSTORE",
+            "storePassword" to "ANTIRKN_ANDROID_KEYSTORE_PASSWORD",
+            "keyAlias" to "ANTIRKN_ANDROID_KEY_ALIAS",
+            "keyPassword" to "ANTIRKN_ANDROID_KEY_PASSWORD",
+        ).mapValues { System.getenv(it.value).orEmpty() }
+    }
+    when {
+        values.values.all { it.isEmpty() } -> null
+        values.values.any { it.isEmpty() } -> throw GradleException(
+            "Release signing is incomplete: set " +
+                values.filterValues { it.isEmpty() }.keys.joinToString() + "."
+        )
+        else -> values
     }
 }
 
@@ -64,17 +95,51 @@ android {
 
     testBuildType = "release"
 
+    signingConfigs {
+        releaseSigning?.let { values ->
+            create("release") {
+                storeFile = rootProject.file(values.getValue("storeFile"))
+                storePassword = values.getValue("storePassword")
+                keyAlias = values.getValue("keyAlias")
+                keyPassword = values.getValue("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName(if (releaseSigning != null) "release" else "debug")
         }
     }
 }
 
 flutter {
     source = "../.."
+}
+
+// Release versionCode = build * 10 + ABI id (universal 0, armeabi-v7a 1,
+// arm64-v8a 2, x86_64 3), so every APK of a newer build outranks every APK of
+// an older one and a device may switch between split and universal APKs.
+// This replaces Flutter's ABI * 1000 + build offset: the Flutter plugin
+// registers its applicationVariants action when it is applied (plugins block),
+// this one is registered later, so for every variant it runs after Flutter's.
+// Debug and profile builds keep the plain build number.
+// tool/ci/android_release.py verifies the result in the built APKs.
+val releaseAbiIds = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2, "x86_64" to 3)
+android.applicationVariants.configureEach {
+    if (buildType.name != "release") return@configureEach
+    val build = versionCode
+    if (build < 1 || build > 209_999_999) {
+        throw GradleException("Build number $build does not fit versionCode = build * 10 + ABI id.")
+    }
+    outputs.forEach { output ->
+        @Suppress("DEPRECATION")
+        val apk = output as com.android.build.gradle.api.ApkVariantOutput
+        @Suppress("DEPRECATION")
+        val abi = apk.getFilter(com.android.build.VariantOutput.FilterType.ABI)
+        val id = if (abi == null) 0 else releaseAbiIds[abi] ?: throw GradleException("Unsupported ABI split: $abi")
+        apk.versionCodeOverride = build * 10 + id
+    }
 }
 
 dependencies {

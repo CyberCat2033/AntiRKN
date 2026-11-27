@@ -1,0 +1,297 @@
+name: Build
+
+# Reusable build of all three platforms, shared by checks.yml (mode: check)
+# and release.yml (mode: release). No secrets are used here: Android APKs are
+# signed with the runner's throwaway debug key and re-signed later by the
+# protected sign-android job. Only public Google identifiers are compiled in.
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        description: check or release
+        type: string
+        required: true
+      version:
+        description: X.Y.Z; empty = pubspec version (check builds)
+        type: string
+        default: ''
+      build:
+        description: build number; empty = pubspec build (check builds)
+        type: string
+        default: ''
+      cache:
+        description: restore/save toolchain caches (never for release)
+        type: boolean
+        default: false
+      retention-days:
+        type: number
+        default: 7
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: '3.41.2'
+  GO_VERSION: '1.26.11'
+  JAVA_VERSION: '17'
+  ANDROID_BUILD_TOOLS: '36.0.0'
+  # Mihomo (tool/build_mihomo.py) must build with the pinned Go above only.
+  GOTOOLCHAIN: local
+  # Public identifiers; repository variables, never secrets.
+  ANTIRKN_GOOGLE_PROJECT_ID: ${{ vars.ANTIRKN_GOOGLE_PROJECT_ID }}
+  ANTIRKN_GOOGLE_PICKER_API_KEY: ${{ vars.ANTIRKN_GOOGLE_PICKER_API_KEY }}
+  ANTIRKN_GOOGLE_PICKER_APP_ID: ${{ vars.ANTIRKN_GOOGLE_PICKER_APP_ID }}
+
+jobs:
+  android:
+    name: Android APKs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: ${{ inputs.cache && 'gradle' || '' }}
+
+      - name: Set up Go
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: ${{ inputs.cache }}
+          cache-dependency-path: native/mihomo/go.sum
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: ${{ inputs.cache }}
+
+      - name: Resolve version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_BUILD: ${{ inputs.build }}
+        run: bash tool/ci/resolve_version.sh
+
+      - name: Install Android NDK and build-tools
+        run: |
+          ndk="$(bash tool/ci/flutter_ndk_version.sh)"
+          echo "NDK $ndk, build-tools $ANDROID_BUILD_TOOLS"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$ndk" "build-tools;$ANDROID_BUILD_TOOLS" > /dev/null
+
+      - name: Resolve Dart dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Write public Google build defines
+        run: python3 tool/ci/google_defines.py --out "$RUNNER_TEMP/google-defines.json" ${{ inputs.mode == 'check' && '--allow-placeholder' || '' }}
+
+      - name: Build split and universal APKs
+        working-directory: apps/manager
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          BUILD: ${{ steps.version.outputs.build }}
+        run: |
+          out="$RUNNER_TEMP/flutter-apk"
+          mkdir -p "$out"
+          common=(--release --no-pub --build-name "$VERSION" --build-number "$BUILD" "--dart-define-from-file=$RUNNER_TEMP/google-defines.json")
+          flutter build apk --split-per-abi "${common[@]}"
+          cp build/app/outputs/flutter-apk/app-*-release.apk "$out/"
+          flutter build apk "${common[@]}"
+          cp build/app/outputs/flutter-apk/app-release.apk "$out/"
+
+      - name: Collect APKs and check versionCodes
+        run: >
+          python3 tool/ci/android_release.py collect
+          --flutter-out "$RUNNER_TEMP/flutter-apk"
+          --version '${{ steps.version.outputs.version }}'
+          --build '${{ steps.version.outputs.build }}'
+          --out dist/android
+
+      - name: Upload APKs (to be signed)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-presign
+          path: dist/android/
+          if-no-files-found: error
+          retention-days: ${{ inputs.retention-days }}
+
+  linux:
+    name: Linux tarball and AppImage
+    # Oldest supported runner image: the bundle links against its glibc/GTK.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends \
+            clang cmake ninja-build pkg-config libgtk-3-dev libsecret-1-dev libjsoncpp-dev liblzma-dev file
+
+      - name: Set up Go
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: ${{ inputs.cache }}
+          cache-dependency-path: native/mihomo/go.sum
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: ${{ inputs.cache }}
+
+      - name: Resolve version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_BUILD: ${{ inputs.build }}
+        run: bash tool/ci/resolve_version.sh
+
+      - name: Resolve Dart dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Write public Google build defines
+        run: python3 tool/ci/google_defines.py --out "$RUNNER_TEMP/google-defines.json" ${{ inputs.mode == 'check' && '--allow-placeholder' || '' }}
+
+      - name: Build Linux bundle
+        working-directory: apps/manager
+        run: >
+          flutter build linux --release --no-pub
+          --build-name '${{ steps.version.outputs.version }}'
+          --build-number '${{ steps.version.outputs.build }}'
+          "--dart-define-from-file=$RUNNER_TEMP/google-defines.json"
+
+      - name: Package tarball and AppImage
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: bash tool/ci/package_linux.sh apps/manager/build/linux/x64/release/bundle "$VERSION" dist/linux "$RUNNER_TEMP/appimage"
+
+      - name: Upload Linux packages
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: linux
+          path: dist/linux/
+          if-no-files-found: error
+          retention-days: ${{ inputs.retention-days }}
+
+  windows:
+    name: Windows installer and portable zip
+    runs-on: windows-2022
+    timeout-minutes: 75
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: ${{ inputs.cache }}
+          cache-dependency-path: native/mihomo/go.sum
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: ${{ inputs.cache }}
+
+      - name: Resolve version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_BUILD: ${{ inputs.build }}
+        run: bash tool/ci/resolve_version.sh
+
+      - name: Resolve Dart dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Write public Google build defines
+        run: python tool/ci/google_defines.py --out "$RUNNER_TEMP/google-defines.json" ${{ inputs.mode == 'check' && '--allow-placeholder' || '' }}
+
+      - name: Build Windows bundle
+        working-directory: apps/manager
+        run: >
+          flutter build windows --release --no-pub
+          --build-name '${{ steps.version.outputs.version }}'
+          --build-number '${{ steps.version.outputs.build }}'
+          "--dart-define-from-file=$RUNNER_TEMP/google-defines.json"
+
+      - name: Add MSVC runtime and build portable zip
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          bundle=apps/manager/build/windows/x64/runner/Release
+          python tool/ci/package.py vcruntime --bundle "$bundle"
+          SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"
+          export SOURCE_DATE_EPOCH
+          python tool/ci/package.py portable --bundle "$bundle" --version "$VERSION" --out dist/windows
+
+      - name: Fetch pinned Inno Setup
+        run: python tool/ci/fetch_tool.py innosetup --out "$RUNNER_TEMP/innosetup-setup.exe"
+
+      - name: Build installer
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          BUILD: ${{ steps.version.outputs.build }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $inno = Join-Path $env:RUNNER_TEMP 'inno'
+          $setup = Start-Process -Wait -PassThru -FilePath (Join-Path $env:RUNNER_TEMP 'innosetup-setup.exe') `
+            -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', "/DIR=$inno"
+          if ($setup.ExitCode -ne 0) { Write-Output "::error::Inno Setup install failed ($($setup.ExitCode))"; exit 1 }
+          $bundle = Resolve-Path 'apps/manager/build/windows/x64/runner/Release'
+          $dist = Resolve-Path 'dist/windows'
+          & (Join-Path $inno 'ISCC.exe') /Q "/DAppVersion=$env:VERSION" "/DBuildNumber=$env:BUILD" `
+            "/DSourceDir=$bundle" "/DOutputDir=$dist" 'packaging/windows/antirkn.iss'
+          if ($LASTEXITCODE -ne 0) { Write-Output "::error::ISCC failed ($LASTEXITCODE)"; exit 1 }
+
+      - name: Check Windows packages
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          for kind in windows-installer windows-portable; do
+            name="$(python tool/ci/package.py name --version "$VERSION" --kind "$kind")"
+            test -s "dist/windows/$name" || { echo "::error::missing $name"; exit 1; }
+          done
+          python - "$VERSION" <<'PY'
+          import sys, zipfile
+          top = 'AntiRKN-v%s-windows-x64-portable' % sys.argv[1]
+          names = zipfile.ZipFile('dist/windows/%s.zip' % top).namelist()
+          for required in ('install-kind', 'antirkn_manager.exe', 'antirkn-mihomo.exe', 'vcruntime140.dll'):
+              if '%s/%s' % (top, required) not in names:
+                  print('::error::portable zip lacks %s' % required)
+                  sys.exit(1)
+          PY
+
+      - name: Upload Windows packages
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows
+          path: dist/windows/
+          if-no-files-found: error
+          retention-days: ${{ inputs.retention-days }}

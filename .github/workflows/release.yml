@@ -1,0 +1,313 @@
+name: Release
+
+# Tag vX.Y.Z on the default branch -> build all platforms -> sign Android and
+# the update manifest in the protected `release` environment -> draft release
+# with every asset -> publish. See docs/release-ci.md (owner checklist there).
+#
+# Secrets (Environment `release` only, never repository-wide):
+#   ANTIRKN_ANDROID_KEYSTORE_BASE64, ANTIRKN_ANDROID_KEYSTORE_PASSWORD,
+#   ANTIRKN_ANDROID_KEY_ALIAS, ANTIRKN_ANDROID_KEY_PASSWORD,
+#   ANTIRKN_UPDATE_SIGNING_KEY
+# Variables (public): ANTIRKN_GOOGLE_PROJECT_ID, ANTIRKN_GOOGLE_PICKER_API_KEY,
+#   ANTIRKN_GOOGLE_PICKER_APP_ID, ANTIRKN_ANDROID_CERT_SHA256, ANTIRKN_UPDATE_KEY_ID
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false # a half-published release is worse than a slow one
+
+env:
+  FLUTTER_VERSION: '3.41.2'
+  JAVA_VERSION: '17'
+  ANDROID_BUILD_TOOLS: '36.0.0'
+
+jobs:
+  prepare:
+    name: Validate tag
+    if: github.repository == 'CyberCat2033/AntiRKN'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      build: ${{ steps.version.outputs.build }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Tag commit is on the default branch
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --quiet origin "+refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" "origin/$DEFAULT_BRANCH"; then
+            echo "::error::Tag $GITHUB_REF_NAME points to a commit that is not on $DEFAULT_BRANCH."
+            exit 1
+          fi
+
+      - name: Validate tag and build number
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          previous="$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name 2>/dev/null || true)"
+          # No release yet answers 404; anything that is not a tag counts as none.
+          [[ "$previous" =~ ^v[0-9] ]] || previous=""
+          echo "Previous release: ${previous:-none}"
+          python3 tool/ci/release_version.py --tag "$GITHUB_REF_NAME" --previous-tag "$previous"
+
+      - name: Changelog has notes for this version
+        run: python3 tool/ci/changelog_check.py --version '${{ steps.version.outputs.version }}'
+
+  build:
+    name: Build
+    needs: prepare
+    permissions:
+      contents: read
+    uses: ./.github/workflows/build.yml
+    with:
+      mode: release
+      version: ${{ needs.prepare.outputs.version }}
+      build: ${{ needs.prepare.outputs.build }}
+      cache: false # release builds never restore caches another ref wrote
+      retention-days: 3
+
+  sign-android:
+    name: Sign Android APKs
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: release
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Install Android build-tools
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "build-tools;$ANDROID_BUILD_TOOLS" > /dev/null
+
+      - name: Download APKs
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: android-presign
+          path: ${{ runner.temp }}/presign
+
+      - name: Sign and verify APKs
+        env:
+          ANTIRKN_ANDROID_KEYSTORE_BASE64: ${{ secrets.ANTIRKN_ANDROID_KEYSTORE_BASE64 }}
+          ANTIRKN_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANTIRKN_ANDROID_KEYSTORE_PASSWORD }}
+          ANTIRKN_ANDROID_KEY_ALIAS: ${{ secrets.ANTIRKN_ANDROID_KEY_ALIAS }}
+          ANTIRKN_ANDROID_KEY_PASSWORD: ${{ secrets.ANTIRKN_ANDROID_KEY_PASSWORD }}
+          EXPECTED_CERT: ${{ vars.ANTIRKN_ANDROID_CERT_SHA256 }}
+        run: >
+          python3 tool/ci/android_release.py sign
+          --in "$RUNNER_TEMP/presign" --out dist/android-signed
+          --expected-cert-sha256 "$EXPECTED_CERT"
+
+      - name: Upload signed APKs
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-signed
+          path: dist/android-signed/
+          if-no-files-found: error
+          retention-days: 3
+
+  publish:
+    name: Sign manifest and publish
+    needs: [prepare, build, sign-android]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: release
+    permissions:
+      contents: write # create the release and upload assets: this job only
+      id-token: write # build provenance attestation
+      attestations: write
+    env:
+      TAG: ${{ needs.prepare.outputs.tag }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+      BUILD: ${{ needs.prepare.outputs.build }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: false
+
+      - name: Resolve Dart dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Download desktop packages
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: '{linux,windows}'
+          path: dist
+          merge-multiple: true
+
+      - name: Download signed APKs
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: android-signed
+          path: ${{ runner.temp }}/android-signed
+
+      - name: Assemble release assets
+        run: |
+          set -euo pipefail
+          mv "$RUNNER_TEMP"/android-signed/*.apk dist/
+          mv "$RUNNER_TEMP/android-signed/android-meta.json" "$RUNNER_TEMP/android-meta.json"
+          expected="$(python3 tool/ci/release_assets.py expected --version "$VERSION")"
+          actual="$(find dist -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort)"
+          if [ "$expected" != "$actual" ]; then
+            echo "::error::Release assets differ from the expected set."
+            diff <(printf '%s\n' "$expected") <(printf '%s\n' "$actual") || true
+            exit 1
+          fi
+
+      - name: Android versionCodes grow against the previous release
+        env:
+          LATEST_URL: https://github.com/${{ github.repository }}/releases/latest/download/app-update-stable.json
+        run: |
+          set -euo pipefail
+          status="$(curl -sSL --max-time 60 --retry 3 -o "$RUNNER_TEMP/previous.json" -w '%{http_code}' "$LATEST_URL" || true)"
+          case "$status" in
+            200) python3 tool/ci/android_release.py previous --meta "$RUNNER_TEMP/android-meta.json" --manifest "$RUNNER_TEMP/previous.json" ;;
+            404) python3 tool/ci/android_release.py previous --meta "$RUNNER_TEMP/android-meta.json" ;;
+            *) echo "::error::Cannot read the previous manifest (HTTP $status)."; exit 1 ;;
+          esac
+
+      - name: Build manifest payload
+        run: |
+          set -euo pipefail
+          python3 tool/ci/android_release.py codes --meta "$RUNNER_TEMP/android-meta.json" \
+            --out "$RUNNER_TEMP/android-version-codes.json" --cert-out "$RUNNER_TEMP/android-cert.txt"
+          # Certificate digest verified by sign-android against ANTIRKN_ANDROID_CERT_SHA256.
+          dart run tool/app_update_manifest.dart build \
+            --channel stable --tag "$TAG" --commit "$GITHUB_SHA" \
+            --notes-url "https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG" \
+            --artifacts-dir dist \
+            --base-url "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG" \
+            --android-cert-sha256 "$(cat "$RUNNER_TEMP/android-cert.txt")" \
+            --android-version-codes "$RUNNER_TEMP/android-version-codes.json" \
+            --changelog-dir . \
+            --out "$RUNNER_TEMP/payload.json"
+
+      - name: Check payload against the files
+        run: >
+          python3 tool/ci/release_assets.py check --payload "$RUNNER_TEMP/payload.json"
+          --dir dist --meta "$RUNNER_TEMP/android-meta.json"
+          --tag "$TAG" --commit "$GITHUB_SHA" --build "$BUILD"
+
+      - name: Sign manifest
+        env:
+          ANTIRKN_UPDATE_SIGNING_KEY: ${{ secrets.ANTIRKN_UPDATE_SIGNING_KEY }}
+          KEY_ID: ${{ vars.ANTIRKN_UPDATE_KEY_ID || 'k1' }}
+        run: |
+          set -euo pipefail
+          if [ -z "$ANTIRKN_UPDATE_SIGNING_KEY" ]; then
+            echo "::error::ANTIRKN_UPDATE_SIGNING_KEY is not set in the release environment."
+            exit 1
+          fi
+          dart run tool/app_update_manifest.dart sign --payload "$RUNNER_TEMP/payload.json" \
+            --key-id "$KEY_ID" --out dist/app-update-stable.json
+
+      - name: Verify signed manifest
+        run: |
+          set -euo pipefail
+          if ! dart run tool/app_update_manifest.dart verify --manifest dist/app-update-stable.json; then
+            echo "::error::Manifest does not verify with the trusted keys built into the app (are the public keys committed and is the right key id used?)."
+            exit 1
+          fi
+          python3 tool/ci/release_assets.py check --payload "$RUNNER_TEMP/payload.json" \
+            --manifest dist/app-update-stable.json --dir dist --meta "$RUNNER_TEMP/android-meta.json" \
+            --tag "$TAG" --commit "$GITHUB_SHA" --build "$BUILD"
+
+      - name: Release notes
+        run: >
+          dart run tool/app_update_manifest.dart release-notes
+          --tag "$TAG" --changelog-dir . --out "$RUNNER_TEMP/release-notes.md"
+
+      - name: Checksums
+        run: python3 tool/ci/release_assets.py sums --dir dist --version "$VERSION" --extra app-update-stable.json
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/*
+
+      - name: Create draft release and upload assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          state="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null || echo missing)"
+          case "$state" in
+            missing)
+              gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --verify-tag \
+                --title "AntiRKN $TAG" --notes-file "$RUNNER_TEMP/release-notes.md" ;;
+            true)
+              echo "Reusing the draft left by an earlier attempt."
+              gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file "$RUNNER_TEMP/release-notes.md" ;;
+            *)
+              echo "::error::Release $TAG is already published; bump the version instead."
+              exit 1 ;;
+          esac
+          # The manifest goes last so no client sees it before the files exist.
+          find dist -maxdepth 1 -type f ! -name app-update-stable.json -print0 \
+            | xargs -0 gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber
+          gh release upload "$TAG" dist/app-update-stable.json --repo "$GITHUB_REPOSITORY" --clobber
+
+      - name: Check uploaded assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          id="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=30" --jq ".[] | select(.tag_name == \"$TAG\") | .id" | head -n 1)"
+          if [ -z "$id" ]; then
+            echo "::error::Draft release $TAG not found after upload."
+            exit 1
+          fi
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases/$id/assets?per_page=100" --jq '.[]' \
+            > "$RUNNER_TEMP/uploaded.jsonl"
+          python3 tool/ci/release_assets.py uploaded --dir dist --assets "$RUNNER_TEMP/uploaded.jsonl"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          latest="$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)"
+          if [ "$latest" != "$TAG" ]; then
+            echo "::error::Latest release is $latest, expected $TAG."
+            exit 1
+          fi
+          echo "Published $TAG: https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG"
