@@ -538,6 +538,33 @@ void main() {
     expect(c.stage, SshStage.connected);
   });
 
+  test('an action waits for a connection already in progress', () async {
+    final vault = FakeVault();
+    final connector = FakeConnector();
+    final c = controller(vault, connector);
+    addTearDown(c.dispose);
+    addTearDown(c.network.dispose);
+    await prepare(c);
+    await c.connect();
+    c.disconnect();
+    connector.connection = FakeConnection();
+    final gate = connector.hold = Completer<void>();
+    final first = c.ensureConnected();
+    await pumpEventQueue();
+    expect(c.busy, isTrue);
+    // A second caller (the re-read after a cloud pull) used to give up here.
+    var secondDone = false;
+    final second = c.ensureConnected().whenComplete(() => secondDone = true);
+    await pumpEventQueue();
+    expect(secondDone, isFalse);
+    gate.complete();
+    await first;
+    await second;
+    expect(c.stage, SshStage.connected);
+    // The second caller joined the first connection instead of a new one.
+    expect(connector.calls, 2);
+  });
+
   for (final edit in [
     'FIXTURE.Example',
     'fixture.example.',

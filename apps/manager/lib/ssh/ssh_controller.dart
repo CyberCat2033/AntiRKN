@@ -797,6 +797,10 @@ class SshController extends ChangeNotifier {
   /// connects it (background paths reach here too, e.g. a cache refresh).
   Future<bool> ensureConnected() async {
     if (_disposed || vaultBusy || picking) return false;
+    // A connection already in progress (launch, return to the app) is
+    // waited out instead of failing the action that came during it.
+    await _connectionSettled();
+    if (_disposed) return false;
     if (stage != SshStage.connected) {
       if (!hasSavedProfile || !saved || busy || trustedKey == null) {
         return false;
@@ -807,6 +811,28 @@ class SshController extends ChangeNotifier {
     closeSettings();
     await runner.waitUntilIdle();
     return runner.connected;
+  }
+
+  /// Longest wait for a connection in progress; SSH has its own timeouts.
+  static const connectionWait = Duration(minutes: 2);
+
+  /// Returns once no connection is in progress, or when it stops for the
+  /// person (host key, sudo password) and would not finish by itself.
+  Future<void> _connectionSettled() async {
+    bool settled() =>
+        _disposed || !busy || challenge != null || needsPrivilegeInput;
+    if (settled()) return;
+    final done = Completer<void>();
+    void check() {
+      if (settled() && !done.isCompleted) done.complete();
+    }
+
+    addListener(check);
+    try {
+      await done.future.timeout(connectionWait, onTimeout: () {});
+    } finally {
+      removeListener(check);
+    }
   }
 
   /// A tap on a lost-connection notice: the saved server is tried again

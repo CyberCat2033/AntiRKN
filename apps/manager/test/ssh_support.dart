@@ -114,6 +114,9 @@ class FakeConnector implements SshConnector {
   FakeConnection connection = FakeConnection();
   int authentications = 0;
   int calls = 0;
+
+  /// When set, a connection waits for it before it is established.
+  Completer<void>? hold;
   final jumpKeys = <String, TrustedHostKey>{};
   List<SshProfile> lastJumps = [];
   @override
@@ -138,6 +141,7 @@ class FakeConnector implements SshConnector {
       throw const SshFailure(SshIssue.hostKeyRejected);
     }
     cancellation.check();
+    if (hold case final gate?) await cancellation.bind(gate.future);
     authentications++;
     return connection;
   }

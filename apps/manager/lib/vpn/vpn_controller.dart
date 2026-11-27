@@ -1726,14 +1726,6 @@ class VpnController extends ChangeNotifier {
       await _serviceModeWork();
       return;
     }
-    syncDiag(
-      'vpn_reconcile work=$work fresh=$fresh '
-      'restored=${_restoredTargets.where((id) => remote(id) != null).toList()} '
-      'template=${template() != _lastTemplate} '
-      'deletions=${pendingDeletions.length} '
-      'workTargets=${[for (final e in workspace.servers.entries)
-        if (e.value['pending'] != null || e.value['job'] != null) e.key]}',
-    );
     await _run((token) async {
       await _reconcileDeletions(token);
       var anyServerRefreshed = false;
@@ -2437,18 +2429,6 @@ class VpnController extends ChangeNotifier {
       }
     }, background: true);
     if (!ran) syncDiag('vpn_refresh dropped busy=$busy disposed=$_disposed');
-    for (final id in ids) {
-      for (final entry in _physicalRecords(id)) {
-        syncDiag(
-          'vpn_refresh record=${entry.key} '
-          'verifiedAt=${entry.value['verifiedAt'] != null} '
-          'error=${entry.value['error']} paused=${entry.value['paused']} '
-          'pending=${entry.value['pending'] != null} '
-          'job=${entry.value['job'] != null} '
-          'operation=${entry.value['operation'] != null}',
-        );
-      }
-    }
     return issues;
   }
 
