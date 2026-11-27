@@ -14,6 +14,10 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 - Settings → Updates now controls app updates; server component checks are always on.
 
+### Fixed
+
+- After a sync from another device, a server whose last operation came from that device is no longer reported as "another device is applying changes" forever: its state is read again, and the app stops re-checking it every two seconds.
+
 ## [0.1.0] - 2026-11-27
 
 ### Added

@@ -190,9 +190,15 @@ void main() {
     },
   );
 
-  for (final (status, read) in [('succeeded', true), ('running', false)]) {
+  // `null`: the record keeps the operation as the last owner but no job at
+  // all (a target the operation did not touch, or a forgotten job).
+  for (final (status, read) in [
+    ('succeeded', true),
+    ('running', false),
+    (null, true),
+  ]) {
     test(
-      'another device\'s $status operation ${read ? 'does not hold' : 'holds'} the read',
+      'another device\'s ${status ?? 'jobless'} operation ${read ? 'does not hold' : 'holds'} the read',
       () async {
         final store = MemoryVpn()
           ..raw = _restored(
@@ -203,17 +209,18 @@ void main() {
                 'operationId': '9' * 32,
                 'executorDeviceId': 'a' * 32,
               },
-              'job': {
-                'id': '9' * 32,
-                'kind': 'vless_apply',
-                'count': 2,
-                'interval': 1,
-                'status': status,
-                'checkpoint': read ? 2 : 1,
-                'sequence': 1,
-                'cancelRequested': false,
-                'events': <Object?>[],
-              },
+              if (status != null)
+                'job': {
+                  'id': '9' * 32,
+                  'kind': 'vless_apply',
+                  'count': 2,
+                  'interval': 1,
+                  'status': status,
+                  'checkpoint': read ? 2 : 1,
+                  'sequence': 1,
+                  'cancelRequested': false,
+                  'events': <Object?>[],
+                },
             },
           )
           ..revision = 1;
@@ -243,7 +250,7 @@ void main() {
         await vpn.load();
         expect(vpn.observesOperation('one'), isTrue);
         expect(vpn.followsOpenOperation('one'), !read);
-        if (read) {
+        if (read && status != null) {
           // A runner that has forgotten an ended job offers no takeover.
           vpn.observedJobs['one'] = null;
           expect(vpn.followsOpenOperation('one'), isFalse);

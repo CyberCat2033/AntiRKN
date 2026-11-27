@@ -455,9 +455,10 @@ class VpnController extends ChangeNotifier {
 
   /// Another device's operation on [id] whose job has not ended. The
   /// operation stays in the record after it ends, as the last owner; a read
-  /// of the server's state waits only while the job still runs.
+  /// of the server's state waits only while the job still runs. A record
+  /// without a job (or one the runner forgot) has nothing running.
   bool _followsRunningOperation(String id) =>
-      observesOperation(id) && currentJob(id)?.terminal != true;
+      observesOperation(id) && currentJob(id)?.terminal == false;
 
   RunnerJob? currentJob(String id) =>
       observesOperation(id) && observedJobs.containsKey(id)
