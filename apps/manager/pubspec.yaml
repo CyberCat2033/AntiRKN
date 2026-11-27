@@ -1,7 +1,7 @@
 name: antirkn_manager
 description: AntiRKN infrastructure manager.
 publish_to: none
-version: 0.1.0+1
+version: 0.1.1+101
 resolution: workspace
 environment:
   sdk: '>=3.11.0 <4.0.0'

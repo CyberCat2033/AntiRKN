@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-28
+
 ### Добавлено
 
 - Подписанные обновления приложения из GitHub Releases для Android, Windows и Linux.
