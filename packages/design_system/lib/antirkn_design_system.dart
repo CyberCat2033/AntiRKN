@@ -1442,6 +1442,38 @@ class AppBadge extends StatelessWidget {
   }
 }
 
+/// A person's round picture; the initial of [name] on the primary container
+/// while the picture loads, when there is none or when it fails. Decorative:
+/// the name is shown next to it.
+class AppAvatar extends StatelessWidget {
+  const AppAvatar({
+    required this.name,
+    this.imageUrl,
+    this.size = 40,
+    super.key,
+  });
+  final String name;
+  final String? imageUrl;
+  final double size;
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final initial = name.trim().characters.firstOrNull?.toUpperCase() ?? '';
+    return ExcludeSemantics(
+      child: CircleAvatar(
+        radius: size / 2,
+        backgroundColor: colors.primaryContainer,
+        foregroundColor: colors.onPrimaryContainer,
+        foregroundImage: imageUrl == null ? null : NetworkImage(imageUrl!),
+        onForegroundImageError: imageUrl == null ? null : (_, _) {},
+        child: initial.isEmpty
+            ? const Icon(Icons.person_outline)
+            : Text(initial, style: Theme.of(context).textTheme.titleMedium),
+      ),
+    );
+  }
+}
+
 class AppIconTile extends StatelessWidget {
   const AppIconTile({
     this.icon,
@@ -2789,6 +2821,59 @@ class AppStatusBanner extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A list row with one button: at the row's end while it fits, under the
+/// text at a narrow width or large text, so the title is never squeezed.
+class AppActionTile extends StatelessWidget {
+  const AppActionTile({
+    required this.title,
+    required this.action,
+    this.leading,
+    this.subtitle,
+    this.onTap,
+    super.key,
+  });
+  final Widget title, action;
+  final Widget? leading, subtitle;
+
+  /// The row itself, usually the same as [action].
+  final VoidCallback? onTap;
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final stacked =
+          constraints.maxWidth < 360 ||
+          MediaQuery.textScalerOf(context).scale(14) > 20;
+      if (!stacked) {
+        return ListTile(
+          leading: leading,
+          title: title,
+          subtitle: subtitle,
+          trailing: action,
+          onTap: onTap,
+        );
+      }
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ListTile(
+            leading: leading,
+            title: title,
+            subtitle: subtitle,
+            onTap: onTap,
+          ),
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 12),
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: action,
+            ),
+          ),
+        ],
+      );
+    },
+  );
 }
 
 class AppActionRow extends StatelessWidget {

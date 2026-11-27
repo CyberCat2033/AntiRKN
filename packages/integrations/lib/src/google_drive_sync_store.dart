@@ -144,7 +144,7 @@ final class GoogleDriveSyncStore implements SyncSnapshotStore {
       await _send(
         'GET',
         _uri('about', {
-          'fields': 'user(permissionId,emailAddress,displayName)',
+          'fields': 'user(permissionId,emailAddress,displayName,photoLink)',
         }),
         limit: 32768,
       ),
@@ -155,6 +155,7 @@ final class GoogleDriveSyncStore implements SyncSnapshotStore {
         'id': user['permissionId'],
         'email': user['emailAddress'],
         'name': user['displayName'] ?? '',
+        'photo': user['photoLink'],
       });
     } catch (_) {
       throw const SyncTransportFailure(SyncTransportIssue.invalid);

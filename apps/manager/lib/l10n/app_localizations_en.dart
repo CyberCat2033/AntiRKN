@@ -3143,8 +3143,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get uiUpdatesSuggestionsHelp => 'Notify about available updates';
 
   @override
-  String get uiSyncAutomaticHelp =>
-      'Upload after edits and on leaving, load on return';
+  String get uiSyncAutomaticHelp => 'After each change and on return';
 
   @override
   String get uiPairDeviceHelp => 'Sign in to the same Google account';
@@ -3154,7 +3153,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'The profile is available by direct link. Open the client to get its QR code and link.';
 
   @override
-  String get uiPublicationAutoHelp => 'Save changes at the same profile links';
+  String get uiPublicationAutoHelp => 'Links stay the same after changes';
 
   @override
   String get uiInterfaces => 'Interfaces';
@@ -4604,4 +4603,56 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get trafficRefresh => 'Read again from the servers';
+
+  @override
+  String get uiAccountActions => 'Account actions';
+
+  @override
+  String get uiSyncNow => 'Sync now';
+
+  @override
+  String uiSyncedToday(String time) {
+    return 'Today, $time';
+  }
+
+  @override
+  String get uiPairDeviceNote =>
+      'To use another device, sign in there with the same Google account.';
+
+  @override
+  String get templateLoadedTitle => 'YAML loaded';
+
+  @override
+  String get templateUsedForProfiles => 'The basis of every client profile';
+
+  @override
+  String get templateChooseHelp => 'A Mihomo YAML file';
+
+  @override
+  String get templateReplace => 'Replace';
+
+  @override
+  String get publicationDriveTitle => 'Publication in Google Drive';
+
+  @override
+  String get publicationFolderRowHelp => 'Profiles folder';
+
+  @override
+  String get publicationOpenDrive => 'Open in Google Drive';
+
+  @override
+  String get publicationOpenFailed => 'Could not open Google Drive.';
+
+  @override
+  String get publicationRename => 'Rename folder';
+
+  @override
+  String get publicationFolderName => 'Folder name';
+
+  @override
+  String get publicationRenameHelp => 'Profile links do not change.';
+
+  @override
+  String get publicationFolderNameInvalid =>
+      'Enter a name without line breaks, up to 100 characters.';
 }

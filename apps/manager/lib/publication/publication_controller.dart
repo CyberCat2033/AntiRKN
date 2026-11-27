@@ -32,6 +32,7 @@ class PublicationController extends ChangeNotifier {
     this.sync,
     this.picker,
     this.canPublish,
+    this.openExternal,
   }) {
     vpn.addListener(_vpnChanged);
     _seenSyncResult = sync?.result;
@@ -46,6 +47,10 @@ class PublicationController extends ChangeNotifier {
   final AutoSyncController? sync;
   final PublicationFilePicker? picker;
   final bool Function()? canPublish;
+
+  /// Opens a URL outside the app (browser or the Drive app); null where
+  /// unavailable, and the folder cannot be opened then.
+  final Future<bool> Function(Uri)? openExternal;
   late final Future<void> ready;
   PublicationSettings? settings;
   String? settingsSource;
@@ -1210,6 +1215,91 @@ class PublicationController extends ChangeNotifier {
     } finally {
       settingsEditing = false;
       resume();
+    }
+  }
+
+  /// Renames the publication folder in Drive in place: profile links do
+  /// not change. A folder not created yet only gets the new name. Success
+  /// is the name read back from Drive.
+  Future<void> renameFolder(String name) async {
+    final current = settings, next = name.trim();
+    if (current == null ||
+        editing ||
+        !PublicationSettings.validFolderName(next) ||
+        next == current.folderName) {
+      return;
+    }
+    await suspend();
+    settingsEditing = true;
+    error = null;
+    _notify();
+    try {
+      final target = remote();
+      if (target.accountKey != current.accountKey) {
+        throw const PublicationFailure(PublicationIssue.accountChanged);
+      }
+      var exists = true;
+      try {
+        await target.getFile(current.folderId);
+      } on PublicationFailure catch (e) {
+        if (e.issue != PublicationIssue.missing || current.folderReady) {
+          rethrow;
+        }
+        exists = false;
+      }
+      if (exists) {
+        await target.renameFolder(current.folderId, next);
+        if ((await target.getFile(current.folderId)).name != next) {
+          throw const PublicationFailure(PublicationIssue.readback);
+        }
+      }
+      await _saveSettings(current.copy(folderName: next));
+    } on PublicationFailure catch (e) {
+      error = e.issue;
+    } catch (_) {
+      error = PublicationIssue.invalid;
+    } finally {
+      settingsEditing = false;
+      resume();
+    }
+  }
+
+  /// Takes the folder's current name from Drive, e.g. after it was renamed
+  /// there. Quiet: a failure leaves the stored name, and publication
+  /// reports access problems itself.
+  Future<void> refreshFolderName() async {
+    final current = settings;
+    if (current == null || !current.folderReady || editing) return;
+    try {
+      final target = remote();
+      if (target.accountKey != current.accountKey) return;
+      final folder = await target.getFile(current.folderId);
+      final name = folder.name;
+      if (!folder.folder ||
+          folder.trashed ||
+          name == current.folderName ||
+          !PublicationSettings.validFolderName(name) ||
+          !identical(settings, current) ||
+          editing) {
+        return;
+      }
+      await _saveSettings(current.copy(folderName: name));
+    } catch (_) {}
+  }
+
+  /// The publication folder in Google Drive, outside the app.
+  Future<bool> openFolder() async {
+    final current = settings, open = openExternal;
+    if (current == null || !current.folderReady || open == null) return false;
+    try {
+      return await open(
+        Uri.https(
+          'drive.google.com',
+          '/drive/folders/${Uri.encodeComponent(current.folderId)}',
+        ),
+      );
+    } catch (_) {
+      return false;
     }
   }
 

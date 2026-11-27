@@ -847,6 +847,7 @@ class _ManagerShellState extends State<ManagerShell>
           account: account,
           remote: () => GoogleDrivePublisher(tokens: account),
           picker: createPublicationFilePicker(account),
+          openExternal: openExternalUrl,
           vpn: _vpn!,
           sync: widget.autoSync,
           canPublish: () =>
@@ -1427,26 +1428,30 @@ class _ManagerShellState extends State<ManagerShell>
                                   title: l.uiClientProfiles,
                                   subtitle: l.uiClientProfilesHelp,
                                   icon: Icons.description_outlined,
-                                  content: AppSettingsSection(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        TemplateSettings(
+                                  // Base YAML and its publication are two
+                                  // things: two headed groups (Profiles A).
+                                  content: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      // The row names the file, so the
+                                      // heading names what it is.
+                                      AppSettingsSection(
+                                        title: l.source,
+                                        child: TemplateSettings(
                                           controller: _controller,
+                                          grouped: true,
                                         ),
-                                        if (_publications != null) ...[
-                                          const Divider(
-                                            indent: 17,
-                                            endIndent: 17,
-                                          ),
-                                          PublicationSettingsPanel(
+                                      ),
+                                      if (_publications != null)
+                                        AppSettingsSection(
+                                          title: l.publicationDriveTitle,
+                                          child: PublicationSettingsPanel(
                                             controller: _publications!,
                                             showTitle: false,
                                           ),
-                                        ],
-                                      ],
-                                    ),
+                                        ),
+                                    ],
                                   ),
                                 ),
                                 if (widget.backups != null &&

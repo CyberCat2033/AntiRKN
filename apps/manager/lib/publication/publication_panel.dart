@@ -34,6 +34,19 @@ class _PublicationSettingsState extends State<PublicationSettingsPanel> {
   PublicationFile? folder;
   bool loading = false;
   String? folderError;
+
+  @override
+  void initState() {
+    super.initState();
+    // The folder may have been renamed in Drive itself.
+    if (!widget.configuration) widget.controller.refreshFolderName();
+  }
+
+  Future<void> _rename(BuildContext context, PublicationController c) =>
+      showDialog<void>(
+        context: context,
+        builder: (_) => _RenameFolderDialog(controller: c),
+      );
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.controller,
@@ -165,14 +178,37 @@ class _PublicationSettingsState extends State<PublicationSettingsPanel> {
             ),
           ],
           if (settings != null) ...[
+            // The row is the folder itself; tapping renames it (Profiles A).
             ListTile(
+              key: const ValueKey('publication-folder-row'),
               leading: const Icon(Icons.folder_outlined),
-              title: Text(l.publicationFolder),
-              subtitle: Text(settings.folderName),
-              onTap: () => showAppDetails(
-                context,
-                title: l.publicationFolder,
-                children: [SelectableText(settings.folderName)],
+              title: Text(settings.folderName),
+              subtitle: Text(l.publicationFolderRowHelp),
+              onTap: c.editing ? null : () => _rename(context, c),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (c.openExternal != null && settings.folderReady)
+                    IconButton(
+                      key: const ValueKey('publication-open-drive'),
+                      tooltip: l.publicationOpenDrive,
+                      icon: const Icon(Icons.open_in_new),
+                      onPressed: () async {
+                        final messenger = ScaffoldMessenger.maybeOf(context);
+                        if (!await c.openFolder()) {
+                          messenger?.showSnackBar(
+                            SnackBar(content: Text(l.publicationOpenFailed)),
+                          );
+                        }
+                      },
+                    ),
+                  IconButton(
+                    key: const ValueKey('publication-rename'),
+                    tooltip: l.publicationRename,
+                    icon: const Icon(Icons.edit_outlined),
+                    onPressed: c.editing ? null : () => _rename(context, c),
+                  ),
+                ],
               ),
             ),
             if (!c.pickerReady)
@@ -199,6 +235,11 @@ class _PublicationSettingsState extends State<PublicationSettingsPanel> {
                 subtitle: Text(l.uiPublicationAutoHelp),
                 value: c.enabling ?? settings.enabled,
                 onChanged: c.editing ? null : c.setEnabled,
+              ),
+            if (settings.access == PublicationAccess.link)
+              Padding(
+                padding: const EdgeInsets.only(top: 4, bottom: 12),
+                child: AppFormHint(l.publicationLinkHelp),
               ),
             // Only a publication-wide failure belongs here; failed client
             // profiles are reported on the Clients page.
@@ -442,6 +483,113 @@ class _PickerSettingsDialogState extends State<_PickerSettingsDialog> {
                       if (mounted) setState(() => busy = false);
                     }
                   },
+            child: Text(l.vpnSave),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The folder's new name; it is renamed in Drive in place.
+class _RenameFolderDialog extends StatefulWidget {
+  const _RenameFolderDialog({required this.controller});
+  final PublicationController controller;
+  @override
+  State<_RenameFolderDialog> createState() => _RenameFolderDialogState();
+}
+
+class _RenameFolderDialogState extends State<_RenameFolderDialog> {
+  late final name = TextEditingController(
+    text: widget.controller.settings?.folderName ?? '',
+  );
+  bool busy = false, invalid = false;
+  String? failure;
+
+  @override
+  void dispose() {
+    name.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final c = widget.controller, next = name.text.trim();
+    if (!PublicationSettings.validFolderName(next)) {
+      setState(() => invalid = true);
+      return;
+    }
+    if (next == c.settings?.folderName) {
+      Navigator.pop(context);
+      return;
+    }
+    setState(() {
+      busy = true;
+      invalid = false;
+      failure = null;
+    });
+    await c.renameFolder(next);
+    if (!mounted) return;
+    if (c.error == null && c.settings?.folderName == next) {
+      Navigator.pop(context);
+    } else {
+      setState(() {
+        busy = false;
+        failure = publicationMessage(
+          AppLocalizations.of(context),
+          c.error?.name,
+        );
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return PopScope(
+      canPop: !busy,
+      child: AppFormDialog(
+        title: Text(l.publicationRename),
+        content: SizedBox(
+          width: 480,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextField(
+                key: const ValueKey('publication-folder-name'),
+                controller: name,
+                enabled: !busy,
+                autofocus: true,
+                maxLength: PublicationSettings.folderNameLimit,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => busy ? null : _save(),
+                onChanged: (_) {
+                  if (invalid) setState(() => invalid = false);
+                },
+                decoration: InputDecoration(
+                  labelText: l.publicationFolderName,
+                  helperText: l.publicationRenameHelp,
+                  errorText: invalid ? l.publicationFolderNameInvalid : null,
+                ),
+              ),
+              if (busy) const LinearProgressIndicator(),
+              if (failure != null)
+                AppNotice(
+                  message: failure!,
+                  error: true,
+                  margin: const EdgeInsets.only(top: 12),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: busy ? null : () => Navigator.pop(context),
+            child: Text(l.backupCancel),
+          ),
+          FilledButton(
+            key: const ValueKey('publication-rename-save'),
+            onPressed: busy ? null : _save,
             child: Text(l.vpnSave),
           ),
         ],

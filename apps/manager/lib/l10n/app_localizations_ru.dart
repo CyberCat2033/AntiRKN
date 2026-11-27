@@ -3149,8 +3149,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get uiUpdatesSuggestionsHelp => 'Сообщать о доступных обновлениях';
 
   @override
-  String get uiSyncAutomaticHelp =>
-      'Отправка после правок и при уходе, загрузка при входе';
+  String get uiSyncAutomaticHelp => 'После каждого изменения и при возвращении';
 
   @override
   String get uiPairDeviceHelp => 'Войти в тот же Google-аккаунт';
@@ -3160,7 +3159,7 @@ class AppLocalizationsRu extends AppLocalizations {
       'Профиль доступен по прямой ссылке. QR-код и ссылку можно получить в карточке клиента.';
 
   @override
-  String get uiPublicationAutoHelp => 'Сохранять изменения по прежним ссылкам';
+  String get uiPublicationAutoHelp => 'Ссылки не меняются после правок';
 
   @override
   String get uiInterfaces => 'Интерфейсы';
@@ -4617,4 +4616,56 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get trafficRefresh => 'Перечитать с серверов';
+
+  @override
+  String get uiAccountActions => 'Действия с аккаунтом';
+
+  @override
+  String get uiSyncNow => 'Синхронизировать';
+
+  @override
+  String uiSyncedToday(String time) {
+    return 'Сегодня, $time';
+  }
+
+  @override
+  String get uiPairDeviceNote =>
+      'Чтобы работать с другого устройства, войдите на нём в тот же Google-аккаунт.';
+
+  @override
+  String get templateLoadedTitle => 'YAML загружен';
+
+  @override
+  String get templateUsedForProfiles => 'Основа всех профилей клиентов';
+
+  @override
+  String get templateChooseHelp => 'YAML-файл Mihomo';
+
+  @override
+  String get templateReplace => 'Заменить';
+
+  @override
+  String get publicationDriveTitle => 'Публикация в Google Drive';
+
+  @override
+  String get publicationFolderRowHelp => 'Папка с профилями';
+
+  @override
+  String get publicationOpenDrive => 'Открыть в Google Drive';
+
+  @override
+  String get publicationOpenFailed => 'Не удалось открыть Google Drive.';
+
+  @override
+  String get publicationRename => 'Переименовать папку';
+
+  @override
+  String get publicationFolderName => 'Название папки';
+
+  @override
+  String get publicationRenameHelp => 'Ссылки на профили не изменятся.';
+
+  @override
+  String get publicationFolderNameInvalid =>
+      'Введите название без переносов строк, до 100 символов.';
 }

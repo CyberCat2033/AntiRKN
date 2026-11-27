@@ -4,6 +4,7 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_manager/l10n/app_localizations.dart';
 import 'package:antirkn_manager/sync/auto_sync_controller.dart';
 import 'package:antirkn_manager/sync/google_account_panel.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'google_account_test.dart' show AccountService;
 
@@ -553,6 +554,95 @@ void main() {
     await tester.pump(const Duration(minutes: 1));
     expect(session.modes, hasLength(2));
     await tester.runAsync(controller.stop);
+    controller.dispose();
+  });
+
+  testWidgets('sync now runs an entry exchange and records when it ended', (
+    tester,
+  ) async {
+    final account = AccountService();
+    await account.signIn();
+    final session = Session();
+    final at = DateTime.utc(2026, 11, 27, 19, 24);
+    final controller = AutoSyncController(
+      accountService: account,
+      settings: Settings(),
+      changes: const Stream<void>.empty(),
+      openSession: () async => session,
+      apply: (_) async => true,
+      random: _NoJitter(),
+      clock: () => at,
+    );
+    await tester.pump(Duration.zero);
+    await tester.pump(Duration.zero);
+    expect(controller.syncedAt, at);
+    await controller.syncNow();
+    expect(session.enters, [true, true]);
+    expect(controller.phase, AutoSyncPhase.synced);
+    session.next = const AutoSyncResult(remoteNewer: true);
+    await controller.syncNow();
+    // Only a finished exchange moves the time.
+    expect(controller.syncedAt, at);
+    controller.dispose();
+  });
+
+  testWidgets('account row, status with sync now and the device hint', (
+    tester,
+  ) async {
+    final account = AccountService();
+    await account.signIn();
+    final session = Session();
+    final controller = AutoSyncController(
+      accountService: account,
+      settings: Settings(),
+      changes: const Stream<void>.empty(),
+      openSession: () async => session,
+      apply: (_) async => true,
+      random: _NoJitter(),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        locale: const Locale('en'),
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: GoogleAccountPanel(
+              service: account,
+              sync: controller,
+              showTitle: false,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final row = find.byKey(const ValueKey('google-account'));
+    expect(
+      find.descendant(of: row, matching: find.text('Fixture User')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: row, matching: find.text('fixture@example.com')),
+      findsOneWidget,
+    );
+    expect(find.text('Connect another device'), findsNothing);
+    expect(
+      find.text(
+        'To use another device, sign in there with the same Google account.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Today, '), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('google-sync-now')));
+    await tester.pumpAndSettle();
+    expect(session.enters, [true, true]);
+    // Switching and signing out live in the account menu.
+    expect(find.byKey(const ValueKey('google-sign-out')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('google-account-menu')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('google-sign-out')), findsOneWidget);
+    expect(find.byKey(const ValueKey('google-switch-account')), findsOneWidget);
     controller.dispose();
   });
 }

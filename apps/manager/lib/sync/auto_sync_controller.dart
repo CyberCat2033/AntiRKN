@@ -49,7 +49,9 @@ class AutoSyncController extends ChangeNotifier {
     this.applyRetry = const Duration(seconds: 2),
     this.exitDeadline = const Duration(seconds: 5),
     Random? random,
-  }) : _random = random ?? Random() {
+    DateTime Function()? clock,
+  }) : _random = random ?? Random(),
+       _clock = clock ?? DateTime.now {
     ready = _initialize();
     _changes = changes.listen((_) => _edited());
   }
@@ -104,6 +106,11 @@ class AutoSyncController extends ChangeNotifier {
   Duration _failureBackoff = Duration.zero;
   int _consecutiveFailures = 0;
   final Random _random;
+  final DateTime Function() _clock;
+
+  /// When this device last finished an exchange with nothing left to do;
+  /// kept for the session only.
+  DateTime? syncedAt;
   bool _retry = false, _retryRecovery = false;
 
   static const firstRetry = Duration(seconds: 2),
@@ -312,6 +319,7 @@ class AutoSyncController extends ChangeNotifier {
           : next.remoteNewer
           ? AutoSyncPhase.remoteNewer
           : AutoSyncPhase.synced;
+      if (phase == AutoSyncPhase.synced) syncedAt = _clock();
       _consecutiveFailures = 0;
       _failureBackoff = Duration.zero;
     } on GoogleAccountFailure catch (error) {
@@ -410,11 +418,16 @@ class AutoSyncController extends ChangeNotifier {
   /// The user's explicit choice between the diverged versions.
   Future<void> resolve(SyncDivergenceChoice choice) => _runNow(choice: choice);
 
-  /// Runs one exchange (or [choice]) now, after the current one; leaving
-  /// mode, no entry check.
+  /// The user's "sync now": the entry exchange at once — unsent edits go,
+  /// a newer cloud version is received.
+  Future<void> syncNow() => _runNow(enter: true);
+
+  /// Runs one exchange (or [choice]) now, after the current one; an entry
+  /// check only when [enter] (leaving and choices skip it).
   Future<void> _runNow({
     SyncDivergenceChoice? choice,
     bool Function()? cancelled,
+    bool enter = false,
   }) async {
     await ready;
     if (!_allowed) return;
@@ -423,7 +436,7 @@ class AutoSyncController extends ChangeNotifier {
     final pending = _running;
     if (pending != null) await pending;
     if ((cancelled?.call() ?? false) || _running != null) return;
-    _enter = false;
+    _enter = enter;
     final run = _run(choice: choice);
     _running = run;
     try {
