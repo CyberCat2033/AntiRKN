@@ -127,6 +127,14 @@ def desired(p, spec, old, preview=False):
         udp_connections_timeout_secs=300, credentials_file=str(base / 'credentials.toml'),
         listen_protocols=dict(http1={}, http2={}),
         forward_protocol={'direct': {}} if spec['outbound']=='direct' else {'socks5': dict(address=spec['socksAddress'], extended_auth=False)})
+    # Per-client byte counters for the traffic ledger, on a loopback address
+    # of this endpoint's own (TrustTunnel 1.1.0+). Clients allowed into
+    # private networks could reach that listener and read the other users'
+    # names and addresses: such an endpoint does not count per client.
+    if not spec['allowPrivate']:
+        from traffic import metrics_address
+        vpn['metrics'] = dict(address=address(*metrics_address(spec['id'], spec['port'])),
+                              request_timeout_secs=3, per_client_metrics=True)
     from client_egress import effective_forward
     effective_forward(vpn)
     if spec['quic']: vpn['listen_protocols']['quic'] = {}

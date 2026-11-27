@@ -244,6 +244,38 @@ def runner_upgrade(ctx, vm, mutation=None):
 
 # ---------------------------------------------------------------- protocols
 
+
+def _traffic(ctx):
+    response = ctx.rpc(dict(version=1, action='traffic_read', id=WORKSPACE))
+    ctx.check(response.get('code') == 'ok', 'traffic_read_ok')
+    return {(r['protocol'], r['id']): r for r in response.get('traffic', {}).get('resources', [])}
+
+
+def _check_traffic_ledger(ctx, checked):
+    """After real traffic every protocol counted both users this month, and a
+    second read does not count it again. 3x-ui stores Xray counters every 10 s."""
+    time.sleep(12)
+    first = _traffic(ctx)
+    for protocol, rid, label in checked:
+        r = first.get((protocol, rid), {})
+        users = {u['id']: u for u in r.get('users', [])}
+        ok = r.get('state') == 'ok' and all(
+            u['id'] in users and users[u['id']]['months']
+            and users[u['id']]['months'][-1]['down'] > 0 and users[u['id']]['months'][-1]['up'] > 0
+            for u in USERS[:2])
+        ctx.check(ok, label + '_traffic_counted')
+    # Nothing counted twice: the ledger of the idle AWG interface equals its
+    # raw counters (all read since the interface came up), read after read.
+    second = _traffic(ctx)
+    awg = {c['id']: c for c in ctx.rpc(dict(version=1, action='awg_state', id=WORKSPACE))['awgState'][0]['clients']}
+    ledger = {u['id']: u for u in second.get(('awg', AWG_RES_ID), {}).get('users', [])}
+    ctx.check(all(uid in ledger and (ledger[uid]['down'], ledger[uid]['up']) == (c['tx'], c['rx'])
+                  for uid, c in awg.items() if c.get('rx') is not None), 'traffic_awg_ledger_matches_counters')
+    ctx.check(all(u['down'] >= v['down'] and u['up'] >= v['up']
+                  for k in first for u, v in zip(second.get(k, {}).get('users', []), first[k]['users'])),
+              'traffic_totals_monotonic')
+
+
 def protocols(ctx, vm, mutation=None):
     current = ctx.bundle
     protocols_disk = lib.BASE / 'protocols.qcow2'
@@ -381,6 +413,7 @@ def protocols(ctx, vm, mutation=None):
 
     # 5. Real TCP + UDP traffic through every inbound via pinned Mihomo + production compiler
     ws = _compiler_workspace(vless_specs, vless_obs, tt_spec, tt_obs, awg_spec, awg_obs)
+    _traffic(ctx)  # The first read of each resource is the accounting baseline.
     with lib.EchoFixtures(tls_dir):
         for label, rid in [('vless_raw_reality', VLESS_RAW_ID), ('vless_xhttp_reality', VLESS_XHTTP_REALITY_ID)]:
             tcp, udp = _check_traffic(ctx, ws, rid, label)
@@ -397,6 +430,10 @@ def protocols(ctx, vm, mutation=None):
         for label, rid in [('vless_raw_reality_u1', VLESS_RAW_ID), ('tt_u1', TT_RES_ID), ('awg_u1', AWG_RES_ID)]:
             tcp, udp = _check_traffic(ctx, ws, rid, label, user_index=1)
             ctx.check(tcp and udp, label + '_tcp_udp')
+    # This TrustTunnel allows private networks (the echo fixtures), so its
+    # clients could reach a loopback metrics listener: it must not count.
+    _check_traffic_ledger(ctx, [('vless', VLESS_RAW_ID, 'vless_raw_reality'), ('awg', AWG_RES_ID, 'awg')])
+    ctx.check(_traffic(ctx).get(('tt', TT_RES_ID), {}).get('state') == 'off', 'tt_private_endpoint_has_no_client_metrics')
 
     if mutation is None:
         vm.stop()

@@ -75,7 +75,8 @@
           "component_upgrade_check",
           "component_upgrade_confirm",
           "component_upgrade_commit",
-          "component_upgrade_abort"
+          "component_upgrade_abort",
+          "traffic_read"
         ]
       },
       "id": {
@@ -476,6 +477,11 @@
         "action",
         "id",
         "payload"
+      ],
+      "traffic_read": [
+        "version",
+        "action",
+        "id"
       ]
     },
     "submissions": {
@@ -1072,7 +1078,8 @@
     "upgrade_checks_changed",
     "upgrade_checks_timeout",
     "upgrade_checks_failed",
-    "upgrade_checks_panel_api"
+    "upgrade_checks_panel_api",
+    "traffic_failed"
   ],
   "maxRequestBytes": 524288,
   "maxEvents": 256,

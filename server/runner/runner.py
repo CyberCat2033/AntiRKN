@@ -580,6 +580,12 @@ class Store:
         if action == 'panel_discover':
             discovery, access = discover_panel(self)
             return {**self.response('ok'), 'panelDiscovery': discovery, 'panelAccess': access}
+        if action == 'traffic_read':
+            import traffic
+            try:
+                return {**self.response('ok'), 'traffic': traffic.read(self, req['id'])}
+            except Exception:
+                return self.response('traffic_failed')
         if action == 'tt_defaults':
             return {**self.response('ok'), 'tt': tt_defaults(self)}
         if action == 'tt_plan':
@@ -859,6 +865,10 @@ class Store:
         _load_errors()
         req = validate_request(json.loads(row['request']))
         job_id = row['id']
+        if row['status'] == 'planned':
+            # A job may restart a service and with it the traffic counters.
+            import traffic
+            traffic.safe_sample(self)
         self.current = (job_id, row['checkpoint'])
         # Checkpointed steps record their own completion; the terminal status
         # is a separate commit. After a crash between the two the job resumes
@@ -1172,7 +1182,12 @@ def daemon(directory=STATE):
                 slim_finished_jobs(store)
             except Exception as error:
                 sys.stderr.write(f'[runner] job directory sweep skipped: {type(error).__name__}\n')
+            import traffic
+            next_sample = 0
             while not stopping:
+                if time.monotonic() >= next_sample:
+                    traffic.safe_sample(store)
+                    next_sample = time.monotonic() + traffic.INTERVAL
                 try:
                     delay = store.tick()
                 except BaseException as error:
