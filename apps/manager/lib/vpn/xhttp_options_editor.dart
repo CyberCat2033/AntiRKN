@@ -138,14 +138,12 @@ class _XhttpOptionsEditorState extends State<XhttpOptionsEditor> {
     );
     return Column(
       children: [
-        AppExpansionTile(
+        AppFormDisclosure(
           expansionAnimationStyle: animation,
-          // Form rows share one 16 dp text inset.
-          tilePadding: const EdgeInsets.symmetric(horizontal: 16),
           key: const ValueKey('xhttp-xmux'),
-          title: const Text('XMUX'),
+          title: 'XMUX',
           children: [
-            Text(l.xmuxHelp),
+            AppFormHint(l.xmuxHelp),
             const SizedBox(height: 12),
             for (final entry in xmux.entries)
               field(
@@ -156,14 +154,12 @@ class _XhttpOptionsEditorState extends State<XhttpOptionsEditor> {
               ),
           ],
         ),
-        AppExpansionTile(
+        AppFormDisclosure(
           expansionAnimationStyle: animation,
-          // Form rows share one 16 dp text inset.
-          tilePadding: const EdgeInsets.symmetric(horizontal: 16),
           key: const ValueKey('xhttp-extra'),
-          title: Text(l.xhttpAdvanced),
+          title: l.xhttpAdvanced,
           children: [
-            Text(l.xhttpDefault),
+            AppFormHint(l.xhttpDefault),
             const SizedBox(height: 12),
             TextField(
               key: const ValueKey('xhttp-headers'),

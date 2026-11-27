@@ -1962,16 +1962,10 @@ class AppFormSection extends StatelessWidget {
       borderRadius: BorderRadius.circular(AppLayout.radius),
       clipBehavior: Clip.antiAlias,
       child: expandable
-          ? AppExpansionTile(
+          ? AppFormDisclosure(
               maintainState: true,
-              title: Text(title!),
-              tilePadding: const EdgeInsets.symmetric(horizontal: 16),
-              shape: const RoundedRectangleBorder(),
-              collapsedShape: const RoundedRectangleBorder(),
-              childrenPadding: rows
-                  ? const EdgeInsets.only(bottom: 4)
-                  : const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+              title: title!,
+              rows: rows,
               children: [body],
             )
           : Padding(
@@ -1999,6 +1993,42 @@ class AppFormSection extends StatelessWidget {
       ],
     );
   }
+}
+
+/// A collapsible block of a form section: its title on the 16 dp text inset,
+/// its fields on the 12 dp inset of [AppFormSection], no divider lines. The
+/// one look of every disclosure inside a form surface.
+class AppFormDisclosure extends StatelessWidget {
+  const AppFormDisclosure({
+    required this.title,
+    required this.children,
+    this.rows = false,
+    this.maintainState = false,
+    this.expansionAnimationStyle,
+    super.key,
+  });
+  final String title;
+  final List<Widget> children;
+
+  /// The children are list rows running edge to edge (see [AppFormSection]).
+  final bool rows;
+  final bool maintainState;
+  final AnimationStyle? expansionAnimationStyle;
+
+  @override
+  Widget build(BuildContext context) => AppExpansionTile(
+    maintainState: maintainState,
+    title: Text(title),
+    tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+    shape: const RoundedRectangleBorder(),
+    collapsedShape: const RoundedRectangleBorder(),
+    childrenPadding: rows
+        ? const EdgeInsets.only(bottom: 4)
+        : const EdgeInsets.fromLTRB(12, 0, 12, 12),
+    expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+    expansionAnimationStyle: expansionAnimationStyle,
+    children: children,
+  );
 }
 
 /// Short supporting text under a field or form action; it never repeats

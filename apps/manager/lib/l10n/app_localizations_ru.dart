@@ -1375,11 +1375,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get componentsBuilding => 'Сборка исполняемых файлов на сервере';
 
   @override
-  String componentStepProgress(int current, int total, String step) {
-    return 'Шаг $current из $total: $step';
-  }
-
-  @override
   String get componentsPlanSummary =>
       'Установить панель и Xray с автозапуском. Доступ к панели — через SSH.';
 
@@ -1956,6 +1951,16 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get softwareInspect => 'Проверить наличие';
+
+  @override
+  String get softwarePreparing => 'Подготовка…';
+
+  @override
+  String get softwareStop => 'Остановить';
+
+  @override
+  String get softwareFailed =>
+      'Обновление не завершено. Повтор проверит, что уже сделано на сервере.';
 
   @override
   String get softwareUpdate => 'Обновить';
@@ -4580,7 +4585,7 @@ class AppLocalizationsRu extends AppLocalizations {
       'Сервер не в сервисном режиме: тестового клиента нет.';
 
   @override
-  String get serviceTestLinkQr => 'QR-код ссылки для теста';
+  String get linkQr => 'QR-код ссылки';
 
   @override
   String get serviceTestCopyConfig => 'Копировать конфигурацию';

@@ -29,19 +29,64 @@ class ScannableQrImage extends StatelessWidget {
   );
 }
 
+/// The one view of an access link (service mode test link, direct exit
+/// link): help, what the link is for, then [SecretLinkBox]. [notice] is
+/// shown instead of nothing when there is no link.
+class AccessLinkView extends StatelessWidget {
+  const AccessLinkView({
+    required this.help,
+    required this.keyPrefix,
+    this.link,
+    this.hint,
+    this.copyLabel,
+    this.loading = false,
+    this.notice,
+    this.noticeError = false,
+    super.key,
+  });
+  final String help, keyPrefix;
+  final String? link, hint, copyLabel, notice;
+  final bool loading, noticeError;
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text(help),
+      if (loading)
+        const Padding(
+          padding: EdgeInsets.only(top: 12),
+          child: LinearProgressIndicator(),
+        ),
+      if (link case final text?) ...[
+        if (hint != null) ...[
+          const SizedBox(height: 8),
+          Text(hint!, style: Theme.of(context).textTheme.bodySmall),
+        ],
+        const SizedBox(height: 12),
+        SecretLinkBox(text: text, keyPrefix: keyPrefix, copyLabel: copyLabel),
+      ],
+      if (notice != null)
+        AppNotice(
+          key: ValueKey('$keyPrefix-notice'),
+          message: notice!,
+          error: noticeError,
+          margin: const EdgeInsets.only(top: 12),
+        ),
+    ],
+  );
+}
+
 /// A link or config that grants access: hidden until shown, copied on
-/// request, with its QR code while shown ([qr]). Keys start with
-/// [keyPrefix]: `-text`, `-hidden`, `-reveal`, `-copy`, `-qr`.
+/// request, with its QR code while shown. Keys start with [keyPrefix]:
+/// `-text`, `-hidden`, `-reveal`, `-copy`, `-qr`.
 class SecretLinkBox extends StatefulWidget {
   const SecretLinkBox({
     required this.text,
     required this.keyPrefix,
-    this.qr = false,
     this.copyLabel,
     super.key,
   });
   final String text, keyPrefix;
-  final bool qr;
 
   /// The copy button label; "Copy link" when omitted.
   final String? copyLabel;
@@ -100,14 +145,14 @@ class _SecretLinkBoxState extends State<SecretLinkBox> {
                   ),
           ),
         ),
-        if (visible && widget.qr)
+        if (visible)
           Padding(
             padding: const EdgeInsets.only(top: AppLayout.gap),
             child: Center(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(AppLayout.radius),
                 child: Semantics(
-                  label: l.serviceTestLinkQr,
+                  label: l.linkQr,
                   image: true,
                   child: ExcludeSemantics(
                     child: ScannableQrImage(

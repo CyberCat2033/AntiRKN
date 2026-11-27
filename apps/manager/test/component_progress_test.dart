@@ -42,68 +42,26 @@ void main() {
       // Checkpoint 0: Plan verified / preparation
       expect(componentActiveStepLabel(ru, 0), ru.protocolPrepared);
       expect(componentActiveStepLabel(en, 0), en.protocolPrepared);
-      expect(componentStepProgressText(ru, 0, 6), 'Шаг 1 из 6: План проверен');
-      expect(componentStepProgressText(en, 0, 6), 'Step 1 of 6: Plan verified');
 
       // Checkpoint 1: Downloading
       expect(componentActiveStepLabel(ru, 1), ru.componentsDownloading);
       expect(componentActiveStepLabel(en, 1), en.componentsDownloading);
-      expect(
-        componentStepProgressText(ru, 1, 6),
-        'Шаг 2 из 6: Загрузка архива',
-      );
-      expect(
-        componentStepProgressText(en, 1, 6),
-        'Step 2 of 6: Downloading archive',
-      );
 
       // Checkpoint 2: Building executables
       expect(componentActiveStepLabel(ru, 2), ru.componentsBuilding);
       expect(componentActiveStepLabel(en, 2), en.componentsBuilding);
-      expect(
-        componentStepProgressText(ru, 2, 6),
-        'Шаг 3 из 6: Сборка исполняемых файлов на сервере',
-      );
-      expect(
-        componentStepProgressText(en, 2, 6),
-        'Step 3 of 6: Building executables on server',
-      );
 
       // Checkpoint 3: Extracting
       expect(componentActiveStepLabel(ru, 3), ru.componentsExtracting);
       expect(componentActiveStepLabel(en, 3), en.componentsExtracting);
-      expect(
-        componentStepProgressText(ru, 3, 6),
-        'Шаг 4 из 6: Распаковка и проверка файлов',
-      );
-      expect(
-        componentStepProgressText(en, 3, 6),
-        'Step 4 of 6: Extracting and verifying files',
-      );
 
       // Checkpoint 4: Version switched
       expect(componentActiveStepLabel(ru, 4), ru.protocolSwitched);
       expect(componentActiveStepLabel(en, 4), en.protocolSwitched);
-      expect(
-        componentStepProgressText(ru, 4, 6),
-        'Шаг 5 из 6: Новая версия установлена',
-      );
-      expect(
-        componentStepProgressText(en, 4, 6),
-        'Step 5 of 6: New version installed',
-      );
 
       // Checkpoint 5: Checking API / health
       expect(componentActiveStepLabel(ru, 5), ru.componentsChecking);
       expect(componentActiveStepLabel(en, 5), en.componentsChecking);
-      expect(
-        componentStepProgressText(ru, 5, 6),
-        'Шаг 6 из 6: Проверка состояния и API',
-      );
-      expect(
-        componentStepProgressText(en, 5, 6),
-        'Step 6 of 6: Checking state and API',
-      );
     });
   });
 
@@ -155,13 +113,12 @@ void main() {
         tester.element(find.byType(ComponentInstallationView)),
       );
 
-      expect(
-        find.text(l.componentStepProgress(3, 6, l.componentsBuilding)),
-        findsOneWidget,
-      );
-      final progressFinder = find.byType(LinearProgressIndicator);
+      // Drawn like the Xray transaction: the step in words and a ring.
+      expect(find.text(l.componentsBuilding), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      final progressFinder = find.byType(CircularProgressIndicator);
       expect(progressFinder, findsOneWidget);
-      final progressWidget = tester.widget<LinearProgressIndicator>(
+      final progressWidget = tester.widget<CircularProgressIndicator>(
         progressFinder,
       );
       expect(progressWidget.value, closeTo(2 / 6, 0.001));
@@ -334,14 +291,11 @@ void main() {
           ),
         );
 
-        // Top banner shows active step text instead of past event code:
-        expect(
-          find.text('Шаг 3 из 6: Сборка исполняемых файлов на сервере'),
-          findsWidgets,
-        );
-
-        // Card action shows mini progress "2/6":
-        expect(find.text('2/6'), findsOneWidget);
+        // The card shows the active step in words, like the Xray
+        // transaction, without a step counter:
+        expect(find.text('Сборка исполняемых файлов на сервере'), findsWidgets);
+        expect(find.text('2/6'), findsNothing);
+        expect(find.textContaining('Шаг 3 из 6'), findsNothing);
 
         c.dispose();
       },

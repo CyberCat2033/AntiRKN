@@ -328,7 +328,7 @@ class _RelayInboundSectionState extends State<RelayInboundSection> {
                 child: FilledButton.tonalIcon(
                   key: const ValueKey('relay-link'),
                   onPressed: busy ? null : openLink,
-                  icon: const Icon(Icons.link),
+                  icon: const Icon(Icons.qr_code_2),
                   label: Text(l.relayLink),
                 ),
               ),
@@ -387,27 +387,14 @@ class _RelayLinkViewState extends State<RelayLinkView> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(l.relayLinkHelp),
-        if (loading)
-          const Padding(
-            padding: EdgeInsets.only(top: 12),
-            child: LinearProgressIndicator(),
-          ),
-        if (issue != null)
-          AppNotice(
-            key: const ValueKey('relay-link-issue'),
-            message: runnerCodeLabel(l, issue!),
-            error: true,
-            margin: const EdgeInsets.only(top: 12),
-          ),
-        if (uri case final link?) ...[
-          const SizedBox(height: 12),
-          SecretLinkBox(text: link, keyPrefix: 'relay-link'),
-        ],
-      ],
+    // The same view as the service mode test link, QR code included.
+    return AccessLinkView(
+      help: l.relayLinkHelp,
+      keyPrefix: 'relay-link',
+      link: uri,
+      loading: loading,
+      notice: issue == null ? null : runnerCodeLabel(l, issue!),
+      noticeError: true,
     );
   }
 }
