@@ -6,7 +6,7 @@
   "templateLoading": "Reading the base configuration…",
   "profileWarning": "Warning",
   "profileError": "Error",
-  "operationObserving": "An action from your device. Its status updates automatically.",
+  "operationObserving": "Another of your devices is applying changes here. The status updates automatically.",
   "operationMissing": "The server has not reported this operation. Check its status before continuing here.",
   "operationTakeOver": "Check and continue on this device",
   "settings": "Settings",
@@ -666,12 +666,6 @@
   "protocolCheckFailed": "Installed version verification failed.",
   "updatesCheck": "Check for updates",
   "updatesCheckedRecently": "Updates were checked moments ago; the result shown is current.",
-  "updatesLastChecked": "Last checked: {time}",
-  "@updatesLastChecked": {
-    "placeholders": {
-      "time": {"type": "String"}
-    }
-  },
   "updatesAutomatic": "Check for new versions",
   "updatesSuggestions": "Suggest updates",
   "updatesFailed": "Could not check for updates. The previous result may be stale.",

@@ -28,7 +28,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get operationObserving =>
-      'Изменение с вашего устройства. Статус обновляется автоматически.';
+      'Изменения здесь применяет другое ваше устройство. Статус обновляется автоматически.';
 
   @override
   String get operationMissing =>
@@ -1777,11 +1777,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get updatesCheckedRecently =>
       'Обновления проверены только что, показан актуальный результат.';
-
-  @override
-  String updatesLastChecked(String time) {
-    return 'Последняя проверка: $time';
-  }
 
   @override
   String get updatesAutomatic => 'Проверять новые версии';

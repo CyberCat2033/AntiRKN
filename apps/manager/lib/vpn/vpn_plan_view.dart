@@ -81,7 +81,7 @@ class VpnJobView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (c.observesOperation(serverId)) ...[
+        if (c.followsOpenOperation(serverId)) ...[
           Text(l.operationObserving),
           if (c.observedJobs.containsKey(serverId) && job == null)
             Text(l.operationMissing),

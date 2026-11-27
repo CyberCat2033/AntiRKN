@@ -28,7 +28,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get operationObserving =>
-      'An action from your device. Its status updates automatically.';
+      'Another of your devices is applying changes here. The status updates automatically.';
 
   @override
   String get operationMissing =>
@@ -1769,11 +1769,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get updatesCheckedRecently =>
       'Updates were checked moments ago; the result shown is current.';
-
-  @override
-  String updatesLastChecked(String time) {
-    return 'Last checked: $time';
-  }
 
   @override
   String get updatesAutomatic => 'Check for new versions';

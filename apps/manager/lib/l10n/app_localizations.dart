@@ -137,7 +137,7 @@ abstract class AppLocalizations {
   /// No description provided for @operationObserving.
   ///
   /// In en, this message translates to:
-  /// **'An action from your device. Its status updates automatically.'**
+  /// **'Another of your devices is applying changes here. The status updates automatically.'**
   String get operationObserving;
 
   /// No description provided for @operationMissing.
@@ -3175,12 +3175,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Updates were checked moments ago; the result shown is current.'**
   String get updatesCheckedRecently;
-
-  /// No description provided for @updatesLastChecked.
-  ///
-  /// In en, this message translates to:
-  /// **'Last checked: {time}'**
-  String updatesLastChecked(String time);
 
   /// No description provided for @updatesAutomatic.
   ///

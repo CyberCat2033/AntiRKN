@@ -1,7 +1,6 @@
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../busy_reason.dart';
 import '../l10n/app_localizations.dart';
 import '../protocol_icon.dart';
@@ -20,10 +19,14 @@ class SoftwareOverview extends StatelessWidget {
     required this.controller,
     required this.motion,
     this.coreUpgrade,
+    this.reboot,
     super.key,
   });
   final RunnerController controller;
   final MotionPreference motion;
+
+  /// The server restart for the Ubuntu card ([AptMaintenanceView.reboot]).
+  final Widget? reboot;
 
   /// The checked Xray core transaction ([XrayUpgradeView]): under the
   /// 3x-ui / Xray row, and mounted even without one, since it owns the
@@ -404,6 +407,25 @@ class SoftwareOverview extends StatelessWidget {
         content.add(PanelInstallationView(controller: c, motion: motion));
       }
     }
+    // Ubuntu is one more component: with the others while it is up to date,
+    // with the updates while it has packages or a job to show.
+    if (AptMaintenanceView.wantsAttention(c)) {
+      available.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: AptMaintenanceView(controller: c, reboot: reboot),
+        ),
+      );
+    } else {
+      if (others.isNotEmpty) {
+        others.add(
+          const Divider(indent: AppLayout.gap, endIndent: AppLayout.gap),
+        );
+      }
+      others.add(
+        AptMaintenanceView(controller: c, reboot: reboot, embedded: true),
+      );
+    }
     if (core != null && !coreShown) content.add(core);
     if (updates != null) {
       if (updates.busy) content.add(const LinearProgressIndicator());
@@ -414,54 +436,56 @@ class SoftwareOverview extends StatelessWidget {
         content.add(AppNotice(message: l.settingsSaveError, error: true));
       }
     }
+    // One check for the page, on its first heading; it asks GitHub only,
+    // no SSH or runner refresh (UI-45).
+    // A narrow screen or large text keeps only the icon, with a tooltip.
+    final iconOnly =
+        MediaQuery.sizeOf(context).width < AppLayout.compact ||
+        MediaQuery.textScalerOf(context).scale(14) > 21;
+    Future<void> runCheck() async {
+      final messenger = ScaffoldMessenger.of(context);
+      await updates!.check();
+      if (updates.throttled) {
+        messenger.showSnackBar(
+          SnackBar(content: Text(l.updatesCheckedRecently)),
+        );
+      }
+    }
+
+    final Widget? check = updates == null
+        ? null
+        : iconOnly
+        ? IconButton(
+            key: const ValueKey('updates-check'),
+            tooltip: l.updatesCheck,
+            onPressed: updates.busy ? null : runCheck,
+            icon: const Icon(Icons.refresh),
+          )
+        : TextButton.icon(
+            key: const ValueKey('updates-check'),
+            onPressed: updates.busy ? null : runCheck,
+            icon: const Icon(Icons.refresh),
+            label: Text(l.updatesCheck),
+          );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (available.isNotEmpty) ...[
-          AppSectionHeading(title: l.softwareUpdateAvailable, subheader: true),
+          AppSectionHeading(
+            title: l.softwareUpdateAvailable,
+            subheader: true,
+            action: check,
+          ),
           ...available,
           const SizedBox(height: 16),
         ],
         if (others.isNotEmpty)
           AppSettingsSection(
             title: l.uiOtherComponents,
+            action: available.isEmpty ? check : null,
             child: Column(children: others),
           ),
         ...content,
-        if (updates != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                OutlinedButton.icon(
-                  // A GitHub request: no SSH or runner refresh (UI-45).
-                  key: const ValueKey('updates-check'),
-                  onPressed: updates.busy ? null : updates.check,
-                  icon: const Icon(Icons.refresh),
-                  label: Text(l.updatesCheck),
-                ),
-                if (updates.throttled || updates.checkedAt != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Semantics(
-                      liveRegion: true,
-                      child: Text(
-                        key: const ValueKey('updates-checked-at'),
-                        updates.throttled
-                            ? l.updatesCheckedRecently
-                            : l.updatesLastChecked(
-                                DateFormat.yMMMd(
-                                  l.localeName,
-                                ).add_Hm().format(updates.checkedAt!.toLocal()),
-                              ),
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
       ],
     );
   }
@@ -472,8 +496,35 @@ class SoftwareOverview extends StatelessWidget {
 /// Update installs it; while a job runs, a ring around the icon, its step
 /// and Stop. The server restart ([reboot]) lives here too.
 class AptMaintenanceView extends StatelessWidget {
-  const AptMaintenanceView({required this.controller, this.reboot, super.key});
+  const AptMaintenanceView({
+    required this.controller,
+    this.reboot,
+    this.embedded = false,
+    super.key,
+  });
   final RunnerController controller;
+
+  /// A row of the other components' card instead of a card of its own.
+  final bool embedded;
+
+  /// The apt job the card draws, if any.
+  static RunnerJob? _job(RunnerController c) => switch (c.selected) {
+    final j?
+        when aptCardJobs.contains(j.kind) &&
+            (!j.terminal || !c.isDismissed(j)) =>
+      j,
+    _ => null,
+  };
+
+  /// Packages to upgrade, or their upgrade running or ended badly. A check
+  /// of the package lists and a restart leave the card where it is: the
+  /// restart's state lives in it.
+  static bool wantsAttention(RunnerController c) {
+    final job = _job(c);
+    return (c.aptPlan?['packages'] as List?)?.isNotEmpty == true ||
+        job?.kind == 'apt_upgrade' &&
+            (!job!.terminal || job.status != 'succeeded');
+  }
 
   /// Restarts the server and tracks its reconnect; kept in one place of the
   /// card so its state survives the card's changes.
@@ -483,13 +534,7 @@ class AptMaintenanceView extends StatelessWidget {
     final c = controller, l = AppLocalizations.of(context);
     final colors = Theme.of(context).colorScheme;
     final packages = c.aptPlan?['packages'] as List?;
-    final job = switch (c.selected) {
-      final j?
-          when aptCardJobs.contains(j.kind) &&
-              (!j.terminal || !c.isDismissed(j)) =>
-        j,
-      _ => null,
-    };
+    final job = _job(c);
     final running = job != null && !job.terminal;
     final preparing =
         !running && c.choosingAptUpdate && (c.busy || c.actionPending);
@@ -588,10 +633,10 @@ class AptMaintenanceView extends StatelessWidget {
                 ),
             ],
           );
-    return AppSettingsSection(
-      title: l.aptTitle,
+    return KeyedSubtree(
+      key: const ValueKey('apt-card'),
       child: SummaryCard(
-        embedded: true,
+        embedded: embedded,
         leadingAtTop: true,
         leading: AppIconTile(
           icon: Icons.dns_outlined,

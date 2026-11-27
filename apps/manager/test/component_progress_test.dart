@@ -333,6 +333,53 @@ void main() {
       return c;
     }
 
+    testWidgets('Ubuntu joins the updates only with packages to upgrade', (
+      tester,
+    ) async {
+      final c = await pump(
+        tester,
+        runnerJob(
+          'b' * 32,
+          kind: 'apt_update',
+          status: 'running',
+          progress: 0,
+          count: 2,
+        ),
+      );
+      final l = AppLocalizations.of(tester.element(find.byType(RunnerPanel)));
+      // Checking the package lists leaves the card with the others.
+      expect(find.text(l.uiOtherComponents), findsOneWidget);
+      expect(find.text(l.softwareUpdateAvailable), findsNothing);
+      expect(find.text(l.aptTitle), findsNothing);
+      c.selected = null;
+      c.aptPlan = {
+        'packages': [
+          {'name': 'openssl', 'installed': '3.0.1', 'version': '3.0.2'},
+        ],
+      };
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: RunnerPanel(
+                controller: c,
+                motion: MotionPreference.system,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text(l.softwareUpdateAvailable), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.byKey(const ValueKey('apt-card'))).dy,
+        greaterThan(tester.getTopLeft(find.text(l.softwareUpdateAvailable)).dy),
+      );
+      c.dispose();
+    });
+
     testWidgets('a running apt job runs on the Ubuntu card', (tester) async {
       final c = await pump(
         tester,

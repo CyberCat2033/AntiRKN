@@ -247,6 +247,7 @@ class RunnerPanel extends StatelessWidget {
               controller: c,
               motion: motion,
               coreUpgrade: coreUpgrade,
+              reboot: reboot,
             ),
             if (!softwareComponentKeys.any(
                   (k) => hostsComponentInstallation(c, k),
@@ -254,7 +255,6 @@ class RunnerPanel extends StatelessWidget {
                 (active || failed) &&
                 job.kind == 'component_install')
               ComponentInstallationView(controller: c),
-            AptMaintenanceView(controller: c, reboot: reboot),
           ],
         ),
       );

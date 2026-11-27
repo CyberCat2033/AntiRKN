@@ -443,6 +443,15 @@ class VpnController extends ChangeNotifier {
   bool observesOperation(String id) =>
       operation(id) != null && operation(id)!.executorDeviceId != _deviceId;
 
+  /// Another device's operation on [id] that has not ended: its request is
+  /// still pending or its job still runs. An ended one stays in the record
+  /// as the last owner; the runner may have forgotten its job by then, and
+  /// that is no reason to offer taking it over.
+  bool followsOpenOperation(String id) =>
+      observesOperation(id) &&
+      (workspace.servers[id]?['pending'] != null ||
+          currentJob(id)?.terminal == false);
+
   /// Another device's operation on [id] whose job has not ended. The
   /// operation stays in the record after it ends, as the last owner; a read
   /// of the server's state waits only while the job still runs.

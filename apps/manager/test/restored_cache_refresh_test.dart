@@ -242,6 +242,13 @@ void main() {
         );
         await vpn.load();
         expect(vpn.observesOperation('one'), isTrue);
+        expect(vpn.followsOpenOperation('one'), !read);
+        if (read) {
+          // A runner that has forgotten an ended job offers no takeover.
+          vpn.observedJobs['one'] = null;
+          expect(vpn.followsOpenOperation('one'), isFalse);
+          vpn.observedJobs.remove('one');
+        }
         final since = DateTime.now().toUtc();
         final issues = await vpn.refreshConnectedInBackground(['one']);
         expect(vpn.serverObservedSince('one', since), read);
