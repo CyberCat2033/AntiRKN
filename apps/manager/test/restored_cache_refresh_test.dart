@@ -12,13 +12,13 @@ import 'package:antirkn_manager/vpn/vpn_controller.dart';
 
 /// A device that pulled the snapshot: intent and bindings, no observations
 /// for server one, a dated cache for server two.
-String _restored() {
+String _restored({Map<String, dynamic> one = const {}}) {
   final workspace = VpnWorkspace(
     id: 'cccccccccccccccccccccccccccccccc',
     users: [VpnUser(id: alice, login: 'alice', name: 'Alice')],
     inbounds: [inbound('one', '1' * 32), inbound('two', '2' * 32)],
     servers: {
-      'one': {'identity': 'identity-one', 'panelId': panel},
+      'one': {'identity': 'identity-one', 'panelId': panel, ...one},
       'two': {
         'identity': 'identity-two',
         'panelId': panel,
@@ -189,6 +189,67 @@ void main() {
       refresh.dispose();
     },
   );
+
+  for (final (status, read) in [('succeeded', true), ('running', false)]) {
+    test(
+      'another device\'s $status operation ${read ? 'does not hold' : 'holds'} the read',
+      () async {
+        final store = MemoryVpn()
+          ..raw = _restored(
+            one: {
+              // The executor keeps the operation as the last owner.
+              'operation': {
+                'version': 1,
+                'operationId': '9' * 32,
+                'executorDeviceId': 'a' * 32,
+              },
+              'job': {
+                'id': '9' * 32,
+                'kind': 'vless_apply',
+                'count': 2,
+                'interval': 1,
+                'status': status,
+                'checkpoint': read ? 2 : 1,
+                'sequence': 1,
+                'cancelRequested': false,
+                'events': <Object?>[],
+              },
+            },
+          )
+          ..revision = 1;
+        final transport = Remote(store)
+          ..customState = [
+            {
+              'id': '1' * 32,
+              'workspaceId': 'c' * 32,
+              'spec': inbound('one', '1' * 32).spec,
+              'confirmed': true,
+              'revision': 'f' * 64,
+              'clients': <Object>[],
+            },
+          ];
+        final vpn = VpnController(
+          repository: store,
+          template: () => template,
+          remote: (id) => id == 'one'
+              ? VpnRemote(
+                  transport: transport,
+                  panelId: panel,
+                  identity: 'identity-one',
+                )
+              : null,
+          timer: (d, f) => Timer(Duration.zero, () {}),
+        );
+        await vpn.load();
+        expect(vpn.observesOperation('one'), isTrue);
+        final since = DateTime.now().toUtc();
+        final issues = await vpn.refreshConnectedInBackground(['one']);
+        expect(vpn.serverObservedSince('one', since), read);
+        expect(issues, read ? isEmpty : {'one': 'vpn_observing'});
+        vpn.dispose();
+      },
+    );
+  }
 
   for (final locale in AppLocalizations.supportedLocales) {
     testWidgets(

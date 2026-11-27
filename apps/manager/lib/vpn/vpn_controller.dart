@@ -391,6 +391,13 @@ class VpnController extends ChangeNotifier {
 
   bool observesOperation(String id) =>
       operation(id) != null && operation(id)!.executorDeviceId != _deviceId;
+
+  /// Another device's operation on [id] whose job has not ended. The
+  /// operation stays in the record after it ends, as the last owner; a read
+  /// of the server's state waits only while the job still runs.
+  bool _followsRunningOperation(String id) =>
+      observesOperation(id) && currentJob(id)?.terminal != true;
+
   RunnerJob? currentJob(String id) =>
       observesOperation(id) && observedJobs.containsKey(id)
       ? observedJobs[id]
@@ -1614,8 +1621,7 @@ class VpnController extends ChangeNotifier {
   bool get _hasServerReconcileWork => workspace.servers.entries.any(
     (entry) =>
         remote(entry.key) != null &&
-        (observesOperation(entry.key) &&
-                currentJob(entry.key)?.terminal != true ||
+        (_followsRunningOperation(entry.key) ||
             _needsReconcile(entry.key, entry.value)),
   );
 
@@ -1664,7 +1670,7 @@ class VpnController extends ChangeNotifier {
       for (final id in fresh) {
         final connection = remote(id);
         if (connection == null) continue;
-        if (!observesOperation(id)) {
+        if (!_followsRunningOperation(id)) {
           await _refreshServer(id, token, rebuildProfiles: false);
           anyServerRefreshed = true;
         }
@@ -2334,7 +2340,7 @@ class VpnController extends ChangeNotifier {
       for (final target in workspace.servers.keys) {
         final server = vpnServerId(target);
         if (!ids.contains(server)) continue;
-        if (observesOperation(target)) {
+        if (_followsRunningOperation(target)) {
           issues[server] ??= 'vpn_observing';
         } else if (remote(target) == null) {
           issues[server] ??= remoteIssue?.call(target) ?? 'vpn_connection';
