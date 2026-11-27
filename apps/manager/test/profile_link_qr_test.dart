@@ -5,7 +5,7 @@ import 'package:antirkn_manager/publication/profile_link_qr.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:qr_flutter/qr_flutter.dart';
+import 'package:antirkn_manager/vpn/secret_link_box.dart';
 
 void main() {
   for (final language in ['ru', 'en']) {
@@ -59,7 +59,7 @@ void main() {
           ),
         );
         final qr = find.byKey(const ValueKey('profile-link-qr'));
-        expect(find.byType(QrImageView), findsOneWidget);
+        expect(find.byType(ScannableQrImage), findsOneWidget);
         await tester.tap(qr);
         await tester.pumpAndSettle();
         expect(copies, isEmpty);

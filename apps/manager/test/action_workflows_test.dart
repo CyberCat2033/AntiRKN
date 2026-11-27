@@ -16,7 +16,7 @@ import 'package:antirkn_manager/network/network_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:qr_flutter/qr_flutter.dart';
+import 'package:antirkn_manager/vpn/secret_link_box.dart';
 import 'ssh_support.dart' as ssh;
 import 'runner_support.dart';
 import 'server_software_test.dart' show ObservedRemote;
@@ -427,7 +427,7 @@ void main() {
           ),
         ),
       );
-      expect(find.byType(QrImageView), findsOneWidget);
+      expect(find.byType(ScannableQrImage), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('profile-link-qr')));
       await tester.pumpAndSettle();
       expect(copied, direct);
@@ -580,7 +580,7 @@ void main() {
         ValueKey('publication-force-overwrite-${vpn.alice}'),
       );
       expect(forceBtn, findsOneWidget);
-      expect(find.byType(QrImageView), findsNothing);
+      expect(find.byType(ScannableQrImage), findsNothing);
 
       await tester.pumpWidget(const SizedBox.shrink());
       pub.dispose();

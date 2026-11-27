@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,26 +8,81 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../l10n/app_localizations.dart';
 
 /// A QR code as scanners read it best: dark modules on white, whatever the
-/// theme (UI-73).
-class ScannableQrImage extends StatelessWidget {
+/// theme (UI-73). Drawn once into an image at the screen's pixel size: the
+/// QR painter issues a draw per module, which made every frame of a sheet
+/// sliding over the code slow to render on phones.
+class ScannableQrImage extends StatefulWidget {
   const ScannableQrImage({required this.data, this.size, super.key});
   final String data;
   final double? size;
+
+  static const _padding = 16.0;
+
   @override
-  Widget build(BuildContext context) => QrImageView(
-    data: data,
-    size: size,
-    padding: const EdgeInsets.all(16),
-    backgroundColor: Colors.white,
-    errorCorrectionLevel: QrErrorCorrectLevel.M,
-    eyeStyle: const QrEyeStyle(
-      eyeShape: QrEyeShape.square,
-      color: Colors.black,
-    ),
-    dataModuleStyle: const QrDataModuleStyle(
-      dataModuleShape: QrDataModuleShape.square,
-      color: Colors.black,
-    ),
+  State<ScannableQrImage> createState() => _ScannableQrImageState();
+}
+
+class _ScannableQrImageState extends State<ScannableQrImage> {
+  ui.Image? _image;
+  (String, int, double)? _drawn;
+
+  ui.Image _render(int pixels, double logical) {
+    final key = (widget.data, pixels, logical);
+    if (_drawn == key) return _image!;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final side = pixels.toDouble();
+    canvas.drawRect(
+      Offset.zero & Size.square(side),
+      Paint()..color = Colors.white,
+    );
+    final inset = ScannableQrImage._padding * side / logical;
+    canvas.translate(inset, inset);
+    QrPainter(
+      data: widget.data,
+      version: QrVersions.auto,
+      errorCorrectionLevel: QrErrorCorrectLevel.M,
+      eyeStyle: const QrEyeStyle(
+        eyeShape: QrEyeShape.square,
+        color: Colors.black,
+      ),
+      dataModuleStyle: const QrDataModuleStyle(
+        dataModuleShape: QrDataModuleShape.square,
+        color: Colors.black,
+      ),
+    ).paint(canvas, Size.square(side - 2 * inset));
+    final picture = recorder.endRecording();
+    final image = picture.toImageSync(pixels, pixels);
+    picture.dispose();
+    _image?.dispose();
+    _drawn = key;
+    return _image = image;
+  }
+
+  @override
+  void dispose() {
+    _image?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final side = widget.size ?? constraints.biggest.shortestSide;
+      final pixels = (side * MediaQuery.devicePixelRatioOf(context)).round();
+      return SizedBox.square(
+        dimension: side,
+        child: pixels <= 0
+            ? null
+            : RawImage(
+                image: _render(pixels, side),
+                width: side,
+                height: side,
+                fit: BoxFit.fill,
+                filterQuality: FilterQuality.none,
+              ),
+      );
+    },
   );
 }
 
