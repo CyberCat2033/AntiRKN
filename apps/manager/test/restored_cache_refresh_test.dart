@@ -104,6 +104,58 @@ void main() {
     },
   );
 
+  test(
+    'servers read in parallel wait for each other instead of being reported as not answering',
+    () async {
+      final store = MemoryVpn()
+        ..raw = _restored()
+        ..revision = 1;
+      final remotes = <String, Remote>{};
+      final vpn = VpnController(
+        repository: store,
+        template: () => template,
+        remote: (id) => remotes[id] == null
+            ? null
+            : VpnRemote(
+                transport: remotes[id]!,
+                panelId: panel,
+                identity: 'identity-$id',
+              ),
+        timer: (d, f) => Timer(Duration.zero, () {}),
+      );
+      await vpn.load();
+      final settings = Settings()
+        ..values[restoredCacheSetting] = jsonEncode(['one', 'two']);
+      final refresh = RestoredCacheRefresh(
+        settings: settings,
+        connect: (id) async {
+          remotes[id] = _SlowRemote(store)
+            ..customState = [
+              {
+                'id': (id == 'one' ? '1' : '2') * 32,
+                'workspaceId': vpn.workspace.resourceWorkspaceId(id),
+                'spec': inbound(id, (id == 'one' ? '1' : '2') * 32).spec,
+                'confirmed': true,
+                'revision': 'f' * 64,
+                'clients': <Object>[],
+              },
+            ];
+          return true;
+        },
+        refresh: vpn.refreshConnectedInBackground,
+        observedSince: vpn.serverObservedSince,
+        observedAt: vpn.serverObservedAt,
+        known: (id) => true,
+        retryDelay: Duration.zero,
+      );
+      await refresh.start();
+      expect(refresh.failed, isEmpty);
+      expect(jsonDecode(settings.values[restoredCacheSetting]!), isEmpty);
+      vpn.dispose();
+      refresh.dispose();
+    },
+  );
+
   for (final locale in AppLocalizations.supportedLocales) {
     testWidgets(
       'stale server data says how old it is (${locale.languageCode})',
@@ -143,5 +195,19 @@ void main() {
         refresh.dispose();
       },
     );
+  }
+}
+
+/// A server whose state read takes a while, as over a real SSH connection.
+class _SlowRemote extends Remote {
+  _SlowRemote(super.store);
+  @override
+  Future<RunnerResponse> request(
+    RunnerRequest request,
+    CancellationToken token, {
+    String? sudoPassword,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    return super.request(request, token, sudoPassword: sudoPassword);
   }
 }

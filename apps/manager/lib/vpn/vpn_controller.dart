@@ -429,6 +429,14 @@ class VpnController extends ChangeNotifier {
     await _backgroundReconcile?.future;
   }
 
+  /// Waits until no VPN work runs, for at most 30 s.
+  Future<void> _waitUntilIdle() async {
+    await waitForBackgroundReconcile();
+    for (var i = 0; busy && !_disposed && i < 150; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    }
+  }
+
   set busy(bool value) => _busy = value;
   String? error;
 
@@ -2060,10 +2068,7 @@ class VpnController extends ChangeNotifier {
   /// those the new machine lacks are sent again (see [missingOnServer]).
   /// Unfinished client revocations restart against the new machine.
   Future<void> rebindServer(String serverId, String identity) async {
-    await waitForBackgroundReconcile();
-    for (var i = 0; busy && !_disposed && i < 150; i++) {
-      await Future<void>.delayed(const Duration(milliseconds: 200));
-    }
+    await _waitUntilIdle();
     await _run((token) async {
       if (loaded) await _rebindRecords(serverId, identity);
     });
@@ -2311,8 +2316,12 @@ class VpnController extends ChangeNotifier {
   /// Reads the state of connected [serverIds] again with the read-only state
   /// request and rebuilds profiles, in the background like reconciliation:
   /// the interface is not marked busy and nothing is submitted.
-  Future<void> refreshConnectedInBackground(Iterable<String> serverIds) {
+  /// Waits out other VPN work first: a background run started while one is
+  /// in progress is dropped, and several servers are read in parallel after
+  /// a cloud pull, so all but the first would be reported as not answering.
+  Future<void> refreshConnectedInBackground(Iterable<String> serverIds) async {
     final ids = serverIds.toSet();
+    await _waitUntilIdle();
     return _run((token) async {
       final targets = [
         for (final entry in workspace.servers.entries)
