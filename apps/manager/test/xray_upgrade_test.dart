@@ -717,11 +717,32 @@ void main() {
         ),
         home: Scaffold(
           body: SingleChildScrollView(
-            child: XrayUpgradeView(
-              key: key,
-              runner: runner,
-              vpn: vpn,
-              host: '192.0.2.1',
+            child: Column(
+              children: [
+                XrayUpgradeView(
+                  key: key,
+                  runner: runner,
+                  vpn: vpn,
+                  host: '192.0.2.1',
+                ),
+                // What the 3x-ui / Xray card draws from the transaction.
+                ListenableBuilder(
+                  listenable: runner.xrayRevision,
+                  builder: (context, _) =>
+                      switch (xrayProgress(context, runner.xrayVersionChoice)) {
+                        final p? => SummaryCard(
+                          leading: const AppIconTile(
+                            icon: Icons.hub_outlined,
+                            busy: true,
+                          ),
+                          title: '3x-ui / Xray',
+                          subtitle: Text(p.step),
+                          action: p.stop,
+                        ),
+                        null => const SizedBox.shrink(),
+                      },
+                ),
+              ],
             ),
           ),
         ),
@@ -740,9 +761,12 @@ void main() {
       for (var i = 0; i < 10; i++) {
         await tester.pump(const Duration(milliseconds: 100));
       }
-      // Inline like a component install: the step and one bar, no card.
+      // In the software card like a component install: the step and a
+      // ring around its icon, no card of its own; the server runs it, so
+      // there is no Stop here.
       expect(find.textContaining(l.xrayUpgradePending), findsOneWidget);
-      expect(find.byType(AppProgressCard), findsOneWidget);
+      expect(find.byType(AppProgressCard), findsNothing);
+      expect(find.byKey(const ValueKey('xray-stop')), findsNothing);
       expect(find.byKey(const ValueKey('xray-upgrade-close')), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());

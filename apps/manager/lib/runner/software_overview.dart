@@ -12,6 +12,7 @@ import 'panel_installation_view.dart';
 import 'panel_update_view.dart';
 import 'panel_login_view.dart';
 import 'runner_controller.dart';
+import 'xray_upgrade_view.dart' show xrayProgress;
 
 class SoftwareOverview extends StatelessWidget {
   const SoftwareOverview({
@@ -28,7 +29,13 @@ class SoftwareOverview extends StatelessWidget {
   /// runner's Xray version choice.
   final Widget? coreUpgrade;
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ListenableBuilder(
+    // The Xray transaction lives in its view; its progress is drawn here.
+    listenable: controller.xrayRevision,
+    builder: (context, _) => _build(context),
+  );
+
+  Widget _build(BuildContext context) {
     final c = controller, l = AppLocalizations.of(context);
     final updates = ComponentUpdatesScope.of(context);
     final inventory = c.software?.call();
@@ -160,7 +167,8 @@ class SoftwareOverview extends StatelessWidget {
       // of Update and Versions.
       final progress =
           (isPanel ? componentProgress(context, c, panel: true) : null) ??
-          (hostsInstallation ? componentProgress(context, c) : null);
+          (hostsInstallation ? componentProgress(context, c) : null) ??
+          (isPanel ? xrayProgress(context, c.xrayVersionChoice) : null);
       // The job's progress lives in the card body, like the Xray one.
       final action = progress != null
           ? progress.stop

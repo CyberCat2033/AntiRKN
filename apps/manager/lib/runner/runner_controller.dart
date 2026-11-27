@@ -20,7 +20,13 @@ class XrayVersionChoice {
     required this.update,
     required this.ready,
     required this.previous,
+    this.runningPhase = _idle,
+    this.stoppable = _never,
+    this.cancel = _nothing,
   });
+  static String? _idle() => null;
+  static bool _never() => false;
+  static void _nothing() {}
 
   /// Installs a release asset (`ComponentReleaseSource.resolveAsset`).
   final Future<void> Function(Map<String, Object?> asset) install;
@@ -34,6 +40,16 @@ class XrayVersionChoice {
 
   /// The version that ran before the last committed core change.
   final String? Function() previous;
+
+  /// Phase of the transaction in progress (`baseline`, `replacing`…), null
+  /// when none runs; the 3x-ui / Xray card draws it.
+  final String? Function() runningPhase;
+
+  /// Whether this device drives the run, so Stop can abort it.
+  final bool Function() stoppable;
+
+  /// Aborts the run; the server rolls the core back.
+  final void Function() cancel;
 }
 
 class RunnerController extends ChangeNotifier {
@@ -222,6 +238,10 @@ class RunnerController extends ChangeNotifier {
 
   /// Registered while the server's `XrayUpgradeView` is mounted.
   XrayVersionChoice? xrayVersionChoice;
+
+  /// Bumped when the transaction of [xrayVersionChoice] changes, so the
+  /// 3x-ui / Xray software card redraws its progress.
+  final xrayRevision = ValueNotifier<int>(0);
 
   /// The device's connection checks around a 3x-ui, TrustTunnel or
   /// AmneziaWG upgrade; registered with [xrayVersionChoice], which has the
@@ -2896,6 +2916,7 @@ class RunnerController extends ChangeNotifier {
     _disposed = true;
     _timer?.cancel();
     _token?.cancel();
+    xrayRevision.dispose();
     super.dispose();
   }
 }
