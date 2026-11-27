@@ -35,6 +35,9 @@ jobs:
       - name: Changelog has an [Unreleased] section
         run: python3 tool/ci/changelog_check.py --unreleased --soft
 
+      - name: Fonts for layout tests
+        run: bash tool/ci/test_fonts.sh "$(dirname "$(dirname "$(command -v flutter)")")"
+
       # Runner tests require root-owned files: run as uid 0 inside a user
       # namespace (as locally), which Ubuntu 24.04 AppArmor blocks by default.
       - name: Allow unprivileged user namespaces
