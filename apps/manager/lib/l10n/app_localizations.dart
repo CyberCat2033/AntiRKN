@@ -4901,7 +4901,7 @@ abstract class AppLocalizations {
   /// No description provided for @uiQrCopyHint.
   ///
   /// In en, this message translates to:
-  /// **'Scan to import into Clash Mi / Meta. Tap the QR to copy the direct YAML link.'**
+  /// **'Scan in a Mihomo-based client. Tap the QR to copy the direct YAML link.'**
   String get uiQrCopyHint;
 
   /// No description provided for @uiLinkCopied.
@@ -5459,7 +5459,7 @@ abstract class AppLocalizations {
   /// No description provided for @uiClashRefreshHint.
   ///
   /// In en, this message translates to:
-  /// **'Clash Mi defaults to a 24-hour refresh interval for newly imported profiles. Updates require the client to be running and online.'**
+  /// **'The client refreshes the profile on its own schedule (often every 24 hours) and only while it is running and online.'**
   String get uiClashRefreshHint;
 
   /// No description provided for @uiConnectionCount.
@@ -5615,7 +5615,7 @@ abstract class AppLocalizations {
   /// No description provided for @uiClashImport.
   ///
   /// In en, this message translates to:
-  /// **'Connection profile for Clash Mi'**
+  /// **'Connection profile for Mihomo clients'**
   String get uiClashImport;
 
   /// No description provided for @uiConnectionSettings.
@@ -7927,6 +7927,138 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Copy config'**
   String get serviceTestCopyConfig;
+
+  /// No description provided for @trafficTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Traffic'**
+  String get trafficTitle;
+
+  /// No description provided for @trafficAllTime.
+  ///
+  /// In en, this message translates to:
+  /// **'All time'**
+  String get trafficAllTime;
+
+  /// No description provided for @trafficDownloaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloaded'**
+  String get trafficDownloaded;
+
+  /// No description provided for @trafficUploaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploaded'**
+  String get trafficUploaded;
+
+  /// No description provided for @trafficDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Details'**
+  String get trafficDetails;
+
+  /// No description provided for @trafficUpdatedMinutes.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{Updated just now} one{Updated {count} minute ago} other{Updated {count} minutes ago}}'**
+  String trafficUpdatedMinutes(int count);
+
+  /// No description provided for @trafficUpdatedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Updated {time}'**
+  String trafficUpdatedAt(String time);
+
+  /// No description provided for @trafficUpdating.
+  ///
+  /// In en, this message translates to:
+  /// **'Updating…'**
+  String get trafficUpdating;
+
+  /// No description provided for @trafficReading.
+  ///
+  /// In en, this message translates to:
+  /// **'Reading from servers…'**
+  String get trafficReading;
+
+  /// No description provided for @trafficNotRead.
+  ///
+  /// In en, this message translates to:
+  /// **'Not read from the servers yet'**
+  String get trafficNotRead;
+
+  /// No description provided for @trafficServersUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{{count} server unavailable} other{{count} servers unavailable}}'**
+  String trafficServersUnavailable(int count);
+
+  /// No description provided for @trafficByMonth.
+  ///
+  /// In en, this message translates to:
+  /// **'By month'**
+  String get trafficByMonth;
+
+  /// No description provided for @trafficChartHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap or drag across the chart to pick a month'**
+  String get trafficChartHint;
+
+  /// No description provided for @trafficByServer.
+  ///
+  /// In en, this message translates to:
+  /// **'By server'**
+  String get trafficByServer;
+
+  /// No description provided for @trafficBarLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'{month}: downloaded {down}, uploaded {up}'**
+  String trafficBarLabel(String month, String down, String up);
+
+  /// No description provided for @trafficIssueNotConnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Not connected — figures from the last reading'**
+  String get trafficIssueNotConnected;
+
+  /// No description provided for @trafficIssueOutdated.
+  ///
+  /// In en, this message translates to:
+  /// **'The AntiRKN runner on this server does not count traffic yet: update it'**
+  String get trafficIssueOutdated;
+
+  /// No description provided for @trafficIssueFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read the traffic — figures from the last reading'**
+  String get trafficIssueFailed;
+
+  /// No description provided for @trafficStateOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Per-client statistics are off on this server'**
+  String get trafficStateOff;
+
+  /// No description provided for @trafficStateUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Counters are unavailable right now'**
+  String get trafficStateUnavailable;
+
+  /// No description provided for @trafficPrivacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Only volumes are counted on the servers; connections and sites are not recorded.'**
+  String get trafficPrivacy;
+
+  /// No description provided for @trafficRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Read again from the servers'**
+  String get trafficRefresh;
 }
 
 class _AppLocalizationsDelegate

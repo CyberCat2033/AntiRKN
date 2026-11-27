@@ -12,6 +12,7 @@ export 'src/change_journal.dart';
 export 'src/tt.dart';
 export 'src/awg.dart';
 export 'src/runner.dart';
+export 'src/client_traffic.dart';
 export 'src/server_operation.dart';
 export 'src/component_updates.dart';
 export 'src/vpn.dart';

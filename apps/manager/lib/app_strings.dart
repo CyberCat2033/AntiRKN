@@ -3,6 +3,17 @@ import 'l10n/app_localizations.dart';
 
 /// Local date and time in the app's language instead of `DateTime.toString()`
 /// (UI-71).
+/// A byte count in binary units, as the server pages show traffic.
+String serverBytes(int value) {
+  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'];
+  var amount = value.toDouble(), unit = 0;
+  while (amount >= 1024 && unit < units.length - 1) {
+    amount /= 1024;
+    unit++;
+  }
+  return '${amount.toStringAsFixed(unit == 0 ? 0 : 1)} ${units[unit]}';
+}
+
 extension DateTimeLabels on AppLocalizations {
   String formatDateTime(DateTime at) =>
       DateFormat.yMd(localeName).add_Hm().format(at.toLocal());

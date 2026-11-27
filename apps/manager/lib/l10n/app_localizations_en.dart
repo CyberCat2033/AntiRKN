@@ -2784,7 +2784,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get uiQrCopyHint =>
-      'Scan to import into Clash Mi / Meta. Tap the QR to copy the direct YAML link.';
+      'Scan in a Mihomo-based client. Tap the QR to copy the direct YAML link.';
 
   @override
   String get uiLinkCopied => 'Link copied';
@@ -3087,7 +3087,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get uiClashRefreshHint =>
-      'Clash Mi defaults to a 24-hour refresh interval for newly imported profiles. Updates require the client to be running and online.';
+      'The client refreshes the profile on its own schedule (often every 24 hours) and only while it is running and online.';
 
   @override
   String uiConnectionCount(int count) {
@@ -3180,7 +3180,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get uiClashImport => 'Connection profile for Clash Mi';
+  String get uiClashImport => 'Connection profile for Mihomo clients';
 
   @override
   String get uiConnectionSettings => 'Connection';
@@ -4577,4 +4577,95 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get serviceTestCopyConfig => 'Copy config';
+
+  @override
+  String get trafficTitle => 'Traffic';
+
+  @override
+  String get trafficAllTime => 'All time';
+
+  @override
+  String get trafficDownloaded => 'Downloaded';
+
+  @override
+  String get trafficUploaded => 'Uploaded';
+
+  @override
+  String get trafficDetails => 'Details';
+
+  @override
+  String trafficUpdatedMinutes(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Updated $count minutes ago',
+      one: 'Updated $count minute ago',
+      zero: 'Updated just now',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String trafficUpdatedAt(String time) {
+    return 'Updated $time';
+  }
+
+  @override
+  String get trafficUpdating => 'Updating…';
+
+  @override
+  String get trafficReading => 'Reading from servers…';
+
+  @override
+  String get trafficNotRead => 'Not read from the servers yet';
+
+  @override
+  String trafficServersUnavailable(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count servers unavailable',
+      one: '$count server unavailable',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get trafficByMonth => 'By month';
+
+  @override
+  String get trafficChartHint => 'Tap or drag across the chart to pick a month';
+
+  @override
+  String get trafficByServer => 'By server';
+
+  @override
+  String trafficBarLabel(String month, String down, String up) {
+    return '$month: downloaded $down, uploaded $up';
+  }
+
+  @override
+  String get trafficIssueNotConnected =>
+      'Not connected — figures from the last reading';
+
+  @override
+  String get trafficIssueOutdated =>
+      'The AntiRKN runner on this server does not count traffic yet: update it';
+
+  @override
+  String get trafficIssueFailed =>
+      'Could not read the traffic — figures from the last reading';
+
+  @override
+  String get trafficStateOff => 'Per-client statistics are off on this server';
+
+  @override
+  String get trafficStateUnavailable => 'Counters are unavailable right now';
+
+  @override
+  String get trafficPrivacy =>
+      'Only volumes are counted on the servers; connections and sites are not recorded.';
+
+  @override
+  String get trafficRefresh => 'Read again from the servers';
 }

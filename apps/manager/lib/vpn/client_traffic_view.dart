@@ -1,0 +1,690 @@
+import 'dart:async';
+
+import 'package:antirkn_design_system/antirkn_design_system.dart';
+import 'package:antirkn_domain/antirkn_domain.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+import '../app_strings.dart';
+import '../l10n/app_localizations.dart';
+import 'client_traffic_controller.dart';
+
+String _protocolName(String protocol) => switch (protocol) {
+  'vless' => 'VLESS',
+  'awg' => 'AmneziaWG',
+  _ => 'TrustTunnel',
+};
+
+/// "November", or "December 2025" outside the current year.
+String trafficMonthName(AppLocalizations l, String month, DateTime now) {
+  final year = int.parse(month.substring(0, 4));
+  final name = DateFormat.LLLL(
+    l.localeName,
+  ).format(DateTime(year, int.parse(month.substring(5))));
+  final label = name.isEmpty
+      ? month
+      : name[0].toUpperCase() + name.substring(1);
+  return year == now.toUtc().year ? label : '$label $year';
+}
+
+String _issueText(AppLocalizations l, String issue) => switch (issue) {
+  'traffic_not_connected' => l.trafficIssueNotConnected,
+  'traffic_runner_outdated' => l.trafficIssueOutdated,
+  _ => l.trafficIssueFailed,
+};
+
+/// Servers of the summary whose latest read failed.
+Iterable<String> _failed(ClientTrafficController c) =>
+    c.issues.keys.where(c.servers().contains);
+
+String _status(AppLocalizations l, ClientTrafficController c, String userId) {
+  final readAt = c.summary(userId).readAt;
+  if (c.busy) return c.readings.isEmpty ? l.trafficReading : l.trafficUpdating;
+  if (readAt == null) return l.trafficNotRead;
+  final minutes = DateTime.now().toUtc().difference(readAt).inMinutes;
+  return minutes < 60
+      ? l.trafficUpdatedMinutes(minutes < 0 ? 0 : minutes)
+      : l.trafficUpdatedAt(l.formatDateTime(readAt));
+}
+
+class _StatusLine extends StatelessWidget {
+  const _StatusLine({required this.controller, required this.userId});
+  final ClientTrafficController controller;
+  final String userId;
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context), theme = Theme.of(context);
+    // Only a server that answered badly counts here; one merely not
+    // connected is named in the details.
+    final failed = _failed(
+      controller,
+    ).where((id) => controller.issues[id] != 'traffic_not_connected').length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(text: _status(l, controller, userId)),
+              if (failed > 0 && !controller.busy)
+                TextSpan(
+                  text: ' · ${l.trafficServersUnavailable(failed)}',
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
+            ],
+          ),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        if (controller.busy) ...[
+          const SizedBox(height: AppLayout.smallGap),
+          const LinearProgressIndicator(),
+        ],
+      ],
+    );
+  }
+}
+
+class _UsageCard extends StatelessWidget {
+  const _UsageCard({
+    required this.title,
+    required this.usage,
+    this.selected = false,
+    this.onTap,
+    super.key,
+  });
+  final String title;
+  final TrafficUsage? usage;
+  final bool selected;
+  final VoidCallback? onTap;
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context), colors = theme.colorScheme;
+    String value(int? bytes) => bytes == null ? '—' : serverBytes(bytes);
+    return Semantics(
+      selected: selected,
+      child: SummaryCard(
+        title: title,
+        selected: selected,
+        onTap: onTap,
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Icon(Icons.south_west, color: colors.primary),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    value(usage?.down),
+                    style: theme.textTheme.titleLarge,
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                Icon(Icons.north_east, size: 18, color: colors.tertiary),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    value(usage?.up),
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Two cards side by side, stacked when narrow or with large text.
+class _CardPair extends StatelessWidget {
+  const _CardPair({required this.first, required this.second});
+  final Widget first, second;
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, size) {
+      final stacked =
+          size.maxWidth < 340 ||
+          MediaQuery.textScalerOf(context).scale(14) > 21;
+      if (stacked) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            first,
+            const SizedBox(height: AppLayout.smallGap),
+            second,
+          ],
+        );
+      }
+      // Both cards hold the same lines, so they are of one height.
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: first),
+          const SizedBox(width: AppLayout.smallGap),
+          Expanded(child: second),
+        ],
+      );
+    },
+  );
+}
+
+/// This month and all the time, in the client's profile sheet. Opening it
+/// reads the already connected servers again in the background.
+class ClientTrafficCards extends StatefulWidget {
+  const ClientTrafficCards({
+    required this.controller,
+    required this.userId,
+    required this.serverName,
+    super.key,
+  });
+  final ClientTrafficController controller;
+  final String userId;
+  final String Function(String) serverName;
+  @override
+  State<ClientTrafficCards> createState() => _ClientTrafficCardsState();
+}
+
+class _ClientTrafficCardsState extends State<ClientTrafficCards> {
+  @override
+  void initState() {
+    super.initState();
+    unawaited(widget.controller.refresh());
+  }
+
+  void _details(String? month) => showClientTrafficDetails(
+    context,
+    controller: widget.controller,
+    userId: widget.userId,
+    serverName: widget.serverName,
+    month: month,
+  );
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: widget.controller,
+    builder: (context, _) {
+      final c = widget.controller, l = AppLocalizations.of(context);
+      if (c.servers().isEmpty) return const SizedBox.shrink();
+      final summary = c.summary(widget.userId);
+      final now = DateTime.now();
+      final month = trafficMonth(now);
+      final known = !summary.isEmpty;
+      return Column(
+        key: const ValueKey('client-traffic'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: AppLayout.gap),
+          _CardPair(
+            first: _UsageCard(
+              key: const ValueKey('client-traffic-month'),
+              title: trafficMonthName(l, month, now),
+              usage: known ? summary.usage(month) : null,
+              onTap: () => _details(month),
+            ),
+            second: _UsageCard(
+              key: const ValueKey('client-traffic-all'),
+              title: l.trafficAllTime,
+              usage: known ? summary.usage(null) : null,
+              onTap: () => _details(null),
+            ),
+          ),
+          const SizedBox(height: AppLayout.smallGap),
+          Row(
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsetsDirectional.only(start: 8),
+                  child: _StatusLine(controller: c, userId: widget.userId),
+                ),
+              ),
+              TextButton(
+                key: const ValueKey('client-traffic-details'),
+                onPressed: () => _details(month),
+                child: Text(l.trafficDetails),
+              ),
+            ],
+          ),
+        ],
+      );
+    },
+  );
+}
+
+Future<void> showClientTrafficDetails(
+  BuildContext context, {
+  required ClientTrafficController controller,
+  required String userId,
+  required String Function(String) serverName,
+  String? month,
+}) => showAppDetails(
+  context,
+  title: AppLocalizations.of(context).trafficTitle,
+  children: [
+    ClientTrafficDetails(
+      controller: controller,
+      userId: userId,
+      serverName: serverName,
+      month: month,
+    ),
+  ],
+);
+
+/// The month card, the all-time card and the chart's bars are one choice
+/// of period; the server list follows it.
+class ClientTrafficDetails extends StatefulWidget {
+  const ClientTrafficDetails({
+    required this.controller,
+    required this.userId,
+    required this.serverName,
+    this.month,
+    super.key,
+  });
+  final ClientTrafficController controller;
+  final String userId;
+  final String Function(String) serverName;
+
+  /// The month first shown; null: all the time.
+  final String? month;
+  @override
+  State<ClientTrafficDetails> createState() => _ClientTrafficDetailsState();
+}
+
+class _ClientTrafficDetailsState extends State<ClientTrafficDetails> {
+  late String? selected = widget.month;
+  late String lastMonth = widget.month ?? trafficMonth(DateTime.now());
+
+  void _select(String? month) => setState(() {
+    selected = month;
+    if (month != null) lastMonth = month;
+  });
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: widget.controller,
+    builder: (context, _) {
+      final c = widget.controller, l = AppLocalizations.of(context);
+      final theme = Theme.of(context), colors = theme.colorScheme;
+      final now = DateTime.now();
+      final summary = c.summary(widget.userId);
+      final months = trafficMonths(now);
+      final known = !summary.isEmpty;
+      final period = selected == null
+          ? l.trafficAllTime
+          : trafficMonthName(l, selected!, now);
+      return Column(
+        key: const ValueKey('client-traffic-details-sheet'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _CardPair(
+            first: _UsageCard(
+              key: const ValueKey('traffic-details-month'),
+              title: trafficMonthName(l, lastMonth, now),
+              usage: known ? summary.usage(lastMonth) : null,
+              selected: selected != null,
+              onTap: () => _select(lastMonth),
+            ),
+            second: _UsageCard(
+              key: const ValueKey('traffic-details-all'),
+              title: l.trafficAllTime,
+              usage: known ? summary.usage(null) : null,
+              selected: selected == null,
+              onTap: () => _select(null),
+            ),
+          ),
+          const SizedBox(height: AppLayout.smallGap),
+          Row(
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsetsDirectional.only(start: 8),
+                  child: _StatusLine(controller: c, userId: widget.userId),
+                ),
+              ),
+              IconButton(
+                key: const ValueKey('traffic-refresh'),
+                tooltip: l.trafficRefresh,
+                onPressed: c.busy ? null : () => c.refresh(connect: true),
+                icon: const Icon(Icons.refresh),
+              ),
+            ],
+          ),
+          for (final id in _failed(c))
+            AppNotice(
+              key: ValueKey('traffic-issue-$id'),
+              icon: Icons.cloud_off_outlined,
+              error: c.issues[id] == 'traffic_runner_outdated',
+              message:
+                  '${widget.serverName(id)}: ${_issueText(l, c.issues[id]!)}',
+              margin: const EdgeInsets.only(top: AppLayout.smallGap),
+            ),
+          const SizedBox(height: AppLayout.gap),
+          Text(l.trafficByMonth, style: theme.textTheme.titleSmall),
+          Text(
+            l.trafficChartHint,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AppLayout.smallGap),
+          TrafficChart(
+            months: months,
+            usage: {for (final m in months) m: summary.usage(m)},
+            selected: selected,
+            label: (m) => trafficMonthName(l, m, now),
+            onSelect: _select,
+          ),
+          const SizedBox(height: AppLayout.smallGap),
+          Wrap(
+            spacing: AppLayout.gap,
+            children: [
+              _Legend(color: colors.primary, label: l.trafficDownloaded),
+              _Legend(color: colors.tertiary, label: l.trafficUploaded),
+            ],
+          ),
+          const SizedBox(height: AppLayout.gap),
+          Text(
+            '${l.trafficByServer} · $period',
+            style: theme.textTheme.titleSmall,
+          ),
+          for (final server in summary.servers)
+            _ServerRow(
+              key: ValueKey('traffic-server-${server.serverId}'),
+              server: server,
+              name: widget.serverName(server.serverId),
+              month: selected,
+              failed: c.issues.containsKey(server.serverId),
+            ),
+          const SizedBox(height: AppLayout.gap),
+          Text(
+            l.trafficPrivacy,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+class _Legend extends StatelessWidget {
+  const _Legend({required this.color, required this.label});
+  final Color color;
+  final String label;
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Container(
+        width: 10,
+        height: 10,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(3),
+        ),
+      ),
+      const SizedBox(width: 6),
+      Text(label, style: Theme.of(context).textTheme.bodySmall),
+    ],
+  );
+}
+
+class _UsageText extends StatelessWidget {
+  const _UsageText(this.usage, {this.style});
+  final TrafficUsage usage;
+  final TextStyle? style;
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Text.rich(
+      TextSpan(
+        children: [
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: Icon(Icons.south_west, size: 16, color: colors.primary),
+          ),
+          TextSpan(text: ' ${serverBytes(usage.down)}  '),
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: Icon(Icons.north_east, size: 16, color: colors.tertiary),
+          ),
+          TextSpan(text: ' ${serverBytes(usage.up)}'),
+        ],
+      ),
+      style: style,
+    );
+  }
+}
+
+class _ServerRow extends StatelessWidget {
+  const _ServerRow({
+    required this.server,
+    required this.name,
+    required this.month,
+    required this.failed,
+    super.key,
+  });
+  final ServerClientTraffic server;
+  final String name;
+  final String? month;
+  final bool failed;
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context), theme = Theme.of(context);
+    final muted = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    // The sums go under the name: beside it they would not fit a narrow
+    // screen with large text.
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppLayout.smallGap),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            failed ? Icons.cloud_off_outlined : Icons.dns_outlined,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: AppLayout.gap),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: theme.textTheme.titleMedium),
+                _UsageText(
+                  server.usage(month),
+                  style: theme.textTheme.bodyMedium,
+                ),
+                for (final p in server.protocols)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Wrap(
+                      spacing: AppLayout.smallGap,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        AppBadge(label: _protocolName(p.protocol)),
+                        if (p.state == TrafficSourceState.off)
+                          Text(l.trafficStateOff, style: muted)
+                        else ...[
+                          if (server.protocols.length > 1)
+                            _UsageText(p.usage(month), style: muted),
+                          if (p.state == TrafficSourceState.unavailable)
+                            Text(l.trafficStateUnavailable, style: muted),
+                        ],
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Twelve monthly bars, downloads below uploads; each bar picks its month,
+/// a drag across the chart picks the month under the finger.
+class TrafficChart extends StatelessWidget {
+  const TrafficChart({
+    required this.months,
+    required this.usage,
+    required this.selected,
+    required this.label,
+    required this.onSelect,
+    super.key,
+  });
+  final List<String> months;
+  final Map<String, TrafficUsage> usage;
+
+  /// The chosen month; null: all the time, every bar highlighted.
+  final String? selected;
+  final String Function(String) label;
+  final ValueChanged<String> onSelect;
+
+  static const _height = 104.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context), theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final peak = usage.values.fold<int>(
+      0,
+      (a, u) => u.down + u.up > a ? u.down + u.up : a,
+    );
+    double height(int bytes) => peak == 0 ? 0 : bytes / peak * (_height - 4);
+    return LayoutBuilder(
+      builder: (context, size) {
+        void pick(double dx) {
+          final i = (dx / size.maxWidth * months.length).floor();
+          final month = months[i.clamp(0, months.length - 1)];
+          if (month != selected) onSelect(month);
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            GestureDetector(
+              onHorizontalDragStart: (d) => pick(d.localPosition.dx),
+              onHorizontalDragUpdate: (d) => pick(d.localPosition.dx),
+              child: SizedBox(
+                height: _height,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final m in months)
+                      Expanded(
+                        child: _Bar(
+                          key: ValueKey('traffic-bar-$m'),
+                          usage: usage[m] ?? TrafficUsage.zero,
+                          on: selected == null || selected == m,
+                          selected: selected == m,
+                          label: l.trafficBarLabel(
+                            label(m),
+                            serverBytes((usage[m] ?? TrafficUsage.zero).down),
+                            serverBytes((usage[m] ?? TrafficUsage.zero).up),
+                          ),
+                          downHeight: height(usage[m]?.down ?? 0),
+                          upHeight: height(usage[m]?.up ?? 0),
+                          onTap: () => onSelect(m),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            ExcludeSemantics(
+              child: Row(
+                children: [
+                  for (final m in months)
+                    Expanded(
+                      child: Text(
+                        label(m).characters.first,
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: selected == m
+                              ? colors.onSurface
+                              : colors.onSurfaceVariant,
+                          fontWeight: selected == m ? FontWeight.bold : null,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _Bar extends StatelessWidget {
+  const _Bar({
+    required this.usage,
+    required this.on,
+    required this.selected,
+    required this.label,
+    required this.downHeight,
+    required this.upHeight,
+    required this.onTap,
+    super.key,
+  });
+  final TrafficUsage usage;
+  final bool on, selected;
+  final String label;
+  final double downHeight, upHeight;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final alpha = on ? 1.0 : .35;
+    const radius = BorderRadius.all(Radius.circular(6));
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      excludeSemantics: true,
+      child: InkWell(
+        borderRadius: radius,
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (upHeight > 0)
+                Container(
+                  height: upHeight,
+                  decoration: BoxDecoration(
+                    color: colors.tertiary.withValues(alpha: alpha),
+                    borderRadius: radius,
+                  ),
+                ),
+              if (upHeight > 0 && downHeight > 0) const SizedBox(height: 2),
+              Container(
+                height: downHeight > 0 ? downHeight : 2,
+                decoration: BoxDecoration(
+                  color:
+                      (downHeight > 0 ? colors.primary : colors.outlineVariant)
+                          .withValues(alpha: alpha),
+                  borderRadius: radius,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

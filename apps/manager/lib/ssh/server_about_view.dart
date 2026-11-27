@@ -11,17 +11,8 @@ import '../network/server_ip_diagnostics.dart';
 import '../vpn/vpn_controller.dart';
 import 'ssh_controller.dart';
 import 'client_egress_card.dart';
+import '../app_strings.dart';
 import 'server_service_mode_view.dart';
-
-String serverBytes(int value) {
-  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'];
-  var amount = value.toDouble(), unit = 0;
-  while (amount >= 1024 && unit < units.length - 1) {
-    amount /= 1024;
-    unit++;
-  }
-  return '${amount.toStringAsFixed(unit == 0 ? 0 : 1)} ${units[unit]}';
-}
 
 class ServerAboutView extends StatelessWidget {
   const ServerAboutView({

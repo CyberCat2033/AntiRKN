@@ -5,6 +5,8 @@ import '../l10n/app_localizations.dart';
 import '../publication/publication_controller.dart';
 import '../publication/publication_panel.dart';
 import '../publication/profile_link_qr.dart';
+import 'client_traffic_controller.dart';
+import 'client_traffic_view.dart';
 import 'vpn_controller.dart';
 import 'vpn_strings.dart';
 
@@ -14,12 +16,18 @@ class ProfileShareSheet extends StatefulWidget {
     required this.user,
     required this.exporter,
     this.publications,
+    this.traffic,
+    this.serverName,
     super.key,
   });
   final VpnController controller;
   final VpnUser user;
   final ProfileExporter exporter;
   final PublicationController? publications;
+
+  /// Traffic counted for this client on the servers; null: not shown.
+  final ClientTrafficController? traffic;
+  final String Function(String serverId)? serverName;
   @override
   State<ProfileShareSheet> createState() => _ProfileShareSheetState();
 }
@@ -307,6 +315,12 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                     ),
                   ),
                 ],
+                if (widget.traffic case final traffic? when user != null)
+                  ClientTrafficCards(
+                    controller: traffic,
+                    userId: widget.user.id,
+                    serverName: widget.serverName ?? (id) => id,
+                  ),
                 const SizedBox(height: 20),
                 if (usable)
                   Card.filled(

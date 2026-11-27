@@ -40,6 +40,7 @@ import 'template_controller.dart';
 import 'ssh/ssh_controller.dart';
 import 'ssh/server_catalog.dart';
 import 'ssh/server_catalog_controller.dart';
+import 'vpn/client_traffic_controller.dart';
 import 'vpn/vpn_controller.dart';
 import 'vpn/users_page.dart';
 
@@ -689,6 +690,7 @@ class _ManagerShellState extends State<ManagerShell>
   SshController? _sshController;
   ServerCatalogController? _catalog;
   VpnController? _vpn;
+  ClientTrafficController? _traffic;
   PublicationController? _publications;
   RestoredCacheRefresh? _cacheRefresh;
   bool _applyingSync = false;
@@ -817,6 +819,12 @@ class _ManagerShellState extends State<ManagerShell>
         },
         remoteIssue: (id) =>
             _vpnRemoteIssue(_catalog?.sessionFor(vpnServerId(id)), id),
+      );
+      final vpn = _vpn!;
+      _traffic = ClientTrafficController(
+        servers: () => vpn.trafficServerIds,
+        read: vpn.readTraffic,
+        store: widget.settings,
       );
       if (widget.settings case final settings? when _catalog != null) {
         final catalog = _catalog!, vpn = _vpn!;
@@ -977,6 +985,7 @@ class _ManagerShellState extends State<ManagerShell>
     _catalog?.dispose();
     _publications?.dispose();
     _cacheRefresh?.dispose();
+    _traffic?.dispose();
     _vpn?.dispose();
     _sshController?.dispose();
     _controller.dispose();
@@ -1314,6 +1323,7 @@ class _ManagerShellState extends State<ManagerShell>
                               _vpn != null
                                   ? UsersPage(
                                       controller: _vpn!,
+                                      traffic: _traffic,
                                       showAddAction: false,
                                       selection: _clientSelection,
                                       publications: _publications,

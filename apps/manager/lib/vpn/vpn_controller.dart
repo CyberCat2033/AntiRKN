@@ -360,6 +360,52 @@ class VpnController extends ChangeNotifier {
       id: _profileServerName(id),
   };
 
+  /// Physical servers holding client resources: where traffic is counted.
+  Set<String> get trafficServerIds => {
+    ...workspace.inbounds.map((resource) => resource.serverId),
+    ...workspace.awgInterfaces.map((resource) => resource.serverId),
+    ...workspace.ttEndpoints.map((resource) => resource.serverId),
+  };
+
+  /// The per-client traffic counted by [serverId]'s runner. [connect]
+  /// opens the connection when there is none; otherwise only an existing one
+  /// is used, so an opened sheet never starts SSH sessions by itself.
+  Future<ServerTrafficReading> readTraffic(
+    String serverId,
+    CancellationToken token, {
+    bool connect = false,
+  }) async {
+    if (remote(serverId) == null &&
+        (!connect || !await ensureConnected(serverId))) {
+      throw const FormatException('traffic_not_connected');
+    }
+    final r = remote(serverId);
+    if (r == null) throw const FormatException('traffic_not_connected');
+    ServerTrafficReading? result;
+    // Resources of one server may belong to different credential namespaces.
+    for (final ws in {
+      for (final target in [serverId, awgTarget(serverId), ttTarget(serverId)])
+        workspace.resourceWorkspaceId(target),
+    }) {
+      final RunnerResponse response;
+      try {
+        response = await _request(r, RunnerRequest.trafficRead(ws), token);
+      } on FormatException catch (e) {
+        // A runner before v77 rejects the unknown action as invalid.
+        throw FormatException(
+          e.message == 'vpn_invalid'
+              ? 'traffic_runner_outdated'
+              : 'traffic_failed',
+        );
+      }
+      final traffic = response.traffic;
+      if (traffic == null) throw const FormatException('traffic_failed');
+      final reading = ServerTrafficReading.fromRunner(traffic);
+      result = result == null ? reading : result.merge(reading);
+    }
+    return result!;
+  }
+
   /// true: connected, false: connection failed, null: another action is busy.
   final Future<bool?> Function(String serverId)? connectForDeletion;
   final Future<bool> Function(String serverId)? connectForAction;

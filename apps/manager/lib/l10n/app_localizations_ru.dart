@@ -2791,7 +2791,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get uiQrCopyHint =>
-      'Сканируйте для импорта в Clash Mi / Meta. Нажмите на QR, чтобы скопировать прямую ссылку на YAML.';
+      'Отсканируйте в клиенте на базе Mihomo. Нажмите на QR, чтобы скопировать прямую ссылку на YAML.';
 
   @override
   String get uiLinkCopied => 'Ссылка скопирована';
@@ -3093,7 +3093,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get uiClashRefreshHint =>
-      'Clash Mi: при новом импорте интервал обновления — 24 часа. Клиент обновляет профиль, когда запущен и доступна сеть.';
+      'Клиент обновляет профиль по своему расписанию (часто раз в 24 часа) и только когда запущен и есть сеть.';
 
   @override
   String uiConnectionCount(int count) {
@@ -3186,7 +3186,7 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
-  String get uiClashImport => 'Профиль подключения для Clash Mi';
+  String get uiClashImport => 'Профиль подключения для клиентов Mihomo';
 
   @override
   String get uiConnectionSettings => 'Подключение';
@@ -4589,4 +4589,100 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get serviceTestCopyConfig => 'Копировать конфигурацию';
+
+  @override
+  String get trafficTitle => 'Трафик';
+
+  @override
+  String get trafficAllTime => 'Всё время';
+
+  @override
+  String get trafficDownloaded => 'Скачано';
+
+  @override
+  String get trafficUploaded => 'Отправлено';
+
+  @override
+  String get trafficDetails => 'Подробнее';
+
+  @override
+  String trafficUpdatedMinutes(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Обновлено $count минуты назад',
+      many: 'Обновлено $count минут назад',
+      few: 'Обновлено $count минуты назад',
+      one: 'Обновлено $count минуту назад',
+      zero: 'Обновлено только что',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String trafficUpdatedAt(String time) {
+    return 'Обновлено $time';
+  }
+
+  @override
+  String get trafficUpdating => 'Обновляется…';
+
+  @override
+  String get trafficReading => 'Читаем с серверов…';
+
+  @override
+  String get trafficNotRead => 'Ещё не прочитано с серверов';
+
+  @override
+  String trafficServersUnavailable(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count сервера недоступно',
+      many: '$count серверов недоступно',
+      few: '$count сервера недоступны',
+      one: '$count сервер недоступен',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get trafficByMonth => 'По месяцам';
+
+  @override
+  String get trafficChartHint =>
+      'Нажмите или проведите по графику, чтобы выбрать месяц';
+
+  @override
+  String get trafficByServer => 'По серверам';
+
+  @override
+  String trafficBarLabel(String month, String down, String up) {
+    return '$month: скачано $down, отправлено $up';
+  }
+
+  @override
+  String get trafficIssueNotConnected =>
+      'Нет подключения — цифры по последнему чтению';
+
+  @override
+  String get trafficIssueOutdated =>
+      'Runner AntiRKN на сервере пока не считает трафик: обновите его';
+
+  @override
+  String get trafficIssueFailed =>
+      'Не удалось прочитать трафик — цифры по последнему чтению';
+
+  @override
+  String get trafficStateOff => 'Статистика по клиентам на сервере выключена';
+
+  @override
+  String get trafficStateUnavailable => 'Счётчики сейчас недоступны';
+
+  @override
+  String get trafficPrivacy =>
+      'На серверах считаются только объёмы; соединения и сайты не записываются.';
+
+  @override
+  String get trafficRefresh => 'Перечитать с серверов';
 }

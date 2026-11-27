@@ -13,6 +13,7 @@ import 'profile_share_sheet.dart';
 import 'server_operations_banner.dart';
 import 'vpn_controller.dart';
 import 'vpn_plan_view.dart';
+import 'client_traffic_controller.dart';
 import 'vpn_strings.dart';
 import '../template_controller.dart';
 import '../template_settings.dart';
@@ -58,6 +59,7 @@ class UsersPage extends StatefulWidget {
     required this.exporter,
     required this.motion,
     this.publications,
+    this.traffic,
     this.showAddAction = true,
     this.selection,
     this.onOpenServer,
@@ -65,6 +67,9 @@ class UsersPage extends StatefulWidget {
   });
   final VpnController controller;
   final PublicationController? publications;
+
+  /// Per-client traffic for the profile sheet; null: not shown.
+  final ClientTrafficController? traffic;
 
   /// Opens a server page from a summary that needs the person there.
   final void Function(String serverId)? onOpenServer;
@@ -427,6 +432,8 @@ class _UsersPageState extends State<UsersPage> {
       user: user,
       exporter: exporter,
       publications: publications,
+      traffic: widget.traffic,
+      serverName: widget.serverName,
     );
     if (MediaQuery.sizeOf(context).width < AppLayout.compact) {
       await showModalBottomSheet<void>(

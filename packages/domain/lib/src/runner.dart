@@ -176,6 +176,14 @@ final class RunnerRequest {
     'payload': jsonEncode(payload),
     'fingerprint': fingerprint,
   });
+
+  /// Per-client traffic of the [workspaceId] resources (runner v77+).
+  factory RunnerRequest.trafficRead(String workspaceId) =>
+      RunnerRequest.fromJson({
+        'version': 1,
+        'action': 'traffic_read',
+        'id': workspaceId,
+      });
   factory RunnerRequest.awgDefaults() =>
       RunnerRequest.fromJson({'version': 1, 'action': 'awg_defaults'});
   factory RunnerRequest.awgState(String workspaceId) => RunnerRequest.fromJson({
@@ -469,6 +477,9 @@ final class RunnerResponse {
       relay = value['relay'] == null
           ? null
           : Map<String, dynamic>.from(value['relay'] as Map),
+      traffic = value['traffic'] == null
+          ? null
+          : Map<String, dynamic>.from(value['traffic'] as Map),
       xrayCheck = value['xrayCheck'] == null
           ? null
           : Map<String, dynamic>.from(value['xrayCheck'] as Map),
@@ -572,6 +583,9 @@ final class RunnerResponse {
 
   /// `relay_state`, `relay_plan` and `relay_link` results.
   final Map<String, dynamic>? relay;
+
+  /// `traffic_read` result: [ServerTrafficReading.fromRunner] reads it.
+  final Map<String, dynamic>? traffic;
   final Map<String, dynamic>? xrayCheck;
   final Map<String, dynamic>? removalPlan;
   final Map<String, dynamic>? awgDefaults, awgPlan, awgExternal, tt;

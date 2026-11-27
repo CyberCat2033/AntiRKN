@@ -976,7 +976,7 @@
   "uiMaintenance": "Обслуживание",
   "uiConnection": "Подключение",
   "uiDisconnectBeforeDelete": "Перед удалением завершите операции и отключите SSH.",
-  "uiQrCopyHint": "Сканируйте для импорта в Clash Mi / Meta. Нажмите на QR, чтобы скопировать прямую ссылку на YAML.",
+  "uiQrCopyHint": "Отсканируйте в клиенте на базе Mihomo. Нажмите на QR, чтобы скопировать прямую ссылку на YAML.",
   "uiLinkCopied": "Ссылка скопирована",
   "uiCopyFailed": "Не удалось скопировать ссылку. Нажмите QR ещё раз.",
   "uiPreviewYaml": "Просмотр YAML",
@@ -1076,7 +1076,7 @@
   "uiDiskSpace": "Место на системном диске",
   "uiDiskFree": "Свободно",
   "uiCopyAddress": "Скопировать адрес",
-  "uiClashRefreshHint": "Clash Mi: при новом импорте интервал обновления — 24 часа. Клиент обновляет профиль, когда запущен и доступна сеть.",
+  "uiClashRefreshHint": "Клиент обновляет профиль по своему расписанию (часто раз в 24 часа) и только когда запущен и есть сеть.",
   "uiConnectionCount": "Подключений: {count}",
   "@uiConnectionCount": {
     "placeholders": {
@@ -1147,7 +1147,7 @@
       }
     }
   },
-  "uiClashImport": "Профиль подключения для Clash Mi",
+  "uiClashImport": "Профиль подключения для клиентов Mihomo",
   "uiConnectionSettings": "Подключение",
   "uiAuthentication": "Данные для входа",
   "uiOtherComponents": "Остальные компоненты",
@@ -1625,5 +1625,27 @@
   "serviceTestLinkUnsupported": "Для настроек этого ресурса нет стандартной ссылки. Соединение можно проверить в приложении.",
   "serviceTestLinkGone": "Сервер не в сервисном режиме: тестового клиента нет.",
   "linkQr": "QR-код ссылки",
-  "serviceTestCopyConfig": "Копировать конфигурацию"
+  "serviceTestCopyConfig": "Копировать конфигурацию",
+  "trafficTitle": "Трафик",
+  "trafficAllTime": "Всё время",
+  "trafficDownloaded": "Скачано",
+  "trafficUploaded": "Отправлено",
+  "trafficDetails": "Подробнее",
+  "trafficUpdatedMinutes": "{count, plural, =0{Обновлено только что} one{Обновлено {count} минуту назад} few{Обновлено {count} минуты назад} many{Обновлено {count} минут назад} other{Обновлено {count} минуты назад}}",
+  "trafficUpdatedAt": "Обновлено {time}",
+  "trafficUpdating": "Обновляется…",
+  "trafficReading": "Читаем с серверов…",
+  "trafficNotRead": "Ещё не прочитано с серверов",
+  "trafficServersUnavailable": "{count, plural, one{{count} сервер недоступен} few{{count} сервера недоступны} many{{count} серверов недоступно} other{{count} сервера недоступно}}",
+  "trafficByMonth": "По месяцам",
+  "trafficChartHint": "Нажмите или проведите по графику, чтобы выбрать месяц",
+  "trafficByServer": "По серверам",
+  "trafficBarLabel": "{month}: скачано {down}, отправлено {up}",
+  "trafficIssueNotConnected": "Нет подключения — цифры по последнему чтению",
+  "trafficIssueOutdated": "Runner AntiRKN на сервере пока не считает трафик: обновите его",
+  "trafficIssueFailed": "Не удалось прочитать трафик — цифры по последнему чтению",
+  "trafficStateOff": "Статистика по клиентам на сервере выключена",
+  "trafficStateUnavailable": "Счётчики сейчас недоступны",
+  "trafficPrivacy": "На серверах считаются только объёмы; соединения и сайты не записываются.",
+  "trafficRefresh": "Перечитать с серверов"
 }
