@@ -73,27 +73,18 @@ class RunnerPanel extends StatelessWidget {
       // One reset action per panel: either under the error row or the job.
       final resetAfterError =
           troubled && (active || c.hasUnfinishedJob || c.pending != null);
+      // A running job has its own Stop; the reset is only an escape hatch
+      // for a stop that the server does not honour.
       final resetAfterJob =
           !resetAfterError &&
           active &&
           job.kind != 'server_reboot' &&
-          (job.status == 'planned' ||
-              job.status == 'running' ||
-              job.cancelRequested ||
-              c.connectionLost ||
-              c.error != null);
+          job.cancelRequested;
       return AppAnimatedSize(
         motion: motion,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Background reads (refresh, polling) show no page-wide bar;
-            // only an action the user started does.
-            if (c.actionPending &&
-                !c.actionShowsOwnProgress &&
-                !c.waitingForProbe &&
-                !active)
-              const LinearProgressIndicator(),
             if (c.error case final issue?)
               Semantics(
                 liveRegion: true,
@@ -243,7 +234,6 @@ class RunnerPanel extends StatelessWidget {
                 controller: c,
                 buttonKey: const ValueKey('runner-reset-queue'),
               ),
-            if (c.observesOperation) Text(l.operationObserving),
             if (c.pending != null && c.waitingForProbe)
               AppProgressCard(
                 key: const ValueKey('runner-waiting-probe'),

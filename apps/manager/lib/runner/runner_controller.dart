@@ -64,9 +64,6 @@ class RunnerController extends ChangeNotifier {
   Completer<void>? _idle;
   bool actionPending = false;
 
-  /// The pending action's initiator shows its own progress, so the runner
-  /// panel does not add a second bar (UI-41).
-  bool actionShowsOwnProgress = false;
   bool get canRequestAction =>
       !busy &&
       !actionPending &&
@@ -101,19 +98,14 @@ class RunnerController extends ChangeNotifier {
     return connected && installed && alive && error == null;
   }
 
-  Future<void> requestAction(
-    Future<void> Function() action, {
-    bool ownProgress = false,
-  }) async {
+  Future<void> requestAction(Future<void> Function() action) async {
     if (!canRequestAction) return;
     actionPending = true;
-    actionShowsOwnProgress = ownProgress;
     _notify();
     try {
       if (await ensureReady()) await action();
     } finally {
       actionPending = false;
-      actionShowsOwnProgress = false;
       _notify();
     }
   }
@@ -2836,7 +2828,6 @@ class RunnerController extends ChangeNotifier {
     busy = false;
     backgroundBusy = false;
     actionPending = false;
-    actionShowsOwnProgress = false;
     pending = null;
     resumePlan = null;
     choosingAptUpdate = false;

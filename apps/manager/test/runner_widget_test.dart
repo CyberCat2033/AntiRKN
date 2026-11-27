@@ -106,7 +106,7 @@ void main() {
         ),
       );
 
-      // 1. Running job: Reset job queue should be available
+      // 1. Running job: it has its own Stop, no reset
       c.selected = runnerJob(
         '1' * 32,
         kind: 'component_install',
@@ -115,9 +115,9 @@ void main() {
       );
       c.notifyListeners();
       await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('runner-reset-queue')), findsOneWidget);
+      expect(find.byKey(const ValueKey('runner-reset-queue')), findsNothing);
 
-      // 2. Planned job: Reset job queue should be available
+      // 2. Planned job: no reset either
       c.selected = runnerJob(
         '2' * 32,
         kind: 'panel_update',
@@ -126,7 +126,7 @@ void main() {
       );
       c.notifyListeners();
       await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('runner-reset-queue')), findsOneWidget);
+      expect(find.byKey(const ValueKey('runner-reset-queue')), findsNothing);
 
       // 3. cancelRequested: Reset job queue should be available
       final cancelJob = RunnerJob.fromJson({

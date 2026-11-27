@@ -161,10 +161,7 @@ class ReadyRunner extends RunnerController {
         accessFailure: (_) {},
       );
   @override
-  Future<void> requestAction(
-    Future<void> Function() action, {
-    bool ownProgress = false,
-  }) async => action();
+  Future<void> requestAction(Future<void> Function() action) async => action();
 
   /// The runner is installed and the panel signed in, as for a user who
   /// reaches the software page.

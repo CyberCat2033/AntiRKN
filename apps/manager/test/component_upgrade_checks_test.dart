@@ -149,10 +149,7 @@ class JournalRunner extends RunnerController {
         store: MemoryRunnerJournal(),
       );
   @override
-  Future<void> requestAction(
-    Future<void> Function() action, {
-    bool ownProgress = false,
-  }) async => action();
+  Future<void> requestAction(Future<void> Function() action) async => action();
 }
 
 void main() {

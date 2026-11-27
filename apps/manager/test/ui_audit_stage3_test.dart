@@ -107,7 +107,7 @@ void main() {
     }
   });
 
-  testWidgets('UI-41 an action with its own progress adds no runner bar', (
+  testWidgets('UI-41 a pending action adds no page-wide runner bar', (
     tester,
   ) async {
     final c = _runner();
@@ -116,15 +116,9 @@ void main() {
     );
     c
       ..actionPending = true
-      ..actionShowsOwnProgress = true
       ..notifyListeners();
     await tester.pump();
     expect(find.byType(LinearProgressIndicator), findsNothing);
-    c
-      ..actionShowsOwnProgress = false
-      ..notifyListeners();
-    await tester.pump();
-    expect(find.byType(LinearProgressIndicator), findsOneWidget);
     await _release(tester, [c]);
   });
 

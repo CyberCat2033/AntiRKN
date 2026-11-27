@@ -288,7 +288,7 @@ class XrayUpgradeController extends ChangeNotifier {
         phase = 'committed';
         code = 'committed';
         runner.refreshSoftware?.call();
-      }, ownProgress: true);
+      });
       // Already current or nothing offered: not a server failure.
       if (!began && phase != 'not_changed') {
         throw const FormatException('server_unavailable');
