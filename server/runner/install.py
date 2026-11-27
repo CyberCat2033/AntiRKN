@@ -97,11 +97,11 @@ def install_runner(request):
                 rw_db.close()
         if changing and alive and transactions_busy(Path('/var/lib/antirkn-runner'), time.time()):
             raise ValueError('busy')
-        if not (BASE / 'v77').exists():
+        if not (BASE / 'v78').exists():
             temp = Path(tempfile.mkdtemp(prefix='.antirkn-', dir='/usr/local/lib'))
             try:
                 temp.chmod(0o755)
-                version = temp / 'v77'
+                version = temp / 'v78'
                 version.mkdir(mode=0o755)
                 version.chmod(0o755)
                 for name in PROGRAMS:
@@ -112,14 +112,14 @@ def install_runner(request):
                 (version / 'manifest.json').write_text(json.dumps(dict(release=release, hashes=hashes), sort_keys=True))
                 (version / 'manifest.json').chmod(0o644)
                 if BASE.exists():
-                    os.rename(str(version), str(BASE / 'v77'))
+                    os.rename(str(version), str(BASE / 'v78'))
                 else:
                     os.rename(str(temp), str(BASE))
             finally:
                 if temp.exists():
                     shutil.rmtree(str(temp))
         # Validate syntax and bytecode generation for all Python programs in the bundle
-        target_dir = BASE / 'v77'
+        target_dir = BASE / 'v78'
         for name in PROGRAMS:
             if name.endswith('.py'):
                 py_file = target_dir / name

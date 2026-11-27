@@ -245,6 +245,92 @@ class LedgerTests(unittest.TestCase):
         self.assertEqual(traffic.read(self.store, W, now=NOV)['resources'][0]['users'][0]['down'], 2)
 
 
+class TtMigrationTests(unittest.TestCase):
+    """Endpoints written by a runner before v77 get per-client metrics."""
+    def setUp(self):
+        import hashlib
+        import tt_common
+        self.hashlib, self.tt_common = hashlib, tt_common
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.store = Store(self.root)
+        self.addCleanup(self.store.close)
+        self.tt_root = self.root / 'tt'
+        self.rid = '4' * 32
+        (self.tt_root / self.rid).mkdir(parents=True)
+        self.vpn = self.tt_root / self.rid / 'vpn.toml'
+        self.old = tt_common.toml_bytes(dict(listen_address='0.0.0.0:443', ipv6_available=False,
+                                             listen_protocols=dict(http1={}, http2={})))
+        self.vpn.write_bytes(self.old)
+        self.restarts = []
+        for target, value in [('tt_common.ROOT', self.tt_root), ('tt.ROOT', self.tt_root),
+                              ('tt_common.read', lambda p, owner_uid=0: Path(p).read_bytes()),
+                              ('tt_common.run', lambda argv, **k: self.restarts.append(argv[-1]))]:
+            patcher = patch(target, value); patcher.start(); self.addCleanup(patcher.stop)
+
+    def record(self, allow_private=False, recorded=None):
+        save(self.store, 'tt_resources', self.rid, dict(workspaceId=W, clients=[], spec=dict(
+            id=self.rid, enabled=True, deleted=False, allowPrivate=allow_private, port=443),
+            hashes=[recorded or self.hashlib.sha256(self.old).hexdigest(), None, None, None]))
+
+    def saved_hash(self):
+        return json.loads(self.store.db.execute('SELECT data FROM tt_resources').fetchone()[0])['hashes'][0]
+
+    def migrate(self, up=True):
+        with patch.object(traffic, '_endpoint_up', lambda *a, **k: up):
+            traffic.enable_tt_metrics(self.store, sleep=lambda s: None)
+
+    def test_untouched_endpoint_gets_metrics_and_one_restart(self):
+        self.record()
+        self.migrate()
+        config = self.tt_common.toml_loads(self.vpn.read_text())
+        host, port = traffic.metrics_address(self.rid, 443)
+        self.assertEqual(config['metrics'], dict(address='%s:%d' % (host, port), request_timeout_secs=3, per_client_metrics=True))
+        self.assertEqual(config['listen_address'], '0.0.0.0:443')
+        self.assertEqual(self.saved_hash(), self.hashlib.sha256(self.vpn.read_bytes()).hexdigest())
+        self.assertEqual(len(self.restarts), 1)
+        self.migrate()  # Done: nothing more.
+        self.assertEqual(len(self.restarts), 1)
+        self.assertEqual(json.loads((self.root / traffic.TT_MIGRATION).read_text()), {})
+
+    def test_drifted_private_or_busy_endpoint_is_left_alone(self):
+        for allow_private, recorded in [(False, 'f' * 64), (True, None)]:
+            with self.subTest(allow_private=allow_private):
+                self.record(allow_private, recorded)
+                self.migrate()
+                self.assertEqual((self.vpn.read_bytes(), self.restarts), (self.old, []))
+        self.record()
+        with self.store.db:
+            self.store.db.execute("INSERT INTO jobs VALUES ('j',?,'running',0,0,0,0)", ('{}',))
+        self.migrate()
+        self.assertEqual(self.vpn.read_bytes(), self.old)
+
+    def test_endpoint_that_does_not_come_up_is_restored_and_not_retried(self):
+        self.record()
+        self.migrate(up=False)
+        self.assertEqual(self.vpn.read_bytes(), self.old)
+        self.assertEqual(self.saved_hash(), self.hashlib.sha256(self.old).hexdigest())
+        self.assertEqual(len(self.restarts), 2)  # With metrics, then back.
+        self.migrate()
+        self.assertEqual(len(self.restarts), 2)
+
+    def test_crash_after_the_write_is_finished(self):
+        self.record()
+        config = self.tt_common.toml_loads(self.old.decode())
+        config['metrics'] = traffic._wanted_metrics(self.rid, dict(port=443))
+        new = self.tt_common.toml_bytes(config)
+        self.vpn.write_bytes(new)
+        state = {self.rid: dict(before=self.hashlib.sha256(self.old).hexdigest(),
+                                after=self.hashlib.sha256(new).hexdigest(), phase='writing', old=self.old.decode())}
+        (self.root / traffic.TT_MIGRATION).write_text(json.dumps(state))
+        (self.root / traffic.TT_MIGRATION).chmod(0o600)
+        self.migrate()
+        self.assertEqual(self.saved_hash(), self.hashlib.sha256(new).hexdigest())
+        self.assertEqual(len(self.restarts), 1)
+        self.assertEqual(json.loads((self.root / traffic.TT_MIGRATION).read_text()), {})
+
+
 class TtConfigTests(unittest.TestCase):
     def test_managed_endpoint_enables_per_client_metrics_on_loopback(self):
         import tt

@@ -226,7 +226,9 @@ def fetch_metrics(host, port, deadline=5.0):
                     break
                 chunks.append(chunk)
                 size += len(chunk)
-    except Exception:
+    except Exception as error:
+        if hasattr(error, 'close'):
+            error.close()  # An HTTPError holds the response open.
         raise Unavailable()
     data = b''.join(chunks)
     if len(data) > MAX_METRICS:
@@ -468,6 +470,125 @@ def read(store, workspace, now=None):
     result = [r for (protocol, rid), r in sorted(resources.items())
               if owners.get((protocol, rid), workspace) == workspace]
     return dict(readAt=now, resources=result)
+
+
+TT_MIGRATION = 'tt-metrics.json'
+
+
+def _wanted_metrics(rid, spec):
+    from tt_common import address
+    host, port = metrics_address(rid, spec['port'])
+    return dict(address=address(host, port), request_timeout_secs=3, per_client_metrics=True)
+
+
+def _endpoint_up(unit, rid, spec, sleep=time.sleep):
+    """The restarted endpoint runs and answers on its metrics listener."""
+    from tt_common import active
+    for _ in range(10):
+        sleep(1)
+        if active(unit):
+            try:
+                fetch_metrics(*metrics_address(rid, spec['port']))
+                return True
+            except Unavailable:
+                pass
+    return False
+
+
+def enable_tt_metrics(store, sleep=time.sleep):
+    """Per-client metrics for managed TrustTunnel endpoints written by a
+    runner before v77, which a new apply would enable anyway.
+
+    Runs in the worker between jobs only: a job's intent compares the very
+    file hashes this changes. Only an untouched file (its hash is the one
+    recorded) is edited, so a drifted endpoint stays the owner's to resolve.
+    A file intent makes a crash between the write, the record and the
+    restart resumable; an endpoint that does not come up with metrics gets
+    its old file back and is not tried again for that file."""
+    if store.db.execute("SELECT 1 FROM jobs WHERE status IN ('planned','running')").fetchone():
+        return
+    import tt
+    import tt_common
+    from panel import atomic_file, safe_file
+    from vless import canonical
+    path = Path(store.directory) / TT_MIGRATION
+    try:
+        safe_file(path)
+        state = json.loads(path.read_bytes())
+        if not isinstance(state, dict):
+            state = {}
+    except (OSError, ValueError):
+        state = {}
+
+    def save_state():
+        atomic_file(path, json.dumps(state, sort_keys=True).encode())
+
+    def record(rid, saved, value):
+        saved['hashes'][0] = value
+        with store.db:
+            store.db.execute('UPDATE tt_resources SET data=? WHERE id=?', (canonical(saved), rid))
+
+    for rid, saved in tt.owned(store).items():
+        spec = saved.get('spec') or {}
+        if saved.get('adopted') or spec.get('deleted') or spec.get('allowPrivate') is not False:
+            continue
+        vpn, unit = tt.paths(rid)[0], tt.unit_for(rid)
+        try:
+            raw = tt_common.read(vpn)
+            config = tt_common.toml_loads(raw.decode())
+        except Exception:
+            continue
+        current = hashlib.sha256(raw).hexdigest()
+        entry = state.get(rid) if isinstance(state.get(rid), dict) else None
+        if entry and entry.get('phase') == 'writing' and current == entry.get('after'):
+            before = entry['before']  # Written before a crash: finish it.
+            if saved['hashes'][0] != current:
+                record(rid, saved, current)
+        else:
+            if (config.get('metrics') or {}).get('per_client_metrics') is True:
+                if rid in state:
+                    state.pop(rid)
+                    save_state()
+                continue
+            if entry and entry.get('phase') == 'failed' and entry.get('before') == current:
+                continue
+            if saved['hashes'][0] != current:
+                continue
+            before = current
+            config['metrics'] = _wanted_metrics(rid, spec)
+            data = tt_common.toml_bytes(config)
+            state[rid] = dict(before=before, after=hashlib.sha256(data).hexdigest(), phase='writing',
+                              old=raw.decode())
+            save_state()
+            atomic_file(vpn, data, 0o600)
+            record(rid, saved, state[rid]['after'])
+        old = state[rid].get('old')
+        if spec.get('enabled') and not spec.get('deleted'):
+            try:
+                tt_common.run(['/usr/bin/systemctl', 'restart', unit], timeout=60)
+                up = _endpoint_up(unit, rid, spec, sleep)
+            except Exception:
+                up = False
+            if not up and old is not None:
+                atomic_file(vpn, old.encode(), 0o600)
+                record(rid, saved, before)
+                try:
+                    tt_common.run(['/usr/bin/systemctl', 'restart', unit], timeout=60)
+                except Exception:
+                    pass
+                state[rid] = dict(before=before, phase='failed')
+                save_state()
+                continue
+        state.pop(rid, None)
+        save_state()
+
+
+def safe_migrate(store):
+    try:
+        enable_tt_metrics(store)
+    except Exception as error:
+        import sys
+        sys.stderr.write(f'[runner] traffic metrics migration skipped: {type(error).__name__}\n')
 
 
 def safe_sample(store):

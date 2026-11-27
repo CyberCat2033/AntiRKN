@@ -1186,6 +1186,7 @@ def daemon(directory=STATE):
             next_sample = 0
             while not stopping:
                 if time.monotonic() >= next_sample:
+                    traffic.safe_migrate(store)
                     traffic.safe_sample(store)
                     next_sample = time.monotonic() + traffic.INTERVAL
                 try:

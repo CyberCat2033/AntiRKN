@@ -267,10 +267,13 @@ def _check_traffic_ledger(ctx, checked):
     # Nothing counted twice: the ledger of the idle AWG interface equals its
     # raw counters (all read since the interface came up), read after read.
     second = _traffic(ctx)
-    awg = {c['id']: c for c in ctx.rpc(dict(version=1, action='awg_state', id=WORKSPACE))['awgState'][0]['clients']}
-    ledger = {u['id']: u for u in second.get(('awg', AWG_RES_ID), {}).get('users', [])}
-    ctx.check(all(uid in ledger and (ledger[uid]['down'], ledger[uid]['up']) == (c['tx'], c['rx'])
-                  for uid, c in awg.items() if c.get('rx') is not None), 'traffic_awg_ledger_matches_counters')
+    if any(protocol == 'awg' for protocol, _, _ in checked):
+        # Only on the VM that built the interface: a restored snapshot's
+        # ledger also holds what was counted before its boot.
+        awg = {c['id']: c for c in ctx.rpc(dict(version=1, action='awg_state', id=WORKSPACE))['awgState'][0]['clients']}
+        ledger = {u['id']: u for u in second.get(('awg', AWG_RES_ID), {}).get('users', [])}
+        ctx.check(all(uid in ledger and (ledger[uid]['down'], ledger[uid]['up']) == (c['tx'], c['rx'])
+                      for uid, c in awg.items() if c.get('rx') is not None), 'traffic_awg_ledger_matches_counters')
     ctx.check(all(u['down'] >= v['down'] and u['up'] >= v['up']
                   for k in first for u, v in zip(second.get(k, {}).get('users', []), first[k]['users'])),
               'traffic_totals_monotonic')
@@ -733,6 +736,51 @@ def reboot(ctx, vm, mutation=None):
         ctx.check(tt_tcp and tt_udp, 'post_reboot_tt_passes')
 
 
+# ---------------------------------------------------------------- tt_metrics_upgrade
+
+def tt_metrics_upgrade(ctx, vm, mutation=None):
+    """A TrustTunnel endpoint written before runner v77 (no metrics section,
+    private networks off) gets per-client metrics once the worker restarts,
+    stays confirmed and counts its clients."""
+    disk = _ensure_protocols_disk(ctx, vm)
+    meta = _load_meta()
+    vm.start(lib.new_overlay('tt-metrics', disk))
+    ws, _, _, _ = _fetch_live_workspace(ctx, meta)
+    vpn = '/etc/antirkn-components/trusttunnel/%s/vpn.toml' % TT_RES_ID
+    unit = 'antirkn-tt@%s.service' % TT_RES_ID
+    ctx.check('per_client_metrics' not in remote('cat ' + vpn).stdout.decode(), 'old_endpoint_has_no_metrics')
+    # The stage endpoint allows private networks (the echo fixtures); its
+    # record now says it does not, like an endpoint of an older runner.
+    python("import json,sqlite3\n"
+           "db=sqlite3.connect('/var/lib/antirkn-runner/jobs.sqlite')\n"
+           "d=json.loads(db.execute('SELECT data FROM tt_resources WHERE id=?',(%r,)).fetchone()[0])\n"
+           "d['spec']['allowPrivate']=False\n"
+           "db.execute('UPDATE tt_resources SET data=? WHERE id=?',(json.dumps(d,sort_keys=True),%r))\n"
+           "db.commit()\n" % (TT_RES_ID, TT_RES_ID))
+    pid = lib.main_pid()
+    remote('systemctl restart antirkn-runner')
+    deadline = time.monotonic() + 90
+    migrated = False
+    while time.monotonic() < deadline and not migrated:
+        time.sleep(3)
+        migrated = re.search(r'per_client_metrics"?\s*=\s*true', remote('cat ' + vpn).stdout.decode()) is not None
+    if not migrated:
+        print(remote('journalctl -u antirkn-runner -n 40 --no-pager | grep -v heartbeat; '
+                     'cat /var/lib/antirkn-runner/tt-metrics.json; echo; sha256sum ' + vpn + '; '
+                     "sqlite3 /var/lib/antirkn-runner/jobs.sqlite \"SELECT status FROM jobs WHERE status IN ('planned','running')\"",
+                     check=False).stdout.decode(errors='replace')[-4000:])
+    ctx.check(migrated and lib.main_pid() != pid, 'worker_enables_metrics_after_restart')
+    ctx.check(remote('systemctl is-active ' + unit, check=False).returncode == 0, 'tt_active_with_metrics')
+    tt_state = ctx.rpc(dict(version=1, action='tt_state', id=WORKSPACE))['tt']['resources']
+    ctx.check(len(tt_state) == 1 and tt_state[0]['confirmed'], 'tt_confirmed_after_migration')
+    _traffic(ctx)
+    with lib.EchoFixtures(lib.BASE / 'protocols-tls'):
+        for index in (0, 1):
+            tcp, udp = _check_traffic(ctx, ws, TT_RES_ID, 'tt-metrics-u%d' % index, user_index=index)
+            ctx.check(tcp and udp, 'tt_traffic_after_migration_u%d' % index)
+    _check_traffic_ledger(ctx, [('tt', TT_RES_ID, 'tt_migrated')])
+
+
 SCENARIOS = {
     'runner_upgrade': dict(run=runner_upgrade, timeout=900,
                            mutations={'installer_drops_jobs_db': 'upgrade_preserves_old_job'}),
@@ -747,5 +795,6 @@ SCENARIOS = {
                              }),
     'reboot': dict(run=reboot, timeout=600,
                    mutations={'disable_tt_unit_before_reboot': 'post_reboot_tt_confirmed'}),
+    'tt_metrics_upgrade': dict(run=tt_metrics_upgrade, timeout=600, mutations={}),
 }
-ORDER = ['runner_upgrade', 'protocols', 'inbound_isolation', 'upgrade_rollback', 'reboot']
+ORDER = ['runner_upgrade', 'protocols', 'inbound_isolation', 'tt_metrics_upgrade', 'upgrade_rollback', 'reboot']
