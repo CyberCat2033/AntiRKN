@@ -5579,7 +5579,7 @@ abstract class AppLocalizations {
   /// No description provided for @uiPublicationAutoHelp.
   ///
   /// In en, this message translates to:
-  /// **'Save changes at the same profile links'**
+  /// **'Links stay the same after changes'**
   String get uiPublicationAutoHelp;
 
   /// No description provided for @uiInterfaces.
@@ -8011,6 +8011,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'To use another device, sign in there with the same Google account.'**
   String get uiPairDeviceNote;
+
+  /// No description provided for @templateLoadedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'YAML loaded'**
+  String get templateLoadedTitle;
+
+  /// No description provided for @templateUsedForProfiles.
+  ///
+  /// In en, this message translates to:
+  /// **'The basis of every client profile'**
+  String get templateUsedForProfiles;
+
+  /// No description provided for @templateChooseHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'A Mihomo YAML file'**
+  String get templateChooseHelp;
+
+  /// No description provided for @templateReplace.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace'**
+  String get templateReplace;
+
+  /// No description provided for @publicationDriveTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Publication in Google Drive'**
+  String get publicationDriveTitle;
+
+  /// No description provided for @publicationFolderRowHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Profiles folder'**
+  String get publicationFolderRowHelp;
+
+  /// No description provided for @publicationOpenDrive.
+  ///
+  /// In en, this message translates to:
+  /// **'Open in Google Drive'**
+  String get publicationOpenDrive;
+
+  /// No description provided for @publicationOpenFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open Google Drive.'**
+  String get publicationOpenFailed;
+
+  /// No description provided for @publicationRename.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename folder'**
+  String get publicationRename;
+
+  /// No description provided for @publicationFolderName.
+  ///
+  /// In en, this message translates to:
+  /// **'Folder name'**
+  String get publicationFolderName;
+
+  /// No description provided for @publicationRenameHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile links do not change.'**
+  String get publicationRenameHelp;
+
+  /// No description provided for @publicationFolderNameInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a name without line breaks, up to 100 characters.'**
+  String get publicationFolderNameInvalid;
 }
 
 class _AppLocalizationsDelegate

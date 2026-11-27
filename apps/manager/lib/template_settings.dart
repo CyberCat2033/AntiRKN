@@ -10,11 +10,16 @@ class TemplateSettings extends StatelessWidget {
   const TemplateSettings({
     required this.controller,
     this.emptyMessage,
+    this.grouped = false,
     super.key,
   });
 
   final TemplateController controller;
   final String? emptyMessage;
+
+  /// Under a "Base configuration" heading (the settings page): the row names
+  /// the file and offers to replace it, instead of repeating the heading.
+  final bool grouped;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -22,33 +27,59 @@ class TemplateSettings extends StatelessWidget {
     builder: (context, _) {
       final l = AppLocalizations.of(context);
       final hasSource = controller.source.trim().isNotEmpty;
+      final VoidCallback? pick =
+          controller.importing ||
+              controller.busy ||
+              controller.pickTemplate == null
+          ? null
+          : controller.importFile;
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ListTile(
-            key: const ValueKey('import-template'),
-            leading: const Icon(Icons.description_outlined),
-            title: Text(l.source),
-            subtitle: Text(
-              controller.coreChecking
-                  ? l.templateCoreChecking
-                  : controller.importing
-                  ? l.templateLoading
-                  : controller.importedName ??
-                        (hasSource
-                            ? l.templateReady
-                            : emptyMessage ?? l.vpnEmptyTemplate),
+          if (grouped)
+            AppActionTile(
+              key: const ValueKey('import-template'),
+              onTap: pick,
+              leading: const Icon(Icons.description_outlined),
+              title: Text(
+                controller.importedName ??
+                    (hasSource
+                        ? l.templateLoadedTitle
+                        : emptyMessage ?? l.vpnEmptyTemplate),
+              ),
+              subtitle: Text(
+                controller.coreChecking
+                    ? l.templateCoreChecking
+                    : controller.importing
+                    ? l.templateLoading
+                    : hasSource
+                    ? l.templateUsedForProfiles
+                    : l.templateChooseHelp,
+              ),
+              action: TextButton(
+                key: const ValueKey('import-template-action'),
+                onPressed: pick,
+                child: Text(hasSource ? l.templateReplace : l.backupSelect),
+              ),
+            )
+          else
+            ListTile(
+              key: const ValueKey('import-template'),
+              leading: const Icon(Icons.description_outlined),
+              title: Text(l.source),
+              subtitle: Text(
+                controller.coreChecking
+                    ? l.templateCoreChecking
+                    : controller.importing
+                    ? l.templateLoading
+                    : controller.importedName ??
+                          (hasSource
+                              ? l.templateReady
+                              : emptyMessage ?? l.vpnEmptyTemplate),
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: pick,
             ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap:
-                controller.importing ||
-                    controller.busy ||
-                    controller.pickTemplate == null
-                ? null
-                : () {
-                    controller.importFile();
-                  },
-          ),
           if (hasSource &&
               controller.draftStore != null &&
               controller.draftSaveFailed)

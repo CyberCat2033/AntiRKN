@@ -265,6 +265,16 @@ final class GoogleDrivePublisher
     );
   }
 
+  @override
+  Future<void> renameFolder(String fileId, String name) async {
+    await _send(
+      'PATCH',
+      _uri('files/${_id(fileId)}', {'fields': 'id'}),
+      body: Uint8List.fromList(utf8.encode(jsonEncode({'name': name}))),
+      headers: {'Content-Type': 'application/json; charset=UTF-8'},
+    );
+  }
+
   /// The v3 create response carries only kind/id/name/mimeType: no v2 ETag,
   /// private properties or capabilities. The created file is therefore read
   /// back through v2, which is also the confirmation of the remote state.

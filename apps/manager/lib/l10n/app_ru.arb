@@ -1117,7 +1117,7 @@
   "uiSyncAutomaticHelp": "После каждого изменения и при возвращении",
   "uiPairDeviceHelp": "Войти в тот же Google-аккаунт",
   "uiPublicProfileHelp": "Профиль доступен по прямой ссылке. QR-код и ссылку можно получить в карточке клиента.",
-  "uiPublicationAutoHelp": "Сохранять изменения по прежним ссылкам",
+  "uiPublicationAutoHelp": "Ссылки не меняются после правок",
   "uiInterfaces": "Интерфейсы",
   "uiConnections": "Подключения",
   "uiTtSetup": "Настроить TrustTunnel",
@@ -1632,5 +1632,17 @@
   "uiAccountActions": "Действия с аккаунтом",
   "uiSyncNow": "Синхронизировать",
   "uiSyncedToday": "Сегодня, {time}",
-  "uiPairDeviceNote": "Чтобы работать с другого устройства, войдите на нём в тот же Google-аккаунт."
+  "uiPairDeviceNote": "Чтобы работать с другого устройства, войдите на нём в тот же Google-аккаунт.",
+  "templateLoadedTitle": "YAML загружен",
+  "templateUsedForProfiles": "Основа всех профилей клиентов",
+  "templateChooseHelp": "YAML-файл Mihomo",
+  "templateReplace": "Заменить",
+  "publicationDriveTitle": "Публикация в Google Drive",
+  "publicationFolderRowHelp": "Папка с профилями",
+  "publicationOpenDrive": "Открыть в Google Drive",
+  "publicationOpenFailed": "Не удалось открыть Google Drive.",
+  "publicationRename": "Переименовать папку",
+  "publicationFolderName": "Название папки",
+  "publicationRenameHelp": "Ссылки на профили не изменятся.",
+  "publicationFolderNameInvalid": "Введите название без переносов строк, до 100 символов."
 }

@@ -58,6 +58,9 @@ abstract interface class PublicationRemoteStore {
   Future<PublicationFile> getFile(String fileId);
   Future<List<PublicationFile>> listFolders();
   Future<void> createFolder(String fileId, String name);
+
+  /// Renames in place: the ID and every profile link inside stay the same.
+  Future<void> renameFolder(String fileId, String name);
   Future<PublicationFile> createYaml({
     required String fileId,
     required String folderId,
@@ -195,7 +198,18 @@ final class PublicationSettings {
       pickerAppId: value['pickerAppId'] as String?,
     );
   }
+
+  /// A folder name the user can type: trimmed, not empty, at most
+  /// [folderNameLimit] characters, without control characters.
+  static bool validFolderName(String value) =>
+      value.isNotEmpty &&
+      value == value.trim() &&
+      value.length <= folderNameLimit &&
+      !RegExp(r'[\x00-\x1F\x7F]').hasMatch(value);
+  static const folderNameLimit = 100;
+
   PublicationSettings copy({
+    String? folderName,
     bool? enabled,
     bool? folderReady,
     PublicationAccess? access,
@@ -204,7 +218,7 @@ final class PublicationSettings {
   }) => PublicationSettings(
     accountKey: accountKey,
     folderId: folderId,
-    folderName: folderName,
+    folderName: folderName ?? this.folderName,
     access: access ?? this.access,
     enabled: enabled ?? this.enabled,
     folderReady: folderReady ?? this.folderReady,

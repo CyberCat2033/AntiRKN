@@ -143,6 +143,28 @@ class Remote implements PublicationRemoteStore {
     }
   }
 
+  /// Names given by [renameFolder]; [renameKeepsName] makes Drive ignore it.
+  final renames = <String>[];
+  bool renameKeepsName = false;
+  @override
+  Future<void> renameFolder(String id, String name) async {
+    if (failWithIssue != null) throw PublicationFailure(failWithIssue!);
+    final folder =
+        folders[id] ??
+        (throw const PublicationFailure(PublicationIssue.missing));
+    renames.add(name);
+    if (renameKeepsName) return;
+    folders[id] = PublicationFile(
+      id: id,
+      name: name,
+      mimeType: folder.mimeType,
+      version: folder.version,
+      etag: folder.etag,
+      editable: folder.editable,
+      properties: folder.properties,
+    );
+  }
+
   @override
   Future<Uint8List> download(String id) async => contents[id] ?? Uint8List(0);
 
@@ -2207,6 +2229,163 @@ void main() {
       vpn.dispose();
     },
   );
+  test('the folder is renamed in Drive in place and read back', () async {
+    final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
+    final remote = Remote();
+    final opened = <Uri>[];
+    final c = PublicationController(
+      repository: Repository(),
+      account: Account()..publicationAuthorized = true,
+      remote: () => remote,
+      vpn: vpn,
+      openExternal: (uri) async {
+        opened.add(uri);
+        return true;
+      },
+    );
+    addTearDown(() {
+      c.dispose();
+      vpn.dispose();
+    });
+    await c.ready;
+    await c.configure(PublicationAccess.link);
+    final id = c.settings!.folderId;
+    expect(c.settings!.folderName, 'AntiRKN profiles');
+
+    await c.renameFolder('  My VPN profiles ');
+    expect(c.error, isNull);
+    expect(remote.renames, ['My VPN profiles']);
+    expect(remote.folders[id]!.name, 'My VPN profiles');
+    expect(c.settings!.folderName, 'My VPN profiles');
+    expect(c.settings!.folderId, id);
+
+    // Invalid and unchanged names do not reach Drive.
+    for (final name in ['', '   ', 'a\nb', 'x' * 101, 'My VPN profiles']) {
+      await c.renameFolder(name);
+    }
+    expect(remote.renames, ['My VPN profiles']);
+
+    // Drive did not take the name: the stored one stays, the user is told.
+    remote.renameKeepsName = true;
+    await c.renameFolder('Other');
+    expect(c.error, PublicationIssue.readback);
+    expect(c.settings!.folderName, 'My VPN profiles');
+    remote.renameKeepsName = false;
+
+    // Renamed in Drive itself: the app takes the name from there.
+    remote.folders[id] = PublicationFile(
+      id: id,
+      name: 'Renamed in Drive',
+      mimeType: 'application/vnd.google-apps.folder',
+      version: '2',
+      etag: 'etag',
+      editable: true,
+      properties: {},
+    );
+    await c.refreshFolderName();
+    expect(c.settings!.folderName, 'Renamed in Drive');
+
+    expect(await c.openFolder(), isTrue);
+    expect(
+      opened.single.toString(),
+      'https://drive.google.com/drive/folders/$id',
+    );
+  });
+
+  testWidgets('the folder row renames the folder through a dialog', (
+    tester,
+  ) async {
+    final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
+    final remote = Remote();
+    final c = PublicationController(
+      repository: Repository(),
+      account: Account()..publicationAuthorized = true,
+      remote: () => remote,
+      vpn: vpn,
+      openExternal: (_) async => false,
+    );
+    addTearDown(() {
+      c.dispose();
+      vpn.dispose();
+    });
+    await tester.runAsync(() async {
+      await c.ready;
+      await c.configure(PublicationAccess.link);
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('en'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        home: Scaffold(
+          body: ListView(
+            children: [
+              PublicationSettingsPanel(controller: c, showTitle: false),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('AntiRKN profiles'), findsOneWidget);
+    expect(
+      find.text(
+        'Anyone with the link can download the profile and its client credentials.',
+      ),
+      findsOneWidget,
+    );
+    // An opener that fails says so.
+    await tester.tap(find.byKey(const ValueKey('publication-open-drive')));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not open Google Drive.'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('publication-rename')));
+    await tester.pumpAndSettle();
+    final field = find.byKey(const ValueKey('publication-folder-name'));
+    await tester.enterText(field, ' ');
+    await tester.tap(find.byKey(const ValueKey('publication-rename-save')));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Enter a name without line breaks, up to 100 characters.'),
+      findsOneWidget,
+    );
+    await tester.enterText(field, 'Family profiles');
+    await tester.runAsync(() async {
+      await tester.tap(find.byKey(const ValueKey('publication-rename-save')));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
+    await tester.pumpAndSettle();
+    expect(field, findsNothing);
+    expect(remote.renames, ['Family profiles']);
+    expect(find.text('Family profiles'), findsOneWidget);
+  });
+
+  test('a folder not created yet only gets the new name', () async {
+    final vpn = fixtures.controller(fixtures.MemoryVpn(), {});
+    final remote = Remote()..lost = true;
+    final c = PublicationController(
+      repository: Repository(),
+      account: Account()..publicationAuthorized = true,
+      remote: () => remote,
+      vpn: vpn,
+    );
+    addTearDown(() {
+      c.dispose();
+      vpn.dispose();
+    });
+    await c.ready;
+    await c.configure(PublicationAccess.link);
+    expect(c.settings!.folderReady, isFalse);
+    final id = c.settings!.folderId;
+    remote.folders.remove(id);
+    await c.renameFolder('Later');
+    expect(remote.renames, isEmpty);
+    expect(c.settings!.folderName, 'Later');
+    expect(await c.openFolder(), isFalse);
+    await c.completeSetup();
+    expect(remote.folders[id]!.name, 'Later');
+    expect(c.settings!.folderReady, isTrue);
+  });
 }
 
 class _TestAutoSyncSession implements AutoSyncSession {

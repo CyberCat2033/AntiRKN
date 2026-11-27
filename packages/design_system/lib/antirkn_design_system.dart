@@ -2831,10 +2831,14 @@ class AppActionTile extends StatelessWidget {
     required this.action,
     this.leading,
     this.subtitle,
+    this.onTap,
     super.key,
   });
   final Widget title, action;
   final Widget? leading, subtitle;
+
+  /// The row itself, usually the same as [action].
+  final VoidCallback? onTap;
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
@@ -2847,12 +2851,18 @@ class AppActionTile extends StatelessWidget {
           title: title,
           subtitle: subtitle,
           trailing: action,
+          onTap: onTap,
         );
       }
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ListTile(leading: leading, title: title, subtitle: subtitle),
+          ListTile(
+            leading: leading,
+            title: title,
+            subtitle: subtitle,
+            onTap: onTap,
+          ),
           Padding(
             padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 12),
             child: Align(

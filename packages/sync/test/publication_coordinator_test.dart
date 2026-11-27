@@ -187,6 +187,10 @@ class Remote implements PublicationRemoteStore {
   }
 
   @override
+  Future<void> renameFolder(String id, String name) async =>
+      throw UnimplementedError();
+
+  @override
   Future<PublicationFile> createYaml({
     required String fileId,
     required String folderId,
