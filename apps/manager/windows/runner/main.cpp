@@ -5,8 +5,36 @@
 #include "flutter_window.h"
 #include "utils.h"
 
+namespace {
+
+// Held for the whole process lifetime so the Inno Setup installer
+// (AppMutex in packaging/windows/antirkn.iss) sees a running instance and
+// does not replace its files. Several instances may run at once: an existing
+// mutex is not an error and nothing here blocks a second instance. A Global
+// mutex needs no administrator rights; failure to create one is ignored.
+class InstallerMutexes {
+ public:
+  InstallerMutexes()
+      : local_(::CreateMutexW(nullptr, FALSE, L"Local\\AntiRKNManagerRunning")),
+        global_(::CreateMutexW(nullptr, FALSE, L"Global\\AntiRKNManagerRunning")) {}
+  ~InstallerMutexes() {
+    if (global_ != nullptr) ::CloseHandle(global_);
+    if (local_ != nullptr) ::CloseHandle(local_);
+  }
+  InstallerMutexes(const InstallerMutexes&) = delete;
+  InstallerMutexes& operator=(const InstallerMutexes&) = delete;
+
+ private:
+  HANDLE local_;
+  HANDLE global_;
+};
+
+}  // namespace
+
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
+  InstallerMutexes installer_mutexes;
+
   // Attach to console when present (e.g., 'flutter run') or create a
   // new console when running with a debugger.
   if (!::AttachConsole(ATTACH_PARENT_PROCESS) && ::IsDebuggerPresent()) {

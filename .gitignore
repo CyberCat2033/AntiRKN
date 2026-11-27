@@ -9,6 +9,17 @@ build/
 *.iml
 *.jks
 *.keystore
+# Release signing material (Android keystore, update manifest keys) never enters Git.
+key.properties
+*.jks.base64
+*.keystore.base64
+*.p12
+*.pfx
+*.pk8
+*.seed
+*update-signing*
+*update-key*.private
+antirkn-update-k*.key
 .env
 *.log
 coverage/

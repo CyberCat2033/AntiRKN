@@ -1,0 +1,5 @@
+#!/bin/sh
+# AppImage entry point. The runtime sets $APPIMAGE and $APPDIR; the app reads
+# the install-kind marker next to its executable to choose the update method.
+HERE="${APPDIR:-$(dirname "$(readlink -f "$0")")}"
+exec "$HERE/antirkn_manager" "$@"
