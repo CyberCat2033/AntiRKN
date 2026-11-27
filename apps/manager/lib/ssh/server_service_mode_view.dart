@@ -148,8 +148,8 @@ class ServerServiceModeSection extends StatelessWidget {
           ready ? () => action(context) : null;
       Widget guarded(Widget child) =>
           AppDisabledReason(reason: reason, child: child);
-      final state = switch (mode?.state) {
-        null => l.serviceModeOff,
+      final stateText = switch (mode?.state) {
+        null => null,
         ServerServiceState.returning => l.serviceModeReturningBadge,
         ServerServiceState.active => l.serviceModeSince(
           DateFormat.yMd(l.localeName).add_Hm().format(mode!.since.toLocal()),
@@ -173,8 +173,20 @@ class ServerServiceModeSection extends StatelessWidget {
                 SwitchListTile(
                   key: const ValueKey('service-mode-switch'),
                   secondary: const Icon(Icons.construction_outlined),
-                  title: Text(state, key: const ValueKey('service-mode-state')),
-                  subtitle: Text(l.serviceModeHelp),
+                  title: Text(l.serviceModeTitle),
+                  subtitle: stateText == null
+                      ? Text(l.serviceModeHelp)
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              stateText,
+                              key: const ValueKey('service-mode-state'),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(l.serviceModeHelp),
+                          ],
+                        ),
                   isThreeLine: true,
                   value: mode != null,
                   onChanged: !ready || returning

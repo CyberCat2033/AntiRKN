@@ -3046,9 +3046,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get uiServerAboutSummary => 'Внешние IP, трафик и место на диске';
 
   @override
-  String get uiServerAboutHelp => 'Данные сервера при последнем обновлении';
-
-  @override
   String get uiNoActivity => 'Действий пока нет';
 
   @override
@@ -3098,11 +3095,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String uiConnectionCount(int count) {
     return 'Подключений: $count';
-  }
-
-  @override
-  String uiObservedAt(String time) {
-    return 'Обновлено: $time';
   }
 
   @override
@@ -4448,10 +4440,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get serviceModeHelp =>
-      'Сервер остаётся в приложении и продолжает работать, но его узлы убираются из профилей клиентов, а новые клиенты на него не добавляются. Включайте на время тестирования, ремонта или перенастройки сервера.';
-
-  @override
-  String get serviceModeOff => 'Выключен';
+      'Убирает узлы из профилей клиентов и не добавляет новых на время проверки или ремонта.';
 
   @override
   String serviceModeSince(String time) {

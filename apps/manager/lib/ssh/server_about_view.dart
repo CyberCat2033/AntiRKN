@@ -61,58 +61,11 @@ class ServerAboutView extends StatelessWidget {
       final facts = c.software?.facts;
       final free = int.tryParse(facts?[ServerFact.freeDiskKiB]?.value ?? '');
       final total = int.tryParse(facts?[ServerFact.totalDiskKiB]?.value ?? '');
-      final at = c.observation?.network.observedAt ?? c.lastInfo?.observedAt;
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  c.stage == SshStage.connected
-                      ? l.uiServerAboutHelp
-                      : l.inventoryStale,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
-              IconButton(
-                tooltip:
-                    busyReason(
-                      l,
-                      runner: c.runner,
-                      ssh: c,
-                      needsConnection: true,
-                    ) ??
-                    l.sshRefresh,
-                onPressed:
-                    c.stage == SshStage.connected &&
-                        !c.busy &&
-                        !c.runner.busy &&
-                        diagnostics?.busy != true
-                    ? () {
-                        c.refresh();
-                      }
-                    : null,
-                icon: const Icon(Icons.refresh),
-              ),
-            ],
-          ),
-          if (at != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Text(
-                l.uiObservedAt(
-                  DateFormat.yMd(l.localeName).add_Hm().format(at.toLocal()),
-                ),
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
-          const SizedBox(height: 12),
           clientEgress ??
               ClientEgressCard(controller: c.runner, vpn: vpn, motion: motion),
-          const SizedBox(height: 12),
           if (vpn case final vpn?)
             ServerServiceModeSection(
               vpn: vpn,

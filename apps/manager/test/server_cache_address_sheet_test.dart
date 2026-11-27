@@ -23,7 +23,7 @@ void main() {
   );
 
   testWidgets(
-    'offline About displays cached IPs, traffic, disk and observation time',
+    'offline About displays cached IPs, traffic and disk under egress heading',
     (tester) async {
       tester.view.physicalSize = const Size(390, 1200);
       tester.view.devicePixelRatio = 1;
@@ -63,12 +63,16 @@ void main() {
         app(SingleChildScrollView(child: ServerAboutView(controller: offline))),
       );
       await tester.pumpAndSettle();
+      final l = AppLocalizations.of(
+        tester.element(find.byType(ServerAboutView)),
+      );
       expect(find.text('93.184.215.15'), findsOneWidget);
       expect(find.text('1.0 KiB'), findsOneWidget);
       expect(find.text('2.0 KiB'), findsOneWidget);
       expect(find.text('1.0 GiB'), findsOneWidget);
-      expect(find.textContaining('Previous observation'), findsOneWidget);
-      expect(find.textContaining('9/16/2026'), findsOneWidget);
+      expect(find.text(l.egressTitle), findsNWidgets(2));
+      expect(find.textContaining('Previous observation'), findsNothing);
+      expect(find.textContaining('9/16/2026'), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
       offline.dispose();

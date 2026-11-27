@@ -5366,12 +5366,6 @@ abstract class AppLocalizations {
   /// **'Public IPs, traffic and disk space'**
   String get uiServerAboutSummary;
 
-  /// No description provided for @uiServerAboutHelp.
-  ///
-  /// In en, this message translates to:
-  /// **'Server data from the latest refresh'**
-  String get uiServerAboutHelp;
-
   /// No description provided for @uiNoActivity.
   ///
   /// In en, this message translates to:
@@ -5467,12 +5461,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Connections: {count}'**
   String uiConnectionCount(int count);
-
-  /// No description provided for @uiObservedAt.
-  ///
-  /// In en, this message translates to:
-  /// **'Updated: {time}'**
-  String uiObservedAt(String time);
 
   /// No description provided for @uiTrafficSince.
   ///
@@ -7721,14 +7709,8 @@ abstract class AppLocalizations {
   /// No description provided for @serviceModeHelp.
   ///
   /// In en, this message translates to:
-  /// **'The server stays in the app and keeps running, but its proxies leave client profiles and new clients are not added to it. Turn it on while you test, repair or rebuild the server.'**
+  /// **'Removes proxies from client profiles and pauses new clients while you test or repair.'**
   String get serviceModeHelp;
-
-  /// No description provided for @serviceModeOff.
-  ///
-  /// In en, this message translates to:
-  /// **'Off'**
-  String get serviceModeOff;
 
   /// No description provided for @serviceModeSince.
   ///
