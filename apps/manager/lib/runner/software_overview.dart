@@ -12,6 +12,7 @@ import 'panel_installation_view.dart';
 import 'panel_update_view.dart';
 import 'panel_login_view.dart';
 import 'runner_controller.dart';
+import 'runner_panel.dart' show runnerEventLabel, runnerStateLabel;
 import 'xray_upgrade_view.dart' show xrayProgress;
 
 class SoftwareOverview extends StatelessWidget {
@@ -466,74 +467,171 @@ class SoftwareOverview extends StatelessWidget {
   }
 }
 
+/// Ubuntu packages as one software card, like the components (variant A):
+/// Check refreshes the package lists and shows what can be upgraded,
+/// Update installs it; while a job runs, a ring around the icon, its step
+/// and Stop. The server restart ([reboot]) lives here too.
 class AptMaintenanceView extends StatelessWidget {
-  const AptMaintenanceView({required this.controller, super.key});
+  const AptMaintenanceView({required this.controller, this.reboot, super.key});
   final RunnerController controller;
+
+  /// Restarts the server and tracks its reconnect; kept in one place of the
+  /// card so its state survives the card's changes.
+  final Widget? reboot;
   @override
   Widget build(BuildContext context) {
     final c = controller, l = AppLocalizations.of(context);
+    final colors = Theme.of(context).colorScheme;
     final packages = c.aptPlan?['packages'] as List?;
-    if (!c.choosingAptUpdate && c.aptPlan == null) {
-      return AppSettingsSection(
-        title: l.aptTitle,
-        child: ListTile(
-          key: const ValueKey('system-update'),
-          leading: const AppIconTile(icon: Icons.dns_outlined),
-          title: Text(l.uiSystemUpdate),
-          subtitle: Text(l.uiSystemUpdateHelp),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: c.canRequestAction
-              ? () => c.requestAction(c.updateSystem)
+    final job = switch (c.selected) {
+      final j?
+          when aptCardJobs.contains(j.kind) &&
+              (!j.terminal || !c.isDismissed(j)) =>
+        j,
+      _ => null,
+    };
+    final running = job != null && !job.terminal;
+    final preparing =
+        !running && c.choosingAptUpdate && (c.busy || c.actionPending);
+    final failed =
+        job != null &&
+        job.terminal &&
+        const {'failed', 'partially_applied', 'cancelled'}.contains(job.status);
+    final event = job?.events.lastOrNull;
+    final restart =
+        job?.kind == 'server_reboot' ||
+        job?.kind == 'apt_upgrade' &&
+            job!.status == 'succeeded' &&
+            job.events.any((e) => e.code == 'apt_reboot_required');
+    final String? step = running
+        ? job.cancelRequested
+              ? l.runnerCancelRequested
+              : switch (job.kind) {
+                  'apt_update' => l.aptUpdating,
+                  'apt_upgrade' => l.aptUpgrading,
+                  _ =>
+                    event != null
+                        ? runnerEventLabel(l, event.code)
+                        : runnerStateLabel(l, job.status),
+                }
+        : preparing
+        ? l.softwarePreparing
+        : null;
+    final status = failed
+        ? null
+        : packages != null
+        ? (packages.isEmpty
+              ? l.aptUpToDate
+              : l.aptPackageCount(packages.length))
+        : job?.kind == 'apt_upgrade' && job!.status == 'succeeded'
+        ? [l.aptUpToDate, if (restart) l.aptRestartRequired].join(' · ')
+        : step == null
+        ? l.aptNotChecked
+        : null;
+    final idle = c.busy || c.actionPending || !c.canRequestAction;
+    final Widget? action = running
+        ? FilledButton.tonal(
+            key: const ValueKey('apt-cancel'),
+            onPressed: !c.busy && !c.actionPending && !job.cancelRequested
+                ? c.cancelJob
+                : null,
+            child: Text(l.softwareStop),
+          )
+        : preparing
+        ? null
+        : Wrap(
+            alignment: WrapAlignment.end,
+            spacing: AppLayout.smallGap,
+            runSpacing: AppLayout.smallGap,
+            children: [
+              if (failed)
+                TextButton(
+                  key: const ValueKey('apt-close'),
+                  onPressed: c.busy ? null : c.dismissJob,
+                  child: Text(l.networkClose),
+                ),
+              if (packages?.isNotEmpty == true) ...[
+                TextButton(
+                  key: const ValueKey('apt-packages'),
+                  onPressed: () => showAppDetails(
+                    context,
+                    title: l.aptPackageCount(packages!.length),
+                    children: [
+                      for (final p in packages)
+                        ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(p['name'] as String),
+                          subtitle: Text('${p['installed']} → ${p['version']}'),
+                        ),
+                    ],
+                  ),
+                  child: Text(l.aptPackages),
+                ),
+                FilledButton.tonal(
+                  key: const ValueKey('apt-apply'),
+                  onPressed: c.canStart && !idle ? c.applyApt : null,
+                  child: Text(l.softwareUpdate),
+                ),
+              ] else
+                AppDisabledReason(
+                  reason: busyReason(l, runner: c),
+                  child: FilledButton.tonal(
+                    key: const ValueKey('system-update'),
+                    onPressed: idle
+                        ? null
+                        : () => c.requestAction(
+                            () => c.updateSystem(upgrade: false),
+                          ),
+                    child: Text(l.uiCheck),
+                  ),
+                ),
+            ],
+          );
+    return AppSettingsSection(
+      title: l.aptTitle,
+      child: SummaryCard(
+        embedded: true,
+        leadingAtTop: true,
+        leading: AppIconTile(
+          icon: Icons.dns_outlined,
+          busy: running || preparing,
+          value: running && job.count > 0 && job.checkpoint > 0
+              ? job.checkpoint / job.count
               : null,
         ),
-      );
-    }
-    return SectionCard(
-      title: l.aptTitle,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (c.choosingAptUpdate || packages != null) ...[
-            Text(c.choosingAptUpdate ? l.aptUpdatePlan : l.aptUpgradePlan),
-            if (packages != null) ...[
+        title: 'Ubuntu',
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (status != null) Text(key: const ValueKey('apt-status'), status),
+            if (step != null)
               Text(
-                packages.isEmpty
-                    ? l.aptCurrent
-                    : l.aptPackageCount(packages.length),
+                key: const ValueKey('apt-step'),
+                step,
+                style: TextStyle(color: colors.primary),
               ),
-              if (packages.isNotEmpty)
-                AppExpansionTile(
-                  key: const PageStorageKey('software-package-updates'),
-                  title: Text(l.componentsDetails),
-                  children: [
-                    for (final p in packages)
-                      ListTile(
-                        dense: true,
-                        title: Text(p['name'] as String),
-                        subtitle: Text('${p['installed']} → ${p['version']}'),
-                      ),
-                  ],
-                ),
-              if (c.aptPlan?['rebootRequired'] == true) Text(l.aptReboot),
-            ],
-            Wrap(
-              spacing: AppLayout.smallGap,
-              children: [
-                if (c.choosingAptUpdate || packages?.isNotEmpty == true)
-                  FilledButton(
-                    key: const ValueKey('apt-apply'),
-                    onPressed: c.canStart ? c.applyApt : null,
-                    child: Text(l.softwareUpdate),
-                  ),
-                TextButton(
-                  onPressed: c.busy ? null : c.dismissApt,
-                  child: Text(l.runnerNotNow),
-                ),
-              ],
-            ),
+            if (failed)
+              Text(
+                key: const ValueKey('apt-failed'),
+                event != null && event.code != 'failed'
+                    ? runnerEventLabel(l, event.code)
+                    : runnerStateLabel(l, job.status),
+                style: TextStyle(color: colors.error),
+              ),
+            if (reboot case final restartAction? when restart)
+              Padding(
+                key: const ValueKey('apt-reboot'),
+                padding: const EdgeInsets.only(top: AppLayout.smallGap),
+                child: restartAction,
+              ),
           ],
-        ],
+        ),
+        action: action,
       ),
     );
   }
 }
+
+/// Jobs the Ubuntu card draws instead of the runner panel.
+const aptCardJobs = {'apt_update', 'apt_upgrade', 'server_reboot'};

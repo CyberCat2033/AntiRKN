@@ -360,6 +360,10 @@ class RunnerController extends ChangeNotifier {
   Map<String, dynamic>? aptPlan;
   bool choosingAptUpdate = false;
   bool _systemUpdate = false;
+
+  /// The system update installs the refreshed package set at once; without
+  /// it (Check), the plan is only shown.
+  bool _systemUpgrade = true;
   bool _applySystemUpgrade = false;
 
   /// The finished job this device closed, as of its event [_dismissedAt].
@@ -1575,12 +1579,14 @@ class RunnerController extends ChangeNotifier {
   }
 
   /// The explicit system-update action refreshes indexes and installs the
-  /// resulting, fingerprinted package set without a second confirmation.
-  Future<void> updateSystem() async {
+  /// resulting, fingerprinted package set without a second confirmation;
+  /// with [upgrade] false it stops at the plan ([aptPlan]), for Upgrade.
+  Future<void> updateSystem({bool upgrade = true}) async {
     if (!canStart) return;
     await prepareApt(upgrade: false);
     if (!choosingAptUpdate || !canStart) return;
     _systemUpdate = true;
+    _systemUpgrade = upgrade;
     final before = selected?.id;
     await applyApt();
     // Only a submitted (or possibly submitted) index refresh continues with
@@ -2724,6 +2730,7 @@ class RunnerController extends ChangeNotifier {
           aptPlan = plan.aptPlan;
           _dismiss(job);
           _applySystemUpgrade =
+              _systemUpgrade &&
               !observesOperation &&
               (aptPlan?['packages'] as List? ?? []).isNotEmpty;
         }

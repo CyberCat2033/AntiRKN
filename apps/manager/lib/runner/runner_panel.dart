@@ -21,8 +21,8 @@ class RunnerPanel extends StatelessWidget {
   final RunnerController controller;
   final MotionPreference motion;
 
-  /// The reboot action (with its reconnect tracking), offered under a
-  /// finished job that left the server needing a reboot.
+  /// The reboot action (with its reconnect tracking), offered on the
+  /// Ubuntu card after an upgrade that left the server needing a reboot.
   final Widget? reboot;
 
   /// The checked Xray core transaction, shown under the 3x-ui / Xray row.
@@ -42,6 +42,8 @@ class RunnerPanel extends StatelessWidget {
       final showJob =
           job != null &&
           !installationOwned &&
+          // Ubuntu updates and the restart live on their card.
+          !aptCardJobs.contains(job.kind) &&
           (active ||
               failed ||
               ((job.kind.startsWith('apt_') ||
@@ -56,7 +58,6 @@ class RunnerPanel extends StatelessWidget {
               runnerEventLabel(l, event.code) != runnerStateLabel(l, job.status)
           ? runnerEventLabel(l, event.code)
           : null;
-      final reboot = job?.events.any((e) => e.code == 'apt_reboot_required');
       final resumable =
           failed &&
           const {
@@ -67,7 +68,7 @@ class RunnerPanel extends StatelessWidget {
             'tt_external_edit',
             'tt_certificate',
           }.contains(job.kind);
-      final notes = [?detail, if (reboot == true) l.aptReboot];
+      final notes = [?detail];
       final troubled =
           c.error != null || c.installed && !c.alive || c.connectionLost;
       // One reset action per panel: either under the error row or the job.
@@ -192,13 +193,7 @@ class RunnerPanel extends StatelessWidget {
                 value: job.count > 0 && job.checkpoint > 0
                     ? job.checkpoint / job.count
                     : null,
-                step: job.count > 1
-                    ? '${(job.checkpoint + 1).clamp(1, job.count)}/${job.count}'
-                    : null,
-                notes: [
-                  if (reboot == true) l.aptReboot,
-                  if (job.cancelRequested) l.runnerCancelRequested,
-                ],
+                notes: [if (job.cancelRequested) l.runnerCancelRequested],
                 actions: [
                   if (job.kind != 'server_reboot')
                     TextButton(
@@ -218,15 +213,6 @@ class RunnerPanel extends StatelessWidget {
                       inline: true,
                     ),
                 ],
-              ),
-            // Kept while the reboot job runs: the view tracks the reconnect.
-            if (this.reboot case final rebootAction?
-                when showJob &&
-                    (job.terminal && reboot == true ||
-                        job.kind == 'server_reboot'))
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: rebootAction,
               ),
             // A job shown elsewhere (a component install) keeps the reset.
             if (resetAfterJob && !showJob)
@@ -268,7 +254,7 @@ class RunnerPanel extends StatelessWidget {
                 (active || failed) &&
                 job.kind == 'component_install')
               ComponentInstallationView(controller: c),
-            AptMaintenanceView(controller: c),
+            AptMaintenanceView(controller: c, reboot: reboot),
           ],
         ),
       );

@@ -1974,6 +1974,18 @@ class AppLocalizationsEn extends AppLocalizations {
       'A new version is available. Applying 3x-ui/Xray updates in the app is not supported yet; use the x-ui command on the server.';
 
   @override
+  String get aptNotChecked => 'Not checked';
+
+  @override
+  String get aptUpToDate => 'Up to date';
+
+  @override
+  String get aptRestartRequired => 'Restart required';
+
+  @override
+  String get aptPackages => 'Packages';
+
+  @override
   String get aptTitle => 'Ubuntu updates';
 
   @override

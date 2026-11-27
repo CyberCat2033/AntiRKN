@@ -1980,6 +1980,18 @@ class AppLocalizationsRu extends AppLocalizations {
       'Новая версия обнаружена. Применение обновлений 3x-ui/Xray из приложения пока недоступно; обновить их можно через команду x-ui на сервере.';
 
   @override
+  String get aptNotChecked => 'Не проверено';
+
+  @override
+  String get aptUpToDate => 'Обновлений нет';
+
+  @override
+  String get aptRestartRequired => 'Нужна перезагрузка';
+
+  @override
+  String get aptPackages => 'Пакеты';
+
+  @override
   String get aptTitle => 'Обновления Ubuntu';
 
   @override

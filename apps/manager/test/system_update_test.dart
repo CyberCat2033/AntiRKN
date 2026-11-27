@@ -68,6 +68,36 @@ void main() {
     );
   }
 
+  test('Check refreshes the indexes and stops at the plan', () async {
+    final store = MemoryRunnerJournal();
+    final remote = FakeRunnerTransport(store)..installed = true;
+    final c = RunnerController(
+      serverId: 'fixture',
+      transport: () => remote,
+      identity: () => 'fixture',
+      password: () => null,
+      accessFailure: (_) {},
+      store: store,
+    );
+    addTearDown(c.dispose);
+    await c.refresh();
+    await c.updateSystem(upgrade: false);
+    expect(c.selected!.kind, 'apt_update');
+    remote.job = runnerJob(
+      remote.job!.id,
+      kind: 'apt_update',
+      status: 'succeeded',
+      count: 2,
+      progress: 2,
+      interval: 1,
+      sequence: 3,
+    );
+    await c.refresh();
+    await c.refresh();
+    expect(c.aptPlan, isNotNull);
+    expect(remote.submissions, 1);
+  });
+
   test(
     'index request survives a lost reply and does not submit an upgrade on restore',
     () async {

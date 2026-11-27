@@ -151,7 +151,9 @@ void main() {
     );
     final l = AppLocalizations.of(tester.element(find.byType(RunnerPanel)));
     // No per-card "Check" next to the page's button.
-    expect(find.text(l.uiCheck), findsNothing);
+    // Only the Ubuntu card has its own Check (package lists).
+    expect(find.text(l.uiCheck), findsOneWidget);
+    expect(find.byKey(const ValueKey('system-update')), findsOneWidget);
     expect(find.byKey(const ValueKey('updates-check')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('updates-check')));
     await tester.pump();
