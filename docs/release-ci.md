@@ -65,11 +65,12 @@ AppImage собирается из AppDir: bundle, `packaging/linux/AppRun`, `.d
 
 ## Как выпустить релиз
 
-1. В `CHANGELOG.md` и `CHANGELOG.ru.md` перенесите пункты из `## [Unreleased]` в новую секцию `## [X.Y.Z] - ГГГГ-ММ-ДД`. Пустой `## [Unreleased]` оставьте сверху.
-2. Закоммитьте это в default-ветку и дождитесь зелёного `Checks`.
-3. Создайте аннотированный тег и отправьте его: `git tag -a vX.Y.Z -m "AntiRKN vX.Y.Z"`, затем `git push origin vX.Y.Z`.
-4. В Actions → Release одобрите deployment в Environment `release`. Это потребуется дважды: для `sign-android` и для `publish`.
-5. Проверьте страницу релиза и `https://github.com/CyberCat2033/AntiRKN/releases/latest/download/app-update-stable.json`.
+Заметки к выпуску пишутся по ходу работы: каждая стадия с заметными для пользователя изменениями добавляет пункт в `## [Unreleased]` обоих файлов (`CHANGELOG.md` по-английски, `CHANGELOG.ru.md` по-русски).
+
+1. Переключитесь на default-ветку (`master`) с чистым деревом и дождитесь зелёного `Checks`.
+2. `python3 tool/release.py X.Y.Z --push`. Скрипт переносит `[Unreleased]` в `## [X.Y.Z] - <сегодня>` в обоих файлах, ставит `version: X.Y.Z+<build>` в `apps/manager/pubspec.yaml`, коммитит `release: vX.Y.Z`, создаёт аннотированный тег и отправляет ветку и тег. Он откажется при грязном дереве, другой ветке, версии не выше прошлого тега и пустых заметках. Без `--push` — только локальный коммит и тег.
+3. В Actions → Release одобрите deployment в Environment `release`. Это потребуется дважды: для `sign-android` и для `publish`.
+4. Проверьте страницу релиза и `https://github.com/CyberCat2033/AntiRKN/releases/latest/download/app-update-stable.json`.
 
 ## Локальная проверка
 

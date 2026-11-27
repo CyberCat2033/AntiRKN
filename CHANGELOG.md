@@ -10,6 +10,10 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 - Signed in-app updates from GitHub Releases for Android, Windows and Linux.
 
+### Changed
+
+- Settings → Updates now controls app updates; server component checks are always on.
+
 ## [0.1.0] - 2026-11-27
 
 ### Added
