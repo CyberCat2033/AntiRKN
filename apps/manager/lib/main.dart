@@ -827,6 +827,7 @@ class _ManagerShellState extends State<ManagerShell>
           observedSince: vpn.serverObservedSince,
           observedAt: vpn.serverObservedAt,
           known: (id) => catalog.servers.any((server) => server.id == id),
+          serverName: catalog.serverDisplayName,
         );
       }
       unawaited(_loadVpnAfterCatalog(catalogReady));

@@ -2319,21 +2319,37 @@ class VpnController extends ChangeNotifier {
   /// Waits out other VPN work first: a background run started while one is
   /// in progress is dropped, and several servers are read in parallel after
   /// a cloud pull, so all but the first would be reported as not answering.
-  Future<void> refreshConnectedInBackground(Iterable<String> serverIds) async {
+  ///
+  /// Returns, per server, why one of its targets was not read: the person
+  /// sees that reason instead of a server that merely "does not answer".
+  /// A target that was not read keeps its dated cache.
+  Future<Map<String, String>> refreshConnectedInBackground(
+    Iterable<String> serverIds,
+  ) async {
     final ids = serverIds.toSet();
+    final issues = <String, String>{};
     await _waitUntilIdle();
-    return _run((token) async {
-      final targets = [
-        for (final entry in workspace.servers.entries)
-          if (ids.contains(vpnServerId(entry.key)) &&
-              remote(entry.key) != null &&
-              !observesOperation(entry.key))
-            entry.key,
-      ]..sort();
-      // A target that did not answer keeps its dated cache; the caller
-      // learns it from serverObservedSince, not from a global issue.
-      if (targets.isNotEmpty) await _refreshTargets(targets, token);
+    await _run((token) async {
+      final targets = <String>[];
+      for (final target in workspace.servers.keys) {
+        final server = vpnServerId(target);
+        if (!ids.contains(server)) continue;
+        if (observesOperation(target)) {
+          issues[server] ??= 'vpn_observing';
+        } else if (remote(target) == null) {
+          issues[server] ??= remoteIssue?.call(target) ?? 'vpn_connection';
+        } else {
+          targets.add(target);
+        }
+      }
+      targets.sort();
+      if (targets.isEmpty) return;
+      final read = await _refreshTargets(targets, token);
+      for (final MapEntry(key: target, value: issue) in read.issues.entries) {
+        issues[vpnServerId(target)] ??= issue;
+      }
     }, background: true);
+    return issues;
   }
 
   Future<void> refreshServer(String id) => _run((token) async {
@@ -3028,12 +3044,10 @@ class VpnController extends ChangeNotifier {
   }
 
   /// Reads [targets] and rebuilds profiles. The first issue is returned
-  /// with every target that failed.
-  Future<({String? issue, Set<String> failed})> _refreshTargets(
-    List<String> targets,
-    CancellationToken token,
-  ) async {
-    const none = (issue: null, failed: <String>{});
+  /// with every target that failed and its own issue.
+  Future<({String? issue, Set<String> failed, Map<String, String> issues})>
+  _refreshTargets(List<String> targets, CancellationToken token) async {
+    const none = (issue: null, failed: <String>{}, issues: <String, String>{});
     if (targets.isEmpty) {
       await _profiles();
       return none;
@@ -3068,12 +3082,14 @@ class VpnController extends ChangeNotifier {
     final recoveredTt = <TrustTunnelEndpoint>[];
     String? firstIssue;
     final failed = <String>{};
+    final issues = <String, String>{};
     var serverChanges = false;
 
     for (final res in results) {
-      if (res.error != null) {
-        firstIssue ??= res.error;
+      if (res.error case final issue?) {
+        firstIssue ??= issue;
         failed.add(res.target);
+        issues[res.target] = issue;
         continue;
       }
       final id = res.target;
@@ -3144,7 +3160,7 @@ class VpnController extends ChangeNotifier {
 
     // 5. Rebuild client profiles once for all refreshed servers
     await _profiles();
-    return (issue: firstIssue, failed: failed);
+    return (issue: firstIssue, failed: failed, issues: issues);
   }
 
   Future<void> _profiles({String? onlyUserId}) async {

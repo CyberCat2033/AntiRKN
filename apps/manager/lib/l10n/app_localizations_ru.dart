@@ -2606,12 +2606,17 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String restoredCacheStale(int count, String date) {
-    return 'Не ответили серверы: $count. Показаны данные от $date. Уже опубликованные профили можно открыть из Google Drive.';
+    return 'Не прочитаны серверы: $count. Показаны данные от $date. Уже опубликованные профили можно открыть из Google Drive.';
   }
 
   @override
   String restoredCacheMissing(int count) {
-    return 'Не ответили серверы: $count. Сохранённых данных о них на этом устройстве нет. Уже опубликованные профили можно открыть из Google Drive.';
+    return 'Не прочитаны серверы: $count. Сохранённых данных о них на этом устройстве нет. Уже опубликованные профили можно открыть из Google Drive.';
+  }
+
+  @override
+  String restoredCacheServerIssue(String server, String reason) {
+    return '$server: $reason';
   }
 
   @override

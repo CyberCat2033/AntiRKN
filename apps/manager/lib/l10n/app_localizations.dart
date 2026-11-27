@@ -4601,14 +4601,20 @@ abstract class AppLocalizations {
   /// No description provided for @restoredCacheStale.
   ///
   /// In en, this message translates to:
-  /// **'Servers not answering: {count}. Showing data from {date}. Profiles already published can be opened from Google Drive.'**
+  /// **'Servers not read again: {count}. Showing data from {date}. Profiles already published can be opened from Google Drive.'**
   String restoredCacheStale(int count, String date);
 
   /// No description provided for @restoredCacheMissing.
   ///
   /// In en, this message translates to:
-  /// **'Servers not answering: {count}. This device has no saved data about them. Profiles already published can be opened from Google Drive.'**
+  /// **'Servers not read again: {count}. This device has no saved data about them. Profiles already published can be opened from Google Drive.'**
   String restoredCacheMissing(int count);
+
+  /// No description provided for @restoredCacheServerIssue.
+  ///
+  /// In en, this message translates to:
+  /// **'{server}: {reason}'**
+  String restoredCacheServerIssue(String server, String reason);
 
   /// No description provided for @profilePublishedDriveHelp.
   ///

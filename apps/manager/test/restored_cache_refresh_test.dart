@@ -156,6 +156,40 @@ void main() {
     },
   );
 
+  test(
+    'a connected server whose target cannot be read reports that reason',
+    () async {
+      final store = MemoryVpn()
+        ..raw = _restored()
+        ..revision = 1;
+      final vpn = VpnController(
+        repository: store,
+        template: () => template,
+        remote: (id) => null,
+        remoteIssue: (id) => 'vpn_panel_login',
+        timer: (d, f) => Timer(Duration.zero, () {}),
+      );
+      await vpn.load();
+      final settings = Settings()
+        ..values[restoredCacheSetting] = jsonEncode(['one']);
+      final refresh = RestoredCacheRefresh(
+        settings: settings,
+        connect: (_) async => true,
+        refresh: vpn.refreshConnectedInBackground,
+        observedSince: vpn.serverObservedSince,
+        observedAt: vpn.serverObservedAt,
+        known: (_) => true,
+        retryDelay: Duration.zero,
+      );
+      await refresh.start();
+      expect(refresh.failed, {'one'});
+      expect(refresh.issues, {'one': 'vpn_panel_login'});
+      expect(jsonDecode(settings.values[restoredCacheSetting]!), ['one']);
+      vpn.dispose();
+      refresh.dispose();
+    },
+  );
+
   for (final locale in AppLocalizations.supportedLocales) {
     testWidgets(
       'stale server data says how old it is (${locale.languageCode})',
@@ -164,11 +198,12 @@ void main() {
           ..values[restoredCacheSetting] = jsonEncode(['two']);
         final refresh = RestoredCacheRefresh(
           settings: settings,
-          connect: (_) async => false,
-          refresh: (_) async {},
+          connect: (_) async => true,
+          refresh: (_) async => {'two': 'vpn_panel_login'},
           observedSince: (_, _) => false,
           observedAt: (_) => DateTime.utc(2026, 11, 20, 10),
           known: (_) => true,
+          serverName: (_) => 'NL',
         );
         await tester.runAsync(refresh.start);
         await tester.pumpWidget(
@@ -191,6 +226,13 @@ void main() {
           findsOneWidget,
         );
         expect(find.textContaining('2026'), findsOneWidget);
+        // The server is named with its own reason, not "not answering".
+        expect(
+          find.textContaining(
+            l.restoredCacheServerIssue('NL', l.vpnPanelLogin),
+          ),
+          findsOneWidget,
+        );
         expect(find.text(l.vaultRetry), findsOneWidget);
         refresh.dispose();
       },

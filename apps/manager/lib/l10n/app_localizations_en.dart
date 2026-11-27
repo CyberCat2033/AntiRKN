@@ -2601,12 +2601,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String restoredCacheStale(int count, String date) {
-    return 'Servers not answering: $count. Showing data from $date. Profiles already published can be opened from Google Drive.';
+    return 'Servers not read again: $count. Showing data from $date. Profiles already published can be opened from Google Drive.';
   }
 
   @override
   String restoredCacheMissing(int count) {
-    return 'Servers not answering: $count. This device has no saved data about them. Profiles already published can be opened from Google Drive.';
+    return 'Servers not read again: $count. This device has no saved data about them. Profiles already published can be opened from Google Drive.';
+  }
+
+  @override
+  String restoredCacheServerIssue(String server, String reason) {
+    return '$server: $reason';
   }
 
   @override

@@ -5,6 +5,7 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../l10n/app_localizations.dart';
+import '../vpn/vpn_strings.dart';
 
 /// Setting written by a cloud pull: servers whose observations this device
 /// does not have (a new device, a replaced server, another workspace).
@@ -24,18 +25,25 @@ class RestoredCacheRefresh extends ChangeNotifier {
     required this.observedSince,
     required this.observedAt,
     required this.known,
+    this.serverName,
     this.retryDelay = const Duration(seconds: 2),
   });
   final SettingsStore settings;
   final Future<bool> Function(String serverId) connect;
-  final Future<void> Function(List<String> serverIds) refresh;
+
+  /// Reads servers again; returns why a server was not read, by server.
+  final Future<Map<String, String>> Function(List<String> serverIds) refresh;
   final bool Function(String serverId, DateTime since) observedSince;
   final DateTime? Function(String serverId) observedAt;
   final bool Function(String serverId) known;
+  final String Function(String serverId)? serverName;
   final Duration retryDelay;
 
-  /// Servers still to be read; [failed] did not answer in this attempt.
+  /// Servers still to be read; [failed] were not read in this attempt.
   final pending = <String>{}, failed = <String>{};
+
+  /// Why each of [failed] was not read: a VPN issue code.
+  final issues = <String, String>{};
   bool running = false;
   bool _disposed = false;
   Future<void>? _current;
@@ -70,6 +78,7 @@ class RestoredCacheRefresh extends ChangeNotifier {
       ..clear()
       ..addAll(listed);
     failed.clear();
+    issues.clear();
     running = true;
     _notify();
     final since = DateTime.now().toUtc();
@@ -77,11 +86,13 @@ class RestoredCacheRefresh extends ChangeNotifier {
     Future<void> worker() async {
       while (queue.isNotEmpty && !_disposed) {
         final id = queue.removeAt(0);
-        if (!known(id) || await _read(id, since)) {
+        final issue = known(id) ? await _read(id, since) : null;
+        if (issue == null) {
           pending.remove(id);
           await _save();
         } else {
           failed.add(id);
+          issues[id] = issue;
         }
         _notify();
       }
@@ -92,17 +103,19 @@ class RestoredCacheRefresh extends ChangeNotifier {
     _notify();
   }
 
-  /// True once the server's saved state was actually read after [since].
-  Future<bool> _read(String id, DateTime since) async {
+  /// Null once the server's saved state was actually read after [since];
+  /// otherwise why it was not.
+  Future<String?> _read(String id, DateTime since) async {
+    var issue = 'vpn_connection';
     try {
-      if (!await connect(id)) return false;
+      if (!await connect(id)) return issue;
       for (var attempt = 0; attempt < 3 && !_disposed; attempt++) {
-        await refresh([id]);
-        if (observedSince(id, since)) return true;
+        issue = (await refresh([id]))[id] ?? 'vpn_connection';
+        if (observedSince(id, since)) return null;
         await Future<void>.delayed(retryDelay);
       }
     } catch (_) {}
-    return false;
+    return issue;
   }
 
   Future<void> _save() async {
@@ -143,15 +156,24 @@ class RestoredCacheNotice extends StatelessWidget {
       if (refresh.failed.isEmpty) return const SizedBox.shrink();
       final since = refresh.staleSince;
       final locale = Localizations.localeOf(context).toLanguageTag();
+      final summary = since == null
+          ? l.restoredCacheMissing(refresh.failed.length)
+          : l.restoredCacheStale(
+              refresh.failed.length,
+              DateFormat.yMd(locale).add_Hm().format(since.toLocal()),
+            );
+      // Each server with its own reason: the person knows what to fix.
+      final reasons = [
+        for (final id in refresh.failed.toList()..sort())
+          l.restoredCacheServerIssue(
+            refresh.serverName?.call(id) ?? id,
+            vpnMessage(l, refresh.issues[id] ?? 'vpn_connection'),
+          ),
+      ];
       return AppNotice(
         key: const ValueKey('restored-cache-stale'),
         icon: Icons.cloud_off_outlined,
-        message: since == null
-            ? l.restoredCacheMissing(refresh.failed.length)
-            : l.restoredCacheStale(
-                refresh.failed.length,
-                DateFormat.yMd(locale).add_Hm().format(since.toLocal()),
-              ),
+        message: [summary, ...reasons].join('\n'),
         action: TextButton(onPressed: refresh.start, child: Text(l.vaultRetry)),
       );
     },
