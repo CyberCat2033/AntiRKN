@@ -152,8 +152,19 @@ class SoftwareOverview extends StatelessWidget {
                   (c.activeComponent == 'panel' ||
                       c.activeComponent == 'xray')));
       final activeOnThisComponent = installingThis || isPanelJob;
+      final hostsInstallation =
+          !installationShown && hostsComponentInstallation(c, key);
+      if (hostsInstallation) installationShown = true;
+      // Variant B: the running install or update lives in the card itself,
+      // a ring around its icon, the step under the versions, Stop in place
+      // of Update and Versions.
+      final progress =
+          (isPanel ? componentProgress(context, c, panel: true) : null) ??
+          (hostsInstallation ? componentProgress(context, c) : null);
       // The job's progress lives in the card body, like the Xray one.
-      final action = activeOnThisComponent
+      final action = progress != null
+          ? progress.stop
+          : activeOnThisComponent
           ? null
           : hasPlan || !applyAction
           // The one update check is the page's button (UI-45).
@@ -265,7 +276,11 @@ class SoftwareOverview extends StatelessWidget {
           for (final k in versions.keys)
             if (choosableComponents.contains(k)) k,
       ];
-      final versionsAction = detected && updates != null && choosable.isNotEmpty
+      final versionsAction =
+          progress == null &&
+              detected &&
+              updates != null &&
+              choosable.isNotEmpty
           ? AppDisabledReason(
               reason: busyReason(l, runner: c),
               child: TextButton.icon(
@@ -295,13 +310,18 @@ class SoftwareOverview extends StatelessWidget {
               runSpacing: AppLayout.smallGap,
               children: [?versionsAction, ?action],
             );
-      final hostsInstallation =
-          !installationShown && hostsComponentInstallation(c, key);
-      if (hostsInstallation) installationShown = true;
       final summary = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(status),
+          if (progress != null) ...[
+            Text(
+              key: ValueKey('software-step-$key'),
+              progress.step,
+              style: TextStyle(color: Theme.of(context).colorScheme.primary),
+            ),
+            if (progress.note case final note?) Text(note),
+          ],
           if (inDocker && detected && (updatable.isNotEmpty || canUpdate))
             Text(
               key: ValueKey('software-docker-$key'),
@@ -314,9 +334,18 @@ class SoftwareOverview extends StatelessWidget {
                   : l.componentUpdateUnverified,
             ),
           // Installs and updates belong to their card, like the Xray move.
-          if (isPanel) PanelUpdateView(controller: c, installed: versions),
+          if (isPanel)
+            PanelUpdateView(
+              controller: c,
+              installed: versions,
+              progressInCard: true,
+            ),
           if (hostsInstallation)
-            ComponentInstallationView(controller: c, installed: versions),
+            ComponentInstallationView(
+              controller: c,
+              installed: versions,
+              progressInCard: true,
+            ),
           if (isPanel && core != null) ...[
             const SizedBox(height: AppLayout.smallGap),
             core,
@@ -329,7 +358,11 @@ class SoftwareOverview extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: SummaryCard(
-              leading: AppIconTile(icon: protocolIcon(key)),
+              leading: AppIconTile(
+                icon: protocolIcon(key),
+                busy: progress != null,
+                value: progress?.value,
+              ),
               leadingAtTop: true,
               title: name,
               subtitle: summary,
@@ -346,7 +379,11 @@ class SoftwareOverview extends StatelessWidget {
         others.add(
           SummaryCard(
             embedded: true,
-            leading: AppIconTile(icon: protocolIcon(key)),
+            leading: AppIconTile(
+              icon: protocolIcon(key),
+              busy: progress != null,
+              value: progress?.value,
+            ),
             leadingAtTop: true,
             title: name,
             subtitle: summary,

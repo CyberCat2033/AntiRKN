@@ -11,8 +11,15 @@ import 'runner_panel.dart';
 /// ([RunnerController.upgradeChecks]): its stage while it runs, then the
 /// outcome; the before/after of each connection is in the details sheet.
 class ComponentUpgradeChecksView extends StatelessWidget {
-  const ComponentUpgradeChecksView({required this.controller, super.key});
+  const ComponentUpgradeChecksView({
+    required this.controller,
+    this.progressInCard = false,
+    super.key,
+  });
   final RunnerController controller;
+
+  /// The running state is drawn by the software card ([softwareProgress]).
+  final bool progressInCard;
 
   @override
   Widget build(BuildContext context) {
@@ -20,23 +27,9 @@ class ComponentUpgradeChecksView extends StatelessWidget {
     final phase = c.upgradeCheckPhase;
     if (phase == null) return const SizedBox.shrink();
     final title = componentName(c.activeComponent ?? '');
-    final status = switch (phase) {
-      'baseline' => l.upgradeChecksBaseline,
-      'upgrading' => l.upgradeChecksUpgrading,
-      'comparison' => l.upgradeChecksComparison,
-      'rolling_back' => l.upgradeChecksRollingBack,
-      'committed' => l.upgradeChecksCommitted,
-      'rolled_back' => l.upgradeChecksRolledBack,
-      _ => l.upgradeChecksFailed,
-    };
+    final status = upgradeChecksStatus(l, phase);
     final code = c.upgradeCheckCode;
-    final problem = switch (code) {
-      '' || 'committed' => '',
-      'cancelled' => l.runnerCancelled,
-      'upgrade_checks_unavailable' => l.upgradeChecksUnavailable,
-      final String v when v.startsWith('upgrade_') => runnerCodeLabel(l, v),
-      _ => l.upgradeChecksProblem,
-    };
+    final problem = upgradeChecksProblem(l, code);
     String check(ConnectionCheck? result) => result == null
         ? l.xrayUpgradeNotTested
         : connectionCheckMessage(l, result);
@@ -65,32 +58,12 @@ class ComponentUpgradeChecksView extends StatelessWidget {
         ),
     ];
     if (c.upgradeChecking) {
-      return AppProgressCard(
+      if (progressInCard) return const SizedBox.shrink();
+      return SoftwareProgressCard(
         key: const ValueKey('upgrade-checks'),
         icon: Icons.network_check,
         title: title,
-        status: status,
-        notes: [if (problem.isNotEmpty) problem],
-        actions: [
-          if (phase != 'rolling_back')
-            // After the switch stopping rolls the server back: confirm in
-            // error colours, as for Xray (UI-55).
-            TextButton(
-              key: const ValueKey('upgrade-checks-stop'),
-              onPressed: () async {
-                final stop = await confirmAppDanger(
-                  context,
-                  title: l.upgradeChecksStopTitle,
-                  message: l.upgradeChecksStopHelp,
-                  confirmLabel: l.connectionStop,
-                  cancelLabel: l.runnerNotNow,
-                  confirmKey: const ValueKey('upgrade-checks-stop-confirm'),
-                );
-                if (stop) c.cancelUpgradeChecks();
-              },
-              child: Text(l.connectionStop),
-            ),
-        ],
+        progress: upgradeChecksProgress(context, c)!,
       );
     }
     return AppNotice(
@@ -122,3 +95,55 @@ class ComponentUpgradeChecksView extends StatelessWidget {
     );
   }
 }
+
+/// A running checked upgrade of [RunnerController.upgradeChecks]: its stage,
+/// a problem seen so far and Stop, which rolls the server back after the
+/// switch, so it asks first in error colours, as for Xray (UI-55).
+SoftwareProgress? upgradeChecksProgress(
+  BuildContext context,
+  RunnerController c,
+) {
+  final l = AppLocalizations.of(context), phase = c.upgradeCheckPhase;
+  if (!c.upgradeChecking || phase == null) return null;
+  final problem = upgradeChecksProblem(l, c.upgradeCheckCode);
+  return (
+    step: upgradeChecksStatus(l, phase),
+    note: problem.isEmpty ? null : problem,
+    value: null,
+    stop: phase == 'rolling_back'
+        ? null
+        : FilledButton.tonal(
+            key: const ValueKey('upgrade-checks-stop'),
+            onPressed: () async {
+              final stop = await confirmAppDanger(
+                context,
+                title: l.upgradeChecksStopTitle,
+                message: l.upgradeChecksStopHelp,
+                confirmLabel: l.connectionStop,
+                cancelLabel: l.runnerNotNow,
+                confirmKey: const ValueKey('upgrade-checks-stop-confirm'),
+              );
+              if (stop) c.cancelUpgradeChecks();
+            },
+            child: Text(l.connectionStop),
+          ),
+  );
+}
+
+String upgradeChecksStatus(AppLocalizations l, String phase) => switch (phase) {
+  'baseline' => l.upgradeChecksBaseline,
+  'upgrading' => l.upgradeChecksUpgrading,
+  'comparison' => l.upgradeChecksComparison,
+  'rolling_back' => l.upgradeChecksRollingBack,
+  'committed' => l.upgradeChecksCommitted,
+  'rolled_back' => l.upgradeChecksRolledBack,
+  _ => l.upgradeChecksFailed,
+};
+
+String upgradeChecksProblem(AppLocalizations l, String code) => switch (code) {
+  '' || 'committed' => '',
+  'cancelled' => l.runnerCancelled,
+  'upgrade_checks_unavailable' => l.upgradeChecksUnavailable,
+  final String v when v.startsWith('upgrade_') => runnerCodeLabel(l, v),
+  _ => l.upgradeChecksProblem,
+};

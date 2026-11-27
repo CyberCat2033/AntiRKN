@@ -181,7 +181,7 @@ void main() {
       );
       expect(find.text(l.runnerCancelRequested), findsOneWidget);
 
-      final cancelBtn = tester.widget<TextButton>(
+      final cancelBtn = tester.widget<ButtonStyleButton>(
         find.byKey(const ValueKey('component-cancel')),
       );
       expect(cancelBtn.onPressed, isNull);
