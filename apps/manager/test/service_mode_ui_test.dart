@@ -111,8 +111,9 @@ void main() {
       await tester.pumpWidget(app(section(c), locale: locale, scale: scale));
       await frames(tester);
       noOverflow(tester);
-      expect(find.text(l.serviceModeTitle), findsOneWidget);
-      expect(find.text(l.serviceModeOff), findsOneWidget);
+      expect(find.text(l.serviceModeTitle), findsNWidgets(2));
+      expect(find.text(l.serviceModeHelp), findsOneWidget);
+      expect(find.byKey(const ValueKey('service-mode-state')), findsNothing);
       expect(switchOn(tester), isFalse);
 
       // Entering asks first and names every consequence.
@@ -205,7 +206,8 @@ void main() {
       await tap(tester, const ValueKey('service-mode-exit-confirm'));
       await until(tester, c, () => c.serviceModeOf('two') == null);
       noOverflow(tester);
-      expect(find.text(l.serviceModeOff), findsOneWidget);
+      expect(find.byKey(const ValueKey('service-mode-state')), findsNothing);
+      expect(switchOn(tester), isFalse);
       expect(c.error, isNull);
     });
 
@@ -308,7 +310,8 @@ void main() {
       await until(tester, b, () => b.serviceModeOf('two') == null);
       noOverflow(tester);
       expect(b.error, isNull);
-      expect(find.text(l.serviceModeOff), findsOneWidget);
+      expect(find.byKey(const ValueKey('service-mode-state')), findsNothing);
+      expect(switchOn(tester), isFalse);
     });
 
     testWidgets('waiting access changes are shown and sent now: $label', (

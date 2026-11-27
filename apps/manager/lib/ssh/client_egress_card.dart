@@ -101,8 +101,9 @@ class _ClientEgressCardState extends State<ClientEgressCard> {
           (c.responseCode?.startsWith('egress_') == true
               ? c.responseCode
               : null);
-      return Card.filled(
+      return AppSettingsSection(
         key: const ValueKey('client-egress-card'),
+        title: l.egressTitle,
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(

@@ -3052,9 +3052,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get uiServerAboutSummary => 'Public IPs, traffic and disk space';
 
   @override
-  String get uiServerAboutHelp => 'Server data from the latest refresh';
-
-  @override
   String get uiNoActivity => 'No actions yet';
 
   @override
@@ -3104,11 +3101,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String uiConnectionCount(int count) {
     return 'Connections: $count';
-  }
-
-  @override
-  String uiObservedAt(String time) {
-    return 'Updated: $time';
   }
 
   @override
@@ -4450,10 +4442,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get serviceModeHelp =>
-      'The server stays in the app and keeps running, but its proxies leave client profiles and new clients are not added to it. Turn it on while you test, repair or rebuild the server.';
-
-  @override
-  String get serviceModeOff => 'Off';
+      'Removes proxies from client profiles and pauses new clients while you test or repair.';
 
   @override
   String serviceModeSince(String time) {

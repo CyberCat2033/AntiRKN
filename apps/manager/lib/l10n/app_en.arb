@@ -1110,7 +1110,6 @@
   "uiActivityHelp": "Actions from all your devices",
   "uiServerAbout": "About server",
   "uiServerAboutSummary": "Public IPs, traffic and disk space",
-  "uiServerAboutHelp": "Server data from the latest refresh",
   "uiNoActivity": "No actions yet",
   "uiServerChanges": "Server change",
   "uiNotConfigured": "Not configured",
@@ -1131,14 +1130,6 @@
     "placeholders": {
       "count": {
         "type": "int"
-      }
-    }
-  },
-  "uiObservedAt": "Updated: {time}",
-  "@uiObservedAt": {
-    "placeholders": {
-      "time": {
-        "type": "String"
       }
     }
   },
@@ -1620,8 +1611,7 @@
   "activitySshHarden": "SSH hardening",
   "activityDiagnostic": "Server check",
   "serviceModeTitle": "Service mode",
-  "serviceModeHelp": "The server stays in the app and keeps running, but its proxies leave client profiles and new clients are not added to it. Turn it on while you test, repair or rebuild the server.",
-  "serviceModeOff": "Off",
+  "serviceModeHelp": "Removes proxies from client profiles and pauses new clients while you test or repair.",
   "serviceModeSince": "On since {time}",
   "@serviceModeSince": {
     "placeholders": {

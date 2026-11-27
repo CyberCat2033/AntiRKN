@@ -1065,7 +1065,6 @@
   "uiActivityHelp": "Действия со всех ваших устройств",
   "uiServerAbout": "О сервере",
   "uiServerAboutSummary": "Внешние IP, трафик и место на диске",
-  "uiServerAboutHelp": "Данные сервера при последнем обновлении",
   "uiNoActivity": "Действий пока нет",
   "uiServerChanges": "Изменение сервера",
   "uiNotConfigured": "Не настроен",
@@ -1086,14 +1085,6 @@
     "placeholders": {
       "count": {
         "type": "int"
-      }
-    }
-  },
-  "uiObservedAt": "Обновлено: {time}",
-  "@uiObservedAt": {
-    "placeholders": {
-      "time": {
-        "type": "String"
       }
     }
   },
@@ -1567,8 +1558,7 @@
   "activitySshHarden": "Защита SSH",
   "activityDiagnostic": "Проверка сервера",
   "serviceModeTitle": "Сервисный режим",
-  "serviceModeHelp": "Сервер остаётся в приложении и продолжает работать, но его узлы убираются из профилей клиентов, а новые клиенты на него не добавляются. Включайте на время тестирования, ремонта или перенастройки сервера.",
-  "serviceModeOff": "Выключен",
+  "serviceModeHelp": "Убирает узлы из профилей клиентов и не добавляет новых на время проверки или ремонта.",
   "serviceModeSince": "Включён с {time}",
   "@serviceModeSince": {
     "placeholders": {
