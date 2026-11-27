@@ -41,6 +41,8 @@ jobs:
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
 
       - name: Verify domain, templates, translations and UI
+        env:
+          TAR_OPTIONS: --no-same-owner # uid 0 in the namespace must not chown extracted files
         run: unshare -r bash tool/verify.sh
 
   build:
