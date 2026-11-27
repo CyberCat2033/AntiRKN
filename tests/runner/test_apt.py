@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'server/runner'))
@@ -18,6 +19,13 @@ class AptTests(unittest.TestCase):
         self.dpkg = patch('apt.dpkg_interrupted', return_value=False); self.dpkg.start(); self.addCleanup(self.dpkg.stop)
         # Hermetic: never ask the host's systemd (CI runners have a real one).
         self.units = patch('apt.unit_properties', return_value={}); self.units.start(); self.addCleanup(self.units.stop)
+        # Host dpkg/apt locks exist on Ubuntu runners and are not ours to open:
+        # jobs here wait on no lock; the lock logic is tested on temp files.
+        import apt as apt_module
+        real_acquire = apt_module.acquire_dpkg_locks
+        self.locks = patch('apt.acquire_dpkg_locks', side_effect=lambda timeout=60, paths=(), sleep=time.sleep:
+                           real_acquire(timeout=timeout, paths=paths, sleep=sleep))
+        self.locks.start(); self.addCleanup(self.locks.stop)
     def request(self, kind='apt_update', number=1):
         r = dict(version=1, action='submit', id=f'{number:032x}', kind=kind, count=2, interval=1)
         if kind == 'apt_upgrade': r['fingerprint'] = 'a' * 64
