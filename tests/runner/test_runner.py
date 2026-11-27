@@ -27,6 +27,11 @@ def setUpModule():
     patcher = patch('apt.run_command', side_effect=lambda args, *a, **k: _subprocess.CompletedProcess(args, 1, b'', b''))
     patcher.start()
     unittest.addModuleCleanup(patcher.stop)
+    # A fresh CI VM may be younger than BOOT_GRACE: stale-job logic must not
+    # depend on the host uptime.
+    grace = patch('runner.BOOT_GRACE', 0)
+    grace.start()
+    unittest.addModuleCleanup(grace.stop)
 
 
 class RunnerTests(unittest.TestCase):
@@ -561,7 +566,7 @@ class RunnerCoreTests(unittest.TestCase):
     def test_no_reaping_right_after_boot(self):
         job_id = self._job(1, status='running', created=time.time() - 600, kind='apt_update')
         self._stale()
-        with patch('runner.worker_running', return_value=False), \
+        with patch('runner.worker_running', return_value=False), patch('runner.BOOT_GRACE', 120), \
              patch('runner.Path.read_text', return_value='30.0 10.0'):
             self.assertFalse(self.store.daemon_stopped())
         self.assertEqual(self.store.db.execute('SELECT status FROM jobs WHERE id=?', (job_id,)).fetchone()[0], 'running')
