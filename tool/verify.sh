@@ -7,13 +7,14 @@ python3 tool/generate_changes.py --check
 python3 tool/generate_vless.py --check
 python3 tool/generate_runner.py --check
 python3 tool/generate_snapshot.py --check
+python3 tool/generate_app_update.py --check
 python3 -m unittest discover -s tests/runner -v
 python3 -m unittest discover -s tests/tools -v
 (
   cd apps/manager
   flutter gen-l10n
 )
-dart format --output=none --set-exit-if-changed apps packages tool/compile_fixtures.dart tool/compile_vless_fixture.dart tool/drive_smoke.dart
+dart format --output=none --set-exit-if-changed apps packages tool/compile_fixtures.dart tool/compile_vless_fixture.dart tool/drive_smoke.dart tool/app_update_manifest.dart
 flutter analyze --no-pub
 (
   cd packages/integrations
@@ -21,6 +22,10 @@ flutter analyze --no-pub
 )
 (
   cd packages/sync
+  dart test
+)
+(
+  cd packages/app_update
   dart test
 )
 (

@@ -3023,7 +3023,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get uiComponentUpdates => 'Обновления';
 
   @override
-  String get uiUpdatesHelp => 'Проверка версий компонентов';
+  String get uiUpdatesHelp => 'Новые версии приложения';
 
   @override
   String get uiAppSettings => 'Настройки приложения';
@@ -3143,10 +3143,12 @@ class AppLocalizationsRu extends AppLocalizations {
   String get uiUpdatesShort => 'Обновления';
 
   @override
-  String get uiUpdatesAutomaticHelp => 'Новые версии компонентов на серверах';
+  String get uiUpdatesAutomaticHelp =>
+      'Искать новые выпуски AntiRKN на GitHub при запуске и время от времени';
 
   @override
-  String get uiUpdatesSuggestionsHelp => 'Сообщать о доступных обновлениях';
+  String get uiUpdatesSuggestionsHelp =>
+      'Показывать доступное обновление приложения на главном экране';
 
   @override
   String get uiSyncAutomaticHelp =>
@@ -4632,4 +4634,220 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get trafficRefresh => 'Перечитать с серверов';
+
+  @override
+  String get appUpdateSection => 'Приложение';
+
+  @override
+  String appUpdateUpToDate(String version) {
+    return '$version · установлена последняя версия';
+  }
+
+  @override
+  String appUpdateInstalledVersion(String version) {
+    return '$version · установлена';
+  }
+
+  @override
+  String appUpdateVersions(String current, String next, String size) {
+    return '$current → $next · $size';
+  }
+
+  @override
+  String appUpdateMegabytes(String value) {
+    return '$value МБ';
+  }
+
+  @override
+  String appUpdateWhatsNew(String version) {
+    return 'Что нового в $version';
+  }
+
+  @override
+  String get appUpdateSkip => 'Пропустить версию';
+
+  @override
+  String get appUpdateUpdate => 'Обновить';
+
+  @override
+  String appUpdateDownloadingStep(String received, String total) {
+    return 'Загрузка · $received из $total';
+  }
+
+  @override
+  String get appUpdateStop => 'Остановить';
+
+  @override
+  String get appUpdateVerifyingStep => 'Проверка подписи и контрольной суммы…';
+
+  @override
+  String appUpdateReadyStep(String version) {
+    return '$version загружена и проверена.';
+  }
+
+  @override
+  String get appUpdateHowAndroid =>
+      'Откроется системный установщик Android. После установки AntiRKN запустится снова.';
+
+  @override
+  String get appUpdateHowWindows =>
+      'Запустится установщик Windows. AntiRKN закроется и откроется снова после установки.';
+
+  @override
+  String get appUpdateHowAppImage =>
+      'Файл AppImage будет заменён, затем AntiRKN перезапустится.';
+
+  @override
+  String get appUpdateHowTarball =>
+      'Файлы в папке приложения будут заменены, затем AntiRKN перезапустится.';
+
+  @override
+  String get appUpdateHowPortable =>
+      'Замените файлы в папке приложения загруженным архивом вручную.';
+
+  @override
+  String get appUpdateRestartWarning =>
+      'На время перезапуска AntiRKN закроется: запущенные проверки Mihomo остановятся, после запуска их можно повторить.';
+
+  @override
+  String get appUpdateLater => 'Позже';
+
+  @override
+  String get appUpdateInstall => 'Установить';
+
+  @override
+  String get appUpdateInstallRestart => 'Установить и перезапустить';
+
+  @override
+  String get appUpdateRestart => 'Перезапустить';
+
+  @override
+  String get appUpdateShowFile => 'Показать файл';
+
+  @override
+  String get appUpdateInstalling => 'Установка…';
+
+  @override
+  String get appUpdateRetry => 'Повторить';
+
+  @override
+  String get appUpdateDownloadAgain => 'Загрузить заново';
+
+  @override
+  String get appUpdatePermissionTitle => 'Разрешите установку';
+
+  @override
+  String get appUpdatePermission =>
+      'Android один раз попросит разрешить AntiRKN устанавливать приложения.';
+
+  @override
+  String get appUpdatePermissionStep1 => 'Нажмите «Открыть настройки».';
+
+  @override
+  String get appUpdatePermissionStep2 =>
+      'Включите «Разрешить установку из этого источника».';
+
+  @override
+  String get appUpdatePermissionStep3 =>
+      'Вернитесь в AntiRKN и снова нажмите «Установить».';
+
+  @override
+  String get appUpdatePermissionWaiting => 'Ожидается разрешение Android';
+
+  @override
+  String get appUpdateOpenSettings => 'Открыть настройки';
+
+  @override
+  String appUpdateAvailableTitle(String version) {
+    return 'Доступна версия $version';
+  }
+
+  @override
+  String appUpdateBannerText(String current, String size) {
+    return 'Сейчас $current · $size';
+  }
+
+  @override
+  String get appUpdateMore => 'Подробнее';
+
+  @override
+  String appUpdateDownloadingTitle(String version, String percent) {
+    return 'Загрузка $version · $percent %';
+  }
+
+  @override
+  String get appUpdateVerifyingTitle => 'Проверка обновления';
+
+  @override
+  String appUpdateReadyTitle(String version) {
+    return 'Обновление $version готово';
+  }
+
+  @override
+  String get appUpdateReleasePage => 'Страница выпуска';
+
+  @override
+  String get appUpdateNotifyOnly =>
+      'Эту установку нельзя обновить из приложения. Загрузите новую версию со страницы выпуска.';
+
+  @override
+  String get appUpdateMandatory =>
+      'Эта версия больше не поддерживается: обновите приложение.';
+
+  @override
+  String get appUpdateUnavailable => 'Обновления недоступны в этой сборке.';
+
+  @override
+  String get appUpdateChecking => 'Проверка новой версии…';
+
+  @override
+  String get appUpdateDetails => 'Сведения';
+
+  @override
+  String get appUpdateDetailCode => 'Код ошибки';
+
+  @override
+  String get appUpdateDetailBuild => 'Сборка';
+
+  @override
+  String get appUpdateDetailCommit => 'Коммит';
+
+  @override
+  String get appUpdateDetailFile => 'Файл';
+
+  @override
+  String get appUpdateDetailChecksum => 'SHA-256';
+
+  @override
+  String get appUpdateErrorVerificationTitle => 'Обновление не прошло проверку';
+
+  @override
+  String get appUpdateErrorVerification =>
+      'Подпись или контрольная сумма не совпали с манифестом. Загруженный файл удалён, установленная версия не изменена.';
+
+  @override
+  String get appUpdateErrorNetwork =>
+      'Нет связи с GitHub. Повторите попытку позже.';
+
+  @override
+  String get appUpdateErrorNetworkTitle => 'Загрузка прервана';
+
+  @override
+  String get appUpdateErrorStorage =>
+      'Не удалось сохранить файл обновления. Проверьте свободное место и повторите.';
+
+  @override
+  String get appUpdateErrorCoreBusy =>
+      'Ещё идёт проверка Mihomo. Дождитесь её окончания и повторите установку.';
+
+  @override
+  String get appUpdateErrorInstall =>
+      'Не удалось установить обновление. Установленная версия не изменена.';
+
+  @override
+  String get appUpdateErrorAborted => 'Установка отменена.';
+
+  @override
+  String get appUpdateErrorPermission =>
+      'AntiRKN не разрешено устанавливать приложения.';
 }

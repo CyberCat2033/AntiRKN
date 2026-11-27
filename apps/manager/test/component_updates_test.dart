@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:antirkn_domain/antirkn_domain.dart';
+import 'package:antirkn_manager/runner/component_installation_view.dart';
 import 'package:antirkn_manager/runner/component_updates_controller.dart';
 import 'package:antirkn_manager/runner/runner_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -98,24 +99,25 @@ void main() {
     },
   );
   test(
-    'preferences persist independently; manual check works with auto off',
+    'release checks are not gated by the old preferences; cache persists',
     () async {
       final settings = Settings();
       settings.values['componentUpdatesAutomatic'] = 'false';
+      settings.values['componentUpdatesSuggestions'] = 'false';
       final source = Source();
       var c = ComponentUpdatesController(source: source, settings: settings);
       await c.load();
-      c.maybeCheck();
-      expect(source.calls, 0);
-      await c.setPreference(suggestions: false);
-      await c.check();
-      expect(source.calls, 1);
+      await Future<void>.delayed(Duration.zero);
+      expect(source.calls, 1, reason: 'the automatic check runs anyway');
       expect(c.checkedAt, isNotNull);
+      expect(
+        availableUpdates(c, {'trusttunnel': '1.0.0'}),
+        {'trusttunnel': '1.1.0'},
+        reason: 'offers show on server cards regardless of suggestions',
+      );
       c.dispose();
       c = ComponentUpdatesController(source: source, settings: settings);
       await c.load();
-      expect(c.automatic, isFalse);
-      expect(c.suggestions, isFalse);
       expect(c.latest['trusttunnel'], '1.1.0');
       expect(source.calls, 1);
       c.dispose();

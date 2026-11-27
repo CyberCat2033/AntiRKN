@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AntiRKN — мокапы обновления приложения</title>
+<style>
+/* M3 tokens: seed #a85b65 + overrides from AppTheme._create (design_system). */
+:root{
+  --font: Roboto, "Roboto Flex", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Noto Sans", Ubuntu, Cantarell, "Helvetica Neue", Arial, sans-serif;
+  color-scheme: light;
+  --primary:#874c53; --on-primary:#ffffff; --primary-container:#ffdadc; --on-primary-container:#6b353d;
+  --secondary:#765659; --secondary-container:#f1d2d7; --on-secondary-container:#522c34;
+  --error:#ba1a1a; --on-error:#ffffff; --error-container:#ffdad6; --on-error-container:#93000a;
+  --surface:#fff8f7; --s-low:#f6eceb; --s:#f0e2e3; --s-high:#edddde; --s-highest:#e7d6d7;
+  --on-surface:#271819; --on-surface-v:#695457; --outline:#8c7377; --outline-v:#ddc8ca;
+  --inv-surface:#3d2c2d; --inv-on:#ffedec; --inv-primary:#ffb2b9;
+  --scrim:rgba(0,0,0,.32);
+  --page:#e9e1e1;
+  --e1:0 1px 2px rgba(0,0,0,.3),0 1px 3px 1px rgba(0,0,0,.15);
+  --e2:0 1px 2px rgba(0,0,0,.3),0 2px 6px 2px rgba(0,0,0,.15);
+  --e3:0 1px 3px rgba(0,0,0,.3),0 4px 8px 3px rgba(0,0,0,.15);
+}
+[data-theme=dark]{
+  color-scheme: dark;
+  --primary:#f7b7ba; --on-primary:#492326; --primary-container:#6b353d; --on-primary-container:#ffdadc;
+  --secondary:#e6bdc0; --secondary-container:#6a4649; --on-secondary-container:#ffdade;
+  --error:#ffb4ab; --on-error:#690005; --error-container:#93000a; --on-error-container:#ffdad6;
+  --surface:#130e0e; --s-low:#1d1515; --s:#251b1c; --s-high:#2a1e1f; --s-highest:#352829;
+  --on-surface:#f5eded; --on-surface-v:#cbbabb; --outline:#a48b8f; --outline-v:#493638;
+  --inv-surface:#f0dede; --inv-on:#3d2c2d; --inv-primary:#874c53;
+  --scrim:rgba(0,0,0,.5);
+  --page:#0b0808;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:var(--font);background:var(--page);color:var(--on-surface);-webkit-font-smoothing:antialiased;transition:background .2s}
+button{font-family:inherit}
+p{margin:0}
+/* Type scale (M3 baseline) */
+.t-hs{font-size:24px;line-height:32px;font-weight:400;margin:0}
+.t-tl{font-size:22px;line-height:28px;font-weight:400;margin:0}
+.t-tm{font-size:16px;line-height:24px;font-weight:500;letter-spacing:.15px}
+.t-ts{font-size:14px;line-height:20px;font-weight:500;letter-spacing:.1px}
+.t-bl{font-size:16px;line-height:24px;letter-spacing:.5px}
+.t-bm{font-size:14px;line-height:20px;letter-spacing:.25px}
+.t-bs{font-size:12px;line-height:16px;letter-spacing:.4px}
+.t-lm{font-size:12px;line-height:16px;font-weight:500;letter-spacing:.5px}
+.t-ls{font-size:11px;line-height:16px;font-weight:500;letter-spacing:.5px}
+.v{color:var(--on-surface-v)}
+.ic{width:24px;height:24px;fill:currentColor;flex:none;display:block}
+
+/* ---------- Page chrome ---------- */
+.top{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--page) 90%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--outline-v);padding:14px 32px}
+.top h1{font-size:22px;line-height:28px;font-weight:400;margin:0 0 2px}
+.top .sub{color:var(--on-surface-v);font-size:12px;line-height:16px;letter-spacing:.4px;margin-bottom:12px}
+.ctrls{display:flex;flex-wrap:wrap;gap:10px 20px;align-items:center}
+.ctl{display:flex;align-items:center;gap:8px}
+.ctl>span{font-size:12px;font-weight:500;letter-spacing:.5px;color:var(--on-surface-v)}
+.seg{display:inline-flex;border:1px solid var(--outline);border-radius:20px;overflow:hidden;height:40px}
+.seg button{border:0;background:none;padding:0 14px;font-size:14px;font-weight:500;letter-spacing:.1px;color:var(--on-surface);display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.seg button+button{border-left:1px solid var(--outline)}
+.seg button.on{background:var(--secondary-container);color:var(--on-secondary-container)}
+.seg button .ic{width:18px;height:18px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.fchip{height:32px;border-radius:8px;border:1px solid var(--outline);padding:0 14px;background:none;color:var(--on-surface-v);font-size:14px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.fchip.on{background:var(--secondary-container);border-color:var(--secondary-container);color:var(--on-secondary-container)}
+.fchip .ic{width:18px;height:18px;margin-left:-6px}
+.jump{display:flex;gap:6px;margin-left:auto}
+.jump a{width:36px;height:36px;border-radius:12px;display:grid;place-items:center;background:var(--primary-container);color:var(--on-primary-container);text-decoration:none;font-weight:500}
+.wrap{padding:24px 32px 80px;max-width:1720px;margin:0 auto}
+.intro{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-bottom:28px}
+.intro .card{background:var(--surface)}
+.var{background:var(--s-low);border-radius:28px;padding:24px;margin-bottom:32px;scroll-margin-top:170px}
+.var>header{display:flex;gap:16px;align-items:flex-start;margin-bottom:20px}
+.vletter{width:56px;height:56px;border-radius:16px;background:var(--primary-container);color:var(--on-primary-container);display:grid;place-items:center;font-size:28px;font-weight:500;flex:none}
+.var h2{margin:0 0 6px}
+.pc{display:flex;gap:6px;align-items:baseline}
+.pc b{width:16px;text-align:center;flex:none}
+.pc .pro{color:var(--primary)} .pc .con{color:var(--error)}
+.frames{display:flex;gap:24px;align-items:flex-start;width:max-content}
+.frames figure{margin:0}
+.frames figcaption{margin-top:10px;text-align:center;color:var(--on-surface-v);font-size:12px;font-weight:500;letter-spacing:.5px}
+.capline{margin-top:14px;color:var(--on-surface-v);display:flex;gap:8px;align-items:flex-start;max-width:900px}
+.capline .ic{width:18px;height:18px;color:var(--primary);margin-top:1px}
+.grid{display:flex;flex-wrap:wrap;gap:20px}
+.cell{background:var(--surface);border-radius:20px;padding:14px;margin:0}
+.cell>.cl{font-size:14px;font-weight:500;margin:0 0 10px 2px}
+.cell .capline{max-width:none;font-size:12px;line-height:16px}
+
+/* ---------- Devices ---------- */
+.phone{width:410px;height:840px;padding:10px;border-radius:46px;background:#1d1b1d;box-shadow:0 10px 40px rgba(0,0,0,.25);flex:none}
+.scr{width:390px;height:820px;border-radius:36px;overflow:hidden;background:var(--surface);position:relative;display:flex;flex-direction:column;color:var(--on-surface)}
+.sbar{height:36px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:6px 26px 0;font-size:14px;font-weight:500}
+.sbar .si{display:flex;gap:4px;align-items:center}
+.sbar .ic{width:16px;height:16px}
+.desk{width:1000px;height:680px;border-radius:12px;overflow:hidden;background:var(--surface);position:relative;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.2);outline:1px solid var(--outline-v);flex:none;color:var(--on-surface)}
+.tbar{height:32px;flex:none;display:flex;align-items:center;justify-content:space-between;padding-left:14px;background:var(--s);color:var(--on-surface-v);font-size:12px;font-weight:500}
+.tbar .wc{display:flex}
+.tbar .wc span{width:46px;height:32px;display:grid;place-items:center}
+.tbar .wc .ic{width:14px;height:14px}
+.win{flex:1;display:flex;min-height:0}
+.dmain{flex:1;display:flex;flex-direction:column;min-width:0}
+
+/* App bar, nav */
+.abar{height:64px;flex:none;display:flex;align-items:center;gap:4px;padding:0 4px 0 16px}
+.abar.back{padding-left:4px}
+.abar .ttl{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.abar .aact{display:flex;align-items:center}
+.ibtn{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;color:var(--on-surface-v);position:relative;border:0;background:none;flex:none;cursor:pointer}
+.ibtn>.ic,.ibtn>.bdot{position:relative;z-index:1}
+.ibtn .ring{position:absolute;left:4px;top:4px}
+.ibtn.pri{color:var(--primary)}
+.ibtn.err{color:var(--error)}
+.ibtn.tonal::before{content:"";position:absolute;inset:4px;border-radius:50%;background:var(--secondary-container)}
+.ibtn.tonal{color:var(--on-secondary-container)}
+.ibtn .bdot{position:absolute;top:10px;right:10px}
+.navwrap{background:var(--s);flex:none}
+.nbar{height:80px;display:flex;padding:12px 8px 16px}
+.gest{height:18px;display:grid;place-items:center}
+.gest::after{content:"";width:108px;height:4px;border-radius:2px;background:var(--on-surface);opacity:.5}
+.nitem{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--on-surface-v)}
+.nind{width:64px;height:32px;border-radius:16px;display:grid;place-items:center}
+.nitem.sel .nind{background:var(--secondary-container);color:var(--on-secondary-container)}
+.nitem.sel .nl{color:var(--on-surface)}
+.nicon{position:relative}
+.nicon .bdot{position:absolute;top:-1px;right:-3px}
+.rail{width:80px;flex:none;display:flex;flex-direction:column;align-items:center;gap:12px;padding-top:16px;background:var(--surface)}
+.rail .nitem{flex:none;width:80px}
+.rail .nind{width:56px}
+.bdot{width:6px;height:6px;border-radius:3px;background:var(--error);display:block}
+.blab{min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--error);color:var(--on-error);font-size:11px;font-weight:500;line-height:16px;text-align:center}
+
+/* Body */
+.body{flex:1;overflow:hidden auto;padding:0 16px 24px;scrollbar-width:none}
+.body::-webkit-scrollbar{display:none}
+.desk .body{padding:0 24px 24px}
+.stack{display:flex;flex-direction:column;gap:12px}
+.two{display:grid;grid-template-columns:340px minmax(0,1fr);gap:24px;align-items:start}
+.sh{color:var(--primary);margin:10px 4px -2px}
+.stack>.sh:first-child{margin-top:4px}
+.pg{margin:4px 0 4px}
+.between{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+
+/* Buttons */
+.btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;padding:0 24px;border-radius:20px;border:0;font-size:14px;line-height:20px;font-weight:500;letter-spacing:.1px;cursor:pointer;overflow:hidden;white-space:nowrap;background:none;color:var(--primary);flex:none}
+.btn .ic{width:18px;height:18px;margin-left:-8px}
+.btn::after{content:"";position:absolute;inset:0;background:currentColor;opacity:0;transition:opacity .15s;border-radius:inherit}
+.btn:hover::after{opacity:.08}
+.btn.filled{background:var(--primary);color:var(--on-primary)}
+.btn.tonal{background:var(--secondary-container);color:var(--on-secondary-container)}
+.btn.outlined{border:1px solid var(--outline);color:var(--primary)}
+.btn.text{padding:0 12px}
+.btn.text .ic{margin-left:-4px}
+.btn.dis{background:color-mix(in srgb,var(--on-surface) 12%,transparent);color:color-mix(in srgb,var(--on-surface) 38%,transparent);cursor:default}
+.btn.full{width:100%}
+
+/* Cards */
+.card{background:var(--s-low);border-radius:18px;padding:16px}
+.card.flat{background:var(--surface);outline:1px solid var(--outline-v)}
+.card.list{padding:0;overflow:hidden}
+.sum-main{display:flex;gap:16px;align-items:flex-start}
+.sum-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.sum-act{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;align-items:center}
+.sum-act.below{margin-top:12px}
+.sum-act.side{align-self:center;margin-left:8px}
+.step{color:var(--primary)}
+.tw{position:relative;width:var(--s);height:var(--s);display:grid;place-items:center;flex:none}
+.tw .ring{position:absolute;inset:0}
+.tile{width:var(--i);height:var(--i);border-radius:50%;display:grid;place-items:center;background:var(--secondary-container);color:var(--primary)}
+.tile .ic{width:calc(var(--i) * .52);height:calc(var(--i) * .52)}
+.tile.err{background:var(--error-container);color:var(--on-error-container)}
+.tile.pri{background:var(--primary-container);color:var(--on-primary-container)}
+.tile.sq{border-radius:15px;background:var(--s-high)}
+.ring{transform:rotate(-90deg);overflow:visible}
+.ring circle{fill:none;stroke-width:3;stroke-linecap:round}
+.ring .trk{stroke:color-mix(in srgb,var(--primary) 16%,transparent)}
+.ring .ind{stroke:var(--primary)}
+.ring.spin{animation:spin 1.3s linear infinite}
+@keyframes spin{from{transform:rotate(-90deg)}to{transform:rotate(270deg)}}
+
+/* Notice, details, lists */
+.notice{display:flex;gap:12px;align-items:flex-start;padding:12px 16px;border-radius:14px;background:var(--s-high);color:var(--on-surface)}
+.sum-text .notice,.sum-text .det{margin-top:8px}
+.notice>.ic{width:20px;height:20px;color:var(--on-surface-v);margin-top:0}
+.notice .nt{display:flex;flex-direction:column;gap:2px;min-width:0}
+.notice.err{background:var(--error-container);color:var(--on-error-container)}
+.notice.err>.ic{color:var(--on-error-container)}
+.notice ol{margin:6px 0 0;padding-left:20px}
+.notice ol li{margin:2px 0}
+.det summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:2px;color:var(--primary);font-size:14px;font-weight:500;letter-spacing:.1px;padding:6px 8px 6px 0;border-radius:8px}
+.det summary::-webkit-details-marker{display:none}
+.det summary .ic{width:20px;height:20px;transition:transform .2s}
+.det[open] summary .ic{transform:rotate(180deg)}
+.mono{font-family:ui-monospace,"Roboto Mono","Cascadia Mono","DejaVu Sans Mono",monospace;font-size:12px;line-height:18px;background:var(--s-high);padding:8px 12px;border-radius:10px;color:var(--on-surface-v);margin-top:4px}
+.chg{margin:6px 0 0;padding-left:20px;color:var(--on-surface);font-size:14px;line-height:20px;letter-spacing:.25px}
+.chg li{margin:4px 0}
+.chg li::marker{color:var(--primary)}
+.row{display:flex;align-items:center;gap:16px;padding:10px 16px;min-height:56px}
+.row.two-line{min-height:72px}
+.row .rt{flex:1;min-width:0;display:flex;flex-direction:column}
+.row>.ic{color:var(--on-surface-v)}
+.row.sel{background:var(--secondary-container);color:var(--on-secondary-container)}
+.row.sel .v,.row.sel>.ic{color:var(--on-secondary-container)}
+.div{height:1px;background:var(--outline-v);margin:0 16px}
+.sw{width:52px;height:32px;border-radius:16px;background:var(--s-highest);border:2px solid var(--outline);position:relative;flex:none}
+.sw::after{content:"";position:absolute;width:16px;height:16px;border-radius:50%;background:var(--outline);top:6px;left:6px}
+.sw.on{background:var(--primary);border-color:var(--primary)}
+.sw.on::after{width:24px;height:24px;top:2px;left:22px;background:var(--on-primary)}
+.chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--outline-v);font-size:12px;font-weight:500;letter-spacing:.5px;color:var(--on-surface-v);white-space:nowrap}
+.chip i{width:8px;height:8px;border-radius:4px;background:var(--primary)}
+.chip.off i{background:var(--outline)}
+.abadge{height:20px;padding:0 8px;border-radius:10px;background:var(--error);color:var(--on-error);font-size:11px;font-weight:500;line-height:20px;letter-spacing:.5px}
+.kv{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid var(--outline-v)}
+.kv:first-of-type{border-top:0}
+
+/* Banner (variant Б) */
+.banner{background:var(--secondary-container);color:var(--on-secondary-container);border-radius:18px;padding:16px 16px 8px}
+.banner .bn{display:flex;gap:14px;align-items:flex-start}
+.banner .bn>.ic{margin-top:2px}
+.banner .bt{flex:1;min-width:0}
+.banner .bs{opacity:.85}
+.banner .bacts{display:flex;justify-content:flex-end;gap:4px;margin-top:6px;flex-wrap:wrap}
+.banner .btn.text{color:var(--on-secondary-container)}
+.banner .lin{background:color-mix(in srgb,var(--on-secondary-container) 18%,transparent)}
+.banner.err{background:var(--error-container);color:var(--on-error-container)}
+.banner.err .btn.text{color:var(--on-error-container)}
+.banner.wide{display:flex;align-items:center;gap:16px;padding:12px 12px 12px 16px}
+.banner.wide .bn{flex:1;align-items:center}
+.banner.wide .bacts{margin-top:0}
+
+/* Progress */
+.lin{height:4px;border-radius:2px;background:var(--secondary-container);overflow:hidden;position:relative;margin:10px 0 6px}
+.lin span{position:absolute;left:0;top:0;bottom:0;background:var(--primary);border-radius:2px}
+.lin.ind span{width:38%;animation:lin 1.6s cubic-bezier(.4,0,.2,1) infinite}
+@keyframes lin{from{left:-40%}to{left:100%}}
+@media (prefers-reduced-motion:reduce){.ring.spin,.lin.ind span{animation:none}.lin.ind span{left:0}}
+
+/* Overlays */
+.scrim{position:absolute;inset:0;background:var(--scrim);z-index:8}
+.sheet{position:absolute;left:0;right:0;bottom:0;max-height:86%;overflow:auto;background:var(--s-low);border-radius:28px 28px 0 0;padding:0 24px 24px;z-index:9;scrollbar-width:none}
+.handle{width:32px;height:4px;border-radius:2px;background:var(--on-surface-v);opacity:.4;margin:22px auto 18px}
+.dlg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(340px,calc(100% - 48px));max-height:86%;overflow:auto;background:var(--s-high);border-radius:28px;padding:24px;z-index:9;box-shadow:var(--e3);scrollbar-width:none}
+.dlg.w{width:540px}
+.dlg .dic{display:flex;justify-content:center;color:var(--secondary);margin-bottom:16px}
+.dlg .dh{text-align:center;margin-bottom:16px}
+.hd{display:flex;gap:16px;align-items:center;margin-bottom:16px}
+.acts{display:flex;justify-content:flex-end;gap:8px;margin-top:20px;flex-wrap:wrap}
+.acts .sp{flex:1}
+.snack{position:absolute;left:12px;right:12px;bottom:110px;background:var(--inv-surface);color:var(--inv-on);border-radius:4px;min-height:48px;padding:8px 8px 8px 16px;display:flex;align-items:center;gap:8px;box-shadow:var(--e3);z-index:7}
+.snack .t-bm{flex:1}
+.snack .btn.text{color:var(--inv-primary)}
+.desk .snack{left:104px;right:auto;width:580px;bottom:24px}
+.menu{position:absolute;top:92px;right:12px;width:310px;background:var(--s);border-radius:16px;padding:16px;box-shadow:var(--e2);z-index:6}
+.desk .menu{top:88px;right:20px;width:340px}
+.menu .acts{margin-top:12px}
+.tip{position:absolute;top:96px;right:16px;background:var(--inv-surface);color:var(--inv-on);padding:4px 8px;border-radius:4px;font-size:12px;line-height:16px;letter-spacing:.4px;z-index:6}
+.desk .tip{top:92px;right:24px}
+.na{position:absolute;inset:32px 0 0 0;background:color-mix(in srgb,var(--surface) 72%,transparent);display:grid;place-items:center;z-index:10}
+.na .card{max-width:440px;background:var(--s-high);text-align:center;box-shadow:var(--e2)}
+
+/* Variant В page */
+.hero{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:8px 0 8px}
+.hero.row-h{flex-direction:row;flex-wrap:wrap;text-align:left;align-items:center;gap:12px 20px}
+.hero .ht{display:flex;flex-direction:column;gap:2px;flex:1 1 220px;min-width:0}
+.hero .hact{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-left:auto}
+.bbar{flex:none;background:var(--s);padding:12px 16px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.plab{display:flex;justify-content:space-between;gap:8px}
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>Обновление приложения AntiRKN — варианты интерфейса</h1>
+  <div class="sub">Material Design 3 · seed #a85b65 и переопределения AppTheme · телефон 390 px (Android, NavigationBar) и компьютер 1000 px (NavigationRail, две колонки)</div>
+  <div class="ctrls" id="ctrls"></div>
+</div>
+<main class="wrap">
+  <div class="intro">
+    <div class="card"><div class="t-ts">Общее для всех вариантов</div><p class="t-bm v" style="margin-top:4px">Подписанный манифест в GitHub Releases → версия, размер, список изменений → загрузка → проверка подписи и SHA-256 → установка. Перед перезапуском Mihomo останавливается и затем запускается снова.</p></div>
+    <div class="card"><div class="t-ts">Строки</div><p class="t-bm v" style="margin-top:4px">Переиспользованы из app_ru.arb: «Проверить обновления», «Проверять новые версии», «Не удалось проверить обновления. Предыдущий результат может быть устаревшим.», «Успешная проверка: {date}». Остальное — новые ключи в том же стиле.</p></div>
+    <div class="card"><div class="t-ts">Как смотреть</div><p class="t-bm v" style="margin-top:4px">Сверху переключаются тема, экраны, платформа компьютера и состояние. «Все состояния» показывает раскадровку. Блоки «Что нового» и «Сведения» внутри мокапов раскрываются по нажатию.</p></div>
+  </div>
+  <div id="out"></div>
+</main>
+<script>
+"use strict";
+const I = {
+  dns:"M20 13H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1v-6c0-.55-.45-1-1-1zM7 19c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM20 3H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1V4c0-.55-.45-1-1-1zM7 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z",
+  dns_o:"M19 15v4H5v-4h14m1-2H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1v-6c0-.55-.45-1-1-1zM7 18.5c-.82 0-1.5-.67-1.5-1.5s.68-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM19 5v4H5V5h14m1-2H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1V4c0-.55-.45-1-1-1zM7 8.5c-.82 0-1.5-.67-1.5-1.5S6.18 5.5 7 5.5s1.5.68 1.5 1.5S7.83 8.5 7 8.5z",
+  people:"M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z",
+  people_o:"M16.5 13c-1.2 0-3.07.34-4.5 1-1.43-.67-3.3-1-4.5-1C5.33 13 1 14.08 1 16.25V19h22v-2.75c0-2.17-4.33-3.25-6.5-3.25zm-4 4.5h-10v-1.25c0-.54 2.56-1.75 5-1.75s5 1.21 5 1.75v1.25zm9 0H14v-1.25c0-.46-.2-.86-.52-1.22.88-.3 1.96-.53 3.02-.53 2.44 0 5 1.21 5 1.75v1.25zM7.5 12c1.93 0 3.5-1.57 3.5-3.5S9.43 5 7.5 5 4 6.57 4 8.5 5.57 12 7.5 12zm0-5.5c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm9 5.5c1.93 0 3.5-1.57 3.5-3.5S18.43 5 16.5 5 13 6.57 13 8.5s1.57 3.5 3.5 3.5zm0-5.5c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2z",
+  tune:"M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z",
+  chevron:"M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z",
+  expand:"M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z",
+  check:"M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z",
+  check_circle:"M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z",
+  error:"M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z",
+  info:"M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z",
+  download:"M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z",
+  system_update:"M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14zm-1-6h-3V8h-2v5H8l4 4 4-4z",
+  restart:"M12 5V2L8 6l4 4V7c3.31 0 6 2.69 6 6 0 2.97-2.17 5.43-5 5.91v2.02c3.95-.49 7-3.85 7-7.93 0-4.42-3.58-8-8-8zm-6 8c0-1.65.67-3.15 1.76-4.24L6.34 7.34C4.9 8.79 4 10.79 4 13c0 4.08 3.05 7.44 7 7.93v-2.02c-2.83-.48-5-2.94-5-5.91z",
+  cloud_off:"M19.35 10.04C18.67 6.59 15.64 4 12 4c-1.48 0-2.85.43-4.01 1.17l1.46 1.46C10.21 6.23 11.08 6 12 6c3.04 0 5.5 2.46 5.5 5.5v.5H19c1.66 0 3 1.34 3 3 0 1.13-.64 2.11-1.56 2.62l1.45 1.45C23.16 18.16 24 16.68 24 15c0-2.64-2.05-4.78-4.65-4.96zM3 5.27l2.75 2.74C2.56 8.15 0 10.77 0 14c0 3.31 2.69 6 6 6h11.73l2 2L21 20.73 4.27 4 3 5.27zM7.73 10l8 8H6c-2.21 0-4-1.79-4-4s1.79-4 4-4h1.73z",
+  verified:"M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z",
+  gpp_bad:"M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3zm3.5 12.09l-1.41 1.41L12 13.42 9.91 15.5 8.5 14.09 10.59 12 8.5 9.91 9.91 8.5 12 10.59l2.09-2.09 1.41 1.41L13.42 12l2.08 2.09z",
+  android:"M17.6 9.48l1.84-3.18c.16-.31.04-.69-.26-.85-.29-.15-.65-.06-.83.22l-1.88 3.24c-2.86-1.21-6.08-1.21-8.94 0L5.65 5.67c-.19-.29-.58-.38-.87-.2-.28.18-.37.54-.22.83L6.4 9.48C3.3 11.25 1.28 14.44 1 18h22c-.28-3.56-2.3-6.75-5.4-8.52zM7 15.25c-.69 0-1.25-.56-1.25-1.25s.56-1.25 1.25-1.25 1.25.56 1.25 1.25-.56 1.25-1.25 1.25zm10 0c-.69 0-1.25-.56-1.25-1.25s.56-1.25 1.25-1.25 1.25.56 1.25 1.25-.56 1.25-1.25 1.25z",
+  vpn_key:"M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z",
+  refresh:"M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z",
+  back:"M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z",
+  stop:"M6 6h12v12H6z",
+  open:"M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z",
+  sync:"M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z",
+  palette:"M12 3a9 9 0 0 0 0 18c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z",
+  backup:"M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z",
+  description:"M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z",
+  update:"M21 10.12h-6.78l2.74-2.82c-2.73-2.7-7.15-2.8-9.88-.1-2.73 2.71-2.73 7.08 0 9.79s7.15 2.71 9.88 0C18.32 15.65 19 14.08 19 12.1h2c0 1.98-.88 4.55-2.64 6.29-3.51 3.48-9.21 3.48-12.72 0-3.5-3.47-3.53-9.11-.02-12.58s9.14-3.47 12.65 0L21 3v7.12zM12.5 8v4.25l3.5 2.08-.72 1.21L11 13V8h1.5z",
+  layers:"M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z",
+  computer:"M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.89 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z",
+  wifi:"M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z",
+  battery:"M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.33C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.33V5.33C17 4.6 16.4 4 15.67 4z",
+  sun:"M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1z",
+  moon:"M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.39 5.39 0 0 1-4.4 2.26 5.4 5.4 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z",
+  min:"M4 11h16v2H4z",
+  max:"M4 4h16v16H4V4zm2 2v12h12V6H6z",
+  close:"M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.59 17.59 19 19 17.59 13.41 12z",
+  lightbulb:"M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z"
+};
+
+/* ---------- Data ---------- */
+const V = {cur:"0.9.3", next:"0.10.0", date:"25 ноября", checked:"Успешная проверка: сегодня, 14:02", lastOk:"Успешная проверка: 26 ноября, 21:40"};
+const CHANGES = [
+  "Статистика трафика клиентов на карточках серверов",
+  "Обновление Ubuntu и серверных компонентов из приложения",
+  "Режим обслуживания для отдельного сервера",
+  "Исправлено зависание при импорте большой подписки"
+];
+const CHANGES_CUR = ["Карточки обновлений компонентов с прогрессом","Ссылки на клиентские профили","Исправлены ошибки синхронизации"];
+const PLAT = {
+  android:{name:"Android", size:48.2, verb:"Установить", short:"Установить", when:"установки",
+    how:"Откроется системный установщик Android. После установки AntiRKN снова запустит VPN."},
+  win:{name:"Windows · установщик", size:31.5, verb:"Установить и перезапустить", short:"Установить", when:"установки",
+    how:"Запустится установщик Windows. AntiRKN закроется и откроется снова после установки."},
+  winp:{name:"Windows · portable", size:34.0, verb:"Перезапустить", short:"Перезапустить", when:"перезапуска",
+    how:"Файлы в папке приложения будут заменены, затем AntiRKN перезапустится."},
+  appimage:{name:"Linux · AppImage", size:61.9, verb:"Перезапустить", short:"Перезапустить", when:"перезапуска",
+    how:"Файл AppImage будет заменён, затем AntiRKN перезапустится."},
+  tar:{name:"Linux · tar.gz", size:36.8, verb:"Перезапустить", short:"Перезапустить", when:"перезапуска",
+    how:"Файлы в папке приложения будут заменены, затем AntiRKN перезапустится."}
+};
+const STATES = [
+  ["uptodate","Актуально"],["available","Доступно"],["downloading","Загрузка"],["verifying","Проверка"],
+  ["ready","Готово к перезапуску"],["sig","Ошибка подписи"],["net","Нет сети"],["perm","Разрешение Android"]
+];
+const mb = n => n.toFixed(1).replace(".", ",") + " МБ";
+function T(x){
+  const p = x.p;
+  return {
+    vers:`${V.cur} → ${V.next} · ${mb(p.size)}`,
+    dl:`${mb(p.size*.62)} из ${mb(p.size)} · 3,4 МБ/с`,
+    verify:"Проверка подписи и контрольной суммы…",
+    vpn:`На время ${p.when} локальный VPN отключится: Mihomo будет остановлен и затем запущен снова.`,
+    how:p.how, verb:p.verb, short:p.short,
+    sigT:"Обновление не прошло проверку",
+    sig:"Подпись или контрольная сумма не совпали с манифестом. Загруженный файл удалён, установленная версия не изменена.",
+    net:"Не удалось проверить обновления. Предыдущий результат может быть устаревшим.",
+    permT:"Разрешите установку",
+    perm:"Android один раз попросит разрешить AntiRKN устанавливать приложения.",
+    steps:["Нажмите «Открыть настройки».","Включите «Разрешить установку из этого источника».","Вернитесь в AntiRKN — установка продолжится."]
+  };
+}
+
+/* ---------- Components (mirror design_system names) ---------- */
+const ic = (n, c="") => `<svg class="ic ${c}" viewBox="0 0 24 24" aria-hidden="true"><path d="${I[n]}"/></svg>`;
+const btn = (k, l, i) => `<button class="btn ${k}" type="button">${i ? ic(i) : ""}<span>${l}</span></button>`;
+function ring(size, value){
+  const r = (size-3)/2, C = 2*Math.PI*r, h = size/2;
+  const dash = value == null ? `${(C*.28).toFixed(1)} ${C.toFixed(1)}` : `${C.toFixed(1)} ${C.toFixed(1)}`;
+  const off = value == null ? 0 : (C*(1-value)).toFixed(1);
+  return `<svg class="ring ${value == null ? "spin" : ""}" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true">${value == null ? "" : `<circle class="trk" cx="${h}" cy="${h}" r="${r}"/>`}<circle class="ind" cx="${h}" cy="${h}" r="${r}" stroke-dasharray="${dash}" stroke-dashoffset="${off}"/></svg>`;
+}
+/* AppIconTile: busy → ring around a smaller round tile. */
+function tile(icon, o={}){
+  const size = o.size || 44, busy = !!o.busy, inner = busy ? size-12 : size;
+  return `<span class="tw" style="--s:${size}px">${busy ? ring(size, o.value ?? null) : ""}<span class="tile ${o.tone||""}" style="--i:${inner}px">${ic(icon)}</span></span>`;
+}
+const notice = (text, o={}) => `<div class="notice ${o.error ? "err" : ""}">${ic(o.icon || (o.error ? "error" : "info"))}<div class="nt">${o.title ? `<div class="t-ts">${o.title}</div>` : ""}<div class="t-bm">${text}</div>${o.html || ""}</div></div>`;
+const steps = t => `<ol class="t-bm">${t.steps.map(s => `<li>${s}</li>`).join("")}</ol>`;
+const changes = (n, list=CHANGES) => `<ul class="chg">${list.slice(0, n || list.length).map(c => `<li>${c}</li>`).join("")}</ul>`;
+const det = (label, html, open) => `<details class="det"${open ? " open" : ""}><summary>${label}${ic("expand")}</summary>${html}</details>`;
+const tech = () => det("Сведения", `<div class="mono">Манифест ${V.next}: подпись Ed25519 неверна<br>SHA-256 ожидался 3f9a…c21e<br>SHA-256 получен 77b0…9d04</div>`);
+const lin = v => `<div class="lin ${v == null ? "ind" : ""}"><span style="${v == null ? "" : `width:${v*100}%`}"></span></div>`;
+const head = t => `<div class="sh t-ts">${t}</div>`;
+const sw = (title, sub, on) => `<div class="row ${sub ? "two-line" : ""}"><div class="rt"><span class="t-bl">${title}</span>${sub ? `<span class="t-bm v">${sub}</span>` : ""}</div><span class="sw ${on ? "on" : ""}" role="switch" aria-checked="${on}"></span></div>`;
+const group = rows => `<div class="card list">${rows.join('<div class="div"></div>')}</div>`;
+function summary(o){
+  // Beside the text only when the card is short; otherwise under it, end-aligned (Wrap in SummaryCard).
+  const side = o.wide && !o.extra;
+  const acts = o.actions ? `<div class="sum-act ${side ? "side" : "below"}">${o.actions}</div>` : "";
+  return `<div class="card"><div class="sum-main">${o.lead}<div class="sum-text"><div class="t-tm">${o.title}</div><div class="t-bm v">${o.sub}</div>${o.extra || ""}</div>${side ? acts : ""}</div>${side ? "" : acts}</div>`;
+}
+const updateOptions = (bg) => group([
+  sw("Проверять новые версии", "Приложение и серверные компоненты", true),
+  sw("Загружать обновления в фоне", bg || "Установка — только после вашего подтверждения", false)
+]);
+function settingsMenu(sel, o={}){
+  const items = [
+    ["sync","Синхронизация","Google Drive и ваши устройства"],
+    ["description","Клиентские профили","Базовый YAML, папка и ссылки"],
+    ["palette","Интерфейс","Внешний вид и язык"],
+    ["backup","Резервные копии","Сохранение и восстановление данных"],
+    ["update","Обновления", o.updatesSub || "Проверка версий компонентов"]
+  ];
+  if (o.app) items.push(["system_update","Обновление приложения",`AntiRKN ${V.cur}`, o.badge]);
+  return `<div class="stack">${head("Мои данные")}
+    ${summary({lead:tile("sync"), title:"Синхронизировано", sub:"Google Drive · сегодня, 13:58"})}
+    ${head("Настройки приложения")}
+    <div class="card list">${items.map(([i,t,s,b], k) => `${k ? '<div class="div"></div>' : ""}<div class="row two-line ${i === sel ? "sel" : ""}">${ic(i)}<div class="rt"><span class="t-bl">${t}</span><span class="t-bm v">${s}</span></div>${b ? `<span class="abadge">${b}</span>` : ""}${ic("chevron")}</div>`).join("")}</div></div>`;
+}
+const SERVERS = [["Амстердам","Xray · 4 клиента",1],["Хельсинки","AmneziaWG · 2 клиента",1],["Франкфурт","Xray · 3 клиента",0]];
+function serversList(){
+  return SERVERS.map(([n, s, ok]) => `<div class="card"><div class="sum-main" style="align-items:center">${tile("dns")}<div class="sum-text"><div class="t-tm">${n}</div><div class="t-bm v">${s}</div></div><span class="chip ${ok ? "" : "off"}"><i></i>${ok ? "Работает" : "Обслуживание"}</span></div></div>`).join("");
+}
+function serverDetail(){
+  return `<div class="card"><div class="t-tl" style="margin-bottom:8px">Амстердам</div>
+    <div class="kv t-bm"><span class="v">Состояние</span><span>Работает</span></div>
+    <div class="kv t-bm"><span class="v">Клиенты</span><span>4</span></div>
+    <div class="kv t-bm"><span class="v">Трафик за ноябрь</span><span>128,4 ГБ</span></div>
+    <div class="kv t-bm"><span class="v">3x-ui / Xray</span><span>3.11.0 · 26.11.9</span></div></div>`;
+}
+
+/* ---------- Variant А: card in Settings → Обновления ---------- */
+function cardA(s, x, t){
+  const w = x.wide;
+  const c = {
+    uptodate:{lead:tile("system_update"), sub:`${V.cur} · установлена последняя версия`},
+    available:{lead:tile("system_update"), sub:t.vers, extra:det(`Что нового в ${V.next}`, changes(), true),
+      actions:btn("text","Пропустить версию")+btn("tonal","Обновить","download")},
+    downloading:{lead:tile("download",{busy:1,value:.62}), sub:t.vers, extra:`<div class="t-bm step">Загрузка · ${t.dl}</div>`,
+      actions:btn("outlined","Остановить","stop")},
+    verifying:{lead:tile("verified",{busy:1}), sub:t.vers, extra:`<div class="t-bm step">${t.verify}</div>`},
+    ready:{lead:tile("check",{tone:"pri"}), sub:`${V.next} загружена и проверена. ${t.how}`, extra:notice(t.vpn,{icon:"vpn_key"}),
+      actions:btn("text","Позже")+btn("filled",t.verb,"restart")},
+    sig:{lead:tile("gpp_bad",{tone:"err"}), sub:t.vers, extra:notice(t.sig,{error:1,title:t.sigT})+tech(),
+      actions:btn("tonal","Загрузить заново","refresh")},
+    net:{lead:tile("cloud_off",{tone:"err"}), sub:`${V.cur} · установлена`, extra:notice(t.net,{error:1,icon:"cloud_off"}),
+      actions:btn("tonal","Повторить","refresh")},
+    perm:{lead:tile("android"), sub:t.vers, extra:`<div class="t-bm step">Ожидается разрешение Android</div>`+notice(t.perm,{title:t.permT,html:steps(t)}),
+      actions:btn("text","Отмена")+btn("filled","Открыть настройки","open")}
+  }[s];
+  return summary({...c, title:"AntiRKN", wide:w});
+}
+const VA = {
+  id:"А", key:"a", name:"Карточка в «Настройки → Обновления»",
+  pro:"Тот же SummaryCard с кольцом прогресса, что у 3x-ui/Xray/Ubuntu; все обновления в одном месте; ничего не отвлекает от работы.",
+  con:"Новую версию легко не заметить: она видна только тому, кто зашёл в настройки.",
+  cap:{
+    uptodate:"Карточка приложения первой в общем списке обновлений; «Проверить обновления» проверяет и приложение, и серверы.",
+    available:"Версия, размер и «Что нового» прямо в карточке. «Пропустить версию» скрывает её до выхода следующей.",
+    downloading:"Кольцо вокруг значка и строка шага цветом primary — как у карточек серверных компонентов; «Остановить» вместо «Обновить».",
+    verifying:"Неопределённое кольцо: проверка подписи манифеста и SHA-256 файла. Действий нет.",
+    ready:"Перезапуск только по кнопке; как пройдёт установка на этой платформе и предупреждение о VPN — в карточке.",
+    sig:"Ошибка остаётся в карточке; технические значения — по раскрытию «Сведения».",
+    net:"Существующая строка ошибки проверки и дата последней успешной проверки.",
+    perm:"Шаги для «Разрешить установку из этого источника» перед переходом в системные настройки Android."
+  },
+  render(s, x){
+    const t = T(x);
+    const content = `<div class="stack">
+      <div class="between"><span class="t-bs v">${s === "net" ? V.lastOk : V.checked}</span>${btn("tonal","Проверить обновления","refresh")}</div>
+      ${head("Приложение")}${cardA(s, x, t)}${updateOptions()}
+      ${head("Серверные компоненты · Амстердам")}
+      <div class="card list">
+        <div class="row two-line">${tile("layers")}<div class="rt"><span class="t-tm">3x-ui / Xray</span><span class="t-bm v">3.11.0 · Xray 26.11.9</span></div></div>
+        <div class="div"></div>
+        <div class="row two-line">${tile("computer")}<div class="rt"><span class="t-tm">Ubuntu</span><span class="t-bm v">24.04.3 LTS · обновлений нет</span></div></div>
+      </div></div>`;
+    if (!x.wide) return {nav:2, title:"Обновления", back:true, body:content};
+    return {nav:2, title:"Настройки", body:`<div class="two">${settingsMenu("update",{updatesSub:"Приложение и серверные компоненты"})}<div class="stack"><div class="t-tl pg">Обновления</div>${content}</div></div>`};
+  }
+};
+
+/* ---------- Variant Б: banner on home + bottom sheet / dialog ---------- */
+function bannerB(s, x, t){
+  const wide = x.wide;
+  const b = (o) => {
+    const acts = `<div class="bacts">${o.actions}</div>`;
+    return `<div class="banner ${o.err ? "err" : ""} ${wide ? "wide" : ""}"><div class="bn">${ic(o.icon)}<div class="bt"><div class="t-ts">${o.title}</div><div class="t-bm bs">${o.text}</div>${o.prog || ""}</div></div>${acts}</div>`;
+  };
+  switch (s){
+    case "uptodate": return "";
+    case "available": return b({icon:"system_update", title:`Доступна версия ${V.next}`, text:"Статистика трафика клиентов, обновление Ubuntu и ещё 2 изменения", actions:btn("text","Позже")+btn("text","Подробнее")});
+    case "downloading": return b({icon:"download", title:`Загрузка ${V.next} · 62 %`, text:t.dl, prog:lin(.62), actions:btn("text","Остановить")});
+    case "verifying": return b({icon:"verified", title:"Проверка обновления", text:"Подпись и контрольная сумма", prog:lin(null), actions:""});
+    case "ready": case "perm": return b({icon:"restart", title:`Обновление ${V.next} готово`, text:`При ${x.p.when === "установки" ? "установке" : "перезапуске"} VPN переподключится`, actions:btn("text","Позже")+btn("filled",t.verb,"restart")});
+    case "sig": return b({err:1, icon:"gpp_bad", title:t.sigT, text:"Файл удалён, установленная версия не изменена", actions:btn("text","Сведения")+btn("text","Загрузить заново")});
+    case "net": return b({err:1, icon:"cloud_off", title:"Загрузка прервана", text:"Нет связи с GitHub. Загрузка продолжится, когда сеть появится.", actions:btn("text","Повторить")});
+  }
+}
+function sheetB(s, x, t){
+  if (s === "available") return `<div class="hd">${tile("system_update",{size:48})}<div><div class="t-tl">AntiRKN ${V.next}</div><div class="t-bm v">Сейчас ${V.cur} · ${mb(x.p.size)} · ${V.date}</div></div></div>
+    <div class="t-ts">Что нового</div>${changes()}
+    <div style="margin-top:16px">${notice("После загрузки подпись проверяется автоматически. Момент перезапуска выбираете вы.",{icon:"verified"})}</div>
+    <div class="acts">${btn("text","Пропустить версию")}<span class="sp"></span>${btn("filled","Загрузить","download")}</div>`;
+  if (s === "perm") return `<div class="hd">${tile("android",{size:48})}<div><div class="t-tl">${t.permT}</div><div class="t-bm v">${t.perm}</div></div></div>
+    ${notice("Разрешение относится только к AntiRKN и его можно отозвать в настройках Android.",{html:steps(t)})}
+    <div class="acts">${btn("text","Отмена")}${btn("filled","Открыть настройки","open")}</div>`;
+  return "";
+}
+const VB = {
+  id:"Б", key:"b", name:"Баннер на главном экране + лист с подробностями",
+  pro:"Замечают сразу; прогресс, перезапуск и ошибки видны без перехода по экранам; лист (на компьютере — диалог) вмещает список изменений.",
+  con:"Занимает место над списком серверов и соседствует с предупреждениями серверов; недавно с экранов уже убирали баннеры в пользу карточек.",
+  cap:{
+    uptodate:"Пока обновлений нет, главный экран не меняется. Параметры — в «Настройки → Обновления».",
+    available:"Баннер над серверами; «Подробнее» открывает модальный лист (на компьютере — Dialog) со списком изменений.",
+    downloading:"Лист закрыт, прогресс переехал в баннер; загрузка не мешает работе.",
+    verifying:"Баннер с неопределённым линейным прогрессом.",
+    ready:"Действие и предупреждение о переподключении VPN прямо в баннере.",
+    sig:"Баннер в цвете ошибки; «Сведения» открывают лист с техническими данными.",
+    net:"Загрузка прервана и продолжится сама; можно повторить вручную.",
+    perm:"Лист с шагами для «Разрешить установку из этого источника»."
+  },
+  render(s, x){
+    const t = T(x), banner = bannerB(s, x, t), sheet = sheetB(s, x, t);
+    const body = x.wide
+      ? `<div class="stack">${banner}<div class="two"><div class="stack">${serversList()}</div>${serverDetail()}</div></div>`
+      : `<div class="stack">${banner}${serversList()}</div>`;
+    return {nav:0, title:"Серверы", body, sheet};
+  }
+};
+
+/* ---------- Variant В: badge on Settings + full page ---------- */
+function pageC(s, x, t){
+  const w = x.wide;
+  const hero = {
+    uptodate:[tile("check",{tone:"pri",size:w?56:72}),"Установлена последняя версия",`AntiRKN ${V.cur} · ${V.checked}`],
+    net:[tile("cloud_off",{tone:"err",size:w?56:72}),`AntiRKN ${V.cur}`,V.lastOk],
+    sig:[tile("gpp_bad",{tone:"err",size:w?56:72}),`AntiRKN ${V.next}`,`Новая версия · ${mb(x.p.size)} · ${V.date}`],
+    downloading:[tile("download",{busy:1,value:.62,size:w?56:72}),`AntiRKN ${V.next}`,`Новая версия · ${mb(x.p.size)} · ${V.date}`],
+    verifying:[tile("verified",{busy:1,size:w?56:72}),`AntiRKN ${V.next}`,`Новая версия · ${mb(x.p.size)} · ${V.date}`],
+    ready:[tile("check",{tone:"pri",size:w?56:72}),`AntiRKN ${V.next}`,"Загружено и проверено"],
+    available:[tile("system_update",{size:w?56:72}),`AntiRKN ${V.next}`,`Новая версия · ${mb(x.p.size)} · ${V.date}`],
+    perm:[tile("android",{size:w?56:72}),`AntiRKN ${V.next}`,"Загружено и проверено"]
+  }[s];
+  const actions = {
+    uptodate:btn("outlined","Проверить сейчас","refresh"),
+    available:btn("text","Пропустить версию")+btn("filled","Загрузить и установить","download"),
+    downloading:btn("outlined","Остановить","stop"),
+    verifying:`<button class="btn dis" type="button">${ic("restart")}<span>${t.verb}</span></button>`,
+    ready:btn("text","Позже")+btn("filled",t.verb,"restart"),
+    sig:btn("tonal","Загрузить заново","refresh"),
+    net:btn("tonal","Повторить","refresh"),
+    perm:btn("text","Отмена")+btn("filled","Открыть настройки","open")
+  }[s];
+  const status = {
+    downloading:`<div class="card"><div class="plab t-ts"><span>Загрузка</span><span>62 %</span></div>${lin(.62)}<div class="plab t-bs v"><span>${mb(x.p.size*.62)} из ${mb(x.p.size)}</span><span>3,4 МБ/с · ≈ 6 с</span></div></div>`,
+    verifying:`<div class="card"><div class="t-ts">Проверка</div>${lin(null)}<div class="t-bs v">${t.verify}</div></div>`,
+    ready:notice(t.how,{icon:"check_circle"})+notice(t.vpn,{icon:"vpn_key"}),
+    sig:notice(t.sig,{error:1,title:t.sigT})+`<div>${tech()}</div>`,
+    net:notice(t.net,{error:1,icon:"cloud_off"}),
+    perm:notice(t.perm,{title:t.permT,html:steps(t)})
+  }[s] || "";
+  const notes = s === "uptodate"
+    ? `<div class="card">${det(`Что нового в ${V.cur}`, changes(0, CHANGES_CUR))}</div>`
+    : `<div class="card"><div class="t-tm">Что нового в ${V.next}</div>${changes()}<div class="t-bs v" style="margin-top:8px">Выпуск ${V.date} · подписан ключом AntiRKN</div></div>`;
+  const heroHtml = w
+    ? `<div class="hero row-h">${hero[0]}<div class="ht"><div class="t-hs">${hero[1]}</div><div class="t-bm v">${hero[2]}</div></div><div class="hact">${actions}</div></div>`
+    : `<div class="hero">${hero[0]}<div class="t-hs" style="margin-top:8px">${hero[1]}</div><div class="t-bm v">${hero[2]}</div></div>`;
+  return {html:`<div class="stack">${heroHtml}${status}${notes}${head("Параметры")}${updateOptions()}</div>`, actions};
+}
+const VC = {
+  id:"В", key:"c", name:"Значок на «Настройки» + отдельная страница",
+  pro:"Стандартный M3-паттерн Badge; полноценная страница с историей изменений, прогрессом и параметрами; основной экран не меняется.",
+  con:"На одно-два нажатия глубже; маленькую точку на «Настройки» легко пропустить, особенно на компьютере.",
+  cap:{
+    uptodate:"Страница «Обновление приложения» в Настройках: состояние, что нового в текущей версии и параметры.",
+    available:"Badge на «Настройки» и на пункте меню; страница со списком изменений, действия в нижней панели.",
+    downloading:"Линейный прогресс с объёмом, скоростью и оставшимся временем; «Остановить» внизу.",
+    verifying:"Неопределённый прогресс, кнопка установки неактивна до конца проверки.",
+    ready:"Два уведомления: как пройдёт установка на этой платформе и что VPN переподключится.",
+    sig:"Badge остаётся; причина и «Сведения» с хешами по раскрытию.",
+    net:"Ошибка проверки вместо героя-блока; повтор — внизу.",
+    perm:"Шаги для Android перед переходом в системные настройки."
+  },
+  render(s, x){
+    const t = T(x), pg = pageC(s, x, t);
+    const badge = ["available","ready","sig","perm"].includes(s);
+    if (!x.wide) return {nav:2, badge, title:"Обновление приложения", back:true, body:pg.html, bottom:pg.actions};
+    return {nav:2, badge, title:"Настройки", body:`<div class="two">${settingsMenu("system_update",{app:1, badge:badge ? "Новое" : ""})}<div>${pg.html}</div></div>`};
+  }
+};
+
+/* ---------- Variant Г: background download + top bar indicator ---------- */
+function indicatorD(s){
+  const b = (icon, o={}) => `<span class="ibtn ${o.tone || ""}" title="Обновление приложения" aria-label="Обновление приложения">${o.ring !== undefined ? ring(40, o.ring) : ""}${ic(icon)}${o.badge ? '<span class="bdot"></span>' : ""}</span>`;
+  return {
+    uptodate:"",
+    available:b("download",{tone:"pri",badge:1}),
+    downloading:b("download",{tone:"pri",ring:.62}),
+    verifying:b("verified",{tone:"pri",ring:null}),
+    ready:b("restart",{tone:"tonal",badge:1}),
+    sig:b("gpp_bad",{tone:"err"}),
+    net:b("cloud_off"),
+    perm:b("restart",{tone:"tonal",badge:1})
+  }[s];
+}
+function overlaysD(s, x, t){
+  const mh = (lead, title, sub) => `<div class="hd" style="margin-bottom:8px">${lead}<div><div class="t-tm">${title}</div><div class="t-bs v">${sub}</div></div></div>`;
+  switch (s){
+    case "available": return {menu:mh(tile("system_update",{size:40}),`AntiRKN ${V.next}`,`${mb(x.p.size)} · ${V.date}`)+changes(3)+`<div class="acts">${btn("text","Пропустить")}${btn("tonal","Загрузить","download")}</div>`};
+    case "downloading": return {tip:"Загрузка обновления · 62 %"};
+    case "verifying": return {tip:"Проверка подписи…"};
+    case "ready": return {snack:`<span class="t-bm">Версия ${V.next} готова. VPN переподключится при ${x.p.when === "установки" ? "установке" : "перезапуске"}.</span>${btn("text",t.short)}`};
+    case "sig": return {menu:mh(tile("gpp_bad",{size:40,tone:"err"}),t.sigT,"Файл удалён")+`<div class="t-bm v">${t.sig}</div>${tech()}<div class="acts">${btn("tonal","Загрузить заново","refresh")}</div>`};
+    case "net": return {menu:mh(tile("cloud_off",{size:40}),"Загрузка приостановлена",`${mb(x.p.size*.62)} из ${mb(x.p.size)}`)+lin(.62)+`<div class="t-bm v">Нет связи с GitHub. Загрузка продолжится сама, когда сеть появится.</div><div class="acts">${btn("text","Повторить сейчас")}</div>`};
+    case "perm": return {dialog:`<div class="dic">${ic("android")}</div><div class="t-hs dh">${t.permT}</div><div class="t-bm v">${t.perm}</div>${steps(t).replace('<ol class="t-bm">','<ol class="t-bm" style="padding-left:20px;margin:12px 0 0">')}<div class="acts">${btn("text","Отмена")}${btn("text","Открыть настройки")}</div>`};
+  }
+  return {};
+}
+const VD = {
+  id:"Г", key:"d", name:"Тихая фоновая загрузка + индикатор в верхней панели",
+  pro:"Минимум действий: загрузка и проверка идут сами, пользователь видит только «готово — перезапустить»; прогресс не занимает места.",
+  con:"Фоновый трафик (на Android нужна оговорка про лимитную сеть), меньше контроля; значок в верхней панели — новый для приложения элемент.",
+  cap:{
+    uptodate:"Ничего не показывается. Параметры, в том числе фоновая загрузка (по умолчанию включена), — в «Настройки → Обновления».",
+    available:"Только если фоновая загрузка выключена: значок с Badge и меню с кратким списком изменений.",
+    downloading:"Кольцо вокруг значка; подсказка появляется при наведении или долгом нажатии.",
+    verifying:"Значок щита с неопределённым кольцом.",
+    ready:"Floating SnackBar с действием и предупреждением о VPN; значок остаётся до перезапуска.",
+    sig:"Значок ошибки; меню с причиной, «Сведениями» и повтором.",
+    net:"Загрузка приостановлена и продолжится сама при появлении сети.",
+    perm:"Диалог M3 с иконкой и шагами для Android."
+  },
+  render(s, x){
+    const t = T(x);
+    const body = x.wide
+      ? `<div class="two"><div class="stack">${serversList()}</div>${serverDetail()}</div>`
+      : `<div class="stack">${serversList()}</div>`;
+    return {nav:0, title:"Серверы", action:indicatorD(s), body, ...overlaysD(s, x, t)};
+  }
+};
+const VARIANTS = [VA, VB, VC, VD];
+
+/* ---------- Device shells ---------- */
+const NAV = [["dns","dns_o","Серверы"],["people","people_o","Клиенты"],["tune","tune","Настройки"]];
+const navItems = (sel, badge) => NAV.map(([on, off, l], i) =>
+  `<div class="nitem ${i === sel ? "sel" : ""}"><div class="nind"><span class="nicon">${ic(i === sel ? on : off)}${badge && i === 2 ? '<span class="bdot"></span>' : ""}</span></div><span class="nl t-lm">${l}</span></div>`).join("");
+const appbar = c => `<div class="abar ${c.back ? "back" : ""}">${c.back ? `<span class="ibtn" title="Назад">${ic("back")}</span>` : ""}<div class="t-tl ttl">${c.title}</div><div class="aact">${c.action || ""}</div></div>`;
+function overlays(c, wide){
+  let h = "";
+  if (c.snack) h += `<div class="snack">${c.snack}</div>`;
+  if (c.tip) h += `<div class="tip">${c.tip}</div>`;
+  if (c.menu) h += `<div class="menu">${c.menu}</div>`;
+  if (c.sheet) h += wide ? `<div class="scrim"></div><div class="dlg w">${c.sheet}</div>` : `<div class="scrim"></div><div class="sheet"><div class="handle"></div>${c.sheet}</div>`;
+  if (c.dialog) h += `<div class="scrim"></div><div class="dlg ${wide ? "w" : ""}">${c.dialog}</div>`;
+  return h;
+}
+function phone(v, s){
+  const c = v.render(s, {wide:false, p:PLAT.android});
+  return `<figure><div class="phone"><div class="scr">
+    <div class="sbar"><span>14:02</span><span class="si">${ic("vpn_key")}${ic("wifi")}${ic("battery")}</span></div>
+    ${appbar(c)}<div class="body">${c.body}</div>
+    ${c.bottom ? `<div class="bbar">${c.bottom}</div>` : ""}
+    <div class="navwrap"><nav class="nbar">${navItems(c.nav, c.badge)}</nav><div class="gest"></div></div>
+    ${overlays(c, false)}
+  </div></div><figcaption>390 px · Android</figcaption></figure>`;
+}
+function desktop(v, s){
+  const p = PLAT[state.plat], na = s === "perm";
+  const c = v.render(na ? "ready" : s, {wide:true, p});
+  return `<figure><div class="desk">
+    <div class="tbar"><span>AntiRKN</span><span class="wc"><span>${ic("min")}</span><span>${ic("max")}</span><span>${ic("close")}</span></span></div>
+    <div class="win"><nav class="rail">${navItems(c.nav, c.badge)}</nav><main class="dmain">${appbar({...c, back:false})}<div class="body">${c.body}</div></main></div>
+    ${overlays(c, true)}
+    ${na ? `<div class="na"><div class="card"><div class="t-tm">Только на Android</div><div class="t-bm v" style="margin-top:4px">На Windows и Linux системного разрешения нет: после «Готово» сразу доступна кнопка «${p.verb}».</div></div></div>` : ""}
+  </div><figcaption>1000 px · ${p.name}</figcaption></figure>`;
+}
+const frames = (v, s) => (state.frames !== "desk" ? phone(v, s) : "") + (state.frames !== "phone" ? desktop(v, s) : "");
+const capline = t => `<p class="capline t-bm">${ic("lightbulb")}<span>${t}</span></p>`;
+
+/* ---------- Page ---------- */
+const state = {theme:"light", frames:"both", plat:"win", st:"available"};
+const seg = (k, opts) => `<div class="seg" role="group">${opts.map(([v, l, i]) => `<button type="button" data-k="${k}" data-v="${v}" class="${state[k] === v ? "on" : ""}">${state[k] === v ? ic("check") : (i ? ic(i) : "")}${l}</button>`).join("")}</div>`;
+function controls(){
+  return `<div class="ctl"><span>Тема</span>${seg("theme",[["light","Светлая","sun"],["dark","Тёмная","moon"]])}</div>
+  <div class="ctl"><span>Экраны</span>${seg("frames",[["phone","Телефон"],["desk","Компьютер"],["both","Оба"]])}</div>
+  <div class="ctl"><span>Компьютер</span>${seg("plat",Object.entries(PLAT).filter(([k]) => k !== "android").map(([k, p]) => [k, p.name]))}</div>
+  <div class="ctl" style="flex-basis:100%"><span>Состояние</span><div class="chips">${[...STATES, ["all","Все состояния"]].map(([k, l]) => `<button type="button" class="fchip ${state.st === k ? "on" : ""}" data-k="st" data-v="${k}">${state.st === k ? ic("check") : ""}${l}</button>`).join("")}</div>
+  <div class="jump">${VARIANTS.map(v => `<a href="#var-${v.key}" title="Вариант ${v.id}">${v.id}</a>`).join("")}</div></div>`;
+}
+function section(v){
+  const head = `<header><div class="vletter">${v.id}</div><div><h2 class="t-hs">${v.name}</h2><p class="pc t-bm"><b class="pro">+</b><span>${v.pro}</span></p><p class="pc t-bm" style="margin-top:2px"><b class="con">−</b><span class="v">${v.con}</span></p></div></header>`;
+  if (state.st !== "all") return `<section class="var" id="var-${v.key}">${head}<div class="fitbox"><div class="frames fit">${frames(v, state.st)}</div></div>${capline(v.cap[state.st])}</section>`;
+  const z = state.frames === "phone" ? .56 : state.frames === "desk" ? .42 : .36;
+  return `<section class="var" id="var-${v.key}">${head}<div class="grid">${STATES.map(([k, l]) => `<figure class="cell"><div class="cl">${l}</div><div class="frames" style="zoom:${z}">${frames(v, k)}</div>${capline(v.cap[k])}</figure>`).join("")}</div></section>`;
+}
+function fit(){
+  document.querySelectorAll(".fit").forEach(el => {
+    el.style.zoom = 1;
+    const need = el.scrollWidth, avail = el.parentElement.clientWidth;
+    el.style.zoom = Math.min(1, avail / need);
+  });
+  document.querySelectorAll(".cell .capline").forEach(p => { p.style.maxWidth = p.previousElementSibling.getBoundingClientRect().width + "px"; });
+}
+function render(){
+  document.documentElement.dataset.theme = state.theme;
+  document.getElementById("ctrls").innerHTML = controls();
+  document.getElementById("out").innerHTML = VARIANTS.map(section).join("");
+  fit();
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-k]");
+  if (!b) return;
+  state[b.dataset.k] = b.dataset.v;
+  render();
+});
+window.addEventListener("resize", fit);
+if (matchMedia("(prefers-color-scheme: dark)").matches) state.theme = "dark";
+// Optional deep link: #st=ready&theme=dark&frames=both&plat=appimage
+for (const [k, v] of new URLSearchParams(location.hash.slice(1))) if (k in state) state[k] = v;
+render();
+</script>
+</body>
+</html>

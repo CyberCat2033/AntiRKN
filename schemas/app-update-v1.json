@@ -1,0 +1,190 @@
+{
+  "$comment": "Signed application update manifest. Single source for tool/generate_app_update.py; the envelope carries base64url payload bytes signed as signaturePrefix + 0x00 + payload.",
+  "version": 1,
+  "format": "antirkn-app-update",
+  "signaturePrefix": "antirkn-app-update-v1",
+  "appId": "org.antirkn.manager",
+  "channels": [
+    "stable",
+    "beta"
+  ],
+  "manifestMaxBytes": 262144,
+  "maxSignatures": 4,
+  "keyIdPattern": "^[a-z0-9]{1,16}$",
+  "manifestUrl": "https://github.com/CyberCat2033/AntiRKN/releases/latest/download/app-update-{channel}.json",
+  "artifactUrlPrefix": "https://github.com/CyberCat2033/AntiRKN/releases/download/",
+  "repositoryPath": "/CyberCat2033/AntiRKN/releases/",
+  "redirectHosts": [
+    "objects.githubusercontent.com",
+    "release-assets.githubusercontent.com"
+  ],
+  "installKindFile": "install-kind",
+  "kinds": {
+    "android-apk": [
+      "arm64-v8a",
+      "armeabi-v7a",
+      "x86_64",
+      "universal"
+    ],
+    "windows-installer": [
+      "x64"
+    ],
+    "windows-portable": [
+      "x64"
+    ],
+    "linux-appimage": [
+      "x64"
+    ],
+    "linux-tarball": [
+      "x64"
+    ]
+  },
+  "androidKind": "android-apk",
+  "androidOnly": [
+    "versionCode",
+    "certSha256"
+  ],
+  "androidAbiIds": {
+    "universal": 0,
+    "armeabi-v7a": 1,
+    "arm64-v8a": 2,
+    "x86_64": 3
+  },
+  "$commentAndroid": "Android versionCode = build * 10 + androidAbiIds[arch]; the installed build is versionCode ~/ 10.",
+  "payload": {
+    "schemaVersion": {
+      "type": "integer",
+      "enum": [
+        1
+      ]
+    },
+    "appId": {
+      "type": "string",
+      "enum": [
+        "org.antirkn.manager"
+      ]
+    },
+    "channel": {
+      "type": "string",
+      "enum": [
+        "stable",
+        "beta"
+      ]
+    },
+    "version": {
+      "type": "string",
+      "maxLength": 14,
+      "pattern": "^(0|[1-9][0-9]{0,3})\\.(0|[1-9][0-9]?)\\.(0|[1-9][0-9]?)$"
+    },
+    "build": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 99999999
+    },
+    "tag": {
+      "type": "string",
+      "maxLength": 15,
+      "pattern": "^v[0-9.]{5,14}$"
+    },
+    "commit": {
+      "type": "string",
+      "maxLength": 40,
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "releasedAt": {
+      "type": "string",
+      "maxLength": 32,
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?Z$"
+    },
+    "minSupportedBuild": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 99999999
+    },
+    "notesUrl": {
+      "type": "string",
+      "maxLength": 300,
+      "pattern": "^https://github\\.com/CyberCat2033/AntiRKN/[A-Za-z0-9._~/%-]{1,240}$"
+    },
+    "changelog": {
+      "type": "changelog"
+    },
+    "artifacts": {
+      "type": "artifacts",
+      "minItems": 1,
+      "maxItems": 16
+    }
+  },
+  "artifact": {
+    "kind": {
+      "type": "kind"
+    },
+    "arch": {
+      "type": "string",
+      "enum": [
+        "arm64-v8a",
+        "armeabi-v7a",
+        "x86_64",
+        "universal",
+        "x64"
+      ]
+    },
+    "fileName": {
+      "type": "string",
+      "maxLength": 128,
+      "pattern": "^AntiRKN-v[0-9.]{5,14}-[A-Za-z0-9_-]+(\\.[A-Za-z0-9]+){1,2}$"
+    },
+    "url": {
+      "type": "string",
+      "maxLength": 300,
+      "pattern": "^https://github\\.com/CyberCat2033/AntiRKN/releases/download/v[0-9.]{5,14}/AntiRKN-v[0-9.]{5,14}-[A-Za-z0-9_-]+(\\.[A-Za-z0-9]+){1,2}$"
+    },
+    "size": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 536870912
+    },
+    "sha256": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "versionCode": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2100000000,
+      "optional": true
+    },
+    "certSha256": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "optional": true
+    }
+  },
+  "changelog": {
+    "languages": [
+      "en",
+      "ru"
+    ],
+    "maxItems": 20,
+    "maxBytesPerLanguage": 65536
+  },
+  "changelogEntry": {
+    "version": {
+      "type": "string",
+      "maxLength": 14,
+      "pattern": "^(0|[1-9][0-9]{0,3})\\.(0|[1-9][0-9]?)\\.(0|[1-9][0-9]?)$"
+    },
+    "date": {
+      "type": "string",
+      "maxLength": 10,
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "markdown": {
+      "type": "string",
+      "maxLength": 16384,
+      "pattern": "^[^\\u0000-\\u0008\\u000b-\\u001f\\u007f]+$"
+    }
+  }
+}

@@ -13,6 +13,7 @@ workspace:
   - packages/design_system
   - packages/profile_compiler
   - packages/mihomo_runtime
+  - packages/app_update
 dev_dependencies:
   yaml: ^3.1.4
   antirkn_integrations:
@@ -22,6 +23,8 @@ dev_dependencies:
   cryptography: 2.9.0
   antirkn_domain:
     path: packages/domain
+  antirkn_app_update:
+    path: packages/app_update
   antirkn_profile_compiler:
     path: packages/profile_compiler
   lints: 6.1.0

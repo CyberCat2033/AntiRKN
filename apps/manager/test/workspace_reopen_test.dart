@@ -30,7 +30,6 @@ class _Fixture {
       directory = await Directory.systemTemp.createTemp('reopen-shell-');
       final db = await open();
       await db.writeLanguage(AppLanguage.en);
-      await db.writeSetting('componentUpdatesAutomatic', 'false');
       await db.writeSetting('googleAutoSync', 'false');
       // A dark app on a light system (the platform default in tests).
       await db.writeSetting('theme', ThemeMode.dark.name);
@@ -44,7 +43,9 @@ class _Fixture {
         await directory.delete(recursive: true);
       }),
     );
-    await tester.pumpWidget(WorkspaceLauncher(openWorkspace: open));
+    await tester.pumpWidget(
+      WorkspaceLauncher(openWorkspace: open, backgroundChecks: false),
+    );
     await settle();
     await tester.tap(find.text('Settings').last);
     await settle();

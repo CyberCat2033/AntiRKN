@@ -53,6 +53,7 @@ allowed = {
     'storage': {'antirkn_domain', 'antirkn_integrations', 'shared_preferences', 'file_selector', 'url_launcher', 'flutter', 'cryptography', 'flutter_secure_storage', 'path_provider', 'sqlite3', 'sqlite3_flutter_libs'},
     'integrations': {'antirkn_domain', 'cryptography'},
     'sync': {'antirkn_domain', 'cryptography'},
+    'app_update': {'antirkn_domain', 'cryptography'},
     'ssh_transport': {'antirkn_domain', 'antirkn_network_inventory', 'dartssh2'},
 }
 for package, dependencies in allowed.items():

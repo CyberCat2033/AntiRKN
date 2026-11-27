@@ -2497,6 +2497,69 @@ Future<void> showAppDetails(
   ),
 );
 
+/// The same details as [showAppDetails], adaptive to the width: a modal
+/// bottom sheet on compact screens and a dialog on wider ones. [builder]
+/// may listen to a controller, so progress updates while it is open.
+Future<void> showAppAdaptiveDetails(
+  BuildContext context, {
+  required String title,
+  required WidgetBuilder builder,
+}) {
+  if (MediaQuery.sizeOf(context).width < AppLayout.compact) {
+    return showAppDetails(
+      context,
+      title: title,
+      children: [Builder(builder: builder)],
+    );
+  }
+  return showDialog<void>(
+    context: context,
+    animationStyle: AnimationStyle(
+      duration: AppMotion.duration(context, MotionPreference.system),
+    ),
+    builder: (context) => Dialog(
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 560,
+          maxHeight: MediaQuery.sizeOf(context).height * .8,
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 16, 16, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: MaterialLocalizations.of(
+                      context,
+                    ).closeButtonTooltip,
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsetsDirectional.only(end: 8),
+                child: Builder(builder: builder),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 /// [message] explains the choice; [descriptions] add a line under options.
 Future<T?> showAppChoice<T>(
   BuildContext context, {

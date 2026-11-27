@@ -185,43 +185,6 @@ String componentActiveStepLabel(AppLocalizations l, int checkpoint) =>
       _ => l.uiOperationPending,
     };
 
-class ComponentUpdateSettings extends StatelessWidget {
-  const ComponentUpdateSettings({super.key});
-  @override
-  Widget build(BuildContext context) {
-    final c = ComponentUpdatesScope.of(context),
-        l = AppLocalizations.of(context);
-    if (c == null) return const SizedBox.shrink();
-    // Shown under the page titled uiUpdatesShort (UI-50).
-    return AppSettingsSection(
-      child: Column(
-        children: [
-          SwitchListTile(
-            title: Text(l.updatesAutomatic),
-            subtitle: Text(l.uiUpdatesAutomaticHelp),
-            value: c.automatic,
-            onChanged: (v) {
-              c.setPreference(automatic: v);
-            },
-          ),
-          SwitchListTile(
-            title: Text(l.updatesSuggestions),
-            subtitle: Text(l.uiUpdatesSuggestionsHelp),
-            value: c.suggestions,
-            onChanged: (v) {
-              c.setPreference(suggestions: v);
-            },
-          ),
-          if (c.busy) const LinearProgressIndicator(),
-          if (c.failed) AppNotice(message: l.updatesFailed, error: true),
-          if (c.storageFailed)
-            AppNotice(message: l.settingsSaveError, error: true),
-        ],
-      ),
-    );
-  }
-}
-
 /// Installed components with a newer upstream release: key → latest.
 ///
 /// The one rule for the update counter and the software cards (UI-46).
@@ -229,12 +192,11 @@ Map<String, String> availableUpdates(
   ComponentUpdatesController updates,
   Map<String, String> installed,
 ) => {
-  if (updates.suggestions || updates.manualResults)
-    for (final v in installed.entries)
-      if (updates.latest[v.key] case final latest?)
-        if (componentIsNewer(latest, v.value) == true ||
-            componentIsNewer(latest, v.value, allowPreview: true) == true)
-          v.key: latest,
+  for (final v in installed.entries)
+    if (updates.latest[v.key] case final latest?)
+      if (componentIsNewer(latest, v.value) == true ||
+          componentIsNewer(latest, v.value, allowPreview: true) == true)
+        v.key: latest,
 };
 
 /// Software cards that can host [ComponentInstallationView].

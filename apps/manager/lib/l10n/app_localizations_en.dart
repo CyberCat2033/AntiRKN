@@ -3017,7 +3017,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get uiComponentUpdates => 'Updates';
 
   @override
-  String get uiUpdatesHelp => 'Check component versions';
+  String get uiUpdatesHelp => 'New versions of the app';
 
   @override
   String get uiAppSettings => 'App settings';
@@ -3137,10 +3137,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get uiUpdatesShort => 'Updates';
 
   @override
-  String get uiUpdatesAutomaticHelp => 'New versions of server components';
+  String get uiUpdatesAutomaticHelp =>
+      'Look for new AntiRKN releases on GitHub at start and from time to time';
 
   @override
-  String get uiUpdatesSuggestionsHelp => 'Notify about available updates';
+  String get uiUpdatesSuggestionsHelp =>
+      'Show an available app update on the home screen';
 
   @override
   String get uiSyncAutomaticHelp =>
@@ -4619,4 +4621,220 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get trafficRefresh => 'Read again from the servers';
+
+  @override
+  String get appUpdateSection => 'App';
+
+  @override
+  String appUpdateUpToDate(String version) {
+    return '$version · the latest version is installed';
+  }
+
+  @override
+  String appUpdateInstalledVersion(String version) {
+    return '$version · installed';
+  }
+
+  @override
+  String appUpdateVersions(String current, String next, String size) {
+    return '$current → $next · $size';
+  }
+
+  @override
+  String appUpdateMegabytes(String value) {
+    return '$value MB';
+  }
+
+  @override
+  String appUpdateWhatsNew(String version) {
+    return 'What\'s new in $version';
+  }
+
+  @override
+  String get appUpdateSkip => 'Skip this version';
+
+  @override
+  String get appUpdateUpdate => 'Update';
+
+  @override
+  String appUpdateDownloadingStep(String received, String total) {
+    return 'Downloading · $received of $total';
+  }
+
+  @override
+  String get appUpdateStop => 'Stop';
+
+  @override
+  String get appUpdateVerifyingStep => 'Checking the signature and checksum…';
+
+  @override
+  String appUpdateReadyStep(String version) {
+    return '$version is downloaded and verified.';
+  }
+
+  @override
+  String get appUpdateHowAndroid =>
+      'The Android installer opens. AntiRKN starts again after the install.';
+
+  @override
+  String get appUpdateHowWindows =>
+      'The Windows installer runs. AntiRKN closes and opens again after the install.';
+
+  @override
+  String get appUpdateHowAppImage =>
+      'The AppImage file is replaced, then AntiRKN restarts.';
+
+  @override
+  String get appUpdateHowTarball =>
+      'The files in the app folder are replaced, then AntiRKN restarts.';
+
+  @override
+  String get appUpdateHowPortable =>
+      'Replace the files in the app folder with the downloaded archive yourself.';
+
+  @override
+  String get appUpdateRestartWarning =>
+      'AntiRKN closes for the restart: running Mihomo checks stop and can be repeated afterwards.';
+
+  @override
+  String get appUpdateLater => 'Later';
+
+  @override
+  String get appUpdateInstall => 'Install';
+
+  @override
+  String get appUpdateInstallRestart => 'Install and restart';
+
+  @override
+  String get appUpdateRestart => 'Restart';
+
+  @override
+  String get appUpdateShowFile => 'Show file';
+
+  @override
+  String get appUpdateInstalling => 'Installing…';
+
+  @override
+  String get appUpdateRetry => 'Retry';
+
+  @override
+  String get appUpdateDownloadAgain => 'Download again';
+
+  @override
+  String get appUpdatePermissionTitle => 'Allow installs';
+
+  @override
+  String get appUpdatePermission =>
+      'Android asks once to allow AntiRKN to install apps.';
+
+  @override
+  String get appUpdatePermissionStep1 => 'Tap “Open settings”.';
+
+  @override
+  String get appUpdatePermissionStep2 => 'Turn on “Allow from this source”.';
+
+  @override
+  String get appUpdatePermissionStep3 =>
+      'Return to AntiRKN and tap “Install” again.';
+
+  @override
+  String get appUpdatePermissionWaiting => 'Waiting for the Android permission';
+
+  @override
+  String get appUpdateOpenSettings => 'Open settings';
+
+  @override
+  String appUpdateAvailableTitle(String version) {
+    return 'Version $version is available';
+  }
+
+  @override
+  String appUpdateBannerText(String current, String size) {
+    return 'Now $current · $size';
+  }
+
+  @override
+  String get appUpdateMore => 'Details';
+
+  @override
+  String appUpdateDownloadingTitle(String version, String percent) {
+    return 'Downloading $version · $percent %';
+  }
+
+  @override
+  String get appUpdateVerifyingTitle => 'Checking the update';
+
+  @override
+  String appUpdateReadyTitle(String version) {
+    return 'Update $version is ready';
+  }
+
+  @override
+  String get appUpdateReleasePage => 'Release page';
+
+  @override
+  String get appUpdateNotifyOnly =>
+      'This installation cannot be updated from the app. Download the new version from the release page.';
+
+  @override
+  String get appUpdateMandatory =>
+      'This version is no longer supported: update the app.';
+
+  @override
+  String get appUpdateUnavailable => 'Updates are not available in this build.';
+
+  @override
+  String get appUpdateChecking => 'Checking for a new version…';
+
+  @override
+  String get appUpdateDetails => 'Details';
+
+  @override
+  String get appUpdateDetailCode => 'Error code';
+
+  @override
+  String get appUpdateDetailBuild => 'Build';
+
+  @override
+  String get appUpdateDetailCommit => 'Commit';
+
+  @override
+  String get appUpdateDetailFile => 'File';
+
+  @override
+  String get appUpdateDetailChecksum => 'SHA-256';
+
+  @override
+  String get appUpdateErrorVerificationTitle =>
+      'The update failed verification';
+
+  @override
+  String get appUpdateErrorVerification =>
+      'The signature or checksum did not match the manifest. The downloaded file is removed; the installed version is unchanged.';
+
+  @override
+  String get appUpdateErrorNetwork =>
+      'Could not reach GitHub. Try again later.';
+
+  @override
+  String get appUpdateErrorNetworkTitle => 'Download interrupted';
+
+  @override
+  String get appUpdateErrorStorage =>
+      'Could not save the update file. Check free space and try again.';
+
+  @override
+  String get appUpdateErrorCoreBusy =>
+      'A Mihomo check is still running. Wait for it to finish and install again.';
+
+  @override
+  String get appUpdateErrorInstall =>
+      'The update could not be installed. The installed version is unchanged.';
+
+  @override
+  String get appUpdateErrorAborted => 'The installation was cancelled.';
+
+  @override
+  String get appUpdateErrorPermission =>
+      'Installing apps is not allowed for AntiRKN.';
 }
