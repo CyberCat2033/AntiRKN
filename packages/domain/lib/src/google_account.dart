@@ -5,12 +5,29 @@ final class GoogleDriveAccount {
     required this.permissionId,
     required this.email,
     required this.displayName,
+    this.photoUrl,
   });
   final String permissionId, email, displayName;
+
+  /// The account picture served by Google. Read data keeps it only when it
+  /// is a Google content URL, so the UI never loads an arbitrary address.
+  final String? photoUrl;
+
+  static bool validPhotoUrl(String value) {
+    if (value.length > 2048) return false;
+    final uri = Uri.tryParse(value);
+    return uri != null &&
+        uri.scheme == 'https' &&
+        uri.userInfo.isEmpty &&
+        (uri.host == 'googleusercontent.com' ||
+            uri.host.endsWith('.googleusercontent.com'));
+  }
+
   Map<String, Object?> toJson() => {
     'id': permissionId,
     'email': email,
     'name': displayName,
+    if (photoUrl != null) 'photo': photoUrl,
   };
   factory GoogleDriveAccount.fromJson(Map<String, dynamic> value) {
     final id = value['id'], email = value['email'], name = value['name'];
@@ -28,6 +45,12 @@ final class GoogleDriveAccount {
       permissionId: id,
       email: email,
       displayName: name,
+      // An old or foreign value is dropped, not an error: the picture is
+      // decoration.
+      photoUrl: switch (value['photo']) {
+        final String photo when validPhotoUrl(photo) => photo,
+        _ => null,
+      },
     );
   }
   @override

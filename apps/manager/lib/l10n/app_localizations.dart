@@ -5561,7 +5561,7 @@ abstract class AppLocalizations {
   /// No description provided for @uiSyncAutomaticHelp.
   ///
   /// In en, this message translates to:
-  /// **'Upload after edits and on leaving, load on return'**
+  /// **'After each change and on return'**
   String get uiSyncAutomaticHelp;
 
   /// No description provided for @uiPairDeviceHelp.
@@ -7987,6 +7987,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Read again from the servers'**
   String get trafficRefresh;
+
+  /// No description provided for @uiAccountActions.
+  ///
+  /// In en, this message translates to:
+  /// **'Account actions'**
+  String get uiAccountActions;
+
+  /// No description provided for @uiSyncNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync now'**
+  String get uiSyncNow;
+
+  /// No description provided for @uiSyncedToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Today, {time}'**
+  String uiSyncedToday(String time);
+
+  /// No description provided for @uiPairDeviceNote.
+  ///
+  /// In en, this message translates to:
+  /// **'To use another device, sign in there with the same Google account.'**
+  String get uiPairDeviceNote;
 }
 
 class _AppLocalizationsDelegate

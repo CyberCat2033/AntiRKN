@@ -3143,8 +3143,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get uiUpdatesSuggestionsHelp => 'Notify about available updates';
 
   @override
-  String get uiSyncAutomaticHelp =>
-      'Upload after edits and on leaving, load on return';
+  String get uiSyncAutomaticHelp => 'After each change and on return';
 
   @override
   String get uiPairDeviceHelp => 'Sign in to the same Google account';
@@ -4604,4 +4603,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get trafficRefresh => 'Read again from the servers';
+
+  @override
+  String get uiAccountActions => 'Account actions';
+
+  @override
+  String get uiSyncNow => 'Sync now';
+
+  @override
+  String uiSyncedToday(String time) {
+    return 'Today, $time';
+  }
+
+  @override
+  String get uiPairDeviceNote =>
+      'To use another device, sign in there with the same Google account.';
 }

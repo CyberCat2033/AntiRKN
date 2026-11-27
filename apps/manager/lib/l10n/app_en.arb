@@ -1154,7 +1154,7 @@
   "uiUpdatesShort": "Updates",
   "uiUpdatesAutomaticHelp": "New versions of server components",
   "uiUpdatesSuggestionsHelp": "Notify about available updates",
-  "uiSyncAutomaticHelp": "Upload after edits and on leaving, load on return",
+  "uiSyncAutomaticHelp": "After each change and on return",
   "uiPairDeviceHelp": "Sign in to the same Google account",
   "uiPublicProfileHelp": "The profile is available by direct link. Open the client to get its QR code and link.",
   "uiPublicationAutoHelp": "Save changes at the same profile links",
@@ -1677,5 +1677,10 @@
   "trafficStateOff": "Per-client statistics are off on this server",
   "trafficStateUnavailable": "Counters are unavailable right now",
   "trafficPrivacy": "Only volumes are counted on the servers; connections and sites are not recorded.",
-  "trafficRefresh": "Read again from the servers"
+  "trafficRefresh": "Read again from the servers",
+  "uiAccountActions": "Account actions",
+  "uiSyncNow": "Sync now",
+  "uiSyncedToday": "Today, {time}",
+  "uiPairDeviceNote": "To use another device, sign in there with the same Google account.",
+  "@uiSyncedToday": {"placeholders": {"time": {"type": "String"}}}
 }

@@ -112,6 +112,20 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
     super.dispose();
   }
 
+  static String _accountName(GoogleDriveAccount account) =>
+      account.displayName.isNotEmpty ? account.displayName : account.email;
+
+  /// Desktop sign-in continues in the browser; it can be cancelled here.
+  List<Widget> _desktopWaiting(AppLocalizations l) => [
+    AppNotice(message: l.googleDesktopWaiting),
+    TextButton(
+      key: const ValueKey('google-cancel-sign-in'),
+      onPressed: () =>
+          (widget.service as CancelableGoogleSignIn).cancelSignIn(),
+      child: Text(l.googleCancelSignIn),
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
@@ -162,35 +176,17 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
               account == null ? l.googleSignIn : l.googleSwitchAccount,
             ),
           ),
-          if (_signingIn && desktop) ...[
-            AppNotice(message: l.googleDesktopWaiting),
-            TextButton(
-              key: const ValueKey('google-cancel-sign-in'),
-              onPressed: () =>
-                  (widget.service as CancelableGoogleSignIn).cancelSignIn(),
-              child: Text(l.googleCancelSignIn),
-            ),
-          ],
+          if (_signingIn && desktop) ..._desktopWaiting(l),
           if (account != null)
             TextButton(
               key: const ValueKey('google-sign-out'),
               onPressed: _busy ? null : () => _act(false),
               child: Text(l.googleSignOut),
             ),
-        ] else ...[
-          if (account != null && sync != null) ...[
-            ListTile(
-              leading: const AppIconTile(icon: Icons.cloud_done_outlined),
-              title: Text(
-                syncStatusLabel(l, sync),
-                key: const ValueKey('google-sync-status'),
-              ),
-              // The account is named once, on the Google Drive row (UI-51).
-            ),
-            const Divider(indent: 17, endIndent: 17),
-            if (sync.divergence != null) SyncDivergenceNotice(sync: sync),
-          ],
+        ] else if (account == null)
+          // Signed out: the row opens the sign-in sheet.
           ListTile(
+            key: const ValueKey('google-drive-sign-in'),
             leading: const Icon(Icons.cloud_outlined),
             title: Text(l.uiGoogleDrive),
             subtitle: Text(
@@ -225,8 +221,42 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
                     );
                     if (mounted) await _load();
                   },
+          )
+        else ...[
+          // One row names the account; switching and signing out are its
+          // actions (Sync A).
+          ListTile(
+            key: const ValueKey('google-account'),
+            leading: AppAvatar(
+              name: _accountName(account),
+              imageUrl: account.photoUrl,
+            ),
+            title: Text(_accountName(account)),
+            subtitle: account.displayName.isEmpty ? null : Text(account.email),
+            trailing: AppMoreMenu(
+              tooltip: l.uiAccountActions,
+              buttonKey: const ValueKey('google-account-menu'),
+              children: [
+                AppMenuItem(
+                  key: const ValueKey('google-switch-account'),
+                  icon: Icons.switch_account_outlined,
+                  label: l.googleSwitchAccount,
+                  onPressed: _busy ? null : () => _act(true),
+                ),
+                AppMenuItem(
+                  key: const ValueKey('google-sign-out'),
+                  icon: Icons.logout,
+                  label: l.googleSignOut,
+                  onPressed: _busy ? null : () => _act(false),
+                ),
+              ],
+            ),
           ),
-          if (account != null && sync != null) ...[
+          if (_signingIn && desktop) ..._desktopWaiting(l),
+          if (sync != null) ...[
+            const Divider(indent: 17, endIndent: 17),
+            _SyncStatusTile(sync: sync, busy: _busy),
+            if (sync.divergence != null) SyncDivergenceNotice(sync: sync),
             const Divider(indent: 17, endIndent: 17),
             SwitchListTile(
               key: const ValueKey('google-auto-sync'),
@@ -245,19 +275,11 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
                       }
                     },
             ),
-            const Divider(indent: 17, endIndent: 17),
-            ListTile(
-              leading: const Icon(Icons.devices_outlined),
-              title: Text(l.uiPairDevice),
-              subtitle: Text(l.uiPairDeviceHelp),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => showAppDetails(
-                context,
-                title: l.uiPairDevice,
-                children: [Text(l.autoSyncPairing)],
-              ),
-            ),
           ],
+          Padding(
+            padding: const EdgeInsets.only(top: 4, bottom: 12),
+            child: AppFormHint(l.uiPairDeviceNote),
+          ),
         ],
       ],
     );
@@ -265,6 +287,73 @@ class _GoogleAccountPanelState extends State<GoogleAccountPanel> {
         ? AppSettingsSection(title: l.uiSynchronization, child: content)
         : content;
   }
+}
+
+/// The exchange state, when it last finished and "sync now".
+class _SyncStatusTile extends StatelessWidget {
+  const _SyncStatusTile({required this.sync, required this.busy});
+  final AutoSyncController sync;
+  final bool busy;
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final colors = Theme.of(context).colorScheme;
+    final phase = sync.phase;
+    final problem = const {
+      AutoSyncPhase.error,
+      AutoSyncPhase.conflict,
+      AutoSyncPhase.diverged,
+    }.contains(phase);
+    final syncedAt = sync.syncedAt;
+    final running = phase == AutoSyncPhase.syncing || sync.applying;
+    return AppActionTile(
+      key: const ValueKey('google-sync-status'),
+      leading: AppIconTile(
+        size: 40,
+        round: true,
+        busy: running,
+        icon: switch (phase) {
+          AutoSyncPhase.synced => Icons.cloud_done_outlined,
+          AutoSyncPhase.retrying => Icons.cloud_off_outlined,
+          AutoSyncPhase.disabled => Icons.sync_disabled,
+          _ when problem => Icons.sync_problem,
+          _ => Icons.cloud_sync_outlined,
+        },
+      ),
+      title: Text(
+        syncStatusLabel(l, sync),
+        style: problem ? TextStyle(color: colors.error) : null,
+      ),
+      subtitle: phase == AutoSyncPhase.synced && syncedAt != null
+          ? Text(syncTimeLabel(context, syncedAt))
+          : null,
+      action: FilledButton.tonal(
+        key: const ValueKey('google-sync-now'),
+        onPressed:
+            busy ||
+                running ||
+                !sync.enabled ||
+                phase == AutoSyncPhase.diverged ||
+                phase == AutoSyncPhase.disconnected
+            ? null
+            : sync.syncNow,
+        child: Text(l.uiSyncNow),
+      ),
+    );
+  }
+}
+
+/// "Today, 22:24" for today, otherwise the date and time.
+String syncTimeLabel(BuildContext context, DateTime value) {
+  final l = AppLocalizations.of(context);
+  final locale = l.localeName;
+  final local = value.toLocal(), now = DateTime.now();
+  final time = DateFormat.Hm(locale).format(local);
+  return local.year == now.year &&
+          local.month == now.month &&
+          local.day == now.day
+      ? l.uiSyncedToday(time)
+      : DateFormat.yMd(locale).add_Hm().format(local);
 }
 
 /// The paused exchange and the way out: choosing one of the two versions.

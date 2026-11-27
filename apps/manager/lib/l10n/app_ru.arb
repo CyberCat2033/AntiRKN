@@ -1114,7 +1114,7 @@
   "uiUpdatesShort": "Обновления",
   "uiUpdatesAutomaticHelp": "Новые версии компонентов на серверах",
   "uiUpdatesSuggestionsHelp": "Сообщать о доступных обновлениях",
-  "uiSyncAutomaticHelp": "Отправка после правок и при уходе, загрузка при входе",
+  "uiSyncAutomaticHelp": "После каждого изменения и при возвращении",
   "uiPairDeviceHelp": "Войти в тот же Google-аккаунт",
   "uiPublicProfileHelp": "Профиль доступен по прямой ссылке. QR-код и ссылку можно получить в карточке клиента.",
   "uiPublicationAutoHelp": "Сохранять изменения по прежним ссылкам",
@@ -1628,5 +1628,9 @@
   "trafficStateOff": "Статистика по клиентам на сервере выключена",
   "trafficStateUnavailable": "Счётчики сейчас недоступны",
   "trafficPrivacy": "На серверах считаются только объёмы; соединения и сайты не записываются.",
-  "trafficRefresh": "Перечитать с серверов"
+  "trafficRefresh": "Перечитать с серверов",
+  "uiAccountActions": "Действия с аккаунтом",
+  "uiSyncNow": "Синхронизировать",
+  "uiSyncedToday": "Сегодня, {time}",
+  "uiPairDeviceNote": "Чтобы работать с другого устройства, войдите на нём в тот же Google-аккаунт."
 }

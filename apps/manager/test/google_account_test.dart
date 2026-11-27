@@ -55,6 +55,30 @@ class DesktopAccountService extends AccountService
 }
 
 void main() {
+  test('only a Google content URL is kept as the account picture', () {
+    GoogleDriveAccount read(Object? photo) => GoogleDriveAccount.fromJson({
+      'id': 'p',
+      'email': 'a@example.com',
+      'name': 'A',
+      'photo': photo,
+    });
+    const google = 'https://lh3.googleusercontent.com/a/photo=s64';
+    expect(read(google).photoUrl, google);
+    expect(read(google).toJson()['photo'], google);
+    for (final other in [
+      null,
+      42,
+      'http://lh3.googleusercontent.com/a',
+      'https://googleusercontent.com.evil.example/a',
+      'https://user@lh3.googleusercontent.com/a',
+      'https://example.com/a.png',
+      'https://lh3.googleusercontent.com/${'a' * 2100}',
+    ]) {
+      expect(read(other).photoUrl, isNull, reason: '$other');
+      expect(read(other).toJson().containsKey('photo'), isFalse);
+    }
+  });
+
   Future<void> mount(
     WidgetTester tester,
     AccountService service, {

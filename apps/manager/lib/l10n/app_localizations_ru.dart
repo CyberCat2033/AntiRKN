@@ -3149,8 +3149,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get uiUpdatesSuggestionsHelp => 'Сообщать о доступных обновлениях';
 
   @override
-  String get uiSyncAutomaticHelp =>
-      'Отправка после правок и при уходе, загрузка при входе';
+  String get uiSyncAutomaticHelp => 'После каждого изменения и при возвращении';
 
   @override
   String get uiPairDeviceHelp => 'Войти в тот же Google-аккаунт';
@@ -4617,4 +4616,19 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get trafficRefresh => 'Перечитать с серверов';
+
+  @override
+  String get uiAccountActions => 'Действия с аккаунтом';
+
+  @override
+  String get uiSyncNow => 'Синхронизировать';
+
+  @override
+  String uiSyncedToday(String time) {
+    return 'Сегодня, $time';
+  }
+
+  @override
+  String get uiPairDeviceNote =>
+      'Чтобы работать с другого устройства, войдите на нём в тот же Google-аккаунт.';
 }
