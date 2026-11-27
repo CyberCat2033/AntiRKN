@@ -29,11 +29,8 @@ jobs:
           persist-credentials: false
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
-        with:
-          flutter-version: '3.41.2'
-          channel: stable
-          cache: true
+        shell: bash
+        run: bash tool/ci/setup_flutter.sh 3.41.2 90673a4eef275d1a6692c26ac80d6d746d41a73a
 
       - name: Changelog has an [Unreleased] section
         run: python3 tool/ci/changelog_check.py --unreleased --soft

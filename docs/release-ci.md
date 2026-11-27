@@ -131,7 +131,7 @@ Settings → Secrets and variables → Actions → **Variables** (уровень
 
 - **Тег-ruleset** (Settings → Rules → Rulesets → New tag ruleset): target `v*`. Включите Restrict creations, Restrict updates и Restrict deletions; в bypass оставьте только владельца.
 - **Защита default-ветки** (ruleset или branch protection): запрет force push и удаления. Перед merge должен быть зелёным статус `Checks / Verify` и сборки. Если работа идёт через PR, требуйте PR.
-- **Actions** (Settings → Actions → General): Workflow permissions — «Read repository contents», запретите Actions создавать и одобрять PR. Для fork PR выберите «Require approval for all external contributors». По возможности включите «Require actions to be pinned to a full-length commit SHA» и разрешите только GitHub, verified creators и `subosito/flutter-action`.
+- **Actions** (Settings → Actions → General): Workflow permissions — «Read repository contents», запретите Actions создавать и одобрять PR. Для fork PR выберите «Require approval for all external contributors». По возможности включите «Require actions to be pinned to a full-length commit SHA» и разрешите только GitHub и verified creators (Flutter ставится скриптом `tool/ci/setup_flutter.sh` с проверкой коммита тега).
 - **Code security**: включите Secret scanning и **Push protection**, Dependabot alerts. Можно добавить Dependabot для `github-actions`, чтобы получать PR с обновлением закреплённых SHA.
 - Включите 2FA у всех, у кого есть доступ к репозиторию.
 
