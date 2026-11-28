@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:antirkn_mihomo_runtime/antirkn_mihomo_runtime.dart';
-import 'package:antirkn_mihomo_runtime/src/tls_scan_result.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const revision = 'ac017cdd246ce8bd547653d927e7bf77d7ee73d5';

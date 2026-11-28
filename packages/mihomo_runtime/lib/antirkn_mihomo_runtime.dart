@@ -8,7 +8,6 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:crypto/crypto.dart';
 import 'package:yaml/yaml.dart';
 import 'src/native_worker.dart';
-import 'src/tls_scan_result.dart';
 
 export 'src/worker_gate.dart' show MihomoWorkerGate;
 

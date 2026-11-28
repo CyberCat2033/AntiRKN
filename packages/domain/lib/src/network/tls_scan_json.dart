@@ -1,4 +1,7 @@
-import 'package:antirkn_domain/antirkn_domain.dart';
+/// The worker's TLS scan JSON, also the checkpoint format of a search.
+library;
+
+import 'tls_scan.dart';
 
 const _reach = {
   'ok': TlsReach.ok,
@@ -94,12 +97,14 @@ TlsScanBatch parseTlsScan(
     status: TlsScanStatus.scanned,
     code: 'scanned',
     probes: [
-      for (var i = 0; i < targets.length; i++) _probe(probes[i], targets[i]),
+      for (var i = 0; i < targets.length; i++)
+        parseTlsProbe(probes[i], targets[i]),
     ],
   );
 }
 
-TlsProbeResult _probe(Object? raw, TlsScanTarget target) {
+/// Reads one observation of [target], as written by the worker or [tlsProbeJson].
+TlsProbeResult parseTlsProbe(Object? raw, TlsScanTarget target) {
   if (raw is! Map ||
       raw['ip'] != target.ip.canonical ||
       raw['port'] != target.port ||
@@ -161,4 +166,33 @@ TlsCertificateInfo _certificate(Map<dynamic, dynamic> raw, TlsScanTarget t) {
     notAfter: _time(raw['notAfter']),
     check: check,
   );
+}
+
+String _key<T>(Map<String, T> values, T value) =>
+    values.entries.firstWhere((e) => e.value == value).key;
+
+/// Exactly the worker's form, so [parseTlsProbe] validates a checkpoint too.
+Map<String, Object?> tlsProbeJson(TlsProbeResult p) {
+  final c = p.certificate;
+  return {
+    ...p.target.toJson(),
+    'reach': _key(_reach, p.reach),
+    'tls': _key(_handshake, p.handshake),
+    'tcpMs': p.tcp.inMilliseconds,
+    'tlsMs': p.tls.inMilliseconds,
+    'version': p.version,
+    'alpn': p.alpn,
+    'group': p.group,
+    if (c != null)
+      'certificate': {
+        'names': c.names,
+        'namesTotal': c.namesTotal,
+        'commonName': c.commonName,
+        'issuer': c.issuer,
+        'notBefore': c.notBefore.millisecondsSinceEpoch ~/ 1000,
+        'notAfter': c.notAfter.millisecondsSinceEpoch ~/ 1000,
+        'verify': _key(_check, c.check),
+      },
+    'dns': _key(_dns, p.dns),
+  };
 }

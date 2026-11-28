@@ -27,6 +27,8 @@ export 'src/network/ip_address.dart';
 export 'src/network/network_inventory.dart';
 export 'src/network/address_selection.dart';
 export 'src/network/tls_scan.dart';
+export 'src/network/tls_scan_json.dart';
+export 'src/network/reality_target_search.dart';
 export 'src/ssh.dart';
 export 'src/vault.dart';
 export 'src/server_inventory.dart';
