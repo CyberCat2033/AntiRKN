@@ -403,6 +403,17 @@ void main() {
       await tester.tap(more);
       await tester.pumpAndSettle();
       expect(find.text('8.8.8.10:443'), findsOneWidget);
+      // The last line stays clear of the block's rounded clip.
+      final tile = find.ancestor(
+        of: more,
+        matching: find.byType(AppExpansionTile),
+      );
+      final texts = find.descendant(of: tile, matching: find.byType(RichText));
+      final bottom = [
+        for (var i = 0; i < texts.evaluate().length; i++)
+          tester.getRect(texts.at(i)).bottom,
+      ].reduce((a, b) => a > b ? a : b);
+      expect(tester.getBottomLeft(tile).dy - bottom, greaterThanOrEqualTo(16));
     });
 
     testWidgets('a server-checked pair shows its time; others can be checked', (
