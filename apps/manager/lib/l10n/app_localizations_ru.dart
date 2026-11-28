@@ -5220,4 +5220,89 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get realitySearchConnection => 'Проверка подключения';
+
+  @override
+  String get realityConnectStepCreate => 'Создаём временное подключение';
+
+  @override
+  String get realityConnectStepCreated => 'Временное подключение создано';
+
+  @override
+  String get realityConnectStepDownload => 'Скачиваем 100 КБ…';
+
+  @override
+  String get realityConnectStepDownloaded => '100 КБ прошли';
+
+  @override
+  String get realityConnectStepRemove => 'Убираем временное подключение';
+
+  @override
+  String get realityConnectCancel => 'Отменить';
+
+  @override
+  String get realityConnectCancelling => 'Отменяем…';
+
+  @override
+  String get realityConnectCancelled => 'Проверка отменена';
+
+  @override
+  String get realityConnectCancelledHelp => 'Временное подключение удалено.';
+
+  @override
+  String get realityConnectWorks => 'Подключение работает';
+
+  @override
+  String get realityConnectWorksHelp =>
+      '100 КБ прошли через сервер с этим target и SNI.';
+
+  @override
+  String get realityConnectFails => 'Подключение не работает';
+
+  @override
+  String get realityConnectFailsHelp =>
+      'Через этот домен данные не прошли. Попробуйте другой.';
+
+  @override
+  String get realityConnectUnknown => 'Не удалось проверить';
+
+  @override
+  String get realityConnectUnknownHelp =>
+      'Похоже, мешает сеть или VPN на устройстве. Отключите VPN и повторите.';
+
+  @override
+  String get realityConnectCleanup =>
+      'Не удалось подтвердить удаление временного подключения';
+
+  @override
+  String get realityConnectCleanupHelp =>
+      'Сервер удалит его сам в течение 15 минут.';
+
+  @override
+  String get realityConnectAgain => 'Проверить ещё раз';
+
+  @override
+  String get realitySearchUseAnyway => 'Использовать всё равно';
+
+  @override
+  String get realityLevelMihomoFailed => 'Не работает';
+
+  @override
+  String realityConnectWorksTime(String seconds) {
+    return '100 КБ прошли, проверка заняла $seconds с';
+  }
+
+  @override
+  String realityConnectSnackWorks(String sni) {
+    return '$sni: подключение работает';
+  }
+
+  @override
+  String realityConnectSnackFails(String sni) {
+    return '$sni: подключение не работает';
+  }
+
+  @override
+  String realityConnectSnackUnknown(String sni) {
+    return '$sni: не удалось проверить подключение';
+  }
 }

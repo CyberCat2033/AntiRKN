@@ -121,7 +121,7 @@ class InboundsPanelState extends State<InboundsPanel> {
         // A finalist check only; the runner refuses it while busy.
         checkFromServer: (target, sni) async =>
             await runner?.scanReality(target, sni),
-        checkConnection: (choice) async {
+        checkConnection: (choice, cancellation, onStage) async {
           final panel = runner?.panelAccess;
           if (panel == null) {
             return ConnectionCheck(
@@ -136,6 +136,8 @@ class InboundsPanelState extends State<InboundsPanel> {
             endpoint: serverIpv4.isNotEmpty ? serverIpv4 : serverHost,
             target: choice.target,
             sni: choice.sni,
+            cancellation: cancellation,
+            onStage: onStage,
           );
         },
         search: RealityTargetSearch(

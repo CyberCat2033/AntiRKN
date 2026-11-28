@@ -9025,6 +9025,150 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Connection check'**
   String get realitySearchConnection;
+
+  /// No description provided for @realityConnectStepCreate.
+  ///
+  /// In en, this message translates to:
+  /// **'Creating a temporary connection'**
+  String get realityConnectStepCreate;
+
+  /// No description provided for @realityConnectStepCreated.
+  ///
+  /// In en, this message translates to:
+  /// **'Temporary connection created'**
+  String get realityConnectStepCreated;
+
+  /// No description provided for @realityConnectStepDownload.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading 100 KB…'**
+  String get realityConnectStepDownload;
+
+  /// No description provided for @realityConnectStepDownloaded.
+  ///
+  /// In en, this message translates to:
+  /// **'100 KB went through'**
+  String get realityConnectStepDownloaded;
+
+  /// No description provided for @realityConnectStepRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Removing the temporary connection'**
+  String get realityConnectStepRemove;
+
+  /// No description provided for @realityConnectCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get realityConnectCancel;
+
+  /// No description provided for @realityConnectCancelling.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancelling…'**
+  String get realityConnectCancelling;
+
+  /// No description provided for @realityConnectCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Check cancelled'**
+  String get realityConnectCancelled;
+
+  /// No description provided for @realityConnectCancelledHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'The temporary connection was removed.'**
+  String get realityConnectCancelledHelp;
+
+  /// No description provided for @realityConnectWorks.
+  ///
+  /// In en, this message translates to:
+  /// **'The connection works'**
+  String get realityConnectWorks;
+
+  /// No description provided for @realityConnectWorksHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'100 KB went through the server with this target and SNI.'**
+  String get realityConnectWorksHelp;
+
+  /// No description provided for @realityConnectFails.
+  ///
+  /// In en, this message translates to:
+  /// **'The connection does not work'**
+  String get realityConnectFails;
+
+  /// No description provided for @realityConnectFailsHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'No data went through with this domain. Try another one.'**
+  String get realityConnectFailsHelp;
+
+  /// No description provided for @realityConnectUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not check'**
+  String get realityConnectUnknown;
+
+  /// No description provided for @realityConnectUnknownHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'The network or a VPN on this device seems to interfere. Turn the VPN off and try again.'**
+  String get realityConnectUnknownHelp;
+
+  /// No description provided for @realityConnectCleanup.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not confirm the removal of the temporary connection'**
+  String get realityConnectCleanup;
+
+  /// No description provided for @realityConnectCleanupHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'The server removes it by itself within 15 minutes.'**
+  String get realityConnectCleanupHelp;
+
+  /// No description provided for @realityConnectAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Check again'**
+  String get realityConnectAgain;
+
+  /// No description provided for @realitySearchUseAnyway.
+  ///
+  /// In en, this message translates to:
+  /// **'Use anyway'**
+  String get realitySearchUseAnyway;
+
+  /// No description provided for @realityLevelMihomoFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Does not work'**
+  String get realityLevelMihomoFailed;
+
+  /// No description provided for @realityConnectWorksTime.
+  ///
+  /// In en, this message translates to:
+  /// **'100 KB went through; the check took {seconds} s'**
+  String realityConnectWorksTime(String seconds);
+
+  /// No description provided for @realityConnectSnackWorks.
+  ///
+  /// In en, this message translates to:
+  /// **'{sni}: the connection works'**
+  String realityConnectSnackWorks(String sni);
+
+  /// No description provided for @realityConnectSnackFails.
+  ///
+  /// In en, this message translates to:
+  /// **'{sni}: the connection does not work'**
+  String realityConnectSnackFails(String sni);
+
+  /// No description provided for @realityConnectSnackUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'{sni}: could not check the connection'**
+  String realityConnectSnackUnknown(String sni);
 }
 
 class _AppLocalizationsDelegate

@@ -128,16 +128,21 @@ final class RealityMihomoCheck {
     required this.code,
     required this.at,
     this.networkIdentity = '',
+    this.duration,
   });
   final RealityMihomoStatus status;
   final String code, networkIdentity;
   final DateTime at;
+
+  /// How long the traffic part took; null when unknown.
+  final Duration? duration;
 
   Map<String, Object?> toJson() => {
     'status': status.name,
     'code': code,
     'network': networkIdentity,
     'at': at.toUtc().toIso8601String(),
+    if (duration != null) 'ms': duration!.inMilliseconds,
   };
 
   factory RealityMihomoCheck.fromJson(Object? json) {
@@ -150,10 +155,17 @@ final class RealityMihomoCheck {
         at == null ||
         json['code'] is! String ||
         !RegExp(r'^[a-z_]{1,40}$').hasMatch(json['code'] as String) ||
-        json['network'] is! String) {
+        json['network'] is! String ||
+        json['ms'] != null &&
+            (json['ms'] is! int ||
+                (json['ms'] as int) < 0 ||
+                (json['ms'] as int) > 600000)) {
       throw const FormatException('search_checkpoint');
     }
     return RealityMihomoCheck(
+      duration: json['ms'] == null
+          ? null
+          : Duration(milliseconds: json['ms'] as int),
       status: status,
       code: json['code'] as String,
       at: at,
@@ -295,6 +307,7 @@ final class RealityCandidate {
     this.proximity,
     this.fromServer,
     this.fromMihomo,
+    this.suitableBeforeConnection,
   ) : reasons = List.unmodifiable(reasons);
 
   factory RealityCandidate.rate(
@@ -329,6 +342,7 @@ final class RealityCandidate {
     if (fromServer?.feasible == false) {
       reasons.add(RealityReason.serverRejected);
     }
+    final suitableBeforeConnection = valid && reasons.isEmpty;
     if (fromMihomo?.status == RealityMihomoStatus.failed) {
       reasons.add(RealityReason.mihomoFailed);
     }
@@ -416,6 +430,7 @@ final class RealityCandidate {
       proximity,
       fromServer,
       fromMihomo,
+      suitableBeforeConnection,
     );
   }
 
@@ -427,6 +442,10 @@ final class RealityCandidate {
   final RealityProximity proximity;
   final RealityServerCheck? fromServer;
   final RealityMihomoCheck? fromMihomo;
+
+  /// Passed every gate except its own connection check, which then failed:
+  /// the person may still use it, knowingly.
+  final bool suitableBeforeConnection;
   TlsScanTarget get target => confirmation.target;
 
   /// Passed every gate here; the server may confirm it further.

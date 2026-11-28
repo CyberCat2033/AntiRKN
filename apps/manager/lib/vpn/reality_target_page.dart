@@ -97,10 +97,82 @@ class _RealityTargetPageState extends State<RealityTargetPage> {
         ip.category == IpCategory.publicUnicast;
   }
 
+  /// The candidate whose details sheet is open; its result shows there.
+  String? _sheetFor;
+  bool _wide = false;
+  var _seen = 0;
+
   @override
   void initState() {
     super.initState();
+    // Only checks that end from now on are announced.
+    _seen = c.finished?.serial ?? 0;
     c.ready.then((_) => c.checkNetwork());
+    c.addListener(_finished);
+  }
+
+  @override
+  void dispose() {
+    c.removeListener(_finished);
+    super.dispose();
+  }
+
+  /// A check that ended while its details were closed is announced once.
+  void _finished() {
+    final done = c.finished;
+    if (!mounted || done == null || done.serial == _seen) return;
+    _seen = done.serial;
+    final shown = _wide
+        ? (selected?.target.key ?? c.recommended.firstOrNull?.target.key)
+        : _sheetFor;
+    if (done.key == shown || done.outcome == RealityConnectOutcome.cancelled) {
+      return;
+    }
+    final l = AppLocalizations.of(context);
+    final candidate = c.candidates
+        .where((x) => x.target.key == done.key)
+        .firstOrNull;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(switch (done.outcome) {
+          RealityConnectOutcome.works => l.realityConnectSnackWorks(done.sni),
+          RealityConnectOutcome.fails => l.realityConnectSnackFails(done.sni),
+          RealityConnectOutcome.cleanupPending => l.realityConnectCleanup,
+          _ => l.realityConnectSnackUnknown(done.sni),
+        }),
+        action: candidate != null && candidate.suitable
+            ? SnackBarAction(
+                label: l.realitySearchUse,
+                onPressed: () => _use(candidate),
+              )
+            : null,
+      ),
+    );
+  }
+
+  Future<void> _openSheet(
+    AppLocalizations l,
+    RealityCandidate candidate,
+  ) async {
+    final key = candidate.target.key;
+    _sheetFor = key;
+    await showAppDetails(
+      context,
+      title: candidate.target.sni,
+      children: [
+        // Live: the check runs and ends while the sheet is open.
+        ListenableBuilder(
+          listenable: c,
+          builder: (_, _) => _details(
+            l,
+            c.candidates.where((x) => x.target.key == key).firstOrNull ??
+                candidate,
+            sheet: true,
+          ),
+        ),
+      ],
+    );
+    if (_sheetFor == key) _sheetFor = null;
   }
 
   RealitySearchPlan? get plan {
@@ -376,11 +448,7 @@ class _RealityTargetPageState extends State<RealityTargetPage> {
       child: InkWell(
         onTap: () => wide
             ? setState(() => selected = candidate)
-            : showAppDetails(
-                context,
-                title: candidate.target.sni,
-                children: [_details(l, candidate, sheet: true)],
-              ),
+            : _openSheet(l, candidate),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
           child: Column(
@@ -434,6 +502,13 @@ class _RealityTargetPageState extends State<RealityTargetPage> {
                     StatusChip(
                       label: l.realityLevelMihomo,
                       icon: Icons.check_circle_outline,
+                    ),
+                  if (candidate.fromMihomo?.status ==
+                      RealityMihomoStatus.failed)
+                    StatusChip(
+                      label: l.realityLevelMihomoFailed,
+                      icon: Icons.error_outline,
+                      error: true,
                     ),
                   if (candidate.fromServer?.feasible == true)
                     StatusChip(
@@ -539,29 +614,151 @@ class _RealityTargetPageState extends State<RealityTargetPage> {
             label: Text(l.realitySearchServerCheck),
           ),
         ],
-        if (candidate.suitable && c.checkConnection != null) ...[
+        if ((candidate.suitable || candidate.suitableBeforeConnection) &&
+            c.checkConnection != null) ...[
           const SizedBox(height: 16),
-          OutlinedButton.icon(
-            key: ValueKey('reality-connect-${candidate.target.key}'),
-            onPressed: c.running || c.connecting.isNotEmpty
-                ? null
-                : () => c.checkWithMihomo(candidate),
-            icon: const Icon(Icons.network_check),
-            label: Text(l.realitySearchConnect),
-          ),
-          Text(l.realitySearchConnectHelp, style: theme.textTheme.bodySmall),
+          _connection(l, candidate),
         ],
         if (candidate.suitable) ...[
           const SizedBox(height: 16),
           FilledButton(
+            key: ValueKey('reality-details-use-${candidate.target.key}'),
             onPressed: () {
               if (sheet) Navigator.of(context).pop();
               _use(candidate);
             },
             child: Text(l.realitySearchUse),
           ),
+        ] else if (candidate.suitableBeforeConnection) ...[
+          const SizedBox(height: 16),
+          FilledButton.tonal(
+            key: ValueKey('reality-details-use-${candidate.target.key}'),
+            onPressed: () {
+              if (sheet) Navigator.of(context).pop();
+              _use(candidate);
+            },
+            child: Text(l.realitySearchUseAnyway),
+          ),
         ],
       ],
+    );
+  }
+
+  /// The connection check in place of its button: steps while it runs,
+  /// then its result and "Check again".
+  Widget _connection(AppLocalizations l, RealityCandidate candidate) {
+    final theme = Theme.of(context), key = candidate.target.key;
+    final stage = c.connecting[key];
+    Widget start(String label) => OutlinedButton.icon(
+      key: ValueKey('reality-connect-$key'),
+      onPressed: c.running || c.connecting.isNotEmpty
+          ? null
+          : () => c.checkWithMihomo(candidate),
+      icon: const Icon(Icons.network_check),
+      label: Text(label),
+    );
+    final outcome =
+        c.outcomes[key] ??
+        switch (candidate.fromMihomo?.status) {
+          RealityMihomoStatus.working => RealityConnectOutcome.works,
+          RealityMihomoStatus.failed => RealityConnectOutcome.fails,
+          RealityMihomoStatus.inconclusive => RealityConnectOutcome.unknown,
+          null => null,
+        };
+    final Widget child;
+    if (stage != null) {
+      final cancelling = c.cancelling.contains(key);
+      child = AppOperationStatus(
+        key: const ValueKey('running'),
+        tone: AppOperationTone.running,
+        title: l.realitySearchConnecting,
+        step: stage,
+        steps: [
+          stage > 0 ? l.realityConnectStepCreated : l.realityConnectStepCreate,
+          stage > 1
+              ? l.realityConnectStepDownloaded
+              : l.realityConnectStepDownload,
+          l.realityConnectStepRemove,
+        ],
+        actions: [
+          TextButton(
+            key: ValueKey('reality-connect-cancel-$key'),
+            onPressed: cancelling ? null : () => c.cancelConnection(key),
+            child: Text(
+              cancelling ? l.realityConnectCancelling : l.realityConnectCancel,
+            ),
+          ),
+        ],
+      );
+    } else if (outcome == null) {
+      child = Column(
+        key: const ValueKey('idle'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          start(l.realitySearchConnect),
+          Text(l.realitySearchConnectHelp, style: theme.textTheme.bodySmall),
+        ],
+      );
+    } else {
+      final took = candidate.fromMihomo?.duration;
+      final seconds = took == null
+          ? null
+          : (took.inMilliseconds / 1000)
+                .toStringAsFixed(1)
+                .replaceAll(
+                  '.',
+                  Localizations.localeOf(context).languageCode == 'ru'
+                      ? ','
+                      : '.',
+                );
+      final (tone, title, message) = switch (outcome) {
+        RealityConnectOutcome.works => (
+          AppOperationTone.success,
+          l.realityConnectWorks,
+          seconds == null
+              ? l.realityConnectWorksHelp
+              : l.realityConnectWorksTime(seconds),
+        ),
+        RealityConnectOutcome.fails => (
+          AppOperationTone.failure,
+          l.realityConnectFails,
+          l.realityConnectFailsHelp,
+        ),
+        RealityConnectOutcome.unknown => (
+          AppOperationTone.neutral,
+          l.realityConnectUnknown,
+          l.realityConnectUnknownHelp,
+        ),
+        RealityConnectOutcome.cancelled => (
+          AppOperationTone.neutral,
+          l.realityConnectCancelled,
+          l.realityConnectCancelledHelp,
+        ),
+        RealityConnectOutcome.cleanupPending => (
+          AppOperationTone.failure,
+          l.realityConnectCleanup,
+          l.realityConnectCleanupHelp,
+        ),
+      };
+      child = Column(
+        key: ValueKey('result-${outcome.name}'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppOperationStatus(tone: tone, title: title, message: message),
+          const SizedBox(height: 8),
+          start(l.realityConnectAgain),
+        ],
+      );
+    }
+    final duration = AppMotion.duration(context, MotionPreference.system);
+    return _Reveal(
+      state: '${stage ?? outcome?.name ?? 'idle'}',
+      child: AppAnimatedSize(
+        motion: MotionPreference.system,
+        child: duration == Duration.zero
+            ? child
+            : AnimatedSwitcher(duration: duration, child: child),
+      ),
     );
   }
 
@@ -627,7 +824,7 @@ class _RealityTargetPageState extends State<RealityTargetPage> {
               Expanded(
                 child: LayoutBuilder(
                   builder: (context, box) {
-                    final wide = box.maxWidth >= AppLayout.expanded;
+                    final wide = _wide = box.maxWidth >= AppLayout.expanded;
                     final pad = AppLayout.screenPadding(context);
                     final list = ListView(
                       padding: pad,
@@ -678,4 +875,37 @@ class _RealityTargetPageState extends State<RealityTargetPage> {
       ),
     );
   }
+}
+
+/// Scrolls its child fully into view when [state] changes, so a block that
+/// grows at the bottom of a sheet or pane stays visible.
+class _Reveal extends StatefulWidget {
+  const _Reveal({required this.state, required this.child});
+  final String state;
+  final Widget child;
+  @override
+  State<_Reveal> createState() => _RevealState();
+}
+
+class _RevealState extends State<_Reveal> {
+  @override
+  void didUpdateWidget(_Reveal old) {
+    super.didUpdateWidget(old);
+    if (old.state == widget.state) return;
+    // After the size animation, so the whole block is measured.
+    final wait = AppMotion.duration(context, MotionPreference.system);
+    Future<void>.delayed(wait, () {
+      if (!mounted) return;
+      Scrollable.ensureVisible(
+        context,
+        alignment: 1,
+        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+        duration: wait,
+        curve: AppMotion.curve,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

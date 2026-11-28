@@ -5206,4 +5206,90 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get realitySearchConnection => 'Connection check';
+
+  @override
+  String get realityConnectStepCreate => 'Creating a temporary connection';
+
+  @override
+  String get realityConnectStepCreated => 'Temporary connection created';
+
+  @override
+  String get realityConnectStepDownload => 'Downloading 100 KB…';
+
+  @override
+  String get realityConnectStepDownloaded => '100 KB went through';
+
+  @override
+  String get realityConnectStepRemove => 'Removing the temporary connection';
+
+  @override
+  String get realityConnectCancel => 'Cancel';
+
+  @override
+  String get realityConnectCancelling => 'Cancelling…';
+
+  @override
+  String get realityConnectCancelled => 'Check cancelled';
+
+  @override
+  String get realityConnectCancelledHelp =>
+      'The temporary connection was removed.';
+
+  @override
+  String get realityConnectWorks => 'The connection works';
+
+  @override
+  String get realityConnectWorksHelp =>
+      '100 KB went through the server with this target and SNI.';
+
+  @override
+  String get realityConnectFails => 'The connection does not work';
+
+  @override
+  String get realityConnectFailsHelp =>
+      'No data went through with this domain. Try another one.';
+
+  @override
+  String get realityConnectUnknown => 'Could not check';
+
+  @override
+  String get realityConnectUnknownHelp =>
+      'The network or a VPN on this device seems to interfere. Turn the VPN off and try again.';
+
+  @override
+  String get realityConnectCleanup =>
+      'Could not confirm the removal of the temporary connection';
+
+  @override
+  String get realityConnectCleanupHelp =>
+      'The server removes it by itself within 15 minutes.';
+
+  @override
+  String get realityConnectAgain => 'Check again';
+
+  @override
+  String get realitySearchUseAnyway => 'Use anyway';
+
+  @override
+  String get realityLevelMihomoFailed => 'Does not work';
+
+  @override
+  String realityConnectWorksTime(String seconds) {
+    return '100 KB went through; the check took $seconds s';
+  }
+
+  @override
+  String realityConnectSnackWorks(String sni) {
+    return '$sni: the connection works';
+  }
+
+  @override
+  String realityConnectSnackFails(String sni) {
+    return '$sni: the connection does not work';
+  }
+
+  @override
+  String realityConnectSnackUnknown(String sni) {
+    return '$sni: could not check the connection';
+  }
 }

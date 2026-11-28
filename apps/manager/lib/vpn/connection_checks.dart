@@ -379,6 +379,9 @@ class ConnectionChecks extends ChangeNotifier {
     required String target,
     required String sni,
     CancellationToken? cancellation,
+
+    /// 0 creating the temporary inbound, 1 traffic, 2 removing it.
+    void Function(int stage)? onStage,
   }) async {
     final token = cancellation ?? CancellationToken();
     ConnectionCheck outcome(ConnectionCheckStatus status, String code) =>
@@ -398,6 +401,7 @@ class ConnectionChecks extends ChangeNotifier {
     // No return inside the try below: the lease end must be able to replace
     // the result.
     Future<ConnectionCheck> attempt() async {
+      onStage?.call(0);
       final response = await connection.transport.request(
         RunnerRequest.fromJson({
           'version': 1,
@@ -436,6 +440,7 @@ class ConnectionChecks extends ChangeNotifier {
         }
         entered = true;
       }
+      onStage?.call(1);
       return engine!.check(fields, token, udp: false, download: true);
     }
 
@@ -450,6 +455,7 @@ class ConnectionChecks extends ChangeNotifier {
         token.isCancelled ? 'cancelled' : 'diagnostic_access',
       );
     }
+    onStage?.call(2);
     final ended = await _endLease(connection, lease);
     if (ended != null) result = outcome(ConnectionCheckStatus.notTested, ended);
     if (entered) await owner.leaveConnectionTraffic?.call();

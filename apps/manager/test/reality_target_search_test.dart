@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:antirkn_design_system/antirkn_design_system.dart';
@@ -81,7 +82,12 @@ RealitySearchController controller(
   Settings settings, {
   ProbeNetwork network = const ProbeNetwork('wifi-1', 'wifi'),
   Future<Map<String, dynamic>?> Function(String, String)? fromServer,
-  Future<ConnectionCheck> Function(RealityTargetChoice)? connect,
+  Future<ConnectionCheck> Function(
+    RealityTargetChoice,
+    CancellationToken,
+    void Function(int),
+  )?
+  connect,
 }) => RealitySearchController(
   serverId: 'server-1',
   store: settings,
@@ -235,7 +241,7 @@ void main() {
       final c = controller(
         World(),
         settings,
-        connect: (choice) async {
+        connect: (choice, _, _) async {
           asked.add(choice);
           return check(ConnectionCheckStatus.working, 'connected');
         },
@@ -255,7 +261,6 @@ void main() {
     for (final (status, code, recommended) in [
       (ConnectionCheckStatus.failed, 'connection_failed', false),
       (ConnectionCheckStatus.networkProblem, 'control_failed', true),
-      (ConnectionCheckStatus.notTested, 'cleanup_pending', true),
     ]) {
       test(
         '$code keeps the candidate ${recommended ? 'recommended' : 'out'}',
@@ -263,7 +268,7 @@ void main() {
           final c = controller(
             World(),
             Settings(),
-            connect: (_) async => check(status, code),
+            connect: (_, _, _) async => check(status, code),
           );
           await c.start(RealitySearchPlan.neighbors('8.8.8.37'));
           await c.checkWithMihomo(c.best!);
@@ -273,11 +278,25 @@ void main() {
       );
     }
 
+    test('an unconfirmed cleanup is shown, not saved as a result', () async {
+      final c = controller(
+        World(),
+        Settings(),
+        connect: (_, _, _) async =>
+            check(ConnectionCheckStatus.notTested, 'cleanup_pending'),
+      );
+      await c.start(RealitySearchPlan.neighbors('8.8.8.37'));
+      final key = c.best!.target.key;
+      await c.checkWithMihomo(c.best!);
+      expect(c.best!.fromMihomo, isNull);
+      expect(c.outcomes[key], RealityConnectOutcome.cleanupPending);
+    });
+
     test('a cancelled check records nothing', () async {
       final c = controller(
         World(),
         Settings(),
-        connect: (_) async =>
+        connect: (_, _, _) async =>
             check(ConnectionCheckStatus.cancelled, 'cancelled'),
       );
       await c.start(RealitySearchPlan.neighbors('8.8.8.37'));
@@ -424,7 +443,7 @@ void main() {
       final c = controller(
         World(),
         Settings(),
-        connect: (_) async => ConnectionCheck(
+        connect: (_, _, _) async => ConnectionCheck(
           status: ConnectionCheckStatus.working,
           code: 'connected',
           at: now,
@@ -446,6 +465,185 @@ void main() {
       await tester.tap(connect);
       await tester.pumpAndSettle();
       expect(find.text('Connection works'), findsOneWidget);
+    });
+
+    testWidgets('the sheet shows the steps and keeps the result in place', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(390, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final traffic = Completer<void>();
+      final c = controller(
+        World(),
+        Settings(),
+        connect: (_, _, onStage) async {
+          onStage(0);
+          onStage(1);
+          await traffic.future;
+          onStage(2);
+          return ConnectionCheck(
+            status: ConnectionCheckStatus.working,
+            code: 'connected',
+            at: now,
+          );
+        },
+      );
+      await tester.runAsync(
+        () => c.start(RealitySearchPlan.neighbors('8.8.8.37')),
+      );
+      await open(tester, c);
+      await tester.tap(find.text('alpha.example').first);
+      await tester.pumpAndSettle();
+      final connect = find.byKey(
+        const ValueKey('reality-connect-8.8.8.10|443|alpha.example'),
+      );
+      await tester.ensureVisible(connect);
+      await tester.tap(connect);
+      await tester.pump();
+      expect(find.text('Temporary connection created'), findsOneWidget);
+      expect(find.text('Downloading 100 KB…'), findsOneWidget);
+      expect(find.text('Cancel'), findsOneWidget);
+      traffic.complete();
+      await tester.pumpAndSettle();
+      // Still the sheet: the result replaced the button where it was pressed.
+      expect(find.text('Why'), findsOneWidget);
+      expect(find.text('The connection works'), findsOneWidget);
+      expect(find.text('Check again'), findsOneWidget);
+      expect(find.byType(SnackBar), findsNothing);
+    });
+
+    testWidgets('a cancel stops the check and says the inbound is gone', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1000, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final c = controller(
+        World(),
+        Settings(),
+        connect: (_, token, onStage) async {
+          onStage(0);
+          onStage(1);
+          try {
+            await token.bind(Completer<void>().future);
+          } catch (_) {
+            // Cancelled: the lease is still ended below.
+          }
+          onStage(2);
+          return ConnectionCheck(
+            status: ConnectionCheckStatus.cancelled,
+            code: 'cancelled',
+            at: now,
+          );
+        },
+      );
+      await tester.runAsync(
+        () => c.start(RealitySearchPlan.neighbors('8.8.8.37')),
+      );
+      await open(tester, c);
+      final connect = find.byKey(
+        const ValueKey('reality-connect-8.8.8.10|443|alpha.example'),
+      );
+      await tester.scrollUntilVisible(
+        connect,
+        100,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.tap(connect);
+      await tester.pump();
+      // The grown block scrolls itself into view.
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.tap(
+        find.byKey(
+          const ValueKey('reality-connect-cancel-8.8.8.10|443|alpha.example'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Check cancelled'), findsOneWidget);
+      expect(c.best!.fromMihomo, isNull);
+    });
+
+    testWidgets('a failed connection is marked and can still be used', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1000, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final c = controller(
+        World(),
+        Settings(),
+        connect: (_, _, _) async => ConnectionCheck(
+          status: ConnectionCheckStatus.failed,
+          code: 'connection_failed',
+          at: now,
+        ),
+      );
+      await tester.runAsync(() async {
+        await c.start(RealitySearchPlan.neighbors('8.8.8.37'));
+        await c.checkWithMihomo(c.best!);
+      });
+      await open(tester, c);
+      await tester.tap(find.text('alpha.example').first);
+      await tester.pumpAndSettle();
+      expect(find.text('Does not work'), findsOneWidget);
+      expect(find.text('The connection does not work'), findsOneWidget);
+      final anyway = find.widgetWithText(FilledButton, 'Use anyway');
+      await tester.scrollUntilVisible(
+        anyway,
+        100,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.ensureVisible(anyway);
+      await tester.pumpAndSettle();
+      await tester.tap(anyway);
+      await tester.pumpAndSettle();
+      expect(chosen, (target: 'alpha.example:443', sni: 'alpha.example'));
+    });
+
+    testWidgets('a check that ends after the sheet closed is announced', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(390, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final traffic = Completer<void>();
+      final c = controller(
+        World(),
+        Settings(),
+        connect: (_, _, onStage) async {
+          onStage(1);
+          await traffic.future;
+          return ConnectionCheck(
+            status: ConnectionCheckStatus.working,
+            code: 'connected',
+            at: now,
+          );
+        },
+      );
+      await tester.runAsync(
+        () => c.start(RealitySearchPlan.neighbors('8.8.8.37')),
+      );
+      await open(tester, c);
+      await tester.tap(find.text('alpha.example').first);
+      await tester.pumpAndSettle();
+      final connect = find.byKey(
+        const ValueKey('reality-connect-8.8.8.10|443|alpha.example'),
+      );
+      await tester.ensureVisible(connect);
+      await tester.tap(connect);
+      await tester.pump();
+      // Back closes the sheet; the check goes on.
+      await tester.binding.handlePopRoute();
+      // The running check keeps its indicator moving: no settle here.
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(find.text('Why'), findsNothing);
+      traffic.complete();
+      await tester.pumpAndSettle();
+      expect(find.text('alpha.example: the connection works'), findsOneWidget);
+      expect(find.widgetWithText(SnackBarAction, 'Use'), findsOneWidget);
     });
 
     testWidgets('without a server address only own addresses are offered', (

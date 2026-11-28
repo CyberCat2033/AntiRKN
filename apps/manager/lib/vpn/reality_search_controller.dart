@@ -8,6 +8,17 @@ import 'package:flutter/foundation.dart';
 /// Target (owner's choice, 2026-11-28; the server resolves it itself) and SNI.
 typedef RealityTargetChoice = ({String target, String sni});
 
+/// What a connection check of this session ended with, as shown in place.
+enum RealityConnectOutcome { works, fails, unknown, cancelled, cleanupPending }
+
+/// One finished connection check, for a notice when its details are closed.
+typedef RealityConnectFinished = ({
+  String key,
+  String sni,
+  RealityConnectOutcome outcome,
+  int serial,
+});
+
 RealityTargetChoice realityChoice(RealityCandidate c) =>
     (target: '${c.target.sni}:${c.target.port}', sni: c.target.sni);
 
@@ -53,12 +64,28 @@ class RealitySearchController extends ChangeNotifier {
 
   /// Traffic from this device through a temporary inbound with the chosen
   /// Target and SNI (FR-SNI, level 4); null without a server connection.
-  final Future<ConnectionCheck> Function(RealityTargetChoice choice)?
+  final Future<ConnectionCheck> Function(
+    RealityTargetChoice choice,
+    CancellationToken cancellation,
+    void Function(int stage) onStage,
+  )?
   checkConnection;
   final DateTime Function() clock;
 
-  /// Pairs whose connection check runs now.
-  final connecting = <String>{};
+  /// Pairs whose connection check runs now, with its stage (0 create,
+  /// 1 traffic, 2 remove).
+  final connecting = <String, int>{};
+
+  /// Pairs whose running check was asked to stop.
+  final cancelling = <String>{};
+
+  /// Results of this session, including a cancel; saved ones are in state.
+  final outcomes = <String, RealityConnectOutcome>{};
+
+  /// The last finished check; its serial grows with every check.
+  RealityConnectFinished? finished;
+  final _connectTokens = <String, CancellationToken>{};
+  var _serial = 0;
 
   /// Pairs whose server check runs now.
   final checking = <String>{};
@@ -238,6 +265,7 @@ class RealitySearchController extends ChangeNotifier {
   }
 
   /// Runs only on request: it adds and removes an inbound on the server.
+  /// Closing its details does not stop it; [cancelConnection] does.
   Future<void> checkWithMihomo(RealityCandidate candidate) async {
     final check = checkConnection, s = state, key = candidate.target.key;
     if (check == null ||
@@ -247,21 +275,51 @@ class RealitySearchController extends ChangeNotifier {
         checking.contains(key)) {
       return;
     }
-    connecting.add(key);
+    final token = _connectTokens[key] = CancellationToken();
+    connecting[key] = 0;
+    outcomes.remove(key);
     _notify();
     ConnectionCheck? result;
+    DateTime? trafficStarted, trafficEnded;
     try {
-      result = await check(realityChoice(candidate));
+      result = await check(realityChoice(candidate), token, (stage) {
+        if (stage == 1) trafficStarted = clock();
+        if (stage == 2) trafficEnded = clock();
+        if (connecting.containsKey(key)) {
+          connecting[key] = stage;
+          _notify();
+        }
+      });
     } catch (_) {
       result = null;
     }
     connecting.remove(key);
+    cancelling.remove(key);
+    _connectTokens.remove(key);
     if (_disposed || state != s) return;
-    if (result != null && result.status != ConnectionCheckStatus.cancelled) {
+    final outcome = switch (result) {
+      null => RealityConnectOutcome.unknown,
+      _ when result.code == 'cleanup_pending' =>
+        RealityConnectOutcome.cleanupPending,
+      _
+          when token.isCancelled ||
+              result.status == ConnectionCheckStatus.cancelled =>
+        RealityConnectOutcome.cancelled,
+      _ when result.status == ConnectionCheckStatus.working =>
+        RealityConnectOutcome.works,
+      _ when result.status == ConnectionCheckStatus.failed =>
+        RealityConnectOutcome.fails,
+      _ => RealityConnectOutcome.unknown,
+    };
+    outcomes[key] = outcome;
+    if (result != null &&
+        outcome != RealityConnectOutcome.cancelled &&
+        outcome != RealityConnectOutcome.cleanupPending) {
+      final started = trafficStarted, ended = trafficEnded;
       s.mihomoChecks[key] = RealityMihomoCheck(
-        status: switch (result.status) {
-          ConnectionCheckStatus.working => RealityMihomoStatus.working,
-          ConnectionCheckStatus.failed => RealityMihomoStatus.failed,
+        status: switch (outcome) {
+          RealityConnectOutcome.works => RealityMihomoStatus.working,
+          RealityConnectOutcome.fails => RealityMihomoStatus.failed,
           _ => RealityMihomoStatus.inconclusive,
         },
         code: RegExp(r'^[a-z_]{1,40}$').hasMatch(result.code)
@@ -269,9 +327,27 @@ class RealitySearchController extends ChangeNotifier {
             : 'failed',
         at: clock(),
         networkIdentity: result.networkIdentity,
+        duration: started != null && ended != null
+            ? ended.difference(started)
+            : null,
       );
       _save(s);
     }
+    finished = (
+      key: key,
+      sni: candidate.target.sni,
+      outcome: outcome,
+      serial: ++_serial,
+    );
+    _notify();
+  }
+
+  /// Stops the traffic; the temporary inbound is still removed.
+  void cancelConnection(String key) {
+    final token = _connectTokens[key];
+    if (token == null || cancelling.contains(key)) return;
+    cancelling.add(key);
+    token.cancel();
     _notify();
   }
 
@@ -352,6 +428,9 @@ class RealitySearchController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _token?.cancel();
+    for (final token in _connectTokens.values) {
+      token.cancel();
+    }
     super.dispose();
   }
 }
