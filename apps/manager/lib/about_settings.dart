@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'l10n/app_localizations.dart';
+import 'licenses_page.dart';
 import 'update/app_update_controller.dart';
 
 const appLicenseAsset = 'assets/legal/LICENSE';
@@ -71,10 +72,11 @@ class AboutSettings extends StatelessWidget {
                 onTap: () => pushAppPage<void>(
                   context,
                   motion: motion,
-                  builder: (_) => LicensePage(
+                  builder: (_) => LicensesPage(
                     applicationName: 'AntiRKN',
                     applicationVersion: version,
                     applicationLegalese: l.aboutLegalese,
+                    motion: motion,
                   ),
                 ),
               ),

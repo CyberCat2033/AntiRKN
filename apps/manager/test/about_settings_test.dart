@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_manager/about_settings.dart';
 import 'package:antirkn_manager/l10n/app_localizations.dart';
+import 'package:antirkn_manager/licenses_page.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -51,7 +52,7 @@ void main() {
     // The page keeps a progress indicator while it reads the licenses.
     await tester.pump();
     await tester.pump();
-    expect(find.byType(LicensePage), findsOneWidget);
+    expect(find.byType(LicensesPage), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

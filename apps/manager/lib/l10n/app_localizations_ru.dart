@@ -5001,6 +5001,44 @@ class AppLocalizationsRu extends AppLocalizations {
   String get aboutOpensBrowser => 'Откроется в браузере';
 
   @override
+  String licensesVersion(String version) {
+    return 'Версия $version';
+  }
+
+  @override
+  String get licensesComponents => 'Компоненты';
+
+  @override
+  String get licensesSearch => 'Поиск компонента';
+
+  @override
+  String get licensesSearchClear => 'Очистить поиск';
+
+  @override
+  String get licensesNotFound => 'Ничего не нашлось';
+
+  @override
+  String licensesNotFoundHelp(String query) {
+    return 'Нет компонентов, в названии которых есть «$query».';
+  }
+
+  @override
+  String licensesCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count лицензии',
+      many: '$count лицензий',
+      few: '$count лицензии',
+      one: '$count лицензия',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get licensesLoadFailed => 'Не удалось прочитать лицензии';
+
+  @override
   String get realitySearchTitle => 'Подбор SNI';
 
   @override
