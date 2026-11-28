@@ -347,7 +347,21 @@ class AutoSyncController extends ChangeNotifier {
     } finally {
       _cancel = null;
       _runningEnter = false;
+      _refreshProfile();
       _notify();
+    }
+  }
+
+  /// A renewal during the exchange may have brought a newer profile of the
+  /// same account (name, e-mail, picture).
+  void _refreshProfile() {
+    if (accountService case final GoogleAccountProfileSource source) {
+      final fresh = source.account, current = account;
+      if (fresh != null &&
+          current != null &&
+          fresh.permissionId == current.permissionId) {
+        account = fresh;
+      }
     }
   }
 

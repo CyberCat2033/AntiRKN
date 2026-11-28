@@ -645,4 +645,45 @@ void main() {
     expect(find.byKey(const ValueKey('google-switch-account')), findsOneWidget);
     controller.dispose();
   });
+
+  testWidgets('an exchange takes the renewed profile of the same account', (
+    tester,
+  ) async {
+    final account = _ProfileAccountService();
+    await account.signIn();
+    final session = Session();
+    final controller = AutoSyncController(
+      accountService: account,
+      settings: Settings(),
+      changes: const Stream<void>.empty(),
+      openSession: () async => session,
+      apply: (_) async => true,
+      random: _NoJitter(),
+    );
+    await tester.pump(Duration.zero);
+    await tester.pump(Duration.zero);
+    expect(controller.account!.photoUrl, isNull);
+    const photo = 'https://lh3.googleusercontent.com/a/fixture=s64';
+    // The access renewal of the exchange read a picture for this account.
+    account.account = const GoogleDriveAccount(
+      permissionId: 'fixture',
+      email: 'fixture@example.com',
+      displayName: 'Fixture User',
+      photoUrl: photo,
+    );
+    await controller.syncNow();
+    expect(controller.account!.photoUrl, photo);
+    // Another account is a sign-in, never a profile update.
+    account.account = const GoogleDriveAccount(
+      permissionId: 'other',
+      email: 'other@example.com',
+      displayName: 'Other',
+    );
+    await controller.syncNow();
+    expect(controller.account!.permissionId, 'fixture');
+    controller.dispose();
+  });
 }
+
+class _ProfileAccountService extends AccountService
+    implements GoogleAccountProfileSource {}

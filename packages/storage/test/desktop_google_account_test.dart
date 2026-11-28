@@ -66,6 +66,7 @@ class OAuth implements GoogleDesktopOAuth, GooglePublicationOAuth {
 
 class Http implements DriveHttp {
   String id = 'public-account';
+  String? photo;
   bool offline = false, reject = false;
   DriveHttp? drive;
   int identities = 0;
@@ -91,6 +92,7 @@ class Http implements DriveHttp {
                 'permissionId': id,
                 'emailAddress': 'fixture@example.com',
                 'displayName': 'Fixture',
+                'photoLink': ?photo,
               },
             }),
           ),
@@ -204,6 +206,30 @@ void main() {
       expect(again.publicationAuthorized, isTrue);
       await again.signOut();
       expect(again.publicationAuthorized, isFalse);
+    },
+  );
+  test(
+    'a refresh stores the newer profile of the same account, e.g. its picture',
+    () async {
+      // Stored before the picture was kept: no 'photo'.
+      await service().signIn();
+      final old = service();
+      expect((await old.restore())!.photoUrl, isNull);
+      final key = old.accountKey;
+      const photo = 'https://lh3.googleusercontent.com/a/fixture=s64';
+      http.photo = photo;
+      expect(await old.accessToken(), 'public-fixture-token');
+      expect(old.account!.photoUrl, photo);
+      expect(old.accountKey, key);
+      expect(store.value, contains('public-refresh-token'));
+      expect((await service().restore())!.photoUrl, photo);
+      // A failed profile write keeps the access; the next refresh retries.
+      now = now.add(const Duration(hours: 2));
+      http.photo = null;
+      store.fail = true;
+      expect(await old.accessToken(), 'public-fixture-token');
+      store.fail = false;
+      expect((await service().restore())!.photoUrl, photo);
     },
   );
   test(
