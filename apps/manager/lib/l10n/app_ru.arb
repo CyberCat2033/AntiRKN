@@ -1789,8 +1789,6 @@
   "@realitySearchFailedCode": {"placeholders": {"code": {"type": "String"}}},
   "realitySearchScore": "Оценка {score} из 100",
   "@realitySearchScore": {"placeholders": {"score": {"type": "int"}}},
-  "realitySearchSuggested": "Из подбора: {sni}, оценка {score}",
-  "@realitySearchSuggested": {"placeholders": {"sni": {"type": "String"}, "score": {"type": "int"}}},
   "realityLevelServer": "Проверено с сервера",
   "realityReasonServerChecked": "Проверено с сервера",
   "realityReasonServerRejected": "Сервер не подтвердил этот target",
@@ -1837,5 +1835,13 @@
   "realityConnectSnackFails": "{sni}: подключение не работает",
   "@realityConnectSnackFails": {"placeholders": {"sni": {"type": "String"}}},
   "realityConnectSnackUnknown": "{sni}: не удалось проверить подключение",
-  "@realityConnectSnackUnknown": {"placeholders": {"sni": {"type": "String"}}}
+  "@realityConnectSnackUnknown": {"placeholders": {"sni": {"type": "String"}}},
+  "realityDetailsLatency": "Задержка",
+  "realityDetailsMore": "Подробнее",
+  "realityDetailsLatencyDevice": "{device} мс с устройства",
+  "@realityDetailsLatencyDevice": {"placeholders": {"device": {"type": "int"}}},
+  "realityDetailsLatencyBoth": "{device} мс с устройства · {server} мс с сервера",
+  "@realityDetailsLatencyBoth": {"placeholders": {"device": {"type": "int"}, "server": {"type": "int"}}},
+  "realityDetailsCertificate": "{issuer}, до {date}",
+  "@realityDetailsCertificate": {"placeholders": {"issuer": {"type": "String"}, "date": {"type": "String"}}}
 }

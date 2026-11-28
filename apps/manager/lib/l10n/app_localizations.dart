@@ -8912,12 +8912,6 @@ abstract class AppLocalizations {
   /// **'Score {score} of 100'**
   String realitySearchScore(int score);
 
-  /// No description provided for @realitySearchSuggested.
-  ///
-  /// In en, this message translates to:
-  /// **'From the search: {sni}, score {score}'**
-  String realitySearchSuggested(String sni, int score);
-
   /// No description provided for @realityLevelServer.
   ///
   /// In en, this message translates to:
@@ -9169,6 +9163,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{sni}: could not check the connection'**
   String realityConnectSnackUnknown(String sni);
+
+  /// No description provided for @realityDetailsLatency.
+  ///
+  /// In en, this message translates to:
+  /// **'Latency'**
+  String get realityDetailsLatency;
+
+  /// No description provided for @realityDetailsMore.
+  ///
+  /// In en, this message translates to:
+  /// **'More details'**
+  String get realityDetailsMore;
+
+  /// No description provided for @realityDetailsLatencyDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'{device} ms from this device'**
+  String realityDetailsLatencyDevice(int device);
+
+  /// No description provided for @realityDetailsLatencyBoth.
+  ///
+  /// In en, this message translates to:
+  /// **'{device} ms from this device · {server} ms from the server'**
+  String realityDetailsLatencyBoth(int device, int server);
+
+  /// No description provided for @realityDetailsCertificate.
+  ///
+  /// In en, this message translates to:
+  /// **'{issuer}, until {date}'**
+  String realityDetailsCertificate(String issuer, String date);
 }
 
 class _AppLocalizationsDelegate

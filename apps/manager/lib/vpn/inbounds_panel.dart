@@ -1073,7 +1073,6 @@ class InboundsPanelState extends State<InboundsPanel> {
                 serverAddress: serverIpv4,
                 motion: motion,
               ),
-        suggested: search?.best,
       ),
       animationStyle: AnimationStyle(
         duration: AppMotion.duration(context, motion),
@@ -1099,7 +1098,6 @@ class InboundForm extends StatefulWidget {
     this.defaultEndpoint = '',
     this.scanReality,
     this.findTarget,
-    this.suggested,
     super.key,
   });
   final String serverId;
@@ -1114,9 +1112,6 @@ class InboundForm extends StatefulWidget {
   /// Opens the REALITY target search; the form keeps its draft meanwhile.
   final Future<RealityTargetChoice?> Function(BuildContext context)? findTarget;
 
-  /// The best result of a finished search on this server, offered to a new
-  /// inbound.
-  final RealityCandidate? suggested;
   @override
   State<InboundForm> createState() => _InboundFormState();
 }
@@ -1177,9 +1172,15 @@ class _InboundFormState extends State<InboundForm> {
     _fillXhttpPath();
   });
 
+  /// A chosen target is checked from the server at once.
+  Future<void> _useAndCheck(RealityTargetChoice choice) async {
+    useTarget(choice);
+    if (widget.scanReality != null) await scan();
+  }
+
   Future<void> findTarget() async {
     final choice = await widget.findTarget?.call(context);
-    if (choice != null && mounted) useTarget(choice);
+    if (choice != null && mounted) await _useAndCheck(choice);
   }
 
   Future<void> scan() async {
@@ -1281,6 +1282,83 @@ class _InboundFormState extends State<InboundForm> {
             ],
           ),
           AppFormSection(
+            title: tls ? 'TLS' : 'REALITY',
+            children: [
+              if (xhttp)
+                AppSelectField<String>(
+                  key: ValueKey('security-${spec['security']}'),
+                  value: spec['security'] as String,
+                  label: l.vpnSecurity,
+                  motion: widget.motion,
+                  options: const [('reality', 'REALITY'), ('tls', 'TLS')],
+                  onChanged: (v) => setState(() {
+                    spec['security'] = v;
+                    spec['mode'] = 'auto';
+                  }),
+                ),
+              if (!tls) ...[
+                // A failed scan is a quiet field error, not the loudest
+                // element of the form.
+                field(
+                  'target',
+                  l.vpnTarget,
+                  error: scanFailed ? l.realityScanFailed : null,
+                ),
+                AppFormActionRow(
+                  actions: [
+                    if (widget.findTarget != null)
+                      AppFormAction(
+                        buttonKey: const ValueKey('vpn-reality-find'),
+                        icon: Icons.travel_explore,
+                        label: l.realitySearchFind,
+                        tooltip: l.realitySearchFindHelp,
+                        onPressed: scanning ? null : findTarget,
+                      ),
+                    AppFormAction(
+                      buttonKey: const ValueKey('vpn-reality-scan'),
+                      icon: Icons.radar,
+                      label: l.realityScan,
+                      tooltip: l.realityScanHelp,
+                      busy: scanning,
+                      onPressed:
+                          widget.scanReality == null ||
+                              fields['target']!.text.trim().isEmpty
+                          ? null
+                          : scan,
+                    ),
+                  ],
+                ),
+                if (scanResult case final result?)
+                  RealityScanResultView(
+                    result: result,
+                    onSni: (name) => setState(() {
+                      fields['sni']!.text = name;
+                      automaticSni = false;
+                      scanResult = null;
+                    }),
+                  ),
+              ],
+              field('sni', l.vpnSni),
+              if (!tls) ...[
+                AppFormAction(
+                  buttonKey: const ValueKey('vpn-reality-regenerate'),
+                  icon: Icons.refresh,
+                  label: l.vpnRegenerateReality,
+                  onPressed: () => setState(() {
+                    spec['realitySeed'] = newVpnId();
+                    regenerated = true;
+                  }),
+                ),
+                if (regenerated) AppFormHint(l.vpnRealityRegenerated),
+              ],
+              if (tls) ...[
+                field('certificate', l.vpnCertificate),
+                field('certificateKey', l.vpnCertificateKey),
+                AppFormHint(l.vpnTlsHelp),
+              ],
+            ],
+          ),
+          AppFormSection(
             title: l.vpnTransport,
             children: [
               AppSelectField<String>(
@@ -1306,18 +1384,6 @@ class _InboundFormState extends State<InboundForm> {
                   }
                 }),
               ),
-              if (xhttp)
-                AppSelectField<String>(
-                  key: ValueKey('security-${spec['security']}'),
-                  value: spec['security'] as String,
-                  label: l.vpnSecurity,
-                  motion: widget.motion,
-                  options: const [('reality', 'REALITY'), ('tls', 'TLS')],
-                  onChanged: (v) => setState(() {
-                    spec['security'] = v;
-                    spec['mode'] = 'auto';
-                  }),
-                ),
               AppSelectField<String>(
                 key: const ValueKey('vpn-inbound-utls'),
                 value: fingerprint,
@@ -1359,88 +1425,6 @@ class _InboundFormState extends State<InboundForm> {
                   ],
                   onChanged: (v) => setState(() => spec['mode'] = v),
                 ),
-              ],
-            ],
-          ),
-          AppFormSection(
-            title: tls ? 'TLS' : 'REALITY',
-            children: [
-              if (!tls) ...[
-                // A failed scan is a quiet field error, not the loudest
-                // element of the form.
-                field(
-                  'target',
-                  l.vpnTarget,
-                  error: scanFailed ? l.realityScanFailed : null,
-                ),
-                AppFormActionRow(
-                  actions: [
-                    if (widget.findTarget != null)
-                      AppFormAction(
-                        buttonKey: const ValueKey('vpn-reality-find'),
-                        icon: Icons.travel_explore,
-                        label: l.realitySearchFind,
-                        tooltip: l.realitySearchFindHelp,
-                        onPressed: scanning ? null : findTarget,
-                      ),
-                    AppFormAction(
-                      buttonKey: const ValueKey('vpn-reality-scan'),
-                      icon: Icons.radar,
-                      label: l.realityScan,
-                      tooltip: l.realityScanHelp,
-                      busy: scanning,
-                      onPressed:
-                          widget.scanReality == null ||
-                              fields['target']!.text.trim().isEmpty
-                          ? null
-                          : scan,
-                    ),
-                  ],
-                ),
-                if (widget.suggested case final best?
-                    when widget.inbound == null &&
-                        fields['target']!.text != realityChoice(best).target)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: AppFormHint(
-                          l.realitySearchSuggested(best.target.sni, best.score),
-                        ),
-                      ),
-                      TextButton(
-                        key: const ValueKey('vpn-reality-suggested'),
-                        onPressed: () => useTarget(realityChoice(best)),
-                        child: Text(l.realitySearchUse),
-                      ),
-                    ],
-                  ),
-                if (scanResult case final result?)
-                  RealityScanResultView(
-                    result: result,
-                    onSni: (name) => setState(() {
-                      fields['sni']!.text = name;
-                      automaticSni = false;
-                      scanResult = null;
-                    }),
-                  ),
-              ],
-              field('sni', l.vpnSni),
-              if (!tls) ...[
-                AppFormAction(
-                  buttonKey: const ValueKey('vpn-reality-regenerate'),
-                  icon: Icons.refresh,
-                  label: l.vpnRegenerateReality,
-                  onPressed: () => setState(() {
-                    spec['realitySeed'] = newVpnId();
-                    regenerated = true;
-                  }),
-                ),
-                if (regenerated) AppFormHint(l.vpnRealityRegenerated),
-              ],
-              if (tls) ...[
-                field('certificate', l.vpnCertificate),
-                field('certificateKey', l.vpnCertificateKey),
-                AppFormHint(l.vpnTlsHelp),
               ],
             ],
           ),

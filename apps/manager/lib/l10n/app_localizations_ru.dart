@@ -5155,11 +5155,6 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
-  String realitySearchSuggested(String sni, int score) {
-    return 'Из подбора: $sni, оценка $score';
-  }
-
-  @override
   String get realityLevelServer => 'Проверено с сервера';
 
   @override
@@ -5304,5 +5299,26 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String realityConnectSnackUnknown(String sni) {
     return '$sni: не удалось проверить подключение';
+  }
+
+  @override
+  String get realityDetailsLatency => 'Задержка';
+
+  @override
+  String get realityDetailsMore => 'Подробнее';
+
+  @override
+  String realityDetailsLatencyDevice(int device) {
+    return '$device мс с устройства';
+  }
+
+  @override
+  String realityDetailsLatencyBoth(int device, int server) {
+    return '$device мс с устройства · $server мс с сервера';
+  }
+
+  @override
+  String realityDetailsCertificate(String issuer, String date) {
+    return '$issuer, до $date';
   }
 }

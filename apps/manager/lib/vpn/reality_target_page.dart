@@ -49,6 +49,32 @@ String realityReasonText(AppLocalizations l, RealityReason r) => switch (r) {
   RealityReason.expiresSoon => l.realityReasonExpiresSoon,
 };
 
+/// Measured strengths and problems shown as chips in the details.
+const _goodReasons = {
+  RealityReason.mihomoWorking,
+  RealityReason.serverChecked,
+  RealityReason.sameNetwork,
+  RealityReason.nearbyNetwork,
+  RealityReason.dnsMatch,
+  RealityReason.stable,
+  RealityReason.modernKeyExchange,
+};
+const _badReasons = {
+  RealityReason.mihomoFailed,
+  RealityReason.mihomoInconclusive,
+  RealityReason.serverRejected,
+  RealityReason.knownCdn,
+  RealityReason.notTls13,
+  RealityReason.noH2,
+  RealityReason.unsupportedGroup,
+  RealityReason.certificateInvalid,
+  RealityReason.handshakeFailed,
+  RealityReason.dnsMismatch,
+  RealityReason.unstable,
+  RealityReason.expiresSoon,
+  RealityReason.farNetwork,
+};
+
 /// The short "why" of a card: what helps, then what holds it back.
 const _cardReasons = [
   RealityReason.sameNetwork,
@@ -542,65 +568,121 @@ class _RealityTargetPageState extends State<RealityTargetPage> {
     RealityCandidate candidate, {
     bool sheet = false,
   }) {
-    final theme = Theme.of(context);
+    final theme = Theme.of(context), scheme = theme.colorScheme;
     final p = candidate.confirmation, cert = p.certificate;
     final local = MaterialLocalizations.of(context);
-    final facts = <(String, String)>[
-      (l.vpnTarget, realityChoice(candidate).target),
-      (l.realitySearchVerifiedAddress, realityVerifiedAddress(candidate)),
-      (l.vpnSni, candidate.target.sni),
-      ('TLS', p.version),
-      ('ALPN', p.alpn),
-      (l.realityKeyExchange, p.group),
-      (
-        l.realitySearchDns,
-        switch (p.dns) {
-          TlsDnsCheck.match => l.realityReasonDnsMatch,
-          TlsDnsCheck.mismatch => l.realityReasonDnsMismatch,
-          _ => l.realityReasonDnsUnresolved,
-        },
+    final server = candidate.fromServer?.latency?.inMilliseconds;
+    Widget row(String label, String value) => Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              label,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 3,
+            child: SelectableText(
+              value.isEmpty ? '—' : value,
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+        ],
       ),
-      (l.realityLatency, '${p.tls.inMilliseconds}'),
-      if (candidate.fromMihomo case final mihomo?)
-        (
-          l.realitySearchConnection,
-          '${realityReasonText(l, switch (mihomo.status) {
-            RealityMihomoStatus.working => RealityReason.mihomoWorking,
-            RealityMihomoStatus.failed => RealityReason.mihomoFailed,
-            RealityMihomoStatus.inconclusive => RealityReason.mihomoInconclusive,
-          })} · ${mihomo.code}',
-        ),
-      if (candidate.fromServer?.latency case final latency?)
-        (l.realitySearchServerLatency, '${latency.inMilliseconds}'),
-      if (cert != null) ...[
-        (l.realityCertificate, cert.issuer),
-        (l.realityCertificateExpiry, local.formatMediumDate(cert.notAfter)),
-        (l.realitySearchNames, cert.names.join(', ')),
-      ],
+    );
+    // Only what was measured: "not checked" reasons stay out of the way.
+    final good = [
+      for (final r in candidate.reasons)
+        if (_goodReasons.contains(r)) r,
+    ];
+    final bad = [
+      for (final r in candidate.reasons)
+        if (_badReasons.contains(r)) r,
     ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final (label, value) in facts)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: theme.textTheme.labelLarge),
-                SelectableText(
-                  value.isEmpty ? '—' : value,
-                  style: theme.textTheme.bodyMedium,
-                ),
-              ],
+        row(l.vpnTarget, realityChoice(candidate).target),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final value in ['TLS ${p.version}', p.alpn, p.group])
+                if (value.trim().isNotEmpty && value != 'TLS ')
+                  StatusChip(label: value, icon: Icons.lock_outline),
+            ],
+          ),
+        ),
+        row(
+          l.realityDetailsLatency,
+          server == null
+              ? l.realityDetailsLatencyDevice(p.tls.inMilliseconds)
+              : l.realityDetailsLatencyBoth(p.tls.inMilliseconds, server),
+        ),
+        if (cert != null)
+          row(
+            l.realityCertificate,
+            l.realityDetailsCertificate(
+              cert.issuer.isEmpty ? '—' : cert.issuer,
+              local.formatMediumDate(cert.notAfter),
             ),
           ),
-        Text(l.realitySearchWhy, style: theme.textTheme.labelLarge),
-        for (final r in candidate.reasons)
-          Text(
-            '• ${realityReasonText(l, r)}',
-            style: theme.textTheme.bodyMedium,
+        if (good.isNotEmpty || bad.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text(l.realitySearchWhy, style: theme.textTheme.titleSmall),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final r in bad)
+                StatusChip(
+                  label: realityReasonText(l, r),
+                  icon: Icons.error_outline,
+                  error: true,
+                ),
+              for (final r in good)
+                StatusChip(label: realityReasonText(l, r), icon: Icons.check),
+            ],
           ),
+        ],
+        AppExpansionTile(
+          key: ValueKey('reality-more-${candidate.target.key}'),
+          title: Text(l.realityDetailsMore),
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: EdgeInsets.zero,
+          expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            row(
+              l.realitySearchVerifiedAddress,
+              realityVerifiedAddress(candidate),
+            ),
+            row(l.vpnSni, candidate.target.sni),
+            row(l.realitySearchDns, switch (p.dns) {
+              TlsDnsCheck.match => l.realityReasonDnsMatch,
+              TlsDnsCheck.mismatch => l.realityReasonDnsMismatch,
+              _ => l.realityReasonDnsUnresolved,
+            }),
+            if (cert != null) row(l.realitySearchNames, cert.names.join(', ')),
+            for (final r in candidate.reasons)
+              if (!_goodReasons.contains(r) && !_badReasons.contains(r))
+                Text(
+                  realityReasonText(l, r),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+          ],
+        ),
         if (candidate.suitable &&
             candidate.fromServer == null &&
             c.checkFromServer != null) ...[

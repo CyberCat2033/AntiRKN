@@ -396,6 +396,12 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Why'), findsOneWidget);
       expect(find.text('alpha.example:443'), findsOneWidget);
+      expect(find.text('TLS 1.3'), findsOneWidget);
+      expect(find.text('8.8.8.10:443'), findsNothing);
+      final more = find.text('More details');
+      await tester.ensureVisible(more);
+      await tester.tap(more);
+      await tester.pumpAndSettle();
       expect(find.text('8.8.8.10:443'), findsOneWidget);
     });
 
@@ -684,13 +690,10 @@ void main() {
     expect(isDefaultXhttpPath('/mine'), isFalse);
   });
 
-  testWidgets('the form takes the chosen pair and the cached suggestion', (
+  testWidgets('a chosen pair fills the form and is checked at once', (
     tester,
   ) async {
-    final c = controller(World(), Settings());
-    await tester.runAsync(
-      () => c.start(RealitySearchPlan.explicit(['8.8.8.10'])),
-    );
+    final scanned = <(String, String)>[];
     final network = NetworkController(reader: const SampleInventoryReader());
     await tester.pumpWidget(
       app(
@@ -700,8 +703,11 @@ void main() {
             network: network,
             motion: MotionPreference.off,
             findTarget: (_) async =>
-                (target: '8.8.8.20:443', sni: 'beta.example'),
-            suggested: c.best,
+                (target: 'beta.example:443', sni: 'beta.example'),
+            scanReality: (target, sni) async {
+              scanned.add((target, sni));
+              return {'feasible': true, 'tlsVersion': '1.3'};
+            },
           ),
         ),
       ),
@@ -714,23 +720,35 @@ void main() {
         matchRoot: true,
       ),
     );
-    expect(
-      find.textContaining('From the search: alpha.example'),
-      findsOneWidget,
-    );
-    await tester.ensureVisible(
-      find.byKey(const ValueKey('vpn-reality-suggested')),
-    );
-    await tester.tap(find.byKey(const ValueKey('vpn-reality-suggested')));
+    final findButton = find.byKey(const ValueKey('vpn-reality-find'));
+    await tester.ensureVisible(findButton);
+    await tester.tap(findButton);
     await tester.pumpAndSettle();
-    expect(field('target').controller!.text, 'alpha.example:443');
-    expect(field('sni').controller!.text, 'alpha.example');
-    expect(find.byKey(const ValueKey('vpn-reality-suggested')), findsNothing);
-    await tester.tap(find.byKey(const ValueKey('vpn-reality-find')));
-    await tester.pumpAndSettle();
-    expect(field('target').controller!.text, '8.8.8.20:443');
+    expect(field('target').controller!.text, 'beta.example:443');
     expect(field('sni').controller!.text, 'beta.example');
+    expect(scanned, [('beta.example:443', 'beta.example')]);
     expect(find.text('Check'), findsOneWidget);
+  });
+
+  testWidgets('REALITY comes before the transport', (tester) async {
+    final network = NetworkController(reader: const SampleInventoryReader());
+    await tester.pumpWidget(
+      app(
+        Scaffold(
+          body: InboundForm(
+            serverId: 'server-1',
+            network: network,
+            motion: MotionPreference.off,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final reality = tester.getTopLeft(find.text('REALITY').first).dy;
+    final transport = tester
+        .getTopLeft(find.byKey(const ValueKey('transport-raw')))
+        .dy;
+    expect(reality, lessThan(transport));
   });
 
   for (final (path, generated) in [('/', true), ('/mine', false)]) {
@@ -748,6 +766,8 @@ void main() {
           ),
         ),
       );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const ValueKey('transport-raw')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('transport-raw')));
       await tester.pumpAndSettle();
@@ -801,6 +821,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('transport-raw')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('transport-raw')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('XHTTP').last);
@@ -849,6 +871,8 @@ void main() {
         .controller!
         .text;
     Future<void> transport(String from, String to) async {
+      await tester.ensureVisible(find.byKey(ValueKey('transport-$from')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(ValueKey('transport-$from')));
       await tester.pumpAndSettle();
       await tester.tap(find.text(to).last);

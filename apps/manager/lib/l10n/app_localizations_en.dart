@@ -5140,11 +5140,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String realitySearchSuggested(String sni, int score) {
-    return 'From the search: $sni, score $score';
-  }
-
-  @override
   String get realityLevelServer => 'Checked from the server';
 
   @override
@@ -5291,5 +5286,26 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String realityConnectSnackUnknown(String sni) {
     return '$sni: could not check the connection';
+  }
+
+  @override
+  String get realityDetailsLatency => 'Latency';
+
+  @override
+  String get realityDetailsMore => 'More details';
+
+  @override
+  String realityDetailsLatencyDevice(int device) {
+    return '$device ms from this device';
+  }
+
+  @override
+  String realityDetailsLatencyBoth(int device, int server) {
+    return '$device ms from this device · $server ms from the server';
+  }
+
+  @override
+  String realityDetailsCertificate(String issuer, String date) {
+    return '$issuer, until $date';
   }
 }

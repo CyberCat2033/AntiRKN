@@ -1850,8 +1850,6 @@
   "@realitySearchFailedCode": {"placeholders": {"code": {"type": "String"}}},
   "realitySearchScore": "Score {score} of 100",
   "@realitySearchScore": {"placeholders": {"score": {"type": "int"}}},
-  "realitySearchSuggested": "From the search: {sni}, score {score}",
-  "@realitySearchSuggested": {"placeholders": {"sni": {"type": "String"}, "score": {"type": "int"}}},
   "realityLevelServer": "Checked from the server",
   "realityReasonServerChecked": "Checked from the server",
   "realityReasonServerRejected": "The server did not confirm this target",
@@ -1898,5 +1896,13 @@
   "realityConnectSnackFails": "{sni}: the connection does not work",
   "@realityConnectSnackFails": {"placeholders": {"sni": {"type": "String"}}},
   "realityConnectSnackUnknown": "{sni}: could not check the connection",
-  "@realityConnectSnackUnknown": {"placeholders": {"sni": {"type": "String"}}}
+  "@realityConnectSnackUnknown": {"placeholders": {"sni": {"type": "String"}}},
+  "realityDetailsLatency": "Latency",
+  "realityDetailsMore": "More details",
+  "realityDetailsLatencyDevice": "{device} ms from this device",
+  "@realityDetailsLatencyDevice": {"placeholders": {"device": {"type": "int"}}},
+  "realityDetailsLatencyBoth": "{device} ms from this device · {server} ms from the server",
+  "@realityDetailsLatencyBoth": {"placeholders": {"device": {"type": "int"}, "server": {"type": "int"}}},
+  "realityDetailsCertificate": "{issuer}, until {date}",
+  "@realityDetailsCertificate": {"placeholders": {"issuer": {"type": "String"}, "date": {"type": "String"}}}
 }
