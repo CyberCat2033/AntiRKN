@@ -6,11 +6,6 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Fixed
-
-- Android: app updates were always reported as unavailable.
-- Android: Google Drive could look signed out after the phone was idle for a long time.
-
 ## [0.1.1] - 2026-11-28
 
 ### Added
@@ -25,6 +20,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 - After a sync from another device, a server whose last operation came from that device is no longer reported as "another device is applying changes" forever: its state is read again, and the app stops re-checking it every two seconds.
 - Reading servers again after a sync waits for a connection that is still being established, instead of reporting "Connect to this server" until Retry.
+- Android: app updates were always reported as unavailable.
+- Android: Google Drive could look signed out after the phone was idle for a long time.
 
 ## [0.1.0] - 2026-11-27
 
