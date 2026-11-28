@@ -21,17 +21,19 @@ import 'vpn_strings.dart';
 import '../template_controller.dart';
 import '../template_settings.dart';
 
-enum UserSortField { name, creationDate }
+enum UserSortField { creationDate, name, traffic }
 
 /// Clients as the list shows them: enabled first, then disabled, each part
 /// ordered by [field]. Names are lower-cased once per client, not once per
-/// comparison.
+/// comparison. [traffic] is each client's bytes this month; equal values
+/// keep the order of creation.
 @visibleForTesting
 ({List<VpnUser> enabled, List<VpnUser> disabled}) sortUsersForDisplay(
   List<VpnUser> users,
   UserSortField field,
-  bool ascending,
-) {
+  bool ascending, {
+  Map<String, int> traffic = const {},
+}) {
   final order = <String, int>{
     for (var i = 0; i < users.length; i++) users[i].id: i,
   };
@@ -41,6 +43,11 @@ enum UserSortField { name, creationDate }
   int compare(VpnUser a, VpnUser b) {
     if (field == UserSortField.name) {
       final res = names[a.id]!.compareTo(names[b.id]!);
+      if (res != 0) return ascending ? res : -res;
+      return order[a.id]!.compareTo(order[b.id]!);
+    }
+    if (field == UserSortField.traffic) {
+      final res = (traffic[a.id] ?? 0).compareTo(traffic[b.id] ?? 0);
       if (res != 0) return ascending ? res : -res;
       return order[a.id]!.compareTo(order[b.id]!);
     }
@@ -308,6 +315,22 @@ class _UsersPageState extends State<UsersPage> {
   ({List<VpnUser> enabled, List<VpnUser> disabled}) _sortedUsers(
     List<VpnUser> users,
   ) {
+    // Traffic changes under the same list: that order is not cached.
+    if (_sortField == UserSortField.traffic) {
+      final traffic = widget.traffic!, month = trafficMonth(DateTime.now());
+      int bytes(VpnUser u) {
+        final usage = traffic.summary(u.id).usage(month);
+        return usage.down + usage.up;
+      }
+
+      _sortedFor = null;
+      return sortUsersForDisplay(
+        users,
+        _sortField,
+        _sortAscending,
+        traffic: {for (final u in users) u.id: bytes(u)},
+      );
+    }
     final cached = _sorted, key = _sortedFor;
     if (cached != null &&
         key != null &&
@@ -444,42 +467,55 @@ class _UsersPageState extends State<UsersPage> {
     }
   }
 
-  static const _sortOptions = [
-    (UserSortField.creationDate, true),
-    (UserSortField.creationDate, false),
-    (UserSortField.name, true),
-    (UserSortField.name, false),
-  ];
+  static String _sortLabel(AppLocalizations l, UserSortField field) =>
+      switch (field) {
+        UserSortField.creationDate => l.vpnSortDate,
+        UserSortField.name => l.vpnSortName,
+        UserSortField.traffic => l.vpnSortTraffic,
+      };
 
-  static String _sortLabel(
-    AppLocalizations l,
-    UserSortField field,
-    bool ascending,
-  ) => switch ((field, ascending)) {
-    (UserSortField.creationDate, true) => l.vpnSortOldest,
-    (UserSortField.creationDate, false) => l.vpnSortNewest,
-    (UserSortField.name, true) => l.vpnSortNameAz,
-    (UserSortField.name, false) => l.vpnSortNameZa,
-  };
-
-  Widget _sortMenu(AppLocalizations l) => AppMenuButton(
-    buttonKey: const ValueKey('vpn-sort-menu'),
-    icon: Icons.sort,
-    tooltip: l.vpnSortTooltip,
-    label: _sortLabel(l, _sortField, _sortAscending),
-    children: [
-      for (final (field, ascending) in _sortOptions)
-        AppMenuItem(
-          key: ValueKey('vpn-sort-${field.name}-${ascending ? 'asc' : 'desc'}'),
-          label: _sortLabel(l, field, ascending),
-          selected: field == _sortField && ascending == _sortAscending,
-          onPressed: () => setState(() {
-            _sortField = field;
-            _sortAscending = ascending;
-          }),
+  /// What to sort by in a menu, and which way as an arrow beside it.
+  Widget _sortMenu(AppLocalizations l) {
+    final fields = [
+      UserSortField.creationDate,
+      UserSortField.name,
+      if (widget.traffic != null) UserSortField.traffic,
+    ];
+    // With large text on a phone the arrow moves under the criterion.
+    return Wrap(
+      alignment: WrapAlignment.end,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        AppMenuButton(
+          buttonKey: const ValueKey('vpn-sort-menu'),
+          icon: Icons.sort,
+          tooltip: l.vpnSortTooltip,
+          label: _sortLabel(l, _sortField),
+          children: [
+            for (final field in fields)
+              AppMenuItem(
+                key: ValueKey('vpn-sort-${field.name}'),
+                label: _sortLabel(l, field),
+                selected: field == _sortField,
+                // Most traffic first; names and dates from the start.
+                onPressed: () => setState(() {
+                  _sortAscending = field != UserSortField.traffic;
+                  _sortField = field;
+                }),
+              ),
+          ],
         ),
-    ],
-  );
+        IconButton(
+          key: const ValueKey('vpn-sort-direction'),
+          tooltip: _sortAscending ? l.vpnSortAscending : l.vpnSortDescending,
+          onPressed: () => setState(() => _sortAscending = !_sortAscending),
+          icon: Icon(
+            _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
+          ),
+        ),
+      ],
+    );
+  }
 
   /// Checking the servers and publishing are rare and slow: they live in
   /// the page menu, the full check as its own item instead of a long press.
@@ -598,6 +634,7 @@ class _UsersPageState extends State<UsersPage> {
     serverName: widget.serverName,
     motion: motion,
     embedded: embedded,
+    onClose: embedded ? () => setState(() => _opened = null) : null,
     onEdit: (context) => UsersPage.edit(
       context,
       controller,
@@ -636,36 +673,11 @@ class _UsersPageState extends State<UsersPage> {
     isSyncing: _syncing,
   );
 
-  /// The pane beside the list: the open client's card, or what to do.
-  Widget _pane(VpnController c, AppLocalizations l, int total) {
+  /// The open client's card beside the list; none while choosing several.
+  Widget? _pane(VpnController c) {
     final user = _opened == null ? null : c.workspace.userById(_opened!);
-    if (!selection.active && user != null && !user.deleted) {
-      return _card(user, embedded: true);
-    }
-    final (String key, Widget? hint) = selection.active
-        ? (
-            'clients-pane-selection',
-            AppEmptyState(
-              title: l.clientsSelectedTitle(selection.ids.length),
-              icon: Icons.checklist,
-              message: l.clientsSelectedHelp,
-            ),
-          )
-        : total == 0
-        ? ('clients-pane-none', null)
-        : (
-            'clients-pane-empty',
-            AppEmptyState(
-              title: l.clientsPickTitle,
-              icon: Icons.person_outline,
-              message: l.clientsPickHelp,
-            ),
-          );
-    return Align(
-      key: ValueKey(key),
-      alignment: Alignment.topCenter,
-      child: Padding(padding: const EdgeInsets.all(AppLayout.gap), child: hint),
-    );
+    if (selection.active || user == null || user.deleted) return null;
+    return _card(user, embedded: true);
   }
 
   /// The period of the traffic in the rows, and the order of the list.
@@ -719,6 +731,7 @@ class _UsersPageState extends State<UsersPage> {
         selection,
         // While narrowed to errors, a fixed or new failure changes the list.
         if (_onlyFailed) ?publications?.changes,
+        if (_sortField == UserSortField.traffic) ?widget.traffic,
       ]),
       builder: (context, _) => _build(context, AppListDetail.fits(size)),
     ),
@@ -931,11 +944,7 @@ class _UsersPageState extends State<UsersPage> {
       ],
     );
     if (!wide) return page;
-    return AppListDetail(
-      motion: motion,
-      list: page,
-      detail: _pane(c, l, total),
-    );
+    return AppListDetail(motion: motion, list: page, detail: _pane(c));
   }
 }
 

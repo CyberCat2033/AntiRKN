@@ -25,6 +25,7 @@ class ProfileShareSheet extends StatefulWidget {
     this.onEdit,
     this.onDelete,
     this.embedded = false,
+    this.onClose,
     super.key,
   });
   final VpnController controller;
@@ -46,6 +47,9 @@ class ProfileShareSheet extends StatefulWidget {
   /// Beside the list instead of in a sheet or dialog: no close button and
   /// no height of its own.
   final bool embedded;
+
+  /// Hides the card beside the list, giving the list its width back.
+  final VoidCallback? onClose;
   @override
   State<ProfileShareSheet> createState() => _ProfileShareSheetState();
 }
@@ -169,6 +173,15 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
               children: [
                 Row(
                   children: [
+                    if (widget.embedded && widget.onClose != null) ...[
+                      IconButton(
+                        key: const ValueKey('client-pane-close'),
+                        tooltip: l.clientsHideCard,
+                        onPressed: widget.onClose,
+                        icon: const Icon(Icons.keyboard_double_arrow_right),
+                      ),
+                      const SizedBox(width: AppLayout.smallGap),
+                    ],
                     Expanded(
                       child: Text(
                         user?.name ?? widget.user.name,

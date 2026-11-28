@@ -2540,35 +2540,41 @@ abstract class AppLocalizations {
   /// **'Disabled clients'**
   String get vpnDisabledClients;
 
-  /// No description provided for @vpnSortOldest.
-  ///
-  /// In en, this message translates to:
-  /// **'Oldest first'**
-  String get vpnSortOldest;
-
-  /// No description provided for @vpnSortNewest.
-  ///
-  /// In en, this message translates to:
-  /// **'Newest first'**
-  String get vpnSortNewest;
-
-  /// No description provided for @vpnSortNameAz.
-  ///
-  /// In en, this message translates to:
-  /// **'Name A–Z'**
-  String get vpnSortNameAz;
-
-  /// No description provided for @vpnSortNameZa.
-  ///
-  /// In en, this message translates to:
-  /// **'Name Z–A'**
-  String get vpnSortNameZa;
-
   /// No description provided for @vpnSortTooltip.
   ///
   /// In en, this message translates to:
   /// **'Client order'**
   String get vpnSortTooltip;
+
+  /// No description provided for @vpnSortDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Date added'**
+  String get vpnSortDate;
+
+  /// No description provided for @vpnSortName.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get vpnSortName;
+
+  /// No description provided for @vpnSortTraffic.
+  ///
+  /// In en, this message translates to:
+  /// **'Traffic this month'**
+  String get vpnSortTraffic;
+
+  /// No description provided for @vpnSortAscending.
+  ///
+  /// In en, this message translates to:
+  /// **'Ascending'**
+  String get vpnSortAscending;
+
+  /// No description provided for @vpnSortDescending.
+  ///
+  /// In en, this message translates to:
+  /// **'Descending'**
+  String get vpnSortDescending;
 
   /// No description provided for @vpnSyncForce.
   ///
@@ -2678,29 +2684,11 @@ abstract class AppLocalizations {
   /// **'No clients found'**
   String get clientsNotFound;
 
-  /// No description provided for @clientsPickTitle.
+  /// No description provided for @clientsHideCard.
   ///
   /// In en, this message translates to:
-  /// **'Choose a client'**
-  String get clientsPickTitle;
-
-  /// No description provided for @clientsPickHelp.
-  ///
-  /// In en, this message translates to:
-  /// **'Their QR, traffic and actions open here.'**
-  String get clientsPickHelp;
-
-  /// No description provided for @clientsSelectedTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{1 client selected} other{{count} clients selected}}'**
-  String clientsSelectedTitle(int count);
-
-  /// No description provided for @clientsSelectedHelp.
-  ///
-  /// In en, this message translates to:
-  /// **'Actions for them are in the list header.'**
-  String get clientsSelectedHelp;
+  /// **'Hide the card'**
+  String get clientsHideCard;
 
   /// No description provided for @clientsNotFoundHelp.
   ///

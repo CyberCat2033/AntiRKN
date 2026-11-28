@@ -1398,19 +1398,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get vpnDisabledClients => 'Disabled clients';
 
   @override
-  String get vpnSortOldest => 'Oldest first';
-
-  @override
-  String get vpnSortNewest => 'Newest first';
-
-  @override
-  String get vpnSortNameAz => 'Name A–Z';
-
-  @override
-  String get vpnSortNameZa => 'Name Z–A';
-
-  @override
   String get vpnSortTooltip => 'Client order';
+
+  @override
+  String get vpnSortDate => 'Date added';
+
+  @override
+  String get vpnSortName => 'Name';
+
+  @override
+  String get vpnSortTraffic => 'Traffic this month';
+
+  @override
+  String get vpnSortAscending => 'Ascending';
+
+  @override
+  String get vpnSortDescending => 'Descending';
 
   @override
   String get vpnSyncForce => 'Check servers and all Drive files';
@@ -1479,24 +1482,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get clientsNotFound => 'No clients found';
 
   @override
-  String get clientsPickTitle => 'Choose a client';
-
-  @override
-  String get clientsPickHelp => 'Their QR, traffic and actions open here.';
-
-  @override
-  String clientsSelectedTitle(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count clients selected',
-      one: '1 client selected',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String get clientsSelectedHelp => 'Actions for them are in the list header.';
+  String get clientsHideCard => 'Hide the card';
 
   @override
   String clientsNotFoundHelp(String query) {
