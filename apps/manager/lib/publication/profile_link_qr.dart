@@ -143,12 +143,13 @@ class _ProfileLinkQrState extends State<ProfileLinkQr> {
           ),
         ),
         const SizedBox(height: AppLayout.smallGap),
-        Text(l.uiQrCopyHint, textAlign: TextAlign.center),
-        const SizedBox(height: AppLayout.smallGap),
+        // One short line: what the QR is for is said once above it.
         Text(
-          l.uiClashRefreshHint,
+          l.uiQrCopyHint,
           textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodySmall,
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
         ),
         if (error != null)
           Semantics(

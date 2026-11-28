@@ -9,6 +9,7 @@ import 'package:antirkn_manager/vpn/users_page.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'clients_menu.dart';
 import '../vpn_controller_test.dart' as f;
 import '../publication_test.dart' as p;
 
@@ -100,7 +101,6 @@ void main() {
               controller: vpn,
               selection: selection,
               publications: pub,
-              protocolSummary: 'VLESS',
               motion: MotionPreference.off,
               onProfile: (_, profileUser) {},
               isSyncing: true,
@@ -110,8 +110,9 @@ void main() {
       );
       await tester.pump();
 
-      // 1. Idle state: Shows QR code icon
-      expect(find.byIcon(Icons.qr_code_2), findsOneWidget);
+      // 1. Idle state: no publishing mark; the row itself opens the card.
+      final mark = find.byKey(ValueKey('client-sync-state-${f.alice}'));
+      expect(mark, findsNothing);
       expect(find.byType(CircularProgressIndicator), findsNothing);
       expect(find.byIcon(Icons.check_circle), findsNothing);
 
@@ -119,7 +120,7 @@ void main() {
       pub.simulateUserProgress(inFlight: {f.alice}, total: 1);
       await tester.pump();
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      expect(find.byIcon(Icons.qr_code_2), findsNothing);
+      expect(mark, findsOneWidget);
       expect(find.byIcon(Icons.check_circle), findsNothing);
 
       // 3. Alice completed: switches to checkmark
@@ -127,7 +128,6 @@ void main() {
       await tester.pump();
       expect(find.byIcon(Icons.check_circle), findsOneWidget);
       expect(find.byType(CircularProgressIndicator), findsNothing);
-      expect(find.byIcon(Icons.qr_code_2), findsNothing);
 
       // 4. Alice failed: switches to error outline
       pub.simulateUserProgress(failed: {f.alice}, total: 1);
@@ -135,10 +135,10 @@ void main() {
       expect(find.byIcon(Icons.error_outline), findsOneWidget);
       expect(find.byIcon(Icons.check_circle), findsNothing);
 
-      // 5. Cleared: reverts cleanly back to QR code icon
+      // 5. Cleared: the mark goes away
       pub.resetSyncProgress();
       await tester.pump();
-      expect(find.byIcon(Icons.qr_code_2), findsOneWidget);
+      expect(mark, findsNothing);
       expect(find.byIcon(Icons.check_circle), findsNothing);
       expect(find.byIcon(Icons.error_outline), findsNothing);
       expect(find.byType(CircularProgressIndicator), findsNothing);
@@ -147,7 +147,7 @@ void main() {
   );
 
   testWidgets(
-    'UsersPage reactive sync state: disabled button, no inner spinner, and determinate progress',
+    'UsersPage reactive sync state: disabled menu item and determinate progress',
     (tester) async {
       tester.view.physicalSize = const Size(1200, 2000);
       tester.view.devicePixelRatio = 1;
@@ -193,23 +193,23 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
-      // Initial idle state: button enabled, no progress bar, tiles have QR icons
-      final syncButton = find.widgetWithIcon(FilledButton, Icons.cloud_sync);
-      expect(syncButton, findsOneWidget);
-      expect(tester.widget<FilledButton>(syncButton).onPressed, isNotNull);
-      expect(find.byType(LinearProgressIndicator), findsNothing);
-      expect(find.byIcon(Icons.qr_code_2), findsNWidgets(2));
+      Future<bool> syncEnabled() => clientsSyncEnabled(tester);
 
-      // Check switches and QR buttons initially enabled
+      // Initial idle state: sync enabled, no progress bar, no row marks
+      expect(await syncEnabled(), isTrue);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      expect(
+        find.byKey(ValueKey('client-sync-state-${f.alice}')),
+        findsNothing,
+      );
+
+      // Check switches and rows initially enabled
       final aliceSwitchFinder = find.byKey(
         ValueKey('client-toggle-${f.alice}'),
       );
       expect(tester.widget<Switch>(aliceSwitchFinder).onChanged, isNotNull);
-      final aliceQrButtonFinder = find.byKey(ValueKey('client-qr-${f.alice}'));
-      expect(
-        tester.widget<IconButton>(aliceQrButtonFinder).onPressed,
-        isNotNull,
-      );
+      final aliceRowFinder = find.byKey(ValueKey('client-${f.alice}'));
+      expect(tester.widget<ListTile>(aliceRowFinder).onTap, isNotNull);
 
       // Trigger active sync via simulateUserProgress
       pub.simulateUserProgress(
@@ -219,13 +219,8 @@ void main() {
       );
       await tester.pump();
 
-      // Button disabled, NO inner spinner inside button
-      expect(tester.widget<FilledButton>(syncButton).onPressed, isNull);
-      final buttonDescendants = find.descendant(
-        of: syncButton,
-        matching: find.byType(CircularProgressIndicator),
-      );
-      expect(buttonDescendants, findsNothing);
+      // Sync disabled while a run is active.
+      expect(await syncEnabled(), isFalse);
 
       // Determinate LinearProgressIndicator with value 0.5 (1 of 2 completed)
       final progressFinder = find.byType(LinearProgressIndicator);
@@ -241,9 +236,9 @@ void main() {
       vpn.upgradeBusy = false;
       await tester.pump();
 
-      // Switches and QR buttons disabled during sync
+      // Switches disabled during sync; the card still opens to look
       expect(tester.widget<Switch>(aliceSwitchFinder).onChanged, isNull);
-      expect(tester.widget<IconButton>(aliceQrButtonFinder).onPressed, isNull);
+      expect(tester.widget<ListTile>(aliceRowFinder).onTap, isNotNull);
 
       // Per-client trailing icons: Alice has spinner, Bob has checkmark
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -253,13 +248,13 @@ void main() {
       pub.resetSyncProgress();
       await tester.pump();
       expect(find.byType(LinearProgressIndicator), findsNothing);
-      expect(tester.widget<FilledButton>(syncButton).onPressed, isNotNull);
+      expect(await syncEnabled(), isTrue);
       expect(tester.widget<Switch>(aliceSwitchFinder).onChanged, isNotNull);
+      expect(tester.widget<ListTile>(aliceRowFinder).onTap, isNotNull);
       expect(
-        tester.widget<IconButton>(aliceQrButtonFinder).onPressed,
-        isNotNull,
+        find.byKey(ValueKey('client-sync-state-${f.alice}')),
+        findsNothing,
       );
-      expect(find.byIcon(Icons.qr_code_2), findsNWidgets(2));
     },
   );
 

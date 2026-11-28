@@ -2534,41 +2534,179 @@ abstract class AppLocalizations {
   /// **'Add client'**
   String get vpnAddUser;
 
-  /// No description provided for @vpnSortBy.
-  ///
-  /// In en, this message translates to:
-  /// **'Sort by'**
-  String get vpnSortBy;
-
-  /// No description provided for @vpnSortByName.
-  ///
-  /// In en, this message translates to:
-  /// **'Name'**
-  String get vpnSortByName;
-
-  /// No description provided for @vpnSortByDate.
-  ///
-  /// In en, this message translates to:
-  /// **'Date created'**
-  String get vpnSortByDate;
-
-  /// No description provided for @vpnSortAscending.
-  ///
-  /// In en, this message translates to:
-  /// **'Ascending'**
-  String get vpnSortAscending;
-
-  /// No description provided for @vpnSortDescending.
-  ///
-  /// In en, this message translates to:
-  /// **'Descending'**
-  String get vpnSortDescending;
-
   /// No description provided for @vpnDisabledClients.
   ///
   /// In en, this message translates to:
   /// **'Disabled clients'**
   String get vpnDisabledClients;
+
+  /// No description provided for @vpnSortOldest.
+  ///
+  /// In en, this message translates to:
+  /// **'Oldest first'**
+  String get vpnSortOldest;
+
+  /// No description provided for @vpnSortNewest.
+  ///
+  /// In en, this message translates to:
+  /// **'Newest first'**
+  String get vpnSortNewest;
+
+  /// No description provided for @vpnSortNameAz.
+  ///
+  /// In en, this message translates to:
+  /// **'Name A–Z'**
+  String get vpnSortNameAz;
+
+  /// No description provided for @vpnSortNameZa.
+  ///
+  /// In en, this message translates to:
+  /// **'Name Z–A'**
+  String get vpnSortNameZa;
+
+  /// No description provided for @vpnSortTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Client order'**
+  String get vpnSortTooltip;
+
+  /// No description provided for @vpnSyncForce.
+  ///
+  /// In en, this message translates to:
+  /// **'Check servers and all Drive files'**
+  String get vpnSyncForce;
+
+  /// No description provided for @vpnClientsMenu.
+  ///
+  /// In en, this message translates to:
+  /// **'More actions'**
+  String get vpnClientsMenu;
+
+  /// No description provided for @vpnTrafficFor.
+  ///
+  /// In en, this message translates to:
+  /// **'Traffic for {month}'**
+  String vpnTrafficFor(String month);
+
+  /// No description provided for @uiClientsAccessVia.
+  ///
+  /// In en, this message translates to:
+  /// **'Access via {protocols}'**
+  String uiClientsAccessVia(String protocols);
+
+  /// No description provided for @uiClientsNoAccessHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'No server has a protocol for clients yet. Add or enable one on the Servers tab.'**
+  String get uiClientsNoAccessHelp;
+
+  /// No description provided for @uiClientsNoAccessTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Clients have nowhere to connect yet'**
+  String get uiClientsNoAccessTitle;
+
+  /// No description provided for @clientsSignInMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Profiles are ready but are not published to Drive.'**
+  String get clientsSignInMessage;
+
+  /// No description provided for @clientsSyncTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking servers and publishing'**
+  String get clientsSyncTitle;
+
+  /// No description provided for @clientsSyncProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Profiles: {done} of {total}'**
+  String clientsSyncProgress(int done, int total);
+
+  /// No description provided for @clientsShowFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Show'**
+  String get clientsShowFailed;
+
+  /// No description provided for @clientsOnlyFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Only with errors'**
+  String get clientsOnlyFailed;
+
+  /// No description provided for @clientsShowAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Show all clients'**
+  String get clientsShowAll;
+
+  /// No description provided for @vpnAccessOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Access for “{name}” is on'**
+  String vpnAccessOn(String name);
+
+  /// No description provided for @vpnAccessOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Access for “{name}” is off'**
+  String vpnAccessOff(String name);
+
+  /// No description provided for @uiUndo.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo'**
+  String get uiUndo;
+
+  /// No description provided for @clientsSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Search clients'**
+  String get clientsSearch;
+
+  /// No description provided for @clientsSearchClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear search'**
+  String get clientsSearchClear;
+
+  /// No description provided for @clientsNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No clients found'**
+  String get clientsNotFound;
+
+  /// No description provided for @clientsPickTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a client'**
+  String get clientsPickTitle;
+
+  /// No description provided for @clientsPickHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Their QR, traffic and actions open here.'**
+  String get clientsPickHelp;
+
+  /// No description provided for @clientsSelectedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 client selected} other{{count} clients selected}}'**
+  String clientsSelectedTitle(int count);
+
+  /// No description provided for @clientsSelectedHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Actions for them are in the list header.'**
+  String get clientsSelectedHelp;
+
+  /// No description provided for @clientsNotFoundHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Nobody\'s name contains “{query}”.'**
+  String clientsNotFoundHelp(String query);
 
   /// No description provided for @vpnSyncAndPublish.
   ///
@@ -2599,12 +2737,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{uploaded} published, {failed} failed of {total}.'**
   String vpnSyncAndPublishWithErrors(int uploaded, int failed, int total);
-
-  /// No description provided for @vpnSyncAndPublishTooltip.
-  ///
-  /// In en, this message translates to:
-  /// **'Click to publish from the last verified server state; local changes trigger a server check. Press and hold to check all servers and Drive files.'**
-  String get vpnSyncAndPublishTooltip;
 
   /// No description provided for @vpnSyncServerUnverified.
   ///
@@ -4862,12 +4994,6 @@ abstract class AppLocalizations {
   /// **'{count, plural, one{{count} client profile was not published} other{{count} client profiles were not published}}'**
   String publicationClientsFailed(int count);
 
-  /// No description provided for @publicationClientsFailedMixed.
-  ///
-  /// In en, this message translates to:
-  /// **'Reasons differ: see the client cards below.'**
-  String get publicationClientsFailedMixed;
-
   /// No description provided for @publicationCopyLink.
   ///
   /// In en, this message translates to:
@@ -4919,7 +5045,7 @@ abstract class AppLocalizations {
   /// No description provided for @uiQrCopyHint.
   ///
   /// In en, this message translates to:
-  /// **'Scan in a Mihomo-based client. Tap the QR to copy the direct YAML link.'**
+  /// **'Tap the QR to copy the link'**
   String get uiQrCopyHint;
 
   /// No description provided for @uiLinkCopied.
@@ -5228,12 +5354,6 @@ abstract class AppLocalizations {
   /// **'Check'**
   String get uiCheck;
 
-  /// No description provided for @uiShareProfile.
-  ///
-  /// In en, this message translates to:
-  /// **'Connection QR'**
-  String get uiShareProfile;
-
   /// No description provided for @uiPublicAddresses.
   ///
   /// In en, this message translates to:
@@ -5396,12 +5516,6 @@ abstract class AppLocalizations {
   /// **'Not configured'**
   String get uiNotConfigured;
 
-  /// No description provided for @uiNoClientAccess.
-  ///
-  /// In en, this message translates to:
-  /// **'Access is not configured yet'**
-  String get uiNoClientAccess;
-
   /// No description provided for @uiDiskCapacity.
   ///
   /// In en, this message translates to:
@@ -5503,12 +5617,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'My servers'**
   String get uiMyServers;
-
-  /// No description provided for @uiClientsIntro.
-  ///
-  /// In en, this message translates to:
-  /// **'Access and profiles for your clients'**
-  String get uiClientsIntro;
 
   /// No description provided for @uiClientsEmptyHelp.
   ///
@@ -7981,6 +8089,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Read again from the servers'**
   String get trafficRefresh;
+
+  /// No description provided for @trafficCollapse.
+  ///
+  /// In en, this message translates to:
+  /// **'Collapse'**
+  String get trafficCollapse;
 
   /// No description provided for @uiAccountActions.
   ///

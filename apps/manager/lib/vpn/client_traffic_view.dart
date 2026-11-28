@@ -151,20 +151,22 @@ class _CardPair extends StatelessWidget {
   );
 }
 
-/// This month and all the time, in the client's profile sheet; either
-/// card opens the details. Opening the sheet reads the already connected
-/// servers again in the background once it has slid in.
+/// This month and all the time, in the client's card; either card opens
+/// the details in place, under the cards. Opening the card reads the
+/// already connected servers again in the background once it has slid in.
 class ClientTrafficCards extends StatefulWidget {
   const ClientTrafficCards({
     required this.controller,
     required this.userId,
     required this.userName,
     required this.serverName,
+    this.motion = MotionPreference.system,
     super.key,
   });
   final ClientTrafficController controller;
   final String userId, userName;
   final String Function(String) serverName;
+  final MotionPreference motion;
 
   /// Counters read this recently are not read again on opening.
   static const freshFor = Duration(minutes: 1);
@@ -175,6 +177,10 @@ class ClientTrafficCards extends StatefulWidget {
 
 class _ClientTrafficCardsState extends State<ClientTrafficCards> {
   Animation<double>? _route;
+
+  /// The details are open, starting from this period; null: all the time.
+  bool _open = false;
+  String? _month;
 
   @override
   void didChangeDependencies() {
@@ -187,6 +193,13 @@ class _ClientTrafficCardsState extends State<ClientTrafficCards> {
     } else {
       _route!.addStatusListener(_routeStatus);
     }
+  }
+
+  @override
+  void didUpdateWidget(ClientTrafficCards oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Another client in the same place starts folded.
+    if (oldWidget.userId != widget.userId) _open = false;
   }
 
   void _routeStatus(AnimationStatus status) {
@@ -204,14 +217,10 @@ class _ClientTrafficCardsState extends State<ClientTrafficCards> {
     super.dispose();
   }
 
-  void _details(String? month) => showClientTrafficDetails(
-    context,
-    controller: widget.controller,
-    userId: widget.userId,
-    userName: widget.userName,
-    serverName: widget.serverName,
-    month: month,
-  );
+  void _details(String? month) => setState(() {
+    _open = true;
+    _month = month;
+  });
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -227,47 +236,42 @@ class _ClientTrafficCardsState extends State<ClientTrafficCards> {
       return Padding(
         key: const ValueKey('client-traffic'),
         padding: const EdgeInsets.only(top: AppLayout.gap),
-        child: _CardPair(
-          first: _UsageCard(
-            key: const ValueKey('client-traffic-month'),
-            title: trafficMonthName(l, month, now),
-            usage: known ? summary.usage(month) : null,
-            color: color,
-            onTap: () => _details(month),
-          ),
-          second: _UsageCard(
-            key: const ValueKey('client-traffic-all'),
-            title: l.trafficAllTime,
-            usage: known ? summary.usage(null) : null,
-            color: color,
-            onTap: () => _details(null),
-          ),
+        child: AppAnimatedSize(
+          motion: widget.motion,
+          child: _open
+              ? ClientTrafficDetails(
+                  key: ValueKey('client-traffic-open-${widget.userId}'),
+                  controller: c,
+                  userId: widget.userId,
+                  serverName: widget.serverName,
+                  month: _month,
+                  color: color,
+                  onCollapse: () => setState(() => _open = false),
+                )
+              : Semantics(
+                  expanded: false,
+                  child: _CardPair(
+                    first: _UsageCard(
+                      key: const ValueKey('client-traffic-month'),
+                      title: trafficMonthName(l, month, now),
+                      usage: known ? summary.usage(month) : null,
+                      color: color,
+                      onTap: () => _details(month),
+                    ),
+                    second: _UsageCard(
+                      key: const ValueKey('client-traffic-all'),
+                      title: l.trafficAllTime,
+                      usage: known ? summary.usage(null) : null,
+                      color: color,
+                      onTap: () => _details(null),
+                    ),
+                  ),
+                ),
         ),
       );
     },
   );
 }
-
-Future<void> showClientTrafficDetails(
-  BuildContext context, {
-  required ClientTrafficController controller,
-  required String userId,
-  required String userName,
-  required String Function(String) serverName,
-  String? month,
-}) => showAppDetails(
-  context,
-  title: '${AppLocalizations.of(context).trafficTitle} · $userName',
-  actions: [_RefreshButton(controller: controller)],
-  children: [
-    ClientTrafficDetails(
-      controller: controller,
-      userId: userId,
-      serverName: serverName,
-      month: month,
-    ),
-  ],
-);
 
 /// The month card, the all-time card and the chart's bars are one choice
 /// of period; the server list follows it.
@@ -277,6 +281,8 @@ class ClientTrafficDetails extends StatefulWidget {
     required this.userId,
     required this.serverName,
     this.month,
+    this.color,
+    this.onCollapse,
     super.key,
   });
   final ClientTrafficController controller;
@@ -285,6 +291,13 @@ class ClientTrafficDetails extends StatefulWidget {
 
   /// The month first shown; null: all the time.
   final String? month;
+
+  /// The cards' colour; `surfaceContainerHigh` when not given.
+  final Color? color;
+
+  /// Folds the details back into the two cards; tapping the chosen card
+  /// again does the same.
+  final VoidCallback? onCollapse;
   @override
   State<ClientTrafficDetails> createState() => _ClientTrafficDetailsState();
 }
@@ -297,6 +310,13 @@ class _ClientTrafficDetailsState extends State<ClientTrafficDetails> {
     selected = month;
     if (month != null) lastMonth = month;
   });
+
+  /// A card picks its period; the one already picked folds the details.
+  void _card(String? month) {
+    final current = month == null ? selected == null : selected != null;
+    if (current && widget.onCollapse != null) return widget.onCollapse!();
+    _select(month);
+  }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -311,30 +331,44 @@ class _ClientTrafficDetailsState extends State<ClientTrafficDetails> {
       final period = selected == null
           ? l.trafficAllTime
           : trafficMonthName(l, selected!, now);
+      final color = widget.color ?? colors.surfaceContainerHigh;
       return Column(
         key: const ValueKey('client-traffic-details-sheet'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _CardPair(
-            first: _UsageCard(
-              key: const ValueKey('traffic-details-month'),
-              title: trafficMonthName(l, lastMonth, now),
-              usage: known ? summary.usage(lastMonth) : null,
-              color: colors.surfaceContainerHigh,
-              selected: selected != null,
-              onTap: () => _select(lastMonth),
-            ),
-            second: _UsageCard(
-              key: const ValueKey('traffic-details-all'),
-              title: l.trafficAllTime,
-              usage: known ? summary.usage(null) : null,
-              color: colors.surfaceContainerHigh,
-              selected: selected == null,
-              onTap: () => _select(null),
+          Semantics(
+            expanded: widget.onCollapse == null ? null : true,
+            child: _CardPair(
+              first: _UsageCard(
+                key: const ValueKey('traffic-details-month'),
+                title: trafficMonthName(l, lastMonth, now),
+                usage: known ? summary.usage(lastMonth) : null,
+                color: color,
+                selected: selected != null,
+                onTap: () => _card(lastMonth),
+              ),
+              second: _UsageCard(
+                key: const ValueKey('traffic-details-all'),
+                title: l.trafficAllTime,
+                usage: known ? summary.usage(null) : null,
+                color: color,
+                selected: selected == null,
+                onTap: () => _card(null),
+              ),
             ),
           ),
           const SizedBox(height: AppLayout.gap),
-          Text(l.trafficByMonth, style: theme.textTheme.titleSmall),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  l.trafficByMonth,
+                  style: theme.textTheme.titleSmall,
+                ),
+              ),
+              if (widget.onCollapse != null) _RefreshButton(controller: c),
+            ],
+          ),
           Text(
             l.trafficChartHint,
             style: theme.textTheme.bodySmall?.copyWith(
@@ -377,6 +411,16 @@ class _ClientTrafficDetailsState extends State<ClientTrafficDetails> {
               color: colors.onSurfaceVariant,
             ),
           ),
+          if (widget.onCollapse case final collapse?)
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: TextButton.icon(
+                key: const ValueKey('client-traffic-collapse'),
+                onPressed: collapse,
+                icon: const Icon(Icons.expand_less),
+                label: Text(l.trafficCollapse),
+              ),
+            ),
         ],
       );
     },
@@ -405,8 +449,10 @@ class _Legend extends StatelessWidget {
   );
 }
 
-class _UsageText extends StatelessWidget {
-  const _UsageText(this.usage, {this.style});
+/// Downloaded and uploaded bytes on one line, with the arrows of the
+/// traffic cards.
+class TrafficUsageText extends StatelessWidget {
+  const TrafficUsageText(this.usage, {this.style, super.key});
   final TrafficUsage usage;
   final TextStyle? style;
   @override
@@ -481,7 +527,10 @@ class _ServerRow extends StatelessWidget {
                 ],
               );
         final total = server.protocols.any(counts)
-            ? _UsageText(server.usage(month), style: theme.textTheme.bodyMedium)
+            ? TrafficUsageText(
+                server.usage(month),
+                style: theme.textTheme.bodyMedium,
+              )
             : Text('—', style: theme.textTheme.bodyMedium);
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: AppLayout.smallGap),
@@ -528,7 +577,7 @@ class _ServerRow extends StatelessWidget {
                             ],
                           ),
                           several && counts(p)
-                              ? _UsageText(p.usage(month), style: muted)
+                              ? TrafficUsageText(p.usage(month), style: muted)
                               : null,
                         ),
                       ),

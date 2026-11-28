@@ -2254,7 +2254,7 @@ class AppFormSwitch extends StatelessWidget {
 /// into its items with the arrow keys. The menu opens below the button and
 /// grows towards the start side, so it stays over the card that owns the
 /// button instead of covering its neighbour.
-class AppMoreMenu extends StatefulWidget {
+class AppMoreMenu extends StatelessWidget {
   const AppMoreMenu({
     required this.tooltip,
     required this.children,
@@ -2265,11 +2265,100 @@ class AppMoreMenu extends StatefulWidget {
   final List<Widget> children;
   final Key? buttonKey;
   @override
-  State<AppMoreMenu> createState() => _AppMoreMenuState();
+  Widget build(BuildContext context) => _AppMenuAnchor(
+    children: children,
+    button: (focus, toggle) => IconButton(
+      key: buttonKey,
+      focusNode: focus,
+      tooltip: tooltip,
+      onPressed: toggle,
+      icon: const Icon(Icons.more_vert),
+    ),
+  );
 }
 
-class _AppMoreMenuState extends State<AppMoreMenu> {
-  final _focus = FocusNode(debugLabel: 'AppMoreMenu');
+/// A text button that opens a menu, such as a sort order: [label] names the
+/// current choice, [icon] what the menu is about.
+class AppMenuButton extends StatelessWidget {
+  const AppMenuButton({
+    required this.label,
+    required this.icon,
+    required this.children,
+    this.tooltip,
+    this.buttonKey,
+    super.key,
+  });
+  final String label;
+  final IconData icon;
+  final String? tooltip;
+  final List<Widget> children;
+  final Key? buttonKey;
+  @override
+  Widget build(BuildContext context) => _AppMenuAnchor(
+    children: children,
+    button: (focus, toggle) {
+      final button = TextButton.icon(
+        key: buttonKey,
+        focusNode: focus,
+        onPressed: toggle,
+        icon: Icon(icon),
+        label: Text(label),
+      );
+      return tooltip == null
+          ? button
+          : Tooltip(message: tooltip, child: button);
+    },
+  );
+}
+
+/// An M3 search bar filtering a list as one types: flat on its container
+/// colour, a search icon in front and a clear button once there is text.
+class AppSearchField extends StatelessWidget {
+  const AppSearchField({
+    required this.controller,
+    required this.hintText,
+    required this.clearTooltip,
+    this.onChanged,
+    super.key,
+  });
+  final TextEditingController controller;
+  final String hintText, clearTooltip;
+  final ValueChanged<String>? onChanged;
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder(
+    valueListenable: controller,
+    builder: (context, value, _) => SearchBar(
+      controller: controller,
+      hintText: hintText,
+      elevation: const WidgetStatePropertyAll(0),
+      leading: const Icon(Icons.search),
+      onChanged: onChanged,
+      trailing: [
+        if (value.text.isNotEmpty)
+          IconButton(
+            tooltip: clearTooltip,
+            onPressed: () {
+              controller.clear();
+              onChanged?.call('');
+            },
+            icon: const Icon(Icons.close),
+          ),
+      ],
+    ),
+  );
+}
+
+/// The menu opens under its button with their end edges aligned.
+class _AppMenuAnchor extends StatefulWidget {
+  const _AppMenuAnchor({required this.children, required this.button});
+  final List<Widget> children;
+  final Widget Function(FocusNode focus, VoidCallback toggle) button;
+  @override
+  State<_AppMenuAnchor> createState() => _AppMenuAnchorState();
+}
+
+class _AppMenuAnchorState extends State<_AppMenuAnchor> {
+  final _focus = FocusNode(debugLabel: 'AppMenu');
   @override
   void dispose() {
     _focus.dispose();
@@ -2293,13 +2382,7 @@ class _AppMoreMenuState extends State<AppMoreMenu> {
         childFocusNode: _focus,
         menuChildren: [for (final child in widget.children) keep(child)],
         builder: (context, menu, _) => keep(
-          IconButton(
-            key: widget.buttonKey,
-            focusNode: _focus,
-            tooltip: widget.tooltip,
-            onPressed: () => menu.isOpen ? menu.close() : menu.open(),
-            icon: const Icon(Icons.more_vert),
-          ),
+          widget.button(_focus, () => menu.isOpen ? menu.close() : menu.open()),
         ),
       ),
     );
@@ -2314,12 +2397,17 @@ class AppMenuItem extends StatelessWidget {
     required this.onPressed,
     this.icon,
     this.destructive = false,
+    this.selected,
     super.key,
   });
   final String label;
   final IconData? icon;
   final VoidCallback? onPressed;
   final bool destructive;
+
+  /// For a choice among items: true marks the current one with a check;
+  /// null for an ordinary action.
+  final bool? selected;
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -2332,8 +2420,9 @@ class AppMenuItem extends StatelessWidget {
             )
           : null,
       leadingIcon: icon == null ? null : Icon(icon),
+      trailingIcon: selected == true ? const Icon(Icons.check) : null,
       onPressed: onPressed,
-      child: Text(label),
+      child: Semantics(selected: selected, child: Text(label)),
     );
   }
 }
@@ -2990,6 +3079,67 @@ class AppActionRow extends StatelessWidget {
             if (i > 0) const SizedBox(width: 9),
             Expanded(child: children[i]),
           ],
+        ],
+      );
+    },
+  );
+}
+
+/// A list with the open item beside it (M3 list-detail) on an expanded
+/// width; below that the caller shows the item over the list instead. The
+/// detail fades through when another item opens.
+class AppListDetail extends StatelessWidget {
+  const AppListDetail({
+    required this.list,
+    required this.detail,
+    required this.motion,
+    super.key,
+  });
+  final Widget list, detail;
+  final MotionPreference motion;
+
+  /// Whether [constraints] leave room for both panes.
+  static bool fits(BoxConstraints constraints) =>
+      constraints.maxWidth >= AppLayout.expanded;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final colors = Theme.of(context).colorScheme;
+      final listWidth = (constraints.maxWidth * .42).clamp(360.0, 480.0);
+      final duration = AppMotion.duration(context, motion);
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(width: listWidth, child: list),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(
+                AppLayout.smallGap,
+                AppLayout.gap,
+                AppLayout.gap,
+                AppLayout.gap,
+              ),
+              child: Material(
+                color: colors.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(AppLayout.radius),
+                clipBehavior: Clip.antiAlias,
+                child: duration == Duration.zero
+                    ? detail
+                    : PageTransitionSwitcher(
+                        duration: duration,
+                        transitionBuilder: (child, primary, secondary) =>
+                            FadeThroughTransition(
+                              animation: primary,
+                              secondaryAnimation: secondary,
+                              fillColor: Colors.transparent,
+                              child: child,
+                            ),
+                        child: detail,
+                      ),
+              ),
+            ),
+          ),
         ],
       );
     },

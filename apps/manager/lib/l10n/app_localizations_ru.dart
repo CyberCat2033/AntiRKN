@@ -1399,22 +1399,115 @@ class AppLocalizationsRu extends AppLocalizations {
   String get vpnAddUser => 'Добавить клиента';
 
   @override
-  String get vpnSortBy => 'Сортировка';
-
-  @override
-  String get vpnSortByName => 'По имени';
-
-  @override
-  String get vpnSortByDate => 'По дате создания';
-
-  @override
-  String get vpnSortAscending => 'По возрастанию';
-
-  @override
-  String get vpnSortDescending => 'По убыванию';
-
-  @override
   String get vpnDisabledClients => 'Отключенные клиенты';
+
+  @override
+  String get vpnSortOldest => 'Сначала старые';
+
+  @override
+  String get vpnSortNewest => 'Сначала новые';
+
+  @override
+  String get vpnSortNameAz => 'По имени, А–Я';
+
+  @override
+  String get vpnSortNameZa => 'По имени, Я–А';
+
+  @override
+  String get vpnSortTooltip => 'Порядок клиентов';
+
+  @override
+  String get vpnSyncForce => 'Сверить серверы и все файлы на Диске';
+
+  @override
+  String get vpnClientsMenu => 'Другие действия';
+
+  @override
+  String vpnTrafficFor(String month) {
+    return 'Трафик за $month';
+  }
+
+  @override
+  String uiClientsAccessVia(String protocols) {
+    return 'Доступ через $protocols';
+  }
+
+  @override
+  String get uiClientsNoAccessHelp =>
+      'Ни на одном сервере нет протокола для клиентов. Добавьте или включите его во вкладке «Серверы».';
+
+  @override
+  String get uiClientsNoAccessTitle => 'Клиентам пока некуда подключаться';
+
+  @override
+  String get clientsSignInMessage =>
+      'Профили готовы, но не выгружаются на Диск.';
+
+  @override
+  String get clientsSyncTitle => 'Сверка серверов и выгрузка';
+
+  @override
+  String clientsSyncProgress(int done, int total) {
+    return 'Профили: $done из $total';
+  }
+
+  @override
+  String get clientsShowFailed => 'Показать';
+
+  @override
+  String get clientsOnlyFailed => 'Только с ошибками';
+
+  @override
+  String get clientsShowAll => 'Показать всех клиентов';
+
+  @override
+  String vpnAccessOn(String name) {
+    return 'Доступ для «$name» включён';
+  }
+
+  @override
+  String vpnAccessOff(String name) {
+    return 'Доступ для «$name» отключён';
+  }
+
+  @override
+  String get uiUndo => 'Отменить';
+
+  @override
+  String get clientsSearch => 'Поиск клиента';
+
+  @override
+  String get clientsSearchClear => 'Очистить поиск';
+
+  @override
+  String get clientsNotFound => 'Никого не нашлось';
+
+  @override
+  String get clientsPickTitle => 'Выберите клиента';
+
+  @override
+  String get clientsPickHelp => 'Здесь откроются его QR, трафик и действия.';
+
+  @override
+  String clientsSelectedTitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Выбрано $count клиента',
+      many: 'Выбрано $count клиентов',
+      few: 'Выбрано $count клиента',
+      one: 'Выбран $count клиент',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get clientsSelectedHelp => 'Действия с ними — в шапке списка.';
+
+  @override
+  String clientsNotFoundHelp(String query) {
+    return 'Нет клиента, в имени которого есть «$query».';
+  }
 
   @override
   String get vpnSyncAndPublish => 'Выгрузить проверенные профили';
@@ -1438,10 +1531,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String vpnSyncAndPublishWithErrors(int uploaded, int failed, int total) {
     return 'Выгружено $uploaded, ошибок $failed из $total.';
   }
-
-  @override
-  String get vpnSyncAndPublishTooltip =>
-      'Нажмите для выгрузки из последнего проверенного состояния; при локальных изменениях серверы будут сверены. Удерживайте для полной сверки серверов и проверки всех файлов на Диске.';
 
   @override
   String get vpnSyncServerUnverified =>
@@ -2768,10 +2857,6 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
-  String get publicationClientsFailedMixed =>
-      'Причины разные: подробности в карточках клиентов ниже.';
-
-  @override
   String get publicationCopyLink => 'Копировать ссылку профиля';
 
   @override
@@ -2797,8 +2882,7 @@ class AppLocalizationsRu extends AppLocalizations {
       'Перед удалением завершите операции и отключите SSH.';
 
   @override
-  String get uiQrCopyHint =>
-      'Отсканируйте в клиенте на базе Mihomo. Нажмите на QR, чтобы скопировать прямую ссылку на YAML.';
+  String get uiQrCopyHint => 'Нажмите на QR, чтобы скопировать ссылку';
 
   @override
   String get uiLinkCopied => 'Ссылка скопирована';
@@ -2975,9 +3059,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get uiCheck => 'Проверить';
 
   @override
-  String get uiShareProfile => 'QR подключения';
-
-  @override
   String get uiPublicAddresses => 'Публичные IP-адреса';
 
   @override
@@ -3059,9 +3140,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get uiNotConfigured => 'Не настроен';
 
   @override
-  String get uiNoClientAccess => 'Доступ ещё не настроен';
-
-  @override
   String get uiDiskCapacity => 'Объём диска';
 
   @override
@@ -3119,9 +3197,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get uiMyServers => 'Мои серверы';
-
-  @override
-  String get uiClientsIntro => 'Доступы и профили ваших клиентов';
 
   @override
   String get uiClientsEmptyHelp =>
@@ -4615,6 +4690,9 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get trafficRefresh => 'Перечитать с серверов';
+
+  @override
+  String get trafficCollapse => 'Свернуть';
 
   @override
   String get uiAccountActions => 'Действия с аккаунтом';

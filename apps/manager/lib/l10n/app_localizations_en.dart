@@ -1395,22 +1395,113 @@ class AppLocalizationsEn extends AppLocalizations {
   String get vpnAddUser => 'Add client';
 
   @override
-  String get vpnSortBy => 'Sort by';
-
-  @override
-  String get vpnSortByName => 'Name';
-
-  @override
-  String get vpnSortByDate => 'Date created';
-
-  @override
-  String get vpnSortAscending => 'Ascending';
-
-  @override
-  String get vpnSortDescending => 'Descending';
-
-  @override
   String get vpnDisabledClients => 'Disabled clients';
+
+  @override
+  String get vpnSortOldest => 'Oldest first';
+
+  @override
+  String get vpnSortNewest => 'Newest first';
+
+  @override
+  String get vpnSortNameAz => 'Name A–Z';
+
+  @override
+  String get vpnSortNameZa => 'Name Z–A';
+
+  @override
+  String get vpnSortTooltip => 'Client order';
+
+  @override
+  String get vpnSyncForce => 'Check servers and all Drive files';
+
+  @override
+  String get vpnClientsMenu => 'More actions';
+
+  @override
+  String vpnTrafficFor(String month) {
+    return 'Traffic for $month';
+  }
+
+  @override
+  String uiClientsAccessVia(String protocols) {
+    return 'Access via $protocols';
+  }
+
+  @override
+  String get uiClientsNoAccessHelp =>
+      'No server has a protocol for clients yet. Add or enable one on the Servers tab.';
+
+  @override
+  String get uiClientsNoAccessTitle => 'Clients have nowhere to connect yet';
+
+  @override
+  String get clientsSignInMessage =>
+      'Profiles are ready but are not published to Drive.';
+
+  @override
+  String get clientsSyncTitle => 'Checking servers and publishing';
+
+  @override
+  String clientsSyncProgress(int done, int total) {
+    return 'Profiles: $done of $total';
+  }
+
+  @override
+  String get clientsShowFailed => 'Show';
+
+  @override
+  String get clientsOnlyFailed => 'Only with errors';
+
+  @override
+  String get clientsShowAll => 'Show all clients';
+
+  @override
+  String vpnAccessOn(String name) {
+    return 'Access for “$name” is on';
+  }
+
+  @override
+  String vpnAccessOff(String name) {
+    return 'Access for “$name” is off';
+  }
+
+  @override
+  String get uiUndo => 'Undo';
+
+  @override
+  String get clientsSearch => 'Search clients';
+
+  @override
+  String get clientsSearchClear => 'Clear search';
+
+  @override
+  String get clientsNotFound => 'No clients found';
+
+  @override
+  String get clientsPickTitle => 'Choose a client';
+
+  @override
+  String get clientsPickHelp => 'Their QR, traffic and actions open here.';
+
+  @override
+  String clientsSelectedTitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count clients selected',
+      one: '1 client selected',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get clientsSelectedHelp => 'Actions for them are in the list header.';
+
+  @override
+  String clientsNotFoundHelp(String query) {
+    return 'Nobody\'s name contains “$query”.';
+  }
 
   @override
   String get vpnSyncAndPublish => 'Publish verified profiles';
@@ -1434,10 +1525,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String vpnSyncAndPublishWithErrors(int uploaded, int failed, int total) {
     return '$uploaded published, $failed failed of $total.';
   }
-
-  @override
-  String get vpnSyncAndPublishTooltip =>
-      'Click to publish from the last verified server state; local changes trigger a server check. Press and hold to check all servers and Drive files.';
 
   @override
   String get vpnSyncServerUnverified =>
@@ -2761,10 +2848,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get publicationClientsFailedMixed =>
-      'Reasons differ: see the client cards below.';
-
-  @override
   String get publicationCopyLink => 'Copy profile link';
 
   @override
@@ -2790,8 +2873,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Finish active operations and disconnect SSH before deleting.';
 
   @override
-  String get uiQrCopyHint =>
-      'Scan in a Mihomo-based client. Tap the QR to copy the direct YAML link.';
+  String get uiQrCopyHint => 'Tap the QR to copy the link';
 
   @override
   String get uiLinkCopied => 'Link copied';
@@ -2969,9 +3051,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get uiCheck => 'Check';
 
   @override
-  String get uiShareProfile => 'Connection QR';
-
-  @override
   String get uiPublicAddresses => 'Public IP addresses';
 
   @override
@@ -3053,9 +3132,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get uiNotConfigured => 'Not configured';
 
   @override
-  String get uiNoClientAccess => 'Access is not configured yet';
-
-  @override
   String get uiDiskCapacity => 'Disk capacity';
 
   @override
@@ -3113,9 +3189,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get uiMyServers => 'My servers';
-
-  @override
-  String get uiClientsIntro => 'Access and profiles for your clients';
 
   @override
   String get uiClientsEmptyHelp =>
@@ -4602,6 +4675,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get trafficRefresh => 'Read again from the servers';
+
+  @override
+  String get trafficCollapse => 'Collapse';
 
   @override
   String get uiAccountActions => 'Account actions';

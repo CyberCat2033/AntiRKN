@@ -266,7 +266,9 @@ void main() {
           'srv1': {'error': 'unreachable'},
         },
       );
+      // The banner grows in with its size animation.
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
       expect(
         find.byKey(const ValueKey('server-operations-banner')),
         findsOneWidget,
@@ -319,11 +321,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final qrBtn = find.byKey(ValueKey('client-qr-${f.alice}'));
-      expect(qrBtn, findsOneWidget);
+      final row = find.byKey(ValueKey('client-${f.alice}'));
+      expect(row, findsOneWidget);
 
-      // Tap on QR button: must open dialog immediately without waiting for server sync
-      await tester.tap(qrBtn);
+      // Tapping the row must open the card immediately without waiting for server sync
+      await tester.tap(row);
       await tester.pump(); // exactly one frame
 
       // ProfileShareSheet is already mounted in the widget tree on the very next frame

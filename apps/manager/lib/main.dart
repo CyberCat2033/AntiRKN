@@ -1241,19 +1241,9 @@ class _ManagerShellState extends State<ManagerShell>
 
   /// A top-level page under its own title row, as in Settings: the row sits
   /// beside the navigation and changes with its page.
-  Widget _withHeader(
-    String title,
-    Widget page, {
-    CatalogSelection? selection,
-    List<Widget> actions = const [],
-  }) => Column(
+  Widget _withHeader(String title, Widget page) => Column(
     children: [
-      AppPageHeader(
-        title: selection == null
-            ? Text(title)
-            : CatalogTitle(selection: selection, title: title),
-        actions: actions,
-      ),
+      AppPageHeader(title: Text(title)),
       Expanded(child: page),
     ],
   );
@@ -1295,36 +1285,6 @@ class _ManagerShellState extends State<ManagerShell>
       ],
     ),
   );
-
-  List<Widget> _clientActions() => [
-    if (_vpn != null)
-      Builder(
-        builder: (context) => ListenableBuilder(
-          listenable: _vpn!,
-          builder: (context, _) => CatalogActions(
-            selection: _clientSelection,
-            available: _vpn!.workspace.users
-                .where((u) => !u.deleted)
-                .map((u) => u.id),
-            prefix: 'vpn-user',
-            busy: _vpn!.busy || !_vpn!.loaded,
-            onAdd: () => UsersPage.edit(
-              context,
-              _vpn!,
-              widget.motion,
-              null,
-              _publications,
-            ),
-            onDelete: () => UsersPage.deleteSelected(
-              context,
-              _vpn!,
-              _clientSelection,
-              _publications,
-            ),
-          ),
-        ),
-      ),
-  ];
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -1428,28 +1388,28 @@ class _ManagerShellState extends State<ManagerShell>
                                       )
                                     : Center(child: Text(l.noServers)),
                               ),
-                            _withHeader(
-                              labels[1],
-                              _vpn != null
-                                  ? UsersPage(
-                                      controller: _vpn!,
-                                      traffic: _traffic,
-                                      showAddAction: false,
-                                      selection: _clientSelection,
-                                      publications: _publications,
-                                      serverName: (id) =>
-                                          _catalog?.serverDisplayName(id) ?? id,
-                                      exporter: SystemProfileExporter(),
-                                      motion: widget.motion,
-                                      onOpenServer: (id) {
-                                        _navigate(0);
-                                        _catalog?.select(id);
-                                      },
-                                    )
-                                  : Center(child: Text(l.vpnNoUsers)),
-                              selection: _vpn != null ? _clientSelection : null,
-                              actions: _clientActions(),
-                            ),
+                            // The clients page carries its own header: its
+                            // add and menu actions belong to its state.
+                            _vpn != null
+                                ? UsersPage(
+                                    controller: _vpn!,
+                                    title: labels[1],
+                                    traffic: _traffic,
+                                    selection: _clientSelection,
+                                    publications: _publications,
+                                    serverName: (id) =>
+                                        _catalog?.serverDisplayName(id) ?? id,
+                                    exporter: SystemProfileExporter(),
+                                    motion: widget.motion,
+                                    onOpenServer: (id) {
+                                      _navigate(0);
+                                      _catalog?.select(id);
+                                    },
+                                  )
+                                : _withHeader(
+                                    labels[1],
+                                    Center(child: Text(l.vpnNoUsers)),
+                                  ),
                             SettingsHub(
                               key: _settingsKey,
                               motion: widget.motion,

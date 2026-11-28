@@ -5,6 +5,7 @@ import '../catalog_selection.dart';
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../busy_reason.dart';
 import '../l10n/app_localizations.dart';
 import '../publication/publication_controller.dart';
@@ -14,6 +15,8 @@ import 'server_operations_banner.dart';
 import 'vpn_controller.dart';
 import 'vpn_plan_view.dart';
 import 'client_traffic_controller.dart';
+import 'client_traffic_view.dart';
+import 'clients_status_card.dart';
 import 'vpn_strings.dart';
 import '../template_controller.dart';
 import '../template_settings.dart';
@@ -60,7 +63,7 @@ class UsersPage extends StatefulWidget {
     required this.motion,
     this.publications,
     this.traffic,
-    this.showAddAction = true,
+    this.title,
     this.selection,
     this.onOpenServer,
     super.key,
@@ -76,8 +79,13 @@ class UsersPage extends StatefulWidget {
   final String Function(String) serverName;
   final ProfileExporter exporter;
   final MotionPreference motion;
-  final bool showAddAction;
+
+  /// The page title; "Clients" when not given.
+  final String? title;
   final CatalogSelection? selection;
+
+  /// From this many clients a search field narrows the list by name.
+  static const searchFrom = 7;
   @override
   State<UsersPage> createState() => _UsersPageState();
 
@@ -167,10 +175,28 @@ class UsersPage extends StatefulWidget {
     CatalogSelection selection,
     PublicationController? publications,
   ) async {
+    final deleted = await delete(
+      context,
+      controller,
+      selection.ids,
+      publications,
+    );
+    if (deleted) selection.exit();
+  }
+
+  /// Asks and deletes these clients, with their Drive files if chosen;
+  /// true once they are gone.
+  static Future<bool> delete(
+    BuildContext context,
+    VpnController controller,
+    Iterable<String> ids,
+    PublicationController? publications,
+  ) async {
+    final chosen = ids.toSet();
     final users = controller.workspace.users
-        .where((u) => !u.deleted && selection.ids.contains(u.id))
+        .where((u) => !u.deleted && chosen.contains(u.id))
         .toList();
-    if (users.isEmpty || !controller.canMutate) return;
+    if (users.isEmpty || !controller.canMutate) return false;
     final l = AppLocalizations.of(context);
     final files = <String, Map<String, dynamic>>{
       for (final user in users)
@@ -201,7 +227,7 @@ class UsersPage extends StatefulWidget {
               ),
             ),
     );
-    if (!accepted || !context.mounted) return;
+    if (!accepted || !context.mounted) return false;
     await publications?.suspend();
     try {
       // Check every approved destination again before committing tombstones.
@@ -216,13 +242,13 @@ class UsersPage extends StatefulWidget {
             context,
           ).showSnackBar(SnackBar(content: Text(l.vpnConflict)));
         }
-        return;
+        return false;
       }
       await controller.deleteUsers(
         users,
         files: deleteFiles ? files : const {},
       );
-      if (controller.error == null) selection.exit();
+      return controller.error == null;
     } finally {
       publications?.resume();
     }
@@ -236,11 +262,44 @@ class _UsersPageState extends State<UsersPage> {
   PublicationController? get publications => widget.publications;
   ProfileExporter get exporter => widget.exporter;
   MotionPreference get motion => widget.motion;
-  bool get showAddAction => widget.showAddAction;
   String Function(String) get serverName => widget.serverName;
   bool _syncing = false;
   UserSortField _sortField = UserSortField.creationDate;
   bool _sortAscending = true;
+
+  /// Disabled clients are folded away until asked for.
+  bool _disabledOpen = false;
+
+  /// The list narrowed to the clients with their own error.
+  bool _onlyFailed = false;
+
+  final _search = TextEditingController();
+  String _query = '';
+
+  /// The client whose card is open beside the list on a wide window.
+  String? _opened;
+
+  void _clearSearch() => setState(() {
+    _search.clear();
+    _query = '';
+  });
+
+  /// An error of this client alone; account and Drive issues shared by all
+  /// clients are said once above the list.
+  bool _hasOwnError(VpnUser user) {
+    if (!user.enabled) return false;
+    if (controller.results[user.id]?.hasBlockingErrors == true) return true;
+    final queue = publications?.queues[user.id];
+    return queue?['status'] == 'error' &&
+        !publicationIssueShared(queue?['issue'] as String?);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // The cached counters only: reading the servers waits for the sheet.
+    unawaited(widget.traffic?.load());
+  }
 
   /// The sorted lists for one immutable users list and sort order: busy,
   /// selection and publication notifications rebuild without sorting.
@@ -385,56 +444,127 @@ class _UsersPageState extends State<UsersPage> {
     }
   }
 
-  Widget _buildSyncButton(
-    BuildContext context,
-    VpnController c,
+  static const _sortOptions = [
+    (UserSortField.creationDate, true),
+    (UserSortField.creationDate, false),
+    (UserSortField.name, true),
+    (UserSortField.name, false),
+  ];
+
+  static String _sortLabel(
     AppLocalizations l,
-  ) {
-    final isSyncingActive = _syncing || (publications?.hasActiveSync == true);
-    return Tooltip(
-      message: l.vpnSyncAndPublishTooltip,
-      child: FilledButton.tonalIcon(
-        key: const ValueKey('vpn-sync-and-publish'),
-        onPressed: !c.canMutate || isSyncingActive
-            ? null
-            : () => _syncAndPublish(context, force: false),
-        onLongPress: !c.canMutate || isSyncingActive
-            ? null
-            : () => _syncAndPublish(context, force: true),
-        icon: const Icon(Icons.cloud_sync),
-        label: Text(l.vpnSyncAndPublish),
-      ),
+    UserSortField field,
+    bool ascending,
+  ) => switch ((field, ascending)) {
+    (UserSortField.creationDate, true) => l.vpnSortOldest,
+    (UserSortField.creationDate, false) => l.vpnSortNewest,
+    (UserSortField.name, true) => l.vpnSortNameAz,
+    (UserSortField.name, false) => l.vpnSortNameZa,
+  };
+
+  Widget _sortMenu(AppLocalizations l) => AppMenuButton(
+    buttonKey: const ValueKey('vpn-sort-menu'),
+    icon: Icons.sort,
+    tooltip: l.vpnSortTooltip,
+    label: _sortLabel(l, _sortField, _sortAscending),
+    children: [
+      for (final (field, ascending) in _sortOptions)
+        AppMenuItem(
+          key: ValueKey('vpn-sort-${field.name}-${ascending ? 'asc' : 'desc'}'),
+          label: _sortLabel(l, field, ascending),
+          selected: field == _sortField && ascending == _sortAscending,
+          onPressed: () => setState(() {
+            _sortField = field;
+            _sortAscending = ascending;
+          }),
+        ),
+    ],
+  );
+
+  /// Checking the servers and publishing are rare and slow: they live in
+  /// the page menu, the full check as its own item instead of a long press.
+  Widget _menu(BuildContext context, VpnController c, AppLocalizations l) {
+    final busy =
+        !c.canMutate || _syncing || (publications?.hasActiveSync == true);
+    return AppMoreMenu(
+      buttonKey: const ValueKey('vpn-clients-menu'),
+      tooltip: l.vpnClientsMenu,
+      children: [
+        AppMenuItem(
+          key: const ValueKey('vpn-sync-and-publish'),
+          icon: Icons.cloud_sync_outlined,
+          label: l.vpnSyncAndPublish,
+          onPressed: busy ? null : () => _syncAndPublish(context),
+        ),
+        AppMenuItem(
+          key: const ValueKey('vpn-sync-force'),
+          icon: Icons.sync,
+          label: l.vpnSyncForce,
+          onPressed: busy ? null : () => _syncAndPublish(context, force: true),
+        ),
+      ],
     );
   }
 
-  Widget _buildSyncProgress() {
-    final active = _syncing || (publications?.hasActiveSync == true);
-    if (!active) return const SizedBox.shrink();
-    final total = publications?.activeSyncTotal ?? 0;
-    final completed = publications?.activeSyncCompleted ?? 0;
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: LinearProgressIndicator(
-        value: total > 0 ? (completed / total).clamp(0.0, 1.0) : null,
+  void _add(BuildContext context) =>
+      UsersPage.edit(context, controller, motion, null, publications);
+
+  /// The add action is a button in the header where it fits, otherwise a
+  /// floating button over the list (compact width or large text).
+  bool _addInHeader(BuildContext context) =>
+      MediaQuery.sizeOf(context).width >= AppLayout.compact &&
+      MediaQuery.textScalerOf(context).scale(14) <= 21;
+
+  Widget _header(
+    BuildContext context,
+    VpnController c,
+    AppLocalizations l,
+    List<String> ids,
+  ) {
+    return AppPageHeader(
+      title: CatalogTitle(
+        selection: selection,
+        title: widget.title ?? l.vpnUsers,
       ),
+      actions: [
+        if (!selection.active && _addInHeader(context)) ...[
+          FilledButton.icon(
+            key: const ValueKey('vpn-user-add'),
+            onPressed: !c.canMutate || _syncing ? null : () => _add(context),
+            icon: const Icon(Icons.add),
+            label: Text(l.vpnAddUser),
+          ),
+          const SizedBox(width: AppLayout.smallGap),
+        ],
+        CatalogActions(
+          selection: selection,
+          available: ids,
+          prefix: 'vpn-user',
+          busy: !c.canMutate,
+          onDelete: () =>
+              UsersPage.deleteSelected(context, c, selection, publications),
+        ),
+        if (!selection.active)
+          if (publications != null)
+            ListenableBuilder(
+              listenable: publications!,
+              builder: (context, _) => _menu(context, c, l),
+            )
+          else
+            _menu(context, c, l),
+      ],
     );
   }
 
   @override
   void dispose() {
     ownSelection.dispose();
+    _search.dispose();
     super.dispose();
   }
 
   Future<void> _profile(BuildContext context, VpnUser user) async {
-    final content = ProfileShareSheet(
-      controller: controller,
-      user: user,
-      exporter: exporter,
-      publications: publications,
-      traffic: widget.traffic,
-      serverName: widget.serverName,
-    );
+    final content = _card(user);
     if (MediaQuery.sizeOf(context).width < AppLayout.compact) {
       await showModalBottomSheet<void>(
         context: context,
@@ -457,328 +587,465 @@ class _UsersPageState extends State<UsersPage> {
     }
   }
 
-  String _protocolSummary() {
-    final c = controller, l = AppLocalizations.of(context);
-    final names = <String>[
-      if (c.workspace.inbounds.any(
+  /// The client's card, in a sheet, a dialog or beside the list.
+  Widget _card(VpnUser user, {bool embedded = false}) => ProfileShareSheet(
+    key: ValueKey('client-card-${user.id}'),
+    controller: controller,
+    user: user,
+    exporter: exporter,
+    publications: publications,
+    traffic: widget.traffic,
+    serverName: widget.serverName,
+    motion: motion,
+    embedded: embedded,
+    onEdit: (context) => UsersPage.edit(
+      context,
+      controller,
+      motion,
+      controller.workspace.userById(user.id) ?? user,
+      publications,
+    ),
+    onDelete: (context) =>
+        UsersPage.delete(context, controller, [user.id], publications),
+  );
+
+  /// Protocols through which clients get access, the same for every client.
+  List<String> _protocols() {
+    final w = controller.workspace;
+    return [
+      if (w.inbounds.any(
         (r) => !r.deleted && r.enabled && r.spec['internal'] != true,
       ))
         'VLESS',
-      if (c.workspace.awgInterfaces.any((r) => !r.deleted && r.enabled))
-        'AmneziaWG',
-      if (c.workspace.ttEndpoints.any((r) => !r.deleted && r.enabled))
-        'TrustTunnel',
+      if (w.awgInterfaces.any((r) => !r.deleted && r.enabled)) 'AmneziaWG',
+      if (w.ttEndpoints.any((r) => !r.deleted && r.enabled)) 'TrustTunnel',
     ];
-    return names.isEmpty ? l.uiNoClientAccess : names.join(' · ');
+  }
+
+  Widget _row(VpnController c, VpnUser user, bool first, bool wide) => UserTile(
+    user: user,
+    isFirst: first,
+    controller: c,
+    selection: selection,
+    publications: publications,
+    traffic: widget.traffic,
+    motion: motion,
+    isOpen: wide && _opened == user.id,
+    // Beside the list on a wide window, over it otherwise.
+    onProfile: wide ? (_, user) => setState(() => _opened = user.id) : _profile,
+    isSyncing: _syncing,
+  );
+
+  /// The pane beside the list: the open client's card, or what to do.
+  Widget _pane(VpnController c, AppLocalizations l, int total) {
+    final user = _opened == null ? null : c.workspace.userById(_opened!);
+    if (!selection.active && user != null && !user.deleted) {
+      return _card(user, embedded: true);
+    }
+    final (String key, Widget? hint) = selection.active
+        ? (
+            'clients-pane-selection',
+            AppEmptyState(
+              title: l.clientsSelectedTitle(selection.ids.length),
+              icon: Icons.checklist,
+              message: l.clientsSelectedHelp,
+            ),
+          )
+        : total == 0
+        ? ('clients-pane-none', null)
+        : (
+            'clients-pane-empty',
+            AppEmptyState(
+              title: l.clientsPickTitle,
+              icon: Icons.person_outline,
+              message: l.clientsPickHelp,
+            ),
+          );
+    return Align(
+      key: ValueKey(key),
+      alignment: Alignment.topCenter,
+      child: Padding(padding: const EdgeInsets.all(AppLayout.gap), child: hint),
+    );
+  }
+
+  /// The period of the traffic in the rows, and the order of the list.
+  Widget? _listBar(AppLocalizations l, int count, bool onlyFailed) {
+    final traffic = widget.traffic;
+    final sort = count > 1 ? _sortMenu(l) : null;
+    if (traffic == null && sort == null && !onlyFailed) return null;
+    final month = DateFormat.LLLL(l.localeName).format(DateTime.now());
+    final caption = traffic == null
+        ? const SizedBox.shrink()
+        : ListenableBuilder(
+            listenable: traffic,
+            builder: (context, _) => traffic.servers().isEmpty
+                ? const SizedBox.shrink()
+                : Text(
+                    l.vpnTrafficFor(month),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+          );
+    // Side by side where they fit; with large text the order moves under
+    // the period instead of pushing it off the row.
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(start: 16, bottom: 4),
+      child: OverflowBar(
+        alignment: MainAxisAlignment.spaceBetween,
+        overflowAlignment: OverflowBarAlignment.end,
+        overflowSpacing: 4,
+        children: [
+          if (onlyFailed)
+            InputChip(
+              key: const ValueKey('clients-only-failed'),
+              label: Text(l.clientsOnlyFailed),
+              onDeleted: () => setState(() => _onlyFailed = false),
+              deleteButtonTooltipMessage: l.clientsShowAll,
+            )
+          else
+            caption,
+          ?sort,
+        ],
+      ),
+    );
   }
 
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([controller, selection]),
-    builder: (context, _) {
-      final c = controller, l = AppLocalizations.of(context);
-      final sorted = _sortedUsers(c.workspace.users);
-      final enabledUsers = sorted.enabled, disabledUsers = sorted.disabled;
-      final sortedAllUsers = [...enabledUsers, ...disabledUsers];
-      final allUsers = sortedAllUsers;
-      final protocolSummary = _protocolSummary();
-      return DragSelectList(
-        selection: selection,
-        ids: [for (final u in sortedAllUsers) u.id],
-        enabled: c.canMutate,
-        builder: (scroll, item) => CustomScrollView(
-          controller: scroll,
-          key: const PageStorageKey('vpn-users'),
-          slivers: [
-            SliverPadding(
-              padding: AppLayout.screenPadding(context),
-              sliver: SliverMainAxisGroup(
-                slivers: [
-                  SliverList.list(
-                    children: [
-                      AppPageIntro(l.uiClientsIntro),
-                      ServerOperationsBanner(
-                        controller: c,
-                        serverName: serverName,
-                        onOpenServer: widget.onOpenServer,
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, size) => ListenableBuilder(
+      listenable: Listenable.merge([
+        controller,
+        selection,
+        // While narrowed to errors, a fixed or new failure changes the list.
+        if (_onlyFailed) ?publications?.changes,
+      ]),
+      builder: (context, _) => _build(context, AppListDetail.fits(size)),
+    ),
+  );
+
+  Widget _build(BuildContext context, bool wide) {
+    final c = controller, l = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final sorted = _sortedUsers(c.workspace.users);
+    // The filter ends by itself once no client has an error of its own.
+    final onlyFailed =
+        _onlyFailed && !selection.active && sorted.enabled.any(_hasOwnError);
+    final total = sorted.enabled.length + sorted.disabled.length;
+    final showSearch = total >= UsersPage.searchFrom;
+    // A query left from a longer list does not hide clients silently.
+    final query = showSearch ? _query.trim().toLowerCase() : '';
+    bool matches(VpnUser u) =>
+        query.isEmpty || u.name.toLowerCase().contains(query);
+    final enabledUsers = [
+      for (final u in sorted.enabled)
+        if (matches(u) && (!onlyFailed || _hasOwnError(u))) u,
+    ];
+    final disabledUsers = onlyFailed
+        ? const <VpnUser>[]
+        : [
+            for (final u in sorted.disabled)
+              if (matches(u)) u,
+          ];
+    final allUsers = [...enabledUsers, ...disabledUsers];
+    final ids = [for (final u in allUsers) u.id];
+    final protocols = _protocols();
+    // With no active clients the disabled ones are the list itself.
+    // A search looks through the disabled clients as well.
+    final showDisabled =
+        _disabledOpen || enabledUsers.isEmpty || query.isNotEmpty;
+    final fab = !selection.active && !_addInHeader(context);
+    final listBar = selection.active || allUsers.isEmpty
+        ? null
+        : _listBar(l, allUsers.length, onlyFailed);
+    final page = Column(
+      children: [
+        _header(context, c, l, ids),
+        Expanded(
+          child: Stack(
+            children: [
+              DragSelectList(
+                selection: selection,
+                ids: [
+                  for (final u in [
+                    ...enabledUsers,
+                    if (showDisabled) ...disabledUsers,
+                  ])
+                    u.id,
+                ],
+                enabled: c.canMutate,
+                builder: (scroll, item) => CustomScrollView(
+                  controller: scroll,
+                  key: const PageStorageKey('vpn-users'),
+                  slivers: [
+                    SliverPadding(
+                      padding: AppLayout.screenPadding(context).copyWith(
+                        top: 0,
+                        // The last row scrolls clear of the floating button.
+                        bottom: fab ? 96 : null,
                       ),
-                      CatalogNormalContent(
-                        selection: selection,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Wrap(
-                              spacing: 12,
-                              runSpacing: 10,
-                              children: [
-                                FilledButton.icon(
-                                  onPressed: !c.canMutate || _syncing
-                                      ? null
-                                      : () => UsersPage.edit(
-                                          context,
-                                          c,
-                                          motion,
-                                          null,
-                                          publications,
-                                        ),
-                                  icon: const Icon(Icons.add),
-                                  label: Text(l.vpnAddUser),
-                                ),
-                                if (publications != null)
-                                  ListenableBuilder(
-                                    listenable: publications!,
-                                    builder: (context, _) =>
-                                        _buildSyncButton(context, c, l),
-                                  )
-                                else
-                                  _buildSyncButton(context, c, l),
-                              ],
-                            ),
-                            if (publications != null)
-                              ListenableBuilder(
-                                listenable: publications!.changes,
-                                builder: (context, _) => _buildSyncProgress(),
-                              )
-                            else
-                              _buildSyncProgress(),
-                            if (publications != null)
-                              PublicationFailuresNotice(
-                                controller: publications!,
-                              ),
-                            const SizedBox(height: 20),
-                          ],
-                        ),
-                      ),
-                      AppSectionHeading(
-                        title: l.vpnUsers,
-                        count: allUsers.length,
-                      ),
-                      if (showAddAction)
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                selection.active
-                                    ? l.catalogSelected(selection.ids.length)
-                                    : l.vpnUsers,
-                              ),
-                            ),
-                            CatalogActions(
-                              selection: selection,
-                              available: [for (final u in sortedAllUsers) u.id],
-                              prefix: 'vpn-user',
-                              busy: !c.canMutate,
-                              addLabel: l.vpnAddUser,
-                              onAdd: () => UsersPage.edit(
-                                context,
-                                c,
-                                motion,
-                                null,
-                                publications,
-                              ),
-                              onDelete: () => UsersPage.deleteSelected(
-                                context,
-                                c,
-                                selection,
-                                publications,
-                              ),
-                            ),
-                          ],
-                        ),
-                      if (allUsers.length > 1 && !selection.active)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(4, 4, 4, 12),
-                          child: Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            crossAxisAlignment: WrapCrossAlignment.center,
+                      sliver: SliverMainAxisGroup(
+                        slivers: [
+                          SliverList.list(
                             children: [
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.sort,
-                                    size: 18,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onSurfaceVariant,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    l.vpnSortBy,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelMedium
-                                        ?.copyWith(
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.onSurfaceVariant,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                  ),
-                                ],
+                              ServerOperationsBanner(
+                                controller: c,
+                                serverName: serverName,
+                                onOpenServer: widget.onOpenServer,
                               ),
-                              // The field is a segmented choice; the direction is its
-                              // own visible button, not a hidden second tap (UI-59).
-                              SegmentedButton<UserSortField>(
-                                showSelectedIcon: false,
-                                segments: [
-                                  ButtonSegment(
-                                    value: UserSortField.name,
-                                    label: Text(
-                                      key: const ValueKey('vpn-sort-name'),
-                                      l.vpnSortByName,
-                                    ),
-                                  ),
-                                  ButtonSegment(
-                                    value: UserSortField.creationDate,
-                                    label: Text(
-                                      key: const ValueKey('vpn-sort-date'),
-                                      l.vpnSortByDate,
-                                    ),
-                                  ),
-                                ],
-                                selected: {_sortField},
-                                onSelectionChanged: (value) => setState(() {
-                                  _sortField = value.single;
-                                  _sortAscending = true;
-                                }),
-                              ),
-                              IconButton(
-                                key: const ValueKey('vpn-sort-direction'),
-                                tooltip: _sortAscending
-                                    ? l.vpnSortAscending
-                                    : l.vpnSortDescending,
-                                onPressed: () => setState(
-                                  () => _sortAscending = !_sortAscending,
-                                ),
-                                icon: Icon(
-                                  _sortAscending
-                                      ? Icons.arrow_upward
-                                      : Icons.arrow_downward,
+                              CatalogNormalContent(
+                                selection: selection,
+                                child: ClientsStatusCard(
+                                  vpn: c,
+                                  publications: publications,
+                                  hasAccess: protocols.isNotEmpty,
+                                  syncing: _syncing,
+                                  motion: motion,
+                                  onShowFailed: () =>
+                                      setState(() => _onlyFailed = true),
                                 ),
                               ),
+                              if (showSearch)
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    bottom: AppLayout.smallGap,
+                                  ),
+                                  child: AppSearchField(
+                                    key: const ValueKey('clients-search'),
+                                    controller: _search,
+                                    hintText: l.clientsSearch,
+                                    clearTooltip: l.clientsSearchClear,
+                                    onChanged: (value) =>
+                                        setState(() => _query = value),
+                                  ),
+                                ),
+                              ?listBar,
+                              if (publications != null)
+                                ListenableBuilder(
+                                  listenable: publications!,
+                                  builder: (context, _) => VpnPlanView(
+                                    controller: c,
+                                    serverName: serverName,
+                                    showProgress:
+                                        !_syncing &&
+                                        !publications!.hasActiveSync,
+                                  ),
+                                )
+                              else
+                                VpnPlanView(
+                                  controller: c,
+                                  serverName: serverName,
+                                  showProgress: !_syncing,
+                                ),
+                              if (total == 0)
+                                AppEmptyState(
+                                  title: l.vpnNoUsers,
+                                  icon: Icons.people_outline,
+                                  message: l.uiClientsEmptyHelp,
+                                )
+                              else if (allUsers.isEmpty && query.isNotEmpty)
+                                AppEmptyState(
+                                  key: const ValueKey('clients-not-found'),
+                                  title: l.clientsNotFound,
+                                  icon: Icons.search_off,
+                                  message: l.clientsNotFoundHelp(_query.trim()),
+                                  action: TextButton(
+                                    onPressed: _clearSearch,
+                                    child: Text(l.clientsSearchClear),
+                                  ),
+                                ),
                             ],
                           ),
-                        ),
-                      if (publications != null)
-                        ListenableBuilder(
-                          listenable: publications!,
-                          builder: (context, _) => VpnPlanView(
-                            controller: c,
-                            serverName: serverName,
-                            showProgress:
-                                !_syncing && !publications!.hasActiveSync,
-                          ),
-                        )
-                      else
-                        VpnPlanView(
-                          controller: c,
-                          serverName: serverName,
-                          showProgress: !_syncing,
-                        ),
-                      if (allUsers.isEmpty)
-                        AppEmptyState(
-                          title: l.vpnNoUsers,
-                          icon: Icons.people_outline,
-                          message: l.uiClientsEmptyHelp,
-                        ),
-                    ],
-                  ),
-                  // A lazy sliver: only the rows in view are built, so a long
-                  // client list does not stall the first frame (UI-31).
-                  if (allUsers.isNotEmpty)
-                    AppAnimatedCollection.sliver(
-                      motion: motion,
-                      items: {
-                        for (var i = 0; i < enabledUsers.length; i++)
-                          enabledUsers[i].id: item(
-                            enabledUsers[i].id,
-                            _UserTile(
-                              user: enabledUsers[i],
-                              isFirst: i == 0,
-                              controller: c,
-                              selection: selection,
-                              publications: publications,
-                              protocolSummary: protocolSummary,
+                          // A lazy sliver: only the rows in view are built,
+                          // so a long list does not stall the first frame
+                          // (UI-31).
+                          if (allUsers.isNotEmpty)
+                            AppAnimatedCollection.sliver(
                               motion: motion,
-                              onProfile: _profile,
-                              isSyncing: _syncing,
+                              items: {
+                                for (var i = 0; i < enabledUsers.length; i++)
+                                  enabledUsers[i].id: item(
+                                    enabledUsers[i].id,
+                                    _row(c, enabledUsers[i], i == 0, wide),
+                                  ),
+                                if (disabledUsers.isNotEmpty &&
+                                    enabledUsers.isNotEmpty)
+                                  '__disabled_header__': _DisabledHeader(
+                                    count: disabledUsers.length,
+                                    open: showDisabled,
+                                    motion: motion,
+                                    onTap: () => setState(
+                                      () => _disabledOpen = !_disabledOpen,
+                                    ),
+                                  ),
+                                if (showDisabled)
+                                  for (var i = 0; i < disabledUsers.length; i++)
+                                    disabledUsers[i].id: item(
+                                      disabledUsers[i].id,
+                                      _row(
+                                        c,
+                                        disabledUsers[i],
+                                        i == 0 && enabledUsers.isEmpty,
+                                        wide,
+                                      ),
+                                    ),
+                              },
                             ),
-                          ),
-                        if (disabledUsers.isNotEmpty) ...{
-                          if (enabledUsers.isNotEmpty)
-                            '__disabled_header__': Container(
-                              key: const ValueKey(
-                                'vpn-disabled-section-header',
-                              ),
-                              padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  top: BorderSide(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .outlineVariant
-                                        .withValues(alpha: .55),
+                          if (allUsers.isNotEmpty && protocols.isNotEmpty)
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsetsDirectional.only(
+                                  start: 16,
+                                  top: AppLayout.gap,
+                                ),
+                                child: Text(
+                                  l.uiClientsAccessVia(protocols.join(' · ')),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
                                   ),
                                 ),
                               ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.pause_circle_outline,
-                                    size: 18,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.outline,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    l.vpnDisabledClients,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleSmall
-                                        ?.copyWith(
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.onSurfaceVariant,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  AppBadge(label: '${disabledUsers.length}'),
-                                ],
-                              ),
                             ),
-                          for (var i = 0; i < disabledUsers.length; i++)
-                            disabledUsers[i].id: item(
-                              disabledUsers[i].id,
-                              _UserTile(
-                                user: disabledUsers[i],
-                                isFirst: i == 0 && enabledUsers.isEmpty,
-                                controller: c,
-                                selection: selection,
-                                publications: publications,
-                                protocolSummary: protocolSummary,
-                                motion: motion,
-                                onProfile: _profile,
-                                isSyncing: _syncing,
-                              ),
-                            ),
-                        },
-                      },
+                        ],
+                      ),
                     ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+              if (fab)
+                PositionedDirectional(
+                  end: AppLayout.gap,
+                  bottom: AppLayout.gap,
+                  child: FloatingActionButton.extended(
+                    key: const ValueKey('vpn-user-add'),
+                    onPressed: !c.canMutate || _syncing
+                        ? null
+                        : () => _add(context),
+                    icon: const Icon(Icons.add),
+                    label: Text(l.vpnAddUser),
+                  ),
+                ),
+            ],
+          ),
         ),
-      );
-    },
-  );
+      ],
+    );
+    if (!wide) return page;
+    return AppListDetail(
+      motion: motion,
+      list: page,
+      detail: _pane(c, l, total),
+    );
+  }
 }
 
-typedef _UserTile = UserTile;
+/// Folds the disabled clients away under one row with their count.
+class _DisabledHeader extends StatelessWidget {
+  const _DisabledHeader({
+    required this.count,
+    required this.open,
+    required this.motion,
+    required this.onTap,
+  });
+  final int count;
+  final bool open;
+  final MotionPreference motion;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context), colors = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: AppLayout.smallGap),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(top: BorderSide(color: colors.outlineVariant)),
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppLayout.radius),
+          ),
+          child: Semantics(
+            button: true,
+            expanded: open,
+            child: InkWell(
+              key: const ValueKey('vpn-disabled-section-header'),
+              onTap: onTap,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: AppLayout.smallGap,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.pause_circle_outline,
+                        color: colors.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 12),
+                      Flexible(
+                        child: Text(
+                          AppLocalizations.of(context).vpnDisabledClients,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            color: colors.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: AppLayout.smallGap),
+                      AppBadge(label: '$count'),
+                      const Spacer(),
+                      AnimatedRotation(
+                        turns: open ? .5 : 0,
+                        duration: AppMotion.duration(context, motion),
+                        curve: AppMotion.curve,
+                        child: Icon(
+                          Icons.expand_more,
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A client's own problem on one line; the whole text in its tooltip.
+class _ErrorLine extends StatelessWidget {
+  const _ErrorLine(this.message);
+  final String message;
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: message,
+      excludeFromSemantics: true,
+      child: Row(
+        children: [
+          Icon(Icons.error_outline, size: 16, color: colors.error),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              message,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: colors.error),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 @visibleForTesting
 class UserTile extends StatelessWidget {
@@ -788,10 +1055,11 @@ class UserTile extends StatelessWidget {
     required this.controller,
     required this.selection,
     required this.publications,
-    required this.protocolSummary,
     required this.motion,
+    this.traffic,
     required this.onProfile,
     this.isSyncing = false,
+    this.isOpen = false,
   });
 
   final VpnUser user;
@@ -799,16 +1067,22 @@ class UserTile extends StatelessWidget {
   final VpnController controller;
   final CatalogSelection selection;
   final PublicationController? publications;
-  final String protocolSummary;
+
+  /// This month's traffic under the name; null: not shown.
+  final ClientTrafficController? traffic;
   final MotionPreference motion;
   final void Function(BuildContext, VpnUser) onProfile;
   final bool isSyncing;
 
+  /// Its card is open beside the list.
+  final bool isOpen;
+
   @override
   Widget build(BuildContext context) {
-    final l = AppLocalizations.of(context);
     final c = controller;
-    final isSelected = selection.active && selection.ids.contains(user.id);
+    final isSelected = selection.active
+        ? selection.ids.contains(user.id)
+        : isOpen;
     return RepaintBoundary(
       child: Padding(
         padding: EdgeInsets.zero,
@@ -859,53 +1133,13 @@ class UserTile extends StatelessWidget {
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
               ),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(user.enabled ? protocolSummary : l.vpnDisabled),
-                  if (publications != null)
-                    _PublicationSelector(
-                      listenable: publications!.changes,
-                      select: () => (
-                        publications!.queues[user.id]?['status'],
-                        publications!.queues[user.id]?['issue'],
-                      ),
-                      builder: (context) {
-                        final queue = publications!.queues[user.id];
-                        // A disabled client is not published: its stored
-                        // failure is stale.
-                        if (user.enabled &&
-                            !user.deleted &&
-                            queue?['status'] == 'error') {
-                          return AppNotice(
-                            message: publicationMessage(
-                              l,
-                              queue?['issue'] as String?,
-                            ),
-                            error: true,
-                            margin: const EdgeInsets.only(top: 8),
-                          );
-                        }
-                        return const SizedBox.shrink();
-                      },
-                    ),
-                  if (c.results[user.id]?.hasBlockingErrors == true)
-                    AppNotice(
-                      message: vpnMessage(
-                        l,
-                        c.results[user.id]!.diagnostics.first.code,
-                      ),
-                      error: true,
-                      margin: const EdgeInsets.only(top: 8),
-                    ),
-                ],
-              ),
+              subtitle: _subtitle(context, c),
+              // The row opens the client's card; editing is one step in.
               onTap: !c.canMutate
                   ? null
                   : selection.active
                   ? () => selection.toggle(user.id)
-                  : () =>
-                        UsersPage.edit(context, c, motion, user, publications),
+                  : () => onProfile(context, user),
               trailing: selection.active
                   ? null
                   : publications != null
@@ -927,6 +1161,54 @@ class UserTile extends StatelessWidget {
     );
   }
 
+  /// What concerns this client alone: its own error, or else its traffic
+  /// this month. Access shared by every client is said once, under the list.
+  Widget? _subtitle(BuildContext context, VpnController c) {
+    final l = AppLocalizations.of(context);
+    if (!user.enabled) return Text(l.vpnDisabled);
+    final result = c.results[user.id];
+    if (result != null && result.hasBlockingErrors) {
+      return _ErrorLine(vpnMessage(l, result.diagnostics.first.code));
+    }
+    final traffic = this.traffic;
+    Widget usage() => traffic == null
+        ? const SizedBox.shrink()
+        : ListenableBuilder(
+            listenable: traffic,
+            builder: (context, _) {
+              final summary = traffic.summary(user.id);
+              // Nothing counted anywhere (statistics off or unavailable) is
+              // not shown as zero.
+              final counted = summary.servers.any(
+                (s) => s.protocols.any((p) => p.state == TrafficSourceState.ok),
+              );
+              return !counted
+                  ? const SizedBox.shrink()
+                  : TrafficUsageText(
+                      summary.usage(trafficMonth(DateTime.now())),
+                    );
+            },
+          );
+    final pub = publications;
+    if (pub == null) return traffic == null ? null : usage();
+    return _PublicationSelector(
+      listenable: pub.changes,
+      select: () =>
+          (pub.queues[user.id]?['status'], pub.queues[user.id]?['issue']),
+      builder: (context) {
+        final queue = pub.queues[user.id];
+        // A disabled client is not published: its stored failure is stale.
+        // An account or Drive issue is said once above the list.
+        if (!user.deleted &&
+            queue?['status'] == 'error' &&
+            !publicationIssueShared(queue?['issue'] as String?)) {
+          return _ErrorLine(publicationMessage(l, queue?['issue'] as String?));
+        }
+        return usage();
+      },
+    );
+  }
+
   Widget _buildTrailing(BuildContext context, VpnController c) {
     final pub = publications;
     final activeSync = isSyncing || (pub?.hasActiveSync == true);
@@ -938,6 +1220,7 @@ class UserTile extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        ?_buildSyncState(context, c, activeSync: activeSync),
         AppDisabledReason(
           reason: reason,
           // The switch names its client for screen readers (UI-73).
@@ -967,54 +1250,70 @@ class UserTile extends StatelessWidget {
                       if (c.workspace.serverIds.isNotEmpty) {
                         unawaited(c.prepareAndApply(background: true));
                       }
+                      if (context.mounted) _confirmToggle(context, c, val);
                     },
             ),
           ),
         ),
-        _buildTrailingAction(context, c, activeSync: activeSync),
       ],
     );
   }
 
-  Widget _buildTrailingAction(
+  /// Says what the switch did, with a way back: a stray tap cuts off a
+  /// person's access at once.
+  void _confirmToggle(BuildContext context, VpnController c, bool enabled) {
+    final l = AppLocalizations.of(context);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            enabled ? l.vpnAccessOn(user.name) : l.vpnAccessOff(user.name),
+          ),
+          action: SnackBarAction(
+            key: ValueKey('client-toggle-undo-${user.id}'),
+            label: l.uiUndo,
+            onPressed: () async {
+              final current = c.workspace.userById(user.id);
+              // Changed meanwhile (here or elsewhere): nothing to undo.
+              if (current == null || current.enabled != enabled) return;
+              await c.saveUser(current.copyWith(enabled: !enabled));
+              if (c.error == null && c.workspace.serverIds.isNotEmpty) {
+                unawaited(c.prepareAndApply(background: true));
+              }
+            },
+          ),
+        ),
+      );
+  }
+
+  /// How this client's publishing goes while a sync runs; nothing
+  /// otherwise.
+  Widget? _buildSyncState(
     BuildContext context,
     VpnController c, {
     required bool activeSync,
   }) {
     final pub = publications;
-    final inFlight = activeSync && pub?.isUserInFlight(user.id) == true;
-    final completed = activeSync && pub?.isUserCompleted(user.id) == true;
-    final failed = activeSync && pub?.isUserFailed(user.id) == true;
-    final l = AppLocalizations.of(context);
-
-    Widget iconWidget;
-    if (inFlight) {
-      iconWidget = const SizedBox.square(
+    if (!activeSync || pub == null) return null;
+    final colors = Theme.of(context).colorScheme;
+    final Widget icon;
+    if (pub.isUserInFlight(user.id)) {
+      icon = const SizedBox.square(
         dimension: 18,
         child: CircularProgressIndicator(strokeWidth: 2),
       );
-    } else if (completed) {
-      iconWidget = Icon(
-        Icons.check_circle,
-        color: Theme.of(context).colorScheme.primary,
-      );
-    } else if (failed) {
-      iconWidget = Icon(
-        Icons.error_outline,
-        color: Theme.of(context).colorScheme.error,
-      );
+    } else if (pub.isUserCompleted(user.id)) {
+      icon = Icon(Icons.check_circle, color: colors.primary);
+    } else if (pub.isUserFailed(user.id)) {
+      icon = Icon(Icons.error_outline, color: colors.error);
     } else {
-      iconWidget = const Icon(Icons.qr_code_2);
+      return null;
     }
-
-    return IconButton(
-      key: ValueKey('client-qr-${user.id}'),
-      // A disabled button names its reason instead of its action (UI-63).
-      tooltip: busyReason(l, vpn: c, syncing: activeSync) ?? l.uiShareProfile,
-      onPressed: !c.canMutate || activeSync
-          ? null
-          : () => onProfile(context, user),
-      icon: iconWidget,
+    return Padding(
+      key: ValueKey('client-sync-state-${user.id}'),
+      padding: const EdgeInsetsDirectional.only(end: AppLayout.smallGap),
+      child: SizedBox.square(dimension: 24, child: Center(child: icon)),
     );
   }
 }
