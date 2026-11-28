@@ -2853,8 +2853,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Finish active operations and disconnect SSH before deleting.';
 
   @override
-  String get uiQrCopyHint =>
-      'Scan in a Mihomo-based client. Tap the QR to copy the direct YAML link.';
+  String get uiQrCopyHint => 'Tap the QR to copy the link';
 
   @override
   String get uiLinkCopied => 'Link copied';
@@ -3030,9 +3029,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get uiCheck => 'Check';
-
-  @override
-  String get uiShareProfile => 'Connection QR';
 
   @override
   String get uiPublicAddresses => 'Public IP addresses';
@@ -4659,6 +4655,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get trafficRefresh => 'Read again from the servers';
+
+  @override
+  String get trafficCollapse => 'Collapse';
 
   @override
   String get uiAccountActions => 'Account actions';

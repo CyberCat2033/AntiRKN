@@ -2860,8 +2860,7 @@ class AppLocalizationsRu extends AppLocalizations {
       'Перед удалением завершите операции и отключите SSH.';
 
   @override
-  String get uiQrCopyHint =>
-      'Отсканируйте в клиенте на базе Mihomo. Нажмите на QR, чтобы скопировать прямую ссылку на YAML.';
+  String get uiQrCopyHint => 'Нажмите на QR, чтобы скопировать ссылку';
 
   @override
   String get uiLinkCopied => 'Ссылка скопирована';
@@ -3036,9 +3035,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get uiCheck => 'Проверить';
-
-  @override
-  String get uiShareProfile => 'QR подключения';
 
   @override
   String get uiPublicAddresses => 'Публичные IP-адреса';
@@ -4672,6 +4668,9 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get trafficRefresh => 'Перечитать с серверов';
+
+  @override
+  String get trafficCollapse => 'Свернуть';
 
   @override
   String get uiAccountActions => 'Действия с аккаунтом';

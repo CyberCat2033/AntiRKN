@@ -5021,7 +5021,7 @@ abstract class AppLocalizations {
   /// No description provided for @uiQrCopyHint.
   ///
   /// In en, this message translates to:
-  /// **'Scan in a Mihomo-based client. Tap the QR to copy the direct YAML link.'**
+  /// **'Tap the QR to copy the link'**
   String get uiQrCopyHint;
 
   /// No description provided for @uiLinkCopied.
@@ -5329,12 +5329,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Check'**
   String get uiCheck;
-
-  /// No description provided for @uiShareProfile.
-  ///
-  /// In en, this message translates to:
-  /// **'Connection QR'**
-  String get uiShareProfile;
 
   /// No description provided for @uiPublicAddresses.
   ///
@@ -8071,6 +8065,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Read again from the servers'**
   String get trafficRefresh;
+
+  /// No description provided for @trafficCollapse.
+  ///
+  /// In en, this message translates to:
+  /// **'Collapse'**
+  String get trafficCollapse;
 
   /// No description provided for @uiAccountActions.
   ///

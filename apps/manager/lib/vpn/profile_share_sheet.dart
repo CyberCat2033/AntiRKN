@@ -10,6 +10,9 @@ import 'client_traffic_view.dart';
 import 'vpn_controller.dart';
 import 'vpn_strings.dart';
 
+/// A client's card: its profile with the QR always in view, its traffic,
+/// and editing or deleting it. A bottom sheet or dialog around it, or the
+/// pane beside the list on a wide window ([embedded]).
 class ProfileShareSheet extends StatefulWidget {
   const ProfileShareSheet({
     required this.controller,
@@ -18,6 +21,10 @@ class ProfileShareSheet extends StatefulWidget {
     this.publications,
     this.traffic,
     this.serverName,
+    this.motion = MotionPreference.system,
+    this.onEdit,
+    this.onDelete,
+    this.embedded = false,
     super.key,
   });
   final VpnController controller;
@@ -28,6 +35,17 @@ class ProfileShareSheet extends StatefulWidget {
   /// Traffic counted for this client on the servers; null: not shown.
   final ClientTrafficController? traffic;
   final String Function(String serverId)? serverName;
+  final MotionPreference motion;
+
+  /// Opens the client's form over the card.
+  final Future<void> Function(BuildContext context)? onEdit;
+
+  /// Asks and deletes the client; true once it is gone.
+  final Future<bool> Function(BuildContext context)? onDelete;
+
+  /// Beside the list instead of in a sheet or dialog: no close button and
+  /// no height of its own.
+  final bool embedded;
   @override
   State<ProfileShareSheet> createState() => _ProfileShareSheetState();
 }
@@ -74,8 +92,10 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
           widget.controller.results[widget.user.id] == null;
       if (profileMissing && !widget.controller.busy && !regenerating) {
         _regenerate(initial: true);
-      } else if (widget.publications?.verifiedLinkFor(widget.user.id) == null ||
-          widget.publications?.bindingPending(widget.user.id) == true) {
+      } else if (widget.publications?.hasActiveSync != true &&
+          (widget.publications?.verifiedLinkFor(widget.user.id) == null ||
+              widget.publications?.bindingPending(widget.user.id) == true)) {
+        // A running sync publishes this client itself.
         widget.publications?.publishUser(widget.user.id);
       }
     });
@@ -108,6 +128,12 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
     });
   }
 
+  Future<void> _delete() async {
+    final deleted = await widget.onDelete!(context);
+    // A sheet or dialog closes with its client; the pane follows the list.
+    if (deleted && mounted && !widget.embedded) Navigator.pop(context);
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: Listenable.merge([
@@ -126,12 +152,15 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
           result?.hasBlockingErrors == false;
       final publication = widget.publications;
       final link = publication?.verifiedLinkFor(widget.user.id);
+      final theme = Theme.of(context);
       return RepaintBoundary(
         child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: 600,
-            maxHeight: MediaQuery.sizeOf(context).height * .9,
-          ),
+          constraints: widget.embedded
+              ? const BoxConstraints()
+              : BoxConstraints(
+                  maxWidth: 600,
+                  maxHeight: MediaQuery.sizeOf(context).height * .9,
+                ),
           child: SingleChildScrollView(
             padding: AppLayout.screenPadding(context),
             child: Column(
@@ -161,17 +190,20 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                             )
                           : const Icon(Icons.refresh),
                     ),
-                    IconButton(
-                      key: const ValueKey('profile-close'),
-                      tooltip: l.networkClose,
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close),
-                    ),
+                    if (!widget.embedded)
+                      IconButton(
+                        key: const ValueKey('profile-close'),
+                        tooltip: l.networkClose,
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close),
+                      ),
                   ],
                 ),
                 Text(
-                  l.uiClashImport,
-                  style: Theme.of(context).textTheme.bodyMedium,
+                  user?.enabled == false ? l.vpnDisabled : l.uiClashImport,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(height: AppLayout.gap),
                 if (regenerating && result == null) ...[
@@ -321,6 +353,7 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                     userId: widget.user.id,
                     userName: user.name,
                     serverName: widget.serverName ?? (id) => id,
+                    motion: widget.motion,
                   ),
                 const SizedBox(height: 20),
                 if (usable)
@@ -346,6 +379,8 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                             context,
                             title: l.uiProfileDetails,
                             children: [
+                              Text(l.uiClashRefreshHint),
+                              const SizedBox(height: AppLayout.gap),
                               Text(l.vpnProfileValidation),
                               for (final group in result!.groups)
                                 ListTile(
@@ -397,6 +432,33 @@ class _ProfileShareSheetState extends State<ProfileShareSheet> {
                       child: Text(l.vpnSaveProfile),
                     ),
                   ),
+                if (user != null &&
+                    (widget.onEdit != null || widget.onDelete != null)) ...[
+                  const Divider(height: 32),
+                  Wrap(
+                    spacing: AppLayout.smallGap,
+                    runSpacing: AppLayout.smallGap,
+                    children: [
+                      if (widget.onEdit case final edit?)
+                        OutlinedButton.icon(
+                          key: const ValueKey('client-card-edit'),
+                          onPressed: !c.canMutate ? null : () => edit(context),
+                          icon: const Icon(Icons.edit_outlined),
+                          label: Text(l.vpnEdit),
+                        ),
+                      if (widget.onDelete != null)
+                        TextButton.icon(
+                          key: const ValueKey('client-card-delete'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: theme.colorScheme.error,
+                          ),
+                          onPressed: !c.canMutate ? null : _delete,
+                          icon: const Icon(Icons.delete_outline),
+                          label: Text(l.vpnDeleteUser),
+                        ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),

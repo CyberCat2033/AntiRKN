@@ -175,10 +175,28 @@ class UsersPage extends StatefulWidget {
     CatalogSelection selection,
     PublicationController? publications,
   ) async {
+    final deleted = await delete(
+      context,
+      controller,
+      selection.ids,
+      publications,
+    );
+    if (deleted) selection.exit();
+  }
+
+  /// Asks and deletes these clients, with their Drive files if chosen;
+  /// true once they are gone.
+  static Future<bool> delete(
+    BuildContext context,
+    VpnController controller,
+    Iterable<String> ids,
+    PublicationController? publications,
+  ) async {
+    final chosen = ids.toSet();
     final users = controller.workspace.users
-        .where((u) => !u.deleted && selection.ids.contains(u.id))
+        .where((u) => !u.deleted && chosen.contains(u.id))
         .toList();
-    if (users.isEmpty || !controller.canMutate) return;
+    if (users.isEmpty || !controller.canMutate) return false;
     final l = AppLocalizations.of(context);
     final files = <String, Map<String, dynamic>>{
       for (final user in users)
@@ -209,7 +227,7 @@ class UsersPage extends StatefulWidget {
               ),
             ),
     );
-    if (!accepted || !context.mounted) return;
+    if (!accepted || !context.mounted) return false;
     await publications?.suspend();
     try {
       // Check every approved destination again before committing tombstones.
@@ -224,13 +242,13 @@ class UsersPage extends StatefulWidget {
             context,
           ).showSnackBar(SnackBar(content: Text(l.vpnConflict)));
         }
-        return;
+        return false;
       }
       await controller.deleteUsers(
         users,
         files: deleteFiles ? files : const {},
       );
-      if (controller.error == null) selection.exit();
+      return controller.error == null;
     } finally {
       publications?.resume();
     }
@@ -543,14 +561,7 @@ class _UsersPageState extends State<UsersPage> {
   }
 
   Future<void> _profile(BuildContext context, VpnUser user) async {
-    final content = ProfileShareSheet(
-      controller: controller,
-      user: user,
-      exporter: exporter,
-      publications: publications,
-      traffic: widget.traffic,
-      serverName: widget.serverName,
-    );
+    final content = _card(user);
     if (MediaQuery.sizeOf(context).width < AppLayout.compact) {
       await showModalBottomSheet<void>(
         context: context,
@@ -572,6 +583,28 @@ class _UsersPageState extends State<UsersPage> {
       );
     }
   }
+
+  /// The client's card, in a sheet, a dialog or beside the list.
+  Widget _card(VpnUser user, {bool embedded = false}) => ProfileShareSheet(
+    key: ValueKey('client-card-${user.id}'),
+    controller: controller,
+    user: user,
+    exporter: exporter,
+    publications: publications,
+    traffic: widget.traffic,
+    serverName: widget.serverName,
+    motion: motion,
+    embedded: embedded,
+    onEdit: (context) => UsersPage.edit(
+      context,
+      controller,
+      motion,
+      controller.workspace.userById(user.id) ?? user,
+      publications,
+    ),
+    onDelete: (context) =>
+        UsersPage.delete(context, controller, [user.id], publications),
+  );
 
   /// Protocols through which clients get access, the same for every client.
   List<String> _protocols() {
@@ -1053,12 +1086,12 @@ class UserTile extends StatelessWidget {
                       ),
               ),
               subtitle: _subtitle(context, c),
+              // The row opens the client's card; editing is one step in.
               onTap: !c.canMutate
                   ? null
                   : selection.active
                   ? () => selection.toggle(user.id)
-                  : () =>
-                        UsersPage.edit(context, c, motion, user, publications),
+                  : () => onProfile(context, user),
               trailing: selection.active
                   ? null
                   : publications != null
@@ -1139,6 +1172,7 @@ class UserTile extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        ?_buildSyncState(context, c, activeSync: activeSync),
         AppDisabledReason(
           reason: reason,
           // The switch names its client for screen readers (UI-73).
@@ -1173,7 +1207,6 @@ class UserTile extends StatelessWidget {
             ),
           ),
         ),
-        _buildTrailingAction(context, c, activeSync: activeSync),
       ],
     );
   }
@@ -1206,45 +1239,33 @@ class UserTile extends StatelessWidget {
       );
   }
 
-  Widget _buildTrailingAction(
+  /// How this client's publishing goes while a sync runs; nothing
+  /// otherwise.
+  Widget? _buildSyncState(
     BuildContext context,
     VpnController c, {
     required bool activeSync,
   }) {
     final pub = publications;
-    final inFlight = activeSync && pub?.isUserInFlight(user.id) == true;
-    final completed = activeSync && pub?.isUserCompleted(user.id) == true;
-    final failed = activeSync && pub?.isUserFailed(user.id) == true;
-    final l = AppLocalizations.of(context);
-
-    Widget iconWidget;
-    if (inFlight) {
-      iconWidget = const SizedBox.square(
+    if (!activeSync || pub == null) return null;
+    final colors = Theme.of(context).colorScheme;
+    final Widget icon;
+    if (pub.isUserInFlight(user.id)) {
+      icon = const SizedBox.square(
         dimension: 18,
         child: CircularProgressIndicator(strokeWidth: 2),
       );
-    } else if (completed) {
-      iconWidget = Icon(
-        Icons.check_circle,
-        color: Theme.of(context).colorScheme.primary,
-      );
-    } else if (failed) {
-      iconWidget = Icon(
-        Icons.error_outline,
-        color: Theme.of(context).colorScheme.error,
-      );
+    } else if (pub.isUserCompleted(user.id)) {
+      icon = Icon(Icons.check_circle, color: colors.primary);
+    } else if (pub.isUserFailed(user.id)) {
+      icon = Icon(Icons.error_outline, color: colors.error);
     } else {
-      iconWidget = const Icon(Icons.qr_code_2);
+      return null;
     }
-
-    return IconButton(
-      key: ValueKey('client-qr-${user.id}'),
-      // A disabled button names its reason instead of its action (UI-63).
-      tooltip: busyReason(l, vpn: c, syncing: activeSync) ?? l.uiShareProfile,
-      onPressed: !c.canMutate || activeSync
-          ? null
-          : () => onProfile(context, user),
-      icon: iconWidget,
+    return Padding(
+      key: ValueKey('client-sync-state-${user.id}'),
+      padding: const EdgeInsetsDirectional.only(end: AppLayout.smallGap),
+      child: SizedBox.square(dimension: 24, child: Center(child: icon)),
     );
   }
 }

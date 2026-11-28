@@ -14,6 +14,7 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Clients tab: tapping a client opens its card (a bottom sheet on phones, a dialog on medium windows) with the QR always in view and a one-line hint; traffic opens in place under the month and all-time cards; Edit and Delete are in the card, and the QR button is gone from the row.
 - Clients tab: from seven clients a search field narrows the list by name, disabled clients included.
 - Clients tab: one status above the list, only when needed — Google sign-in, the check in progress or profiles that failed (with "Show" to narrow the list to them); a Drive or account problem is no longer repeated on every client; switching a client's access shows "Undo".
 - Clients tab: one header with the add button (a floating button on phones) and a menu for checking servers and publishing; each row shows the client's traffic this month instead of the shared protocol list, an error takes one line, sorting is a menu and disabled clients fold into a group.

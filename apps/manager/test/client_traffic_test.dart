@@ -231,13 +231,15 @@ void main() {
         expect(find.text('12.0 GiB'), findsOneWidget); // All time: 10 + 2.
         expect(find.text('All time'), findsOneWidget);
 
+        // The details open in place, under the cards.
         await tester.tap(find.byKey(const ValueKey('client-traffic-month')));
         await tester.pumpAndSettle();
-        expect(find.text('Traffic · Alice'), findsOneWidget);
+        expect(find.byType(BottomSheet), findsNothing);
         expect(
           find.byKey(const ValueKey('client-traffic-details-sheet')),
           findsOneWidget,
         );
+        expect(find.byKey(const ValueKey('traffic-refresh')), findsOneWidget);
         expect(
           find.textContaining('Per-client statistics are off'),
           findsOneWidget,
@@ -276,6 +278,29 @@ void main() {
           ),
           findsOneWidget,
         );
+
+        // The chosen card again folds the details back into the cards.
+        await tester.ensureVisible(
+          find.byKey(const ValueKey('traffic-details-all')),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('traffic-details-all')));
+        await tester.pumpAndSettle();
+        expect(sheet, findsNothing);
+        expect(
+          find.byKey(const ValueKey('client-traffic-all')),
+          findsOneWidget,
+        );
+
+        await tester.tap(find.byKey(const ValueKey('client-traffic-all')));
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(
+          find.byKey(const ValueKey('client-traffic-collapse')),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('client-traffic-collapse')));
+        await tester.pumpAndSettle();
+        expect(sheet, findsNothing);
       },
     );
 

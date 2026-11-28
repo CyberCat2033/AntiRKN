@@ -172,7 +172,7 @@ void main() {
       // Checking servers and publishing live in the page menu.
       expect(find.byKey(const ValueKey('vpn-clients-menu')), findsOneWidget);
       await tester.runAsync(() async {
-        await tester.tap(find.byKey(ValueKey('client-qr-${fixtures.alice}')));
+        await tester.tap(find.byKey(ValueKey('client-${fixtures.alice}')));
         await Future<void>.delayed(const Duration(milliseconds: 100));
       });
       await tester.pumpAndSettle();
