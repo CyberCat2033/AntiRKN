@@ -1433,6 +1433,43 @@ class AppLocalizationsEn extends AppLocalizations {
       'No server has a protocol for clients yet. Add or enable one on the Servers tab.';
 
   @override
+  String get uiClientsNoAccessTitle => 'Clients have nowhere to connect yet';
+
+  @override
+  String get clientsSignInMessage =>
+      'Profiles are ready but are not published to Drive.';
+
+  @override
+  String get clientsSyncTitle => 'Checking servers and publishing';
+
+  @override
+  String clientsSyncProgress(int done, int total) {
+    return 'Profiles: $done of $total';
+  }
+
+  @override
+  String get clientsShowFailed => 'Show';
+
+  @override
+  String get clientsOnlyFailed => 'Only with errors';
+
+  @override
+  String get clientsShowAll => 'Show all clients';
+
+  @override
+  String vpnAccessOn(String name) {
+    return 'Access for “$name” is on';
+  }
+
+  @override
+  String vpnAccessOff(String name) {
+    return 'Access for “$name” is off';
+  }
+
+  @override
+  String get uiUndo => 'Undo';
+
+  @override
   String get vpnSyncAndPublish => 'Publish verified profiles';
 
   @override
@@ -2775,10 +2812,6 @@ class AppLocalizationsEn extends AppLocalizations {
     );
     return '$_temp0';
   }
-
-  @override
-  String get publicationClientsFailedMixed =>
-      'Reasons differ: see the client cards below.';
 
   @override
   String get publicationCopyLink => 'Copy profile link';

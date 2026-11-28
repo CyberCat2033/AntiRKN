@@ -1437,6 +1437,43 @@ class AppLocalizationsRu extends AppLocalizations {
       'Ни на одном сервере нет протокола для клиентов. Добавьте или включите его во вкладке «Серверы».';
 
   @override
+  String get uiClientsNoAccessTitle => 'Клиентам пока некуда подключаться';
+
+  @override
+  String get clientsSignInMessage =>
+      'Профили готовы, но не выгружаются на Диск.';
+
+  @override
+  String get clientsSyncTitle => 'Сверка серверов и выгрузка';
+
+  @override
+  String clientsSyncProgress(int done, int total) {
+    return 'Профили: $done из $total';
+  }
+
+  @override
+  String get clientsShowFailed => 'Показать';
+
+  @override
+  String get clientsOnlyFailed => 'Только с ошибками';
+
+  @override
+  String get clientsShowAll => 'Показать всех клиентов';
+
+  @override
+  String vpnAccessOn(String name) {
+    return 'Доступ для «$name» включён';
+  }
+
+  @override
+  String vpnAccessOff(String name) {
+    return 'Доступ для «$name» отключён';
+  }
+
+  @override
+  String get uiUndo => 'Отменить';
+
+  @override
   String get vpnSyncAndPublish => 'Выгрузить проверенные профили';
 
   @override
@@ -2782,10 +2819,6 @@ class AppLocalizationsRu extends AppLocalizations {
     );
     return '$_temp0';
   }
-
-  @override
-  String get publicationClientsFailedMixed =>
-      'Причины разные: подробности в карточках клиентов ниже.';
 
   @override
   String get publicationCopyLink => 'Копировать ссылку профиля';

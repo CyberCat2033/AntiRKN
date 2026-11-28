@@ -2600,6 +2600,66 @@ abstract class AppLocalizations {
   /// **'No server has a protocol for clients yet. Add or enable one on the Servers tab.'**
   String get uiClientsNoAccessHelp;
 
+  /// No description provided for @uiClientsNoAccessTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Clients have nowhere to connect yet'**
+  String get uiClientsNoAccessTitle;
+
+  /// No description provided for @clientsSignInMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Profiles are ready but are not published to Drive.'**
+  String get clientsSignInMessage;
+
+  /// No description provided for @clientsSyncTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking servers and publishing'**
+  String get clientsSyncTitle;
+
+  /// No description provided for @clientsSyncProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Profiles: {done} of {total}'**
+  String clientsSyncProgress(int done, int total);
+
+  /// No description provided for @clientsShowFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Show'**
+  String get clientsShowFailed;
+
+  /// No description provided for @clientsOnlyFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Only with errors'**
+  String get clientsOnlyFailed;
+
+  /// No description provided for @clientsShowAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Show all clients'**
+  String get clientsShowAll;
+
+  /// No description provided for @vpnAccessOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Access for “{name}” is on'**
+  String vpnAccessOn(String name);
+
+  /// No description provided for @vpnAccessOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Access for “{name}” is off'**
+  String vpnAccessOff(String name);
+
+  /// No description provided for @uiUndo.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo'**
+  String get uiUndo;
+
   /// No description provided for @vpnSyncAndPublish.
   ///
   /// In en, this message translates to:
@@ -4885,12 +4945,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count, plural, one{{count} client profile was not published} other{{count} client profiles were not published}}'**
   String publicationClientsFailed(int count);
-
-  /// No description provided for @publicationClientsFailedMixed.
-  ///
-  /// In en, this message translates to:
-  /// **'Reasons differ: see the client cards below.'**
-  String get publicationClientsFailedMixed;
 
   /// No description provided for @publicationCopyLink.
   ///

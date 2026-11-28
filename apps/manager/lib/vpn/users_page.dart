@@ -16,6 +16,7 @@ import 'vpn_controller.dart';
 import 'vpn_plan_view.dart';
 import 'client_traffic_controller.dart';
 import 'client_traffic_view.dart';
+import 'clients_status_card.dart';
 import 'vpn_strings.dart';
 import '../template_controller.dart';
 import '../template_settings.dart';
@@ -247,6 +248,19 @@ class _UsersPageState extends State<UsersPage> {
 
   /// Disabled clients are folded away until asked for.
   bool _disabledOpen = false;
+
+  /// The list narrowed to the clients with their own error.
+  bool _onlyFailed = false;
+
+  /// An error of this client alone; account and Drive issues shared by all
+  /// clients are said once above the list.
+  bool _hasOwnError(VpnUser user) {
+    if (!user.enabled) return false;
+    if (controller.results[user.id]?.hasBlockingErrors == true) return true;
+    final queue = publications?.queues[user.id];
+    return queue?['status'] == 'error' &&
+        !publicationIssueShared(queue?['issue'] as String?);
+  }
 
   @override
   void initState() {
@@ -510,19 +524,6 @@ class _UsersPageState extends State<UsersPage> {
     );
   }
 
-  Widget _buildSyncProgress() {
-    final active = _syncing || (publications?.hasActiveSync == true);
-    if (!active) return const SizedBox.shrink();
-    final total = publications?.activeSyncTotal ?? 0;
-    final completed = publications?.activeSyncCompleted ?? 0;
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: LinearProgressIndicator(
-        value: total > 0 ? (completed / total).clamp(0.0, 1.0) : null,
-      ),
-    );
-  }
-
   @override
   void dispose() {
     ownSelection.dispose();
@@ -586,10 +587,10 @@ class _UsersPageState extends State<UsersPage> {
   );
 
   /// The period of the traffic in the rows, and the order of the list.
-  Widget? _listBar(AppLocalizations l, int count) {
+  Widget? _listBar(AppLocalizations l, int count, bool onlyFailed) {
     final traffic = widget.traffic;
     final sort = count > 1 ? _sortMenu(l) : null;
-    if (traffic == null && sort == null) return null;
+    if (traffic == null && sort == null && !onlyFailed) return null;
     final month = DateFormat.LLLL(l.localeName).format(DateTime.now());
     final caption = traffic == null
         ? const SizedBox.shrink()
@@ -612,19 +613,41 @@ class _UsersPageState extends State<UsersPage> {
         alignment: MainAxisAlignment.spaceBetween,
         overflowAlignment: OverflowBarAlignment.end,
         overflowSpacing: 4,
-        children: [caption, ?sort],
+        children: [
+          if (onlyFailed)
+            InputChip(
+              key: const ValueKey('clients-only-failed'),
+              label: Text(l.clientsOnlyFailed),
+              onDeleted: () => setState(() => _onlyFailed = false),
+              deleteButtonTooltipMessage: l.clientsShowAll,
+            )
+          else
+            caption,
+          ?sort,
+        ],
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([controller, selection]),
+    listenable: Listenable.merge([
+      controller,
+      selection,
+      // While narrowed to errors, a fixed or new failure changes the list.
+      if (_onlyFailed) ?publications?.changes,
+    ]),
     builder: (context, _) {
       final c = controller, l = AppLocalizations.of(context);
       final theme = Theme.of(context);
       final sorted = _sortedUsers(c.workspace.users);
-      final enabledUsers = sorted.enabled, disabledUsers = sorted.disabled;
+      // The filter ends by itself once no client has an error of its own.
+      final onlyFailed =
+          _onlyFailed && !selection.active && sorted.enabled.any(_hasOwnError);
+      final enabledUsers = onlyFailed
+          ? sorted.enabled.where(_hasOwnError).toList()
+          : sorted.enabled;
+      final disabledUsers = onlyFailed ? const <VpnUser>[] : sorted.disabled;
       final allUsers = [...enabledUsers, ...disabledUsers];
       final ids = [for (final u in allUsers) u.id];
       final protocols = _protocols();
@@ -633,7 +656,7 @@ class _UsersPageState extends State<UsersPage> {
       final fab = !selection.active && !_addInHeader(context);
       final listBar = selection.active || allUsers.isEmpty
           ? null
-          : _listBar(l, allUsers.length);
+          : _listBar(l, allUsers.length, onlyFailed);
       return Column(
         children: [
           _header(context, c, l, ids),
@@ -671,31 +694,14 @@ class _UsersPageState extends State<UsersPage> {
                                 ),
                                 CatalogNormalContent(
                                   selection: selection,
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      if (protocols.isEmpty)
-                                        AppNotice(
-                                          key: const ValueKey(
-                                            'vpn-clients-no-access',
-                                          ),
-                                          icon: Icons.dns_outlined,
-                                          message: l.uiClientsNoAccessHelp,
-                                        ),
-                                      if (publications != null)
-                                        ListenableBuilder(
-                                          listenable: publications!.changes,
-                                          builder: (context, _) =>
-                                              _buildSyncProgress(),
-                                        )
-                                      else
-                                        _buildSyncProgress(),
-                                      if (publications != null)
-                                        PublicationFailuresNotice(
-                                          controller: publications!,
-                                        ),
-                                    ],
+                                  child: ClientsStatusCard(
+                                    vpn: c,
+                                    publications: publications,
+                                    hasAccess: protocols.isNotEmpty,
+                                    syncing: _syncing,
+                                    motion: motion,
+                                    onShowFailed: () =>
+                                        setState(() => _onlyFailed = true),
                                   ),
                                 ),
                                 ?listBar,
@@ -1058,7 +1064,10 @@ class UserTile extends StatelessWidget {
       builder: (context) {
         final queue = pub.queues[user.id];
         // A disabled client is not published: its stored failure is stale.
-        if (!user.deleted && queue?['status'] == 'error') {
+        // An account or Drive issue is said once above the list.
+        if (!user.deleted &&
+            queue?['status'] == 'error' &&
+            !publicationIssueShared(queue?['issue'] as String?)) {
           return _ErrorLine(publicationMessage(l, queue?['issue'] as String?));
         }
         return usage();
@@ -1106,6 +1115,7 @@ class UserTile extends StatelessWidget {
                       if (c.workspace.serverIds.isNotEmpty) {
                         unawaited(c.prepareAndApply(background: true));
                       }
+                      if (context.mounted) _confirmToggle(context, c, val);
                     },
             ),
           ),
@@ -1113,6 +1123,34 @@ class UserTile extends StatelessWidget {
         _buildTrailingAction(context, c, activeSync: activeSync),
       ],
     );
+  }
+
+  /// Says what the switch did, with a way back: a stray tap cuts off a
+  /// person's access at once.
+  void _confirmToggle(BuildContext context, VpnController c, bool enabled) {
+    final l = AppLocalizations.of(context);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            enabled ? l.vpnAccessOn(user.name) : l.vpnAccessOff(user.name),
+          ),
+          action: SnackBarAction(
+            key: ValueKey('client-toggle-undo-${user.id}'),
+            label: l.uiUndo,
+            onPressed: () async {
+              final current = c.workspace.userById(user.id);
+              // Changed meanwhile (here or elsewhere): nothing to undo.
+              if (current == null || current.enabled != enabled) return;
+              await c.saveUser(current.copyWith(enabled: !enabled));
+              if (c.error == null && c.workspace.serverIds.isNotEmpty) {
+                unawaited(c.prepareAndApply(background: true));
+              }
+            },
+          ),
+        ),
+      );
   }
 
   Widget _buildTrailingAction(

@@ -15,6 +15,17 @@ String publicationMessage(AppLocalizations l, String? issue) => switch (issue) {
   _ => l.publicationFailed,
 };
 
+/// An issue of the Google account, its access or Drive itself: every client
+/// fails with it alike, so it is said once for the list, not on each client.
+bool publicationIssueShared(String? issue) => const {
+  'unauthorized',
+  'forbidden',
+  'accountChanged',
+  'network',
+  'unavailable',
+  'rateLimited',
+}.contains(issue);
+
 class PublicationSettingsPanel extends StatefulWidget {
   const PublicationSettingsPanel({
     required this.controller,
@@ -260,45 +271,6 @@ class _PublicationSettingsState extends State<PublicationSettingsPanel> {
 
 /// Summary of the active clients whose profile publication failed, with one
 /// retry for exactly those clients.
-class PublicationFailuresNotice extends StatelessWidget {
-  const PublicationFailuresNotice({required this.controller, super.key});
-  final PublicationController controller;
-  @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: controller.changes,
-    builder: (context, _) {
-      final ids = controller.publicationErrorUserIds;
-      if (controller.settings == null || ids.isEmpty) {
-        return const SizedBox.shrink();
-      }
-      final l = AppLocalizations.of(context);
-      final issues = {
-        for (final id in ids) controller.queues[id]?['issue'] as String?,
-      };
-      return AppNotice(
-        key: const ValueKey('publication-failures'),
-        error: true,
-        title: l.publicationClientsFailed(ids.length),
-        message: issues.length == 1
-            ? publicationMessage(l, issues.single)
-            : l.publicationClientsFailedMixed,
-        margin: const EdgeInsets.only(top: 12),
-        action: TextButton(
-          key: const ValueKey('publication-failures-retry'),
-          onPressed: controller.busy || controller.hasActiveSync
-              ? null
-              : () {
-                  for (final id in ids) {
-                    controller.request(force: true, targetUserId: id);
-                  }
-                },
-          child: Text(l.publicationRetry),
-        ),
-      );
-    },
-  );
-}
-
 class UserPublicationView extends StatelessWidget {
   const UserPublicationView({
     required this.controller,

@@ -14,6 +14,7 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Clients tab: one status above the list, only when needed — Google sign-in, the check in progress or profiles that failed (with "Show" to narrow the list to them); a Drive or account problem is no longer repeated on every client; switching a client's access shows "Undo".
 - Clients tab: one header with the add button (a floating button on phones) and a menu for checking servers and publishing; each row shows the client's traffic this month instead of the shared protocol list, an error takes one line, sorting is a menu and disabled clients fold into a group.
 - Release packages for Windows and Linux include the license and disclaimer; the Windows installer shows the license.
 - Settings: the sync status card is now the only entry to Synchronization and is named "Synchronization"; the duplicate list item is gone.
