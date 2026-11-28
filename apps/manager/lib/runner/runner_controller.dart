@@ -7,6 +7,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 
 import 'device_upgrade_checks.dart';
+import 'update_check_schedule.dart';
 
 /// One controller per server. Connection setup prepares the runner; polling
 /// observes jobs. Persist each job request before submitting it.
@@ -357,7 +358,24 @@ class RunnerController extends ChangeNotifier {
   bool panelSelected = false;
   String? resumePlan;
   int? panelPort = 0;
+
+  /// The last read Ubuntu upgrade plan (`{packages, fingerprint,
+  /// rebootRequired}`), read at [aptCheckedAt]: the card's status. Kept in
+  /// the journal, so it survives leaving the page and a restart; preparing
+  /// other software does not clear it.
   Map<String, dynamic>? aptPlan;
+  DateTime? aptCheckedAt;
+  DateTime? _aptAttemptedAt;
+  @visibleForTesting
+  DateTime Function() clock = DateTime.now;
+
+  /// A connection reads the plan again when it is older than this;
+  /// read-only, without refreshing the package lists (no job).
+  static const aptSchedule = UpdateCheckSchedule();
+
+  /// Update with a plan older than this reads it again first: the runner
+  /// refuses a fingerprint the package state has moved on from.
+  static const aptPlanFresh = Duration(minutes: 2);
   bool choosingAptUpdate = false;
   bool _systemUpdate = false;
 
@@ -460,7 +478,93 @@ class RunnerController extends ChangeNotifier {
     }
     _pendingConnectionReady = false;
     if (error == RunnerIssue.unavailable) error = null;
-    unawaited(refresh(prepare: true));
+    unawaited(refresh(prepare: true).then((_) => _autoCheckApt()));
+  }
+
+  /// Ubuntu packages are checked on their own like the other components: on
+  /// a connection, at most every [UpdateCheckSchedule.interval], by the
+  /// read-only `apt_plan` on the current package lists. A failure keeps the
+  /// last status and shows nothing; Check still refreshes the lists.
+  Future<void> _autoCheckApt() async {
+    if (_disposed ||
+        store == null ||
+        !canStart ||
+        backgroundBusy ||
+        error != null ||
+        choosingAptUpdate ||
+        _systemUpdate) {
+      return;
+    }
+    final now = clock();
+    if (!aptSchedule.due(
+      now,
+      checkedAt: aptCheckedAt,
+      attemptedAt: _aptAttemptedAt,
+    )) {
+      return;
+    }
+    _aptAttemptedAt = now;
+    await _run((remote, token) async {
+      try {
+        final plan = await _readAptPlan(remote, token);
+        token.check();
+        _takeAptPlan(plan);
+        await _save();
+      } catch (_) {
+        responseCode = null;
+      }
+    }, background: true);
+  }
+
+  /// The current upgrade plan; refusals map to the runner issues.
+  Future<Map<String, dynamic>> _readAptPlan(
+    RunnerTransport remote,
+    CancellationToken token,
+  ) async {
+    final response = await remote.request(
+      RunnerRequest.aptPlan(),
+      token,
+      sudoPassword: password(),
+    );
+    token.check();
+    responseCode = response.code;
+    if (response.code != 'ok' || response.aptPlan == null) {
+      if (response.code == 'apt_conflict' || response.code == 'conflict') {
+        throw const RunnerFailure(RunnerIssue.conflict);
+      }
+      if (response.code == 'apt_prerequisites') {
+        throw const RunnerFailure(RunnerIssue.prerequisites);
+      }
+      throw const RunnerFailure(RunnerIssue.invalidResponse);
+    }
+    return response.aptPlan!;
+  }
+
+  void _takeAptPlan(Map<String, dynamic> plan) {
+    aptPlan = plan;
+    aptCheckedAt = clock();
+  }
+
+  /// A stored plan, or null when it is not one (an old or damaged record
+  /// only loses the status).
+  static Map<String, dynamic>? _storedAptPlan(Object? value) {
+    if (value
+        case {
+          'packages': final List packages,
+          'fingerprint': final String fingerprint,
+        }
+        when packages.every(
+          (p) => p is Map && p['name'] is String && p['version'] is String,
+        )) {
+      return {
+        'packages': [
+          for (final p in packages) Map<String, dynamic>.from(p as Map),
+        ],
+        'fingerprint': fingerprint,
+        'rebootRequired': (value as Map)['rebootRequired'] == true,
+      };
+    }
+    return null;
   }
 
   void disconnected() {
@@ -478,7 +582,6 @@ class RunnerController extends ChangeNotifier {
     choosingPanel = false;
     resumePlan = null;
     panelVerifiedAt = null;
-    aptPlan = null;
     choosingAptUpdate = false;
     connectionLost = hasUnfinishedJob;
     _notify();
@@ -520,6 +623,8 @@ class RunnerController extends ChangeNotifier {
     relayStateIssue = null;
     panelVerifiedAt = null;
     activeComponent = null;
+    aptPlan = null;
+    aptCheckedAt = null;
     _identity = current;
     if (raw != null) {
       final json = decodeRunnerObject(raw);
@@ -540,6 +645,14 @@ class RunnerController extends ChangeNotifier {
         }
         if (json['panelDiscovery'] case final Map discovery) {
           panelDiscovery = Map<String, dynamic>.from(discovery);
+        }
+        if (json['apt'] case {
+          'plan': final Object plan,
+          'checkedAt': final String at,
+        }) {
+          aptCheckedAt = DateTime.tryParse(at);
+          aptPlan = aptCheckedAt == null ? null : _storedAptPlan(plan);
+          if (aptPlan == null) aptCheckedAt = null;
         }
         if (json['panelAccess'] case final Map access) {
           panelAccess = PanelAccess.fromJson(Map<String, dynamic>.from(access));
@@ -615,6 +728,11 @@ class RunnerController extends ChangeNotifier {
       'panelDiscovery': panelDiscovery,
       'panelAccess': panelAccess?.toJson(),
       'panelVerifiedAt': panelVerifiedAt?.toUtc().toIso8601String(),
+      if (aptPlan != null && aptCheckedAt != null)
+        'apt': {
+          'plan': aptPlan,
+          'checkedAt': aptCheckedAt!.toUtc().toIso8601String(),
+        },
     });
     if (store case final ConditionalRunnerJournalStore conditional) {
       await conditional.writeRunnerJournalIfUnchanged(
@@ -1486,7 +1604,6 @@ class RunnerController extends ChangeNotifier {
     panelSelected = true;
     panelPort = 0;
     componentPlan = null;
-    aptPlan = null;
     choosingAptUpdate = false;
     return preparePanel();
   }
@@ -1537,23 +1654,8 @@ class RunnerController extends ChangeNotifier {
       return Future.value();
     }
     return _run((remote, token) async {
-      final response = await remote.request(
-        RunnerRequest.aptPlan(),
-        token,
-        sudoPassword: password(),
-      );
-      token.check();
-      responseCode = response.code;
-      if (response.code != 'ok' || response.aptPlan == null) {
-        if (response.code == 'apt_conflict' || response.code == 'conflict') {
-          throw const RunnerFailure(RunnerIssue.conflict);
-        }
-        if (response.code == 'apt_prerequisites') {
-          throw const RunnerFailure(RunnerIssue.prerequisites);
-        }
-        return;
-      }
-      aptPlan = response.aptPlan;
+      _takeAptPlan(await _readAptPlan(remote, token));
+      await _save();
     });
   }
 
@@ -1586,10 +1688,23 @@ class RunnerController extends ChangeNotifier {
         (!choosingAptUpdate && (aptPlan?['packages'] as List? ?? []).isEmpty)) {
       return Future.value();
     }
-    final fingerprint = choosingAptUpdate
-        ? null
-        : aptPlan!['fingerprint'] as String;
     return _run((remote, token) async {
+      String? fingerprint;
+      if (!choosingAptUpdate) {
+        final at = aptCheckedAt;
+        if (at == null || clock().difference(at) >= aptPlanFresh) {
+          // A plan read a while ago (a stored one) is read again. The same
+          // packages go with the new fingerprint; a different set is only
+          // shown, for a new decision.
+          final shown = jsonEncode(aptPlan!['packages']);
+          _takeAptPlan(await _readAptPlan(remote, token));
+          if (jsonEncode(aptPlan!['packages']) != shown) {
+            await _save();
+            return;
+          }
+        }
+        fingerprint = aptPlan!['fingerprint'] as String;
+      }
       final random = Random.secure();
       final id = List.generate(
         16,
@@ -1598,9 +1713,18 @@ class RunnerController extends ChangeNotifier {
       pending = RunnerRequest.apt(id, fingerprint: fingerprint);
       selected = null;
       cursor = 0;
-      await _save();
-      token.check();
+      // The plan goes with the request; the next check reads what is left.
+      final plan = aptPlan, checkedAt = aptCheckedAt;
       aptPlan = null;
+      aptCheckedAt = null;
+      try {
+        await _save();
+      } catch (_) {
+        aptPlan = plan;
+        aptCheckedAt = checkedAt;
+        rethrow;
+      }
+      token.check();
       choosingAptUpdate = false;
       await _submit(remote, token);
     });
@@ -1705,7 +1829,6 @@ class RunnerController extends ChangeNotifier {
     await _run((remote, token) async {
       panelPlan = null;
       componentPlan = null;
-      aptPlan = null;
       choosingAptUpdate = false;
       panelUpdatePlan = null;
       final response = await remote.request(
@@ -1781,7 +1904,6 @@ class RunnerController extends ChangeNotifier {
     componentChoice = choice == null ? '' : jsonEncode(choice);
     panelPlan = null;
     panelUpdatePlan = null;
-    aptPlan = null;
     choosingAptUpdate = false;
     componentPlan = null;
     componentRunnerPlan = null;
@@ -2689,6 +2811,11 @@ class RunnerController extends ChangeNotifier {
         }.contains(job.kind) &&
         (selected?.id != job.id || selected?.status != 'succeeded')) {
       _softwareRefreshPending = true;
+      // Another device's upgrade too: the next check reads what is left.
+      if (job.kind == 'apt_upgrade') {
+        aptPlan = null;
+        aptCheckedAt = null;
+      }
     }
     selected = job.mergeEvents(selected);
     cursor = job.sequence;
@@ -2706,12 +2833,13 @@ class RunnerController extends ChangeNotifier {
         token.check();
         responseCode = plan.code;
         if (plan.code == 'ok' && plan.aptPlan != null) {
-          aptPlan = plan.aptPlan;
+          _takeAptPlan(plan.aptPlan!);
           _dismiss(job);
           _applySystemUpgrade =
               _systemUpgrade &&
               !observesOperation &&
               (aptPlan?['packages'] as List? ?? []).isNotEmpty;
+          await _save();
         }
       }
     }

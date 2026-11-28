@@ -20,6 +20,7 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Updates: Ubuntu packages are checked automatically on connection (read-only, at most every 6 hours) and the result is kept across leaving the page and restarts; preparing other components no longer resets it to "Not checked". Update with an older result reads the package list again first.
 - Settings → Synchronization shows the Google account picture for an account connected before pictures were kept; it is picked up at the next access renewal, without signing in again.
 
 

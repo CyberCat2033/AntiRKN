@@ -74,6 +74,10 @@ class FakeRunnerTransport implements RunnerTransport {
   String? customRelease;
   bool upgradable = false;
   Map<String, dynamic>? componentUpgradePlanData;
+
+  /// `apt_plan`: a refusal code instead of the plan, or another plan.
+  String? aptPlanCode;
+  Map<String, dynamic>? aptPlanData;
   final requests = <RunnerRequest>[];
   @override
   String get bundledRelease => 'a' * 64;
@@ -139,13 +143,19 @@ class FakeRunnerTransport implements RunnerTransport {
           };
         }
       case 'apt_plan':
-        extra['aptPlan'] = {
-          'packages': [
-            {'name': 'fixture', 'installed': '1', 'version': '2'},
-          ],
-          'fingerprint': 'f' * 64,
-          'rebootRequired': false,
-        };
+        if (aptPlanCode != null) {
+          code = aptPlanCode!;
+        } else {
+          extra['aptPlan'] =
+              aptPlanData ??
+              {
+                'packages': [
+                  {'name': 'fixture', 'installed': '1', 'version': '2'},
+                ],
+                'fingerprint': 'f' * 64,
+                'rebootRequired': false,
+              };
+        }
       case 'component_upgrade_check':
         extra['componentUpgrade'] =
             componentUpgradePlanData ??
