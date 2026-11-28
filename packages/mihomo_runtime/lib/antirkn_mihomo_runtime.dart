@@ -8,6 +8,7 @@ import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:crypto/crypto.dart';
 import 'package:yaml/yaml.dart';
 import 'src/native_worker.dart';
+import 'src/tls_scan_result.dart';
 
 export 'src/worker_gate.dart' show MihomoWorkerGate;
 
@@ -279,6 +280,58 @@ final class MihomoOutboundProbe implements CoreProbeTransport {
         status: token.isCancelled
             ? CoreTrafficStatus.cancelled
             : CoreTrafficStatus.notTested,
+        code: token.isCancelled ? 'cancelled' : 'runtime_unavailable',
+      );
+    }
+  }
+}
+
+/// FR-SNI engine: one packaged worker run per batch on Windows, Linux and
+/// Android. A cancelled run is killed; its observations are discarded.
+final class MihomoTlsScanner implements TlsScanTransport {
+  MihomoTlsScanner({this.workerPath});
+  final String? workerPath;
+  @override
+  Future<TlsScanBatch> scan(
+    List<TlsScanTarget> targets,
+    CancellationToken token, {
+    TlsScanLimits limits = const TlsScanLimits(),
+    bool resolve = true,
+    String directInterface = '',
+  }) async {
+    if (targets.isEmpty ||
+        targets.length > limits.batchSize ||
+        targets.toSet().length != targets.length) {
+      return TlsScanBatch(status: TlsScanStatus.notTested, code: 'input_limit');
+    }
+    try {
+      var result = await NativeWorker(path: workerPath).invoke(
+        {
+          'mode': 'tls_scan',
+          'targets': [for (final t in targets) t.toJson()],
+          'concurrency': limits.concurrency,
+          'connectMs': limits.connect.inMilliseconds,
+          'handshakeMs': limits.handshake.inMilliseconds,
+          'resolve': resolve,
+          if (directInterface.isNotEmpty) 'interface': directInterface,
+        },
+        token,
+        outputLimit: 65536,
+      );
+      if (result['version'] != mihomoVersion ||
+          result['revision'] != _revision) {
+        throw const FormatException('worker_result');
+      }
+      // The Android bridge passes the observations as JSON text.
+      if (result['probes'] case final String text) {
+        result = {...result, 'probes': jsonDecode(text)};
+      }
+      return parseTlsScan(result, targets);
+    } catch (_) {
+      return TlsScanBatch(
+        status: token.isCancelled
+            ? TlsScanStatus.cancelled
+            : TlsScanStatus.notTested,
         code: token.isCancelled ? 'cancelled' : 'runtime_unavailable',
       );
     }

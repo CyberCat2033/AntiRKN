@@ -98,7 +98,7 @@ class MihomoValidationBridge(private val context: Context, messenger: BinaryMess
             cancellations.forEach { it() }
             cancellations.clear()
             val text = response
-            if (!cancelled && text != null && text.length < 16_384) {
+            if (!cancelled && text != null && text.length < 65_536) {
                 try {
                     val json = JSONObject(text)
                     val values = mutableMapOf<String, Any?>()
@@ -108,6 +108,8 @@ class MihomoValidationBridge(private val context: Context, messenger: BinaryMess
                     for (key in listOf("tcp", "udp", "udpTested")) {
                         if (json.has(key)) values[key] = json.getBoolean(key)
                     }
+                    // TLS scan observations stay JSON text; Dart validates them strictly.
+                    if (json.has("probes")) values["probes"] = json.getJSONArray("probes").toString()
                     if (json.has("milliseconds")) values["milliseconds"] = json.getLong("milliseconds").coerceIn(0L, 60000L)
                     result.success(values)
                 } catch (_: Exception) { result.error("validator_failed", null, null) }
