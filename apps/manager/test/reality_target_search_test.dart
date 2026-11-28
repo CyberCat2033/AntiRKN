@@ -51,7 +51,10 @@ TlsProbeResult observe(TlsScanTarget t) {
 
 final class World implements TlsScanTransport {
   int probes = 0;
-  bool hold = false;
+  int batches = 0;
+
+  /// Called before each batch answers, e.g. to stop the search at batch N.
+  void Function(int batch)? onBatch;
   @override
   Future<TlsScanBatch> scan(
     List<TlsScanTarget> targets,
@@ -60,9 +63,7 @@ final class World implements TlsScanTransport {
     bool resolve = true,
     String directInterface = '',
   }) async {
-    while (hold && !cancellation.isCancelled) {
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-    }
+    onBatch?.call(++batches);
     if (cancellation.isCancelled) {
       return TlsScanBatch(status: TlsScanStatus.cancelled, code: 'cancelled');
     }
@@ -132,16 +133,16 @@ void main() {
     });
 
     test('an interrupted search continues without probing again', () async {
-      final settings = Settings(), world = World()..hold = true;
+      final settings = Settings(), world = World();
       final first = controller(world, settings);
-      final running = first.start(RealitySearchPlan.neighbors('8.8.8.37'));
-      await Future<void>.delayed(const Duration(milliseconds: 30));
-      world.hold = false;
-      await Future<void>.delayed(const Duration(milliseconds: 1));
-      first.stop();
-      await running;
+      world.onBatch = (n) {
+        if (n == 4) first.stop();
+      };
+      await first.start(RealitySearchPlan.neighbors('8.8.8.37'));
       expect(first.state!.phase, RealitySearchPhase.cancelled);
       final done = first.state!.discoveries.length;
+      expect(done, 3 * 16);
+      world.onBatch = null;
       await Future<void>.delayed(Duration.zero);
       final probed = world.probes;
       final again = controller(world, settings);
