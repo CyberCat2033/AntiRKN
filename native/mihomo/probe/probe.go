@@ -36,7 +36,14 @@ type Request struct {
 	// outbound socket and DNS query of this worker then bypasses that VPN, so
 	// the result describes the device's own network.
 	Interface string `json:"interface,omitempty"`
+	// Download also fetches DownloadBytes through the proxy: some networks cut
+	// connections to hosting ranges after 16-20 KB, which a short check misses.
+	Download bool `json:"download,omitempty"`
 }
+
+// DownloadBytes is the size of the transfer check (FR-SNI).
+const DownloadBytes = 100 * 1024
+
 type Result struct {
 	Status       string `json:"status"`
 	Code         string `json:"code"`
@@ -51,6 +58,8 @@ type Result struct {
 	// Endpoint is a plain TCP check of the server address after a failed
 	// connection: reachable, refused, timeout, unreachable or unresolved.
 	Endpoint string `json:"endpoint,omitempty"`
+	// Downloaded counts the bytes of the transfer check when it ran.
+	Downloaded int64 `json:"downloaded,omitempty"`
 }
 
 var interfaceName = regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,15}$`)
@@ -79,9 +88,12 @@ type Targets struct {
 	HTTPS   []string
 	DNS     []netip.AddrPort
 	RootCAs *x509.CertPool
+	// Download serves exactly DownloadBytes over HTTPS with status 200.
+	Download string
 }
 
-var PublicTargets = Targets{HTTPS: []string{"https://1.1.1.1/cdn-cgi/trace", "https://www.gstatic.com/generate_204"}, DNS: []netip.AddrPort{netip.MustParseAddrPort("1.1.1.1:53"), netip.MustParseAddrPort("8.8.8.8:53")}}
+var PublicTargets = Targets{HTTPS: []string{"https://1.1.1.1/cdn-cgi/trace", "https://www.gstatic.com/generate_204"}, DNS: []netip.AddrPort{netip.MustParseAddrPort("1.1.1.1:53"), netip.MustParseAddrPort("8.8.8.8:53")},
+	Download: "https://speed.cloudflare.com/__down?bytes=102400"}
 
 // Execute permits only adapters used by AntiRKN, never groups or DIRECT fallback.
 func Execute(ctx context.Context, request Request, targets Targets) (result Result) {
@@ -137,6 +149,15 @@ func Execute(ctx context.Context, request Request, targets Targets) (result Resu
 			return
 		}
 	}
+	transferred := !request.Download
+	if request.Download && result.TCP && targets.Download != "" {
+		n, err := fetch(ctx, proxy, targets.Download, targets.RootCAs, 8*time.Second, func(status int, _ string) bool { return status == http.StatusOK }, DownloadBytes+1)
+		result.Downloaded = n
+		transferred = err == nil && n == DownloadBytes
+		if !transferred {
+			result.Failure = "transfer"
+		}
+	}
 	if request.UDP && (proxy == nil || proxy.SupportUDP()) {
 		result.UDPTested = true
 		for _, target := range targets.DNS {
@@ -151,6 +172,10 @@ func Execute(ctx context.Context, request Request, targets Targets) (result Resu
 	if result.TCP && (!request.UDP || result.UDP) {
 		result.Status = "success"
 		result.Code = "connected"
+	}
+	if result.TCP && !transferred {
+		result.Status = "failed"
+		result.Code = "transfer_cut"
 	}
 	if request.UDP && !result.UDPTested {
 		result.Status = "not_tested"
@@ -235,11 +260,20 @@ func proxyFields(source string) (map[string]any, error) {
 }
 
 func https(parent context.Context, proxy C.Proxy, target string, roots *x509.CertPool) error {
-	ctx, cancel := context.WithTimeout(parent, 4*time.Second)
+	_, err := fetch(parent, proxy, target, roots, 4*time.Second, func(status int, path string) bool {
+		return status == http.StatusNoContent || path == "/cdn-cgi/trace" && status == http.StatusOK
+	}, 1024)
+	return err
+}
+
+// fetch makes one HTTPS GET through proxy (direct when nil), accepts the
+// response by status and path, and reads at most limit bytes of its body.
+func fetch(parent context.Context, proxy C.Proxy, target string, roots *x509.CertPool, timeout time.Duration, accept func(int, string) bool, limit int64) (int64, error) {
+	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
 	u, err := url.Parse(target)
 	if err != nil || u.Scheme != "https" || u.User != nil {
-		return errors.New("target")
+		return 0, errors.New("target")
 	}
 	port := u.Port()
 	if port == "" {
@@ -247,7 +281,7 @@ func https(parent context.Context, proxy C.Proxy, target string, roots *x509.Cer
 	}
 	metadata := &C.Metadata{NetWork: C.TCP}
 	if err := metadata.SetRemoteAddress(net.JoinHostPort(u.Hostname(), port)); err != nil {
-		return err
+		return 0, err
 	}
 	var connection net.Conn
 	if proxy == nil {
@@ -256,7 +290,7 @@ func https(parent context.Context, proxy C.Proxy, target string, roots *x509.Cer
 		connection, err = proxy.DialContext(ctx, metadata)
 	}
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer connection.Close()
 	// The adapter owns streams for the entire request, so its context must not be
@@ -267,19 +301,18 @@ func https(parent context.Context, proxy C.Proxy, target string, roots *x509.Cer
 	client := &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	req.Header.Set("User-Agent", "AntiRKN connectivity check")
 	response, err := client.Do(req)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer response.Body.Close()
-	if response.StatusCode != http.StatusNoContent && !(u.Path == "/cdn-cgi/trace" && response.StatusCode == http.StatusOK) {
-		return errors.New("response")
+	if !accept(response.StatusCode, u.Path) {
+		return 0, errors.New("response")
 	}
-	_, err = io.Copy(io.Discard, io.LimitReader(response.Body, 1024))
-	return err
+	return io.Copy(io.Discard, io.LimitReader(response.Body, limit))
 }
 
 func dns(parent context.Context, proxy C.Proxy, target netip.AddrPort) error {

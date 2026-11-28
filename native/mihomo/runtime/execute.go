@@ -2,13 +2,18 @@ package runtime
 
 import (
 	"antirkn.local/mihomo/probe"
+	"antirkn.local/mihomo/scanner"
 	"antirkn.local/mihomo/validator"
 	"context"
 	"encoding/json"
+	"github.com/metacubex/mihomo/component/dialer"
+	"github.com/metacubex/mihomo/component/resolver"
 	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/log"
 	"github.com/sirupsen/logrus"
 	"io"
+	"net"
+	"net/netip"
 	"os"
 	"runtime/debug"
 	"time"
@@ -28,10 +33,13 @@ func Execute(input []byte, directory string) (result any) {
 			result = probe.Result{Status: "not_tested", Code: "core_failure", Version: validator.Version, Revision: validator.Revision}
 		}
 	}()
-	if request.Mode != "probe" && request.Mode != "control" {
+	if os.MkdirAll(directory, 0700) != nil {
 		return
 	}
-	if os.MkdirAll(directory, 0700) != nil {
+	if request.Mode == scanner.Mode {
+		return scan(input)
+	}
+	if request.Mode != "probe" && request.Mode != "control" {
 		return
 	}
 	if request.Interface != "" && !probe.UseInterface(request.Interface) {
@@ -46,4 +54,31 @@ func Execute(input []byte, directory string) (result any) {
 	value.Version = validator.Version
 	value.Revision = validator.Revision
 	return value
+}
+
+// scan runs one TLS batch; the device interface, if given, bypasses its VPN.
+func scan(input []byte) any {
+	var request scanner.Request
+	if json.Unmarshal(input, &request) != nil {
+		request = scanner.Request{}
+	}
+	result := scanner.Result{Status: "not_tested", Code: "unsupported_route", Probes: []scanner.Probe{}}
+	if request.Interface == "" || probe.UseInterface(request.Interface) {
+		resolver.DisableIPv6 = false
+		ctx, cancel := context.WithTimeout(context.Background(), scanner.Budget+500*time.Millisecond)
+		defer cancel()
+		result = scanner.Execute(ctx, request, scanner.Config{
+			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				return dialer.DialContext(ctx, network, address)
+			},
+			Lookup: func(ctx context.Context, host string, ipv6 bool) ([]netip.Addr, error) {
+				if ipv6 {
+					return resolver.LookupIPv6WithResolver(ctx, host, resolver.ProxyServerHostResolver)
+				}
+				return resolver.LookupIPv4WithResolver(ctx, host, resolver.ProxyServerHostResolver)
+			},
+		})
+	}
+	result.Version, result.Revision = validator.Version, validator.Revision
+	return result
 }

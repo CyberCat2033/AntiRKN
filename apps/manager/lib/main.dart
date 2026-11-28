@@ -852,6 +852,7 @@ class _ManagerShellState extends State<ManagerShell>
         probeStore: widget.settings,
         enterConnectionTraffic: _enterConnectionTraffic,
         leaveConnectionTraffic: _leaveConnectionTraffic,
+        tlsScanner: MihomoTlsScanner(),
         connectForAction: (id) async =>
             await _catalog?.connectForAction(id) == true,
         connectForDeletion: (id) async =>

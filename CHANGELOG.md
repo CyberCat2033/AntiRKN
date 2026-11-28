@@ -9,6 +9,7 @@ versions follow [Semantic Versioning](https://semver.org/).
 ### Added
 
 - The licenses page lists the licenses of all Go modules built into the Mihomo core.
+- VLESS REALITY form: **Find** searches the server's neighbours for a suitable target and SNI from this device (TLS 1.3, HTTP/2, key exchange, verified certificate, DNS), checks the best from the server itself (3x-ui) with the server-to-target time, recommends the best with reasons, can check a candidate's connection through a temporary inbound on the server with a 100 KB download, fills Target and SNI, can stop and continue, and exports results as JSON or CSV. The best result is offered to the next inbound of the server.
 - Settings → About: what the app is for, open-source licenses (GPL-3.0 and components) and a link to the source code.
 - The project is licensed under GPL-3.0; added a disclaimer (intended use, no warranty) and a security policy.
 
@@ -19,6 +20,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 - Clients tab: from seven clients a search field narrows the list by name, disabled clients included.
 - Clients tab: one status above the list, only when needed — Google sign-in, the check in progress or profiles that failed (with "Show" to narrow the list to them); a Drive or account problem is no longer repeated on every client; switching a client's access shows "Undo".
 - Clients tab: one header with the add button (a floating button on phones) and a menu for checking servers and publishing; each row shows the client's traffic this month instead of the shared protocol list, an error takes one line, sorting is a menu and disabled clients fold into a group.
+- XHTTP inbounds get a generated path (like `/assets/k3x9q2m7wd`) when the target is checked or chosen, if the path is still `/`.
+- The REALITY target check button is now called **Check**.
 - Release packages for Windows and Linux include the license and disclaimer; the Windows installer shows the license.
 - Settings: the sync status card is now the only entry to Synchronization and is named "Synchronization"; the duplicate list item is gone.
 - README rewritten in Russian and English; the user guide and privacy policy are updated and list every network destination of the app.

@@ -34,5 +34,12 @@ in a separate request. HTTPS validates certificates and response status; UDP
 validates a DNS transaction, question, response source and answer. Chained
 outbounds require an explicit supported route and currently return not-tested.
 
+TLS scan requests (`mode: tls_scan`, FR-SNI) observe up to 16 explicit public
+IP:port targets with optional SNI from this device: TCP/TLS time, TLS version,
+ALPN, key exchange group and leaf certificate names. The handshake accepts any
+certificate only to observe it; chain, validity and name are checked separately.
+Concurrency, connect and handshake limits are bounded so that the worst case
+fits 12 s. No REALITY or proxy test is implied by a successful observation.
+
 Linux unit checks: `go test -tags with_gvisor ./probe ./runtime ./validator ./cmd/worker`.
 The Android JNI entry point is built using the NDK, not the host C compiler.

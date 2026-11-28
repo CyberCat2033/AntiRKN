@@ -83,6 +83,7 @@ python3 tool/vm_regression.py --mutation
 - `runner_upgrade`: ~95 с (автоматически находит предыдущую версию `runner_bundle.g.dart` в `git log`).
 - `protocols`: ~120 с (устанавливает 3x-ui, VLESS RAW/REALITY, XHTTP/REALITY, XHTTP/TLS, TrustTunnel и AmneziaWG из оффлайн-кэша с двумя пользователями, проверяет реальный TCP/UDP-трафик через Mihomo и сохраняет `protocols.qcow2`).
 - `inbound_isolation`: ~80 с.
+- `reality_target`: ~60 с поверх готового `protocols.qcow2` (FR-SNI: временный REALITY inbound `reality_target` — горячее добавление без перезапуска Xray, реальный трафик Mihomo TCP+UDP и 100 КБ через SSH-туннель к временному порту, скрытие из обнаружения, удаление и закрытие порта, неизменность управляемых inbound).
 - `upgrade_rollback`: ~150 с.
 - `reboot`: ~90 с.
 - Полный прогон: ~9 мин; полный `--mutation` прогон (6 мутаций): ~10–12 мин.

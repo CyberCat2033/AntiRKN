@@ -1964,7 +1964,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Apply the selected REALITY key revision and rebuild client profiles.';
 
   @override
-  String get realityScan => 'Scan target';
+  String get realityScan => 'Check';
 
   @override
   String get realityScanHelp =>
@@ -4984,4 +4984,404 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get aboutOpensBrowser => 'Opens in the browser';
+
+  @override
+  String get realitySearchTitle => 'Find SNI';
+
+  @override
+  String get realitySearchFind => 'Find';
+
+  @override
+  String get realitySearchFindHelp =>
+      'Looks for a suitable target and SNI among the server\'s neighbours. Probes run from this device.';
+
+  @override
+  String get realitySearchSource => 'Where to search';
+
+  @override
+  String get realitySearchNeighbors => 'Server neighbours';
+
+  @override
+  String get realitySearchOwn => 'Own addresses';
+
+  @override
+  String get realitySearchRange => 'Range';
+
+  @override
+  String get realitySearchOwnAddresses => 'IP addresses';
+
+  @override
+  String get realitySearchOwnHelp =>
+      'Separated by spaces, commas or lines. Public addresses only, up to 256.';
+
+  @override
+  String get realitySearchNoAddresses => 'No suitable addresses';
+
+  @override
+  String get realitySearchChange => 'Change';
+
+  @override
+  String get realitySearchNoServerAddress =>
+      'The server\'s public IPv4 is unknown. Connect to the server or enter own addresses.';
+
+  @override
+  String get realitySearchVpn =>
+      'A VPN is on and could not be bypassed. TLS properties are reliable; timings describe the VPN.';
+
+  @override
+  String get realitySearchOtherNetwork =>
+      'These results come from another network. Start again for this network.';
+
+  @override
+  String get realitySearchStoreFailed =>
+      'Could not save the results on this device.';
+
+  @override
+  String get realitySearchStart => 'Start search';
+
+  @override
+  String get realitySearchRestart => 'Start again';
+
+  @override
+  String get realitySearchStop => 'Stop';
+
+  @override
+  String get realitySearchResume => 'Continue';
+
+  @override
+  String get realitySearchDiscovery => 'Looking for TLS on the addresses';
+
+  @override
+  String get realitySearchConfirmation => 'Checking certificate names';
+
+  @override
+  String get realitySearchStability => 'Re-checking the best';
+
+  @override
+  String get realitySearchDone => 'Search finished';
+
+  @override
+  String get realitySearchCancelled => 'Search stopped';
+
+  @override
+  String get realitySearchFailed => 'Search did not finish';
+
+  @override
+  String get realitySearchNetworkChanged => 'The device network changed';
+
+  @override
+  String get realitySearchRecommended => 'Recommended';
+
+  @override
+  String get realitySearchOthers => 'Others';
+
+  @override
+  String get realitySearchNothing => 'No suitable target found';
+
+  @override
+  String get realitySearchNothingHelp =>
+      'Widen the range or enter own addresses.';
+
+  @override
+  String get realitySearchUse => 'Use';
+
+  @override
+  String get realitySearchWhy => 'Why';
+
+  @override
+  String get realitySearchDns => 'DNS';
+
+  @override
+  String get realitySearchNames => 'Certificate names';
+
+  @override
+  String get realitySearchPick => 'Select a candidate';
+
+  @override
+  String get realitySearchExport => 'Export';
+
+  @override
+  String get realitySearchCopyJson => 'Copy JSON';
+
+  @override
+  String get realitySearchCopyCsv => 'Copy CSV';
+
+  @override
+  String get realitySearchCopied => 'Copied';
+
+  @override
+  String get realitySearchCopyFailed => 'Could not copy';
+
+  @override
+  String get realityLevelTls => 'TLS';
+
+  @override
+  String get realityLevelPair => 'Pair verified';
+
+  @override
+  String get realityLevelCriteria => 'Fits REALITY';
+
+  @override
+  String get realityReasonSameNetwork => 'Same network as the server';
+
+  @override
+  String get realityReasonNearbyNetwork => 'Near the server\'s network';
+
+  @override
+  String get realityReasonFarNetwork => 'Far from the server';
+
+  @override
+  String get realityReasonDnsMatch => 'DNS points to this address';
+
+  @override
+  String get realityReasonDnsMismatch => 'DNS points to another address';
+
+  @override
+  String get realityReasonDnsUnresolved => 'DNS not confirmed';
+
+  @override
+  String get realityReasonModernKeyExchange => 'Modern key exchange';
+
+  @override
+  String get realityReasonStable => 'Answers are stable';
+
+  @override
+  String get realityReasonUnstable => 'Answers differ';
+
+  @override
+  String get realityReasonStabilityNotChecked => 'Stability not checked';
+
+  @override
+  String get realityReasonServerNotChecked => 'Not checked from the server';
+
+  @override
+  String get realityReasonRedirectNotChecked => 'Redirects not checked';
+
+  @override
+  String get realityReasonNotTls13 => 'No TLS 1.3';
+
+  @override
+  String get realityReasonNoH2 => 'No HTTP/2';
+
+  @override
+  String get realityReasonUnsupportedGroup => 'Unsuitable key exchange';
+
+  @override
+  String get realityReasonCertificateInvalid =>
+      'Certificate not verified for this name';
+
+  @override
+  String get realityReasonHandshakeFailed => 'No TLS with this name';
+
+  @override
+  String get realityReasonKnownCdn => 'Address of a large CDN';
+
+  @override
+  String get realityReasonExpiresSoon => 'Certificate expires soon';
+
+  @override
+  String realitySearchPrefix(int prefix, int count) {
+    return '/$prefix, up to $count addresses';
+  }
+
+  @override
+  String realitySearchAddresses(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count addresses',
+      one: '$count address',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String realitySearchAbout(int seconds) {
+    return 'about $seconds s';
+  }
+
+  @override
+  String realitySearchFound(int tls, int suitable) {
+    return 'TLS found: $tls, suitable: $suitable';
+  }
+
+  @override
+  String realitySearchFailedCode(String code) {
+    return 'Code: $code';
+  }
+
+  @override
+  String realitySearchScore(int score) {
+    return 'Score $score of 100';
+  }
+
+  @override
+  String get realityLevelServer => 'Checked from the server';
+
+  @override
+  String get realityReasonServerChecked => 'Checked from the server';
+
+  @override
+  String get realityReasonServerRejected =>
+      'The server did not confirm this target';
+
+  @override
+  String get realitySearchServerCheck => 'Check from the server';
+
+  @override
+  String get realitySearchServerChecking => 'Checking the best from the server';
+
+  @override
+  String get realitySearchServerUnavailable =>
+      'The server check is unavailable. Connect to the server and sign in to the panel, then check a candidate from its details.';
+
+  @override
+  String get realitySearchServerLatency => 'Server to target, ms';
+
+  @override
+  String realityLevelServerTime(int ms) {
+    return 'From the server: $ms ms';
+  }
+
+  @override
+  String get realitySearchVerifiedAddress => 'Verified address';
+
+  @override
+  String get realityLevelMihomo => 'Connection works';
+
+  @override
+  String get realityReasonMihomoWorking =>
+      'The connection through the server works, 100 KB went through';
+
+  @override
+  String get realityReasonMihomoFailed =>
+      'The connection through the server does not work';
+
+  @override
+  String get realityReasonMihomoInconclusive =>
+      'The connection check gave no answer';
+
+  @override
+  String get realitySearchConnect => 'Check the connection';
+
+  @override
+  String get realitySearchConnectHelp =>
+      'A temporary inbound with this target and SNI appears on the server for a few seconds; the device downloads 100 KB through it, then the inbound is removed.';
+
+  @override
+  String get realitySearchConnecting => 'Checking the connection';
+
+  @override
+  String get realitySearchConnectingHelp =>
+      'Temporary inbound on the server, 100 KB download';
+
+  @override
+  String get realitySearchConnection => 'Connection check';
+
+  @override
+  String get realityConnectStepCreate => 'Creating a temporary connection';
+
+  @override
+  String get realityConnectStepCreated => 'Temporary connection created';
+
+  @override
+  String get realityConnectStepDownload => 'Downloading 100 KB…';
+
+  @override
+  String get realityConnectStepDownloaded => '100 KB went through';
+
+  @override
+  String get realityConnectStepRemove => 'Removing the temporary connection';
+
+  @override
+  String get realityConnectCancel => 'Cancel';
+
+  @override
+  String get realityConnectCancelling => 'Cancelling…';
+
+  @override
+  String get realityConnectCancelled => 'Check cancelled';
+
+  @override
+  String get realityConnectCancelledHelp =>
+      'The temporary connection was removed.';
+
+  @override
+  String get realityConnectWorks => 'The connection works';
+
+  @override
+  String get realityConnectWorksHelp =>
+      '100 KB went through the server with this target and SNI.';
+
+  @override
+  String get realityConnectFails => 'The connection does not work';
+
+  @override
+  String get realityConnectFailsHelp =>
+      'No data went through with this domain. Try another one.';
+
+  @override
+  String get realityConnectUnknown => 'Could not check';
+
+  @override
+  String get realityConnectUnknownHelp =>
+      'The network or a VPN on this device seems to interfere. Turn the VPN off and try again.';
+
+  @override
+  String get realityConnectCleanup =>
+      'Could not confirm the removal of the temporary connection';
+
+  @override
+  String get realityConnectCleanupHelp =>
+      'The server removes it by itself within 15 minutes.';
+
+  @override
+  String get realityConnectAgain => 'Check again';
+
+  @override
+  String get realitySearchUseAnyway => 'Use anyway';
+
+  @override
+  String get realityLevelMihomoFailed => 'Does not work';
+
+  @override
+  String realityConnectWorksTime(String seconds) {
+    return '100 KB went through; the check took $seconds s';
+  }
+
+  @override
+  String realityConnectSnackWorks(String sni) {
+    return '$sni: the connection works';
+  }
+
+  @override
+  String realityConnectSnackFails(String sni) {
+    return '$sni: the connection does not work';
+  }
+
+  @override
+  String realityConnectSnackUnknown(String sni) {
+    return '$sni: could not check the connection';
+  }
+
+  @override
+  String get realityDetailsLatency => 'Latency';
+
+  @override
+  String get realityDetailsMore => 'More details';
+
+  @override
+  String realityDetailsLatencyDevice(int device) {
+    return '$device ms from this device';
+  }
+
+  @override
+  String realityDetailsLatencyBoth(int device, int server) {
+    return '$device ms from this device · $server ms from the server';
+  }
+
+  @override
+  String realityDetailsCertificate(String issuer, String date) {
+    return '$issuer, until $date';
+  }
 }

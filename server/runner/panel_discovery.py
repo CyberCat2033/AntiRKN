@@ -62,6 +62,10 @@ def read_database(path, source):
             'stream_settings FROM inbounds ORDER BY id LIMIT 1001').fetchall()
         if len(rows) > 1000: raise ValueError('panel_size')
         for row in rows:
+            # A temporary target probe inbound (connectivity_probe) is not a
+            # resource the app shows, adopts or edits.
+            if str(row['remark']).startswith('AntiRKN:probe:'):
+                continue
             stream = json.loads(row['stream_settings'] or '{}')
             inbounds.append(dict(id=row['id'], name=str(row['remark'])[:256],
                 enabled=bool(row['enable']), listen=row['listen'] or '0.0.0.0',

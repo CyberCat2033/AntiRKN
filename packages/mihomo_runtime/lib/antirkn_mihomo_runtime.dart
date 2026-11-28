@@ -220,6 +220,7 @@ final class MihomoOutboundProbe implements CoreProbeTransport {
     CancellationToken token, {
     required bool udp,
     String directInterface = '',
+    bool download = false,
   }) async {
     try {
       final source = jsonEncode(proxy ?? <String, Object?>{});
@@ -229,6 +230,7 @@ final class MihomoOutboundProbe implements CoreProbeTransport {
         'yaml': source,
         'udp': udp,
         if (directInterface.isNotEmpty) 'interface': directInterface,
+        if (download) 'download': true,
       }, token);
       if (result['hash'] != hash ||
           result['version'] != mihomoVersion ||
@@ -244,6 +246,7 @@ final class MihomoOutboundProbe implements CoreProbeTransport {
         'invalid_proxy',
         'input_limit',
         'timeout',
+        'transfer_cut',
       };
       final code = result['code'];
       if (code is! String || !codes.contains(code)) {
@@ -261,6 +264,7 @@ final class MihomoOutboundProbe implements CoreProbeTransport {
         udp: result['udp'] == true,
         udpTested: result['udpTested'] == true,
         milliseconds: (result['milliseconds'] as int? ?? 0).clamp(0, 60000),
+        downloaded: (result['downloaded'] as int? ?? 0).clamp(0, 1 << 20),
         endpoint: switch (result['endpoint']) {
           final String value
               when const {
@@ -279,6 +283,58 @@ final class MihomoOutboundProbe implements CoreProbeTransport {
         status: token.isCancelled
             ? CoreTrafficStatus.cancelled
             : CoreTrafficStatus.notTested,
+        code: token.isCancelled ? 'cancelled' : 'runtime_unavailable',
+      );
+    }
+  }
+}
+
+/// FR-SNI engine: one packaged worker run per batch on Windows, Linux and
+/// Android. A cancelled run is killed; its observations are discarded.
+final class MihomoTlsScanner implements TlsScanTransport {
+  MihomoTlsScanner({this.workerPath});
+  final String? workerPath;
+  @override
+  Future<TlsScanBatch> scan(
+    List<TlsScanTarget> targets,
+    CancellationToken token, {
+    TlsScanLimits limits = const TlsScanLimits(),
+    bool resolve = true,
+    String directInterface = '',
+  }) async {
+    if (targets.isEmpty ||
+        targets.length > limits.batchSize ||
+        targets.toSet().length != targets.length) {
+      return TlsScanBatch(status: TlsScanStatus.notTested, code: 'input_limit');
+    }
+    try {
+      var result = await NativeWorker(path: workerPath).invoke(
+        {
+          'mode': 'tls_scan',
+          'targets': [for (final t in targets) t.toJson()],
+          'concurrency': limits.concurrency,
+          'connectMs': limits.connect.inMilliseconds,
+          'handshakeMs': limits.handshake.inMilliseconds,
+          'resolve': resolve,
+          if (directInterface.isNotEmpty) 'interface': directInterface,
+        },
+        token,
+        outputLimit: 65536,
+      );
+      if (result['version'] != mihomoVersion ||
+          result['revision'] != _revision) {
+        throw const FormatException('worker_result');
+      }
+      // The Android bridge passes the observations as JSON text.
+      if (result['probes'] case final String text) {
+        result = {...result, 'probes': jsonDecode(text)};
+      }
+      return parseTlsScan(result, targets);
+    } catch (_) {
+      return TlsScanBatch(
+        status: token.isCancelled
+            ? TlsScanStatus.cancelled
+            : TlsScanStatus.notTested,
         code: token.isCancelled ? 'cancelled' : 'runtime_unavailable',
       );
     }

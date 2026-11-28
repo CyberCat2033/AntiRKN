@@ -6,6 +6,8 @@ from pathlib import Path
 import re
 import secrets
 import shutil
+import subprocess
+import socket
 import time
 
 import vm_regression_lib as lib
@@ -781,6 +783,94 @@ def tt_metrics_upgrade(ctx, vm, mutation=None):
     _check_traffic_ledger(ctx, [('tt', TT_RES_ID, 'tt_migrated')])
 
 
+# ---------------------------------------------------------------- reality_target
+
+def _xray_pid():
+    return remote("pgrep -o -f '/bin/xray-linux'").stdout.decode().strip()
+
+
+def _panel_rows(version, remark_prefix):
+    out = python(f'''import sys, json
+from pathlib import Path
+sys.path.insert(0, '/usr/local/lib/antirkn-runner/{version}')
+from runner import Store
+from vless import panel_for
+store = Store(Path('/var/lib/antirkn-runner'))
+rows = panel_for(store, {PANEL_ID!r}).call('/panel/api/inbounds/list')
+print(json.dumps([dict(id=r['id'], remark=r['remark'], port=r['port']) for r in rows if r['remark'].startswith({remark_prefix!r})]))
+store.close()
+''').stdout
+    return json.loads(out)
+
+
+def reality_target(ctx, vm, mutation=None):
+    """FR-SNI S5: a temporary REALITY inbound for one target and SNI.
+
+    Real 3x-ui and Xray: the inbound is hot-added (Xray keeps its PID), real
+    Mihomo traffic with a 100 KB transfer passes through it, managed inbounds
+    keep working, discovery hides it, and the lease end removes it.
+    """
+    disk = _ensure_protocols_disk(ctx, vm)
+    meta = _load_meta()
+    vm.start(lib.new_overlay('reality-target', disk))
+    version = ctx.bundle['version']
+    ws, _, _, _ = _fetch_live_workspace(ctx, meta)
+    # Target is the SNI with a port; the disposable VM resolves the host TLS fixture.
+    remote("grep -q ' vless.test$' /etc/hosts || echo '10.0.2.2 vless.test' >> /etc/hosts")
+    raw = next(s for s in meta['vless_specs'] if s['id'] == VLESS_RAW_ID)
+    lease = secrets.token_hex(16)
+    tunnel = None
+    with lib.EchoFixtures(lib.BASE / 'protocols-tls'):
+        ctx.check(all(_check_traffic(ctx, ws, VLESS_RAW_ID, 'managed-before')), 'managed_raw_before')
+        pid = _xray_pid()
+        try:
+            response = ctx.rpc(dict(version=1, action='probe_begin', id=lease, payload=json.dumps(dict(
+                protocol='reality_target', panel=PANEL_ID, target='vless.test:29443', sni='vless.test'))))
+            ctx.check(response.get('code') == 'ok', 'begin_ok')
+            access = response['connectionProbe']
+            observed = access['observation']
+            port = observed['spec']['port']
+            ctx.check(20000 <= port < 61000, 'port_in_probe_range')
+            ctx.check(_xray_pid() == pid, 'xray_not_restarted_by_begin')
+            ctx.check([r['port'] for r in _panel_rows(version, 'AntiRKN:probe:')] == [port], 'one_temporary_inbound')
+            listed = ctx.rpc(dict(version=1, action='panel_discover'))
+            names = [i['name'] for p in listed.get('panelDiscovery', {}).get('panels', []) for i in p.get('inbounds', [])]
+            ctx.check(listed.get('code') == 'ok' and bool(names) and not any(n.startswith('AntiRKN:probe:') for n in names),
+                      'discovery_hides_temporary_inbound')
+            local = lib._free_port()
+            tunnel = subprocess.Popen(lib.ssh_command()[:-1] + ['-N', '-o', 'ExitOnForwardFailure=yes',
+                                      '-L', '127.0.0.1:%d:127.0.0.1:%d' % (local, port), lib.ssh_command()[-1]],
+                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            for _ in range(50):
+                try:
+                    with socket.create_connection(('127.0.0.1', local), timeout=.2):
+                        break
+                except OSError:
+                    time.sleep(.1)
+            spec = dict(raw, id=observed['id'], name='REALITY target check', port=port, endpoint='127.0.0.1',
+                        externalPort=local, target='vless.test:29443', sni='vless.test')
+            observation = dict(observed, workspaceId=WORKSPACE, spec=spec)
+            probe_ws = _probe_workspace(spec, observation, access['user'])
+            work_dir = ctx.run_dir / ('mihomo-' + ctx.name) / 'temporary'
+            tcp, udp = lib.check_proxy_traffic(probe_ws, access['user']['id'], spec['id'], lib.BASE / 'protocols-tls/ca.crt',
+                                               lib.fixture('mihomo'), work_dir, retries=POSITIVE_RETRIES, download=100 * 1024)
+            ctx.check(tcp, 'temporary_inbound_tcp_and_100kb')
+            ctx.check(udp, 'temporary_inbound_udp')
+            ctx.check(all(_check_traffic(ctx, ws, VLESS_RAW_ID, 'managed-during')), 'managed_raw_during')
+        finally:
+            if tunnel is not None:
+                tunnel.terminate()
+                tunnel.wait(timeout=10)
+            end = ctx.rpc(dict(version=1, action='probe_end', id=lease))
+        ctx.check(end.get('code') == 'ok' and end['connectionProbe'] == dict(closed=True, stable=True), 'end_closed_stable')
+        ctx.check(_panel_rows(version, 'AntiRKN:probe:') == [], 'temporary_inbound_removed')
+        ctx.check(remote('ss -ltn | grep -q ":%d "' % port, check=False).returncode != 0, 'port_closed')
+        ctx.check(_xray_pid() == pid, 'xray_not_restarted_by_end')
+        ctx.check(all(_check_traffic(ctx, ws, VLESS_RAW_ID, 'managed-after')), 'managed_raw_after')
+        ctx.check(ctx.rpc(dict(version=1, action='probe_end', id=lease))['connectionProbe'] == dict(closed=True, stable=True),
+                  'end_is_idempotent')
+
+
 SCENARIOS = {
     'runner_upgrade': dict(run=runner_upgrade, timeout=900,
                            mutations={'installer_drops_jobs_db': 'upgrade_preserves_old_job'}),
@@ -796,5 +886,6 @@ SCENARIOS = {
     'reboot': dict(run=reboot, timeout=600,
                    mutations={'disable_tt_unit_before_reboot': 'post_reboot_tt_confirmed'}),
     'tt_metrics_upgrade': dict(run=tt_metrics_upgrade, timeout=600, mutations={}),
+    'reality_target': dict(run=reality_target, timeout=600, mutations={}),
 }
-ORDER = ['runner_upgrade', 'protocols', 'inbound_isolation', 'tt_metrics_upgrade', 'upgrade_rollback', 'reboot']
+ORDER = ['runner_upgrade', 'protocols', 'inbound_isolation', 'tt_metrics_upgrade', 'reality_target', 'upgrade_rollback', 'reboot']

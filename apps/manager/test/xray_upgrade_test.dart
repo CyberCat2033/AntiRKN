@@ -229,6 +229,7 @@ class UpgradeCore implements CoreProbeTransport {
     CancellationToken token, {
     required bool udp,
     String directInterface = '',
+    bool download = false,
   }) async {
     cancelAfter?.cancel();
     final bad =

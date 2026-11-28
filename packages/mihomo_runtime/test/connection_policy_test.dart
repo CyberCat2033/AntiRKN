@@ -59,6 +59,7 @@ class Core implements CoreProbeTransport {
     CancellationToken cancellation, {
     required bool udp,
     String directInterface = '',
+    bool download = false,
   }) async {
     calls.add(proxy == null);
     interfaces.add(directInterface);

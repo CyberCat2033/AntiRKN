@@ -97,33 +97,12 @@ List<PreparedProxy> vlessUserAccesses(
       );
       continue;
     }
-    final fields = <String, Object?>{
-      'name': clientProxyName(workspace, userId, inbound.id, serverNames),
-      'type': 'vless',
-      'server': s['endpoint'],
-      'port': s['externalPort'],
-      'uuid': binding['uuid'],
-      'udp': true,
-      'tls': true,
-      'servername': s['sni'],
-      'client-fingerprint': s['fingerprint'] ?? 'chrome',
-      'packet-encoding': 'xudp',
-      'network': inbound.transport == 'raw' ? 'tcp' : 'xhttp',
-      if (inbound.transport == 'raw') 'flow': 'xtls-rprx-vision',
-      if (inbound.security == 'reality')
-        'reality-opts': <String, Object?>{
-          'public-key': observation['publicKey'],
-          'short-id': observation['shortId'],
-          'support-x25519mlkem768': true,
-        },
-      if (inbound.transport == 'xhttp')
-        'xhttp-opts': <String, Object?>{
-          'path': s['path'],
-          'host': s['host'],
-          'mode': s['mode'],
-          ...xhttpMihomoOptions(s['xhttp'] as Map? ?? {}),
-        },
-    };
+    final fields = vlessProxyFields(
+      name: clientProxyName(workspace, userId, inbound.id, serverNames),
+      spec: s,
+      observation: observation,
+      uuid: binding['uuid'] as String,
+    );
     final proxy = PreparedProxy(
       identity: AccessIdentity(
         id: inbound.id,
@@ -137,4 +116,43 @@ List<PreparedProxy> vlessUserAccesses(
     proxies.add(proxy);
   }
   return proxies;
+}
+
+/// Mihomo fields of one VLESS access from the inbound [spec], its observed
+/// REALITY keys and the client [uuid]. Profiles and the REALITY target check
+/// (FR-SNI) build the same proxy.
+Map<String, Object?> vlessProxyFields({
+  required String name,
+  required Map<String, Object?> spec,
+  required Map<dynamic, dynamic> observation,
+  required String uuid,
+}) {
+  final raw = spec['transport'] == 'raw';
+  return <String, Object?>{
+    'name': name,
+    'type': 'vless',
+    'server': spec['endpoint'],
+    'port': spec['externalPort'],
+    'uuid': uuid,
+    'udp': true,
+    'tls': true,
+    'servername': spec['sni'],
+    'client-fingerprint': spec['fingerprint'] ?? 'chrome',
+    'packet-encoding': 'xudp',
+    'network': raw ? 'tcp' : 'xhttp',
+    if (raw) 'flow': 'xtls-rprx-vision',
+    if (spec['security'] == 'reality')
+      'reality-opts': <String, Object?>{
+        'public-key': observation['publicKey'],
+        'short-id': observation['shortId'],
+        'support-x25519mlkem768': true,
+      },
+    if (!raw)
+      'xhttp-opts': <String, Object?>{
+        'path': spec['path'],
+        'host': spec['host'],
+        'mode': spec['mode'],
+        ...xhttpMihomoOptions(spec['xhttp'] as Map? ?? {}),
+      },
+  };
 }

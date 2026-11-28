@@ -10,7 +10,9 @@ import json
 import os
 from pathlib import Path
 import re
+import random
 import secrets
+import socket
 import sys
 import time
 import uuid
@@ -26,6 +28,12 @@ from tt_common import toml_bytes, toml_loads
 
 TTL = 900
 UNITS = Path('/etc/systemd/system')
+# FR-SNI: a temporary REALITY inbound for one chosen target. Its remark keeps
+# every "AntiRKN:" guard (no edit, removal or adoption as an external row);
+# discovery hides it from the app.
+TARGET_MARK = 'AntiRKN:probe:'
+TARGET_PORTS = (20000, 61000)
+_HOST = re.compile(r'[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+')
 # A closed record (no credentials left) answers repeated probe_end calls for a
 # while, then goes: every RPC scans this directory.
 CLOSED_RETENTION = 24 * 3600
@@ -202,8 +210,109 @@ def record(store, payload):
     return saved
 
 
+def target_request(payload):
+    """Exactly {protocol, panel, target, sni}; Target is the SNI with a port."""
+    if (type(payload) is not dict or set(payload) != {'protocol', 'panel', 'target', 'sni'}
+            or payload['protocol'] != 'reality_target'):
+        raise ProbeError('probe_invalid')
+    sni, target = payload['sni'], payload['target']
+    if type(sni) is not str or type(target) is not str or len(sni) > 253 or not _HOST.fullmatch(sni):
+        raise ProbeError('probe_invalid')
+    host, _, port = target.rpartition(':')
+    if host != sni or not port.isdigit() or port != str(int(port)) or not 1 <= int(port) <= 65535:
+        raise ProbeError('probe_invalid')
+    identifier(payload['panel'])
+    return payload
+
+
+def free_port(rows):
+    used = {row.get('port') for row in rows}
+    for port in random.SystemRandom().sample(range(*TARGET_PORTS), 64):
+        if port in used:
+            continue
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.bind(('0.0.0.0', port))
+        except OSError:
+            continue
+        return port
+    raise ProbeError('probe_busy')
+
+
+def prepare_target(store, request):
+    payload = target_request(json.loads(request['payload']))
+    key = identifier(request['id'])
+    api = vless.panel_for(store, payload['panel'])
+    rows = api.call('/panel/api/inbounds/list')
+    if not isinstance(rows, list):
+        raise ProbeError()
+    expires = time.time() + TTL
+    spec = dict(id=key, enabled=True, listen='', port=free_port(rows), transport='raw', security='reality',
+                target=payload['target'], sni=payload['sni'], fingerprint='chrome')
+    # The same inbound a managed REALITY resource gets, with probe identity.
+    wanted = vless.wanted_inbound(dict(workspaceId='probe', users=[dict(id=key, enabled=True)]), spec)
+    settings = json.loads(wanted['settings'])
+    client = settings['clients'][0]
+    client.update(email='ar_probe_' + key, expiryTime=int(expires * 1000))
+    wanted.update(remark=TARGET_MARK + key, settings=vless.canonical(settings))
+    keys = vless.material('probe', key)
+    observed = dict(spec, endpoint='', externalPort=spec['port'])
+    observation = dict(id=key, workspaceId='probe', confirmed=True, spec=observed, revision=vless.digest(wanted),
+                       publicKey=keys['publicKey'], shortId=keys['shortId'],
+                       clients=[dict(id=key, uuid=client['id'], enabled=True)])
+    return dict(id=key, status='prepared', requestHash=vless.digest(payload), protocol='reality_target',
+                backend='reality_target', panelId=payload['panel'], wanted=wanted, port=spec['port'],
+                email=client['email'], expires=expires, observation=observation)
+
+
+def target_rows(api, info):
+    rows = api.call('/panel/api/inbounds/list')
+    if not isinstance(rows, list):
+        raise ProbeError()
+    return [row for row in rows if row.get('remark') == info['wanted']['remark']]
+
+
+def listening(port, timeout=8):
+    """3x-ui adds an enabled inbound to the running Xray without a restart;
+    the probe never restarts Xray, so other clients stay connected."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection(('127.0.0.1', port), timeout=.5):
+                return
+        except OSError:
+            time.sleep(.25)
+    raise ProbeError('probe_failed')
+
+
+def drop_client_record(api, email):
+    """3x-ui 3.7+ keeps clients in their own table; an inbound deletion may
+    leave ours there. Older panels have no such table (404)."""
+    import urllib.error
+    from urllib.parse import quote
+    try:
+        records = api.call('/panel/api/clients/list')
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            return
+        raise
+    if not isinstance(records, list):
+        raise ProbeError('probe_cleanup')
+    record = next((r for r in records if isinstance(r, dict) and r.get('email') == email), None)
+    if record is None:
+        return
+    if record.get('inboundIds'):
+        raise ProbeError('probe_cleanup')
+    api.call('/panel/api/clients/del/' + quote(email, safe=''), {})
+    after = api.call('/panel/api/clients/list')
+    if not isinstance(after, list) or any(isinstance(r, dict) and r.get('email') == email for r in after):
+        raise ProbeError('probe_cleanup')
+
+
 def prepare(store, request):
     payload = json.loads(request['payload'])
+    if type(payload) is dict and payload.get('protocol') == 'reality_target':
+        return prepare_target(store, request)
     saved = record(store, payload)
     key, protocol, spec = identifier(request['id']), payload['protocol'], saved['spec']
     p = dict(workspaceId=saved['workspaceId'], panelId=saved.get('panelId', saved['workspaceId']),
@@ -280,6 +389,11 @@ def sync_awg(rid, data):
 
 
 def fingerprint(store, info):
+    if info['backend'] == 'reality_target':
+        rows = target_rows(vless.panel_for(store, info['panelId']), info)
+        if len(rows) != 1:
+            raise ProbeError('probe_changed')
+        return vless.digest(vless.normal(rows[0]))
     backend, rid = info['backend'], info['saved']['spec']['id']
     if backend == 'adopted':
         adapter = managed_existing.adapter(info['protocol'])
@@ -299,6 +413,22 @@ def fingerprint(store, info):
 
 
 def apply(store, info):
+    if info['backend'] == 'reality_target':
+        api = vless.panel_for(store, info['panelId'])
+        rows = target_rows(api, info)
+        if not rows:
+            listed = api.call('/panel/api/inbounds/list')
+            if any(row.get('port') == info['port'] for row in listed):
+                raise ProbeError('probe_busy')
+            api.call('/panel/api/inbounds/add', info['wanted'])
+            rows = target_rows(api, info)
+        if len(rows) != 1:
+            raise ProbeError()
+        listening(info['port'])
+        info['afterHash'] = vless.digest(vless.normal(rows[0]))
+        info['status'] = 'active'
+        save(store, info)
+        return
     backend, spec = info['backend'], info['saved']['spec']
     if backend == 'adopted':
         adapter = managed_existing.adapter(info['protocol'])
@@ -350,7 +480,8 @@ def begin(store, request):
         prune(store)
         leases = [load(store, path.stem) for path in directory(store).glob('*.json')]
         live = [row for row in leases if row['status'] != 'closed']
-        if len(live) >= 32 or any(row['protocol'] == payload.get('protocol') and row['saved']['spec']['id'] == payload.get('resource') for row in live):
+        if len(live) >= 32 or any(row['protocol'] == payload.get('protocol') and row.get('saved', {}).get('spec', {}).get('id') == payload.get('resource')
+                                  for row in live if row['protocol'] != 'reality_target'):
             raise ProbeError('probe_busy')
         info = prepare(store, request)
         save(store, info)
@@ -378,6 +509,16 @@ def remove_user(raw, client):
 
 
 def cleanup(store, info):
+    if info['backend'] == 'reality_target':
+        # By remark, not id: a crash between the add and the next save
+        # leaves no row id, and the remark is unique to this lease.
+        api = vless.panel_for(store, info['panelId'])
+        for row in target_rows(api, info):
+            api.call('/panel/api/inbounds/del/%d' % row['id'], {})
+        if target_rows(api, info):
+            raise ProbeError('probe_cleanup')
+        drop_client_record(api, info['email'])
+        return
     spec, client = info['saved']['spec'], info['observation']['clients'][0]
     backend = info['backend']
     if info['protocol'] == 'vless':

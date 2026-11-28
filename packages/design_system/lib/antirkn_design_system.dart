@@ -2170,7 +2170,10 @@ class AppFormAction extends StatelessWidget {
   final Key? buttonKey;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      Align(alignment: AlignmentDirectional.centerStart, child: _button());
+
+  Widget _button() {
     Widget button = FilledButton.tonalIcon(
       key: buttonKey,
       onPressed: busy ? null : onPressed,
@@ -2185,8 +2188,157 @@ class AppFormAction extends StatelessWidget {
     if (tooltip case final message?) {
       button = Tooltip(message: message, child: button);
     }
-    return Align(alignment: AlignmentDirectional.centerStart, child: button);
+    return button;
   }
+}
+
+enum AppOperationTone { running, success, failure, neutral }
+
+/// The state of one longer operation where it was started: steps while it
+/// runs, then its result in place of the button that started it. Colour
+/// comes from ColorScheme roles only; the change is announced.
+class AppOperationStatus extends StatelessWidget {
+  const AppOperationStatus({
+    required this.tone,
+    required this.title,
+    this.message,
+    this.steps = const [],
+    this.step = 0,
+    this.actions = const [],
+    this.motion = MotionPreference.system,
+    super.key,
+  });
+  final AppOperationTone tone;
+  final String title;
+  final String? message;
+
+  /// Labels of the steps; those before [step] are done, [step] runs.
+  final List<String> steps;
+  final int step;
+  final List<Widget> actions;
+  final MotionPreference motion;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    final (background, foreground, icon) = switch (tone) {
+      AppOperationTone.running => (
+        scheme.surfaceContainerHighest,
+        scheme.onSurface,
+        null,
+      ),
+      AppOperationTone.success => (
+        scheme.primaryContainer,
+        scheme.onPrimaryContainer,
+        Icons.check_circle,
+      ),
+      AppOperationTone.failure => (
+        scheme.errorContainer,
+        scheme.onErrorContainer,
+        Icons.error_outline,
+      ),
+      AppOperationTone.neutral => (
+        scheme.surfaceContainerHighest,
+        scheme.onSurfaceVariant,
+        Icons.help_outline,
+      ),
+    };
+    final content = Material(
+      key: ValueKey('$tone|$title|$step'),
+      color: background,
+      clipBehavior: Clip.antiAlias,
+      borderRadius: BorderRadius.circular(AppLayout.radius),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, color: foreground),
+                  const SizedBox(width: 8),
+                ],
+                Expanded(
+                  child: Text(
+                    title,
+                    style: text.titleSmall?.copyWith(color: foreground),
+                  ),
+                ),
+              ],
+            ),
+            if (tone == AppOperationTone.running) ...[
+              const SizedBox(height: 8),
+              const LinearProgressIndicator(),
+            ],
+            for (var i = 0; i < steps.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Row(
+                  children: [
+                    Icon(
+                      i < step
+                          ? Icons.check
+                          : i == step
+                          ? Icons.arrow_forward
+                          : Icons.radio_button_unchecked,
+                      size: 18,
+                      color: i <= step ? scheme.primary : scheme.outline,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        steps[i],
+                        style: text.bodyMedium?.copyWith(
+                          color: i <= step
+                              ? foreground
+                              : scheme.onSurfaceVariant,
+                          fontWeight: i == step ? FontWeight.w600 : null,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            if (message case final value?) ...[
+              const SizedBox(height: 4),
+              Text(value, style: text.bodyMedium?.copyWith(color: foreground)),
+            ],
+            if (actions.isNotEmpty)
+              Align(
+                alignment: AlignmentDirectional.centerEnd,
+                child: Wrap(spacing: AppLayout.smallGap, children: actions),
+              ),
+          ],
+        ),
+      ),
+    );
+    final duration = AppMotion.duration(context, motion);
+    return Semantics(
+      liveRegion: true,
+      container: true,
+      child: AppAnimatedSize(
+        motion: motion,
+        child: duration == Duration.zero
+            ? content
+            : AnimatedSwitcher(duration: duration, child: content),
+      ),
+    );
+  }
+}
+
+/// Several form actions side by side; they wrap under each other when the
+/// width or the text size leaves no room.
+class AppFormActionRow extends StatelessWidget {
+  const AppFormActionRow({required this.actions, super.key});
+  final List<AppFormAction> actions;
+  @override
+  Widget build(BuildContext context) => Wrap(
+    spacing: AppLayout.smallGap,
+    runSpacing: AppLayout.smallGap,
+    children: [for (final a in actions) a._button()],
+  );
 }
 
 /// An on/off setting inside a form section. Its text lines up with the text

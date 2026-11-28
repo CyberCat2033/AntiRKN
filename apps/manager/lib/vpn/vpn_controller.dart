@@ -300,6 +300,7 @@ class VpnController extends ChangeNotifier {
     SettingsStore? probeStore,
     this.enterConnectionTraffic,
     this.leaveConnectionTraffic,
+    this.tlsScanner,
     Timer Function(Duration, void Function(Timer))? timer,
   }) {
     connections = ConnectionChecks(this, connectionProbe, probeStore)
@@ -321,6 +322,9 @@ class VpnController extends ChangeNotifier {
   }
 
   late final ConnectionChecks connections;
+
+  /// FR-SNI engine for the REALITY target search; null hides the search.
+  final TlsScanTransport? tlsScanner;
   final Future<bool> Function()? enterConnectionTraffic;
   final Future<void> Function()? leaveConnectionTraffic;
   final VpnRepository repository;

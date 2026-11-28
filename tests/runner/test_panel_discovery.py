@@ -43,6 +43,14 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(before, self.path.read_bytes())
         self.assertFalse((self.directory / 'x-ui.db-journal').exists())
 
+    def test_temporary_target_probe_inbounds_are_not_listed(self):
+        db = sqlite3.connect(self.path)
+        db.execute('INSERT INTO inbounds VALUES (2, ?, 1, ?, 23456, ?, ?)',
+            ('AntiRKN:probe:' + 'e' * 32, '', 'vless', json.dumps(dict(network='tcp', security='reality'))))
+        db.commit(); db.close()
+        result = read_database(self.path, 'systemd')
+        self.assertEqual([row['id'] for row in result['inbounds']], [1])
+
     def test_failed_read_is_not_an_empty_success(self):
         with patch('panel_discovery.databases', return_value=[(self.path, 'systemd')]), patch('panel_discovery.safe_file', side_effect=PanelError('panel_conflict')):
             result, access = discover(self.store)

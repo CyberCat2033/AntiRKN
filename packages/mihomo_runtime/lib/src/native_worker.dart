@@ -15,8 +15,9 @@ final class NativeWorker {
   static const channel = MethodChannel('org.antirkn/mihomo');
   Future<Map<String, dynamic>> invoke(
     Map<String, Object?> request,
-    CancellationToken token,
-  ) async {
+    CancellationToken token, {
+    int outputLimit = 16384,
+  }) async {
     Process? process;
     Directory? directory;
     final id = '${DateTime.now().microsecondsSinceEpoch}';
@@ -58,7 +59,7 @@ final class NativeWorker {
         },
       );
       final child = process;
-      final output = readLimited(child.stdout, 16384);
+      final output = readLimited(child.stdout, outputLimit);
       final errors = child.stderr.drain<void>();
       final work = () async {
         child.stdin.add(utf8.encode(jsonEncode(request)));

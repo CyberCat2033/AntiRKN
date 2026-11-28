@@ -18,6 +18,8 @@ import '../runner/runner_controller.dart';
 import '../runner/panel_login_view.dart';
 import 'vpn_plan_view.dart';
 import 'reality_scan_result.dart';
+import 'reality_search_controller.dart';
+import 'reality_target_page.dart';
 import 'relay_inbound_view.dart';
 import '../protocol_icon.dart';
 
@@ -104,8 +106,71 @@ class InboundsPanelState extends State<InboundsPanel> {
     }
   }
 
+  RealitySearchController? _search;
+
+  /// One search per server while this panel lives; null without an engine.
+  RealitySearchController? get realitySearch {
+    final scanner = controller.tlsScanner;
+    final network = controller.connections.engine?.network;
+    if (scanner == null || network == null) return null;
+    if (_search?.serverId != serverId) {
+      _search?.dispose();
+      _search = RealitySearchController(
+        serverId: serverId,
+        store: controller.connections.store,
+        // A finalist check only; the runner refuses it while busy.
+        checkFromServer: (target, sni) async =>
+            await runner?.scanReality(target, sni),
+        checkConnection: (choice, cancellation, onStage) async {
+          final panel = runner?.panelAccess;
+          if (panel == null) {
+            return ConnectionCheck(
+              status: ConnectionCheckStatus.notTested,
+              code: 'panel_unavailable',
+              at: DateTime.now().toUtc(),
+            );
+          }
+          return controller.connections.checkRealityTarget(
+            serverId: serverId,
+            panelId: panel.id,
+            endpoint: serverIpv4.isNotEmpty ? serverIpv4 : serverHost,
+            target: choice.target,
+            sni: choice.sni,
+            cancellation: cancellation,
+            onStage: onStage,
+          );
+        },
+        search: RealityTargetSearch(
+          transport: scanner,
+          network: network.network,
+        ),
+      );
+    }
+    return _search;
+  }
+
+  /// The server's public IPv4 whose neighbours are searched; '' if unknown.
+  String get serverIpv4 {
+    final inventory = network.inventory;
+    if (inventory?.serverId == serverId) {
+      for (final a in inventory!.addresses) {
+        if (a.address.family == IpFamily.ipv4 &&
+            a.address.category == IpCategory.publicUnicast) {
+          return a.address.canonical;
+        }
+      }
+    }
+    final host = IpAddress.tryParse(serverHost);
+    return host != null &&
+            host.family == IpFamily.ipv4 &&
+            host.category == IpCategory.publicUnicast
+        ? host.canonical
+        : '';
+  }
+
   @override
   void dispose() {
+    _search?.dispose();
     widget.runner?.removeListener(_checkDiscovery);
     widget.controller.removeListener(_rediscoverAfterJob);
     ownSelection.dispose();
@@ -988,6 +1053,9 @@ class InboundsPanelState extends State<InboundsPanel> {
         ),
       );
     }
+    final search = realitySearch;
+    await search?.ready;
+    if (!context.mounted) return;
     final result = await showDialog<VlessInbound>(
       context: context,
       builder: (context) => InboundForm(
@@ -997,6 +1065,14 @@ class InboundsPanelState extends State<InboundsPanel> {
         inbound: inbound,
         defaultEndpoint: serverHost,
         scanReality: runner?.scanReality,
+        findTarget: search == null
+            ? null
+            : (context) => showRealityTargetSearch(
+                context,
+                controller: search,
+                serverAddress: serverIpv4,
+                motion: motion,
+              ),
       ),
       animationStyle: AnimationStyle(
         duration: AppMotion.duration(context, motion),
@@ -1021,6 +1097,7 @@ class InboundForm extends StatefulWidget {
     this.inbound,
     this.defaultEndpoint = '',
     this.scanReality,
+    this.findTarget,
     super.key,
   });
   final String serverId;
@@ -1031,6 +1108,10 @@ class InboundForm extends StatefulWidget {
   final String defaultEndpoint;
   final Future<Map<String, dynamic>?> Function(String target, String sni)?
   scanReality;
+
+  /// Opens the REALITY target search; the form keeps its draft meanwhile.
+  final Future<RealityTargetChoice?> Function(BuildContext context)? findTarget;
+
   @override
   State<InboundForm> createState() => _InboundFormState();
 }
@@ -1070,10 +1151,43 @@ class _InboundFormState extends State<InboundForm> {
   late bool automaticSni =
       fields['sni']!.text.isEmpty ||
       fields['sni']!.text == realityTargetHost(fields['target']!.text);
+
+  /// An XHTTP inbound with the generic `/` path gets a generated one when
+  /// its target is checked or chosen; a path of the person's own is kept.
+  void _fillXhttpPath() {
+    if (spec['transport'] == 'xhttp' &&
+        isDefaultXhttpPath(fields['path']!.text)) {
+      fields['path']!.text = newXhttpPath();
+    }
+  }
+
+  /// Fills Target and SNI with a verified pair; SNI no longer follows Target.
+  void useTarget(RealityTargetChoice choice) => setState(() {
+    fields['target']!.text = choice.target;
+    fields['sni']!.text = choice.sni;
+    // A domain Target keeps SNI following it, as when typed by hand.
+    automaticSni = choice.sni == realityTargetHost(choice.target);
+    scanResult = null;
+    scanFailed = false;
+    _fillXhttpPath();
+  });
+
+  /// A chosen target is checked from the server at once.
+  Future<void> _useAndCheck(RealityTargetChoice choice) async {
+    useTarget(choice);
+    if (widget.scanReality != null) await scan();
+  }
+
+  Future<void> findTarget() async {
+    final choice = await widget.findTarget?.call(context);
+    if (choice != null && mounted) await _useAndCheck(choice);
+  }
+
   Future<void> scan() async {
     final target = normalizeRealityTarget(fields['target']!.text.trim());
     final sni = fields['sni']!.text.trim();
     setState(() {
+      _fillXhttpPath();
       scanning = true;
       scanFailed = false;
       scanResult = null;
@@ -1168,6 +1282,83 @@ class _InboundFormState extends State<InboundForm> {
             ],
           ),
           AppFormSection(
+            title: tls ? 'TLS' : 'REALITY',
+            children: [
+              if (xhttp)
+                AppSelectField<String>(
+                  key: ValueKey('security-${spec['security']}'),
+                  value: spec['security'] as String,
+                  label: l.vpnSecurity,
+                  motion: widget.motion,
+                  options: const [('reality', 'REALITY'), ('tls', 'TLS')],
+                  onChanged: (v) => setState(() {
+                    spec['security'] = v;
+                    spec['mode'] = 'auto';
+                  }),
+                ),
+              if (!tls) ...[
+                // A failed scan is a quiet field error, not the loudest
+                // element of the form.
+                field(
+                  'target',
+                  l.vpnTarget,
+                  error: scanFailed ? l.realityScanFailed : null,
+                ),
+                AppFormActionRow(
+                  actions: [
+                    if (widget.findTarget != null)
+                      AppFormAction(
+                        buttonKey: const ValueKey('vpn-reality-find'),
+                        icon: Icons.travel_explore,
+                        label: l.realitySearchFind,
+                        tooltip: l.realitySearchFindHelp,
+                        onPressed: scanning ? null : findTarget,
+                      ),
+                    AppFormAction(
+                      buttonKey: const ValueKey('vpn-reality-scan'),
+                      icon: Icons.radar,
+                      label: l.realityScan,
+                      tooltip: l.realityScanHelp,
+                      busy: scanning,
+                      onPressed:
+                          widget.scanReality == null ||
+                              fields['target']!.text.trim().isEmpty
+                          ? null
+                          : scan,
+                    ),
+                  ],
+                ),
+                if (scanResult case final result?)
+                  RealityScanResultView(
+                    result: result,
+                    onSni: (name) => setState(() {
+                      fields['sni']!.text = name;
+                      automaticSni = false;
+                      scanResult = null;
+                    }),
+                  ),
+              ],
+              field('sni', l.vpnSni),
+              if (!tls) ...[
+                AppFormAction(
+                  buttonKey: const ValueKey('vpn-reality-regenerate'),
+                  icon: Icons.refresh,
+                  label: l.vpnRegenerateReality,
+                  onPressed: () => setState(() {
+                    spec['realitySeed'] = newVpnId();
+                    regenerated = true;
+                  }),
+                ),
+                if (regenerated) AppFormHint(l.vpnRealityRegenerated),
+              ],
+              if (tls) ...[
+                field('certificate', l.vpnCertificate),
+                field('certificateKey', l.vpnCertificateKey),
+                AppFormHint(l.vpnTlsHelp),
+              ],
+            ],
+          ),
+          AppFormSection(
             title: l.vpnTransport,
             children: [
               AppSelectField<String>(
@@ -1181,7 +1372,11 @@ class _InboundFormState extends State<InboundForm> {
                 ],
                 onChanged: (v) => setState(() {
                   spec['transport'] = v;
-                  if (v == 'xhttp') spec['xhttp'] = xhttpFormDefaults();
+                  if (v == 'xhttp') {
+                    spec['xhttp'] = xhttpFormDefaults();
+                    // A target may be chosen before the transport.
+                    _fillXhttpPath();
+                  }
                   if (v == 'raw') {
                     spec.remove('xhttp');
                     spec['security'] = 'reality';
@@ -1189,18 +1384,6 @@ class _InboundFormState extends State<InboundForm> {
                   }
                 }),
               ),
-              if (xhttp)
-                AppSelectField<String>(
-                  key: ValueKey('security-${spec['security']}'),
-                  value: spec['security'] as String,
-                  label: l.vpnSecurity,
-                  motion: widget.motion,
-                  options: const [('reality', 'REALITY'), ('tls', 'TLS')],
-                  onChanged: (v) => setState(() {
-                    spec['security'] = v;
-                    spec['mode'] = 'auto';
-                  }),
-                ),
               AppSelectField<String>(
                 key: const ValueKey('vpn-inbound-utls'),
                 value: fingerprint,
@@ -1242,59 +1425,6 @@ class _InboundFormState extends State<InboundForm> {
                   ],
                   onChanged: (v) => setState(() => spec['mode'] = v),
                 ),
-              ],
-            ],
-          ),
-          AppFormSection(
-            title: tls ? 'TLS' : 'REALITY',
-            children: [
-              if (!tls) ...[
-                // A failed scan is a quiet field error, not the loudest
-                // element of the form.
-                field(
-                  'target',
-                  l.vpnTarget,
-                  error: scanFailed ? l.realityScanFailed : null,
-                ),
-                AppFormAction(
-                  buttonKey: const ValueKey('vpn-reality-scan'),
-                  icon: Icons.radar,
-                  label: l.realityScan,
-                  tooltip: l.realityScanHelp,
-                  busy: scanning,
-                  onPressed:
-                      widget.scanReality == null ||
-                          fields['target']!.text.trim().isEmpty
-                      ? null
-                      : scan,
-                ),
-                if (scanResult case final result?)
-                  RealityScanResultView(
-                    result: result,
-                    onSni: (name) => setState(() {
-                      fields['sni']!.text = name;
-                      automaticSni = false;
-                      scanResult = null;
-                    }),
-                  ),
-              ],
-              field('sni', l.vpnSni),
-              if (!tls) ...[
-                AppFormAction(
-                  buttonKey: const ValueKey('vpn-reality-regenerate'),
-                  icon: Icons.refresh,
-                  label: l.vpnRegenerateReality,
-                  onPressed: () => setState(() {
-                    spec['realitySeed'] = newVpnId();
-                    regenerated = true;
-                  }),
-                ),
-                if (regenerated) AppFormHint(l.vpnRealityRegenerated),
-              ],
-              if (tls) ...[
-                field('certificate', l.vpnCertificate),
-                field('certificateKey', l.vpnCertificateKey),
-                AppFormHint(l.vpnTlsHelp),
               ],
             ],
           ),

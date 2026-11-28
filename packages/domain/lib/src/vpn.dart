@@ -13,6 +13,28 @@ String newVpnId() => List.generate(
   (_) => Random.secure().nextInt(256).toRadixString(16).padLeft(2, '0'),
 ).join();
 
+const _xhttpPathSections = [
+  'api', 'assets', 'static', 'cdn', 'media', 'content', 'files', 'data', //
+  'v1', 'v2',
+];
+
+/// An XHTTP path that looks like an ordinary site resource and differs per
+/// inbound, e.g. `/assets/k3x9q2m7wd`.
+String newXhttpPath() {
+  final random = Random.secure();
+  const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  final section = _xhttpPathSections[random.nextInt(_xhttpPathSections.length)];
+  final token = List.generate(
+    10,
+    (_) => alphabet[random.nextInt(alphabet.length)],
+  ).join();
+  return '/$section/$token';
+}
+
+/// The path is still the generic default, so it may be generated.
+bool isDefaultXhttpPath(String path) =>
+    path.trim().isEmpty || path.trim() == '/';
+
 /// A terminal revocation state. `abandoned` records that local tracking was
 /// deliberately stopped because the physical server is no longer accessible;
 /// it must never be presented as a confirmed remote revocation.
