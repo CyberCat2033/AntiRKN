@@ -474,21 +474,31 @@ class _UsersPageState extends State<UsersPage> {
         UserSortField.traffic => l.vpnSortTraffic,
       };
 
-  /// What to sort by in a menu, and which way as an arrow beside it.
+  /// Which way as the sort icon (tapping turns it around), and what to
+  /// sort by in a menu beside it.
   Widget _sortMenu(AppLocalizations l) {
     final fields = [
       UserSortField.creationDate,
       UserSortField.name,
       if (widget.traffic != null) UserSortField.traffic,
     ];
-    // With large text on a phone the arrow moves under the criterion.
+    // With large text on a phone the menu moves under the icon.
     return Wrap(
       alignment: WrapAlignment.end,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
+        IconButton(
+          key: const ValueKey('vpn-sort-direction'),
+          tooltip: _sortAscending ? l.vpnSortAscending : l.vpnSortDescending,
+          onPressed: () => setState(() => _sortAscending = !_sortAscending),
+          // The lines shorten downwards: largest first. Flipped, smallest.
+          icon: Transform.flip(
+            flipY: _sortAscending,
+            child: const Icon(Icons.sort),
+          ),
+        ),
         AppMenuButton(
           buttonKey: const ValueKey('vpn-sort-menu'),
-          icon: Icons.sort,
           tooltip: l.vpnSortTooltip,
           label: _sortLabel(l, _sortField),
           children: [
@@ -504,14 +514,6 @@ class _UsersPageState extends State<UsersPage> {
                 }),
               ),
           ],
-        ),
-        IconButton(
-          key: const ValueKey('vpn-sort-direction'),
-          tooltip: _sortAscending ? l.vpnSortAscending : l.vpnSortDescending,
-          onPressed: () => setState(() => _sortAscending = !_sortAscending),
-          icon: Icon(
-            _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
-          ),
         ),
       ],
     );
@@ -553,23 +555,27 @@ class _UsersPageState extends State<UsersPage> {
 
   /// The add action is a button in the header where it fits, otherwise a
   /// floating button over the list (compact width or large text).
-  bool _addInHeader(BuildContext context) =>
+  /// [width] is the list's own: beside a card it can be narrower than the
+  /// window.
+  bool _addInHeader(BuildContext context, double width) =>
       MediaQuery.sizeOf(context).width >= AppLayout.compact &&
+      width >= 440 &&
       MediaQuery.textScalerOf(context).scale(14) <= 21;
 
   Widget _header(
     BuildContext context,
     VpnController c,
     AppLocalizations l,
-    List<String> ids,
-  ) {
+    List<String> ids, {
+    required bool addInHeader,
+  }) {
     return AppPageHeader(
       title: CatalogTitle(
         selection: selection,
         title: widget.title ?? l.vpnUsers,
       ),
       actions: [
-        if (!selection.active && _addInHeader(context)) ...[
+        if (!selection.active && addInHeader) ...[
           FilledButton.icon(
             key: const ValueKey('vpn-user-add'),
             onPressed: !c.canMutate || _syncing ? null : () => _add(context),
@@ -778,13 +784,12 @@ class _UsersPageState extends State<UsersPage> {
     // A search looks through the disabled clients as well.
     final showDisabled =
         _disabledOpen || enabledUsers.isEmpty || query.isNotEmpty;
-    final fab = !selection.active && !_addInHeader(context);
     final listBar = selection.active || allUsers.isEmpty
         ? null
         : _listBar(l, allUsers.length, onlyFailed);
-    final page = Column(
+    Widget column(bool fab) => Column(
       children: [
-        _header(context, c, l, ids),
+        _header(context, c, l, ids, addInHeader: !fab && !selection.active),
         Expanded(
           child: Stack(
             children: [
@@ -954,8 +959,17 @@ class _UsersPageState extends State<UsersPage> {
         ),
       ],
     );
+    final page = LayoutBuilder(
+      builder: (context, box) =>
+          column(!selection.active && !_addInHeader(context, box.maxWidth)),
+    );
     if (!wide) return page;
-    return AppListDetail(motion: motion, list: page, detail: _pane(c));
+    return AppListDetail(
+      motion: motion,
+      resizeLabel: l.uiResizePanes,
+      list: page,
+      detail: _pane(c),
+    );
   }
 }
 

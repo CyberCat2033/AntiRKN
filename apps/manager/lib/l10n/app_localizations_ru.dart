@@ -1489,6 +1489,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get clientsHideCard => 'Скрыть карточку';
 
   @override
+  String get uiResizePanes => 'Потяните, чтобы изменить ширину панелей';
+
+  @override
   String clientsNotFoundHelp(String query) {
     return 'Нет клиента, в имени которого есть «$query».';
   }

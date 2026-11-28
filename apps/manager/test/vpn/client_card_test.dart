@@ -19,6 +19,7 @@ void main() {
     WidgetTester tester, {
     double width = 390,
     double scale = 1,
+    MotionPreference motion = MotionPreference.off,
   }) async {
     tester.view.physicalSize = Size(width, 900);
     tester.view.devicePixelRatio = 1;
@@ -47,7 +48,7 @@ void main() {
             controller: c,
             serverName: (s) => s,
             exporter: _Export(),
-            motion: MotionPreference.off,
+            motion: motion,
           ),
         ),
       ),
@@ -184,6 +185,35 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(ProfileShareSheet), findsNothing);
     expect(c.workspace.userById(f.alice), isNotNull);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('with motion on, the card sits at the top of its pane and the '
+      'handle resizes the panes', (tester) async {
+    await open(tester, width: 1400, motion: MotionPreference.system);
+    final close = find.byKey(const ValueKey('client-pane-close'));
+    // Not centred in the pane by the fade-through switcher.
+    expect(tester.getTopLeft(close).dy, lessThan(100));
+
+    final row = find.byKey(ValueKey('client-${f.alice}'));
+    final before = tester.getSize(row).width;
+    await tester.drag(
+      find.byKey(const ValueKey('app-pane-handle')),
+      const Offset(150, 0),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.getSize(row).width, closeTo(before + 150, 1));
+    // Never narrower than a pane can be: the list stops at its minimum,
+    // 160 below the default 480 at this width.
+    await tester.drag(
+      find.byKey(const ValueKey('app-pane-handle')),
+      const Offset(-1000, 0),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      tester.getSize(row).width,
+      closeTo(before - (480 - AppListDetail.minPane), 1),
+    );
     expect(tester.takeException(), isNull);
   });
 }

@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:animations/animations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart' show DragStartBehavior;
 import 'package:flutter/services.dart';
 
 abstract final class AppLayout {
@@ -2434,14 +2436,16 @@ class AppMoreMenu extends StatelessWidget {
 class AppMenuButton extends StatelessWidget {
   const AppMenuButton({
     required this.label,
-    required this.icon,
     required this.children,
+    this.icon,
     this.tooltip,
     this.buttonKey,
     super.key,
   });
   final String label;
-  final IconData icon;
+
+  /// In front of the label; null: a drop-down mark after it instead.
+  final IconData? icon;
   final String? tooltip;
   final List<Widget> children;
   final Key? buttonKey;
@@ -2453,7 +2457,8 @@ class AppMenuButton extends StatelessWidget {
         key: buttonKey,
         focusNode: focus,
         onPressed: toggle,
-        icon: Icon(icon),
+        icon: Icon(icon ?? Icons.arrow_drop_down),
+        iconAlignment: icon == null ? IconAlignment.end : IconAlignment.start,
         label: Text(label),
       );
       return tooltip == null
@@ -3241,12 +3246,14 @@ class AppActionRow extends StatelessWidget {
 /// width; below that the caller shows the item over the list instead.
 /// With nothing open the list takes the whole width; opening an item slides
 /// its pane in from the end and the list gives way. Another item fades
-/// through in the same pane.
+/// through in the same pane. The handle between the panes resizes them by
+/// dragging or with the arrow keys.
 class AppListDetail extends StatefulWidget {
   const AppListDetail({
     required this.list,
     required this.detail,
     required this.motion,
+    this.resizeLabel,
     super.key,
   });
   final Widget list;
@@ -3255,9 +3262,16 @@ class AppListDetail extends StatefulWidget {
   final Widget? detail;
   final MotionPreference motion;
 
+  /// Names the handle between the panes for screen readers and its
+  /// tooltip; without it the panes cannot be resized.
+  final String? resizeLabel;
+
   /// Whether [constraints] leave room for both panes.
   static bool fits(BoxConstraints constraints) =>
       constraints.maxWidth >= AppLayout.expanded;
+
+  /// The narrowest a pane gets while resizing.
+  static const minPane = 320.0;
 
   @override
   State<AppListDetail> createState() => _AppListDetailState();
@@ -3267,11 +3281,21 @@ class _AppListDetailState extends State<AppListDetail> {
   /// The item last open, kept while its pane slides away.
   Widget? _closing;
 
+  /// The pane is sliding in or out: only then do the panes animate, so
+  /// that resizing the window or the panes follows the pointer at once.
+  bool _sliding = false;
+
+  /// The list's width chosen with the handle; null: the default share.
+  double? _listWidth;
+
   @override
   void didUpdateWidget(AppListDetail oldWidget) {
     super.didUpdateWidget(oldWidget);
     final animated =
         AppMotion.duration(context, widget.motion) != Duration.zero;
+    if ((widget.detail == null) != (oldWidget.detail == null) && animated) {
+      _sliding = true;
+    }
     if (widget.detail != null) {
       _closing = null;
     } else if (oldWidget.detail != null && animated) {
@@ -3279,15 +3303,28 @@ class _AppListDetailState extends State<AppListDetail> {
     }
   }
 
+  double _clamp(double list, double width) => list.clamp(
+    AppListDetail.minPane,
+    math.max(AppListDetail.minPane, width - AppListDetail.minPane - 24),
+  );
+
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final colors = Theme.of(context).colorScheme;
       final width = constraints.maxWidth;
       final open = widget.detail != null;
-      final listWidth = (width * .42).clamp(360.0, 480.0);
-      final duration = AppMotion.duration(context, widget.motion);
+      double current() =>
+          _clamp(_listWidth ?? (width * .42).clamp(360.0, 480.0), width);
+      final listWidth = current();
+      final motion = AppMotion.duration(context, widget.motion);
+      final duration = _sliding ? motion : Duration.zero;
       final detail = widget.detail ?? _closing;
+      // The handle lives in the gutter between the panes.
+      const gutter = 24.0;
+      // From the width as it is now: several moves can come in one frame.
+      void resize(double by) =>
+          setState(() => _listWidth = _clamp(current() + by, width));
       return ClipRect(
         child: Stack(
           children: [
@@ -3310,38 +3347,72 @@ class _AppListDetailState extends State<AppListDetail> {
               bottom: 0,
               width: width - listWidth,
               onEnd: () {
-                if (!open && _closing != null && mounted) {
-                  setState(() => _closing = null);
-                }
+                // A move without animation (resizing) ends within a build:
+                // there is nothing to settle then.
+                if (!mounted || (!_sliding && _closing == null)) return;
+                setState(() {
+                  _sliding = false;
+                  if (!open) _closing = null;
+                });
               },
               child: detail == null
                   ? const SizedBox.shrink()
-                  : Padding(
-                      padding: const EdgeInsetsDirectional.fromSTEB(
-                        AppLayout.smallGap,
-                        AppLayout.gap,
-                        AppLayout.gap,
-                        AppLayout.gap,
-                      ),
-                      child: Material(
-                        color: colors.surfaceContainerLow,
-                        borderRadius: BorderRadius.circular(AppLayout.radius),
-                        clipBehavior: Clip.antiAlias,
-                        child: duration == Duration.zero
-                            ? detail
-                            : PageTransitionSwitcher(
-                                duration: duration,
-                                transitionBuilder:
-                                    (child, primary, secondary) =>
-                                        FadeThroughTransition(
-                                          animation: primary,
-                                          secondaryAnimation: secondary,
-                                          fillColor: Colors.transparent,
-                                          child: child,
-                                        ),
-                                child: detail,
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        SizedBox(
+                          width: gutter,
+                          child: open && widget.resizeLabel != null
+                              ? _PaneHandle(
+                                  label: widget.resizeLabel!,
+                                  onDrag: (dx) => resize(
+                                    Directionality.of(context) ==
+                                            TextDirection.rtl
+                                        ? -dx
+                                        : dx,
+                                  ),
+                                  onStep: resize,
+                                )
+                              : null,
+                        ),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsetsDirectional.only(
+                              top: AppLayout.gap,
+                              end: AppLayout.gap,
+                              bottom: AppLayout.gap,
+                            ),
+                            child: Material(
+                              color: colors.surfaceContainerLow,
+                              borderRadius: BorderRadius.circular(
+                                AppLayout.radius,
                               ),
-                      ),
+                              clipBehavior: Clip.antiAlias,
+                              child: motion == Duration.zero
+                                  ? detail
+                                  : PageTransitionSwitcher(
+                                      duration: motion,
+                                      // The item fills its pane from the
+                                      // top instead of floating in the
+                                      // middle of it.
+                                      layoutBuilder: (entries) => Stack(
+                                        fit: StackFit.expand,
+                                        children: entries,
+                                      ),
+                                      transitionBuilder:
+                                          (child, primary, secondary) =>
+                                              FadeThroughTransition(
+                                                animation: primary,
+                                                secondaryAnimation: secondary,
+                                                fillColor: Colors.transparent,
+                                                child: child,
+                                              ),
+                                      child: detail,
+                                    ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
             ),
           ],
@@ -3349,6 +3420,81 @@ class _AppListDetailState extends State<AppListDetail> {
       );
     },
   );
+}
+
+/// The M3 drag handle between two panes: a short pill that widens its
+/// touch target to the whole gutter; arrow keys move it as well.
+class _PaneHandle extends StatefulWidget {
+  const _PaneHandle({
+    required this.label,
+    required this.onDrag,
+    required this.onStep,
+  });
+  final String label;
+  final ValueChanged<double> onDrag, onStep;
+  @override
+  State<_PaneHandle> createState() => _PaneHandleState();
+}
+
+class _PaneHandleState extends State<_PaneHandle> {
+  bool _active = false, _focused = false;
+
+  void _set({bool? active, bool? focused}) => setState(() {
+    _active = active ?? _active;
+    _focused = focused ?? _focused;
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final lit = _active || _focused;
+    final rtl = Directionality.of(context) == TextDirection.rtl;
+    return Semantics(
+      label: widget.label,
+      onIncrease: () => widget.onStep(32),
+      onDecrease: () => widget.onStep(-32),
+      child: Tooltip(
+        message: widget.label,
+        excludeFromSemantics: true,
+        child: FocusableActionDetector(
+          onShowFocusHighlight: (value) => _set(focused: value),
+          onShowHoverHighlight: (value) => _set(active: value),
+          mouseCursor: SystemMouseCursors.resizeColumn,
+          shortcuts: {
+            const SingleActivator(LogicalKeyboardKey.arrowLeft):
+                VoidCallbackIntent(() => widget.onStep(rtl ? 32 : -32)),
+            const SingleActivator(LogicalKeyboardKey.arrowRight):
+                VoidCallbackIntent(() => widget.onStep(rtl ? -32 : 32)),
+          },
+          actions: {
+            VoidCallbackIntent: CallbackAction<VoidCallbackIntent>(
+              onInvoke: (intent) => intent.callback(),
+            ),
+          },
+          child: GestureDetector(
+            key: const ValueKey('app-pane-handle'),
+            behavior: HitTestBehavior.opaque,
+            // The panes follow the pointer from its first pixel.
+            dragStartBehavior: DragStartBehavior.down,
+            onHorizontalDragStart: (_) => _set(active: true),
+            onHorizontalDragUpdate: (d) => widget.onDrag(d.delta.dx),
+            onHorizontalDragEnd: (_) => _set(active: false),
+            child: Center(
+              child: AnimatedContainer(
+                duration: AppMotion.reduced,
+                width: 4,
+                height: lit ? 56 : 48,
+                decoration: BoxDecoration(
+                  color: lit ? colors.onSurface : colors.outline,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class AppTwoColumn extends StatelessWidget {

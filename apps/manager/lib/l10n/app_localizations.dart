@@ -2690,6 +2690,12 @@ abstract class AppLocalizations {
   /// **'Hide the card'**
   String get clientsHideCard;
 
+  /// No description provided for @uiResizePanes.
+  ///
+  /// In en, this message translates to:
+  /// **'Drag to resize the panes'**
+  String get uiResizePanes;
+
   /// No description provided for @clientsNotFoundHelp.
   ///
   /// In en, this message translates to:

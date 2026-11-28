@@ -1485,6 +1485,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get clientsHideCard => 'Hide the card';
 
   @override
+  String get uiResizePanes => 'Drag to resize the panes';
+
+  @override
   String clientsNotFoundHelp(String query) {
     return 'Nobody\'s name contains “$query”.';
   }

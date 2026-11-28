@@ -542,6 +542,7 @@
   "clientsSearchClear": "Очистить поиск",
   "clientsNotFound": "Никого не нашлось",
   "clientsHideCard": "Скрыть карточку",
+  "uiResizePanes": "Потяните, чтобы изменить ширину панелей",
   "clientsNotFoundHelp": "Нет клиента, в имени которого есть «{query}».",
   "vpnSyncAndPublish": "Выгрузить проверенные профили",
   "vpnSyncAndPublishDone": "Выгружено профилей на Диск: {published} из {total}",

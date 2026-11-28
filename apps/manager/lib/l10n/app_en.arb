@@ -542,6 +542,7 @@
   "clientsSearchClear": "Clear search",
   "clientsNotFound": "No clients found",
   "clientsHideCard": "Hide the card",
+  "uiResizePanes": "Drag to resize the panes",
   "clientsNotFoundHelp": "Nobody's name contains “{query}”.",
   "@clientsNotFoundHelp": {"placeholders": {"query": {"type": "String"}}},
   "@clientsSyncProgress": {"placeholders": {"done": {"type": "int"}, "total": {"type": "int"}}},

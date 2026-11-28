@@ -125,6 +125,7 @@ class _LicensesPageState extends State<LicensesPage> {
     if (!wide) return list;
     return AppListDetail(
       motion: widget.motion,
+      resizeLabel: l.uiResizePanes,
       list: list,
       detail: open == null
           ? const SizedBox.expand()
