@@ -60,6 +60,7 @@ class Bridge
 class Http implements DriveHttp {
   int status = 200;
   String id = '123456';
+  String? photo;
   int requests = 0;
   @override
   Future<DriveHttpResponse> send(
@@ -83,6 +84,7 @@ class Http implements DriveHttp {
               'permissionId': id,
               'emailAddress': 'fixture@example.com',
               'displayName': 'Fixture User',
+              'photoLink': ?photo,
             },
           }),
         ),
@@ -133,6 +135,33 @@ void main() {
       expect(await next.accessToken(), 'PRIVATE-ANDROID-TOKEN-FIXTURE');
       expect(bridge.calls, [true, false]);
       expect(bridge.email, account.email);
+    },
+  );
+  test(
+    'a renewal stores the newer profile of the same account, e.g. its picture',
+    () async {
+      // Stored before the picture was kept: no 'photo'.
+      await service().signIn();
+      expect(service().account, isNull);
+      final old = service();
+      expect((await old.restore())!.photoUrl, isNull);
+      final key = old.accountKey;
+      const photo = 'https://lh3.googleusercontent.com/a/fixture=s64';
+      http.photo = photo;
+      await old.accessToken();
+      expect(old.account!.photoUrl, photo);
+      expect(old.accountKey, key);
+      final restored = service();
+      expect((await restored.restore())!.photoUrl, photo);
+      // A failed write keeps the renewal and the profile in memory.
+      http.photo = null;
+      keys.fail = true;
+      final next = service();
+      await next.restore();
+      expect(await next.accessToken(), 'PRIVATE-ANDROID-TOKEN-FIXTURE');
+      expect(next.account!.photoUrl, isNull);
+      keys.fail = false;
+      expect((await service().restore())!.photoUrl, photo);
     },
   );
   test(

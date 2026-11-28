@@ -54,6 +54,15 @@ final class GoogleDriveAccount {
     );
   }
   @override
+  bool operator ==(Object other) =>
+      other is GoogleDriveAccount &&
+      other.permissionId == permissionId &&
+      other.email == email &&
+      other.displayName == displayName &&
+      other.photoUrl == photoUrl;
+  @override
+  int get hashCode => Object.hash(permissionId, email, displayName, photoUrl);
+  @override
   String toString() => 'GoogleDriveAccount(<private>)';
 }
 
@@ -87,6 +96,14 @@ abstract interface class GoogleAccountService {
 
 abstract interface class GoogleSyncAccountService
     implements GoogleAccountService, SyncAccessTokenProvider {}
+
+/// Each access renewal reads the identity from Drive. The same account with
+/// another name, e-mail or picture replaces the stored one, so a profile
+/// stored before a field existed (or changed in Google) catches up without a
+/// new sign-in. [account] is the latest one; null when signed out.
+abstract interface class GoogleAccountProfileSource {
+  GoogleDriveAccount? get account;
+}
 
 /// Desktop browser authorization can outlive the settings screen.
 abstract interface class CancelableGoogleSignIn {

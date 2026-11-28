@@ -18,6 +18,11 @@ versions follow [Semantic Versioning](https://semver.org/).
 - Settings: the sync status card is now the only entry to Synchronization and is named "Synchronization"; the duplicate list item is gone.
 - README rewritten in Russian and English; the user guide and privacy policy are updated and list every network destination of the app.
 
+### Fixed
+
+- Updates: Ubuntu packages are checked automatically on connection (read-only, at most every 6 hours) and the result is kept across leaving the page and restarts; preparing other components no longer resets it to "Not checked". Update with an older result reads the package list again first.
+- Settings → Synchronization shows the Google account picture for an account connected before pictures were kept; it is picked up at the next access renewal, without signing in again.
+
 
 ## [0.1.1] - 2026-11-28
 

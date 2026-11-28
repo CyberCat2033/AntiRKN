@@ -76,6 +76,7 @@ final class AndroidGoogleAccountService
     implements
         GoogleSyncAccountService,
         GooglePublicationAuthorization,
+        GoogleAccountProfileSource,
         RefreshableSyncAccessTokenProvider {
   AndroidGoogleAccountService({
     this.projectId = const String.fromEnvironment('ANTIRKN_GOOGLE_PROJECT_ID'),
@@ -111,6 +112,8 @@ final class AndroidGoogleAccountService
   static const _storageId = 'google-drive-account-v1';
   GoogleDriveAccount? _account;
   String? _accountKey;
+  @override
+  GoogleDriveAccount? get account => _account;
 
   /// The running operation. Background ones (restore, silent renewal,
   /// sign-out) queue behind it; only an interactive sign-in is refused as
@@ -205,6 +208,18 @@ final class AndroidGoogleAccountService
     return account;
   });
 
+  Future<void> _write(
+    GoogleDriveAccount account, {
+    required bool publications,
+  }) => _keys.write(
+    _storageId,
+    jsonEncode({
+      'project': projectId,
+      'account': account.toJson(),
+      'publications': publications,
+    }),
+  );
+
   Future<GoogleDriveAccount> _identity(String token) =>
       GoogleDriveSyncStore(tokens: _Token(token), http: _http).readAccount();
 
@@ -221,14 +236,7 @@ final class AndroidGoogleAccountService
             : await _bridge.authorize(interactive: true);
         if (token == null) return null;
         final account = await _identity(token);
-        await _keys.write(
-          _storageId,
-          jsonEncode({
-            'project': projectId,
-            'account': account.toJson(),
-            'publications': publications,
-          }),
-        );
+        await _write(account, publications: publications);
         await _remember(account);
         publicationAuthorized = publications;
         return account;
@@ -261,8 +269,18 @@ final class AndroidGoogleAccountService
       if (token == null) {
         throw const GoogleAccountFailure(GoogleAccountIssue.reauthorize);
       }
-      if ((await _identity(token)).permissionId != account.permissionId) {
+      final identity = await _identity(token);
+      if (identity.permissionId != account.permissionId) {
         throw const GoogleAccountFailure(GoogleAccountIssue.reauthorize);
+      }
+      if (identity != account) {
+        // The same account, a newer profile (an account stored before the
+        // picture was kept has none). The key is unchanged; a failed write
+        // only leaves the old profile for the next renewal.
+        _account = identity;
+        try {
+          await _write(identity, publications: publicationAuthorized);
+        } catch (_) {}
       }
       return (token, started.add(tokenLifetime));
     }),

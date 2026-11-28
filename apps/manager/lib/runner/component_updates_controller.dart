@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/widgets.dart';
+import 'update_check_schedule.dart';
 
 /// Server component release checks: always on, and their offers always
 /// shown on the server cards. The two update switches in Settings govern
@@ -47,13 +48,11 @@ class ComponentUpdatesController extends ChangeNotifier {
 
   void maybeCheck() {
     if (!automatic || busy || _disposed || diagnosticsPaused) return;
-    final now = DateTime.now();
-    if (_attemptedAt != null &&
-        now.difference(_attemptedAt!) < const Duration(minutes: 15)) {
-      return;
-    }
-    if (checkedAt == null ||
-        now.difference(checkedAt!) >= const Duration(hours: 6)) {
+    if (const UpdateCheckSchedule().due(
+      DateTime.now(),
+      checkedAt: checkedAt,
+      attemptedAt: _attemptedAt,
+    )) {
       unawaited(check(automaticRequest: true));
     }
   }

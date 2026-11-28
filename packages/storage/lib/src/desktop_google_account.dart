@@ -106,6 +106,7 @@ final class DesktopGoogleAccountService
         GoogleSyncAccountService,
         GooglePublicationAuthorization,
         CancelableGoogleSignIn,
+        GoogleAccountProfileSource,
         RefreshableSyncAccessTokenProvider {
   DesktopGoogleAccountService({
     required this.store,
@@ -134,6 +135,8 @@ final class DesktopGoogleAccountService
   bool _closed = false;
   @override
   bool get supported => true;
+  @override
+  GoogleDriveAccount? get account => _session?.account;
   @override
   String get accountKey =>
       _accountKey ??
@@ -286,23 +289,32 @@ final class DesktopGoogleAccountService
     final started = _now();
     try {
       final tokens = await _oauth.refresh(session.client, session.refresh);
-      if ((await _identity(tokens.accessToken)).permissionId !=
-          session.account.permissionId) {
+      final identity = await _identity(tokens.accessToken);
+      if (identity.permissionId != session.account.permissionId) {
         throw const GoogleAccountFailure(GoogleAccountIssue.reauthorize);
       }
       await _stillCurrent();
-      if (tokens.refreshToken != null &&
-          tokens.refreshToken != session.refresh) {
+      final rotated =
+          tokens.refreshToken != null && tokens.refreshToken != session.refresh;
+      // The same account may come with a newer profile (one stored before
+      // the picture was kept has none); it is stored with the session.
+      if (rotated || identity != session.account) {
         final next = _Session(
           session.client,
-          session.account,
-          tokens.refreshToken!,
+          identity,
+          rotated ? tokens.refreshToken! : session.refresh,
           id: session.id,
           publications: session.publications,
         );
         final encoded = next.encode();
-        await store.replace(_stored, encoded);
-        await _remember(next, encoded);
+        try {
+          await store.replace(_stored, encoded);
+          await _remember(next, encoded);
+        } catch (_) {
+          // A new refresh token must be kept; a profile is decoration and
+          // is tried again at the next renewal.
+          if (rotated) rethrow;
+        }
       }
       _access.remember(tokens.accessToken, started.add(tokens.expiresIn));
       return tokens.accessToken;
