@@ -586,6 +586,10 @@ def ensure_tls_material(tls_dir):
 class _QuietHttp(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         body = b'antirkn-vless-tcp-fixture'
+        # /bytes/N: N bytes (up to 1 MiB) for transfer checks (FR-SNI 100 KB).
+        match = re.fullmatch(r'/bytes/([0-9]{1,7})', self.path)
+        if match and int(match.group(1)) <= 1 << 20:
+            body = b'\0' * int(match.group(1))
         self.send_response(200)
         self.send_header('Content-Length', str(len(body)))
         self.end_headers()
@@ -724,8 +728,24 @@ def compile_mihomo_config(workspace, user_id, resource_id, ca_crt, work_dir):
     return port, config_path
 
 
-def test_mihomo_traffic(mihomo_bin, ca_crt, config_path, mixed_port, work_dir, timeout=10.0, retries=0):
-    """Run Mihomo with the compiled config and verify real TCP and UDP traffic."""
+def _proxy_download(mixed_port, size, timeout):
+    """Exactly size body bytes from the host echo through the proxy."""
+    sock, _ = _socks5(mixed_port, 1, '10.0.2.2', 29880, timeout=timeout)
+    with sock:
+        sock.sendall(('GET /bytes/%d HTTP/1.0\r\nHost: 10.0.2.2\r\n\r\n' % size).encode())
+        data = b''
+        while True:
+            chunk = sock.recv(65536)
+            if not chunk:
+                break
+            data += chunk
+    head, _, body = data.partition(b'\r\n\r\n')
+    return head.startswith(b'HTTP/1.0 200') and len(body) == size
+
+
+def test_mihomo_traffic(mihomo_bin, ca_crt, config_path, mixed_port, work_dir, timeout=10.0, retries=0, download=0):
+    """Run Mihomo with the compiled config and verify real TCP and UDP traffic;
+    with download, TCP also needs that many bytes through the proxy."""
     env = {**os.environ, 'SSL_CERT_FILE': str(ca_crt)}
     checked = subprocess.run([str(mihomo_bin), '-t', '-d', str(work_dir), '-f', str(config_path)],
                              capture_output=True, env=env, timeout=20)
@@ -759,6 +779,8 @@ def test_mihomo_traffic(mihomo_bin, ca_crt, config_path, mixed_port, work_dir, t
                                 if b'antirkn-vless-tcp-fixture' in data:
                                     break
                             tcp_ok = b'antirkn-vless-tcp-fixture' in data
+                        if tcp_ok and download:
+                            tcp_ok = _proxy_download(mixed_port, download, timeout)
                     except (OSError, RuntimeError):
                         tcp_ok = False
                 if not udp_ok:
@@ -791,6 +813,7 @@ def test_mihomo_traffic(mihomo_bin, ca_crt, config_path, mixed_port, work_dir, t
                 proc.kill()
 
 
-def check_proxy_traffic(workspace, user_id, resource_id, ca_crt, mihomo_bin, work_dir, timeout=10.0, retries=0):
+def check_proxy_traffic(workspace, user_id, resource_id, ca_crt, mihomo_bin, work_dir, timeout=10.0, retries=0, download=0):
     port, config_path = compile_mihomo_config(workspace, user_id, resource_id, ca_crt, work_dir)
-    return test_mihomo_traffic(mihomo_bin, ca_crt, config_path, port, work_dir, timeout=timeout, retries=retries)
+    return test_mihomo_traffic(mihomo_bin, ca_crt, config_path, port, work_dir, timeout=timeout, retries=retries,
+                               download=download)
