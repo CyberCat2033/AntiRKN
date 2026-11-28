@@ -1399,22 +1399,42 @@ class AppLocalizationsRu extends AppLocalizations {
   String get vpnAddUser => 'Добавить клиента';
 
   @override
-  String get vpnSortBy => 'Сортировка';
-
-  @override
-  String get vpnSortByName => 'По имени';
-
-  @override
-  String get vpnSortByDate => 'По дате создания';
-
-  @override
-  String get vpnSortAscending => 'По возрастанию';
-
-  @override
-  String get vpnSortDescending => 'По убыванию';
-
-  @override
   String get vpnDisabledClients => 'Отключенные клиенты';
+
+  @override
+  String get vpnSortOldest => 'Сначала старые';
+
+  @override
+  String get vpnSortNewest => 'Сначала новые';
+
+  @override
+  String get vpnSortNameAz => 'По имени, А–Я';
+
+  @override
+  String get vpnSortNameZa => 'По имени, Я–А';
+
+  @override
+  String get vpnSortTooltip => 'Порядок клиентов';
+
+  @override
+  String get vpnSyncForce => 'Сверить серверы и все файлы на Диске';
+
+  @override
+  String get vpnClientsMenu => 'Другие действия';
+
+  @override
+  String vpnTrafficFor(String month) {
+    return 'Трафик за $month';
+  }
+
+  @override
+  String uiClientsAccessVia(String protocols) {
+    return 'Доступ через $protocols';
+  }
+
+  @override
+  String get uiClientsNoAccessHelp =>
+      'Ни на одном сервере нет протокола для клиентов. Добавьте или включите его во вкладке «Серверы».';
 
   @override
   String get vpnSyncAndPublish => 'Выгрузить проверенные профили';
@@ -1438,10 +1458,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String vpnSyncAndPublishWithErrors(int uploaded, int failed, int total) {
     return 'Выгружено $uploaded, ошибок $failed из $total.';
   }
-
-  @override
-  String get vpnSyncAndPublishTooltip =>
-      'Нажмите для выгрузки из последнего проверенного состояния; при локальных изменениях серверы будут сверены. Удерживайте для полной сверки серверов и проверки всех файлов на Диске.';
 
   @override
   String get vpnSyncServerUnverified =>
@@ -3059,9 +3075,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get uiNotConfigured => 'Не настроен';
 
   @override
-  String get uiNoClientAccess => 'Доступ ещё не настроен';
-
-  @override
   String get uiDiskCapacity => 'Объём диска';
 
   @override
@@ -3119,9 +3132,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get uiMyServers => 'Мои серверы';
-
-  @override
-  String get uiClientsIntro => 'Доступы и профили ваших клиентов';
 
   @override
   String get uiClientsEmptyHelp =>

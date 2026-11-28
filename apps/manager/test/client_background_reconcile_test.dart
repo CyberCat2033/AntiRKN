@@ -4,6 +4,7 @@ import 'package:antirkn_manager/l10n/app_localizations.dart';
 import 'package:antirkn_manager/vpn/users_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'vpn/clients_menu.dart';
 
 import 'vpn_controller_test.dart' as f;
 import 'vpn_widgets_test.dart' as widgets;
@@ -135,8 +136,7 @@ void main() {
       );
       await tester.pumpWidget(page());
       await tester.pump();
-      final button = find.byKey(const ValueKey('vpn-sync-and-publish'));
-      expect(tester.widget<FilledButton>(button).onPressed, isNotNull);
+      expect(await clientsSyncEnabled(tester), isTrue);
       Future<void>? polling;
       try {
         await tester.runAsync(() async {
@@ -145,14 +145,14 @@ void main() {
         });
         await tester.pumpWidget(page());
         expect(c.busy, isTrue);
-        expect(tester.widget<FilledButton>(button).onPressed, isNotNull);
+        expect(await clientsSyncEnabled(tester), isTrue);
         expect(globalProgress(), 0);
       } finally {
         held.release.complete();
         await tester.runAsync(() => polling!);
       }
       await tester.pump();
-      expect(tester.widget<FilledButton>(button).onPressed, isNotNull);
+      expect(await clientsSyncEnabled(tester), isTrue);
       expect(globalProgress(), 0);
       expect(tester.takeException(), isNull);
     },

@@ -9,6 +9,7 @@ import 'package:antirkn_manager/vpn/users_page.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'clients_menu.dart';
 import '../vpn_controller_test.dart' as f;
 import '../publication_test.dart' as p;
 
@@ -100,7 +101,6 @@ void main() {
               controller: vpn,
               selection: selection,
               publications: pub,
-              protocolSummary: 'VLESS',
               motion: MotionPreference.off,
               onProfile: (_, profileUser) {},
               isSyncing: true,
@@ -147,7 +147,7 @@ void main() {
   );
 
   testWidgets(
-    'UsersPage reactive sync state: disabled button, no inner spinner, and determinate progress',
+    'UsersPage reactive sync state: disabled menu item and determinate progress',
     (tester) async {
       tester.view.physicalSize = const Size(1200, 2000);
       tester.view.devicePixelRatio = 1;
@@ -193,10 +193,10 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
-      // Initial idle state: button enabled, no progress bar, tiles have QR icons
-      final syncButton = find.widgetWithIcon(FilledButton, Icons.cloud_sync);
-      expect(syncButton, findsOneWidget);
-      expect(tester.widget<FilledButton>(syncButton).onPressed, isNotNull);
+      Future<bool> syncEnabled() => clientsSyncEnabled(tester);
+
+      // Initial idle state: sync enabled, no progress bar, tiles have QR icons
+      expect(await syncEnabled(), isTrue);
       expect(find.byType(LinearProgressIndicator), findsNothing);
       expect(find.byIcon(Icons.qr_code_2), findsNWidgets(2));
 
@@ -219,13 +219,8 @@ void main() {
       );
       await tester.pump();
 
-      // Button disabled, NO inner spinner inside button
-      expect(tester.widget<FilledButton>(syncButton).onPressed, isNull);
-      final buttonDescendants = find.descendant(
-        of: syncButton,
-        matching: find.byType(CircularProgressIndicator),
-      );
-      expect(buttonDescendants, findsNothing);
+      // Sync disabled while a run is active.
+      expect(await syncEnabled(), isFalse);
 
       // Determinate LinearProgressIndicator with value 0.5 (1 of 2 completed)
       final progressFinder = find.byType(LinearProgressIndicator);
@@ -253,7 +248,7 @@ void main() {
       pub.resetSyncProgress();
       await tester.pump();
       expect(find.byType(LinearProgressIndicator), findsNothing);
-      expect(tester.widget<FilledButton>(syncButton).onPressed, isNotNull);
+      expect(await syncEnabled(), isTrue);
       expect(tester.widget<Switch>(aliceSwitchFinder).onChanged, isNotNull);
       expect(
         tester.widget<IconButton>(aliceQrButtonFinder).onPressed,

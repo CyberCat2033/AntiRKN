@@ -266,7 +266,9 @@ void main() {
           'srv1': {'error': 'unreachable'},
         },
       );
+      // The banner grows in with its size animation.
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
       expect(
         find.byKey(const ValueKey('server-operations-banner')),
         findsOneWidget,

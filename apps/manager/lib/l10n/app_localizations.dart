@@ -2534,41 +2534,71 @@ abstract class AppLocalizations {
   /// **'Add client'**
   String get vpnAddUser;
 
-  /// No description provided for @vpnSortBy.
-  ///
-  /// In en, this message translates to:
-  /// **'Sort by'**
-  String get vpnSortBy;
-
-  /// No description provided for @vpnSortByName.
-  ///
-  /// In en, this message translates to:
-  /// **'Name'**
-  String get vpnSortByName;
-
-  /// No description provided for @vpnSortByDate.
-  ///
-  /// In en, this message translates to:
-  /// **'Date created'**
-  String get vpnSortByDate;
-
-  /// No description provided for @vpnSortAscending.
-  ///
-  /// In en, this message translates to:
-  /// **'Ascending'**
-  String get vpnSortAscending;
-
-  /// No description provided for @vpnSortDescending.
-  ///
-  /// In en, this message translates to:
-  /// **'Descending'**
-  String get vpnSortDescending;
-
   /// No description provided for @vpnDisabledClients.
   ///
   /// In en, this message translates to:
   /// **'Disabled clients'**
   String get vpnDisabledClients;
+
+  /// No description provided for @vpnSortOldest.
+  ///
+  /// In en, this message translates to:
+  /// **'Oldest first'**
+  String get vpnSortOldest;
+
+  /// No description provided for @vpnSortNewest.
+  ///
+  /// In en, this message translates to:
+  /// **'Newest first'**
+  String get vpnSortNewest;
+
+  /// No description provided for @vpnSortNameAz.
+  ///
+  /// In en, this message translates to:
+  /// **'Name A–Z'**
+  String get vpnSortNameAz;
+
+  /// No description provided for @vpnSortNameZa.
+  ///
+  /// In en, this message translates to:
+  /// **'Name Z–A'**
+  String get vpnSortNameZa;
+
+  /// No description provided for @vpnSortTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Client order'**
+  String get vpnSortTooltip;
+
+  /// No description provided for @vpnSyncForce.
+  ///
+  /// In en, this message translates to:
+  /// **'Check servers and all Drive files'**
+  String get vpnSyncForce;
+
+  /// No description provided for @vpnClientsMenu.
+  ///
+  /// In en, this message translates to:
+  /// **'More actions'**
+  String get vpnClientsMenu;
+
+  /// No description provided for @vpnTrafficFor.
+  ///
+  /// In en, this message translates to:
+  /// **'Traffic for {month}'**
+  String vpnTrafficFor(String month);
+
+  /// No description provided for @uiClientsAccessVia.
+  ///
+  /// In en, this message translates to:
+  /// **'Access via {protocols}'**
+  String uiClientsAccessVia(String protocols);
+
+  /// No description provided for @uiClientsNoAccessHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'No server has a protocol for clients yet. Add or enable one on the Servers tab.'**
+  String get uiClientsNoAccessHelp;
 
   /// No description provided for @vpnSyncAndPublish.
   ///
@@ -2599,12 +2629,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{uploaded} published, {failed} failed of {total}.'**
   String vpnSyncAndPublishWithErrors(int uploaded, int failed, int total);
-
-  /// No description provided for @vpnSyncAndPublishTooltip.
-  ///
-  /// In en, this message translates to:
-  /// **'Click to publish from the last verified server state; local changes trigger a server check. Press and hold to check all servers and Drive files.'**
-  String get vpnSyncAndPublishTooltip;
 
   /// No description provided for @vpnSyncServerUnverified.
   ///
@@ -5396,12 +5420,6 @@ abstract class AppLocalizations {
   /// **'Not configured'**
   String get uiNotConfigured;
 
-  /// No description provided for @uiNoClientAccess.
-  ///
-  /// In en, this message translates to:
-  /// **'Access is not configured yet'**
-  String get uiNoClientAccess;
-
   /// No description provided for @uiDiskCapacity.
   ///
   /// In en, this message translates to:
@@ -5503,12 +5521,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'My servers'**
   String get uiMyServers;
-
-  /// No description provided for @uiClientsIntro.
-  ///
-  /// In en, this message translates to:
-  /// **'Access and profiles for your clients'**
-  String get uiClientsIntro;
 
   /// No description provided for @uiClientsEmptyHelp.
   ///

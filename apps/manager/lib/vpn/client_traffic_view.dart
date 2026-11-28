@@ -405,8 +405,10 @@ class _Legend extends StatelessWidget {
   );
 }
 
-class _UsageText extends StatelessWidget {
-  const _UsageText(this.usage, {this.style});
+/// Downloaded and uploaded bytes on one line, with the arrows of the
+/// traffic cards.
+class TrafficUsageText extends StatelessWidget {
+  const TrafficUsageText(this.usage, {this.style, super.key});
   final TrafficUsage usage;
   final TextStyle? style;
   @override
@@ -481,7 +483,10 @@ class _ServerRow extends StatelessWidget {
                 ],
               );
         final total = server.protocols.any(counts)
-            ? _UsageText(server.usage(month), style: theme.textTheme.bodyMedium)
+            ? TrafficUsageText(
+                server.usage(month),
+                style: theme.textTheme.bodyMedium,
+              )
             : Text('—', style: theme.textTheme.bodyMedium);
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: AppLayout.smallGap),
@@ -528,7 +533,7 @@ class _ServerRow extends StatelessWidget {
                             ],
                           ),
                           several && counts(p)
-                              ? _UsageText(p.usage(month), style: muted)
+                              ? TrafficUsageText(p.usage(month), style: muted)
                               : null,
                         ),
                       ),

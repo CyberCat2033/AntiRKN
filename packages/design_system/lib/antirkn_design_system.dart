@@ -2254,7 +2254,7 @@ class AppFormSwitch extends StatelessWidget {
 /// into its items with the arrow keys. The menu opens below the button and
 /// grows towards the start side, so it stays over the card that owns the
 /// button instead of covering its neighbour.
-class AppMoreMenu extends StatefulWidget {
+class AppMoreMenu extends StatelessWidget {
   const AppMoreMenu({
     required this.tooltip,
     required this.children,
@@ -2265,11 +2265,63 @@ class AppMoreMenu extends StatefulWidget {
   final List<Widget> children;
   final Key? buttonKey;
   @override
-  State<AppMoreMenu> createState() => _AppMoreMenuState();
+  Widget build(BuildContext context) => _AppMenuAnchor(
+    children: children,
+    button: (focus, toggle) => IconButton(
+      key: buttonKey,
+      focusNode: focus,
+      tooltip: tooltip,
+      onPressed: toggle,
+      icon: const Icon(Icons.more_vert),
+    ),
+  );
 }
 
-class _AppMoreMenuState extends State<AppMoreMenu> {
-  final _focus = FocusNode(debugLabel: 'AppMoreMenu');
+/// A text button that opens a menu, such as a sort order: [label] names the
+/// current choice, [icon] what the menu is about.
+class AppMenuButton extends StatelessWidget {
+  const AppMenuButton({
+    required this.label,
+    required this.icon,
+    required this.children,
+    this.tooltip,
+    this.buttonKey,
+    super.key,
+  });
+  final String label;
+  final IconData icon;
+  final String? tooltip;
+  final List<Widget> children;
+  final Key? buttonKey;
+  @override
+  Widget build(BuildContext context) => _AppMenuAnchor(
+    children: children,
+    button: (focus, toggle) {
+      final button = TextButton.icon(
+        key: buttonKey,
+        focusNode: focus,
+        onPressed: toggle,
+        icon: Icon(icon),
+        label: Text(label),
+      );
+      return tooltip == null
+          ? button
+          : Tooltip(message: tooltip, child: button);
+    },
+  );
+}
+
+/// The menu opens under its button with their end edges aligned.
+class _AppMenuAnchor extends StatefulWidget {
+  const _AppMenuAnchor({required this.children, required this.button});
+  final List<Widget> children;
+  final Widget Function(FocusNode focus, VoidCallback toggle) button;
+  @override
+  State<_AppMenuAnchor> createState() => _AppMenuAnchorState();
+}
+
+class _AppMenuAnchorState extends State<_AppMenuAnchor> {
+  final _focus = FocusNode(debugLabel: 'AppMenu');
   @override
   void dispose() {
     _focus.dispose();
@@ -2293,13 +2345,7 @@ class _AppMoreMenuState extends State<AppMoreMenu> {
         childFocusNode: _focus,
         menuChildren: [for (final child in widget.children) keep(child)],
         builder: (context, menu, _) => keep(
-          IconButton(
-            key: widget.buttonKey,
-            focusNode: _focus,
-            tooltip: widget.tooltip,
-            onPressed: () => menu.isOpen ? menu.close() : menu.open(),
-            icon: const Icon(Icons.more_vert),
-          ),
+          widget.button(_focus, () => menu.isOpen ? menu.close() : menu.open()),
         ),
       ),
     );
@@ -2314,12 +2360,17 @@ class AppMenuItem extends StatelessWidget {
     required this.onPressed,
     this.icon,
     this.destructive = false,
+    this.selected,
     super.key,
   });
   final String label;
   final IconData? icon;
   final VoidCallback? onPressed;
   final bool destructive;
+
+  /// For a choice among items: true marks the current one with a check;
+  /// null for an ordinary action.
+  final bool? selected;
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -2332,8 +2383,9 @@ class AppMenuItem extends StatelessWidget {
             )
           : null,
       leadingIcon: icon == null ? null : Icon(icon),
+      trailingIcon: selected == true ? const Icon(Icons.check) : null,
       onPressed: onPressed,
-      child: Text(label),
+      child: Semantics(selected: selected, child: Text(label)),
     );
   }
 }

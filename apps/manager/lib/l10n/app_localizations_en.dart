@@ -1395,22 +1395,42 @@ class AppLocalizationsEn extends AppLocalizations {
   String get vpnAddUser => 'Add client';
 
   @override
-  String get vpnSortBy => 'Sort by';
-
-  @override
-  String get vpnSortByName => 'Name';
-
-  @override
-  String get vpnSortByDate => 'Date created';
-
-  @override
-  String get vpnSortAscending => 'Ascending';
-
-  @override
-  String get vpnSortDescending => 'Descending';
-
-  @override
   String get vpnDisabledClients => 'Disabled clients';
+
+  @override
+  String get vpnSortOldest => 'Oldest first';
+
+  @override
+  String get vpnSortNewest => 'Newest first';
+
+  @override
+  String get vpnSortNameAz => 'Name A–Z';
+
+  @override
+  String get vpnSortNameZa => 'Name Z–A';
+
+  @override
+  String get vpnSortTooltip => 'Client order';
+
+  @override
+  String get vpnSyncForce => 'Check servers and all Drive files';
+
+  @override
+  String get vpnClientsMenu => 'More actions';
+
+  @override
+  String vpnTrafficFor(String month) {
+    return 'Traffic for $month';
+  }
+
+  @override
+  String uiClientsAccessVia(String protocols) {
+    return 'Access via $protocols';
+  }
+
+  @override
+  String get uiClientsNoAccessHelp =>
+      'No server has a protocol for clients yet. Add or enable one on the Servers tab.';
 
   @override
   String get vpnSyncAndPublish => 'Publish verified profiles';
@@ -1434,10 +1454,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String vpnSyncAndPublishWithErrors(int uploaded, int failed, int total) {
     return '$uploaded published, $failed failed of $total.';
   }
-
-  @override
-  String get vpnSyncAndPublishTooltip =>
-      'Click to publish from the last verified server state; local changes trigger a server check. Press and hold to check all servers and Drive files.';
 
   @override
   String get vpnSyncServerUnverified =>
@@ -3053,9 +3069,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get uiNotConfigured => 'Not configured';
 
   @override
-  String get uiNoClientAccess => 'Access is not configured yet';
-
-  @override
   String get uiDiskCapacity => 'Disk capacity';
 
   @override
@@ -3113,9 +3126,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get uiMyServers => 'My servers';
-
-  @override
-  String get uiClientsIntro => 'Access and profiles for your clients';
 
   @override
   String get uiClientsEmptyHelp =>

@@ -62,11 +62,16 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // 1. Verify sort controls exist
-      expect(find.byKey(const ValueKey('vpn-sort-name')), findsOneWidget);
-      expect(find.byKey(const ValueKey('vpn-sort-date')), findsOneWidget);
+      // 1. One sort menu instead of a row of segments.
+      expect(find.byKey(const ValueKey('vpn-sort-menu')), findsOneWidget);
+      Future<void> sortBy(String key) async {
+        await tester.tap(find.byKey(const ValueKey('vpn-sort-menu')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(ValueKey(key)));
+        await tester.pumpAndSettle();
+      }
 
-      // 2. Verify disabled section header exists
+      // 2. Disabled clients are folded under their header.
       expect(find.text('Disabled clients'), findsOneWidget);
       expect(find.byIcon(Icons.pause_circle_outline), findsOneWidget);
 
@@ -81,28 +86,28 @@ void main() {
             .toList();
       }
 
-      // Initial state: Creation date ascending (Charlie 1st, Alice 2nd, Bob disabled at end)
+      expect(renderedUserNames(), equals(['Charlie', 'Alice']));
+      await tester.tap(
+        find.byKey(const ValueKey('vpn-disabled-section-header')),
+      );
+      await tester.pumpAndSettle();
+      // Creation date ascending: Charlie, Alice, then Bob among the disabled.
       expect(renderedUserNames(), equals(['Charlie', 'Alice', 'Bob']));
 
-      // 3. Tap "Name" chip -> Sort by name ascending (Alice, Charlie, Bob at end)
-      await tester.tap(find.byKey(const ValueKey('vpn-sort-name')));
-      await tester.pumpAndSettle();
+      // 3. Name, A to Z.
+      await sortBy('vpn-sort-name-asc');
       expect(renderedUserNames(), equals(['Alice', 'Charlie', 'Bob']));
 
-      // 4. Direction button -> Sort by name descending (Charlie, Alice, Bob at end)
-      await tester.tap(find.byKey(const ValueKey('vpn-sort-direction')));
-      await tester.pumpAndSettle();
+      // 4. Name, Z to A.
+      await sortBy('vpn-sort-name-desc');
       expect(renderedUserNames(), equals(['Charlie', 'Alice', 'Bob']));
 
-      // 5. Tap "Date created" chip -> Switch back to date
-      await tester.tap(find.byKey(const ValueKey('vpn-sort-date')));
-      await tester.pumpAndSettle();
-      // Date ascending: Charlie, Alice, Bob at end
+      // 5. Oldest first.
+      await sortBy('vpn-sort-creationDate-asc');
       expect(renderedUserNames(), equals(['Charlie', 'Alice', 'Bob']));
 
-      // 6. Direction button -> Date descending (Alice, Charlie, Bob at end)
-      await tester.tap(find.byKey(const ValueKey('vpn-sort-direction')));
-      await tester.pumpAndSettle();
+      // 6. Newest first.
+      await sortBy('vpn-sort-creationDate-desc');
       expect(renderedUserNames(), equals(['Alice', 'Charlie', 'Bob']));
 
       // 7. Enable Bob via switch -> Bob moves into active section in sorted order
