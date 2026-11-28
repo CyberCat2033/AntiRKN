@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:antirkn_design_system/antirkn_design_system.dart';
 import 'package:antirkn_storage/antirkn_storage.dart' show openExternalUrl;
 import 'package:flutter/foundation.dart';
@@ -13,14 +15,25 @@ final appDisclaimer = Uri.parse(
   'https://github.com/CyberCat2033/AntiRKN/blob/master/DISCLAIMER.md',
 );
 
-/// The GPL text of the app and of the embedded Mihomo core, shown on the
+const goLicensesAsset = 'assets/legal/go_licenses.json';
+
+/// The app's GPL text and the licenses of the Go modules linked into the
+/// embedded Mihomo core (tool/generate_go_licenses.py), shown on the
 /// licenses page next to the Dart packages' own licenses.
 void registerAppLicenses() {
   LicenseRegistry.addLicense(() async* {
     yield LicenseEntryWithLineBreaks(const [
       'AntiRKN',
-      'mihomo',
     ], await rootBundle.loadString(appLicenseAsset));
+    final go =
+        jsonDecode(await rootBundle.loadString(goLicensesAsset))
+            as Map<String, Object?>;
+    final texts = (go['texts'] as List).cast<String>();
+    for (final module in (go['modules'] as List).cast<Map<String, Object?>>()) {
+      yield LicenseEntryWithLineBreaks([
+        module['module'] as String,
+      ], texts[module['text'] as int]);
+    }
   });
 }
 

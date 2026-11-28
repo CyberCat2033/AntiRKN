@@ -8,6 +8,7 @@ python3 tool/generate_vless.py --check
 python3 tool/generate_runner.py --check
 python3 tool/generate_snapshot.py --check
 python3 tool/generate_app_update.py --check
+python3 tool/generate_go_licenses.py --check
 python3 -m unittest discover -s tests/runner -v
 python3 -m unittest discover -s tests/tools -v
 (

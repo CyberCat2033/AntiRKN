@@ -8,6 +8,7 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- The licenses page lists the licenses of all Go modules built into the Mihomo core.
 - Settings → About: what the app is for, open-source licenses (GPL-3.0 and components) and a link to the source code.
 - The project is licensed under GPL-3.0; added a disclaimer (intended use, no warranty) and a security policy.
 

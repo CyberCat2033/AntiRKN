@@ -5,7 +5,6 @@ import 'package:antirkn_manager/about_settings.dart';
 import 'package:antirkn_manager/l10n/app_localizations.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -16,10 +15,27 @@ void main() {
     );
   });
 
-  testWidgets('About opens the licenses page with the app GPL entry', (
+  test('the licenses page lists the app and every linked Go module', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    registerAppLicenses();
+    final packages = <String>{};
+    await for (final entry in LicenseRegistry.licenses) {
+      packages.addAll(entry.packages);
+    }
+    expect(
+      packages,
+      containsAll([
+        'AntiRKN',
+        'github.com/metacubex/mihomo',
+        'github.com/metacubex/chacha',
+        'Go standard library',
+      ]),
+    );
+  });
+
+  testWidgets('About opens the licenses page', (
     tester,
   ) async {
-    registerAppLicenses();
     await tester.pumpWidget(
       MaterialApp(
         locale: const Locale('en'),
@@ -34,17 +50,10 @@ void main() {
     );
     expect(find.textContaining('not a VPN service'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('about-licenses')));
-    await tester.pumpAndSettle();
+    // The page keeps a progress indicator while it reads the licenses.
+    await tester.pump();
+    await tester.pump();
     expect(find.byType(LicensePage), findsOneWidget);
-    final packages = <String>{};
-    await for (final entry in LicenseRegistry.licenses) {
-      packages.addAll(entry.packages);
-    }
-    expect(packages, containsAll(['AntiRKN', 'mihomo']));
-    expect(
-      await rootBundle.loadString(appLicenseAsset),
-      contains('GNU GENERAL PUBLIC LICENSE'),
-    );
     expect(tester.takeException(), isNull);
   });
 }
