@@ -47,3 +47,4 @@ flutter:
   uses-material-design: true
   assets:
     - packages/antirkn_network_inventory/fixtures/one_vps.json
+    - assets/legal/LICENSE

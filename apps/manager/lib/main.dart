@@ -28,6 +28,7 @@ import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 
 import 'template_settings.dart';
 import 'appearance_settings.dart';
+import 'about_settings.dart';
 import 'sync/sync_diag.dart';
 import 'backup/backup_panel.dart';
 import 'runner/component_updates_controller.dart';
@@ -49,6 +50,7 @@ import 'update/app_update_view.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  registerAppLicenses();
   // The Linux window appears with the first frame and Android keeps its
   // launch background until then: the frame waits for the saved theme, so a
   // dark app on a light system does not open with a light screen.
@@ -1582,6 +1584,13 @@ class _ManagerShellState extends State<ManagerShell>
                                   subtitle: l.uiUpdatesHelp,
                                   icon: Icons.system_update_alt,
                                   content: const AppUpdateSettings(),
+                                ),
+                                SettingsDestination(
+                                  id: 'about',
+                                  title: l.uiAbout,
+                                  subtitle: l.uiAboutHelp,
+                                  icon: Icons.info_outline,
+                                  content: AboutSettings(motion: widget.motion),
                                 ),
                               ],
                             ),

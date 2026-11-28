@@ -1763,5 +1763,17 @@
   "appUpdateErrorCoreBusy": "A Mihomo check is still running. Wait for it to finish and install again.",
   "appUpdateErrorInstall": "The update could not be installed. The installed version is unchanged.",
   "appUpdateErrorAborted": "The installation was cancelled.",
-  "appUpdateErrorPermission": "Installing apps is not allowed for AntiRKN."
+  "appUpdateErrorPermission": "Installing apps is not allowed for AntiRKN.",
+  "uiAbout": "About",
+  "uiAboutHelp": "Purpose, licenses, source code",
+  "aboutPurposeTitle": "Purpose",
+  "aboutPurpose": "AntiRKN is an educational tool for administering your own servers and learning about network protocols. It is not a VPN service: the app provides no servers and no access to any network or resource. You are responsible for complying with the laws of your country and of the country where your server is located. The software is provided as is, without warranty.",
+  "aboutLicenses": "Licenses",
+  "aboutLicensesHelp": "GNU GPL v3.0 and open-source components",
+  "aboutLegalese": "Free software under the GNU GPL v3.0, provided without any warranty.",
+  "aboutDisclaimer": "Disclaimer",
+  "aboutDisclaimerHelp": "Full text on GitHub",
+  "aboutSource": "Source code",
+  "aboutSourceHelp": "Repository on GitHub",
+  "aboutOpensBrowser": "Opens in the browser"
 }

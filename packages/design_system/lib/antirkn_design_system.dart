@@ -47,6 +47,31 @@ abstract final class AppMotion {
   }
 }
 
+/// Opens a full page above the current one with the shared-axis transition
+/// of nested pages; [motion] and the system setting can turn it off.
+Future<T?> pushAppPage<T>(
+  BuildContext context, {
+  required MotionPreference motion,
+  required WidgetBuilder builder,
+}) {
+  final duration = AppMotion.duration(context, motion);
+  return Navigator.of(context).push<T>(
+    PageRouteBuilder<T>(
+      transitionDuration: duration,
+      reverseTransitionDuration: duration,
+      pageBuilder: (context, _, _) => builder(context),
+      transitionsBuilder: (context, animation, secondary, child) =>
+          SharedAxisTransition(
+            animation: animation,
+            secondaryAnimation: secondary,
+            transitionType: SharedAxisTransitionType.scaled,
+            fillColor: Theme.of(context).scaffoldBackgroundColor,
+            child: child,
+          ),
+    ),
+  );
+}
+
 /// Material container transform: the tapped surface becomes the details page.
 class AppOpenContainer extends StatelessWidget {
   const AppOpenContainer({

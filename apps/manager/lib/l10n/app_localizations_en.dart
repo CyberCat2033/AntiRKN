@@ -4870,4 +4870,42 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get appUpdateErrorPermission =>
       'Installing apps is not allowed for AntiRKN.';
+
+  @override
+  String get uiAbout => 'About';
+
+  @override
+  String get uiAboutHelp => 'Purpose, licenses, source code';
+
+  @override
+  String get aboutPurposeTitle => 'Purpose';
+
+  @override
+  String get aboutPurpose =>
+      'AntiRKN is an educational tool for administering your own servers and learning about network protocols. It is not a VPN service: the app provides no servers and no access to any network or resource. You are responsible for complying with the laws of your country and of the country where your server is located. The software is provided as is, without warranty.';
+
+  @override
+  String get aboutLicenses => 'Licenses';
+
+  @override
+  String get aboutLicensesHelp => 'GNU GPL v3.0 and open-source components';
+
+  @override
+  String get aboutLegalese =>
+      'Free software under the GNU GPL v3.0, provided without any warranty.';
+
+  @override
+  String get aboutDisclaimer => 'Disclaimer';
+
+  @override
+  String get aboutDisclaimerHelp => 'Full text on GitHub';
+
+  @override
+  String get aboutSource => 'Source code';
+
+  @override
+  String get aboutSourceHelp => 'Repository on GitHub';
+
+  @override
+  String get aboutOpensBrowser => 'Opens in the browser';
 }

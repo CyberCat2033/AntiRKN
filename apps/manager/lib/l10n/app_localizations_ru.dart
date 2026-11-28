@@ -4883,4 +4883,42 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get appUpdateErrorPermission =>
       'AntiRKN не разрешено устанавливать приложения.';
+
+  @override
+  String get uiAbout => 'О приложении';
+
+  @override
+  String get uiAboutHelp => 'Назначение, лицензии, исходный код';
+
+  @override
+  String get aboutPurposeTitle => 'Назначение';
+
+  @override
+  String get aboutPurpose =>
+      'AntiRKN — учебный инструмент для администрирования ваших собственных серверов и изучения сетевых протоколов. Это не VPN-сервис: приложение не предоставляет серверы и доступ к каким-либо сетям и ресурсам. Вы сами отвечаете за соблюдение законов своей страны и страны, где размещён сервер. Программа поставляется «как есть», без гарантий.';
+
+  @override
+  String get aboutLicenses => 'Лицензии';
+
+  @override
+  String get aboutLicensesHelp => 'GNU GPL v3.0 и компоненты с открытым кодом';
+
+  @override
+  String get aboutLegalese =>
+      'Свободное ПО по лицензии GNU GPL v3.0, без каких-либо гарантий.';
+
+  @override
+  String get aboutDisclaimer => 'Отказ от ответственности';
+
+  @override
+  String get aboutDisclaimerHelp => 'Полный текст на GitHub';
+
+  @override
+  String get aboutSource => 'Исходный код';
+
+  @override
+  String get aboutSourceHelp => 'Репозиторий на GitHub';
+
+  @override
+  String get aboutOpensBrowser => 'Откроется в браузере';
 }

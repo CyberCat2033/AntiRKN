@@ -8431,6 +8431,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Installing apps is not allowed for AntiRKN.'**
   String get appUpdateErrorPermission;
+
+  /// No description provided for @uiAbout.
+  ///
+  /// In en, this message translates to:
+  /// **'About'**
+  String get uiAbout;
+
+  /// No description provided for @uiAboutHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Purpose, licenses, source code'**
+  String get uiAboutHelp;
+
+  /// No description provided for @aboutPurposeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Purpose'**
+  String get aboutPurposeTitle;
+
+  /// No description provided for @aboutPurpose.
+  ///
+  /// In en, this message translates to:
+  /// **'AntiRKN is an educational tool for administering your own servers and learning about network protocols. It is not a VPN service: the app provides no servers and no access to any network or resource. You are responsible for complying with the laws of your country and of the country where your server is located. The software is provided as is, without warranty.'**
+  String get aboutPurpose;
+
+  /// No description provided for @aboutLicenses.
+  ///
+  /// In en, this message translates to:
+  /// **'Licenses'**
+  String get aboutLicenses;
+
+  /// No description provided for @aboutLicensesHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'GNU GPL v3.0 and open-source components'**
+  String get aboutLicensesHelp;
+
+  /// No description provided for @aboutLegalese.
+  ///
+  /// In en, this message translates to:
+  /// **'Free software under the GNU GPL v3.0, provided without any warranty.'**
+  String get aboutLegalese;
+
+  /// No description provided for @aboutDisclaimer.
+  ///
+  /// In en, this message translates to:
+  /// **'Disclaimer'**
+  String get aboutDisclaimer;
+
+  /// No description provided for @aboutDisclaimerHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Full text on GitHub'**
+  String get aboutDisclaimerHelp;
+
+  /// No description provided for @aboutSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Source code'**
+  String get aboutSource;
+
+  /// No description provided for @aboutSourceHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Repository on GitHub'**
+  String get aboutSourceHelp;
+
+  /// No description provided for @aboutOpensBrowser.
+  ///
+  /// In en, this message translates to:
+  /// **'Opens in the browser'**
+  String get aboutOpensBrowser;
 }
 
 class _AppLocalizationsDelegate
