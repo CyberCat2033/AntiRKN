@@ -12,6 +12,26 @@ class _Export implements ProfileExporter {
 }
 
 void main() {
+  test('traffic order: most first when descending; equal keeps creation', () {
+    final ids = [for (var i = 0; i < 4; i++) newVpnId()];
+    final users = [
+      for (final (i, id) in ids.indexed)
+        VpnUser(id: id, login: 'user$i', name: 'User $i'),
+    ];
+    final traffic = {ids[0]: 10, ids[1]: 300, ids[2]: 10};
+    List<String> order(bool ascending) => [
+      for (final u in sortUsersForDisplay(
+        users,
+        UserSortField.traffic,
+        ascending,
+        traffic: traffic,
+      ).enabled)
+        u.id,
+    ];
+    expect(order(false), [ids[1], ids[0], ids[2], ids[3]]);
+    expect(order(true), [ids[3], ids[0], ids[2], ids[1]]);
+  });
+
   testWidgets(
     'UsersPage sorts clients by name and creation date with disabled clients at the end',
     (tester) async {
@@ -71,6 +91,12 @@ void main() {
         await tester.pumpAndSettle();
       }
 
+      // The arrow beside the menu turns the order around.
+      Future<void> reverse() async {
+        await tester.tap(find.byKey(const ValueKey('vpn-sort-direction')));
+        await tester.pumpAndSettle();
+      }
+
       // 2. Disabled clients are folded under their header.
       expect(find.text('Disabled clients'), findsOneWidget);
       expect(find.byIcon(Icons.pause_circle_outline), findsOneWidget);
@@ -95,19 +121,19 @@ void main() {
       expect(renderedUserNames(), equals(['Charlie', 'Alice', 'Bob']));
 
       // 3. Name, A to Z.
-      await sortBy('vpn-sort-name-asc');
+      await sortBy('vpn-sort-name');
       expect(renderedUserNames(), equals(['Alice', 'Charlie', 'Bob']));
 
       // 4. Name, Z to A.
-      await sortBy('vpn-sort-name-desc');
+      await reverse();
       expect(renderedUserNames(), equals(['Charlie', 'Alice', 'Bob']));
 
-      // 5. Oldest first.
-      await sortBy('vpn-sort-creationDate-asc');
+      // 5. Oldest first: a criterion starts from its own direction.
+      await sortBy('vpn-sort-creationDate');
       expect(renderedUserNames(), equals(['Charlie', 'Alice', 'Bob']));
 
       // 6. Newest first.
-      await sortBy('vpn-sort-creationDate-desc');
+      await reverse();
       expect(renderedUserNames(), equals(['Alice', 'Charlie', 'Bob']));
 
       // 7. Enable Bob via switch -> Bob moves into active section in sorted order

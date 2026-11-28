@@ -151,7 +151,7 @@ void main() {
         ),
       );
 
-      // Deleting from the pane leaves the hint in its place.
+      // Deleting from the pane gives the list its width back.
       await tester.tap(find.byKey(const ValueKey('client-card-delete')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('client-delete-confirm')));
@@ -164,45 +164,26 @@ void main() {
     });
   }
 
-  testWidgets('a wide window shows a hint until a client is chosen, '
-      'and the selection while choosing several', (tester) async {
-    tester.view.physicalSize = const Size(1400, 900);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    final c = f.controller(f.MemoryVpn(), {});
-    addTearDown(c.dispose);
-    await tester.runAsync(() async {
-      await c.load();
-      await c.saveUser(VpnUser(id: f.alice, login: 'alice', name: 'Alice'));
-    });
-    await tester.pumpWidget(
-      MaterialApp(
-        locale: const Locale('en'),
-        supportedLocales: AppLocalizations.supportedLocales,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        theme: AppTheme.create(Brightness.light),
-        home: Scaffold(
-          body: UsersPage(
-            controller: c,
-            serverName: (s) => s,
-            exporter: _Export(),
-            motion: MotionPreference.off,
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('clients-pane-empty')), findsOneWidget);
-    expect(find.text('Choose a client'), findsOneWidget);
+  testWidgets('on a wide window the list takes the whole width until a card '
+      'opens; the arrow hides the card again', (tester) async {
+    final c = await open(tester, width: 1400);
+    final row = find.byKey(ValueKey('client-${f.alice}'));
+    final opened = tester.getSize(row).width;
+    expect(opened, lessThan(700));
 
-    await tester.longPress(find.byKey(ValueKey('client-${f.alice}')));
+    await tester.tap(find.byKey(const ValueKey('client-pane-close')));
     await tester.pumpAndSettle();
-    expect(
-      find.byKey(const ValueKey('clients-pane-selection')),
-      findsOneWidget,
-    );
-    expect(find.text('1 client selected'), findsOneWidget);
+    expect(find.byType(ProfileShareSheet), findsNothing);
+    expect(tester.getSize(row).width, greaterThan(1200));
+
+    // Choosing several hides the card; it is not opened by a long press.
+    await tester.tap(row);
+    await tester.pumpAndSettle();
+    expect(find.byType(ProfileShareSheet), findsOneWidget);
+    await tester.longPress(row);
+    await tester.pumpAndSettle();
+    expect(find.byType(ProfileShareSheet), findsNothing);
+    expect(c.workspace.userById(f.alice), isNotNull);
     expect(tester.takeException(), isNull);
   });
 }

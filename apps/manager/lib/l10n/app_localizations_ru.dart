@@ -1402,19 +1402,22 @@ class AppLocalizationsRu extends AppLocalizations {
   String get vpnDisabledClients => 'Отключенные клиенты';
 
   @override
-  String get vpnSortOldest => 'Сначала старые';
-
-  @override
-  String get vpnSortNewest => 'Сначала новые';
-
-  @override
-  String get vpnSortNameAz => 'По имени, А–Я';
-
-  @override
-  String get vpnSortNameZa => 'По имени, Я–А';
-
-  @override
   String get vpnSortTooltip => 'Порядок клиентов';
+
+  @override
+  String get vpnSortDate => 'Дата добавления';
+
+  @override
+  String get vpnSortName => 'Имя';
+
+  @override
+  String get vpnSortTraffic => 'Трафик за месяц';
+
+  @override
+  String get vpnSortAscending => 'По возрастанию';
+
+  @override
+  String get vpnSortDescending => 'По убыванию';
 
   @override
   String get vpnSyncForce => 'Сверить серверы и все файлы на Диске';
@@ -1483,26 +1486,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get clientsNotFound => 'Никого не нашлось';
 
   @override
-  String get clientsPickTitle => 'Выберите клиента';
-
-  @override
-  String get clientsPickHelp => 'Здесь откроются его QR, трафик и действия.';
-
-  @override
-  String clientsSelectedTitle(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: 'Выбрано $count клиента',
-      many: 'Выбрано $count клиентов',
-      few: 'Выбрано $count клиента',
-      one: 'Выбран $count клиент',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String get clientsSelectedHelp => 'Действия с ними — в шапке списка.';
+  String get clientsHideCard => 'Скрыть карточку';
 
   @override
   String clientsNotFoundHelp(String query) {

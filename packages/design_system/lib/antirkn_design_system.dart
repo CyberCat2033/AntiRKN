@@ -3086,16 +3086,21 @@ class AppActionRow extends StatelessWidget {
 }
 
 /// A list with the open item beside it (M3 list-detail) on an expanded
-/// width; below that the caller shows the item over the list instead. The
-/// detail fades through when another item opens.
-class AppListDetail extends StatelessWidget {
+/// width; below that the caller shows the item over the list instead.
+/// With nothing open the list takes the whole width; opening an item slides
+/// its pane in from the end and the list gives way. Another item fades
+/// through in the same pane.
+class AppListDetail extends StatefulWidget {
   const AppListDetail({
     required this.list,
     required this.detail,
     required this.motion,
     super.key,
   });
-  final Widget list, detail;
+  final Widget list;
+
+  /// The open item; null: none, the list alone.
+  final Widget? detail;
   final MotionPreference motion;
 
   /// Whether [constraints] leave room for both panes.
@@ -3103,44 +3108,92 @@ class AppListDetail extends StatelessWidget {
       constraints.maxWidth >= AppLayout.expanded;
 
   @override
+  State<AppListDetail> createState() => _AppListDetailState();
+}
+
+class _AppListDetailState extends State<AppListDetail> {
+  /// The item last open, kept while its pane slides away.
+  Widget? _closing;
+
+  @override
+  void didUpdateWidget(AppListDetail oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final animated =
+        AppMotion.duration(context, widget.motion) != Duration.zero;
+    if (widget.detail != null) {
+      _closing = null;
+    } else if (oldWidget.detail != null && animated) {
+      _closing = oldWidget.detail;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final colors = Theme.of(context).colorScheme;
-      final listWidth = (constraints.maxWidth * .42).clamp(360.0, 480.0);
-      final duration = AppMotion.duration(context, motion);
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SizedBox(width: listWidth, child: list),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsetsDirectional.fromSTEB(
-                AppLayout.smallGap,
-                AppLayout.gap,
-                AppLayout.gap,
-                AppLayout.gap,
-              ),
-              child: Material(
-                color: colors.surfaceContainerLow,
-                borderRadius: BorderRadius.circular(AppLayout.radius),
-                clipBehavior: Clip.antiAlias,
-                child: duration == Duration.zero
-                    ? detail
-                    : PageTransitionSwitcher(
-                        duration: duration,
-                        transitionBuilder: (child, primary, secondary) =>
-                            FadeThroughTransition(
-                              animation: primary,
-                              secondaryAnimation: secondary,
-                              fillColor: Colors.transparent,
-                              child: child,
-                            ),
-                        child: detail,
-                      ),
-              ),
+      final width = constraints.maxWidth;
+      final open = widget.detail != null;
+      final listWidth = (width * .42).clamp(360.0, 480.0);
+      final duration = AppMotion.duration(context, widget.motion);
+      final detail = widget.detail ?? _closing;
+      return ClipRect(
+        child: Stack(
+          children: [
+            AnimatedPositionedDirectional(
+              duration: duration,
+              curve: AppMotion.curve,
+              start: 0,
+              top: 0,
+              bottom: 0,
+              width: open ? listWidth : width,
+              child: widget.list,
             ),
-          ),
-        ],
+            // Always laid out, past the end while closed, so that it can
+            // slide in.
+            AnimatedPositionedDirectional(
+              duration: duration,
+              curve: AppMotion.curve,
+              start: open ? listWidth : width,
+              top: 0,
+              bottom: 0,
+              width: width - listWidth,
+              onEnd: () {
+                if (!open && _closing != null && mounted) {
+                  setState(() => _closing = null);
+                }
+              },
+              child: detail == null
+                  ? const SizedBox.shrink()
+                  : Padding(
+                      padding: const EdgeInsetsDirectional.fromSTEB(
+                        AppLayout.smallGap,
+                        AppLayout.gap,
+                        AppLayout.gap,
+                        AppLayout.gap,
+                      ),
+                      child: Material(
+                        color: colors.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(AppLayout.radius),
+                        clipBehavior: Clip.antiAlias,
+                        child: duration == Duration.zero
+                            ? detail
+                            : PageTransitionSwitcher(
+                                duration: duration,
+                                transitionBuilder:
+                                    (child, primary, secondary) =>
+                                        FadeThroughTransition(
+                                          animation: primary,
+                                          secondaryAnimation: secondary,
+                                          fillColor: Colors.transparent,
+                                          child: child,
+                                        ),
+                                child: detail,
+                              ),
+                      ),
+                    ),
+            ),
+          ],
+        ),
       );
     },
   );
