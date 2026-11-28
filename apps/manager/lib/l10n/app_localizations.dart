@@ -8618,6 +8618,54 @@ abstract class AppLocalizations {
   /// **'Opens in the browser'**
   String get aboutOpensBrowser;
 
+  /// No description provided for @licensesVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Version {version}'**
+  String licensesVersion(String version);
+
+  /// No description provided for @licensesComponents.
+  ///
+  /// In en, this message translates to:
+  /// **'Components'**
+  String get licensesComponents;
+
+  /// No description provided for @licensesSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Search components'**
+  String get licensesSearch;
+
+  /// No description provided for @licensesSearchClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear search'**
+  String get licensesSearchClear;
+
+  /// No description provided for @licensesNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No components found'**
+  String get licensesNotFound;
+
+  /// No description provided for @licensesNotFoundHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'No component name contains “{query}”.'**
+  String licensesNotFoundHelp(String query);
+
+  /// No description provided for @licensesCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 license} other{{count} licenses}}'**
+  String licensesCount(int count);
+
+  /// No description provided for @licensesLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read the licenses'**
+  String get licensesLoadFailed;
+
   /// No description provided for @realitySearchTitle.
   ///
   /// In en, this message translates to:

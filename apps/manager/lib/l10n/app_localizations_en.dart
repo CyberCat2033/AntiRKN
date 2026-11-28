@@ -4986,6 +4986,42 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutOpensBrowser => 'Opens in the browser';
 
   @override
+  String licensesVersion(String version) {
+    return 'Version $version';
+  }
+
+  @override
+  String get licensesComponents => 'Components';
+
+  @override
+  String get licensesSearch => 'Search components';
+
+  @override
+  String get licensesSearchClear => 'Clear search';
+
+  @override
+  String get licensesNotFound => 'No components found';
+
+  @override
+  String licensesNotFoundHelp(String query) {
+    return 'No component name contains “$query”.';
+  }
+
+  @override
+  String licensesCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count licenses',
+      one: '1 license',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get licensesLoadFailed => 'Could not read the licenses';
+
+  @override
   String get realitySearchTitle => 'Find SNI';
 
   @override
