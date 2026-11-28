@@ -1292,7 +1292,11 @@ class _InboundFormState extends State<InboundForm> {
                 ],
                 onChanged: (v) => setState(() {
                   spec['transport'] = v;
-                  if (v == 'xhttp') spec['xhttp'] = xhttpFormDefaults();
+                  if (v == 'xhttp') {
+                    spec['xhttp'] = xhttpFormDefaults();
+                    // A target may be chosen before the transport.
+                    _fillXhttpPath();
+                  }
                   if (v == 'raw') {
                     spec.remove('xhttp');
                     spec['security'] = 'reality';

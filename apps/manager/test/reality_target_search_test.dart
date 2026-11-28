@@ -584,4 +584,84 @@ void main() {
       }
     });
   }
+
+  testWidgets('choosing a target for an XHTTP inbound generates its path', (
+    tester,
+  ) async {
+    final network = NetworkController(reader: const SampleInventoryReader());
+    await tester.pumpWidget(
+      app(
+        Scaffold(
+          body: InboundForm(
+            serverId: 'server-1',
+            network: network,
+            motion: MotionPreference.off,
+            findTarget: (_) async =>
+                (target: 'alpha.example:443', sni: 'alpha.example'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('transport-raw')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('XHTTP').last);
+    await tester.pumpAndSettle();
+    final findButton = find.byKey(const ValueKey('vpn-reality-find'));
+    await tester.ensureVisible(findButton);
+    await tester.tap(findButton);
+    await tester.pumpAndSettle();
+    final path = tester
+        .widget<TextField>(
+          find.descendant(
+            of: find.byKey(const ValueKey('vpn-inbound-path')),
+            matching: find.byType(TextField),
+            matchRoot: true,
+          ),
+        )
+        .controller!
+        .text;
+    expect(path, matches(RegExp(r'^/[a-z0-9]+/[a-z0-9]{10}$')));
+  });
+
+  testWidgets('switching to XHTTP generates the path, a custom one stays', (
+    tester,
+  ) async {
+    final network = NetworkController(reader: const SampleInventoryReader());
+    await tester.pumpWidget(
+      app(
+        Scaffold(
+          body: InboundForm(
+            serverId: 'server-1',
+            network: network,
+            motion: MotionPreference.off,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    String path() => tester
+        .widget<TextField>(
+          find.descendant(
+            of: find.byKey(const ValueKey('vpn-inbound-path')),
+            matching: find.byType(TextField),
+            matchRoot: true,
+          ),
+        )
+        .controller!
+        .text;
+    Future<void> transport(String from, String to) async {
+      await tester.tap(find.byKey(ValueKey('transport-$from')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(to).last);
+      await tester.pumpAndSettle();
+    }
+
+    await transport('raw', 'XHTTP');
+    final generated = path();
+    expect(generated, matches(RegExp(r'^/[a-z0-9]+/[a-z0-9]{10}$')));
+    await transport('xhttp', 'RAW/TCP · Vision');
+    await transport('raw', 'XHTTP');
+    expect(path(), generated);
+  });
 }
