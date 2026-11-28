@@ -1483,6 +1483,28 @@ class AppLocalizationsRu extends AppLocalizations {
   String get clientsNotFound => 'Никого не нашлось';
 
   @override
+  String get clientsPickTitle => 'Выберите клиента';
+
+  @override
+  String get clientsPickHelp => 'Здесь откроются его QR, трафик и действия.';
+
+  @override
+  String clientsSelectedTitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Выбрано $count клиента',
+      many: 'Выбрано $count клиентов',
+      few: 'Выбрано $count клиента',
+      one: 'Выбран $count клиент',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get clientsSelectedHelp => 'Действия с ними — в шапке списка.';
+
+  @override
   String clientsNotFoundHelp(String query) {
     return 'Нет клиента, в имени которого есть «$query».';
   }

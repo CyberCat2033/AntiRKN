@@ -128,4 +128,81 @@ void main() {
     expect(delete, findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  for (final width in [1000.0, 1400.0]) {
+    testWidgets('at $width the card opens beside the list', (tester) async {
+      final c = await open(tester, width: width);
+      final card = find.byType(ProfileShareSheet);
+      expect(
+        find.ancestor(of: card, matching: find.byType(BottomSheet)),
+        findsNothing,
+      );
+      expect(
+        find.ancestor(of: card, matching: find.byType(Dialog)),
+        findsNothing,
+      );
+      expect(find.byKey(const ValueKey('profile-close')), findsNothing);
+      // The list stays usable beside it.
+      expect(find.byKey(ValueKey('client-toggle-${f.alice}')), findsOneWidget);
+      expect(
+        tester.getTopLeft(card).dx,
+        greaterThan(
+          tester.getTopRight(find.byKey(ValueKey('client-${f.alice}'))).dx - 1,
+        ),
+      );
+
+      // Deleting from the pane leaves the hint in its place.
+      await tester.tap(find.byKey(const ValueKey('client-card-delete')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('client-delete-confirm')));
+      await tester.pump();
+      await tester.runAsync(() => Future<void>.delayed(Durations.medium2));
+      await tester.pumpAndSettle();
+      expect(c.workspace.userById(f.alice)?.deleted ?? true, isTrue);
+      expect(card, findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('a wide window shows a hint until a client is chosen, '
+      'and the selection while choosing several', (tester) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final c = f.controller(f.MemoryVpn(), {});
+    addTearDown(c.dispose);
+    await tester.runAsync(() async {
+      await c.load();
+      await c.saveUser(VpnUser(id: f.alice, login: 'alice', name: 'Alice'));
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('en'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        theme: AppTheme.create(Brightness.light),
+        home: Scaffold(
+          body: UsersPage(
+            controller: c,
+            serverName: (s) => s,
+            exporter: _Export(),
+            motion: MotionPreference.off,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('clients-pane-empty')), findsOneWidget);
+    expect(find.text('Choose a client'), findsOneWidget);
+
+    await tester.longPress(find.byKey(ValueKey('client-${f.alice}')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('clients-pane-selection')),
+      findsOneWidget,
+    );
+    expect(find.text('1 client selected'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

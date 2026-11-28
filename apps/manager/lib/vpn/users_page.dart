@@ -276,6 +276,9 @@ class _UsersPageState extends State<UsersPage> {
   final _search = TextEditingController();
   String _query = '';
 
+  /// The client whose card is open beside the list on a wide window.
+  String? _opened;
+
   void _clearSearch() => setState(() {
     _search.clear();
     _query = '';
@@ -619,7 +622,7 @@ class _UsersPageState extends State<UsersPage> {
     ];
   }
 
-  Widget _row(VpnController c, VpnUser user, bool first) => UserTile(
+  Widget _row(VpnController c, VpnUser user, bool first, bool wide) => UserTile(
     user: user,
     isFirst: first,
     controller: c,
@@ -627,9 +630,43 @@ class _UsersPageState extends State<UsersPage> {
     publications: publications,
     traffic: widget.traffic,
     motion: motion,
-    onProfile: _profile,
+    isOpen: wide && _opened == user.id,
+    // Beside the list on a wide window, over it otherwise.
+    onProfile: wide ? (_, user) => setState(() => _opened = user.id) : _profile,
     isSyncing: _syncing,
   );
+
+  /// The pane beside the list: the open client's card, or what to do.
+  Widget _pane(VpnController c, AppLocalizations l, int total) {
+    final user = _opened == null ? null : c.workspace.userById(_opened!);
+    if (!selection.active && user != null && !user.deleted) {
+      return _card(user, embedded: true);
+    }
+    final (String key, Widget? hint) = selection.active
+        ? (
+            'clients-pane-selection',
+            AppEmptyState(
+              title: l.clientsSelectedTitle(selection.ids.length),
+              icon: Icons.checklist,
+              message: l.clientsSelectedHelp,
+            ),
+          )
+        : total == 0
+        ? ('clients-pane-none', null)
+        : (
+            'clients-pane-empty',
+            AppEmptyState(
+              title: l.clientsPickTitle,
+              icon: Icons.person_outline,
+              message: l.clientsPickHelp,
+            ),
+          );
+    return Align(
+      key: ValueKey(key),
+      alignment: Alignment.topCenter,
+      child: Padding(padding: const EdgeInsets.all(AppLayout.gap), child: hint),
+    );
+  }
 
   /// The period of the traffic in the rows, and the order of the list.
   Widget? _listBar(AppLocalizations l, int count, bool onlyFailed) {
@@ -675,226 +712,231 @@ class _UsersPageState extends State<UsersPage> {
   }
 
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([
-      controller,
-      selection,
-      // While narrowed to errors, a fixed or new failure changes the list.
-      if (_onlyFailed) ?publications?.changes,
-    ]),
-    builder: (context, _) {
-      final c = controller, l = AppLocalizations.of(context);
-      final theme = Theme.of(context);
-      final sorted = _sortedUsers(c.workspace.users);
-      // The filter ends by itself once no client has an error of its own.
-      final onlyFailed =
-          _onlyFailed && !selection.active && sorted.enabled.any(_hasOwnError);
-      final total = sorted.enabled.length + sorted.disabled.length;
-      final showSearch = total >= UsersPage.searchFrom;
-      // A query left from a longer list does not hide clients silently.
-      final query = showSearch ? _query.trim().toLowerCase() : '';
-      bool matches(VpnUser u) =>
-          query.isEmpty || u.name.toLowerCase().contains(query);
-      final enabledUsers = [
-        for (final u in sorted.enabled)
-          if (matches(u) && (!onlyFailed || _hasOwnError(u))) u,
-      ];
-      final disabledUsers = onlyFailed
-          ? const <VpnUser>[]
-          : [
-              for (final u in sorted.disabled)
-                if (matches(u)) u,
-            ];
-      final allUsers = [...enabledUsers, ...disabledUsers];
-      final ids = [for (final u in allUsers) u.id];
-      final protocols = _protocols();
-      // With no active clients the disabled ones are the list itself.
-      // A search looks through the disabled clients as well.
-      final showDisabled =
-          _disabledOpen || enabledUsers.isEmpty || query.isNotEmpty;
-      final fab = !selection.active && !_addInHeader(context);
-      final listBar = selection.active || allUsers.isEmpty
-          ? null
-          : _listBar(l, allUsers.length, onlyFailed);
-      return Column(
-        children: [
-          _header(context, c, l, ids),
-          Expanded(
-            child: Stack(
-              children: [
-                DragSelectList(
-                  selection: selection,
-                  ids: [
-                    for (final u in [
-                      ...enabledUsers,
-                      if (showDisabled) ...disabledUsers,
-                    ])
-                      u.id,
-                  ],
-                  enabled: c.canMutate,
-                  builder: (scroll, item) => CustomScrollView(
-                    controller: scroll,
-                    key: const PageStorageKey('vpn-users'),
-                    slivers: [
-                      SliverPadding(
-                        padding: AppLayout.screenPadding(context).copyWith(
-                          top: 0,
-                          // The last row scrolls clear of the floating button.
-                          bottom: fab ? 96 : null,
-                        ),
-                        sliver: SliverMainAxisGroup(
-                          slivers: [
-                            SliverList.list(
-                              children: [
-                                ServerOperationsBanner(
-                                  controller: c,
-                                  serverName: serverName,
-                                  onOpenServer: widget.onOpenServer,
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, size) => ListenableBuilder(
+      listenable: Listenable.merge([
+        controller,
+        selection,
+        // While narrowed to errors, a fixed or new failure changes the list.
+        if (_onlyFailed) ?publications?.changes,
+      ]),
+      builder: (context, _) => _build(context, AppListDetail.fits(size)),
+    ),
+  );
+
+  Widget _build(BuildContext context, bool wide) {
+    final c = controller, l = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final sorted = _sortedUsers(c.workspace.users);
+    // The filter ends by itself once no client has an error of its own.
+    final onlyFailed =
+        _onlyFailed && !selection.active && sorted.enabled.any(_hasOwnError);
+    final total = sorted.enabled.length + sorted.disabled.length;
+    final showSearch = total >= UsersPage.searchFrom;
+    // A query left from a longer list does not hide clients silently.
+    final query = showSearch ? _query.trim().toLowerCase() : '';
+    bool matches(VpnUser u) =>
+        query.isEmpty || u.name.toLowerCase().contains(query);
+    final enabledUsers = [
+      for (final u in sorted.enabled)
+        if (matches(u) && (!onlyFailed || _hasOwnError(u))) u,
+    ];
+    final disabledUsers = onlyFailed
+        ? const <VpnUser>[]
+        : [
+            for (final u in sorted.disabled)
+              if (matches(u)) u,
+          ];
+    final allUsers = [...enabledUsers, ...disabledUsers];
+    final ids = [for (final u in allUsers) u.id];
+    final protocols = _protocols();
+    // With no active clients the disabled ones are the list itself.
+    // A search looks through the disabled clients as well.
+    final showDisabled =
+        _disabledOpen || enabledUsers.isEmpty || query.isNotEmpty;
+    final fab = !selection.active && !_addInHeader(context);
+    final listBar = selection.active || allUsers.isEmpty
+        ? null
+        : _listBar(l, allUsers.length, onlyFailed);
+    final page = Column(
+      children: [
+        _header(context, c, l, ids),
+        Expanded(
+          child: Stack(
+            children: [
+              DragSelectList(
+                selection: selection,
+                ids: [
+                  for (final u in [
+                    ...enabledUsers,
+                    if (showDisabled) ...disabledUsers,
+                  ])
+                    u.id,
+                ],
+                enabled: c.canMutate,
+                builder: (scroll, item) => CustomScrollView(
+                  controller: scroll,
+                  key: const PageStorageKey('vpn-users'),
+                  slivers: [
+                    SliverPadding(
+                      padding: AppLayout.screenPadding(context).copyWith(
+                        top: 0,
+                        // The last row scrolls clear of the floating button.
+                        bottom: fab ? 96 : null,
+                      ),
+                      sliver: SliverMainAxisGroup(
+                        slivers: [
+                          SliverList.list(
+                            children: [
+                              ServerOperationsBanner(
+                                controller: c,
+                                serverName: serverName,
+                                onOpenServer: widget.onOpenServer,
+                              ),
+                              CatalogNormalContent(
+                                selection: selection,
+                                child: ClientsStatusCard(
+                                  vpn: c,
+                                  publications: publications,
+                                  hasAccess: protocols.isNotEmpty,
+                                  syncing: _syncing,
+                                  motion: motion,
+                                  onShowFailed: () =>
+                                      setState(() => _onlyFailed = true),
                                 ),
-                                CatalogNormalContent(
-                                  selection: selection,
-                                  child: ClientsStatusCard(
-                                    vpn: c,
-                                    publications: publications,
-                                    hasAccess: protocols.isNotEmpty,
-                                    syncing: _syncing,
-                                    motion: motion,
-                                    onShowFailed: () =>
-                                        setState(() => _onlyFailed = true),
+                              ),
+                              if (showSearch)
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    bottom: AppLayout.smallGap,
+                                  ),
+                                  child: AppSearchField(
+                                    key: const ValueKey('clients-search'),
+                                    controller: _search,
+                                    hintText: l.clientsSearch,
+                                    clearTooltip: l.clientsSearchClear,
+                                    onChanged: (value) =>
+                                        setState(() => _query = value),
                                   ),
                                 ),
-                                if (showSearch)
-                                  Padding(
-                                    padding: const EdgeInsets.only(
-                                      bottom: AppLayout.smallGap,
-                                    ),
-                                    child: AppSearchField(
-                                      key: const ValueKey('clients-search'),
-                                      controller: _search,
-                                      hintText: l.clientsSearch,
-                                      clearTooltip: l.clientsSearchClear,
-                                      onChanged: (value) =>
-                                          setState(() => _query = value),
-                                    ),
-                                  ),
-                                ?listBar,
-                                if (publications != null)
-                                  ListenableBuilder(
-                                    listenable: publications!,
-                                    builder: (context, _) => VpnPlanView(
-                                      controller: c,
-                                      serverName: serverName,
-                                      showProgress:
-                                          !_syncing &&
-                                          !publications!.hasActiveSync,
-                                    ),
-                                  )
-                                else
-                                  VpnPlanView(
+                              ?listBar,
+                              if (publications != null)
+                                ListenableBuilder(
+                                  listenable: publications!,
+                                  builder: (context, _) => VpnPlanView(
                                     controller: c,
                                     serverName: serverName,
-                                    showProgress: !_syncing,
+                                    showProgress:
+                                        !_syncing &&
+                                        !publications!.hasActiveSync,
                                   ),
-                                if (total == 0)
-                                  AppEmptyState(
-                                    title: l.vpnNoUsers,
-                                    icon: Icons.people_outline,
-                                    message: l.uiClientsEmptyHelp,
-                                  )
-                                else if (allUsers.isEmpty && query.isNotEmpty)
-                                  AppEmptyState(
-                                    key: const ValueKey('clients-not-found'),
-                                    title: l.clientsNotFound,
-                                    icon: Icons.search_off,
-                                    message: l.clientsNotFoundHelp(
-                                      _query.trim(),
-                                    ),
-                                    action: TextButton(
-                                      onPressed: _clearSearch,
-                                      child: Text(l.clientsSearchClear),
+                                )
+                              else
+                                VpnPlanView(
+                                  controller: c,
+                                  serverName: serverName,
+                                  showProgress: !_syncing,
+                                ),
+                              if (total == 0)
+                                AppEmptyState(
+                                  title: l.vpnNoUsers,
+                                  icon: Icons.people_outline,
+                                  message: l.uiClientsEmptyHelp,
+                                )
+                              else if (allUsers.isEmpty && query.isNotEmpty)
+                                AppEmptyState(
+                                  key: const ValueKey('clients-not-found'),
+                                  title: l.clientsNotFound,
+                                  icon: Icons.search_off,
+                                  message: l.clientsNotFoundHelp(_query.trim()),
+                                  action: TextButton(
+                                    onPressed: _clearSearch,
+                                    child: Text(l.clientsSearchClear),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          // A lazy sliver: only the rows in view are built,
+                          // so a long list does not stall the first frame
+                          // (UI-31).
+                          if (allUsers.isNotEmpty)
+                            AppAnimatedCollection.sliver(
+                              motion: motion,
+                              items: {
+                                for (var i = 0; i < enabledUsers.length; i++)
+                                  enabledUsers[i].id: item(
+                                    enabledUsers[i].id,
+                                    _row(c, enabledUsers[i], i == 0, wide),
+                                  ),
+                                if (disabledUsers.isNotEmpty &&
+                                    enabledUsers.isNotEmpty)
+                                  '__disabled_header__': _DisabledHeader(
+                                    count: disabledUsers.length,
+                                    open: showDisabled,
+                                    motion: motion,
+                                    onTap: () => setState(
+                                      () => _disabledOpen = !_disabledOpen,
                                     ),
                                   ),
-                              ],
+                                if (showDisabled)
+                                  for (var i = 0; i < disabledUsers.length; i++)
+                                    disabledUsers[i].id: item(
+                                      disabledUsers[i].id,
+                                      _row(
+                                        c,
+                                        disabledUsers[i],
+                                        i == 0 && enabledUsers.isEmpty,
+                                        wide,
+                                      ),
+                                    ),
+                              },
                             ),
-                            // A lazy sliver: only the rows in view are built,
-                            // so a long list does not stall the first frame
-                            // (UI-31).
-                            if (allUsers.isNotEmpty)
-                              AppAnimatedCollection.sliver(
-                                motion: motion,
-                                items: {
-                                  for (var i = 0; i < enabledUsers.length; i++)
-                                    enabledUsers[i].id: item(
-                                      enabledUsers[i].id,
-                                      _row(c, enabledUsers[i], i == 0),
-                                    ),
-                                  if (disabledUsers.isNotEmpty &&
-                                      enabledUsers.isNotEmpty)
-                                    '__disabled_header__': _DisabledHeader(
-                                      count: disabledUsers.length,
-                                      open: showDisabled,
-                                      motion: motion,
-                                      onTap: () => setState(
-                                        () => _disabledOpen = !_disabledOpen,
-                                      ),
-                                    ),
-                                  if (showDisabled)
-                                    for (
-                                      var i = 0;
-                                      i < disabledUsers.length;
-                                      i++
-                                    )
-                                      disabledUsers[i].id: item(
-                                        disabledUsers[i].id,
-                                        _row(
-                                          c,
-                                          disabledUsers[i],
-                                          i == 0 && enabledUsers.isEmpty,
-                                        ),
-                                      ),
-                                },
-                              ),
-                            if (allUsers.isNotEmpty && protocols.isNotEmpty)
-                              SliverToBoxAdapter(
-                                child: Padding(
-                                  padding: const EdgeInsetsDirectional.only(
-                                    start: 16,
-                                    top: AppLayout.gap,
-                                  ),
-                                  child: Text(
-                                    l.uiClientsAccessVia(protocols.join(' · ')),
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: theme.colorScheme.onSurfaceVariant,
-                                    ),
+                          if (allUsers.isNotEmpty && protocols.isNotEmpty)
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsetsDirectional.only(
+                                  start: 16,
+                                  top: AppLayout.gap,
+                                ),
+                                child: Text(
+                                  l.uiClientsAccessVia(protocols.join(' · ')),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
                                   ),
                                 ),
                               ),
-                          ],
-                        ),
+                            ),
+                        ],
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+              ),
+              if (fab)
+                PositionedDirectional(
+                  end: AppLayout.gap,
+                  bottom: AppLayout.gap,
+                  child: FloatingActionButton.extended(
+                    key: const ValueKey('vpn-user-add'),
+                    onPressed: !c.canMutate || _syncing
+                        ? null
+                        : () => _add(context),
+                    icon: const Icon(Icons.add),
+                    label: Text(l.vpnAddUser),
                   ),
                 ),
-                if (fab)
-                  PositionedDirectional(
-                    end: AppLayout.gap,
-                    bottom: AppLayout.gap,
-                    child: FloatingActionButton.extended(
-                      key: const ValueKey('vpn-user-add'),
-                      onPressed: !c.canMutate || _syncing
-                          ? null
-                          : () => _add(context),
-                      icon: const Icon(Icons.add),
-                      label: Text(l.vpnAddUser),
-                    ),
-                  ),
-              ],
-            ),
+            ],
           ),
-        ],
-      );
-    },
-  );
+        ),
+      ],
+    );
+    if (!wide) return page;
+    return AppListDetail(
+      motion: motion,
+      list: page,
+      detail: _pane(c, l, total),
+    );
+  }
 }
 
 /// Folds the disabled clients away under one row with their count.
@@ -1017,6 +1059,7 @@ class UserTile extends StatelessWidget {
     this.traffic,
     required this.onProfile,
     this.isSyncing = false,
+    this.isOpen = false,
   });
 
   final VpnUser user;
@@ -1031,10 +1074,15 @@ class UserTile extends StatelessWidget {
   final void Function(BuildContext, VpnUser) onProfile;
   final bool isSyncing;
 
+  /// Its card is open beside the list.
+  final bool isOpen;
+
   @override
   Widget build(BuildContext context) {
     final c = controller;
-    final isSelected = selection.active && selection.ids.contains(user.id);
+    final isSelected = selection.active
+        ? selection.ids.contains(user.id)
+        : isOpen;
     return RepaintBoundary(
       child: Padding(
         padding: EdgeInsets.zero,

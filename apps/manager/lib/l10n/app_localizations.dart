@@ -2678,6 +2678,30 @@ abstract class AppLocalizations {
   /// **'No clients found'**
   String get clientsNotFound;
 
+  /// No description provided for @clientsPickTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a client'**
+  String get clientsPickTitle;
+
+  /// No description provided for @clientsPickHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Their QR, traffic and actions open here.'**
+  String get clientsPickHelp;
+
+  /// No description provided for @clientsSelectedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 client selected} other{{count} clients selected}}'**
+  String clientsSelectedTitle(int count);
+
+  /// No description provided for @clientsSelectedHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Actions for them are in the list header.'**
+  String get clientsSelectedHelp;
+
   /// No description provided for @clientsNotFoundHelp.
   ///
   /// In en, this message translates to:

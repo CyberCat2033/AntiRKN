@@ -3085,6 +3085,67 @@ class AppActionRow extends StatelessWidget {
   );
 }
 
+/// A list with the open item beside it (M3 list-detail) on an expanded
+/// width; below that the caller shows the item over the list instead. The
+/// detail fades through when another item opens.
+class AppListDetail extends StatelessWidget {
+  const AppListDetail({
+    required this.list,
+    required this.detail,
+    required this.motion,
+    super.key,
+  });
+  final Widget list, detail;
+  final MotionPreference motion;
+
+  /// Whether [constraints] leave room for both panes.
+  static bool fits(BoxConstraints constraints) =>
+      constraints.maxWidth >= AppLayout.expanded;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final colors = Theme.of(context).colorScheme;
+      final listWidth = (constraints.maxWidth * .42).clamp(360.0, 480.0);
+      final duration = AppMotion.duration(context, motion);
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(width: listWidth, child: list),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(
+                AppLayout.smallGap,
+                AppLayout.gap,
+                AppLayout.gap,
+                AppLayout.gap,
+              ),
+              child: Material(
+                color: colors.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(AppLayout.radius),
+                clipBehavior: Clip.antiAlias,
+                child: duration == Duration.zero
+                    ? detail
+                    : PageTransitionSwitcher(
+                        duration: duration,
+                        transitionBuilder: (child, primary, secondary) =>
+                            FadeThroughTransition(
+                              animation: primary,
+                              secondaryAnimation: secondary,
+                              fillColor: Colors.transparent,
+                              child: child,
+                            ),
+                        child: detail,
+                      ),
+              ),
+            ),
+          ),
+        ],
+      );
+    },
+  );
+}
+
 class AppTwoColumn extends StatelessWidget {
   const AppTwoColumn({required this.first, required this.second, super.key});
   final Widget first, second;

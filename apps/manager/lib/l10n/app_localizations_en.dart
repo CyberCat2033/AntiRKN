@@ -1479,6 +1479,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String get clientsNotFound => 'No clients found';
 
   @override
+  String get clientsPickTitle => 'Choose a client';
+
+  @override
+  String get clientsPickHelp => 'Their QR, traffic and actions open here.';
+
+  @override
+  String clientsSelectedTitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count clients selected',
+      one: '1 client selected',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get clientsSelectedHelp => 'Actions for them are in the list header.';
+
+  @override
   String clientsNotFoundHelp(String query) {
     return 'Nobody\'s name contains “$query”.';
   }
