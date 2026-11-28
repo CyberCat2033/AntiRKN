@@ -209,3 +209,86 @@ class NativeVlessProbeTests(unittest.TestCase):
             self.api.rows[0]['settings']['clients'].append(foreign)
             end=probe.end(self.store,req['id']);self.assertEqual(end,dict(closed=True,stable=False))
             self.assertEqual(self.api.rows[0]['settings']['clients'],before[0]['settings']['clients']+[foreign])
+
+
+class TargetProbeTests(unittest.TestCase):
+    """FR-SNI: a temporary REALITY inbound for one chosen target and SNI."""
+    def setUp(self):
+        vless_fixture.VlessTests.setUp(self)
+        for target in (patch.object(probe, 'safe_file'), patch.object(probe, 'arm'), patch.object(probe, 'retire'),
+                       patch.object(probe, 'listening')):
+            self.patches.append(target); target.start()
+    tearDown = vless_fixture.VlessTests.tearDown
+
+    def request(self, key='e' * 32, **changes):
+        payload = dict(protocol='reality_target', panel='b' * 32, target='alpha.example:443', sni='alpha.example')
+        payload.update(changes)
+        return dict(version=1, action='probe_begin', id=key, payload=json.dumps(payload))
+
+    def test_one_temporary_inbound_is_created_reused_and_removed(self):
+        self.api.rows.append(dict(id=7, remark='Foreign', enable=True, port=443, protocol='vless', settings='{"clients": []}', streamSettings='{}'))
+        foreign = copy.deepcopy(self.api.rows)
+        result = self.store.request(self.request())
+        self.assertEqual(result['code'], 'ok', result)
+        access = result['connectionProbe']
+        rows = [r for r in self.api.rows if r['remark'] == probe.TARGET_MARK + 'e' * 32]
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertTrue(probe.TARGET_PORTS[0] <= row['port'] < probe.TARGET_PORTS[1])
+        self.assertNotEqual(row['port'], 443)
+        reality = row['streamSettings']['realitySettings']
+        self.assertEqual((reality['target'], reality['serverNames'], reality['minClientVer']), ('alpha.example:443', ['alpha.example'], '0.0.0'))
+        client, = row['settings']['clients']
+        self.assertEqual((client['email'], client['flow']), ('ar_probe_' + 'e' * 32, 'xtls-rprx-vision'))
+        self.assertGreater(client['expiryTime'], 0)
+        observation = access['observation']
+        self.assertEqual(observation['spec']['externalPort'], row['port'])
+        self.assertEqual(observation['clients'], [dict(id='e' * 32, uuid=client['id'], enabled=True)])
+        self.assertEqual(observation['publicKey'], 'B' * 43)
+        # A repeated begin returns the same access without a second inbound.
+        self.assertEqual(self.store.request(self.request())['connectionProbe'], access)
+        self.assertEqual(len([r for r in self.api.rows if r['remark'].startswith(probe.TARGET_MARK)]), 1)
+        end = self.store.request(dict(version=1, action='probe_end', id='e' * 32))
+        self.assertEqual(end['connectionProbe'], dict(closed=True, stable=True), end)
+        self.assertEqual(self.api.rows, foreign)
+        private = probe.load(self.store, 'e' * 32)
+        self.assertEqual(private['status'], 'closed')
+        self.assertNotIn('wanted', private); self.assertNotIn('observation', private)
+        self.assertNotIn('ar_probe_' + 'e' * 32, [c['email'] for c in self.api.clients()])
+
+    def test_invalid_requests_change_nothing(self):
+        for changes in (dict(target='beta.example:443'), dict(target='alpha.example:0'), dict(target='alpha.example:0443'),
+                        dict(sni='ALPHA.example', target='ALPHA.example:443'), dict(sni='*.alpha.example', target='*.alpha.example:443'),
+                        dict(sni='alpha', target='alpha:443'), dict(panel='x'), dict(extra=1)):
+            with self.subTest(changes=changes):
+                result = self.store.request(self.request(**changes))
+                self.assertNotEqual(result['code'], 'ok', result)
+        self.assertEqual(self.api.rows, [])
+
+    def test_a_target_that_does_not_listen_fails_and_end_removes_it(self):
+        probe.listening.side_effect = probe.ProbeError('probe_failed')
+        result = self.store.request(self.request())
+        self.assertEqual(result['code'], 'probe_failed', result)
+        self.assertEqual(len(self.api.rows), 1)
+        end = probe.end(self.store, 'e' * 32)
+        self.assertTrue(end['closed'])
+        self.assertEqual(self.api.rows, [])
+
+    def test_cleanup_finds_the_inbound_by_remark_after_a_lost_response(self):
+        self.api.crash = True  # The add happens, its answer is lost.
+        result = self.store.request(self.request())
+        self.assertNotEqual(result['code'], 'ok', result)
+        self.assertEqual(len(self.api.rows), 1)
+        self.assertTrue(probe.end(self.store, 'e' * 32)['closed'])
+        self.assertEqual(self.api.rows, [])
+
+    def test_a_changed_temporary_inbound_is_reported_unstable(self):
+        self.assertEqual(self.store.request(self.request())['code'], 'ok')
+        self.api.rows[0]['port'] += 1
+        self.assertEqual(probe.end(self.store, 'e' * 32), dict(closed=True, stable=False))
+        self.assertEqual(self.api.rows, [])
+
+    def test_ports_in_use_are_skipped(self):
+        rows = [dict(port=p) for p in range(*probe.TARGET_PORTS) if p % 2]
+        port = probe.free_port(rows)
+        self.assertEqual(port % 2, 0)

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -164,5 +165,52 @@ func TestFailedProxyReportsServerAddress(t *testing.T) {
 		if result.Status != "failed" || result.Endpoint != want {
 			t.Fatalf("port %d: %#v", port, result)
 		}
+	}
+}
+
+func TestTransferCheckNeedsTheWholeDownload(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		size    int
+		cut     bool
+		status  string
+		code    string
+		counted int64
+	}{
+		{"whole", DownloadBytes, false, "success", "connected", DownloadBytes},
+		{"cut after 20 KB", 20000, true, "failed", "transfer_cut", 20000},
+		{"more than asked", 2 * DownloadBytes, false, "failed", "transfer_cut", DownloadBytes + 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			target, _ := targets(t, false)
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if tc.cut {
+					w.Header().Set("Content-Length", strconv.Itoa(DownloadBytes))
+				}
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write(make([]byte, tc.size))
+				if tc.cut {
+					conn, _, err := http.NewResponseController(w).Hijack()
+					if err == nil {
+						conn.Close()
+					}
+				}
+			}))
+			t.Cleanup(server.Close)
+			target.RootCAs.AddCert(server.Certificate())
+			target.Download = server.URL + "/__down"
+			result := Execute(context.Background(), Request{Mode: "control", YAML: "{}", Download: true}, target)
+			if result.Status != tc.status || result.Code != tc.code || result.Downloaded != tc.counted {
+				t.Fatalf("unexpected result: %#v", result)
+			}
+			if tc.status == "failed" && result.Failure != "transfer" {
+				t.Fatalf("failure: %q", result.Failure)
+			}
+		})
+	}
+	target, _ := targets(t, false)
+	target.Download = "https://127.0.0.1:1/never"
+	if result := Execute(context.Background(), Request{Mode: "control", YAML: "{}"}, target); result.Status != "success" || result.Downloaded != 0 {
+		t.Fatalf("a check without Download must not transfer: %#v", result)
 	}
 }
