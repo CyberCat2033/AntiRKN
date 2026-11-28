@@ -35,7 +35,8 @@ class SettingsHub extends StatefulWidget {
   final MotionPreference motion;
   final Widget? status, error;
 
-  /// The destination that tapping [status] opens.
+  /// The destination that tapping [status] opens. The status card is its
+  /// only entry point, so the menu does not list it a second time.
   final String? statusDestinationId;
 
   /// The destination open at first; null opens the menu.
@@ -115,6 +116,12 @@ class SettingsHubState extends State<SettingsHub> {
     final l = AppLocalizations.of(context);
     final active = AppPageVisibility.of(context);
     final selected = this.selected;
+    final listed = [
+      for (var i = 0; i < widget.destinations.length; i++)
+        if (widget.status == null ||
+            widget.destinations[i].id != widget.statusDestinationId)
+          i,
+    ];
     return PopScope(
       canPop: !active || selected == 0,
       onPopInvokedWithResult: (didPop, _) {
@@ -149,6 +156,7 @@ class SettingsHubState extends State<SettingsHub> {
                     AppSettingsSection(
                       title: l.uiMyData,
                       child: InkWell(
+                        key: const ValueKey('settings-status'),
                         borderRadius: BorderRadius.circular(AppLayout.radius),
                         onTap: widget.statusDestinationId == null
                             ? null
@@ -160,12 +168,8 @@ class SettingsHubState extends State<SettingsHub> {
                     title: l.uiAppSettings,
                     child: Column(
                       children: [
-                        for (
-                          var i = 0;
-                          i < widget.destinations.length;
-                          i++
-                        ) ...[
-                          if (i > 0)
+                        for (final (n, i) in listed.indexed) ...[
+                          if (n > 0)
                             const Divider(height: 1, indent: 16, endIndent: 16),
                           ListTile(
                             key: ValueKey('settings-category-$i'),

@@ -3032,9 +3032,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get uiMyData => 'Мои данные';
 
   @override
-  String get uiPersonalWorkspace => 'Личное пространство';
-
-  @override
   String get uiBack => 'Назад';
 
   @override

@@ -3026,9 +3026,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get uiMyData => 'My data';
 
   @override
-  String get uiPersonalWorkspace => 'Personal workspace';
-
-  @override
   String get uiBack => 'Back';
 
   @override

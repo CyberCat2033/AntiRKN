@@ -861,6 +861,10 @@ void main() {
       ),
     );
     await tester.pumpWidget(build(['interface', 'sync']));
+    // The status card is the only entry to its page: the menu does not list
+    // it a second time.
+    expect(find.text('Title interface'), findsOneWidget);
+    expect(find.text('Title sync'), findsNothing);
     await tester.tap(find.text('status'));
     await tester.pumpAndSettle();
     expect(hub.currentState!.selectedId, 'sync');

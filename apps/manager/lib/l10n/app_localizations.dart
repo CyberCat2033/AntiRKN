@@ -5342,12 +5342,6 @@ abstract class AppLocalizations {
   /// **'My data'**
   String get uiMyData;
 
-  /// No description provided for @uiPersonalWorkspace.
-  ///
-  /// In en, this message translates to:
-  /// **'Personal workspace'**
-  String get uiPersonalWorkspace;
-
   /// No description provided for @uiBack.
   ///
   /// In en, this message translates to:

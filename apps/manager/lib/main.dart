@@ -1469,7 +1469,7 @@ class _ManagerShellState extends State<ManagerShell>
                                         leading: const Icon(
                                           Icons.cloud_done_outlined,
                                         ),
-                                        title: Text(l.uiPersonalWorkspace),
+                                        title: Text(l.uiSynchronization),
                                         trailing: const Icon(
                                           Icons.chevron_right,
                                         ),
