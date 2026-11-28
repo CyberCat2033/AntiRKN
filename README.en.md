@@ -38,7 +38,7 @@ Password, key or SSH agent authentication with host key pinning. The `antirkn-ru
 <td width="50%" valign="top">
 
 ### 🔌 Protocols
-**VLESS** (Reality, Vision, XHTTP) via 3x-ui, including adoption of existing inbounds. **AmneziaWG** with tunable packet parameters. **TrustTunnel** with an automatically issued TLS certificate.
+**VLESS** (Reality, Vision, XHTTP) via 3x-ui, including adoption of existing inbounds. **AmneziaWG** with tunable packet parameters. **TrustTunnel** with a Certbot certificate or your own files.
 
 </td>
 </tr>
@@ -46,7 +46,7 @@ Password, key or SSH agent authentication with host key pinning. The `antirkn-ru
 <td valign="top">
 
 ### 👥 Users
-One user gets one profile covering all of their servers and protocols. Access, suspension and revocation are applied as a single plan; traffic statistics are shown per client.
+One user gets one profile covering all your servers. Changes reach the servers in the background and wait for unreachable ones; traffic is shown per client.
 
 </td>
 <td valign="top">
@@ -60,7 +60,7 @@ Self-contained YAML for Mihomo-based clients: groups, routing rules and a per-us
 <td valign="top">
 
 ### 🔄 Sync
-The workspace is encrypted on the device and synchronized between your devices through the app folder in **your** Google Drive. Encrypted local backups are available too.
+Data moves between your devices through the hidden app folder in **your** Google Drive. Password-encrypted backup files are available too.
 
 </td>
 <td valign="top">
@@ -95,7 +95,7 @@ flowchart LR
     D["Users' devices<br/>(Mihomo clients)"]
 
     App -- "SSH, pinned host key" --> R
-    App -. "encrypted sync<br/>(optional)" .-> G
+    App -. "sync<br/>(optional)" .-> G
     PC -- "QR / subscription" --> D
 ```
 
