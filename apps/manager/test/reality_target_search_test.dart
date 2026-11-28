@@ -81,10 +81,12 @@ RealitySearchController controller(
   Settings settings, {
   ProbeNetwork network = const ProbeNetwork('wifi-1', 'wifi'),
   Future<Map<String, dynamic>?> Function(String, String)? fromServer,
+  Future<ConnectionCheck> Function(RealityTargetChoice)? connect,
 }) => RealitySearchController(
   serverId: 'server-1',
   store: settings,
   checkFromServer: fromServer,
+  checkConnection: connect,
   clock: () => now,
   search: RealityTargetSearch(
     transport: world,
@@ -219,6 +221,71 @@ void main() {
     });
   });
 
+  group('connection check', () {
+    ConnectionCheck check(ConnectionCheckStatus status, String code) =>
+        ConnectionCheck(
+          status: status,
+          code: code,
+          at: now,
+          networkIdentity: 'wifi-1',
+        );
+
+    test('a working connection is the highest level and is saved', () async {
+      final settings = Settings(), asked = <RealityTargetChoice>[];
+      final c = controller(
+        World(),
+        settings,
+        connect: (choice) async {
+          asked.add(choice);
+          return check(ConnectionCheckStatus.working, 'connected');
+        },
+      );
+      await c.start(RealitySearchPlan.neighbors('8.8.8.37'));
+      expect(asked, isEmpty, reason: 'only on request');
+      await c.checkWithMihomo(c.best!);
+      expect(asked, [(target: 'alpha.example:443', sni: 'alpha.example')]);
+      expect(c.best!.level, RealityLevel.mihomoChecked);
+      expect(c.best!.reasons, contains(RealityReason.mihomoWorking));
+      await Future<void>.delayed(Duration.zero);
+      final again = controller(World(), settings);
+      await again.ready;
+      expect(again.best!.level, RealityLevel.mihomoChecked);
+    });
+
+    for (final (status, code, recommended) in [
+      (ConnectionCheckStatus.failed, 'connection_failed', false),
+      (ConnectionCheckStatus.networkProblem, 'control_failed', true),
+      (ConnectionCheckStatus.notTested, 'cleanup_pending', true),
+    ]) {
+      test(
+        '$code keeps the candidate ${recommended ? 'recommended' : 'out'}',
+        () async {
+          final c = controller(
+            World(),
+            Settings(),
+            connect: (_) async => check(status, code),
+          );
+          await c.start(RealitySearchPlan.neighbors('8.8.8.37'));
+          await c.checkWithMihomo(c.best!);
+          expect(c.best != null, recommended);
+          expect(c.candidates.single.fromMihomo!.code, code);
+        },
+      );
+    }
+
+    test('a cancelled check records nothing', () async {
+      final c = controller(
+        World(),
+        Settings(),
+        connect: (_) async =>
+            check(ConnectionCheckStatus.cancelled, 'cancelled'),
+      );
+      await c.start(RealitySearchPlan.neighbors('8.8.8.37'));
+      await c.checkWithMihomo(c.best!);
+      expect(c.best!.fromMihomo, isNull);
+    });
+  });
+
   group('page', () {
     RealityTargetChoice? chosen;
     Future<void> open(
@@ -348,6 +415,37 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('From the server: 18 ms'), findsOneWidget);
       expect(find.textContaining('server check is unavailable'), findsNothing);
+    });
+
+    testWidgets('the connection is checked from the details', (tester) async {
+      tester.view.physicalSize = const Size(1000, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final c = controller(
+        World(),
+        Settings(),
+        connect: (_) async => ConnectionCheck(
+          status: ConnectionCheckStatus.working,
+          code: 'connected',
+          at: now,
+        ),
+      );
+      await tester.runAsync(
+        () => c.start(RealitySearchPlan.neighbors('8.8.8.37')),
+      );
+      await open(tester, c);
+      final connect = find.byKey(
+        const ValueKey('reality-connect-8.8.8.10|443|alpha.example'),
+      );
+      await tester.scrollUntilVisible(
+        connect,
+        100,
+        scrollable: find.byType(Scrollable).last,
+      );
+      expect(find.textContaining('temporary inbound'), findsOneWidget);
+      await tester.tap(connect);
+      await tester.pumpAndSettle();
+      expect(find.text('Connection works'), findsOneWidget);
     });
 
     testWidgets('without a server address only own addresses are offered', (

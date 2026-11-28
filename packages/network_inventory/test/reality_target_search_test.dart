@@ -320,6 +320,36 @@ void main() {
       expect(RealityCandidate.compare(fast, base), lessThan(0));
     });
 
+    test(
+      'a Mihomo check is the top level, fails as a gate or stays neutral',
+      () {
+        final observed = tls(pair, dns: TlsDnsCheck.match);
+        RealityCandidate rated(RealityMihomoStatus status) =>
+            RealityCandidate.rate(
+              observed,
+              server: server,
+              now: now,
+              fromMihomo: RealityMihomoCheck(
+                status: status,
+                code: 'x',
+                at: now,
+              ),
+            );
+        final base = RealityCandidate.rate(observed, server: server, now: now);
+        final working = rated(RealityMihomoStatus.working);
+        expect(
+          (working.level, working.score),
+          (RealityLevel.mihomoChecked, base.score),
+        );
+        final failed = rated(RealityMihomoStatus.failed);
+        expect((failed.level, failed.score), (RealityLevel.confirmed, 0));
+        expect(failed.reasons, contains(RealityReason.mihomoFailed));
+        final unsure = rated(RealityMihomoStatus.inconclusive);
+        expect((unsure.level, unsure.score), (base.level, base.score));
+        expect(unsure.reasons, contains(RealityReason.mihomoInconclusive));
+      },
+    );
+
     test('SNI candidates are concrete names only', () {
       final c = tls(
         TlsScanTarget('8.8.8.10', 443),
@@ -471,6 +501,28 @@ void main() {
       expect(restored.candidates(now).first.level, RealityLevel.serverChecked);
       (json['serverChecks'] as Map)['8.8.8.1|443|nope.example'] =
           (json['serverChecks'] as Map)[key];
+      expect(
+        () => RealitySearchState.fromJson(json, plan),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('Mihomo checks travel with the checkpoint', () async {
+      final done = await search(
+        FakeTransport(),
+      ).run(plan, CancellationToken(), (_) {});
+      final key = done.pairs.keys.first;
+      done.mihomoChecks[key] = RealityMihomoCheck(
+        status: RealityMihomoStatus.working,
+        code: 'connected',
+        at: now,
+        networkIdentity: 'wifi-1',
+      );
+      final json =
+          jsonDecode(jsonEncode(done.toJson())) as Map<String, dynamic>;
+      final restored = RealitySearchState.fromJson(json, plan);
+      expect(restored.mihomoChecks[key]!.networkIdentity, 'wifi-1');
+      ((json['mihomoChecks'] as Map)[key] as Map)['code'] = 'Bad Code';
       expect(
         () => RealitySearchState.fromJson(json, plan),
         throwsA(isA<FormatException>()),

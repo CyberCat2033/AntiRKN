@@ -1861,5 +1861,14 @@
   "realitySearchServerLatency": "Server to target, ms",
   "realityLevelServerTime": "From the server: {ms} ms",
   "@realityLevelServerTime": {"placeholders": {"ms": {"type": "int"}}},
-  "realitySearchVerifiedAddress": "Verified address"
+  "realitySearchVerifiedAddress": "Verified address",
+  "realityLevelMihomo": "Connection works",
+  "realityReasonMihomoWorking": "The connection through the server works, 100 KB went through",
+  "realityReasonMihomoFailed": "The connection through the server does not work",
+  "realityReasonMihomoInconclusive": "The connection check gave no answer",
+  "realitySearchConnect": "Check the connection",
+  "realitySearchConnectHelp": "A temporary inbound with this target and SNI appears on the server for a few seconds; the device downloads 100 KB through it, then the inbound is removed.",
+  "realitySearchConnecting": "Checking the connection",
+  "realitySearchConnectingHelp": "Temporary inbound on the server, 100 KB download",
+  "realitySearchConnection": "Connection check"
 }

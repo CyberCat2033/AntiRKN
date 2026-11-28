@@ -37,6 +37,7 @@ class RealitySearchController extends ChangeNotifier {
     required this.search,
     this.store,
     this.checkFromServer,
+    this.checkConnection,
     DateTime Function()? clock,
   }) : clock = clock ?? DateTime.now {
     ready = _load();
@@ -49,7 +50,15 @@ class RealitySearchController extends ChangeNotifier {
   /// panel is not reachable now.
   final Future<Map<String, dynamic>?> Function(String target, String sni)?
   checkFromServer;
+
+  /// Traffic from this device through a temporary inbound with the chosen
+  /// Target and SNI (FR-SNI, level 4); null without a server connection.
+  final Future<ConnectionCheck> Function(RealityTargetChoice choice)?
+  checkConnection;
   final DateTime Function() clock;
+
+  /// Pairs whose connection check runs now.
+  final connecting = <String>{};
 
   /// Pairs whose server check runs now.
   final checking = <String>{};
@@ -228,6 +237,44 @@ class RealitySearchController extends ChangeNotifier {
     });
   }
 
+  /// Runs only on request: it adds and removes an inbound on the server.
+  Future<void> checkWithMihomo(RealityCandidate candidate) async {
+    final check = checkConnection, s = state, key = candidate.target.key;
+    if (check == null ||
+        s == null ||
+        running ||
+        connecting.isNotEmpty ||
+        checking.contains(key)) {
+      return;
+    }
+    connecting.add(key);
+    _notify();
+    ConnectionCheck? result;
+    try {
+      result = await check(realityChoice(candidate));
+    } catch (_) {
+      result = null;
+    }
+    connecting.remove(key);
+    if (_disposed || state != s) return;
+    if (result != null && result.status != ConnectionCheckStatus.cancelled) {
+      s.mihomoChecks[key] = RealityMihomoCheck(
+        status: switch (result.status) {
+          ConnectionCheckStatus.working => RealityMihomoStatus.working,
+          ConnectionCheckStatus.failed => RealityMihomoStatus.failed,
+          _ => RealityMihomoStatus.inconclusive,
+        },
+        code: RegExp(r'^[a-z_]{1,40}$').hasMatch(result.code)
+            ? result.code
+            : 'failed',
+        at: clock(),
+        networkIdentity: result.networkIdentity,
+      );
+      _save(s);
+    }
+    _notify();
+  }
+
   /// Observations without secrets: one row per probed IP + SNI pair.
   String exportJson() => const JsonEncoder.withIndent('  ').convert({
     'startedAt': state?.startedAt.toUtc().toIso8601String(),
@@ -244,6 +291,7 @@ class RealitySearchController extends ChangeNotifier {
           'score': c.score,
           'serverFeasible': c.fromServer?.feasible,
           'serverMs': c.fromServer?.latency?.inMilliseconds,
+          'connection': c.fromMihomo?.status.name,
           'reasons': [for (final r in c.reasons) r.name],
         },
     ],

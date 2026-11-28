@@ -5188,4 +5188,36 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get realitySearchVerifiedAddress => 'Проверенный адрес';
+
+  @override
+  String get realityLevelMihomo => 'Подключение работает';
+
+  @override
+  String get realityReasonMihomoWorking =>
+      'Подключение через сервер работает, 100 КБ прошли';
+
+  @override
+  String get realityReasonMihomoFailed =>
+      'Подключение через сервер не работает';
+
+  @override
+  String get realityReasonMihomoInconclusive =>
+      'Проверка подключения не дала ответа';
+
+  @override
+  String get realitySearchConnect => 'Проверить подключение';
+
+  @override
+  String get realitySearchConnectHelp =>
+      'На несколько секунд на сервере появится временный inbound с этим target и SNI; через него устройство скачает 100 КБ, затем inbound удаляется.';
+
+  @override
+  String get realitySearchConnecting => 'Проверяем подключение';
+
+  @override
+  String get realitySearchConnectingHelp =>
+      'Временный inbound на сервере, загрузка 100 КБ';
+
+  @override
+  String get realitySearchConnection => 'Проверка подключения';
 }

@@ -57,6 +57,7 @@ class BenchmarkProbe implements CoreProbeTransport {
     CancellationToken cancellation, {
     required bool udp,
     String directInterface = '',
+    bool download = false,
   }) async {
     probeCount++;
     if (delay > Duration.zero) {

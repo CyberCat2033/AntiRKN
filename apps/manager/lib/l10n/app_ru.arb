@@ -1800,5 +1800,14 @@
   "realitySearchServerLatency": "С сервера до target, мс",
   "realityLevelServerTime": "С сервера: {ms} мс",
   "@realityLevelServerTime": {"placeholders": {"ms": {"type": "int"}}},
-  "realitySearchVerifiedAddress": "Проверенный адрес"
+  "realitySearchVerifiedAddress": "Проверенный адрес",
+  "realityLevelMihomo": "Подключение работает",
+  "realityReasonMihomoWorking": "Подключение через сервер работает, 100 КБ прошли",
+  "realityReasonMihomoFailed": "Подключение через сервер не работает",
+  "realityReasonMihomoInconclusive": "Проверка подключения не дала ответа",
+  "realitySearchConnect": "Проверить подключение",
+  "realitySearchConnectHelp": "На несколько секунд на сервере появится временный inbound с этим target и SNI; через него устройство скачает 100 КБ, затем inbound удаляется.",
+  "realitySearchConnecting": "Проверяем подключение",
+  "realitySearchConnectingHelp": "Временный inbound на сервере, загрузка 100 КБ",
+  "realitySearchConnection": "Проверка подключения"
 }

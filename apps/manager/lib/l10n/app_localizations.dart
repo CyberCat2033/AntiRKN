@@ -8971,6 +8971,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Verified address'**
   String get realitySearchVerifiedAddress;
+
+  /// No description provided for @realityLevelMihomo.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection works'**
+  String get realityLevelMihomo;
+
+  /// No description provided for @realityReasonMihomoWorking.
+  ///
+  /// In en, this message translates to:
+  /// **'The connection through the server works, 100 KB went through'**
+  String get realityReasonMihomoWorking;
+
+  /// No description provided for @realityReasonMihomoFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The connection through the server does not work'**
+  String get realityReasonMihomoFailed;
+
+  /// No description provided for @realityReasonMihomoInconclusive.
+  ///
+  /// In en, this message translates to:
+  /// **'The connection check gave no answer'**
+  String get realityReasonMihomoInconclusive;
+
+  /// No description provided for @realitySearchConnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Check the connection'**
+  String get realitySearchConnect;
+
+  /// No description provided for @realitySearchConnectHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'A temporary inbound with this target and SNI appears on the server for a few seconds; the device downloads 100 KB through it, then the inbound is removed.'**
+  String get realitySearchConnectHelp;
+
+  /// No description provided for @realitySearchConnecting.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking the connection'**
+  String get realitySearchConnecting;
+
+  /// No description provided for @realitySearchConnectingHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Temporary inbound on the server, 100 KB download'**
+  String get realitySearchConnectingHelp;
+
+  /// No description provided for @realitySearchConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection check'**
+  String get realitySearchConnection;
 }
 
 class _AppLocalizationsDelegate

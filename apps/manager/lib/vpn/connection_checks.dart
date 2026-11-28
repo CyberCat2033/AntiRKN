@@ -328,6 +328,134 @@ class ConnectionChecks extends ChangeNotifier {
 
   String signature(ConnectionTarget key) => _signature(key);
 
+  /// Enters the app-wide traffic slot, retrying briefly while it is taken.
+  Future<bool> _enterTraffic(CancellationToken token) async {
+    var entered = await owner.enterConnectionTraffic!();
+    for (var attempt = 0; !entered && attempt < 4; attempt++) {
+      if (token.isCancelled) break;
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      if (token.isCancelled) break;
+      entered = await owner.enterConnectionTraffic!();
+    }
+    return entered;
+  }
+
+  /// Ends a diagnostic lease with its own deadline. Null when the server
+  /// confirmed cleanup of an unchanged resource; otherwise the result code.
+  Future<String?> _endLease(VpnRemote connection, String lease) async {
+    try {
+      final cleanup = CancellationToken();
+      final deadline = Timer(const Duration(seconds: 15), cleanup.cancel);
+      try {
+        final response = await connection.transport.request(
+          RunnerRequest.fromJson({
+            'version': 1,
+            'action': 'probe_end',
+            'id': lease,
+          }),
+          cleanup,
+          sudoPassword: connection.password,
+        );
+        if (response.connectionProbe?['closed'] != true) {
+          return 'cleanup_pending';
+        }
+        if (response.connectionProbe?['stable'] != true) return 'changed';
+        return null;
+      } finally {
+        deadline.cancel();
+      }
+    } catch (_) {
+      return 'cleanup_pending';
+    }
+  }
+
+  /// FR-SNI: traffic from this device, including a 100 KB transfer, through a
+  /// temporary REALITY inbound with [target] and [sni] on [serverId]. The
+  /// lease is always ended; a pending cleanup is the result.
+  Future<ConnectionCheck> checkRealityTarget({
+    required String serverId,
+    required String panelId,
+    required String endpoint,
+    required String target,
+    required String sni,
+    CancellationToken? cancellation,
+  }) async {
+    final token = cancellation ?? CancellationToken();
+    ConnectionCheck outcome(ConnectionCheckStatus status, String code) =>
+        ConnectionCheck(status: status, code: code, at: DateTime.now().toUtc());
+    if (_disposed || engine == null) {
+      return outcome(ConnectionCheckStatus.notTested, 'runtime_unavailable');
+    }
+    if (!await owner.ensureConnected(serverId)) {
+      return outcome(ConnectionCheckStatus.notTested, 'server_unavailable');
+    }
+    final connection = owner.remote(serverId);
+    if (connection == null) {
+      return outcome(ConnectionCheckStatus.notTested, 'server_unavailable');
+    }
+    final lease = newVpnId();
+    var entered = false;
+    // No return inside the try below: the lease end must be able to replace
+    // the result.
+    Future<ConnectionCheck> attempt() async {
+      final response = await connection.transport.request(
+        RunnerRequest.fromJson({
+          'version': 1,
+          'action': 'probe_begin',
+          'id': lease,
+          'payload': jsonEncode({
+            'protocol': 'reality_target',
+            'panel': panelId,
+            'target': target,
+            'sni': sni,
+          }),
+        }),
+        token,
+        sudoPassword: connection.password,
+      );
+      final observation = response.connectionProbe?['observation'];
+      if (response.code != 'ok' || observation is! Map) {
+        return outcome(
+          ConnectionCheckStatus.notTested,
+          response.code == 'ok' ? 'diagnostic_access' : response.code,
+        );
+      }
+      final client = (observation['clients'] as List).single as Map;
+      final fields = vlessProxyFields(
+        name: 'reality-target-check',
+        spec: {
+          ...Map<String, Object?>.from(observation['spec'] as Map),
+          'endpoint': endpoint,
+        },
+        observation: observation,
+        uuid: client['uuid'] as String,
+      );
+      if (owner.enterConnectionTraffic != null) {
+        if (!await _enterTraffic(token)) {
+          return outcome(ConnectionCheckStatus.notTested, 'busy');
+        }
+        entered = true;
+      }
+      return engine!.check(fields, token, udp: false, download: true);
+    }
+
+    ConnectionCheck result;
+    try {
+      result = await attempt();
+    } catch (_) {
+      result = outcome(
+        token.isCancelled
+            ? ConnectionCheckStatus.cancelled
+            : ConnectionCheckStatus.notTested,
+        token.isCancelled ? 'cancelled' : 'diagnostic_access',
+      );
+    }
+    final ended = await _endLease(connection, lease);
+    if (ended != null) result = outcome(ConnectionCheckStatus.notTested, ended);
+    if (entered) await owner.leaveConnectionTraffic?.call();
+    return result;
+  }
+
   Map<String, Object?> diagnosticPayload(ConnectionTarget key) => {
     'protocol': isAwgTarget(key.target)
         ? 'awg'
@@ -685,14 +813,7 @@ class ConnectionChecks extends ChangeNotifier {
         return result;
       }
       if (owner.enterConnectionTraffic != null) {
-        var entered = await owner.enterConnectionTraffic!();
-        for (var attempt = 0; !entered && attempt < 4; attempt++) {
-          if (token.isCancelled) break;
-          await Future<void>.delayed(const Duration(milliseconds: 400));
-          if (token.isCancelled) break;
-          entered = await owner.enterConnectionTraffic!();
-        }
-        if (!entered) {
+        if (!await _enterTraffic(token)) {
           result = outcome(ConnectionCheckStatus.notTested, 'busy');
           return result;
         }
@@ -708,32 +829,9 @@ class ConnectionChecks extends ChangeNotifier {
       );
     } finally {
       if (lease != null && connection != null) {
-        try {
-          final cleanup = CancellationToken();
-          final deadline = Timer(const Duration(seconds: 15), cleanup.cancel);
-          try {
-            final response = await connection.transport.request(
-              RunnerRequest.fromJson({
-                'version': 1,
-                'action': 'probe_end',
-                'id': lease,
-              }),
-              cleanup,
-              sudoPassword: connection.password,
-            );
-            if (response.connectionProbe?['closed'] != true) {
-              result = outcome(
-                ConnectionCheckStatus.notTested,
-                'cleanup_pending',
-              );
-            } else if (response.connectionProbe?['stable'] != true) {
-              result = outcome(ConnectionCheckStatus.notTested, 'changed');
-            }
-          } finally {
-            deadline.cancel();
-          }
-        } catch (_) {
-          result = outcome(ConnectionCheckStatus.notTested, 'cleanup_pending');
+        final ended = await _endLease(connection, lease);
+        if (ended != null) {
+          result = outcome(ConnectionCheckStatus.notTested, ended);
         }
       }
       if (trafficEntered) await owner.leaveConnectionTraffic?.call();

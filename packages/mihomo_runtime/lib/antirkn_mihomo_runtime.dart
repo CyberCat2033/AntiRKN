@@ -220,6 +220,7 @@ final class MihomoOutboundProbe implements CoreProbeTransport {
     CancellationToken token, {
     required bool udp,
     String directInterface = '',
+    bool download = false,
   }) async {
     try {
       final source = jsonEncode(proxy ?? <String, Object?>{});
@@ -229,6 +230,7 @@ final class MihomoOutboundProbe implements CoreProbeTransport {
         'yaml': source,
         'udp': udp,
         if (directInterface.isNotEmpty) 'interface': directInterface,
+        if (download) 'download': true,
       }, token);
       if (result['hash'] != hash ||
           result['version'] != mihomoVersion ||
@@ -244,6 +246,7 @@ final class MihomoOutboundProbe implements CoreProbeTransport {
         'invalid_proxy',
         'input_limit',
         'timeout',
+        'transfer_cut',
       };
       final code = result['code'];
       if (code is! String || !codes.contains(code)) {
@@ -261,6 +264,7 @@ final class MihomoOutboundProbe implements CoreProbeTransport {
         udp: result['udp'] == true,
         udpTested: result['udpTested'] == true,
         milliseconds: (result['milliseconds'] as int? ?? 0).clamp(0, 60000),
+        downloaded: (result['downloaded'] as int? ?? 0).clamp(0, 1 << 20),
         endpoint: switch (result['endpoint']) {
           final String value
               when const {

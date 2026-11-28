@@ -25,6 +25,8 @@ class Net implements IpProbeTransport {
 
 class Probe implements CoreProbeTransport {
   final types = <String>[];
+  final proxies = <Map<String, Object?>?>[];
+  final downloads = <bool>[];
   Completer<void>? hold;
   @override
   Future<CoreTrafficCheck> probe(
@@ -32,8 +34,11 @@ class Probe implements CoreProbeTransport {
     CancellationToken cancellation, {
     required bool udp,
     String directInterface = '',
+    bool download = false,
   }) async {
     types.add(proxy?['type'] as String? ?? 'direct');
+    proxies.add(proxy);
+    downloads.add(download);
     if (hold != null) await cancellation.bind(hold!.future);
     cancellation.check();
     return const CoreTrafficCheck(
@@ -102,6 +107,82 @@ class DiagnosticRemote extends f.Remote {
   }
 }
 
+/// The runner side of a REALITY target check (connectivity_probe).
+class TargetRemote extends f.Remote {
+  TargetRemote(
+    super.store, {
+    this.begin = 'ok',
+    this.cleanup = const {'closed': true, 'stable': true},
+  });
+  final String begin;
+  final Map<String, Object?> cleanup;
+  Map? payload;
+  @override
+  Future<RunnerResponse> request(
+    RunnerRequest request,
+    CancellationToken token, {
+    String? sudoPassword,
+  }) async {
+    final action = request.json['action'];
+    if (action != 'probe_begin' && action != 'probe_end') {
+      return super.request(request, token, sudoPassword: sudoPassword);
+    }
+    actions.add(action as String);
+    if (action == 'probe_end') {
+      return RunnerResponse.fromJson({
+        ...response(),
+        'connectionProbe': cleanup,
+      });
+    }
+    payload = jsonDecode(request.json['payload'] as String) as Map;
+    if (begin != 'ok') {
+      return RunnerResponse.fromJson({...response(), 'code': begin});
+    }
+    final key = request.json['id'];
+    return RunnerResponse.fromJson({
+      ...response(),
+      'connectionProbe': {
+        'id': key,
+        'expires': 1,
+        'user': {
+          'id': key,
+          'login': 'probe-$key',
+          'name': 'Probe',
+          'enabled': true,
+        },
+        'observation': {
+          'id': key,
+          'workspaceId': 'probe',
+          'confirmed': true,
+          'revision': 'fixture',
+          'publicKey': 'B' * 43,
+          'shortId': '0123456789abcdef',
+          'spec': {
+            'id': key,
+            'enabled': true,
+            'listen': '',
+            'port': 23456,
+            'transport': 'raw',
+            'security': 'reality',
+            'target': 'alpha.example:443',
+            'sni': 'alpha.example',
+            'fingerprint': 'chrome',
+            'endpoint': '',
+            'externalPort': 23456,
+          },
+          'clients': [
+            {
+              'id': key,
+              'uuid': '33333333-3333-4333-8333-333333333333',
+              'enabled': true,
+            },
+          ],
+        },
+      },
+    });
+  }
+}
+
 VpnController create(
   f.MemoryVpn store,
   f.Remote remote,
@@ -132,6 +213,68 @@ Future<void> idle(VpnController c) async {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  group('REALITY target check', () {
+    Future<(ConnectionCheck, TargetRemote, Probe)> run(
+      TargetRemote Function(f.MemoryVpn) remote,
+    ) async {
+      final store = f.MemoryVpn(), probe = Probe(), r = remote(store);
+      final c = create(store, r, probe, 'one');
+      addTearDown(c.dispose);
+      await c.load();
+      final check = await c.connections.checkRealityTarget(
+        serverId: 'one',
+        panelId: f.panel,
+        endpoint: '203.0.113.10',
+        target: 'alpha.example:443',
+        sni: 'alpha.example',
+      );
+      return (check, r, probe);
+    }
+
+    test('traffic and 100 KB go through the temporary inbound', () async {
+      final (check, remote, probe) = await run(TargetRemote.new);
+      expect(check.status, ConnectionCheckStatus.working, reason: check.code);
+      expect(remote.actions, ['probe_begin', 'probe_end']);
+      expect(remote.payload, {
+        'protocol': 'reality_target',
+        'panel': f.panel,
+        'target': 'alpha.example:443',
+        'sni': 'alpha.example',
+      });
+      final index = probe.proxies.indexWhere((p) => p != null);
+      final proxy = probe.proxies[index]!;
+      expect(proxy['server'], '203.0.113.10');
+      expect(proxy['port'], 23456);
+      expect(proxy['servername'], 'alpha.example');
+      expect(proxy['flow'], 'xtls-rprx-vision');
+      expect((proxy['reality-opts'] as Map)['short-id'], '0123456789abcdef');
+      expect(probe.downloads[index], isTrue);
+    });
+
+    test('a refused lease is reported and still ended', () async {
+      final (check, remote, probe) = await run(
+        (s) => TargetRemote(s, begin: 'probe_failed'),
+      );
+      expect(
+        (check.status, check.code),
+        (ConnectionCheckStatus.notTested, 'probe_failed'),
+      );
+      expect(remote.actions, ['probe_begin', 'probe_end']);
+      expect(probe.proxies.whereType<Map>(), isEmpty);
+    });
+
+    test('an unfinished cleanup replaces a working result', () async {
+      final (check, _, _) = await run(
+        (s) =>
+            TargetRemote(s, cleanup: const {'closed': false, 'stable': false}),
+      );
+      expect(
+        (check.status, check.code),
+        (ConnectionCheckStatus.notTested, 'cleanup_pending'),
+      );
+    });
+  });
+
   for (final (cleanup, expected) in [
     ({'closed': true, 'stable': true}, 'connected'),
     ({'closed': true, 'stable': false}, 'changed'),

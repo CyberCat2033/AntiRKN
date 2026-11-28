@@ -5174,4 +5174,36 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get realitySearchVerifiedAddress => 'Verified address';
+
+  @override
+  String get realityLevelMihomo => 'Connection works';
+
+  @override
+  String get realityReasonMihomoWorking =>
+      'The connection through the server works, 100 KB went through';
+
+  @override
+  String get realityReasonMihomoFailed =>
+      'The connection through the server does not work';
+
+  @override
+  String get realityReasonMihomoInconclusive =>
+      'The connection check gave no answer';
+
+  @override
+  String get realitySearchConnect => 'Check the connection';
+
+  @override
+  String get realitySearchConnectHelp =>
+      'A temporary inbound with this target and SNI appears on the server for a few seconds; the device downloads 100 KB through it, then the inbound is removed.';
+
+  @override
+  String get realitySearchConnecting => 'Checking the connection';
+
+  @override
+  String get realitySearchConnectingHelp =>
+      'Temporary inbound on the server, 100 KB download';
+
+  @override
+  String get realitySearchConnection => 'Connection check';
 }

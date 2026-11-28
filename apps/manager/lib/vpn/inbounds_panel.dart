@@ -121,6 +121,23 @@ class InboundsPanelState extends State<InboundsPanel> {
         // A finalist check only; the runner refuses it while busy.
         checkFromServer: (target, sni) async =>
             await runner?.scanReality(target, sni),
+        checkConnection: (choice) async {
+          final panel = runner?.panelAccess;
+          if (panel == null) {
+            return ConnectionCheck(
+              status: ConnectionCheckStatus.notTested,
+              code: 'panel_unavailable',
+              at: DateTime.now().toUtc(),
+            );
+          }
+          return controller.connections.checkRealityTarget(
+            serverId: serverId,
+            panelId: panel.id,
+            endpoint: serverIpv4.isNotEmpty ? serverIpv4 : serverHost,
+            target: choice.target,
+            sni: choice.sni,
+          );
+        },
         search: RealityTargetSearch(
           transport: scanner,
           network: network.network,

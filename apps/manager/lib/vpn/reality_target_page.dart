@@ -36,6 +36,9 @@ String realityReasonText(AppLocalizations l, RealityReason r) => switch (r) {
   RealityReason.serverNotChecked => l.realityReasonServerNotChecked,
   RealityReason.serverChecked => l.realityReasonServerChecked,
   RealityReason.serverRejected => l.realityReasonServerRejected,
+  RealityReason.mihomoWorking => l.realityReasonMihomoWorking,
+  RealityReason.mihomoFailed => l.realityReasonMihomoFailed,
+  RealityReason.mihomoInconclusive => l.realityReasonMihomoInconclusive,
   RealityReason.redirectNotChecked => l.realityReasonRedirectNotChecked,
   RealityReason.notTls13 => l.realityReasonNotTls13,
   RealityReason.noH2 => l.realityReasonNoH2,
@@ -63,6 +66,7 @@ const _cardReasons = [
   RealityReason.handshakeFailed,
   RealityReason.knownCdn,
   RealityReason.serverRejected,
+  RealityReason.mihomoFailed,
 ];
 
 class RealityTargetPage extends StatefulWidget {
@@ -291,6 +295,13 @@ class _RealityTargetPageState extends State<RealityTargetPage> {
     }
     final total = s.total;
     final status = l.realitySearchFound(s.tlsFound, c.recommended.length);
+    if (!c.running && c.connecting.isNotEmpty) {
+      return AppProgressCard(
+        title: l.realitySearchConnecting,
+        icon: Icons.network_check,
+        status: l.realitySearchConnectingHelp,
+      );
+    }
     if (!c.running && c.checking.isNotEmpty) {
       return AppProgressCard(
         title: l.realitySearchServerChecking,
@@ -419,7 +430,12 @@ class _RealityTargetPageState extends State<RealityTargetPage> {
                       label: l.realityLevelCriteria,
                       icon: Icons.task_alt,
                     ),
-                  if (candidate.level == RealityLevel.serverChecked)
+                  if (candidate.level == RealityLevel.mihomoChecked)
+                    StatusChip(
+                      label: l.realityLevelMihomo,
+                      icon: Icons.check_circle_outline,
+                    ),
+                  if (candidate.fromServer?.feasible == true)
                     StatusChip(
                       label: switch (candidate.fromServer?.latency) {
                         final latency? => l.realityLevelServerTime(
@@ -470,6 +486,15 @@ class _RealityTargetPageState extends State<RealityTargetPage> {
         },
       ),
       (l.realityLatency, '${p.tls.inMilliseconds}'),
+      if (candidate.fromMihomo case final mihomo?)
+        (
+          l.realitySearchConnection,
+          '${realityReasonText(l, switch (mihomo.status) {
+            RealityMihomoStatus.working => RealityReason.mihomoWorking,
+            RealityMihomoStatus.failed => RealityReason.mihomoFailed,
+            RealityMihomoStatus.inconclusive => RealityReason.mihomoInconclusive,
+          })} · ${mihomo.code}',
+        ),
       if (candidate.fromServer?.latency case final latency?)
         (l.realitySearchServerLatency, '${latency.inMilliseconds}'),
       if (cert != null) ...[
@@ -513,6 +538,18 @@ class _RealityTargetPageState extends State<RealityTargetPage> {
             icon: const Icon(Icons.dns_outlined),
             label: Text(l.realitySearchServerCheck),
           ),
+        ],
+        if (candidate.suitable && c.checkConnection != null) ...[
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            key: ValueKey('reality-connect-${candidate.target.key}'),
+            onPressed: c.running || c.connecting.isNotEmpty
+                ? null
+                : () => c.checkWithMihomo(candidate),
+            icon: const Icon(Icons.network_check),
+            label: Text(l.realitySearchConnect),
+          ),
+          Text(l.realitySearchConnectHelp, style: theme.textTheme.bodySmall),
         ],
         if (candidate.suitable) ...[
           const SizedBox(height: 16),

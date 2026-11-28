@@ -106,8 +106,61 @@ enum RealityProximity { sameNetwork, nearby, far, unknown }
 
 /// discovered: TLS seen; confirmed: the IP + SNI certificate verified;
 /// criteria: every REALITY gate passed; serverChecked: the managed server
-/// also accepted the pair (3x-ui check). The Mihomo check comes later.
-enum RealityLevel { discovered, confirmed, criteria, serverChecked }
+/// also accepted the pair (3x-ui check); mihomoChecked: traffic from this
+/// device passed through a temporary inbound with this target and SNI.
+enum RealityLevel {
+  discovered,
+  confirmed,
+  criteria,
+  serverChecked,
+  mihomoChecked,
+}
+
+/// working: 100 KB went through; failed: the network was healthy and the
+/// proxy did not work; inconclusive: the network, a device VPN or the
+/// temporary inbound kept the check from saying either.
+enum RealityMihomoStatus { working, failed, inconclusive }
+
+/// One Mihomo check of a pair from this device through the managed server.
+final class RealityMihomoCheck {
+  const RealityMihomoCheck({
+    required this.status,
+    required this.code,
+    required this.at,
+    this.networkIdentity = '',
+  });
+  final RealityMihomoStatus status;
+  final String code, networkIdentity;
+  final DateTime at;
+
+  Map<String, Object?> toJson() => {
+    'status': status.name,
+    'code': code,
+    'network': networkIdentity,
+    'at': at.toUtc().toIso8601String(),
+  };
+
+  factory RealityMihomoCheck.fromJson(Object? json) {
+    final at = json is Map ? DateTime.tryParse('${json['at']}') : null;
+    final status = json is Map
+        ? RealityMihomoStatus.values.asNameMap()[json['status']]
+        : null;
+    if (json is! Map ||
+        status == null ||
+        at == null ||
+        json['code'] is! String ||
+        !RegExp(r'^[a-z_]{1,40}$').hasMatch(json['code'] as String) ||
+        json['network'] is! String) {
+      throw const FormatException('search_checkpoint');
+    }
+    return RealityMihomoCheck(
+      status: status,
+      code: json['code'] as String,
+      at: at,
+      networkIdentity: json['network'] as String,
+    );
+  }
+}
 
 /// One check of an IP + SNI pair made by the managed server itself. It is
 /// not a scan: only chosen finalists are checked, one request each.
@@ -160,6 +213,9 @@ enum RealityReason {
   serverNotChecked,
   serverChecked,
   serverRejected,
+  mihomoWorking,
+  mihomoFailed,
+  mihomoInconclusive,
   redirectNotChecked,
   notTls13,
   noH2,
@@ -238,12 +294,14 @@ final class RealityCandidate {
     List<RealityReason> reasons,
     this.proximity,
     this.fromServer,
+    this.fromMihomo,
   ) : reasons = List.unmodifiable(reasons);
 
   factory RealityCandidate.rate(
     TlsProbeResult confirmation, {
     TlsProbeResult? repeat,
     RealityServerCheck? fromServer,
+    RealityMihomoCheck? fromMihomo,
     IpAddress? server,
     required DateTime now,
   }) {
@@ -271,14 +329,27 @@ final class RealityCandidate {
     if (fromServer?.feasible == false) {
       reasons.add(RealityReason.serverRejected);
     }
+    if (fromMihomo?.status == RealityMihomoStatus.failed) {
+      reasons.add(RealityReason.mihomoFailed);
+    }
     final gated = reasons.isNotEmpty;
     final level = !valid
         ? RealityLevel.discovered
         : gated
         ? RealityLevel.confirmed
+        : fromMihomo?.status == RealityMihomoStatus.working
+        ? RealityLevel.mihomoChecked
         : fromServer == null
         ? RealityLevel.criteria
         : RealityLevel.serverChecked;
+    switch (fromMihomo?.status) {
+      case RealityMihomoStatus.working:
+        reasons.add(RealityReason.mihomoWorking);
+      case RealityMihomoStatus.inconclusive:
+        reasons.add(RealityReason.mihomoInconclusive);
+      case RealityMihomoStatus.failed || null:
+        break;
+    }
 
     var score = 0;
     switch (proximity) {
@@ -344,6 +415,7 @@ final class RealityCandidate {
       reasons,
       proximity,
       fromServer,
+      fromMihomo,
     );
   }
 
@@ -354,6 +426,7 @@ final class RealityCandidate {
   final List<RealityReason> reasons;
   final RealityProximity proximity;
   final RealityServerCheck? fromServer;
+  final RealityMihomoCheck? fromMihomo;
   TlsScanTarget get target => confirmation.target;
 
   /// Passed every gate here; the server may confirm it further.
@@ -408,6 +481,7 @@ final class RealitySearchState {
   final pairs = <String, TlsProbeResult>{};
   final repeats = <String, TlsProbeResult>{};
   final serverChecks = <String, RealityServerCheck>{};
+  final mihomoChecks = <String, RealityMihomoCheck>{};
 
   bool get finished => phase.index >= RealitySearchPhase.done.index;
 
@@ -421,6 +495,7 @@ final class RealitySearchState {
         p,
         repeat: repeats[p.target.key],
         fromServer: serverChecks[p.target.key],
+        fromMihomo: mihomoChecks[p.target.key],
         server: plan.server,
         now: now,
       ),
@@ -436,6 +511,9 @@ final class RealitySearchState {
     'repeats': [for (final p in repeats.values) tlsProbeJson(p)],
     'serverChecks': {
       for (final e in serverChecks.entries) e.key: e.value.toJson(),
+    },
+    'mihomoChecks': {
+      for (final e in mihomoChecks.entries) e.key: e.value.toJson(),
     },
   };
 
@@ -498,6 +576,14 @@ final class RealitySearchState {
         throw const FormatException('search_checkpoint');
       }
       state.serverChecks[key as String] = RealityServerCheck.fromJson(value);
+    }
+    final mihomo = json['mihomoChecks'] ?? const <String, Object?>{};
+    if (mihomo is! Map) throw const FormatException('search_checkpoint');
+    for (final MapEntry(:key, :value) in mihomo.entries) {
+      if (!state.pairs.containsKey(key)) {
+        throw const FormatException('search_checkpoint');
+      }
+      state.mihomoChecks[key as String] = RealityMihomoCheck.fromJson(value);
     }
     return state;
   }

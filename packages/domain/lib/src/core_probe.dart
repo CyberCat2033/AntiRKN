@@ -14,6 +14,7 @@ final class CoreTrafficCheck {
     this.udpTested = false,
     this.milliseconds = 0,
     this.endpoint = '',
+    this.downloaded = 0,
   });
   final CoreTrafficStatus status;
   final String code;
@@ -23,6 +24,9 @@ final class CoreTrafficCheck {
   /// After a failure: plain TCP check of the server address from this device
   /// (reachable, refused, timeout, unreachable, unresolved; '' = not checked).
   final String endpoint;
+
+  /// Bytes of the transfer check (FR-SNI); 0 when it did not run.
+  final int downloaded;
 }
 
 abstract interface class CoreProbeTransport {
@@ -33,6 +37,7 @@ abstract interface class CoreProbeTransport {
     CancellationToken cancellation, {
     required bool udp,
     String directInterface = '',
+    bool download = false,
   });
 }
 
@@ -74,6 +79,10 @@ final class ConnectionProbeEngine {
     Map<String, Object?> proxy,
     CancellationToken token, {
     bool udp = true,
+
+    /// Also transfer 100 KB through [proxy]: a cut after the first kilobytes
+    /// is a failure, not a working connection.
+    bool download = false,
   }) async {
     var identity = '';
     ConnectionCheck result(
@@ -151,6 +160,7 @@ final class ConnectionProbeEngine {
         token,
         udp: udp,
         directInterface: direct,
+        download: download,
       );
       await sameNetwork();
       if (traffic.status == CoreTrafficStatus.success) {
