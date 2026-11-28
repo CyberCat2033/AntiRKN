@@ -537,6 +537,10 @@
   "vpnAccessOn": "Доступ для «{name}» включён",
   "vpnAccessOff": "Доступ для «{name}» отключён",
   "uiUndo": "Отменить",
+  "clientsSearch": "Поиск клиента",
+  "clientsSearchClear": "Очистить поиск",
+  "clientsNotFound": "Никого не нашлось",
+  "clientsNotFoundHelp": "Нет клиента, в имени которого есть «{query}».",
   "vpnSyncAndPublish": "Выгрузить проверенные профили",
   "vpnSyncAndPublishDone": "Выгружено профилей на Диск: {published} из {total}",
   "@vpnSyncAndPublishDone": {

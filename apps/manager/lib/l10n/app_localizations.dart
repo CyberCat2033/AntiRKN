@@ -2660,6 +2660,30 @@ abstract class AppLocalizations {
   /// **'Undo'**
   String get uiUndo;
 
+  /// No description provided for @clientsSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Search clients'**
+  String get clientsSearch;
+
+  /// No description provided for @clientsSearchClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear search'**
+  String get clientsSearchClear;
+
+  /// No description provided for @clientsNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No clients found'**
+  String get clientsNotFound;
+
+  /// No description provided for @clientsNotFoundHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Nobody\'s name contains “{query}”.'**
+  String clientsNotFoundHelp(String query);
+
   /// No description provided for @vpnSyncAndPublish.
   ///
   /// In en, this message translates to:

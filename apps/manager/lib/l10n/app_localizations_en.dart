@@ -1470,6 +1470,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get uiUndo => 'Undo';
 
   @override
+  String get clientsSearch => 'Search clients';
+
+  @override
+  String get clientsSearchClear => 'Clear search';
+
+  @override
+  String get clientsNotFound => 'No clients found';
+
+  @override
+  String clientsNotFoundHelp(String query) {
+    return 'Nobody\'s name contains “$query”.';
+  }
+
+  @override
   String get vpnSyncAndPublish => 'Publish verified profiles';
 
   @override

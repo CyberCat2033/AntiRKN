@@ -2311,6 +2311,43 @@ class AppMenuButton extends StatelessWidget {
   );
 }
 
+/// An M3 search bar filtering a list as one types: flat on its container
+/// colour, a search icon in front and a clear button once there is text.
+class AppSearchField extends StatelessWidget {
+  const AppSearchField({
+    required this.controller,
+    required this.hintText,
+    required this.clearTooltip,
+    this.onChanged,
+    super.key,
+  });
+  final TextEditingController controller;
+  final String hintText, clearTooltip;
+  final ValueChanged<String>? onChanged;
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder(
+    valueListenable: controller,
+    builder: (context, value, _) => SearchBar(
+      controller: controller,
+      hintText: hintText,
+      elevation: const WidgetStatePropertyAll(0),
+      leading: const Icon(Icons.search),
+      onChanged: onChanged,
+      trailing: [
+        if (value.text.isNotEmpty)
+          IconButton(
+            tooltip: clearTooltip,
+            onPressed: () {
+              controller.clear();
+              onChanged?.call('');
+            },
+            icon: const Icon(Icons.close),
+          ),
+      ],
+    ),
+  );
+}
+
 /// The menu opens under its button with their end edges aligned.
 class _AppMenuAnchor extends StatefulWidget {
   const _AppMenuAnchor({required this.children, required this.button});

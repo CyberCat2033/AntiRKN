@@ -83,6 +83,9 @@ class UsersPage extends StatefulWidget {
   /// The page title; "Clients" when not given.
   final String? title;
   final CatalogSelection? selection;
+
+  /// From this many clients a search field narrows the list by name.
+  static const searchFrom = 7;
   @override
   State<UsersPage> createState() => _UsersPageState();
 
@@ -251,6 +254,14 @@ class _UsersPageState extends State<UsersPage> {
 
   /// The list narrowed to the clients with their own error.
   bool _onlyFailed = false;
+
+  final _search = TextEditingController();
+  String _query = '';
+
+  void _clearSearch() => setState(() {
+    _search.clear();
+    _query = '';
+  });
 
   /// An error of this client alone; account and Drive issues shared by all
   /// clients are said once above the list.
@@ -527,6 +538,7 @@ class _UsersPageState extends State<UsersPage> {
   @override
   void dispose() {
     ownSelection.dispose();
+    _search.dispose();
     super.dispose();
   }
 
@@ -644,15 +656,29 @@ class _UsersPageState extends State<UsersPage> {
       // The filter ends by itself once no client has an error of its own.
       final onlyFailed =
           _onlyFailed && !selection.active && sorted.enabled.any(_hasOwnError);
-      final enabledUsers = onlyFailed
-          ? sorted.enabled.where(_hasOwnError).toList()
-          : sorted.enabled;
-      final disabledUsers = onlyFailed ? const <VpnUser>[] : sorted.disabled;
+      final total = sorted.enabled.length + sorted.disabled.length;
+      final showSearch = total >= UsersPage.searchFrom;
+      // A query left from a longer list does not hide clients silently.
+      final query = showSearch ? _query.trim().toLowerCase() : '';
+      bool matches(VpnUser u) =>
+          query.isEmpty || u.name.toLowerCase().contains(query);
+      final enabledUsers = [
+        for (final u in sorted.enabled)
+          if (matches(u) && (!onlyFailed || _hasOwnError(u))) u,
+      ];
+      final disabledUsers = onlyFailed
+          ? const <VpnUser>[]
+          : [
+              for (final u in sorted.disabled)
+                if (matches(u)) u,
+            ];
       final allUsers = [...enabledUsers, ...disabledUsers];
       final ids = [for (final u in allUsers) u.id];
       final protocols = _protocols();
       // With no active clients the disabled ones are the list itself.
-      final showDisabled = _disabledOpen || enabledUsers.isEmpty;
+      // A search looks through the disabled clients as well.
+      final showDisabled =
+          _disabledOpen || enabledUsers.isEmpty || query.isNotEmpty;
       final fab = !selection.active && !_addInHeader(context);
       final listBar = selection.active || allUsers.isEmpty
           ? null
@@ -704,6 +730,20 @@ class _UsersPageState extends State<UsersPage> {
                                         setState(() => _onlyFailed = true),
                                   ),
                                 ),
+                                if (showSearch)
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                      bottom: AppLayout.smallGap,
+                                    ),
+                                    child: AppSearchField(
+                                      key: const ValueKey('clients-search'),
+                                      controller: _search,
+                                      hintText: l.clientsSearch,
+                                      clearTooltip: l.clientsSearchClear,
+                                      onChanged: (value) =>
+                                          setState(() => _query = value),
+                                    ),
+                                  ),
                                 ?listBar,
                                 if (publications != null)
                                   ListenableBuilder(
@@ -722,11 +762,24 @@ class _UsersPageState extends State<UsersPage> {
                                     serverName: serverName,
                                     showProgress: !_syncing,
                                   ),
-                                if (allUsers.isEmpty)
+                                if (total == 0)
                                   AppEmptyState(
                                     title: l.vpnNoUsers,
                                     icon: Icons.people_outline,
                                     message: l.uiClientsEmptyHelp,
+                                  )
+                                else if (allUsers.isEmpty && query.isNotEmpty)
+                                  AppEmptyState(
+                                    key: const ValueKey('clients-not-found'),
+                                    title: l.clientsNotFound,
+                                    icon: Icons.search_off,
+                                    message: l.clientsNotFoundHelp(
+                                      _query.trim(),
+                                    ),
+                                    action: TextButton(
+                                      onPressed: _clearSearch,
+                                      child: Text(l.clientsSearchClear),
+                                    ),
                                   ),
                               ],
                             ),
@@ -746,7 +799,7 @@ class _UsersPageState extends State<UsersPage> {
                                       enabledUsers.isNotEmpty)
                                     '__disabled_header__': _DisabledHeader(
                                       count: disabledUsers.length,
-                                      open: _disabledOpen,
+                                      open: showDisabled,
                                       motion: motion,
                                       onTap: () => setState(
                                         () => _disabledOpen = !_disabledOpen,

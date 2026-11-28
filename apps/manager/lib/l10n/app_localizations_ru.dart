@@ -1474,6 +1474,20 @@ class AppLocalizationsRu extends AppLocalizations {
   String get uiUndo => 'Отменить';
 
   @override
+  String get clientsSearch => 'Поиск клиента';
+
+  @override
+  String get clientsSearchClear => 'Очистить поиск';
+
+  @override
+  String get clientsNotFound => 'Никого не нашлось';
+
+  @override
+  String clientsNotFoundHelp(String query) {
+    return 'Нет клиента, в имени которого есть «$query».';
+  }
+
+  @override
   String get vpnSyncAndPublish => 'Выгрузить проверенные профили';
 
   @override
