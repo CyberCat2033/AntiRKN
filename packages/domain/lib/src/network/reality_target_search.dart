@@ -105,8 +105,46 @@ final class RealitySearchPlan {
 enum RealityProximity { sameNetwork, nearby, far, unknown }
 
 /// discovered: TLS seen; confirmed: the IP + SNI certificate verified;
-/// criteria: every REALITY gate passed. Server and Mihomo checks come later.
-enum RealityLevel { discovered, confirmed, criteria }
+/// criteria: every REALITY gate passed; serverChecked: the managed server
+/// also accepted the pair (3x-ui check). The Mihomo check comes later.
+enum RealityLevel { discovered, confirmed, criteria, serverChecked }
+
+/// One check of an IP + SNI pair made by the managed server itself. It is
+/// not a scan: only chosen finalists are checked, one request each.
+final class RealityServerCheck {
+  const RealityServerCheck({
+    required this.feasible,
+    required this.at,
+    this.latency,
+  });
+  final bool feasible;
+
+  /// Server → target time; null when the server did not report it.
+  final Duration? latency;
+  final DateTime at;
+
+  Map<String, Object?> toJson() => {
+    'feasible': feasible,
+    'latencyMs': latency?.inMilliseconds,
+    'at': at.toUtc().toIso8601String(),
+  };
+
+  factory RealityServerCheck.fromJson(Object? json) {
+    final at = json is Map ? DateTime.tryParse('${json['at']}') : null;
+    final ms = json is Map ? json['latencyMs'] : null;
+    if (json is! Map ||
+        json['feasible'] is! bool ||
+        at == null ||
+        ms != null && (ms is! int || ms < 0 || ms > 60000)) {
+      throw const FormatException('search_checkpoint');
+    }
+    return RealityServerCheck(
+      feasible: json['feasible'] as bool,
+      at: at,
+      latency: ms == null ? null : Duration(milliseconds: ms as int),
+    );
+  }
+}
 
 enum RealityReason {
   sameNetwork,
@@ -120,6 +158,8 @@ enum RealityReason {
   unstable,
   stabilityNotChecked,
   serverNotChecked,
+  serverChecked,
+  serverRejected,
   redirectNotChecked,
   notTls13,
   noH2,
@@ -197,11 +237,13 @@ final class RealityCandidate {
     this.score,
     List<RealityReason> reasons,
     this.proximity,
+    this.fromServer,
   ) : reasons = List.unmodifiable(reasons);
 
   factory RealityCandidate.rate(
     TlsProbeResult confirmation, {
     TlsProbeResult? repeat,
+    RealityServerCheck? fromServer,
     IpAddress? server,
     required DateTime now,
   }) {
@@ -226,12 +268,17 @@ final class RealityCandidate {
       reasons.add(RealityReason.certificateInvalid);
     }
     if (cdn) reasons.add(RealityReason.knownCdn);
+    if (fromServer?.feasible == false) {
+      reasons.add(RealityReason.serverRejected);
+    }
     final gated = reasons.isNotEmpty;
     final level = !valid
         ? RealityLevel.discovered
         : gated
         ? RealityLevel.confirmed
-        : RealityLevel.criteria;
+        : fromServer == null
+        ? RealityLevel.criteria
+        : RealityLevel.serverChecked;
 
     var score = 0;
     switch (proximity) {
@@ -256,8 +303,18 @@ final class RealityCandidate {
         score += 10;
         reasons.add(RealityReason.dnsUnresolved);
     }
-    score += 7; // Server → target time: measured by the server check later.
-    reasons.add(RealityReason.serverNotChecked);
+    final latency = fromServer?.latency;
+    if (fromServer == null) {
+      score += 7;
+      reasons.add(RealityReason.serverNotChecked);
+    } else if (fromServer.feasible) {
+      reasons.add(RealityReason.serverChecked);
+      // Every handshake through REALITY waits for server → target.
+      score += latency == null
+          ? 7
+          : (15 * (1 - (latency.inMilliseconds - 20) / 300).clamp(0, 1))
+                .round();
+    }
     if (repeat == null) {
       score += 7;
       reasons.add(RealityReason.stabilityNotChecked);
@@ -283,9 +340,10 @@ final class RealityCandidate {
       p,
       repeat,
       level,
-      level == RealityLevel.criteria ? score.clamp(0, 100) : 0,
+      level.index >= RealityLevel.criteria.index ? score.clamp(0, 100) : 0,
       reasons,
       proximity,
+      fromServer,
     );
   }
 
@@ -295,7 +353,11 @@ final class RealityCandidate {
   final int score;
   final List<RealityReason> reasons;
   final RealityProximity proximity;
+  final RealityServerCheck? fromServer;
   TlsScanTarget get target => confirmation.target;
+
+  /// Passed every gate here; the server may confirm it further.
+  bool get suitable => level.index >= RealityLevel.criteria.index;
 
   /// Higher level first, then score, then the faster handshake.
   static int compare(RealityCandidate a, RealityCandidate b) {
@@ -345,6 +407,7 @@ final class RealitySearchState {
   final discoveries = <IpAddress, TlsProbeResult>{};
   final pairs = <String, TlsProbeResult>{};
   final repeats = <String, TlsProbeResult>{};
+  final serverChecks = <String, RealityServerCheck>{};
 
   bool get finished => phase.index >= RealitySearchPhase.done.index;
 
@@ -357,6 +420,7 @@ final class RealitySearchState {
       RealityCandidate.rate(
         p,
         repeat: repeats[p.target.key],
+        fromServer: serverChecks[p.target.key],
         server: plan.server,
         now: now,
       ),
@@ -370,6 +434,9 @@ final class RealitySearchState {
     'discoveries': [for (final p in discoveries.values) tlsProbeJson(p)],
     'pairs': [for (final p in pairs.values) tlsProbeJson(p)],
     'repeats': [for (final p in repeats.values) tlsProbeJson(p)],
+    'serverChecks': {
+      for (final e in serverChecks.entries) e.key: e.value.toJson(),
+    },
   };
 
   /// Restores a checkpoint of exactly [plan]; anything else is rejected.
@@ -423,6 +490,14 @@ final class RealitySearchState {
         throw const FormatException('search_checkpoint');
       }
       state.repeats[p.target.key] = p;
+    }
+    final checks = json['serverChecks'] ?? const <String, Object?>{};
+    if (checks is! Map) throw const FormatException('search_checkpoint');
+    for (final MapEntry(:key, :value) in checks.entries) {
+      if (!state.pairs.containsKey(key)) {
+        throw const FormatException('search_checkpoint');
+      }
+      state.serverChecks[key as String] = RealityServerCheck.fromJson(value);
     }
     return state;
   }
@@ -618,7 +693,7 @@ class RealityTargetSearch {
 
     final best = state
         .candidates(clock())
-        .where((c) => c.level == RealityLevel.criteria)
+        .where((c) => c.suitable)
         .take(stabilityTop)
         .map((c) => c.target)
         .toList();

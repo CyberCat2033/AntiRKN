@@ -8917,6 +8917,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'From the search: {sni}, score {score}'**
   String realitySearchSuggested(String sni, int score);
+
+  /// No description provided for @realityLevelServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Checked from the server'**
+  String get realityLevelServer;
+
+  /// No description provided for @realityReasonServerChecked.
+  ///
+  /// In en, this message translates to:
+  /// **'Checked from the server'**
+  String get realityReasonServerChecked;
+
+  /// No description provided for @realityReasonServerRejected.
+  ///
+  /// In en, this message translates to:
+  /// **'The server did not confirm this target'**
+  String get realityReasonServerRejected;
+
+  /// No description provided for @realitySearchServerCheck.
+  ///
+  /// In en, this message translates to:
+  /// **'Check from the server'**
+  String get realitySearchServerCheck;
+
+  /// No description provided for @realitySearchServerChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking the best from the server'**
+  String get realitySearchServerChecking;
+
+  /// No description provided for @realitySearchServerUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The server check is unavailable. Connect to the server and sign in to the panel, then check a candidate from its details.'**
+  String get realitySearchServerUnavailable;
+
+  /// No description provided for @realitySearchServerLatency.
+  ///
+  /// In en, this message translates to:
+  /// **'Server to target, ms'**
+  String get realitySearchServerLatency;
+
+  /// No description provided for @realityLevelServerTime.
+  ///
+  /// In en, this message translates to:
+  /// **'From the server: {ms} ms'**
+  String realityLevelServerTime(int ms);
 }
 
 class _AppLocalizationsDelegate

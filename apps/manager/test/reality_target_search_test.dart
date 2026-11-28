@@ -79,9 +79,11 @@ RealitySearchController controller(
   World world,
   Settings settings, {
   ProbeNetwork network = const ProbeNetwork('wifi-1', 'wifi'),
+  Future<Map<String, dynamic>?> Function(String, String)? fromServer,
 }) => RealitySearchController(
   serverId: 'server-1',
   store: settings,
+  checkFromServer: fromServer,
   clock: () => now,
   search: RealityTargetSearch(
     transport: world,
@@ -159,6 +161,60 @@ void main() {
       final json = jsonDecode(c.exportJson()) as Map<String, dynamic>;
       expect((json['candidates'] as List).single['level'], 'criteria');
       expect(json.keys, isNot(contains('checkpoint')));
+    });
+  });
+
+  group('server check', () {
+    test('the best pairs are checked by the server after a search', () async {
+      final settings = Settings(), calls = <(String, String)>[];
+      final c = controller(
+        World(),
+        settings,
+        fromServer: (target, sni) async {
+          calls.add((target, sni));
+          return {'feasible': true, 'latencyMs': 18};
+        },
+      );
+      await c.start(RealitySearchPlan.neighbors('8.8.8.37'));
+      expect(calls, [('8.8.8.10:443', 'alpha.example')]);
+      expect(c.best!.level, RealityLevel.serverChecked);
+      expect(c.best!.fromServer!.latency, const Duration(milliseconds: 18));
+      expect(c.serverUnavailable, isFalse);
+      expect(c.exportCsv(), contains('"18"'));
+      await Future<void>.delayed(Duration.zero);
+      final again = controller(World(), settings);
+      await again.ready;
+      expect(again.best!.level, RealityLevel.serverChecked);
+    });
+
+    test('an unreachable panel is stated and nothing is recorded', () async {
+      var calls = 0;
+      final c = controller(
+        World(),
+        Settings(),
+        fromServer: (_, _) async {
+          calls++;
+          return null;
+        },
+      );
+      await c.start(RealitySearchPlan.neighbors('8.8.8.37'));
+      expect(calls, 1);
+      expect(c.serverUnavailable, isTrue);
+      expect(c.best!.level, RealityLevel.criteria);
+    });
+
+    test('a pair the server rejects is no longer recommended', () async {
+      final c = controller(
+        World(),
+        Settings(),
+        fromServer: (_, _) async => {'feasible': false, 'latencyMs': 30},
+      );
+      await c.start(RealitySearchPlan.neighbors('8.8.8.37'));
+      expect(c.best, isNull);
+      expect(
+        c.candidates.single.reasons,
+        contains(RealityReason.serverRejected),
+      );
     });
   });
 
@@ -253,6 +309,43 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Why'), findsOneWidget);
       expect(find.text('8.8.8.10:443'), findsOneWidget);
+    });
+
+    testWidgets('a server-checked pair shows its time; others can be checked', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1000, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      const answer = <String, dynamic>{'feasible': true, 'latencyMs': 18};
+      Map<String, dynamic>? reply;
+      final c = controller(
+        World(),
+        Settings(),
+        fromServer: (_, _) async => reply,
+      );
+      await tester.runAsync(
+        () => c.start(RealitySearchPlan.neighbors('8.8.8.37')),
+      );
+      expect(c.serverUnavailable, isTrue);
+      await open(tester, c);
+      expect(
+        find.textContaining('server check is unavailable'),
+        findsOneWidget,
+      );
+      reply = answer;
+      final check = find.byKey(
+        const ValueKey('reality-server-8.8.8.10|443|alpha.example'),
+      );
+      await tester.scrollUntilVisible(
+        check,
+        100,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.tap(check);
+      await tester.pumpAndSettle();
+      expect(find.text('From the server: 18 ms'), findsOneWidget);
+      expect(find.textContaining('server check is unavailable'), findsNothing);
     });
 
     testWidgets('without a server address only own addresses are offered', (

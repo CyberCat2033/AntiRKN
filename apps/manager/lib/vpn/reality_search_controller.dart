@@ -34,6 +34,7 @@ class RealitySearchController extends ChangeNotifier {
     required this.serverId,
     required this.search,
     this.store,
+    this.checkFromServer,
     DateTime Function()? clock,
   }) : clock = clock ?? DateTime.now {
     ready = _load();
@@ -41,7 +42,18 @@ class RealitySearchController extends ChangeNotifier {
   final String serverId;
   final RealityTargetSearch search;
   final SettingsStore? store;
+
+  /// The 3x-ui check of one target and SNI made by the server; null when the
+  /// panel is not reachable now.
+  final Future<Map<String, dynamic>?> Function(String target, String sni)?
+  checkFromServer;
   final DateTime Function() clock;
+
+  /// Pairs whose server check runs now.
+  final checking = <String>{};
+
+  /// The last server check could not run: no connection or panel sign-in.
+  bool serverUnavailable = false;
   late final Future<void> ready;
 
   RealitySearchState? state;
@@ -59,7 +71,7 @@ class RealitySearchController extends ChangeNotifier {
       state?.candidates(clock()) ?? const [];
   List<RealityCandidate> get recommended => [
     for (final c in candidates)
-      if (c.level == RealityLevel.criteria) c,
+      if (c.suitable) c,
   ];
 
   /// Best finished candidate, offered to the next inbound of this server.
@@ -153,6 +165,46 @@ class RealitySearchController extends ChangeNotifier {
       _token = null;
       _notify();
     }
+    if (state?.phase == RealitySearchPhase.done) await checkFinalists();
+  }
+
+  /// The best suitable pairs not yet checked by the server, one at a time.
+  Future<void> checkFinalists({int top = 3}) async {
+    for (final c in recommended.take(top).toList()) {
+      if (_disposed || running || serverUnavailable) return;
+      if (state?.serverChecks[c.target.key] == null) await checkOnServer(c);
+    }
+  }
+
+  Future<void> checkOnServer(RealityCandidate candidate) async {
+    final check = checkFromServer, s = state, key = candidate.target.key;
+    if (check == null || s == null || running || checking.contains(key)) {
+      return;
+    }
+    checking.add(key);
+    _notify();
+    Map<String, dynamic>? answer;
+    try {
+      final choice = realityChoice(candidate);
+      answer = await check(choice.target, choice.sni);
+    } catch (_) {
+      answer = null;
+    }
+    checking.remove(key);
+    if (_disposed || state != s) return;
+    serverUnavailable = answer == null;
+    if (answer != null) {
+      final ms = answer['latencyMs'];
+      s.serverChecks[key] = RealityServerCheck(
+        feasible: answer['feasible'] == true,
+        at: clock(),
+        latency: ms is int && ms >= 0 && ms <= 60000
+            ? Duration(milliseconds: ms)
+            : null,
+      );
+      _save(s);
+    }
+    _notify();
   }
 
   void stop() => _token?.cancel();
@@ -188,6 +240,8 @@ class RealitySearchController extends ChangeNotifier {
           ...tlsProbeJson(c.confirmation),
           'level': c.level.name,
           'score': c.score,
+          'serverFeasible': c.fromServer?.feasible,
+          'serverMs': c.fromServer?.latency?.inMilliseconds,
           'reasons': [for (final r in c.reasons) r.name],
         },
     ],
@@ -214,6 +268,7 @@ class RealitySearchController extends ChangeNotifier {
         'group',
         'dns',
         'tls_ms',
+        'server_ms',
         'issuer',
         'not_after',
         'reasons',
@@ -230,6 +285,7 @@ class RealitySearchController extends ChangeNotifier {
           c.confirmation.group,
           c.confirmation.dns.name,
           c.confirmation.tls.inMilliseconds,
+          c.fromServer?.latency?.inMilliseconds,
           c.confirmation.certificate?.issuer,
           c.confirmation.certificate?.notAfter.toUtc().toIso8601String(),
           c.reasons.map((r) => r.name).join(' '),

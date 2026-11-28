@@ -1851,5 +1851,14 @@
   "realitySearchScore": "Score {score} of 100",
   "@realitySearchScore": {"placeholders": {"score": {"type": "int"}}},
   "realitySearchSuggested": "From the search: {sni}, score {score}",
-  "@realitySearchSuggested": {"placeholders": {"sni": {"type": "String"}, "score": {"type": "int"}}}
+  "@realitySearchSuggested": {"placeholders": {"sni": {"type": "String"}, "score": {"type": "int"}}},
+  "realityLevelServer": "Checked from the server",
+  "realityReasonServerChecked": "Checked from the server",
+  "realityReasonServerRejected": "The server did not confirm this target",
+  "realitySearchServerCheck": "Check from the server",
+  "realitySearchServerChecking": "Checking the best from the server",
+  "realitySearchServerUnavailable": "The server check is unavailable. Connect to the server and sign in to the panel, then check a candidate from its details.",
+  "realitySearchServerLatency": "Server to target, ms",
+  "realityLevelServerTime": "From the server: {ms} ms",
+  "@realityLevelServerTime": {"placeholders": {"ms": {"type": "int"}}}
 }

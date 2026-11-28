@@ -293,6 +293,33 @@ void main() {
         RealityProximity.unknown,
       );
     });
+    test('a server check confirms, times or rejects a pair', () {
+      final observed = tls(pair, dns: TlsDnsCheck.match);
+      final base = RealityCandidate.rate(observed, server: server, now: now);
+      RealityCandidate checked(bool feasible, int? ms) => RealityCandidate.rate(
+        observed,
+        server: server,
+        now: now,
+        fromServer: RealityServerCheck(
+          feasible: feasible,
+          at: now,
+          latency: ms == null ? null : Duration(milliseconds: ms),
+        ),
+      );
+      final fast = checked(true, 18);
+      expect(fast.level, RealityLevel.serverChecked);
+      expect(fast.suitable, isTrue);
+      expect(fast.score, base.score + 8);
+      expect(fast.reasons, contains(RealityReason.serverChecked));
+      expect(fast.reasons, isNot(contains(RealityReason.serverNotChecked)));
+      expect(checked(true, 400).score, base.score - 7);
+      expect(checked(true, null).score, base.score);
+      final rejected = checked(false, 18);
+      expect((rejected.level, rejected.score), (RealityLevel.confirmed, 0));
+      expect(rejected.reasons, contains(RealityReason.serverRejected));
+      expect(RealityCandidate.compare(fast, base), lessThan(0));
+    });
+
     test('SNI candidates are concrete names only', () {
       final c = tls(
         TlsScanTarget('8.8.8.10', 443),
@@ -422,6 +449,32 @@ void main() {
       ).run(plan, CancellationToken(), (_) {}, checkpoint: json);
       expect(moved.phase, RealitySearchPhase.networkChanged);
       expect(transport.batches, isEmpty);
+    });
+
+    test('server checks travel with the checkpoint', () async {
+      final done = await search(
+        FakeTransport(),
+      ).run(plan, CancellationToken(), (_) {});
+      final key = done.pairs.keys.first;
+      done.serverChecks[key] = RealityServerCheck(
+        feasible: true,
+        at: now,
+        latency: const Duration(milliseconds: 25),
+      );
+      final json =
+          jsonDecode(jsonEncode(done.toJson())) as Map<String, dynamic>;
+      final restored = RealitySearchState.fromJson(json, plan);
+      expect(
+        restored.serverChecks[key]!.latency,
+        const Duration(milliseconds: 25),
+      );
+      expect(restored.candidates(now).first.level, RealityLevel.serverChecked);
+      (json['serverChecks'] as Map)['8.8.8.1|443|nope.example'] =
+          (json['serverChecks'] as Map)[key];
+      expect(
+        () => RealitySearchState.fromJson(json, plan),
+        throwsA(isA<FormatException>()),
+      );
     });
 
     test('a network change stops the search between batches', () async {

@@ -8,7 +8,7 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- VLESS REALITY form: **Find** searches the server's neighbours for a suitable target and SNI from this device (TLS 1.3, HTTP/2, key exchange, verified certificate, DNS), recommends the best with reasons, fills Target and SNI, can stop and continue, and exports results as JSON or CSV. The best result is offered to the next inbound of the server.
+- VLESS REALITY form: **Find** searches the server's neighbours for a suitable target and SNI from this device (TLS 1.3, HTTP/2, key exchange, verified certificate, DNS), checks the best from the server itself (3x-ui) with the server-to-target time, recommends the best with reasons, fills Target and SNI, can stop and continue, and exports results as JSON or CSV. The best result is offered to the next inbound of the server.
 - Settings → About: what the app is for, open-source licenses (GPL-3.0 and components) and a link to the source code.
 - The project is licensed under GPL-3.0; added a disclaimer (intended use, no warranty) and a security policy.
 

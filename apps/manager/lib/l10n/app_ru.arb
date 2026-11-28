@@ -1790,5 +1790,14 @@
   "realitySearchScore": "Оценка {score} из 100",
   "@realitySearchScore": {"placeholders": {"score": {"type": "int"}}},
   "realitySearchSuggested": "Из подбора: {sni}, оценка {score}",
-  "@realitySearchSuggested": {"placeholders": {"sni": {"type": "String"}, "score": {"type": "int"}}}
+  "@realitySearchSuggested": {"placeholders": {"sni": {"type": "String"}, "score": {"type": "int"}}},
+  "realityLevelServer": "Проверено с сервера",
+  "realityReasonServerChecked": "Проверено с сервера",
+  "realityReasonServerRejected": "Сервер не подтвердил этот target",
+  "realitySearchServerCheck": "Проверить с сервера",
+  "realitySearchServerChecking": "Проверяем лучших с сервера",
+  "realitySearchServerUnavailable": "Проверка с сервера недоступна. Подключитесь к серверу и войдите в панель, затем проверьте кандидата из его сведений.",
+  "realitySearchServerLatency": "С сервера до target, мс",
+  "realityLevelServerTime": "С сервера: {ms} мс",
+  "@realityLevelServerTime": {"placeholders": {"ms": {"type": "int"}}}
 }

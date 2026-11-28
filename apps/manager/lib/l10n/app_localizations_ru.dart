@@ -5158,4 +5158,31 @@ class AppLocalizationsRu extends AppLocalizations {
   String realitySearchSuggested(String sni, int score) {
     return 'Из подбора: $sni, оценка $score';
   }
+
+  @override
+  String get realityLevelServer => 'Проверено с сервера';
+
+  @override
+  String get realityReasonServerChecked => 'Проверено с сервера';
+
+  @override
+  String get realityReasonServerRejected => 'Сервер не подтвердил этот target';
+
+  @override
+  String get realitySearchServerCheck => 'Проверить с сервера';
+
+  @override
+  String get realitySearchServerChecking => 'Проверяем лучших с сервера';
+
+  @override
+  String get realitySearchServerUnavailable =>
+      'Проверка с сервера недоступна. Подключитесь к серверу и войдите в панель, затем проверьте кандидата из его сведений.';
+
+  @override
+  String get realitySearchServerLatency => 'С сервера до target, мс';
+
+  @override
+  String realityLevelServerTime(int ms) {
+    return 'С сервера: $ms мс';
+  }
 }

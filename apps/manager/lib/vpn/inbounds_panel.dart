@@ -118,6 +118,9 @@ class InboundsPanelState extends State<InboundsPanel> {
       _search = RealitySearchController(
         serverId: serverId,
         store: controller.connections.store,
+        // A finalist check only; the runner refuses it while busy.
+        checkFromServer: (target, sni) async =>
+            await runner?.scanReality(target, sni),
         search: RealityTargetSearch(
           transport: scanner,
           network: network.network,

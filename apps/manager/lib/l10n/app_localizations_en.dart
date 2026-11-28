@@ -5143,4 +5143,32 @@ class AppLocalizationsEn extends AppLocalizations {
   String realitySearchSuggested(String sni, int score) {
     return 'From the search: $sni, score $score';
   }
+
+  @override
+  String get realityLevelServer => 'Checked from the server';
+
+  @override
+  String get realityReasonServerChecked => 'Checked from the server';
+
+  @override
+  String get realityReasonServerRejected =>
+      'The server did not confirm this target';
+
+  @override
+  String get realitySearchServerCheck => 'Check from the server';
+
+  @override
+  String get realitySearchServerChecking => 'Checking the best from the server';
+
+  @override
+  String get realitySearchServerUnavailable =>
+      'The server check is unavailable. Connect to the server and sign in to the panel, then check a candidate from its details.';
+
+  @override
+  String get realitySearchServerLatency => 'Server to target, ms';
+
+  @override
+  String realityLevelServerTime(int ms) {
+    return 'From the server: $ms ms';
+  }
 }

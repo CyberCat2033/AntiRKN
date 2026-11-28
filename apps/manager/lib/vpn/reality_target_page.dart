@@ -34,6 +34,8 @@ String realityReasonText(AppLocalizations l, RealityReason r) => switch (r) {
   RealityReason.unstable => l.realityReasonUnstable,
   RealityReason.stabilityNotChecked => l.realityReasonStabilityNotChecked,
   RealityReason.serverNotChecked => l.realityReasonServerNotChecked,
+  RealityReason.serverChecked => l.realityReasonServerChecked,
+  RealityReason.serverRejected => l.realityReasonServerRejected,
   RealityReason.redirectNotChecked => l.realityReasonRedirectNotChecked,
   RealityReason.notTls13 => l.realityReasonNotTls13,
   RealityReason.noH2 => l.realityReasonNoH2,
@@ -60,6 +62,7 @@ const _cardReasons = [
   RealityReason.certificateInvalid,
   RealityReason.handshakeFailed,
   RealityReason.knownCdn,
+  RealityReason.serverRejected,
 ];
 
 class RealityTargetPage extends StatefulWidget {
@@ -264,6 +267,11 @@ class _RealityTargetPageState extends State<RealityTargetPage> {
       if (c.otherNetwork)
         AppNotice(message: l.realitySearchOtherNetwork, icon: Icons.history),
       if (c.storeFailed) AppNotice(message: l.realitySearchStoreFailed),
+      if (c.serverUnavailable)
+        AppNotice(
+          message: l.realitySearchServerUnavailable,
+          icon: Icons.cloud_off_outlined,
+        ),
     ];
   }
 
@@ -283,6 +291,13 @@ class _RealityTargetPageState extends State<RealityTargetPage> {
     }
     final total = s.total;
     final status = l.realitySearchFound(s.tlsFound, c.recommended.length);
+    if (!c.running && c.checking.isNotEmpty) {
+      return AppProgressCard(
+        title: l.realitySearchServerChecking,
+        icon: Icons.dns_outlined,
+        status: status,
+      );
+    }
     if (!c.running) {
       // A stopped or finished search has no running indicator.
       final theme = Theme.of(context);
@@ -368,7 +383,7 @@ class _RealityTargetPageState extends State<RealityTargetPage> {
                       style: theme.textTheme.titleMedium,
                     ),
                   ),
-                  if (candidate.level == RealityLevel.criteria)
+                  if (candidate.suitable)
                     Semantics(
                       label: l.realitySearchScore(candidate.score),
                       child: ExcludeSemantics(
@@ -399,14 +414,24 @@ class _RealityTargetPageState extends State<RealityTargetPage> {
                       label: l.realityLevelPair,
                       icon: Icons.verified_outlined,
                     ),
-                  if (candidate.level == RealityLevel.criteria)
+                  if (candidate.suitable)
                     StatusChip(
                       label: l.realityLevelCriteria,
                       icon: Icons.task_alt,
                     ),
+                  if (candidate.level == RealityLevel.serverChecked)
+                    StatusChip(
+                      label: switch (candidate.fromServer?.latency) {
+                        final latency? => l.realityLevelServerTime(
+                          latency.inMilliseconds,
+                        ),
+                        null => l.realityLevelServer,
+                      },
+                      icon: Icons.dns_outlined,
+                    ),
                 ],
               ),
-              if (candidate.level == RealityLevel.criteria) ...[
+              if (candidate.suitable) ...[
                 const SizedBox(height: 8),
                 FilledButton.tonal(
                   key: ValueKey('reality-use-${candidate.target.key}'),
@@ -444,6 +469,8 @@ class _RealityTargetPageState extends State<RealityTargetPage> {
         },
       ),
       (l.realityLatency, '${p.tls.inMilliseconds}'),
+      if (candidate.fromServer?.latency case final latency?)
+        (l.realitySearchServerLatency, '${latency.inMilliseconds}'),
       if (cert != null) ...[
         (l.realityCertificate, cert.issuer),
         (l.realityCertificateExpiry, local.formatMediumDate(cert.notAfter)),
@@ -473,7 +500,20 @@ class _RealityTargetPageState extends State<RealityTargetPage> {
             '• ${realityReasonText(l, r)}',
             style: theme.textTheme.bodyMedium,
           ),
-        if (candidate.level == RealityLevel.criteria) ...[
+        if (candidate.suitable &&
+            candidate.fromServer == null &&
+            c.checkFromServer != null) ...[
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            key: ValueKey('reality-server-${candidate.target.key}'),
+            onPressed: c.running || c.checking.contains(candidate.target.key)
+                ? null
+                : () => c.checkOnServer(candidate),
+            icon: const Icon(Icons.dns_outlined),
+            label: Text(l.realitySearchServerCheck),
+          ),
+        ],
+        if (candidate.suitable) ...[
           const SizedBox(height: 16),
           FilledButton(
             onPressed: () {
@@ -492,10 +532,7 @@ class _RealityTargetPageState extends State<RealityTargetPage> {
     if (s == null) return const [];
     // One list per build: candidates are recomputed on every read.
     final all = c.candidates;
-    final best = all
-        .where((x) => x.level == RealityLevel.criteria)
-        .take(3)
-        .toList();
+    final best = all.where((x) => x.suitable).take(3).toList();
     final rest = all.where((x) => !best.contains(x)).toList();
     return [
       if (best.isNotEmpty) ...[
