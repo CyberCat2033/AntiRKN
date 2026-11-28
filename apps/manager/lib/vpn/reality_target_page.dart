@@ -659,7 +659,8 @@ class _RealityTargetPageState extends State<RealityTargetPage> {
           key: ValueKey('reality-more-${candidate.target.key}'),
           title: Text(l.realityDetailsMore),
           tilePadding: EdgeInsets.zero,
-          childrenPadding: EdgeInsets.zero,
+          // Clear of the rounded clip and the divider under the last line.
+          childrenPadding: const EdgeInsets.only(bottom: AppLayout.gap),
           expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             row(
