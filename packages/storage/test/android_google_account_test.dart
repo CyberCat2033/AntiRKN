@@ -320,4 +320,25 @@ void main() {
       expect(await auth.accessToken(), 'PRIVATE-ANDROID-TOKEN-FIXTURE');
     },
   );
+  test(
+    'a slow silent renewal queues restore instead of reporting sign-out',
+    () async {
+      final auth = service(
+        authorizationTimeout: const Duration(milliseconds: 200),
+      );
+      await auth.signIn();
+      bridge.hang = true;
+      final renewal = expectLater(
+        auth.accessToken(),
+        throwsA(issue(GoogleAccountIssue.network)),
+      );
+      await Future<void>.delayed(Duration.zero);
+      await expectLater(auth.signIn(), throwsA(issue(GoogleAccountIssue.busy)));
+      final restored = await auth.restore();
+      expect(restored?.permissionId, '123456');
+      await renewal;
+      bridge.hang = false;
+      expect(await auth.accessToken(), 'PRIVATE-ANDROID-TOKEN-FIXTURE');
+    },
+  );
 }

@@ -78,8 +78,9 @@ final class AndroidAppUpdateInstaller implements AppUpdateInstaller {
   }
 }
 
-/// `version` and `build_number` of the running build from Flutter's
-/// `version.json` asset.
+/// `version` and `build_number` of the running desktop build from Flutter's
+/// `version.json` asset. Android APKs do not bundle it; there the package
+/// manager reports both.
 Future<(String, int)> _bundleVersion() async {
   final json =
       jsonDecode(await rootBundle.loadString('version.json'))
@@ -92,15 +93,15 @@ Future<(String, int)> _bundleVersion() async {
 
 /// What is installed here, or null where updates are not supported.
 Future<InstalledApp?> readInstalledApp() async {
-  final (version, buildNumber) = await _bundleVersion();
   if (Platform.isAndroid) {
     final info = await _channel.invokeMapMethod<String, Object?>('info');
     final versionCode = (info?['versionCode'] as num?)?.toInt() ?? 0;
     final (build, abi) = InstalledApp.fromAndroidVersionCode(versionCode);
+    final versionName = info?['versionName'] as String? ?? '';
     return InstalledApp(
       platform: AppUpdatePlatform.android,
       build: build,
-      version: version,
+      version: versionName.isEmpty ? '0.0.0' : versionName,
       installKind: AppUpdateKind.androidApk,
       androidAbi: abi,
       supportedAbis: [
@@ -110,6 +111,7 @@ Future<InstalledApp?> readInstalledApp() async {
     );
   }
   if (!Platform.isLinux && !Platform.isWindows) return null;
+  final (version, buildNumber) = await _bundleVersion();
   var kind = await readInstallKind(Platform.resolvedExecutable);
   if (kind == AppUpdateKind.linuxAppimage &&
       Platform.environment['APPIMAGE'] == null) {

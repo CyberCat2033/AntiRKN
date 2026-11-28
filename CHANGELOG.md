@@ -6,6 +6,11 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Android: app updates were always reported as unavailable.
+- Android: Google Drive could look signed out after the phone was idle for a long time.
+
 ## [0.1.1] - 2026-11-28
 
 ### Added

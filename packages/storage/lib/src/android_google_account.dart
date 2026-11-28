@@ -111,7 +111,11 @@ final class AndroidGoogleAccountService
   static const _storageId = 'google-drive-account-v1';
   GoogleDriveAccount? _account;
   String? _accountKey;
-  bool _busy = false;
+
+  /// The running operation. Background ones (restore, silent renewal,
+  /// sign-out) queue behind it; only an interactive sign-in is refused as
+  /// busy, so a slow renewal never makes a stored account look signed out.
+  Future<void>? _pending;
   @override
   bool publicationAuthorized = false;
 
@@ -120,9 +124,21 @@ final class AndroidGoogleAccountService
       _accountKey ??
       (throw const SyncTransportFailure(SyncTransportIssue.unauthorized));
 
-  Future<T> _operation<T>(Future<T> Function() action) async {
-    if (_busy) throw const GoogleAccountFailure(GoogleAccountIssue.busy);
-    _busy = true;
+  Future<T> _operation<T>(
+    Future<T> Function() action, {
+    bool interactive = false,
+  }) async {
+    if (interactive && _pending != null) {
+      throw const GoogleAccountFailure(GoogleAccountIssue.busy);
+    }
+    final previous = _pending;
+    final done = Completer<void>();
+    _pending = done.future;
+    if (previous != null) {
+      try {
+        await previous;
+      } catch (_) {}
+    }
     try {
       return await action();
     } on GoogleAccountFailure {
@@ -136,7 +152,8 @@ final class AndroidGoogleAccountService
     } catch (_) {
       throw const GoogleAccountFailure(GoogleAccountIssue.storage);
     } finally {
-      _busy = false;
+      if (identical(_pending, done.future)) _pending = null;
+      done.complete();
     }
   }
 
@@ -215,7 +232,7 @@ final class AndroidGoogleAccountService
         await _remember(account);
         publicationAuthorized = publications;
         return account;
-      });
+      }, interactive: true);
 
   /// Concurrent callers share one silent renewal and one identity check.
   @override

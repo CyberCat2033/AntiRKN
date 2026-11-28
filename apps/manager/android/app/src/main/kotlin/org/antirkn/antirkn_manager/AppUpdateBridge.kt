@@ -64,6 +64,7 @@ class AppUpdateBridge(private val activity: Activity, messenger: BinaryMessenger
         val installed = packageInfo(activity.packageName)
         return mapOf(
             "versionCode" to versionCode(installed),
+            "versionName" to (installed.versionName ?: ""),
             "supportedAbis" to Build.SUPPORTED_ABIS.toList(),
         )
     }
