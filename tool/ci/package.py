@@ -25,6 +25,8 @@ LINUX_EXECUTABLE = 'antirkn_manager'
 WINDOWS_EXECUTABLE = 'antirkn_manager.exe'
 VC_RUNTIME = ('msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll')
 APP_ID = 'org.antirkn.antirkn_manager'
+# License and disclaimer ship next to the executable in every package.
+LEGAL = ('LICENSE', 'DISCLAIMER.md')
 
 
 NAMES = {
@@ -49,6 +51,8 @@ def bundle_files(bundle, executable):
             raise ValueError('bundle contains a symlink: %s' % relative)
         if relative == MARKER:
             raise ValueError('bundle already contains an install-kind marker')
+        if relative in LEGAL:
+            raise ValueError('bundle already contains %s' % relative)
         files.append((relative, path))
     return files
 
@@ -88,6 +92,8 @@ def tarball(bundle, version, out, epoch):
                 else:
                     mode = 0o755 if relative in (LINUX_EXECUTABLE, 'lib/antirkn-mihomo') else mode_of(path)
                     add(archive, name, mode, path.read_bytes())
+            for name in LEGAL:
+                add(archive, top + '/' + name, 0o644, (ROOT / name).read_bytes())
             add(archive, top + '/' + MARKER, 0o644, b'linux-tarball\n')
     return target
 
@@ -114,6 +120,8 @@ def portable(bundle, version, out, epoch):
                 archive.writestr(entry(top + '/' + relative, 0o755, True), b'')
             else:
                 archive.writestr(entry(top + '/' + relative, 0o644), path.read_bytes())
+        for name in LEGAL:
+            archive.writestr(entry(top + '/' + name, 0o644), (ROOT / name).read_bytes())
         archive.writestr(entry(top + '/' + MARKER, 0o644), b'windows-portable\n')
     return target
 
@@ -133,6 +141,8 @@ def appdir(bundle, out):
     shutil.copyfile(str(PACKAGING / 'linux' / (APP_ID + '.desktop')), str(out / (APP_ID + '.desktop')))
     shutil.copyfile(str(ROOT / 'apps/manager/assets/branding/app_icon.png'), str(out / (APP_ID + '.png')))
     os.symlink(APP_ID + '.png', str(out / '.DirIcon'))
+    for name in LEGAL:
+        shutil.copyfile(str(ROOT / name), str(out / name))
     (out / MARKER).write_bytes(b'linux-appimage\n')
     return out
 

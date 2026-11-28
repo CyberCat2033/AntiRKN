@@ -12,6 +12,7 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Release packages for Windows and Linux include the license and disclaimer; the Windows installer shows the license.
 - Settings: the sync status card is now the only entry to Synchronization and is named "Synchronization"; the duplicate list item is gone.
 - README rewritten in Russian and English; the user guide and privacy policy are updated and list every network destination of the app.
 

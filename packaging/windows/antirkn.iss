@@ -55,6 +55,8 @@ OutputBaseFilename=AntiRKN-v{#AppVersion}-windows-x64-setup
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
+; GPL text on the license page; /VERYSILENT updates skip it.
+LicenseFile=..\..\LICENSE
 ShowLanguageDialog=auto
 
 [Languages]
@@ -68,6 +70,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; Tells the app it was installed by this installer (update = run the next setup).
 Source: "install-kind"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\DISCLAIMER.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"

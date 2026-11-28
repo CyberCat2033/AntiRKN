@@ -122,6 +122,8 @@ class PackageTest(unittest.TestCase):
                 self.assertEqual(archive.extractfile(top + '/install-kind').read(), b'linux-tarball\n')
                 self.assertEqual(archive.getmember(top + '/antirkn_manager').mode, 0o755)
                 self.assertEqual(archive.getmember(top + '/lib/antirkn-mihomo').mode, 0o755)
+                for name in ('LICENSE', 'DISCLAIMER.md'):
+                    self.assertEqual(archive.extractfile(top + '/' + name).read(), (package.ROOT / name).read_bytes())
                 self.assertTrue(all(name == top or name.startswith(top + '/') for name in archive.getnames()))
 
     def test_portable_zip(self):
@@ -133,6 +135,8 @@ class PackageTest(unittest.TestCase):
                 top = 'AntiRKN-v1.2.0-windows-x64-portable/'
                 self.assertEqual(archive.read(top + 'install-kind'), b'windows-portable\n')
                 self.assertIn(top + 'antirkn_manager.exe', archive.namelist())
+                self.assertIn(top + 'LICENSE', archive.namelist())
+                self.assertIn(top + 'DISCLAIMER.md', archive.namelist())
 
     def test_appdir(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -144,6 +148,8 @@ class PackageTest(unittest.TestCase):
             self.assertIn('Exec=antirkn_manager', desktop)
             self.assertIn('Icon=org.antirkn.antirkn_manager', desktop)
             self.assertTrue((appdir / 'org.antirkn.antirkn_manager.png').is_file())
+            self.assertTrue((appdir / 'LICENSE').is_file())
+            self.assertTrue((appdir / 'DISCLAIMER.md').is_file())
 
     def test_rejects_existing_marker_and_symlinks(self):
         with tempfile.TemporaryDirectory() as temporary:
