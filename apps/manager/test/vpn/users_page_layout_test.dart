@@ -117,10 +117,10 @@ void main() {
         );
         expect(find.text('Carol'), findsOneWidget);
 
-        // Checking and publishing are menu items, the full check included.
+        // Publishing is a header button; the full check is in the menu.
+        expect(find.byKey(const ValueKey('vpn-sync-and-publish')), findsOne);
         await tester.tap(find.byKey(const ValueKey('vpn-clients-menu')));
         await tester.pumpAndSettle();
-        expect(find.byKey(const ValueKey('vpn-sync-and-publish')), findsOne);
         expect(find.byKey(const ValueKey('vpn-sync-force')), findsOne);
         expect(tester.takeException(), isNull);
       });

@@ -517,21 +517,27 @@ class _UsersPageState extends State<UsersPage> {
     );
   }
 
-  /// Checking the servers and publishing are rare and slow: they live in
-  /// the page menu, the full check as its own item instead of a long press.
+  bool _syncBusy(VpnController c) =>
+      !c.canMutate || _syncing || (publications?.hasActiveSync == true);
+
+  /// Publishing the verified profiles again is one tap in the header;
+  /// profiles are also published by themselves once verified.
+  Widget _publish(BuildContext context, VpnController c, AppLocalizations l) =>
+      IconButton(
+        key: const ValueKey('vpn-sync-and-publish'),
+        tooltip: l.vpnSyncAndPublish,
+        onPressed: _syncBusy(c) ? null : () => _syncAndPublish(context),
+        icon: const Icon(Icons.cloud_upload_outlined),
+      );
+
+  /// The full check of the servers and every Drive file is rare and slow:
+  /// it stays in the page menu instead of a long press.
   Widget _menu(BuildContext context, VpnController c, AppLocalizations l) {
-    final busy =
-        !c.canMutate || _syncing || (publications?.hasActiveSync == true);
+    final busy = _syncBusy(c);
     return AppMoreMenu(
       buttonKey: const ValueKey('vpn-clients-menu'),
       tooltip: l.vpnClientsMenu,
       children: [
-        AppMenuItem(
-          key: const ValueKey('vpn-sync-and-publish'),
-          icon: Icons.cloud_sync_outlined,
-          label: l.vpnSyncAndPublish,
-          onPressed: busy ? null : () => _syncAndPublish(context),
-        ),
         AppMenuItem(
           key: const ValueKey('vpn-sync-force'),
           icon: Icons.sync,
@@ -584,10 +590,15 @@ class _UsersPageState extends State<UsersPage> {
           if (publications != null)
             ListenableBuilder(
               listenable: publications!,
-              builder: (context, _) => _menu(context, c, l),
+              builder: (context, _) => Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [_publish(context, c, l), _menu(context, c, l)],
+              ),
             )
-          else
+          else ...[
+            _publish(context, c, l),
             _menu(context, c, l),
+          ],
       ],
     );
   }

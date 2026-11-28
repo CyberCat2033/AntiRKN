@@ -17,6 +17,7 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 - Licenses page redesigned in Material 3: the app card, component search, license counts, and on a wide window the text beside the list; on a phone the component opens as its own page. License text can be selected and copied.
 - Clients tab: on a wide window the client's card opens beside the list and the list gives way; an arrow hides the card and the list takes the whole width again.
+- Clients tab: "Publish verified profiles" is a button in the header again; the full check of servers and Drive files stays in the menu.
 - Clients tab: sorting is a choice of criterion (date added, name, traffic this month) with an arrow for the direction.
 - Clients tab: tapping a client opens its card (a bottom sheet on phones, a dialog on medium windows) with the QR always in view and a one-line hint; traffic opens in place under the month and all-time cards; Edit and Delete are in the card, and the QR button is gone from the row.
 - Clients tab: from seven clients a search field narrows the list by name, disabled clients included.
