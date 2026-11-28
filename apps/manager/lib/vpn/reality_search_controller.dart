@@ -4,16 +4,18 @@ import 'dart:convert';
 import 'package:antirkn_domain/antirkn_domain.dart';
 import 'package:flutter/foundation.dart';
 
-/// The target a search proposes for the REALITY form: exactly the verified
-/// address and name.
+/// The target a search proposes for the REALITY form: the verified name as
+/// Target (owner's choice, 2026-11-28; the server resolves it itself) and SNI.
 typedef RealityTargetChoice = ({String target, String sni});
 
-RealityTargetChoice realityChoice(RealityCandidate c) => (
-  target: c.target.ip.family == IpFamily.ipv6
-      ? '[${c.target.ip.canonical}]:${c.target.port}'
-      : '${c.target.ip.canonical}:${c.target.port}',
-  sni: c.target.sni,
-);
+RealityTargetChoice realityChoice(RealityCandidate c) =>
+    (target: '${c.target.sni}:${c.target.port}', sni: c.target.sni);
+
+/// The address the device verified, shown for reference only.
+String realityVerifiedAddress(RealityCandidate c) =>
+    c.target.ip.family == IpFamily.ipv6
+    ? '[${c.target.ip.canonical}]:${c.target.port}'
+    : '${c.target.ip.canonical}:${c.target.port}';
 
 /// Typical length of a search: most closed addresses answer at once, about
 /// four in ten wait for the connect timeout.

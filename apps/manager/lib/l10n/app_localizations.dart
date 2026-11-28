@@ -8965,6 +8965,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'From the server: {ms} ms'**
   String realityLevelServerTime(int ms);
+
+  /// No description provided for @realitySearchVerifiedAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Verified address'**
+  String get realitySearchVerifiedAddress;
 }
 
 class _AppLocalizationsDelegate

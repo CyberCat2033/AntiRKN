@@ -1860,5 +1860,6 @@
   "realitySearchServerUnavailable": "The server check is unavailable. Connect to the server and sign in to the panel, then check a candidate from its details.",
   "realitySearchServerLatency": "Server to target, ms",
   "realityLevelServerTime": "From the server: {ms} ms",
-  "@realityLevelServerTime": {"placeholders": {"ms": {"type": "int"}}}
+  "@realityLevelServerTime": {"placeholders": {"ms": {"type": "int"}}},
+  "realitySearchVerifiedAddress": "Verified address"
 }

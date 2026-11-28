@@ -5185,4 +5185,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String realityLevelServerTime(int ms) {
     return 'С сервера: $ms мс';
   }
+
+  @override
+  String get realitySearchVerifiedAddress => 'Проверенный адрес';
 }

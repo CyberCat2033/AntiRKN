@@ -456,6 +456,7 @@ class _RealityTargetPageState extends State<RealityTargetPage> {
     final local = MaterialLocalizations.of(context);
     final facts = <(String, String)>[
       (l.vpnTarget, realityChoice(candidate).target),
+      (l.realitySearchVerifiedAddress, realityVerifiedAddress(candidate)),
       (l.vpnSni, candidate.target.sni),
       ('TLS', p.version),
       ('ALPN', p.alpn),

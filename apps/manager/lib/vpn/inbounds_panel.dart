@@ -1151,7 +1151,8 @@ class _InboundFormState extends State<InboundForm> {
   void useTarget(RealityTargetChoice choice) => setState(() {
     fields['target']!.text = choice.target;
     fields['sni']!.text = choice.sni;
-    automaticSni = false;
+    // A domain Target keeps SNI following it, as when typed by hand.
+    automaticSni = choice.sni == realityTargetHost(choice.target);
     scanResult = null;
     scanFailed = false;
     _fillXhttpPath();

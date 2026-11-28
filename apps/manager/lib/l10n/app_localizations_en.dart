@@ -5171,4 +5171,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String realityLevelServerTime(int ms) {
     return 'From the server: $ms ms';
   }
+
+  @override
+  String get realitySearchVerifiedAddress => 'Verified address';
 }

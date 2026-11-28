@@ -111,7 +111,7 @@ void main() {
       expect(first.state!.phase, RealitySearchPhase.done);
       expect(first.best!.target.key, '8.8.8.10|443|alpha.example');
       expect(realityChoice(first.best!), (
-        target: '8.8.8.10:443',
+        target: 'alpha.example:443',
         sni: 'alpha.example',
       ));
       await Future<void>.delayed(Duration.zero);
@@ -176,7 +176,7 @@ void main() {
         },
       );
       await c.start(RealitySearchPlan.neighbors('8.8.8.37'));
-      expect(calls, [('8.8.8.10:443', 'alpha.example')]);
+      expect(calls, [('alpha.example:443', 'alpha.example')]);
       expect(c.best!.level, RealityLevel.serverChecked);
       expect(c.best!.fromServer!.latency, const Duration(milliseconds: 18));
       expect(c.serverUnavailable, isFalse);
@@ -291,7 +291,7 @@ void main() {
           await tester.tap(use);
           await tester.pumpAndSettle();
           expect(find.byType(RealityTargetPage), findsNothing);
-          expect(chosen, (target: '8.8.8.10:443', sni: 'alpha.example'));
+          expect(chosen, (target: 'alpha.example:443', sni: 'alpha.example'));
         });
       }
     }
@@ -308,6 +308,7 @@ void main() {
       await tester.tap(find.text('alpha.example').first);
       await tester.pumpAndSettle();
       expect(find.text('Why'), findsOneWidget);
+      expect(find.text('alpha.example:443'), findsOneWidget);
       expect(find.text('8.8.8.10:443'), findsOneWidget);
     });
 
@@ -425,7 +426,7 @@ void main() {
     );
     await tester.tap(find.byKey(const ValueKey('vpn-reality-suggested')));
     await tester.pumpAndSettle();
-    expect(field('target').controller!.text, '8.8.8.10:443');
+    expect(field('target').controller!.text, 'alpha.example:443');
     expect(field('sni').controller!.text, 'alpha.example');
     expect(find.byKey(const ValueKey('vpn-reality-suggested')), findsNothing);
     await tester.tap(find.byKey(const ValueKey('vpn-reality-find')));

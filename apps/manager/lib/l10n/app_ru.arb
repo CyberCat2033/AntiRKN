@@ -1799,5 +1799,6 @@
   "realitySearchServerUnavailable": "Проверка с сервера недоступна. Подключитесь к серверу и войдите в панель, затем проверьте кандидата из его сведений.",
   "realitySearchServerLatency": "С сервера до target, мс",
   "realityLevelServerTime": "С сервера: {ms} мс",
-  "@realityLevelServerTime": {"placeholders": {"ms": {"type": "int"}}}
+  "@realityLevelServerTime": {"placeholders": {"ms": {"type": "int"}}},
+  "realitySearchVerifiedAddress": "Проверенный адрес"
 }
