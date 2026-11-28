@@ -1,116 +1,119 @@
-# AntiRKN
-
 <div align="center">
 
-![AntiRKN Banner](apps/manager/assets/branding/app_icon.png)
+<img src="apps/manager/assets/branding/app_icon.png" width="128" alt="AntiRKN">
 
-**Центр управления персональной VPN-инфраструктурой нового поколения**
+# AntiRKN
 
-[![Linux Build](https://img.shields.io/badge/Linux-x64%20Release%20Ready-brightgreen?style=flat&logo=linux)](INSTRUCTION.md)
-[![Flutter](https://img.shields.io/badge/Flutter-3.41.x-02569B?style=flat&logo=flutter)](https://flutter.dev)
-[![Dart](https://img.shields.io/badge/Dart-3.11.x-0175C2?style=flat&logo=dart)](https://dart.dev)
-[![Go Toolchain](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](native/mihomo)
-[![Server Runner](https://img.shields.io/badge/Server%20Runner-v48-blueviolet)](server/runner)
-[![Design](https://img.shields.io/badge/Material%20Design-3%20%2F%20Material%20You-795548)](https://m3.material.io)
-[![Privacy](https://img.shields.io/badge/Zero-Telemetry%20%7C%20E2EE-success)](PRIVACY.md)
+**Своя сетевая инфраструктура — из одного окна.**
+Разверните, настройте и обслуживайте собственные серверы без ручной работы в терминале.
 
-[**Быстрый старт**](#быстрый-старт-linux) •
-[**Инструкция по сборке**](INSTRUCTION.md) •
-[**Руководство пользователя**](USAGE.md) •
-[**Политика конфиденциальности**](PRIVACY.md)
+[![Release](https://img.shields.io/github/v/release/CyberCat2033/AntiRKN?style=flat-square&label=%D1%80%D0%B5%D0%BB%D0%B8%D0%B7)](https://github.com/CyberCat2033/AntiRKN/releases/latest)
+[![License: GPL v3](https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square)](LICENSE)
+![Platforms](https://img.shields.io/badge/Android%20%7C%20Windows%20%7C%20Linux-informational?style=flat-square)
+[![Flutter](https://img.shields.io/badge/Flutter-02569B?style=flat-square&logo=flutter&logoColor=white)](https://flutter.dev)
+[![Material 3](https://img.shields.io/badge/Material%20You-M3-795548?style=flat-square)](https://m3.material.io)
+[![Telemetry](https://img.shields.io/badge/телеметрия-нет-success?style=flat-square)](PRIVACY.md)
+
+[Скачать](#-установка) · [Руководство](USAGE.md) · [Сборка](INSTRUCTION.md) · [Изменения](CHANGELOG.ru.md) · [English](README.en.md)
 
 </div>
 
----
-
-## 📖 О проекте
-
-**AntiRKN** — это мощное графическое приложение с открытым исходным кодом для развертывания, настройки и централизованного администрирования собственной VPN-инфраструктуры на личных виртуальных серверах (VPS).
-
-> [!IMPORTANT]
-> **AntiRKN — это панель управления инфраструктурой, а не VPN-клиент.**
-> Приложение берет на себя всю рутину по настройке серверов через защищенный SSH-канал, конфигурирует современные протоколы обхода блокировок, генерирует клиентские ключи и компилирует самодостаточные профили для приложений на базе **Mihomo (Clash.Meta)**, **Flclash**, **Clash Mi**, **Sing-box** и др.
-
-### Ключевая концепция:
-- **Zero-Cloud & Zero-Telemetry:** Никаких центральных серверов, аналитики или сторонних баз данных. Все данные хранятся только локально на вашем компьютере в зашифрованном виде (SQLite + AES-GCM).
-- **Zero-Touch Server Provisioning:** Никаких ручных bash-скриптов в терминале сервера. AntiRKN разворачивает на целевой Ubuntu изолированный системный демон `antirkn-runner` в строгой песочнице systemd и управляет им через зашифрованный IPC.
-- **Работа офлайн:** Все функции управления серверами, генерации конфигураций и раздачи по QR-кодам работают на 100% автономно без подключения к сторонним сервисам.
+> [!NOTE]
+> AntiRKN — учебный и исследовательский инструмент для администрирования **ваших собственных** серверов и изучения сетевых протоколов. Это не VPN-сервис: проект не предоставляет серверы, доступ к сети или каким-либо ресурсам. Вы отвечаете за соблюдение законов своей страны и страны, где размещён сервер. Подробно — в [отказе от ответственности](DISCLAIMER.md).
 
 ---
 
-## 🚀 Архитектура решения
+## Что это
+
+AntiRKN — панель управления, а не VPN-клиент. Вы добавляете свой сервер на Ubuntu, а приложение по SSH ставит и настраивает нужные компоненты, ведёт список пользователей и собирает для них готовые профили [Mihomo](https://github.com/MetaCubeX/mihomo). Всё, что обычно делается десятком команд и правкой конфигов вручную, здесь — несколько нажатий с понятным планом изменений перед применением.
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### 🖥️ Серверы
+Подключение по паролю, ключу или SSH-агенту, закрепление host key. Агент `antirkn-runner` работает на сервере как служба systemd и применяет изменения пошагово, с возобновлением после сбоя.
+
+</td>
+<td width="50%" valign="top">
+
+### 🔌 Протоколы
+**VLESS** (Reality, Vision, XHTTP) через 3x-ui, в том числе с подхватом уже созданных inbound. **AmneziaWG** с настраиваемыми параметрами пакетов. **TrustTunnel** с автоматическим TLS-сертификатом.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 👥 Пользователи
+Один пользователь — один профиль на все его серверы и протоколы. Доступы, отключение и отзыв применяются одним планом, статистика трафика видна по каждому клиенту.
+
+</td>
+<td valign="top">
+
+### 📦 Профили
+Самодостаточный YAML для клиентов на ядре Mihomo: группы, правила маршрутизации, свой базовый шаблон для каждого пользователя. Раздача QR-кодом или ссылкой на подписку.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 🔄 Синхронизация
+Рабочее пространство шифруется на устройстве и синхронизируется между вашими устройствами через папку приложения в **вашем** Google Drive. Есть локальные зашифрованные бэкапы.
+
+</td>
+<td valign="top">
+
+### 🔒 Приватность
+Нет своего бэкенда, аккаунтов и телеметрии. Данные хранятся локально и зашифрованы, секреты не попадают в логи. Обновления приложения подписаны.
+
+</td>
+</tr>
+</table>
+
+## Как это устроено
 
 ```mermaid
-flowchart TD
-    subgraph ClientApp["AntiRKN Manager (Ваш компьютер / Ноутбук)"]
-        UI["Material 3 GUI (Flutter)"]
-        Storage["SQLite + AES-GCM (Зашифрованная база)"]
-        Compiler["Profile Compiler (Mihomo YAML)"]
-        NativeMihomo["Встроенное Go-ядро Mihomo (Валидация и сетевые пробы)"]
-        UI --> Storage
-        UI --> Compiler
-        Compiler --> NativeMihomo
+flowchart LR
+    subgraph App["AntiRKN — Android / Windows / Linux"]
+        UI["Интерфейс Material 3"]
+        DB[("Зашифрованное<br/>хранилище")]
+        PC["Сборка профилей<br/>+ проверка ядром Mihomo"]
+        UI --- DB
+        UI --- PC
     end
 
-    subgraph SyncCloud["Личный Google Drive (Опционально)"]
-        AppData["appDataFolder (E2EE бэкап базы)"]
-        PubFiles["drive.file (Публикация подписок)"]
+    subgraph VPS["Ваш сервер — Ubuntu"]
+        R["antirkn-runner<br/>(systemd)"]
+        R --> V["VLESS / 3x-ui"]
+        R --> A["AmneziaWG"]
+        R --> T["TrustTunnel"]
     end
 
-    subgraph RemoteVPS["Ваш VPS (Ubuntu 20.04 / 22.04 / 24.04)"]
-        Runner["antirkn-runner (Изолированный демон systemd)"]
-        VLESS["VLESS (Reality / Vision / XHTTP)"]
-        AWG["AmneziaWG (DPI-обфускация)"]
-        TT["TrustTunnel (HTTP/2 TLS туннель)"]
-        Runner --> VLESS
-        Runner --> AWG
-        Runner --> TT
-    end
+    G[("Ваш Google Drive<br/>appDataFolder")]
+    D["Устройства пользователей<br/>(клиенты Mihomo)"]
 
-    subgraph EndDevices["Конечные устройства пользователей"]
-        Phone["Смартфон / ПК (Clash Mi, Flclash, Mihomo Party)"]
-    end
-
-    ClientApp -- "SSH (Ed25519 / RSA / Host Key Pinning)" --> RemoteVPS
-    ClientApp -. "E2EE синхронизация" .-> SyncCloud
-    Compiler -- "QR-код / Ссылка на подписку" --> EndDevices
-    EndDevices -- "VPN-трафик" --> RemoteVPS
+    App -- "SSH, закреплённый host key" --> R
+    App -. "зашифрованная синхронизация<br/>(необязательно)" .-> G
+    PC -- "QR / подписка" --> D
 ```
 
----
+## 📥 Установка
 
-## ⚡ Возможности
+Готовые сборки лежат в [**Releases**](https://github.com/CyberCat2033/AntiRKN/releases/latest):
 
-| Направление | Функционал |
+| Платформа | Файл |
 |---|---|
-| **Управление серверами** | Неограниченное число серверов Ubuntu x86_64; SSH аутентификация по паролю, приватным ключам или системному SSH-агенту; закрепление host key; инвентаризация интерфейсов и портов. |
-| **VLESS** | Xray / 3x-ui; маскировка Reality под TLS 1.3; режимы Vision и XHTTP (Split HTTP); бесшовное согласование (adoption) существующих инбаундов из 3x-ui; маршрутизация клиентского выхода (Client Egress). |
-| **AmneziaWG** | Защита от блокировок ТСПУ за счет настраиваемой обфускации пакетов (`Jc`, `Jmin`, `Jmax`, `S1`, `S2`, `H1`-`H4`); оптимизация `keepalive: 0` для сохранения батареи смартфонов. |
-| **TrustTunnel** | Скоростной HTTPS-туннель; автоматический выпуск и перевыпуск TLS-сертификатов Let's Encrypt / ZeroSSL через встроенный ACME-клиент. |
-| **Управление клиентами** | Добавление пользователей и устройств в один клик; распределение доступов по серверам и протоколам; индивидуальные шаблоны маршрутизации (`baseConfig`). |
-| **Экспорт конфигов** | Генерация самодостаточных YAML-профилей Mihomo (Clash.Meta) с умным разделением трафика (прямой доступ к РФ ресурсам, блокировка рекламы); живые QR-коды. |
-| **Синхронизация** | Опциональная E2EE синхронизация рабочего пространства между устройствами через Google Drive `appDataFolder`; экспорт зашифрованных локальных бэкапов (`.antirkn`). |
+| **Android** | `.apk`: под архитектуру (`arm64-v8a`, `armeabi-v7a`, `x86_64`) или universal |
+| **Windows** | установщик `.exe` или portable `.zip` |
+| **Linux** | `.AppImage` или `.tar.gz` |
 
----
+Приложение само предлагает обновиться: манифест обновлений подписан, файлы проверяются по SHA-256, а APK — по сертификату подписи. Контрольные суммы всех файлов лежат в `SHA256SUMS` к каждому релизу.
 
-## 🛠 Быстрый старт (Linux)
+**Что нужно для сервера:** VPS на Ubuntu (x86_64), доступ `root` или пользователь с `sudo`, открытые порты для выбранных протоколов. Для TrustTunnel нужен домен, указывающий на сервер.
 
-### 1. Установка системных зависимостей
-
-Для сборки требуются стандартные библиотеки сборки C++, GTK 3, Secret Service, Flutter SDK, Go и Python 3:
-
-```bash
-# Для Ubuntu / Debian:
-sudo apt update && sudo apt install -y \
-  clang cmake ninja-build pkg-config libgtk-3-dev libsecret-1-dev \
-  libjsoncpp-dev libsqlite3-dev liblzma-dev python3 golang-go git curl
-```
-
-*(Инструкции для Fedora, Arch Linux и ручной настройки Flutter смотрите в [INSTRUCTION.md](INSTRUCTION.md))*
-
-### 2. Сборка одной командой
-
-Склонируйте репозиторий и запустите автоматизированный сборочный скрипт:
+## 🛠 Сборка из исходников
 
 ```bash
 git clone https://github.com/CyberCat2033/AntiRKN.git
@@ -118,68 +121,48 @@ cd AntiRKN
 bash tool/build_linux.sh
 ```
 
-Скрипт автоматически проверит все системные зависимости, скомпилирует нативное Go-ядро, проверит динамическую линковку библиотек (`ldd`) и создаст готовый к запуску релизный архив в `apps/manager/build/releases/`.
+Понадобятся Flutter, Go и Python 3. Зависимости по дистрибутивам, ручная сборка и настройка Google Cloud для синхронизации — в [INSTRUCTION.md](INSTRUCTION.md). Как CI собирает и подписывает релизы — в [docs/release-ci.md](docs/release-ci.md).
 
-### 3. Запуск
+<details>
+<summary><b>Структура репозитория</b></summary>
 
-```bash
-cd apps/manager/build/linux/x64/release/bundle
-./antirkn_manager
+```
+apps/manager/          Flutter-приложение
+packages/
+  design_system/       тема, компоненты и motion Material 3
+  domain/              чистая доменная логика (без dart:io и Flutter)
+  profile_compiler/    сборка профилей Mihomo
+  ssh_transport/       SSH, закрепление ключей, поставка runner
+  storage/             зашифрованное SQLite-хранилище
+  sync/                синхронизация и публикация
+  integrations/        Google Drive и OAuth
+  mihomo_runtime/      связь с нативным ядром Mihomo
+  network_inventory/   сведения о сетевых интерфейсах
+native/mihomo/         обёртка над ядром Mihomo (Go)
+server/runner/         серверный агент antirkn-runner (Python 3, stdlib)
+schemas/               JSON-схемы, из которых генерируются контракты
+tool/                  сборка, генераторы, проверки (verify.sh)
 ```
 
----
+</details>
 
 ## 📚 Документация
 
-- 📘 [**INSTRUCTION.md**](INSTRUCTION.md) — Исчерпывающее руководство по сборке под Linux, установке всех тулчейнов, решению проблем компиляции и пошаговой настройке Google Cloud Console (Drive API, OAuth Desktop Client, Picker API).
-- 📗 [**USAGE.md**](USAGE.md) — Подробное иллюстрированное руководство пользователя: подключение VPS по SSH, настройка VLESS/Reality, AmneziaWG и TrustTunnel, создание клиентов, генерация QR-кодов, разрешение конфликтов синхронизации.
-- 🔒 [**PRIVACY.md**](PRIVACY.md) — Политика конфиденциальности, гарантии отсутствия сбора пользовательских данных и принципы сквозного шифрования.
+| | |
+|---|---|
+| [USAGE.md](USAGE.md) | руководство пользователя: серверы, протоколы, клиенты, профили, синхронизация |
+| [INSTRUCTION.md](INSTRUCTION.md) | сборка под Linux и настройка Google Cloud |
+| [CHANGELOG.ru.md](CHANGELOG.ru.md) | что изменилось в каждой версии |
+| [PRIVACY.md](PRIVACY.md) | какие данные использует приложение и куда они уходят |
+| [SECURITY.md](SECURITY.md) | как сообщить об уязвимости |
+| [DISCLAIMER.md](DISCLAIMER.md) | назначение проекта и отказ от ответственности |
 
----
+## 🤝 Участие
 
-## 📁 Структура монорепозитория
+Баг или идея — в [Issues](https://github.com/CyberCat2033/AntiRKN/issues). Об уязвимостях пишите не в Issues, а приватно, как описано в [SECURITY.md](SECURITY.md). Перед pull request запустите `tool/verify.sh`.
 
-```
-AntiRKN/
-├── apps/
-│   └── manager/             # Основное графическое Flutter-приложение (GUI)
-├── packages/
-│   ├── design_system/       # Дизайн-система Material Design 3, компоненты, цвета
-│   ├── domain/              # Чистая бизнес-логика (серверы, клиенты, протоколы)
-│   ├── integrations/        # Интеграция с Google Drive REST API и Desktop OAuth
-│   ├── mihomo_runtime/      # Обертка для взаимодействия с нативным ядром Mihomo
-│   ├── network_inventory/   # Сканер сетевых интерфейсов и портов
-│   ├── profile_compiler/    # Компилятор конфигураций Mihomo YAML и WireGuard
-│   ├── ssh_transport/       # SSH-транспорт (dartssh2), пиннинг ключей, бандл раннера
-│   ├── storage/             # Локальное зашифрованное хранилище SQLite и ключи
-│   └── sync/                # E2EE координатор синхронизации и очередей публикации
-├── native/
-│   └── mihomo/              # Исходный код ядра валидатора Mihomo (Go)
-├── server/
-│   └── runner/              # Серверный агент antirkn-runner (Python 3 daemon)
-├── schemas/                 # JSON-схемы валидации и release lock раннера
-└── tool/
-    ├── build_linux.sh       # Автоматизированный скрипт сборки и упаковки релиза
-    ├── check_workspace.py   # Быстрый валидатор архитектуры и локализации
-    └── verify.sh            # Полный набор тестов и статического анализа
-```
+## ⚖️ Лицензия
 
----
+AntiRKN распространяется по лицензии [GNU GPL v3.0](LICENSE). В приложение встроено ядро [Mihomo](https://github.com/MetaCubeX/mihomo) (GPL-3.0). Сторонние компоненты, которые ставятся на сервер (Xray, 3x-ui, AmneziaWG, TrustTunnel), распространяются по своим лицензиям, и их авторы не связаны с проектом.
 
-## 🔒 Безопасность и проверка кода
-
-В проекте реализован строгий контроль качества и архитектурных границ:
-- **Контроль слоев архитектуры:** Пакеты доменного слоя (`domain`, `sync`, `profile_compiler`) изолированы от платформенных зависимостей (`dart:io`, `dart:ui`).
-- **Синхронизация локализации:** Валидатор проверяет совпадение всех 1100+ RU/EN строк и подстановок.
-- **Проверка перед коммитом:**
-  ```bash
-  python3 tool/check_workspace.py
-  python3 tool/generate_runner.py --check
-  flutter analyze --no-pub
-  ```
-
----
-
-## 📄 Лицензия
-
-Проект распространяется для личного и некоммерческого использования в соответствии с правилами безопасности персональных данных. Исходный код ядра Mihomo лицензирован под GNU General Public License v3.0.
+Программа поставляется «как есть», без каких-либо гарантий. См. [DISCLAIMER.md](DISCLAIMER.md).

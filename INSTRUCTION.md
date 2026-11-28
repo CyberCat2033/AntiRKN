@@ -201,8 +201,8 @@ bash tool/build_linux.sh
 **Результат работы скрипта:**
 - Исполняемый бандл: `apps/manager/build/linux/x64/release/bundle/`
 - Исполняемый файл: `apps/manager/build/linux/x64/release/bundle/antirkn_manager`
-- Готовый архив: `apps/manager/build/releases/antirkn-linux-x64-v48-release.tar.gz`
-- Чексумма: `apps/manager/build/releases/antirkn-linux-x64-v48-release.tar.gz.sha256`
+- Готовый архив: `apps/manager/build/releases/antirkn-linux-x64-v<версия runner>-release.tar.gz` (копия последней сборки: `antirkn-linux-x64-latest.tar.gz`)
+- Чексумма: `apps/manager/build/releases/antirkn-linux-x64-v<версия runner>-release.tar.gz.sha256`
 
 ---
 
@@ -256,7 +256,7 @@ flutter run -d linux
 - Подключение неограниченного числа Ubuntu VPS по SSH (по паролю, SSH-ключам Ed25519/RSA или через системный `ssh-agent`).
 - Развертывание и управление протоколами:
   - **VLESS** (Reality, Vision, XHTTP) через встроенный модуль или согласование из 3x-ui;
-  - **AmneziaWG** (настройка портов, ключей и обфускации от блокировок РКН: `Jc`, `Jmin`, `Jmax`, `S1`, `S2`, `H1`-`H4`);
+  - **AmneziaWG** (настройка портов, ключей и параметров пакетов: `Jc`, `Jmin`, `Jmax`, `S1`, `S2`, `H1`-`H4`);
   - **TrustTunnel** (HTTP/2 TLS туннелирование, автовыпуск ACME Let's Encrypt сертификатов);
   - **Client Egress** (маршрутизация клиентов через цепочку серверов).
 - Управление базой клиентов, генерация персональных профилей и ключей.

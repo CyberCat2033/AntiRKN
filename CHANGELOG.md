@@ -6,6 +6,15 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- The project is licensed under GPL-3.0; added a disclaimer (intended use, no warranty) and a security policy.
+
+### Changed
+
+- README rewritten in Russian and English; the user guide and privacy policy are updated and list every network destination of the app.
+
+
 ## [0.1.1] - 2026-11-28
 
 ### Added
