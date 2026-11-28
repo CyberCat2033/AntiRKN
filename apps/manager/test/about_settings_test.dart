@@ -33,9 +33,7 @@ void main() {
     );
   });
 
-  testWidgets('About opens the licenses page', (
-    tester,
-  ) async {
+  testWidgets('About opens the licenses page', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         locale: const Locale('en'),
