@@ -118,7 +118,7 @@ keyPassword=…
 ## 3. GitHub: Environment `release`, секреты и переменные
 
 Settings → Environments → New environment `release`:
-- **Required reviewers**: владелец. Если владелец один, «Prevent self-review» не включайте.
+- **Required reviewers**: не задаются (решение владельца 2026-11-28: одобрять deploy вручную не нужно; защиту даёт тег-ruleset, создавать `v*` может только владелец).
 - **Deployment branches and tags**: «Selected branches and tags», добавьте правило для **тега** `v*.*.*`.
 - **Environment secrets** задаются только здесь, не на уровне репозитория:
   - `ANTIRKN_ANDROID_KEYSTORE_BASE64`: `base64 -w0 ~/antirkn-keys/antirkn-release.jks | gh secret set ANTIRKN_ANDROID_KEYSTORE_BASE64 --env release` (значение передаётся через stdin, а не через argv);
