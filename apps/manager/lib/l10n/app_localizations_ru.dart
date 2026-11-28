@@ -1884,7 +1884,7 @@ class AppLocalizationsRu extends AppLocalizations {
       'Применить выбранную ревизию ключей REALITY и пересобрать клиентские профили.';
 
   @override
-  String get realityScan => 'Проверить Target';
+  String get realityScan => 'Проверить';
 
   @override
   String get realityScanHelp =>
@@ -4921,4 +4921,241 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get aboutOpensBrowser => 'Откроется в браузере';
+
+  @override
+  String get realitySearchTitle => 'Подбор SNI';
+
+  @override
+  String get realitySearchFind => 'Подобрать';
+
+  @override
+  String get realitySearchFindHelp =>
+      'Ищет подходящие target и SNI среди соседей сервера. Проверка идёт с этого устройства.';
+
+  @override
+  String get realitySearchSource => 'Где искать';
+
+  @override
+  String get realitySearchNeighbors => 'Соседи сервера';
+
+  @override
+  String get realitySearchOwn => 'Свои адреса';
+
+  @override
+  String get realitySearchRange => 'Диапазон';
+
+  @override
+  String get realitySearchOwnAddresses => 'IP-адреса';
+
+  @override
+  String get realitySearchOwnHelp =>
+      'Через пробел, запятую или с новой строки. Только публичные адреса, не больше 256.';
+
+  @override
+  String get realitySearchNoAddresses => 'Нет подходящих адресов';
+
+  @override
+  String get realitySearchChange => 'Изменить';
+
+  @override
+  String get realitySearchNoServerAddress =>
+      'Публичный IPv4 сервера неизвестен. Подключитесь к серверу или укажите свои адреса.';
+
+  @override
+  String get realitySearchVpn =>
+      'На устройстве включён VPN, и обойти его не удалось. Свойства TLS достоверны, а задержки относятся к VPN.';
+
+  @override
+  String get realitySearchOtherNetwork =>
+      'Результаты получены в другой сети. Для этой сети начните подбор заново.';
+
+  @override
+  String get realitySearchStoreFailed =>
+      'Не удалось сохранить результаты на устройстве.';
+
+  @override
+  String get realitySearchStart => 'Начать подбор';
+
+  @override
+  String get realitySearchRestart => 'Начать заново';
+
+  @override
+  String get realitySearchStop => 'Остановить';
+
+  @override
+  String get realitySearchResume => 'Продолжить';
+
+  @override
+  String get realitySearchDiscovery => 'Ищем TLS на адресах';
+
+  @override
+  String get realitySearchConfirmation => 'Проверяем имена из сертификатов';
+
+  @override
+  String get realitySearchStability => 'Повторно проверяем лучшие';
+
+  @override
+  String get realitySearchDone => 'Подбор завершён';
+
+  @override
+  String get realitySearchCancelled => 'Подбор остановлен';
+
+  @override
+  String get realitySearchFailed => 'Подбор не завершён';
+
+  @override
+  String get realitySearchNetworkChanged => 'Сеть устройства изменилась';
+
+  @override
+  String get realitySearchRecommended => 'Рекомендуем';
+
+  @override
+  String get realitySearchOthers => 'Остальные';
+
+  @override
+  String get realitySearchNothing => 'Подходящий target не найден';
+
+  @override
+  String get realitySearchNothingHelp =>
+      'Расширьте диапазон или укажите свои адреса.';
+
+  @override
+  String get realitySearchUse => 'Использовать';
+
+  @override
+  String get realitySearchWhy => 'Почему';
+
+  @override
+  String get realitySearchDns => 'DNS';
+
+  @override
+  String get realitySearchNames => 'Имена сертификата';
+
+  @override
+  String get realitySearchPick => 'Выберите кандидата';
+
+  @override
+  String get realitySearchExport => 'Экспорт';
+
+  @override
+  String get realitySearchCopyJson => 'Копировать JSON';
+
+  @override
+  String get realitySearchCopyCsv => 'Копировать CSV';
+
+  @override
+  String get realitySearchCopied => 'Скопировано';
+
+  @override
+  String get realitySearchCopyFailed => 'Не удалось скопировать';
+
+  @override
+  String get realityLevelTls => 'TLS';
+
+  @override
+  String get realityLevelPair => 'Пара подтверждена';
+
+  @override
+  String get realityLevelCriteria => 'Подходит для REALITY';
+
+  @override
+  String get realityReasonSameNetwork => 'В той же сети, что сервер';
+
+  @override
+  String get realityReasonNearbyNetwork => 'Рядом с сетью сервера';
+
+  @override
+  String get realityReasonFarNetwork => 'Далеко от сервера';
+
+  @override
+  String get realityReasonDnsMatch => 'DNS указывает на этот адрес';
+
+  @override
+  String get realityReasonDnsMismatch => 'DNS указывает на другой адрес';
+
+  @override
+  String get realityReasonDnsUnresolved => 'DNS не подтверждён';
+
+  @override
+  String get realityReasonModernKeyExchange => 'Современное шифрование';
+
+  @override
+  String get realityReasonStable => 'Ответы стабильны';
+
+  @override
+  String get realityReasonUnstable => 'Ответы различаются';
+
+  @override
+  String get realityReasonStabilityNotChecked => 'Стабильность не проверялась';
+
+  @override
+  String get realityReasonServerNotChecked => 'С сервера не проверялся';
+
+  @override
+  String get realityReasonRedirectNotChecked => 'Редиректы не проверялись';
+
+  @override
+  String get realityReasonNotTls13 => 'Нет TLS 1.3';
+
+  @override
+  String get realityReasonNoH2 => 'Нет HTTP/2';
+
+  @override
+  String get realityReasonUnsupportedGroup => 'Неподходящий обмен ключами';
+
+  @override
+  String get realityReasonCertificateInvalid =>
+      'Сертификат не подтверждён для этого имени';
+
+  @override
+  String get realityReasonHandshakeFailed => 'TLS с этим именем не установлен';
+
+  @override
+  String get realityReasonKnownCdn => 'Адрес крупного CDN';
+
+  @override
+  String get realityReasonExpiresSoon => 'Сертификат скоро истекает';
+
+  @override
+  String realitySearchPrefix(int prefix, int count) {
+    return '/$prefix, до $count адресов';
+  }
+
+  @override
+  String realitySearchAddresses(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count адреса',
+      many: '$count адресов',
+      few: '$count адреса',
+      one: '$count адрес',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String realitySearchAbout(int seconds) {
+    return 'около $seconds с';
+  }
+
+  @override
+  String realitySearchFound(int tls, int suitable) {
+    return 'TLS найден: $tls, подходят: $suitable';
+  }
+
+  @override
+  String realitySearchFailedCode(String code) {
+    return 'Код: $code';
+  }
+
+  @override
+  String realitySearchScore(int score) {
+    return 'Оценка $score из 100';
+  }
+
+  @override
+  String realitySearchSuggested(String sni, int score) {
+    return 'Из подбора: $sni, оценка $score';
+  }
 }

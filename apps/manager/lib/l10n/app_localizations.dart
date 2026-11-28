@@ -3353,7 +3353,7 @@ abstract class AppLocalizations {
   /// No description provided for @realityScan.
   ///
   /// In en, this message translates to:
-  /// **'Scan target'**
+  /// **'Check'**
   String get realityScan;
 
   /// No description provided for @realityScanHelp.
@@ -8503,6 +8503,420 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Opens in the browser'**
   String get aboutOpensBrowser;
+
+  /// No description provided for @realitySearchTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Find SNI'**
+  String get realitySearchTitle;
+
+  /// No description provided for @realitySearchFind.
+  ///
+  /// In en, this message translates to:
+  /// **'Find'**
+  String get realitySearchFind;
+
+  /// No description provided for @realitySearchFindHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Looks for a suitable target and SNI among the server\'s neighbours. Probes run from this device.'**
+  String get realitySearchFindHelp;
+
+  /// No description provided for @realitySearchSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Where to search'**
+  String get realitySearchSource;
+
+  /// No description provided for @realitySearchNeighbors.
+  ///
+  /// In en, this message translates to:
+  /// **'Server neighbours'**
+  String get realitySearchNeighbors;
+
+  /// No description provided for @realitySearchOwn.
+  ///
+  /// In en, this message translates to:
+  /// **'Own addresses'**
+  String get realitySearchOwn;
+
+  /// No description provided for @realitySearchRange.
+  ///
+  /// In en, this message translates to:
+  /// **'Range'**
+  String get realitySearchRange;
+
+  /// No description provided for @realitySearchOwnAddresses.
+  ///
+  /// In en, this message translates to:
+  /// **'IP addresses'**
+  String get realitySearchOwnAddresses;
+
+  /// No description provided for @realitySearchOwnHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Separated by spaces, commas or lines. Public addresses only, up to 256.'**
+  String get realitySearchOwnHelp;
+
+  /// No description provided for @realitySearchNoAddresses.
+  ///
+  /// In en, this message translates to:
+  /// **'No suitable addresses'**
+  String get realitySearchNoAddresses;
+
+  /// No description provided for @realitySearchChange.
+  ///
+  /// In en, this message translates to:
+  /// **'Change'**
+  String get realitySearchChange;
+
+  /// No description provided for @realitySearchNoServerAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'The server\'s public IPv4 is unknown. Connect to the server or enter own addresses.'**
+  String get realitySearchNoServerAddress;
+
+  /// No description provided for @realitySearchVpn.
+  ///
+  /// In en, this message translates to:
+  /// **'A VPN is on and could not be bypassed. TLS properties are reliable; timings describe the VPN.'**
+  String get realitySearchVpn;
+
+  /// No description provided for @realitySearchOtherNetwork.
+  ///
+  /// In en, this message translates to:
+  /// **'These results come from another network. Start again for this network.'**
+  String get realitySearchOtherNetwork;
+
+  /// No description provided for @realitySearchStoreFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save the results on this device.'**
+  String get realitySearchStoreFailed;
+
+  /// No description provided for @realitySearchStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Start search'**
+  String get realitySearchStart;
+
+  /// No description provided for @realitySearchRestart.
+  ///
+  /// In en, this message translates to:
+  /// **'Start again'**
+  String get realitySearchRestart;
+
+  /// No description provided for @realitySearchStop.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop'**
+  String get realitySearchStop;
+
+  /// No description provided for @realitySearchResume.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get realitySearchResume;
+
+  /// No description provided for @realitySearchDiscovery.
+  ///
+  /// In en, this message translates to:
+  /// **'Looking for TLS on the addresses'**
+  String get realitySearchDiscovery;
+
+  /// No description provided for @realitySearchConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking certificate names'**
+  String get realitySearchConfirmation;
+
+  /// No description provided for @realitySearchStability.
+  ///
+  /// In en, this message translates to:
+  /// **'Re-checking the best'**
+  String get realitySearchStability;
+
+  /// No description provided for @realitySearchDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Search finished'**
+  String get realitySearchDone;
+
+  /// No description provided for @realitySearchCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Search stopped'**
+  String get realitySearchCancelled;
+
+  /// No description provided for @realitySearchFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Search did not finish'**
+  String get realitySearchFailed;
+
+  /// No description provided for @realitySearchNetworkChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'The device network changed'**
+  String get realitySearchNetworkChanged;
+
+  /// No description provided for @realitySearchRecommended.
+  ///
+  /// In en, this message translates to:
+  /// **'Recommended'**
+  String get realitySearchRecommended;
+
+  /// No description provided for @realitySearchOthers.
+  ///
+  /// In en, this message translates to:
+  /// **'Others'**
+  String get realitySearchOthers;
+
+  /// No description provided for @realitySearchNothing.
+  ///
+  /// In en, this message translates to:
+  /// **'No suitable target found'**
+  String get realitySearchNothing;
+
+  /// No description provided for @realitySearchNothingHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Widen the range or enter own addresses.'**
+  String get realitySearchNothingHelp;
+
+  /// No description provided for @realitySearchUse.
+  ///
+  /// In en, this message translates to:
+  /// **'Use'**
+  String get realitySearchUse;
+
+  /// No description provided for @realitySearchWhy.
+  ///
+  /// In en, this message translates to:
+  /// **'Why'**
+  String get realitySearchWhy;
+
+  /// No description provided for @realitySearchDns.
+  ///
+  /// In en, this message translates to:
+  /// **'DNS'**
+  String get realitySearchDns;
+
+  /// No description provided for @realitySearchNames.
+  ///
+  /// In en, this message translates to:
+  /// **'Certificate names'**
+  String get realitySearchNames;
+
+  /// No description provided for @realitySearchPick.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a candidate'**
+  String get realitySearchPick;
+
+  /// No description provided for @realitySearchExport.
+  ///
+  /// In en, this message translates to:
+  /// **'Export'**
+  String get realitySearchExport;
+
+  /// No description provided for @realitySearchCopyJson.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy JSON'**
+  String get realitySearchCopyJson;
+
+  /// No description provided for @realitySearchCopyCsv.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy CSV'**
+  String get realitySearchCopyCsv;
+
+  /// No description provided for @realitySearchCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied'**
+  String get realitySearchCopied;
+
+  /// No description provided for @realitySearchCopyFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not copy'**
+  String get realitySearchCopyFailed;
+
+  /// No description provided for @realityLevelTls.
+  ///
+  /// In en, this message translates to:
+  /// **'TLS'**
+  String get realityLevelTls;
+
+  /// No description provided for @realityLevelPair.
+  ///
+  /// In en, this message translates to:
+  /// **'Pair verified'**
+  String get realityLevelPair;
+
+  /// No description provided for @realityLevelCriteria.
+  ///
+  /// In en, this message translates to:
+  /// **'Fits REALITY'**
+  String get realityLevelCriteria;
+
+  /// No description provided for @realityReasonSameNetwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Same network as the server'**
+  String get realityReasonSameNetwork;
+
+  /// No description provided for @realityReasonNearbyNetwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Near the server\'s network'**
+  String get realityReasonNearbyNetwork;
+
+  /// No description provided for @realityReasonFarNetwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Far from the server'**
+  String get realityReasonFarNetwork;
+
+  /// No description provided for @realityReasonDnsMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'DNS points to this address'**
+  String get realityReasonDnsMatch;
+
+  /// No description provided for @realityReasonDnsMismatch.
+  ///
+  /// In en, this message translates to:
+  /// **'DNS points to another address'**
+  String get realityReasonDnsMismatch;
+
+  /// No description provided for @realityReasonDnsUnresolved.
+  ///
+  /// In en, this message translates to:
+  /// **'DNS not confirmed'**
+  String get realityReasonDnsUnresolved;
+
+  /// No description provided for @realityReasonModernKeyExchange.
+  ///
+  /// In en, this message translates to:
+  /// **'Modern key exchange'**
+  String get realityReasonModernKeyExchange;
+
+  /// No description provided for @realityReasonStable.
+  ///
+  /// In en, this message translates to:
+  /// **'Answers are stable'**
+  String get realityReasonStable;
+
+  /// No description provided for @realityReasonUnstable.
+  ///
+  /// In en, this message translates to:
+  /// **'Answers differ'**
+  String get realityReasonUnstable;
+
+  /// No description provided for @realityReasonStabilityNotChecked.
+  ///
+  /// In en, this message translates to:
+  /// **'Stability not checked'**
+  String get realityReasonStabilityNotChecked;
+
+  /// No description provided for @realityReasonServerNotChecked.
+  ///
+  /// In en, this message translates to:
+  /// **'Not checked from the server'**
+  String get realityReasonServerNotChecked;
+
+  /// No description provided for @realityReasonRedirectNotChecked.
+  ///
+  /// In en, this message translates to:
+  /// **'Redirects not checked'**
+  String get realityReasonRedirectNotChecked;
+
+  /// No description provided for @realityReasonNotTls13.
+  ///
+  /// In en, this message translates to:
+  /// **'No TLS 1.3'**
+  String get realityReasonNotTls13;
+
+  /// No description provided for @realityReasonNoH2.
+  ///
+  /// In en, this message translates to:
+  /// **'No HTTP/2'**
+  String get realityReasonNoH2;
+
+  /// No description provided for @realityReasonUnsupportedGroup.
+  ///
+  /// In en, this message translates to:
+  /// **'Unsuitable key exchange'**
+  String get realityReasonUnsupportedGroup;
+
+  /// No description provided for @realityReasonCertificateInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Certificate not verified for this name'**
+  String get realityReasonCertificateInvalid;
+
+  /// No description provided for @realityReasonHandshakeFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'No TLS with this name'**
+  String get realityReasonHandshakeFailed;
+
+  /// No description provided for @realityReasonKnownCdn.
+  ///
+  /// In en, this message translates to:
+  /// **'Address of a large CDN'**
+  String get realityReasonKnownCdn;
+
+  /// No description provided for @realityReasonExpiresSoon.
+  ///
+  /// In en, this message translates to:
+  /// **'Certificate expires soon'**
+  String get realityReasonExpiresSoon;
+
+  /// No description provided for @realitySearchPrefix.
+  ///
+  /// In en, this message translates to:
+  /// **'/{prefix}, up to {count} addresses'**
+  String realitySearchPrefix(int prefix, int count);
+
+  /// No description provided for @realitySearchAddresses.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{{count} address} other{{count} addresses}}'**
+  String realitySearchAddresses(int count);
+
+  /// No description provided for @realitySearchAbout.
+  ///
+  /// In en, this message translates to:
+  /// **'about {seconds} s'**
+  String realitySearchAbout(int seconds);
+
+  /// No description provided for @realitySearchFound.
+  ///
+  /// In en, this message translates to:
+  /// **'TLS found: {tls}, suitable: {suitable}'**
+  String realitySearchFound(int tls, int suitable);
+
+  /// No description provided for @realitySearchFailedCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Code: {code}'**
+  String realitySearchFailedCode(String code);
+
+  /// No description provided for @realitySearchScore.
+  ///
+  /// In en, this message translates to:
+  /// **'Score {score} of 100'**
+  String realitySearchScore(int score);
+
+  /// No description provided for @realitySearchSuggested.
+  ///
+  /// In en, this message translates to:
+  /// **'From the search: {sni}, score {score}'**
+  String realitySearchSuggested(String sni, int score);
 }
 
 class _AppLocalizationsDelegate

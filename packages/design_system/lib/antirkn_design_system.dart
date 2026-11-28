@@ -2170,7 +2170,10 @@ class AppFormAction extends StatelessWidget {
   final Key? buttonKey;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      Align(alignment: AlignmentDirectional.centerStart, child: _button());
+
+  Widget _button() {
     Widget button = FilledButton.tonalIcon(
       key: buttonKey,
       onPressed: busy ? null : onPressed,
@@ -2185,8 +2188,21 @@ class AppFormAction extends StatelessWidget {
     if (tooltip case final message?) {
       button = Tooltip(message: message, child: button);
     }
-    return Align(alignment: AlignmentDirectional.centerStart, child: button);
+    return button;
   }
+}
+
+/// Several form actions side by side; they wrap under each other when the
+/// width or the text size leaves no room.
+class AppFormActionRow extends StatelessWidget {
+  const AppFormActionRow({required this.actions, super.key});
+  final List<AppFormAction> actions;
+  @override
+  Widget build(BuildContext context) => Wrap(
+    spacing: AppLayout.smallGap,
+    runSpacing: AppLayout.smallGap,
+    children: [for (final a in actions) a._button()],
+  );
 }
 
 /// An on/off setting inside a form section. Its text lines up with the text

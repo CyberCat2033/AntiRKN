@@ -18,6 +18,8 @@ import '../runner/runner_controller.dart';
 import '../runner/panel_login_view.dart';
 import 'vpn_plan_view.dart';
 import 'reality_scan_result.dart';
+import 'reality_search_controller.dart';
+import 'reality_target_page.dart';
 import 'relay_inbound_view.dart';
 import '../protocol_icon.dart';
 
@@ -104,8 +106,49 @@ class InboundsPanelState extends State<InboundsPanel> {
     }
   }
 
+  RealitySearchController? _search;
+
+  /// One search per server while this panel lives; null without an engine.
+  RealitySearchController? get realitySearch {
+    final scanner = controller.tlsScanner;
+    final network = controller.connections.engine?.network;
+    if (scanner == null || network == null) return null;
+    if (_search?.serverId != serverId) {
+      _search?.dispose();
+      _search = RealitySearchController(
+        serverId: serverId,
+        store: controller.connections.store,
+        search: RealityTargetSearch(
+          transport: scanner,
+          network: network.network,
+        ),
+      );
+    }
+    return _search;
+  }
+
+  /// The server's public IPv4 whose neighbours are searched; '' if unknown.
+  String get serverIpv4 {
+    final inventory = network.inventory;
+    if (inventory?.serverId == serverId) {
+      for (final a in inventory!.addresses) {
+        if (a.address.family == IpFamily.ipv4 &&
+            a.address.category == IpCategory.publicUnicast) {
+          return a.address.canonical;
+        }
+      }
+    }
+    final host = IpAddress.tryParse(serverHost);
+    return host != null &&
+            host.family == IpFamily.ipv4 &&
+            host.category == IpCategory.publicUnicast
+        ? host.canonical
+        : '';
+  }
+
   @override
   void dispose() {
+    _search?.dispose();
     widget.runner?.removeListener(_checkDiscovery);
     widget.controller.removeListener(_rediscoverAfterJob);
     ownSelection.dispose();
@@ -988,6 +1031,9 @@ class InboundsPanelState extends State<InboundsPanel> {
         ),
       );
     }
+    final search = realitySearch;
+    await search?.ready;
+    if (!context.mounted) return;
     final result = await showDialog<VlessInbound>(
       context: context,
       builder: (context) => InboundForm(
@@ -997,6 +1043,15 @@ class InboundsPanelState extends State<InboundsPanel> {
         inbound: inbound,
         defaultEndpoint: serverHost,
         scanReality: runner?.scanReality,
+        findTarget: search == null
+            ? null
+            : (context) => showRealityTargetSearch(
+                context,
+                controller: search,
+                serverAddress: serverIpv4,
+                motion: motion,
+              ),
+        suggested: search?.best,
       ),
       animationStyle: AnimationStyle(
         duration: AppMotion.duration(context, motion),
@@ -1021,6 +1076,8 @@ class InboundForm extends StatefulWidget {
     this.inbound,
     this.defaultEndpoint = '',
     this.scanReality,
+    this.findTarget,
+    this.suggested,
     super.key,
   });
   final String serverId;
@@ -1031,6 +1088,13 @@ class InboundForm extends StatefulWidget {
   final String defaultEndpoint;
   final Future<Map<String, dynamic>?> Function(String target, String sni)?
   scanReality;
+
+  /// Opens the REALITY target search; the form keeps its draft meanwhile.
+  final Future<RealityTargetChoice?> Function(BuildContext context)? findTarget;
+
+  /// The best result of a finished search on this server, offered to a new
+  /// inbound.
+  final RealityCandidate? suggested;
   @override
   State<InboundForm> createState() => _InboundFormState();
 }
@@ -1070,10 +1134,36 @@ class _InboundFormState extends State<InboundForm> {
   late bool automaticSni =
       fields['sni']!.text.isEmpty ||
       fields['sni']!.text == realityTargetHost(fields['target']!.text);
+
+  /// An XHTTP inbound with the generic `/` path gets a generated one when
+  /// its target is checked or chosen; a path of the person's own is kept.
+  void _fillXhttpPath() {
+    if (spec['transport'] == 'xhttp' &&
+        isDefaultXhttpPath(fields['path']!.text)) {
+      fields['path']!.text = newXhttpPath();
+    }
+  }
+
+  /// Fills Target and SNI with a verified pair; SNI no longer follows Target.
+  void useTarget(RealityTargetChoice choice) => setState(() {
+    fields['target']!.text = choice.target;
+    fields['sni']!.text = choice.sni;
+    automaticSni = false;
+    scanResult = null;
+    scanFailed = false;
+    _fillXhttpPath();
+  });
+
+  Future<void> findTarget() async {
+    final choice = await widget.findTarget?.call(context);
+    if (choice != null && mounted) useTarget(choice);
+  }
+
   Future<void> scan() async {
     final target = normalizeRealityTarget(fields['target']!.text.trim());
     final sni = fields['sni']!.text.trim();
     setState(() {
+      _fillXhttpPath();
       scanning = true;
       scanFailed = false;
       scanResult = null;
@@ -1256,18 +1346,47 @@ class _InboundFormState extends State<InboundForm> {
                   l.vpnTarget,
                   error: scanFailed ? l.realityScanFailed : null,
                 ),
-                AppFormAction(
-                  buttonKey: const ValueKey('vpn-reality-scan'),
-                  icon: Icons.radar,
-                  label: l.realityScan,
-                  tooltip: l.realityScanHelp,
-                  busy: scanning,
-                  onPressed:
-                      widget.scanReality == null ||
-                          fields['target']!.text.trim().isEmpty
-                      ? null
-                      : scan,
+                AppFormActionRow(
+                  actions: [
+                    if (widget.findTarget != null)
+                      AppFormAction(
+                        buttonKey: const ValueKey('vpn-reality-find'),
+                        icon: Icons.travel_explore,
+                        label: l.realitySearchFind,
+                        tooltip: l.realitySearchFindHelp,
+                        onPressed: scanning ? null : findTarget,
+                      ),
+                    AppFormAction(
+                      buttonKey: const ValueKey('vpn-reality-scan'),
+                      icon: Icons.radar,
+                      label: l.realityScan,
+                      tooltip: l.realityScanHelp,
+                      busy: scanning,
+                      onPressed:
+                          widget.scanReality == null ||
+                              fields['target']!.text.trim().isEmpty
+                          ? null
+                          : scan,
+                    ),
+                  ],
                 ),
+                if (widget.suggested case final best?
+                    when widget.inbound == null &&
+                        fields['target']!.text != realityChoice(best).target)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: AppFormHint(
+                          l.realitySearchSuggested(best.target.sni, best.score),
+                        ),
+                      ),
+                      TextButton(
+                        key: const ValueKey('vpn-reality-suggested'),
+                        onPressed: () => useTarget(realityChoice(best)),
+                        child: Text(l.realitySearchUse),
+                      ),
+                    ],
+                  ),
                 if (scanResult case final result?)
                   RealityScanResultView(
                     result: result,
